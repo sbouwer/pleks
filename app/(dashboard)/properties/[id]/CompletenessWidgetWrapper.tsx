@@ -124,11 +124,11 @@ async function fetchSchemeContact(
   if (!schemeId) return false
   const { data: scheme, error: schemeError } = await service
     .from("managing_schemes")
-    .select("managing_agent_email, managing_agent_name")
+    .select("managing_agent_contact_id")
     .eq("id", schemeId)
     .maybeSingle()
   if (schemeError) console.error("fetchSchemeContact failed:", schemeError.message)
-  return !!(scheme?.managing_agent_email || scheme?.managing_agent_name)
+  return !!scheme?.managing_agent_contact_id
 }
 
 async function fetchUnitsBreakdown(
@@ -197,7 +197,7 @@ export async function CompletenessWidgetWrapper({ propertyId, orgId, isOwnerProB
     fetchLandlordInfo(service, property.landlord_id, property.owner_email),
     fetchSchemeContact(service, property.managing_scheme_id),
     fetchUnitsBreakdown(service, propertyId),
-    service.from("property_brokers").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
+    service.from("property_brokers").select("property_id", { count: "exact", head: true }).eq("property_id", propertyId),
     service.from("property_documents").select("id", { count: "exact", head: true }).eq("property_id", propertyId).is("deleted_at", null),
     service.from("property_insurance_checklists").select("state").eq("property_id", propertyId).neq("state", "not_applicable"),
   ])

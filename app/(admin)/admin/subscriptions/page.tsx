@@ -23,7 +23,7 @@ export default async function AdminSubscriptionsPage() {
   const sevenDays = new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000)
   const { data: expiringTrials, error: expiringTrialsError } = await supabase
     .from("subscriptions")
-    .select("org_id, tier, status, trial_ends_at, founding_agent, amount_cents, period_end:current_period_end, organisations(name)")
+    .select("org_id, tier, status, trial_ends_at, amount_cents, period_end:current_period_end, organisations(name, founding_agent)")
     .eq("status", "trialing")
     .eq("trial_converted", false)
     .lte("trial_ends_at", sevenDays.toISOString())
@@ -34,7 +34,7 @@ export default async function AdminSubscriptionsPage() {
   // All subscriptions
   const { data: subs, error: subsError } = await supabase
     .from("subscriptions")
-    .select("org_id, tier, status, amount_cents, period_end:current_period_end, trial_ends_at, founding_agent, organisations(name)")
+    .select("org_id, tier, status, amount_cents, period_end:current_period_end, trial_ends_at, organisations(name, founding_agent)")
     .order("created_at", { ascending: false })
     logQueryError("AdminSubscriptionsPage subscriptions", subsError)
 
@@ -150,7 +150,7 @@ export default async function AdminSubscriptionsPage() {
                       {s.status === "trialing" ? "Yes" : "—"}
                     </td>
                     <td className="text-center py-2">
-                      {s.founding_agent ? "Yes" : "—"}
+                      {(s.organisations as unknown as { founding_agent: boolean | null } | null)?.founding_agent ? "Yes" : "—"}
                     </td>
                   </tr>
                 )

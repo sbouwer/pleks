@@ -102,13 +102,14 @@ async function fetchScheme(db: Db, schemeId: string | null): Promise<SchemeInfo>
   if (!schemeId) return { bodyCorpName: null, bodyCorpAgent: null }
   const { data: scheme, error: schemeError } = await db
     .from("managing_schemes")
-    .select("name, managing_agent_name")
+    .select("name, agent:contacts!managing_agent_contact_id(company_name, first_name, last_name)")
     .eq("id", schemeId)
     .single()
     logQueryError("fetchScheme managing_schemes", schemeError)
+  const agent = scheme?.agent as unknown as { company_name: string | null; first_name: string | null; last_name: string | null } | null
   return {
     bodyCorpName:  (scheme?.name as string | null) ?? null,
-    bodyCorpAgent: (scheme?.managing_agent_name as string | null) ?? null,
+    bodyCorpAgent: agent?.company_name?.trim() || [agent?.first_name, agent?.last_name].filter(Boolean).join(" ").trim() || null,
   }
 }
 
