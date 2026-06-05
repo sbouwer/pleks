@@ -150,7 +150,7 @@ async function getActiveLease(
     .select(`
       id, status, lease_type, start_date, end_date,
       monthly_rent_cents:rent_amount_cents, deposit_cents:deposit_amount_cents,
-      escalation_rate:escalation_percent, next_escalation_date, payment_due_day,
+      escalation_rate:escalation_percent, next_escalation_date:escalation_review_date, payment_due_day,
       template_source, generated_doc_path, external_document_path,
       payment_reference, unit_id
     `)
@@ -180,7 +180,7 @@ async function getLeaseById(
     .select(`
       id, status, lease_type, start_date, end_date,
       monthly_rent_cents:rent_amount_cents, deposit_cents:deposit_amount_cents,
-      escalation_rate:escalation_percent, next_escalation_date, payment_due_day,
+      escalation_rate:escalation_percent, next_escalation_date:escalation_review_date, payment_due_day,
       template_source, generated_doc_path, external_document_path,
       payment_reference, unit_id
     `)

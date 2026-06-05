@@ -467,7 +467,7 @@ async function fetchInsuranceData(
   const [{ data: brokerRow }, { data: buildings }, { data: claims }, { data: checklistRows }] = await Promise.all([
     service
       .from("property_brokers")
-      .select("broker_contact_id, auto_notify_critical, notify_channels, after_hours_number, notes, contacts(id, first_name, last_name, company_name, email, phone)")
+      .select("broker_contact_id, auto_notify_critical, notify_channels, after_hours_number, notes, contacts(id, first_name, last_name, company_name, primary_email, primary_phone)")
       .eq("property_id", propertyId)
       .maybeSingle(),
     service
@@ -507,8 +507,8 @@ async function fetchInsuranceData(
     broker = {
       broker_contact_id:    b.broker_contact_id as string,
       broker_name:          brokerName,
-      broker_email:         (c?.email as string | null) ?? null,
-      broker_phone:         (c?.phone as string | null) ?? null,
+      broker_email:         (c?.primary_email as string | null) ?? null,
+      broker_phone:         (c?.primary_phone as string | null) ?? null,
       auto_notify_critical: (b.auto_notify_critical as boolean) ?? true,
       notify_channels:      (b.notify_channels as string[]) ?? ["email"],
       after_hours_number:   (b.after_hours_number as string | null) ?? null,
@@ -571,10 +571,10 @@ async function fetchSchemeData(
 
   const [managingAgentRes, emergencyContactRes] = await Promise.all([
     managingAgentId
-      ? service.from("contacts").select("first_name, last_name, company_name, email, phone").eq("id", managingAgentId).single()
+      ? service.from("contacts").select("first_name, last_name, company_name, primary_email, primary_phone").eq("id", managingAgentId).single()
       : Promise.resolve({ data: null }),
     emergencyContactId
-      ? service.from("contacts").select("first_name, last_name, company_name, phone").eq("id", emergencyContactId).single()
+      ? service.from("contacts").select("first_name, last_name, company_name, primary_phone").eq("id", emergencyContactId).single()
       : Promise.resolve({ data: null }),
   ])
 
@@ -597,10 +597,10 @@ async function fetchSchemeData(
     csos_ombud_contact:       (s.csos_ombud_contact as string | null) ?? null,
     notes:                    (s.notes as string | null) ?? null,
     managing_agent_name:      contactName(ma),
-    managing_agent_email:     (ma?.email as string | null) ?? null,
-    managing_agent_phone:     (ma?.phone as string | null) ?? null,
+    managing_agent_email:     (ma?.primary_email as string | null) ?? null,
+    managing_agent_phone:     (ma?.primary_phone as string | null) ?? null,
     emergency_contact_name:   contactName(ec),
-    emergency_contact_phone:  (ec?.phone as string | null) ?? null,
+    emergency_contact_phone:  (ec?.primary_phone as string | null) ?? null,
     levy_amount_cents:        levyAmountCents,
   }
 }

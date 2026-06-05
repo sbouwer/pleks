@@ -268,7 +268,7 @@ async function gatherSubjectData(
 
   const { data: inspections, error: inspectionsError } = await db
     .from("inspections")
-    .select("id, inspection_type, inspection_date, outcome")
+    .select("id, inspection_type, inspection_date:conducted_date, outcome:overall_condition")
     .eq("org_id", request.org_id)
     .in(
       "lease_id",

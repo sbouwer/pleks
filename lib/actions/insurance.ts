@@ -98,13 +98,13 @@ export async function createInsuranceChecklistOwnerRequest(
     if (landlordRow?.contact_id) {
       const { data: contact, error: contactError } = await service
         .from("contacts")
-        .select("first_name, last_name, email")
+        .select("first_name, last_name, primary_email")
         .eq("id", landlordRow.contact_id as string)
         .maybeSingle()
         logQueryError("createInsuranceChecklistOwnerRequest contacts", contactError)
 
       if (contact) {
-        recipientEmail = (contact.email as string | null) ?? null
+        recipientEmail = (contact.primary_email as string | null) ?? null
         const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(" ")
         if (fullName) ownerName = fullName
       }

@@ -183,7 +183,7 @@ export async function sendDocument(
     const { data: lease, error: leaseError } = await db
       .from("leases")
       .select(
-        "id, rent_cents:rent_amount_cents, tenants(full_name), units(unit_number, properties(name))"
+        "id, rent_cents:rent_amount_cents, tenants(contact:contacts(first_name, last_name, company_name)), units(unit_number, properties(name))"
       )
       .eq("id", leaseId)
       .eq("org_id", orgId)
@@ -193,10 +193,11 @@ export async function sendDocument(
     if (lease) {
       const leaseData = lease as unknown as {
         rent_cents: number
-        tenants: { full_name: string } | null
+        tenants: { contact: { first_name: string | null; last_name: string | null; company_name: string | null } | null } | null
         units: { unit_number: string; properties: { name: string } | null } | null
       }
-      mergeValues["tenant.full_name"] = leaseData.tenants?.full_name ?? ""
+      const tc = leaseData.tenants?.contact
+      mergeValues["tenant.full_name"] = tc?.company_name?.trim() || [tc?.first_name, tc?.last_name].filter(Boolean).join(" ").trim() || ""
       mergeValues["unit.number"] = leaseData.units?.unit_number ?? ""
       mergeValues["property.name"] = leaseData.units?.properties?.name ?? ""
       mergeValues["lease.rent_amount"] = `R ${(leaseData.rent_cents / 100).toFixed(2)}`

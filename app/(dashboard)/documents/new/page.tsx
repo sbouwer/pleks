@@ -66,7 +66,7 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
     const { data: lease, error: leaseError } = await db
       .from("leases")
       .select(
-        "id, rent_cents:rent_amount_cents, tenants(full_name), units(unit_number, properties(name))"
+        "id, rent_cents:rent_amount_cents, tenants(contact:contacts(first_name, last_name, company_name)), units(unit_number, properties(name))"
       )
       .eq("id", leaseId)
       .eq("org_id", orgId)
@@ -77,12 +77,14 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
       const leaseData = lease as unknown as {
         id: string
         rent_cents: number
-        tenants: { full_name: string } | null
+        tenants: { contact: { first_name: string | null; last_name: string | null; company_name: string | null } | null } | null
         units: { unit_number: string; properties: { name: string } | null } | null
       }
+      const c = leaseData.tenants?.contact
+      const tenantName = c?.company_name?.trim() || [c?.first_name, c?.last_name].filter(Boolean).join(" ").trim() || "Unknown tenant"
       leaseContext = {
         leaseId: leaseData.id,
-        tenantName: leaseData.tenants?.full_name ?? "Unknown tenant",
+        tenantName,
         unitNumber: leaseData.units?.unit_number ?? "",
         propertyName: leaseData.units?.properties?.name ?? "",
         rentCents: leaseData.rent_cents,

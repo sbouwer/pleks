@@ -33,7 +33,7 @@ export default async function PortalPaymentsPage() {
       .single(),
     // Full payment history
     service.from("payments")
-      .select("id, payment_date, amount_cents, payment_method, reference, description")
+      .select("id, payment_date, amount_cents, payment_method, reference")
       .eq("lease_id", leaseId)
       .eq("org_id", orgId)
       .order("payment_date", { ascending: false })
@@ -140,7 +140,7 @@ export default async function PortalPaymentsPage() {
               <div key={p.id} className="flex items-center justify-between px-5 py-3">
                 <div>
                   <p className="text-sm font-medium">
-                    {p.description ?? "Rental payment"}
+                    {p.reference ?? "Rental payment"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {new Date(p.payment_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}

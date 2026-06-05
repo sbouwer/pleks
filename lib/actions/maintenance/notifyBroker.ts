@@ -51,12 +51,12 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
   // Fetch broker contact email
   const { data: contact, error: contactError } = await db
     .from("contacts")
-    .select("id, first_name, last_name, email")
+    .select("id, first_name, last_name, primary_email")
     .eq("id", brokerRow.broker_contact_id)
     .single()
     logQueryError("notifyBroker contacts", contactError)
 
-  if (!contact?.email) return { skipped: "no_broker_email" }
+  if (!contact?.primary_email) return { skipped: "no_broker_email" }
 
   const brokerName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Broker"
 
@@ -125,7 +125,7 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
   const result = await sendEmail({
     orgId:       params.orgId,
     templateKey: "incident.critical_broker",
-    to: { email: brokerResolved?.email ?? contact.email, name: brokerResolved?.name ?? brokerName, contactId: brokerResolved?.contactId ?? contact.id },
+    to: { email: brokerResolved?.email ?? contact.primary_email, name: brokerResolved?.name ?? brokerName, contactId: brokerResolved?.contactId ?? contact.id },
     subject:     `Critical incident: ${params.incidentTitle} — ${params.propertyName}`,
     emailElement: React.createElement(CriticalIncidentBrokerEmail, emailProps),
     bodyPreview: `Critical incident reported at ${params.propertyName}: ${params.incidentTitle}`,

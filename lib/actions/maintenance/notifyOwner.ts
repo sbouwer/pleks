@@ -41,15 +41,15 @@ export async function notifyOwner(params: NotifyOwnerParams): Promise<{ logId?: 
   // Fetch the property landlord contact
   const { data: landlord, error: landlordError } = await db
     .from("landlords")
-    .select("contact_id, contacts(first_name, last_name, email)")
+    .select("contact_id, contacts(first_name, last_name, primary_email)")
     .eq("property_id", params.propertyId)
     .single()
     logQueryError("notifyOwner landlords", landlordError)
 
   if (!landlord?.contact_id) return { skipped: "no_landlord" }
 
-  const contact = landlord.contacts as unknown as { first_name: string; last_name: string; email: string | null } | null
-  if (!contact?.email) return { skipped: "no_owner_email" }
+  const contact = landlord.contacts as unknown as { first_name: string; last_name: string; primary_email: string | null } | null
+  if (!contact?.primary_email) return { skipped: "no_owner_email" }
 
   const ownerName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Owner"
 
@@ -78,7 +78,7 @@ export async function notifyOwner(params: NotifyOwnerParams): Promise<{ logId?: 
   const result = await sendEmail({
     orgId:       params.orgId,
     templateKey: "incident.critical_owner",
-    to: { email: ownerResolved?.email ?? contact.email, name: ownerResolved?.name ?? ownerName, contactId: ownerResolved?.contactId ?? landlord.contact_id },
+    to: { email: ownerResolved?.email ?? contact.primary_email, name: ownerResolved?.name ?? ownerName, contactId: ownerResolved?.contactId ?? landlord.contact_id },
     subject:     `Incident update: ${params.incidentTitle} — ${params.propertyName}`,
     emailElement: React.createElement(CriticalIncidentOwnerEmail, emailProps),
     bodyPreview: `Critical incident at ${params.propertyName}: ${params.incidentTitle}`,

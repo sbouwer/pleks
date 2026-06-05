@@ -333,11 +333,12 @@ async function fetchDepositsHeld(
 
   const { data: contacts, error: contactsErr } = await db
     .from("contacts")
-    .select("id, full_name")
+    .select("id, first_name, last_name, company_name")
     .in("id", contactIds)
   if (contactsErr) console.error("[generateAuditExport] contacts query failed:", contactsErr.message)
 
-  const contactNameMap = new Map((contacts ?? []).map(c => [c.id, c.full_name]))
+  const contactNameMap = new Map((contacts ?? []).map(c =>
+    [c.id, c.company_name?.trim() || [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || null]))
 
   return (leases ?? [])
     .map(lease => {

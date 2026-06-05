@@ -61,12 +61,12 @@ export async function notifyScheme(params: NotifySchemeParams): Promise<{ skippe
 
   const { data: contact, error: contactError } = await db
     .from("contacts")
-    .select("id, first_name, last_name, email")
+    .select("id, first_name, last_name, primary_email")
     .eq("id", contactId)
     .single()
     logQueryError("notifyScheme contacts", contactError)
 
-  if (!contact?.email) return { skipped: "no_scheme_email" }
+  if (!contact?.primary_email) return { skipped: "no_scheme_email" }
 
   const contactName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Managing agent"
 
@@ -94,7 +94,7 @@ export async function notifyScheme(params: NotifySchemeParams): Promise<{ skippe
   const result = await sendEmail({
     orgId:       params.orgId,
     templateKey: "incident.critical_scheme",
-    to: { email: schemeResolved?.email ?? contact.email, name: schemeResolved?.name ?? contactName, contactId: schemeResolved?.contactId ?? contact.id },
+    to: { email: schemeResolved?.email ?? contact.primary_email, name: schemeResolved?.name ?? contactName, contactId: schemeResolved?.contactId ?? contact.id },
     subject:     `Critical incident: ${params.incidentTitle} — ${params.propertyName}`,
     emailElement: React.createElement(CriticalIncidentSchemeEmail, emailProps),
     bodyPreview: `Critical incident at ${params.propertyName}: ${params.incidentTitle}`,
