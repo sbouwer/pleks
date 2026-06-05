@@ -115,7 +115,7 @@ async function fetchLeaseDetails(
     .select("unit_id, units!inner(property_id)")
     .eq("id", leaseId)
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (error || !data) {
     leaseDetailsCache.set(leaseId, null)

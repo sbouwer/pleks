@@ -292,7 +292,7 @@ async function upsertProperty(
   if (cached) return cached
 
   const { data: existing, error: existingError } = await ctx.supabase
-    .from("properties").select("id").eq("org_id", ctx.orgId).ilike("name", propertyName).limit(1).single()
+    .from("properties").select("id").eq("org_id", ctx.orgId).ilike("name", propertyName).limit(1).maybeSingle()
   if (existingError) console.error("importRunner properties lookup failed:", existingError.message)
 
   if (existing) {
@@ -346,7 +346,7 @@ async function upsertUnit(
   if (cached) return cached
 
   const { data: existing, error: existingError } = await ctx.supabase
-    .from("units").select("id").eq("property_id", propertyId).ilike("unit_number", group.unitNumber).limit(1).single()
+    .from("units").select("id").eq("property_id", propertyId).ilike("unit_number", group.unitNumber).limit(1).maybeSingle()
   if (existingError) console.error("importRunner units lookup failed:", existingError.message)
 
   if (existing) {
@@ -475,7 +475,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
 
   try {
     const { data: existing, error: existingError } = await ctx.supabase
-      .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
+      .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).maybeSingle()
     if (existingError) console.error("importRunner contacts lookup failed:", existingError.message)
 
     if (existing) {
@@ -601,7 +601,7 @@ async function insertSingleTenant(params: {
   if (ctx.tenantIdCache.has(email)) return
 
   const { data: existing, error: existingError } = await ctx.supabase
-    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
+    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).maybeSingle()
   if (existingError) console.error("importRunner contacts lookup failed:", existingError.message)
 
   if (existing) {
@@ -861,12 +861,12 @@ async function resolveTenantIdForHistory(
 
   // 2. Try existing contact → tenant
   const { data: existingContact, error: existingContactError } = await ctx.supabase
-    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
+    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).maybeSingle()
   if (existingContactError) console.error("importRunner prev-tenant contacts lookup failed:", existingContactError.message)
 
   if (existingContact) {
     const { data: existingTenant, error: existingTenantError } = await ctx.supabase
-      .from("tenants").select("id").eq("contact_id", existingContact.id).limit(1).single()
+      .from("tenants").select("id").eq("contact_id", existingContact.id).limit(1).maybeSingle()
     if (existingTenantError) console.error("importRunner prev-tenant tenants lookup failed:", existingTenantError.message)
     if (existingTenant) {
       const tenantId = String(existingTenant.id)
@@ -1145,7 +1145,7 @@ async function isExistingVendor(
       .eq("org_id", orgId)
       .ilike("email", email)
       .limit(1)
-      .single()
+      .maybeSingle()
     if (byEmailError) console.error("importRunner contractor_view email lookup failed:", byEmailError.message)
     if (byEmail) return true
   }
@@ -1157,7 +1157,7 @@ async function isExistingVendor(
       .eq("org_id", orgId)
       .ilike("company_name", displayName)
       .limit(1)
-      .single()
+      .maybeSingle()
     if (byNameError) console.error("importRunner contractor_view name lookup failed:", byNameError.message)
     if (byName) return true
   }
@@ -1280,7 +1280,7 @@ async function importLandlords(
         .eq("org_id", ctx.orgId)
         .ilike("owner_email", email)
         .limit(1)
-        .single()
+        .maybeSingle()
       logIfError("importRunner properties owner_email lookup failed", existingPropertyError)
 
       if (existingProperty) {
@@ -1295,7 +1295,7 @@ async function importLandlords(
         .eq("org_id", ctx.orgId)
         .ilike("email", email)
         .limit(1)
-        .single()
+        .maybeSingle()
       logIfError("importRunner landlord_view email lookup failed", existingPendingError)
 
       if (existingPending) {
@@ -1419,7 +1419,7 @@ async function importAgents(
         .eq("org_id", ctx.orgId)
         .ilike("email", email)
         .limit(1)
-        .single()
+        .maybeSingle()
       if (existingInviteError) console.error("importRunner invites lookup failed:", existingInviteError.message)
 
       if (existingInvite) {

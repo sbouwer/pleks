@@ -60,7 +60,7 @@ async function resolveUnitByAddress(
     .ilike("unit_number", `%${unitNum}%`)
     .is("deleted_at", null)
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("resolveUnitByAddress units", unitByNumberError)
 
   if (unitByNumber) {
@@ -160,7 +160,7 @@ export async function importLeases(
       .ilike("email", row.tenant_email)
       .is("deleted_at", null)
       .limit(1)
-      .single()
+      .maybeSingle()
     logQueryError("importLeases tenant_view", tenantError)
 
     if (!tenant) {
