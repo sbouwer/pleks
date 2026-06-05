@@ -17,6 +17,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { buildBranding } from "@/lib/comms/send-email"
 import { sendDormancyWarning, sendDormancyFinal } from "@/lib/subscriptions/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { getUserEmail } from "@/lib/auth/userEmail"
 
 const DORMANCY_DAYS       = parseInt(process.env.DORMANCY_DAYS       ?? "60", 10)
 const DORMANCY_WARN_DAYS  = parseInt(process.env.DORMANCY_WARN_DAYS  ?? "30", 10)
@@ -28,7 +29,7 @@ type OrgRow = Record<string, unknown> & { id: string; name: string }
 async function fetchOrgContact(supabase: SupabaseClient, orgId: string, orgName: string, orgRow: Record<string, unknown> | null) {
   const { data: adminRow, error: adminRowError } = await supabase
     .from("user_orgs")
-    .select("user_profiles(email, full_name)")
+    .select("user_id, user_profiles(full_name)")
     .eq("org_id", orgId)
     .in("role", ["owner", "agent"])
     .is("deleted_at", null)
@@ -37,14 +38,15 @@ async function fetchOrgContact(supabase: SupabaseClient, orgId: string, orgName:
     .maybeSingle()
     logQueryError("fetchOrgContact user_orgs", adminRowError)
 
-  const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
-  if (!profile?.email) return null
+  const profile = adminRow?.user_profiles as unknown as { full_name?: string } | null
+  const adminEmail = await getUserEmail(supabase, adminRow?.user_id as string | null)
+  if (!adminEmail) return null
 
   return {
     orgId,
     orgName,
-    adminEmail: profile.email,
-    adminName: profile.full_name ?? undefined,
+    adminEmail,
+    adminName: profile?.full_name ?? undefined,
     branding: buildBranding(orgRow as Parameters<typeof buildBranding>[0]),
   }
 }

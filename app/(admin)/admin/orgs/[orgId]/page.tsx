@@ -29,7 +29,7 @@ export default async function AdminOrgDetailPage({
     supabase.from("subscriptions").select("*").eq("org_id", orgId).single(),
     supabase
       .from("user_orgs")
-      .select("role, created_at, user_profiles(full_name, email)")
+      .select("user_id, role, created_at, user_profiles(full_name)")
       .eq("org_id", orgId)
       .order("created_at", { ascending: true }),
     supabase
@@ -44,6 +44,10 @@ export default async function AdminOrgDetailPage({
   const sub = subRes.data
   const members = membersRes.data ?? []
   const auditEntries = auditRes.data ?? []
+
+  // Member emails live on auth.users, not user_profiles — resolve via one admin lookup + map.
+  const { data: authList } = await supabase.auth.admin.listUsers({ perPage: 1000 })
+  const emailById = new Map((authList?.users ?? []).map((u) => [u.id, u.email ?? null]))
 
   if (!org) {
     return (
@@ -199,14 +203,11 @@ export default async function AdminOrgDetailPage({
             </thead>
             <tbody>
               {members.map((m, i) => {
-                const profile = m.user_profiles as unknown as {
-                  full_name: string | null
-                  email: string | null
-                } | null
+                const profile = m.user_profiles as unknown as { full_name: string | null } | null
                 return (
                   <tr key={i} className="border-b border-border/50">
                     <td className="py-2">{profile?.full_name ?? "—"}</td>
-                    <td className="py-2">{profile?.email ?? "—"}</td>
+                    <td className="py-2">{emailById.get(m.user_id as string) ?? "—"}</td>
                     <td className="py-2 capitalize text-xs">{m.role}</td>
                     <td className="py-2 text-xs">{formatDateShort(new Date(m.created_at))}</td>
                   </tr>

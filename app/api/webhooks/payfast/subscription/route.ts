@@ -13,6 +13,7 @@ import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
+import { getUserEmail } from "@/lib/auth/userEmail"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import {
   sendSubscriptionActivated,
@@ -44,7 +45,7 @@ async function fetchContext(supabase: SupabaseClient, orgId: string) {
       .single(),
     supabase
       .from("user_orgs")
-      .select("user_profiles(email, full_name)")
+      .select("user_id, user_profiles(full_name)")
       .eq("org_id", orgId)
       .in("role", ["owner", "agent"])
       .is("deleted_at", null)
@@ -55,12 +56,10 @@ async function fetchContext(supabase: SupabaseClient, orgId: string) {
 
   const sub = subResult.data as SubRow | null
   const org = orgResult.data
-  const profile = adminResult.data?.user_profiles as unknown as {
-    email: string
-    full_name?: string | null
-  } | null
+  const profile = adminResult.data?.user_profiles as unknown as { full_name?: string | null } | null
+  const adminEmail = await getUserEmail(supabase, adminResult.data?.user_id as string | null)
 
-  return { sub, org, profile }
+  return { sub, org, profile, adminEmail }
 }
 
 const TIER_AMOUNTS: Record<string, number> = {
@@ -70,7 +69,7 @@ const TIER_AMOUNTS: Record<string, number> = {
 }
 
 async function handleFailed(supabase: SupabaseClient, orgId: string) {
-  const { sub, org, profile } = await fetchContext(supabase, orgId)
+  const { sub, org, profile, adminEmail } = await fetchContext(supabase, orgId)
 
   // Idempotent: only enter past_due from active/trialing
   if (!sub || ["past_due", "paused", "cancelled", "purged"].includes(sub.status)) return
@@ -88,12 +87,12 @@ async function handleFailed(supabase: SupabaseClient, orgId: string) {
     new_values: { action: "subscription_past_due_entered", trigger: "payfast_itn_failed" },
   })
 
-  if (org && profile?.email) {
+  if (org && adminEmail) {
     void sendPastDueFirst({
       orgId,
       orgName: org.name,
-      adminEmail: profile.email,
-      adminName: profile.full_name ?? undefined,
+      adminEmail,
+      adminName: profile?.full_name ?? undefined,
       branding: buildBranding(await fetchOrgSettings(orgId)),
     })
   }
@@ -106,7 +105,7 @@ async function handleComplete(
   billingCycle: "monthly" | "annual",
   payfastToken: string,
 ) {
-  const { sub, org, profile } = await fetchContext(supabase, orgId)
+  const { sub, org, profile, adminEmail } = await fetchContext(supabase, orgId)
   const wasRecovery = sub?.status === "past_due"
   const isInitialActivation = !sub || sub.status === "trialing"
   const periodDays = billingCycle === "annual" ? 365 : 30
@@ -138,12 +137,12 @@ async function handleComplete(
     },
   })
 
-  if (org && profile?.email) {
+  if (org && adminEmail) {
     const orgContact = {
       orgId,
       orgName: org.name,
-      adminEmail: profile.email,
-      adminName: profile.full_name ?? undefined,
+      adminEmail,
+      adminName: profile?.full_name ?? undefined,
       branding: buildBranding(await fetchOrgSettings(orgId)),
     }
     if (wasRecovery) {

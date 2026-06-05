@@ -6,6 +6,7 @@
  */
 
 import { createServiceClient } from "@/lib/supabase/server"
+import { getUserEmail } from "@/lib/auth/userEmail"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { getOrgDisplayName } from "@/lib/org/displayName"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -78,7 +79,7 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
   // Fetch agent email
   const { data: agentRow, error: agentRowError } = await service
     .from("user_orgs")
-    .select("user_profiles(email)")
+    .select("user_id")
     .eq("org_id", app.org_id as string)
     .eq("role", "agent")
     .is("deleted_at", null)
@@ -86,7 +87,7 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
     .maybeSingle()
     logQueryError("buildEmailContext user_orgs", agentRowError)
 
-  const agentEmail = (agentRow?.user_profiles as unknown as { email: string } | null)?.email ?? undefined
+  const agentEmail = (await getUserEmail(service, agentRow?.user_id as string | null)) ?? undefined
 
   // Fetch most recent access token
   const { data: tokenRow, error: tokenRowError } = await service

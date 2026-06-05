@@ -54,6 +54,7 @@ import { SYNTHESIS_TEMPLATE_VERSION } from "@/lib/screening/prompts/synthesisTem
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { sendScreeningComplete } from "@/lib/applications/emails"
 import type { createServiceClient } from "@/lib/supabase/server"
+import { getUserEmail } from "@/lib/auth/userEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export const CURRENT_INTERPRETATION_VERSION = 'interpretation.v1.0'
@@ -135,21 +136,17 @@ async function maybeFireScreeningEmail(
   // Fetch org settings (name, branding, email)
   const orgSettings = await fetchOrgSettings(orgId)
 
-  // Fetch agent email from user_orgs → user_profiles
+  // Fetch agent email from auth.users (not user_profiles — email isn't there); fall back to org email.
   const { data: agentRow, error: agentRowError } = await supabase
     .from('user_orgs')
-    .select('user_profiles(email)')
+    .select('user_id')
     .eq('org_id', orgId)
     .in('role', ['agent', 'property_manager', 'owner'])
     .is('deleted_at', null)
     .limit(1)
     .maybeSingle()
     logQueryError("maybeFireScreeningEmail user_orgs", agentRowError)
-  const rawProfile = agentRow?.user_profiles
-  const profileEmail: string | undefined = Array.isArray(rawProfile)
-    ? rawProfile[0]?.email
-    : (rawProfile as unknown as { email: string } | null)?.email
-  const agentEmail = profileEmail ?? orgSettings?.email ?? null
+  const agentEmail = (await getUserEmail(supabase, agentRow?.user_id as string | null)) ?? orgSettings?.email ?? null
   if (!agentEmail) return
 
   // Fetch unit label and property name

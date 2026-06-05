@@ -10,6 +10,7 @@
  */
 import { gateway } from "@/lib/supabase/gateway"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { getUserEmail } from "@/lib/auth/userEmail"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import {
   sendPausedManual,
@@ -31,7 +32,7 @@ async function fetchOrgContact(service: Awaited<ReturnType<typeof createServiceC
       .single(),
     service
       .from("user_orgs")
-      .select("user_profiles(email, full_name)")
+      .select("user_id, user_profiles(full_name)")
       .eq("org_id", orgId)
       .in("role", ["owner", "agent"])
       .is("deleted_at", null)
@@ -39,13 +40,14 @@ async function fetchOrgContact(service: Awaited<ReturnType<typeof createServiceC
       .limit(1)
       .maybeSingle(),
   ])
-  const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
-  if (!org || !profile?.email) return null
+  const profile = adminRow?.user_profiles as unknown as { full_name?: string } | null
+  const adminEmail = await getUserEmail(service, adminRow?.user_id as string | null)
+  if (!org || !adminEmail) return null
   return {
     orgId,
     orgName: org.name ?? "Pleks",
-    adminEmail: profile.email,
-    adminName: profile.full_name ?? undefined,
+    adminEmail,
+    adminName: profile?.full_name ?? undefined,
     branding: buildBranding(await fetchOrgSettings(orgId)),
   }
 }

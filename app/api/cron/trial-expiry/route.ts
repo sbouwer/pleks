@@ -10,6 +10,7 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { getUserEmail } from "@/lib/auth/userEmail"
 import {
   sendTrialExpired,
   sendTrialEndingSoon,
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
         .single(),
       supabase
         .from("user_orgs")
-        .select("user_profiles(email, full_name)")
+        .select("user_id, user_profiles(full_name)")
         .eq("org_id", orgId)
         .in("role", ["owner", "agent"])
         .is("deleted_at", null)
@@ -45,14 +46,15 @@ export async function GET(req: NextRequest) {
         .maybeSingle(),
     ])
 
-    const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
-    if (!profile?.email) return null
+    const profile = adminRow?.user_profiles as unknown as { full_name?: string } | null
+    const adminEmail = await getUserEmail(supabase, adminRow?.user_id as string | null)
+    if (!adminEmail) return null
 
     return {
       orgId,
       orgName: org?.name ?? "Pleks",
-      adminEmail: profile.email,
-      adminName: profile.full_name ?? undefined,
+      adminEmail,
+      adminName: profile?.full_name ?? undefined,
       branding: buildBranding(await fetchOrgSettings(orgId)),
     }
   }

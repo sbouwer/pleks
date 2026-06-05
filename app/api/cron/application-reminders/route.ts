@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendReviewReminder } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { getUserEmail } from "@/lib/auth/userEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
 
     const { data: agentRow, error: agentRowError } = await service
       .from("user_orgs")
-      .select("user_profiles(email, full_name)")
+      .select("user_id, user_profiles(full_name)")
       .eq("org_id", orgId)
       .eq("role", "agent")
       .is("deleted_at", null)
@@ -70,8 +71,9 @@ export async function GET(req: NextRequest) {
       .maybeSingle()
     logQueryError("GET user_orgs", agentRowError)
 
-    const agentProfile = agentRow?.user_profiles as unknown as { email: string; full_name: string } | null
-    if (!agentProfile?.email) continue
+    const agentProfile = agentRow?.user_profiles as unknown as { full_name: string } | null
+    const agentEmail = await getUserEmail(service, agentRow?.user_id as string | null)
+    if (!agentEmail) continue
 
     const branding = buildBranding(await fetchOrgSettings(orgId))
     const pending = (apps ?? []).map((a) => {
@@ -86,7 +88,7 @@ export async function GET(req: NextRequest) {
     })
 
     void sendReviewReminder(
-      { orgId, orgName: org?.name ?? "Pleks", agentEmail: agentProfile.email, agentName: agentProfile.full_name, branding },
+      { orgId, orgName: org?.name ?? "Pleks", agentEmail, agentName: agentProfile?.full_name, branding },
       pending
     )
   }

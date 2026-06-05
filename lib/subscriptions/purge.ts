@@ -9,6 +9,7 @@
  *         Safety: SENTINEL_ORG_ID (…0001) and DECOY_ORG_ID (…0003) are refused.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { getUserEmail } from "@/lib/auth/userEmail"
 import { SENTINEL_ORG_ID } from "@/lib/subscriptions/retention"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendPurgedConfirm } from "@/lib/subscriptions/emails"
@@ -58,7 +59,7 @@ export async function purgeOrg(orgId: string, reason: PurgeReason): Promise<void
       .single(),
     supabase
       .from("user_orgs")
-      .select("user_profiles(email, full_name)")
+      .select("user_id, user_profiles(full_name)")
       .eq("org_id", orgId)
       .in("role", ["owner", "agent"])
       .is("deleted_at", null)
@@ -74,7 +75,9 @@ export async function purgeOrg(orgId: string, reason: PurgeReason): Promise<void
       .maybeSingle(),
   ])
 
-  const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
+  const profile = adminRow?.user_profiles as unknown as { full_name?: string } | null
+  // Resolve the admin email BEFORE the cascade (auth.users isn't org-scoped, but capture it up front).
+  const adminEmail = await getUserEmail(supabase, adminRow?.user_id as string | null)
 
   // Capture branding BEFORE cascade — the org row is anonymised by the cascade below.
   const orgSettings = await fetchOrgSettings(orgId)
@@ -93,7 +96,7 @@ export async function purgeOrg(orgId: string, reason: PurgeReason): Promise<void
   await purgeOrgStorage(supabase, orgId)
 
   // Send purged_confirm email (fire-and-forget — org is already anonymised)
-  if (profile?.email) {
+  if (adminEmail) {
     const now = new Date()
     const purgedDate = now.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
     const cancelledDate = sub?.cancelled_at
@@ -103,9 +106,9 @@ export async function purgeOrg(orgId: string, reason: PurgeReason): Promise<void
       {
         orgId,
         orgName: org?.name ?? "Your agency",
-        adminEmail: profile.email,
-        adminName: profile.full_name ?? undefined,
-        recipientEmail: profile.email,
+        adminEmail,
+        adminName: profile?.full_name ?? undefined,
+        recipientEmail: adminEmail,
         branding: buildBranding(orgSettings),
       },
       {

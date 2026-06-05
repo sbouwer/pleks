@@ -12,6 +12,7 @@ import { createClient } from "@supabase/supabase-js"
 import { calculatePrescreen } from "@/lib/applications/prescreen"
 import { sendApplicationReceived, sendAgentApplicationNotification } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { getUserEmail } from "@/lib/auth/userEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Fetch agent email
   const { data: agentRow, error: agentRowError } = await service
     .from("user_orgs")
-    .select("user_id, user_profiles(email)")
+    .select("user_id")
     .eq("org_id", app.org_id as string)
     .eq("role", "agent")
     .is("deleted_at", null)
@@ -101,7 +102,7 @@ export async function POST(req: NextRequest, { params }: Props) {
     .maybeSingle()
     logQueryError("POST user_orgs", agentRowError)
 
-  const agentEmail = (agentRow?.user_profiles as unknown as { email: string } | null)?.email ?? null
+  const agentEmail = await getUserEmail(service, agentRow?.user_id as string | null)
 
   const branding = buildBranding(await fetchOrgSettings(app.org_id as string))
   const orgContext = {
