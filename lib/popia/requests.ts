@@ -112,7 +112,6 @@ export async function listControllersForSubject(userId: string): Promise<Control
     .from("user_orgs_tenants")
     .select("org_id, organisations(name)")
     .eq("user_id", userId)
-    .is("deleted_at", null)
     logQueryError("listControllersForSubject user_orgs_tenants", tenantLinksError)
 
   for (const link of (tenantLinks ?? []) as OrgLink[]) {

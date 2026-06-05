@@ -43,9 +43,8 @@ export default async function PortalPaymentsPage() {
       .select("bank_name, account_number, branch_code, account_type, account_holder")
       .eq("org_id", orgId)
       .eq("type", "trust")
-      .is("deleted_at", null)
       .limit(1)
-      .single(),
+      .maybeSingle(),
   ])
 
   const invoice = invoiceRes.data

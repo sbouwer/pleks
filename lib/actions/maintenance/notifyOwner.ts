@@ -38,17 +38,19 @@ interface NotifyOwnerParams {
 export async function notifyOwner(params: NotifyOwnerParams): Promise<{ logId?: string; skipped?: string }> {
   const db = await createServiceClient()
 
-  // Fetch the property landlord contact
-  const { data: landlord, error: landlordError } = await db
-    .from("landlords")
-    .select("contact_id, contacts(first_name, last_name, primary_email)")
-    .eq("property_id", params.propertyId)
-    .single()
-    logQueryError("notifyOwner landlords", landlordError)
+  // Fetch the property's landlord contact. landlords has no property_id — the link is
+  // properties.landlord_id → landlords (so query via the property, not landlords.property_id).
+  const { data: property, error: propertyError } = await db
+    .from("properties")
+    .select("landlords(contact_id, contacts(first_name, last_name, primary_email))")
+    .eq("id", params.propertyId)
+    .maybeSingle()
+    logQueryError("notifyOwner properties", propertyError)
 
+  const landlord = property?.landlords as unknown as { contact_id: string; contacts: { first_name: string; last_name: string; primary_email: string | null } | null } | null
   if (!landlord?.contact_id) return { skipped: "no_landlord" }
 
-  const contact = landlord.contacts as unknown as { first_name: string; last_name: string; primary_email: string | null } | null
+  const contact = landlord.contacts
   if (!contact?.primary_email) return { skipped: "no_owner_email" }
 
   const ownerName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Owner"

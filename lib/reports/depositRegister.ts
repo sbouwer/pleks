@@ -103,7 +103,7 @@ export async function buildDepositRegister(filters: ReportFilters): Promise<Depo
     .select("id, tenant_id, amount_cents, direction, transaction_type, created_at, leases(end_date, status, units(unit_number, properties(name))), tenants(contacts(first_name, last_name, company_name, entity_type))")
     .eq("org_id", orgId)
     .in("transaction_type", ["deposit_received", "interest_accrued", "deduction_applied", "deposit_returned_to_tenant"])
-    .order("transaction_date", { ascending: true })
+    .order("created_at", { ascending: true })
 
   if (error) console.error("depositRegister:", error.message)
 

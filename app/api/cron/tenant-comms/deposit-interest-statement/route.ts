@@ -74,8 +74,8 @@ export async function GET(req: NextRequest) {
         .select("amount_cents, effective_rate_percent")
         .eq("lease_id", lease.id)
         .eq("transaction_type", "interest_accrued")
-        .gte("transaction_date", periodFrom.toISOString().split("T")[0])
-        .lte("transaction_date", periodTo.toISOString().split("T")[0])
+        .gte("created_at", periodFrom.toISOString().split("T")[0])
+        .lte("created_at", periodTo.toISOString().split("T")[0])
         logQueryError("GET deposit_transactions", interestTxnsError)
 
       const interestThisPeriod = (interestTxns ?? []).reduce(

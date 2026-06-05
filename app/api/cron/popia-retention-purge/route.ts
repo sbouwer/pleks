@@ -41,12 +41,14 @@ async function purgeRejectedApplications(
   cutoff.setMonth(cutoff.getMonth() - 12)
   const result: CatResult = { evaluated: 0, deleted: 0, skipped_carveout: 0 }
 
+  // applications has no `status`/`decided_at` — rejected = stage1 not_shortlisted OR stage2
+  // declined/withdrawn; anchor on created_at (the isErasableNow gate uses created_at too).
   const { data: rows, error: rowsError } = await db
     .from("applications")
     .select("id, created_at")
     .eq("org_id", orgId)
-    .in("status", ["rejected", "withdrawn"])
-    .lt("decided_at", cutoff.toISOString())
+    .or("stage1_status.eq.not_shortlisted,stage2_status.eq.declined,stage2_status.eq.withdrawn")
+    .lt("created_at", cutoff.toISOString())
     logQueryError("purgeRejectedApplications applications", rowsError)
 
   for (const row of rows ?? []) {

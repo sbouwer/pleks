@@ -165,8 +165,7 @@ export async function fetchBrokerBriefData(propertyId: string): Promise<BrokerBr
     .from("property_brokers")
     .select("contacts(first_name, last_name, company_name, primary_email, primary_phone)")
     .eq("property_id", propertyId)
-    .eq("is_primary", true)
-    .single()
+    .maybeSingle()
     logQueryError("fetchBrokerBriefData property_brokers", brokerRowError)
 
   const broker = brokerRow?.contacts as unknown as {

@@ -101,7 +101,7 @@ export default function TrustLedgerPage() {
         supabase.from("trust_transactions").select("direction, amount_cents").eq("org_id", orgId),
         supabase.from("bank_recon_sessions").select("period_end").eq("org_id", orgId).eq("status", "signed_off").order("period_end", { ascending: false }).limit(1),
         supabase.from("organisations").select("name, trading_as, ppra_ffc_number").eq("id", orgId).single(),
-        supabase.from("bank_accounts").select("bank_name, account_number").eq("org_id", orgId).eq("type", "trust").eq("is_primary", true).maybeSingle(),
+        supabase.from("bank_accounts").select("bank_name, account_number").eq("org_id", orgId).eq("type", "trust").maybeSingle(),
       ])
       let totalIn = 0
       let totalOut = 0
