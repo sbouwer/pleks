@@ -11,7 +11,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { generateBundle, signedDownloadUrl } from "@/lib/exports/bundle"
 import type { DataSubjectRequest } from "./requests"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { resolveSubject } from "./anonymiseIdentity"
+import { resolveSubject, subjectLeaseIds } from "./anonymiseIdentity"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -245,26 +245,18 @@ async function gatherSubjectData(
     .single()
     logQueryError("gatherSubjectData organisations", orgError)
 
+  // Resolve the subject once — drives the lease set (tenant → leases) and the comms count (→ contact).
+  // There is no `lease_parties` table; subjectLeaseIds is the shared tenant→leases source (PR-1).
+  const resolvedSubject = await resolveSubject(db, {
+    org_id: request.org_id, user_id: request.subject_user_id, email: request.subject_email,
+  })
+  const leaseIds = await subjectLeaseIds(db, request.org_id, resolvedSubject.tenantId)
   const { data: leases, error: leasesError } = await db
     .from("leases")
     .select("id, start_date, end_date, status, monthly_rental:rent_amount_cents")
     .eq("org_id", request.org_id)
-    .in(
-      "id",
-      (await db
-        .from("lease_parties")
-        .select("lease_id")
-        .eq("org_id", request.org_id)
-        .eq("user_id", request.subject_user_id ?? "")).data?.map(
-          (r: { lease_id: string }) => r.lease_id,
-        ) ?? [],
-    )
-    logQueryError("gatherSubjectData leases", leasesError)
-
-  // communication_log has no user_id — it keys on contact_id. Resolve the subject's contact first.
-  const resolvedSubject = await resolveSubject(db, {
-    org_id: request.org_id, user_id: request.subject_user_id, email: request.subject_email,
-  })
+    .in("id", leaseIds)
+  logQueryError("gatherSubjectData leases", leasesError)
   let communications_count = 0
   if (resolvedSubject.contactId) {
     const { count, error: commErr } = await db

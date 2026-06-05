@@ -10,6 +10,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { resolveSubject, subjectLeaseIds } from "./anonymiseIdentity"
 
 // ─── Category enum ────────────────────────────────────────────────────────────
 // Every table-group purged by the cron or erasure cascade is mapped to a category.
@@ -249,20 +250,15 @@ export async function getRetentionForSubject(
   subjectUserId: string,
   orgId: string,
 ): Promise<{ category: DataCategory; decision: RetentionDecision }[]> {
-  // Fetch the subject's active lease to determine context
-  const db = createServiceClient()
-  const { data: leases, error: leasesError } = await (await db)
+  // Fetch the subject's latest lease for context. No `lease_parties` table — resolve tenant→leases (PR-1).
+  const db = await createServiceClient()
+  const resolved = await resolveSubject(db, { org_id: orgId, user_id: subjectUserId })
+  const leaseIds = await subjectLeaseIds(db, orgId, resolved.tenantId)
+  const { data: leases, error: leasesError } = await db
     .from("leases")
     .select("status, end_date")
     .eq("org_id", orgId)
-    .in(
-      "id",
-      (await (await db)
-        .from("lease_parties")
-        .select("lease_id")
-        .eq("org_id", orgId)
-        .eq("user_id", subjectUserId)).data?.map((r: { lease_id: string }) => r.lease_id) ?? [],
-    )
+    .in("id", leaseIds)
     .order("start_date", { ascending: false })
     .limit(1)
     logQueryError("getRetentionForSubject leases", leasesError)

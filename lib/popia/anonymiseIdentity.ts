@@ -127,6 +127,25 @@ export async function resolveSubject(db: Db, subject: AnonymiseSubjectInput): Pr
   return { orgId, userId, contactId, tenantId, landlordId, applicationIds }
 }
 
+/**
+ * Lease ids a tenant-subject is party to: primary tenant on the lease (leases.tenant_id) ∪ co-tenant
+ * (lease_co_tenants.tenant_id → lease_id). There is NO `lease_parties` table — this is the one true
+ * source for "the subject's leases", shared by the DSAR export + retention so the lookup can't drift.
+ */
+export async function subjectLeaseIds(db: Db, orgId: string, tenantId: string | null): Promise<string[]> {
+  if (!tenantId) return []
+  const ids = new Set<string>()
+  const { data: primary, error: pErr } = await db
+    .from("leases").select("id").eq("org_id", orgId).eq("tenant_id", tenantId)
+  if (pErr) console.error("subjectLeaseIds leases:", pErr.message)
+  for (const r of primary ?? []) ids.add(r.id as string)
+  const { data: co, error: cErr } = await db
+    .from("lease_co_tenants").select("lease_id").eq("org_id", orgId).eq("tenant_id", tenantId)
+  if (cErr) console.error("subjectLeaseIds lease_co_tenants:", cErr.message)
+  for (const r of co ?? []) ids.add(r.lease_id as string)
+  return [...ids]
+}
+
 /** The id(s) a group keys on, or null/[] if the subject has none. */
 function idsForGroup(resolved: ResolvedSubject, keyFrom: KeyFrom): { single: string | null; list: string[] } {
   switch (keyFrom) {

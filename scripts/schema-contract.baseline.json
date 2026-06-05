@@ -1,8 +1,1 @@
-{
-  "app/api/applications/[id]/submit/route.ts::rpc-missing::increment_listing_applications::function does not exist": 1,
-  "lib/import/importRunner.ts::relation::notes::table/view does not exist": 1,
-  "lib/popia/export.ts::relation::lease_parties::table/view does not exist": 1,
-  "lib/popia/requests.ts::relation::user_orgs_contractors::table/view does not exist": 1,
-  "lib/popia/requests.ts::relation::user_orgs_landlords::table/view does not exist": 1,
-  "lib/popia/retention.ts::relation::lease_parties::table/view does not exist": 1
-}
+{}

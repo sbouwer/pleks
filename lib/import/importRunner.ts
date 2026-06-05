@@ -949,39 +949,21 @@ async function createTenancyHistory(
 
 // ── Phase 6: Notes ─────────────────────────────────────────────────────
 
-async function writeNoteForEntry(
+function reportUnmappedColumns(
   entry: UnitGroupEntry,
-  unitId: string,
   ctx: ImportContext
-): Promise<void> {
-  const extras = getExtraColumns(entry.row, ctx.mapping)
-  if (Object.keys(extras).length === 0) return
-
-  const email = getField(entry.row, "email", ctx.mapping).toLowerCase()
-  const tenantId = ctx.tenantIdCache.get(email)
-
-  const noteLines = Object.entries(extras)
-    .map(([col, val]) => `${col}: ${val}`)
-    .join("\n")
-
-  try {
-    const { error } = await ctx.supabase.from("notes").insert({
-      org_id: ctx.orgId,
-      entity_type: tenantId ? "tenant" : "unit",
-      entity_id: tenantId ?? unitId,
-      content: `Imported data:\n${noteLines}`,
-      created_by: ctx.agentId,
-    })
-
-    if (error) {
-      ctx.result.errors.push({ rowIndex: entry.index, field: "notes", message: `Failed to create note: ${error.message}`, severity: "warning" })
-    } else {
-      ctx.result.notesCreated++
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error"
-    ctx.result.errors.push({ rowIndex: entry.index, field: "notes", message: `Note error: ${msg}`, severity: "warning" })
-  }
+): void {
+  const cols = Object.keys(getExtraColumns(entry.row, ctx.mapping))
+  if (cols.length === 0) return
+  // There is no generic `notes` table (only lease_notes); the old insert 42703'd into a swallowing
+  // try/catch, silently dropping these. Surface the unmapped columns in the import report instead (PR-3)
+  // rather than building a generic notes table for an import nicety.
+  ctx.result.errors.push({
+    rowIndex: entry.index,
+    field: "notes",
+    message: `Unmapped columns not imported: ${cols.join(", ")}`,
+    severity: "warning",
+  })
 }
 
 async function writeNotes(
@@ -993,7 +975,7 @@ async function writeNotes(
     if (!unitId) continue
 
     for (const entry of group.rows) {
-      await writeNoteForEntry(entry, unitId, ctx)
+      reportUnmappedColumns(entry, ctx)
     }
   }
 }

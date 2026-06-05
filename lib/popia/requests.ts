@@ -126,13 +126,13 @@ export async function listControllersForSubject(userId: string): Promise<Control
     })
   }
 
-  // Landlord memberships
+  // Landlord memberships — no user_orgs_landlords bridge exists; landlords carry auth_user_id + org_id (PR-2).
   const { data: landlordLinks, error: landlordLinksError } = await (await db)
-    .from("user_orgs_landlords")
+    .from("landlords")
     .select("org_id, organisations(name)")
-    .eq("user_id", userId)
+    .eq("auth_user_id", userId)
     .is("deleted_at", null)
-    logQueryError("listControllersForSubject user_orgs_landlords", landlordLinksError)
+    logQueryError("listControllersForSubject landlords", landlordLinksError)
 
   for (const link of (landlordLinks ?? []) as OrgLink[]) {
     const name = orgName(link)
@@ -147,13 +147,13 @@ export async function listControllersForSubject(userId: string): Promise<Control
     })
   }
 
-  // Supplier/contractor memberships
+  // Supplier/contractor memberships — no user_orgs_contractors bridge; contractors carry auth_user_id + org_id (PR-2).
   const { data: supplierLinks, error: supplierLinksError } = await (await db)
-    .from("user_orgs_contractors")
+    .from("contractors")
     .select("org_id, organisations(name)")
-    .eq("user_id", userId)
+    .eq("auth_user_id", userId)
     .is("deleted_at", null)
-    logQueryError("listControllersForSubject user_orgs_contractors", supplierLinksError)
+    logQueryError("listControllersForSubject contractors", supplierLinksError)
 
   for (const link of (supplierLinks ?? []) as OrgLink[]) {
     const name = orgName(link)

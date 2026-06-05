@@ -145,15 +145,15 @@ export async function POST(req: NextRequest, { params }: Props) {
   })
 
   if (agentEmail) {
-    const applicationsCount = ((listing?.applications_count as number) ?? 0) + 1
-    void sendAgentApplicationNotification(appSummary, listingSummary, orgContext, { applicationsCount })
-  }
-
-  // Increment listing applications_count
-  if (listing?.id) {
-    try {
-      await service.rpc("increment_listing_applications", { listing_id: listing.id as string })
-    } catch { /* ignore if RPC doesn't exist yet */ }
+    // Derive the live count (count(*) where listing_id) — no stored counter or rpc to drift (PR-4:
+    // increment_listing_applications never existed, so the counter never moved). Includes the
+    // application just inserted above.
+    const { count, error: countErr } = await service
+      .from("applications")
+      .select("id", { count: "exact", head: true })
+      .eq("listing_id", listing?.id as string ?? "")
+    if (countErr) console.error("submit applications count:", countErr.message)
+    void sendAgentApplicationNotification(appSummary, listingSummary, orgContext, { applicationsCount: count ?? 0 })
   }
 
   return NextResponse.json({ ok: true })
