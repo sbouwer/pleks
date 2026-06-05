@@ -48,7 +48,8 @@ const ALL: SubjectType[] = ["applicant", "tenant", "landlord"]
 
 /**
  * The strip-set. Grouped by §7 section. Redaction values reflect live-schema nullability
- * (2026-06-04) — keep in sync if the schema moves (the executor re-derives nullability defensively).
+ * (2026-06-04) — keep in sync if the schema moves; as a backstop the executor coerces a plan `null`
+ * to REDACTED on a NOT-NULL violation at write time (anonymiseIdentity.ts stripGroup, R-4).
  */
 export const ANONYMISE_PLAN: AnonymiseGroup[] = [
   // ── §7 A — canonical identity (contacts + child tables) ──────────────────────

@@ -13,7 +13,7 @@
 import type { createServiceClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { planForSubject, type SubjectType, type KeyFrom } from "./anonymisePlan"
+import { planForSubject, REDACTED, type SubjectType, type KeyFrom, type AnonymiseGroup } from "./anonymisePlan"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -51,6 +51,45 @@ export const MANUAL_REVIEW_TARGETS: ReadonlyArray<{ table: string; field: string
   { table: "(documents/storage)", field: "PDF/photo contents", note: "lease docs, inspection photos — out-of-band" },
 ]
 
+type RoleTable = "tenants" | "landlords"
+
+async function roleByUser(db: Db, table: RoleTable, orgId: string, userId: string): Promise<{ id: string; contactId: string | null } | null> {
+  const { data, error } = await db.from(table).select("id, contact_id").eq("org_id", orgId).eq("auth_user_id", userId).maybeSingle()
+  logQueryError(`resolveSubject ${table} by user`, error)
+  return data ? { id: data.id as string, contactId: (data.contact_id as string | null) ?? null } : null
+}
+
+async function roleIdByContact(db: Db, table: RoleTable, orgId: string, contactId: string): Promise<string | null> {
+  const { data, error } = await db.from(table).select("id").eq("org_id", orgId).eq("contact_id", contactId).maybeSingle()
+  logQueryError(`resolveSubject ${table} by contact`, error)
+  return (data?.id as string | undefined) ?? null
+}
+
+async function contactByEmail(db: Db, orgId: string, email: string): Promise<string | null> {
+  const { data, error } = await db.from("contacts").select("id").eq("org_id", orgId).eq("primary_email", email).maybeSingle()
+  logQueryError("resolveSubject contacts by email", error)
+  return (data?.id as string | undefined) ?? null
+}
+
+async function appIdsByTenant(db: Db, orgId: string, tenantId: string): Promise<string[]> {
+  // applicant ≡ tenant: applications link via tenant_id (NOT user_id — that column doesn't exist).
+  const { data, error } = await db.from("applications").select("id").eq("org_id", orgId).eq("tenant_id", tenantId)
+  logQueryError("resolveSubject applications by tenant", error)
+  return (data ?? []).map((r) => r.id as string)
+}
+
+async function appsByEmail(db: Db, orgId: string, email: string): Promise<Array<{ id: string; tenantId: string | null }>> {
+  const { data, error } = await db.from("applications").select("id, tenant_id").eq("org_id", orgId).eq("applicant_email", email)
+  logQueryError("resolveSubject applications by email", error)
+  return (data ?? []).map((r) => ({ id: r.id as string, tenantId: (r.tenant_id as string | null) ?? null }))
+}
+
+async function contactIdByTenant(db: Db, orgId: string, tenantId: string): Promise<string | null> {
+  const { data, error } = await db.from("tenants").select("contact_id").eq("org_id", orgId).eq("id", tenantId).maybeSingle()
+  logQueryError("resolveSubject tenant→contact backfill", error)
+  return (data?.contact_id as string | undefined) ?? null
+}
+
 /** Resolve a subject to the ids the plan keys on. Columns verified vs live schema (2026-06-04). */
 export async function resolveSubject(db: Db, subject: AnonymiseSubjectInput): Promise<ResolvedSubject> {
   const orgId = subject.org_id
@@ -60,44 +99,29 @@ export async function resolveSubject(db: Db, subject: AnonymiseSubjectInput): Pr
   let landlordId: string | null = null
 
   if (userId) {
-    const { data: t, error: tErr } = await db
-      .from("tenants").select("id, contact_id").eq("org_id", orgId).eq("auth_user_id", userId).maybeSingle()
-    logQueryError("resolveSubject tenants by user", tErr)
-    if (t) { tenantId = t.id as string; contactId = (t.contact_id as string | null) ?? contactId }
-
-    const { data: l, error: lErr } = await db
-      .from("landlords").select("id, contact_id").eq("org_id", orgId).eq("auth_user_id", userId).maybeSingle()
-    logQueryError("resolveSubject landlords by user", lErr)
-    if (l) { landlordId = l.id as string; contactId = (l.contact_id as string | null) ?? contactId }
+    const t = await roleByUser(db, "tenants", orgId, userId)
+    if (t) { tenantId = t.id; contactId = t.contactId ?? contactId }
+    const l = await roleByUser(db, "landlords", orgId, userId)
+    if (l) { landlordId = l.id; contactId = l.contactId ?? contactId }
   }
 
-  if (!contactId && subject.email) {
-    const { data: c, error: cErr } = await db
-      .from("contacts").select("id").eq("org_id", orgId).eq("primary_email", subject.email).maybeSingle()
-    logQueryError("resolveSubject contacts by email", cErr)
-    if (c) contactId = c.id as string
-  }
-
-  if (contactId && !tenantId) {
-    const { data: t, error } = await db
-      .from("tenants").select("id").eq("org_id", orgId).eq("contact_id", contactId).maybeSingle()
-    logQueryError("resolveSubject tenants by contact", error)
-    if (t) tenantId = t.id as string
-  }
-  if (contactId && !landlordId) {
-    const { data: l, error } = await db
-      .from("landlords").select("id").eq("org_id", orgId).eq("contact_id", contactId).maybeSingle()
-    logQueryError("resolveSubject landlords by contact", error)
-    if (l) landlordId = l.id as string
-  }
+  if (!contactId && subject.email) contactId = await contactByEmail(db, orgId, subject.email)
+  if (contactId && !tenantId) tenantId = await roleIdByContact(db, "tenants", orgId, contactId)
+  if (contactId && !landlordId) landlordId = await roleIdByContact(db, "landlords", orgId, contactId)
 
   const applicationIds: string[] = []
-  if (tenantId) {
-    // applicant ≡ tenant: applications link via tenant_id (NOT user_id — that column doesn't exist).
-    const { data, error } = await db
-      .from("applications").select("id").eq("org_id", orgId).eq("tenant_id", tenantId)
-    logQueryError("resolveSubject applications by tenant", error)
-    for (const r of data ?? []) applicationIds.push(r.id as string)
+  if (tenantId) applicationIds.push(...(await appIdsByTenant(db, orgId, tenantId)))
+
+  // R-2: direct C-table fallback. A rejected applicant's PII is almost entirely in `applications`
+  // (the §7 danger zone) and may be reachable ONLY by applicant_email — no contacts.primary_email or
+  // tenant chain. Resolve applications by email directly + backfill tenant→contact so A/B strip too.
+  // (id_number_hash isn't carried on the request, so applicant_email is the available key.)
+  if (subject.email) {
+    for (const a of await appsByEmail(db, orgId, subject.email)) {
+      if (!applicationIds.includes(a.id)) applicationIds.push(a.id)
+      tenantId ??= a.tenantId
+    }
+    if (tenantId && !contactId) contactId = await contactIdByTenant(db, orgId, tenantId)
   }
 
   return { orgId, userId, contactId, tenantId, landlordId, applicationIds }
@@ -139,7 +163,16 @@ export async function previewIdentityAnonymise(
   return { groups, total, manual_review: MANUAL_REVIEW_TARGETS }
 }
 
-/** DESTRUCTIVE: strip the plan's columns for the subject. One recordAudit per group. */
+/**
+ * DESTRUCTIVE: strip the plan's columns for the subject. One recordAudit per group.
+ *
+ * R-3 — non-atomicity is a CONSCIOUS decision: each group is a separate PostgREST update (PostgREST
+ * has no multi-statement transaction), NOT all-or-nothing. This is safe because (a) every strip is
+ * idempotent (fixed null/REDACTED values — re-running is a no-op), (b) stripGroup self-heals the main
+ * drift failure (R-4), and (c) the caller records the completed `groups` on the request
+ * (erasure_records_affected.identity_groups), so a stuck group is visible and the whole op is safely
+ * re-runnable to completion. If a future requirement needs true rollback, wrap this in one SQL RPC.
+ */
 export async function executeIdentityAnonymise(
   db: Db, resolved: ResolvedSubject, subjectType: SubjectType, requestId: string, actorId: string,
 ): Promise<{ groups: GroupOutcome[]; total: number }> {
@@ -149,11 +182,7 @@ export async function executeIdentityAnonymise(
     const { single, list } = idsForGroup(resolved, g.keyFrom)
     if (single === null && list.length === 0) continue
 
-    const base = db.from(g.table).update(g.fields)
-    const q = single !== null ? base.eq(g.keyColumn, single) : base.in(g.keyColumn, list)
-    const { data, error } = await q.select("id")
-    logQueryError(`executeIdentityAnonymise ${g.table}`, error)
-    const affected = (data ?? []).length
+    const affected = await stripGroup(db, g, single, list)
     if (affected > 0) {
       await recordAudit(db, {
         orgId: resolved.orgId, actorId, action: "UPDATE", table: g.table, recordId: single ?? list[0],
@@ -166,5 +195,23 @@ export async function executeIdentityAnonymise(
   return { groups, total }
 }
 
-/** Re-exported so callers don't need a second import. */
-export type { AnonymiseGroup } from "./anonymisePlan"
+/**
+ * Apply one group's redaction, scoped to the subject key. R-4: if the strip hits a NOT-NULL violation
+ * (23502) — schema drift that flipped a plan `null` against a now-NOT-NULL column — coerce that one
+ * column to REDACTED and retry, so drift can't wall the cascade into a permanent partial erasure (the
+ * principal R-3 cause). preview can't catch this (it only counts) — the guard has to be at execute.
+ */
+async function stripGroup(db: Db, group: AnonymiseGroup, single: string | null, list: string[]): Promise<number> {
+  let fields: Record<string, string | null> = group.fields
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const base = db.from(group.table).update(fields)
+    const q = single !== null ? base.eq(group.keyColumn, single) : base.in(group.keyColumn, list)
+    const { data, error } = await q.select("id")
+    if (!error) return (data ?? []).length
+    const col = error.code === "23502" ? /column "([^"]+)"/.exec(error.message ?? "")?.[1] : undefined
+    if (col && fields[col] === null) { fields = { ...fields, [col]: REDACTED }; continue }  // coerce + retry
+    logQueryError(`executeIdentityAnonymise ${group.table}`, error)
+    return 0
+  }
+  return 0
+}

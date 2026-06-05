@@ -10,7 +10,10 @@
  *         ONLY POPIA-sensitive coverage today — extending the restricted set to the rest of the
  *         identity/document tables is the pending DeleteButton-triage sweep (D-8). (This header
  *         previously claimed full no-restricted-imports enforcement that was never written.)
- *         executeErasure() runs inside a single Supabase RPC transaction.
+ *         executeErasure() is NOT a single transaction — PostgREST has no multi-statement txn. The
+ *         §7 identity strip runs per-group (anonymiseIdentity.ts) and is idempotent + drift-self-healing
+ *         (R-4) + completed-group-tracked (R-3); safe to re-run to completion. (Prior header claimed a
+ *         "single RPC transaction" — false for this path; corrected.)
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit/recordAudit"

@@ -3,7 +3,8 @@
  *
  * Route:  /settings/privacy/data-subject-requests/:id
  * Auth:   gatewaySSR() — org member; request must belong to org
- * Data:   data_subject_requests (SELECT *); previewErasure for destructive previews
+ * Data:   data_subject_requests (SELECT *); previewIdentityAnonymise — the §7 strip dry-run shown
+ *         before approval (R-1: the human gate must see the ACTUAL erasure scope, not nothing).
  * Notes:  D-POPIA-10: MFA-fresh for approve. D-POPIA-04: status state machine.
  *         Approval executes action inline — handled via separate POST routes.
  */
@@ -16,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { ActionButton } from "@/components/ui/actions"
 import { ChevronLeft, AlertTriangle, Clock, CheckCircle2, XCircle } from "lucide-react"
 import type { DataSubjectRequest } from "@/lib/popia/requests"
+import { resolveSubject, previewIdentityAnonymise, subjectTypeFromRole } from "@/lib/popia/anonymiseIdentity"
 
 const STATUS_LABELS: Record<string, string> = {
   new: "New — awaiting review",
@@ -79,6 +81,17 @@ export default async function DataSubjectRequestDetailPage({
 
   const carveouts = (r.request_scope as { acknowledged_carveouts?: { category: string; reason: string }[] })
     ?.acknowledged_carveouts ?? []
+
+  // R-1: dry-run the actual §7 identity strip so the human approves against REAL scope, not nothing.
+  // supplier / unresolvable role → manual handling (D-14), no automated strip.
+  const subjectType = isDestructive ? subjectTypeFromRole(r.subject_role_context) : null
+  const willHandleManually = isDestructive && (subjectType === "supplier" || subjectType === null)
+  let preview: Awaited<ReturnType<typeof previewIdentityAnonymise>> | null = null
+  if (subjectType === "tenant" || subjectType === "landlord" || subjectType === "applicant") {
+    const svc = await db
+    const resolved = await resolveSubject(svc, { org_id: orgId, user_id: r.subject_user_id, email: r.subject_email })
+    preview = await previewIdentityAnonymise(svc, resolved, subjectType)
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
@@ -190,6 +203,55 @@ export default async function DataSubjectRequestDetailPage({
             {r.resolved_at && (
               <p className="text-xs text-muted-foreground">
                 Resolved {new Date(r.resolved_at).toLocaleDateString("en-ZA")}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* R-1: what approval will actually strip (dry-run) — destructive requests only */}
+      {isDestructive && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">What approval will strip</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {willHandleManually && (
+              <p className="text-muted-foreground">
+                This subject ({r.subject_role_context ?? "unresolved role"}) is handled manually — supplier
+                erasure is deferred from automation, and an unresolvable role can&apos;t be auto-stripped.
+                Approval records it for an operator; no automated strip runs.
+              </p>
+            )}
+            {!willHandleManually && preview && preview.total > 0 && (
+              <>
+                <p className="text-muted-foreground text-xs">
+                  Identity PII will be anonymised across {preview.groups.length} table group(s) — {preview.total} row(s):
+                </p>
+                <ul className="space-y-0.5">
+                  {preview.groups.map((g) => (
+                    <li key={g.group} className="flex justify-between">
+                      <span className="font-mono text-xs">{g.group}</span>
+                      <span className="text-muted-foreground">{g.affected}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="pt-2 border-t">
+                  <p className="text-muted-foreground text-xs mb-1">
+                    Manual review (free-text / incidental PII — NOT auto-stripped, redact-or-retain by hand):
+                  </p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5">
+                    {preview.manual_review.map((m) => (
+                      <li key={m.table}>{m.table}.{m.field} — {m.note}</li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            )}
+            {!willHandleManually && (!preview || preview.total === 0) && (
+              <p className="text-muted-foreground flex items-center gap-1">
+                <AlertTriangle className="size-3 shrink-0" />
+                No identifiable rows resolved for this subject — verify the subject email/role before approving.
               </p>
             )}
           </CardContent>
