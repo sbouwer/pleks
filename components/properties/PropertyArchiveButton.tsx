@@ -9,15 +9,35 @@
  *         blocks it — the DeleteButton dialog morphs to an acknowledge view with the reason. On success
  *         the property leaves the active list, so we route back to /properties.
  */
+import { useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Archive } from "lucide-react"
+import { Archive, RotateCcw } from "lucide-react"
 import { toast } from "sonner"
-import { DeleteButton } from "@/components/ui/actions"
-import { archiveProperty } from "@/lib/actions/properties"
+import { ActionButton, DeleteButton } from "@/components/ui/actions"
+import { archiveProperty, reactivateProperty } from "@/lib/actions/properties"
 
-export function PropertyArchiveButton({ propertyId, unitCount }: Readonly<{ propertyId: string; unitCount: number }>) {
+export function PropertyArchiveButton({ propertyId, unitCount, isArchived }: Readonly<{ propertyId: string; unitCount: number; isArchived?: boolean }>) {
   const router = useRouter()
+  const [busy, startTransition] = useTransition()
   const units = `${unitCount} unit${unitCount === 1 ? "" : "s"}`
+
+  if (isArchived) {
+    return (
+      <ActionButton
+        tone="primary"
+        icon={<RotateCcw className="size-3.5" />}
+        disabled={busy}
+        onClick={() => startTransition(async () => {
+          const res = await reactivateProperty(propertyId)
+          if (res?.error) { toast.error(res.error); return }
+          toast.success("Property restored")
+          router.refresh()
+        })}
+      >
+        {busy ? "Restoring…" : "Restore property"}
+      </ActionButton>
+    )
+  }
 
   return (
     <DeleteButton

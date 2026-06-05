@@ -628,13 +628,14 @@ export default async function PropertyDetailPage({
 
   const service = await createServiceClient()
 
+  // By-id carve-out (D-5): NOT filtered by deleted_at — an archived property still resolves here so it
+  // can be viewed + restored (e.g. landing on it via Back after archiving). notFound() handles truly-absent.
   const { data: property, error: propertyError } = await service
     .from("properties")
     .select("*")
     .eq("id", id)
     .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .single()
+    .maybeSingle()
     logQueryError("PropertyDetailPage properties", propertyError)
 
   if (!property) notFound()
@@ -743,9 +744,12 @@ export default async function PropertyDetailPage({
                 unitCount={baseUnits?.length ?? 0}
               />
             )}
+            {propRaw.deleted_at != null && (
+              <Badge variant="outline" className="text-muted-foreground">Archived</Badge>
+            )}
             {isAdminUi && (
               <div className="ml-auto">
-                <PropertyArchiveButton propertyId={id} unitCount={baseUnits?.length ?? 0} />
+                <PropertyArchiveButton propertyId={id} unitCount={baseUnits?.length ?? 0} isArchived={propRaw.deleted_at != null} />
               </div>
             )}
           </div>
