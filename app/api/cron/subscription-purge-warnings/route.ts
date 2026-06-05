@@ -162,13 +162,28 @@ async function processPurgeDueSub(supabase: SupabaseClient, sub: { org_id: strin
   return true
 }
 
-function dormancyPurgeIsBlocked(org: {
-  last_login_at: string | null
-  dormancy_warning_sent_at: string | null
-}): boolean {
-  const lastLogin = org.last_login_at ? new Date(org.last_login_at) : null
-  const warnedAt  = new Date(org.dormancy_warning_sent_at ?? "")
+function dormancyPurgeIsBlocked(lastLogin: Date | null, dormancyWarningSentAt: string | null): boolean {
+  const warnedAt = new Date(dormancyWarningSentAt ?? "")
   return !!(lastLogin && lastLogin > warnedAt)
+}
+
+/**
+ * Org last-active = MAX(auth.users.last_sign_in_at) across its members (ADDENDUM_PHANTOM_COLUMN_TAIL:
+ * derive, don't denormalise a last_login_at column). organisations has no last_login_at.
+ */
+async function orgLastActive(supabase: SupabaseClient, orgId: string): Promise<Date | null> {
+  const { data: members, error } = await supabase.from("user_orgs").select("user_id").eq("org_id", orgId).is("deleted_at", null)
+  if (error) console.error("orgLastActive user_orgs:", error.message)
+  let latest: Date | null = null
+  for (const m of members ?? []) {
+    const { data } = await supabase.auth.admin.getUserById(m.user_id as string)
+    const ts = data.user?.last_sign_in_at
+    if (ts) {
+      const d = new Date(ts)
+      if (!latest || d > latest) latest = d
+    }
+  }
+  return latest
 }
 
 async function runFinalWarnScan(supabase: SupabaseClient, now: Date): Promise<number> {
@@ -214,7 +229,7 @@ async function runCancelledPurgeScan(supabase: SupabaseClient, now: Date): Promi
 async function runDormancyPurgeScan(supabase: SupabaseClient, now: Date): Promise<number> {
   const { data: dormancyPurgeDue, error: dormErr } = await supabase
     .from("organisations")
-    .select("id, dormancy_warning_sent_at, dormancy_final_sent_at, last_login_at")
+    .select("id, dormancy_warning_sent_at, dormancy_final_sent_at")
     .not("dormancy_final_sent_at", "is", null)
     .lt("dormancy_final_sent_at", now.toISOString())
     .is("deleted_at", null)  // skip already-purged / claim-slot-reserved orgs
@@ -225,7 +240,8 @@ async function runDormancyPurgeScan(supabase: SupabaseClient, now: Date): Promis
   }
   let count = 0
   for (const org of dormancyPurgeDue ?? []) {
-    if (dormancyPurgeIsBlocked(org)) continue
+    const lastLogin = await orgLastActive(supabase, org.id)
+    if (dormancyPurgeIsBlocked(lastLogin, org.dormancy_warning_sent_at)) continue
     await purgeOrg(org.id, "dormancy")
     count++
   }
