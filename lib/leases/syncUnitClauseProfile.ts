@@ -71,5 +71,6 @@ export async function syncUnitClauseProfile(
       .from("unit_clause_defaults")
       .delete()
       .in("id", toDelete)
+      .eq("org_id", orgId)
   }
 }

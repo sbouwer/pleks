@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
   const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
   // Purge non-verified verification rows older than 30 days
+  // eslint-disable-next-line pleks/require-scope-on-delete -- platform-wide retention cron; scoped by status + age (no org dimension by design)
   const { count: verifPurged, error: verifErr } = await service
     .from("consent_verifications")
     .delete({ count: "exact" })
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Purge rate-limit rows with no active lockout and no recent sends
+  // eslint-disable-next-line pleks/require-scope-on-delete -- platform-wide retention cron; scoped by age + lockout state (no org dimension by design)
   const { count: rlPurged, error: rlErr } = await service
     .from("consent_verification_rate_limits")
     .delete({ count: "exact" })

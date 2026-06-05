@@ -55,7 +55,7 @@ async function purgeRejectedApplications(
       created_at: new Date(row.created_at),
     })
     if ("erasable" in decision && decision.erasable) {
-      await db.from("applications").delete().eq("id", row.id)
+      await db.from("applications").delete().eq("id", row.id).eq("org_id", orgId)
       await recordAudit(db, {
         orgId, actorId: null, action: "DELETE", table: "applications", recordId: row.id,
         after: { action: "retention_purge", category: "rejected_applications" },

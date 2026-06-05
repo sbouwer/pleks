@@ -67,13 +67,17 @@ export async function uploadPropertyDocument(formData: FormData) {
 
 export async function deletePropertyDocument(documentId: string, propertyId: string) {
   const gw = await requireAgentWriteAccess("edit_property")
-  const { db, userId, isAdmin } = gw
+  const { db, userId, orgId, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
+  // F-1 (D-8): the service client bypasses RLS, so EVERY read/delete here must be org-scoped — a
+  // non-guessable uuid is not an isolation boundary. Without `.eq("org_id", orgId)` an admin of org A
+  // holding a document id from org B would delete B's file + row (and the audit would land under B).
   const { data: doc, error: docError } = await db
     .from("property_documents")
     .select("storage_path, org_id")
     .eq("id", documentId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("deletePropertyDocument property_documents", docError)
 
@@ -82,12 +86,12 @@ export async function deletePropertyDocument(documentId: string, propertyId: str
   // Delete from storage
   await db.storage.from("property-documents").remove([doc.storage_path])
 
-  // Delete record
-  await db.from("property_documents").delete().eq("id", documentId)
+  // Delete record (org-scoped)
+  await db.from("property_documents").delete().eq("id", documentId).eq("org_id", orgId)
 
   // Audit
   await db.from("audit_log").insert({
-    org_id: doc.org_id,
+    org_id: orgId,
     table_name: "property_documents",
     record_id: documentId,
     action: "DELETE",

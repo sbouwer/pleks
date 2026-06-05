@@ -278,7 +278,7 @@ async function deleteRecordsForSubject(
     for (const row of rows ?? []) {
       const rejected = row.stage1_status === "not_shortlisted" || row.stage2_status === "declined"
       if (!rejected) continue
-      await db.from("applications").delete().eq("id", row.id)
+      await db.from("applications").delete().eq("id", row.id).eq("org_id", subject.org_id)
       await logAudit(db, subject.org_id, actor_user_id, "popia_erasure", "applications", row.id as string, requestId)
       affected++
     }

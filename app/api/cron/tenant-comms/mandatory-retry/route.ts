@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (result.success) {
-      await service.from("mandatory_comm_retries").delete().eq("id", retry.id)
+      await service.from("mandatory_comm_retries").delete().eq("id", retry.id).eq("org_id", retry.org_id)
       processed++
       continue
     }
