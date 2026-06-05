@@ -29,6 +29,7 @@ const CATEGORY_LABELS: Record<DataCategory, string> = {
   audit_log: "Activity & audit log",
   maintenance_records: "Maintenance records",
   platform_account: "Platform account data",
+  fica_identity: "Identity & FICA verification",
 }
 
 interface RetentionDashboardProps {
