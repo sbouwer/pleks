@@ -14,7 +14,8 @@ type Service = Awaited<ReturnType<typeof createServiceClient>>
 
 /** Delete a contact child row (phone/email/address) + audit it (contact PII change). */
 async function deleteContactChild(
-  service: Service, orgId: string, contactId: string, userId: string, table: string, id: string, semantic: string,
+  service: Service, orgId: string, contactId: string, userId: string,
+  table: "contact_phones" | "contact_emails" | "contact_addresses", id: string, semantic: string,
 ) {
   const res = await service.from(table).delete().eq("id", id).eq("contact_id", contactId)
   if (!res.error) {

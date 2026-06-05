@@ -104,6 +104,7 @@ export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
   const findings = []   // { file, kind, table, detail, criticality, severity }
   const unknown = new Set()
   const skipped = { select: 0, filter: 0, write: 0 }   // supabase chains seen but table unresolvable (honest coverage)
+  const skippedSites = []   // { file, kind } — the dynamic .from(var) chains, for --skipped
   const add = (file, kind, table, detail, severity = "fail") =>
     findings.push({ file, kind, table, detail, criticality: criticality(table), severity })
 
@@ -128,10 +129,26 @@ export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
     return null
   }
 
+  /** The CLOSED string-literal union a `.from(arg)` could be (e.g. arg: "tenants" | "landlords").
+   *  Returns [] unless EVERY member of arg's type is a string literal — a generic helper over a known
+   *  table set, which we can validate against each member without the full typed-Database client (P3). */
+  function literalUnionTables(arg) {
+    let t
+    try { t = arg.getType() } catch { return [] }
+    if (!t) return []
+    if (t.isStringLiteral()) return [String(t.getLiteralValue())]
+    if (t.isUnion()) {
+      const members = t.getUnionTypes()
+      if (members.length && members.every((u) => u.isStringLiteral())) return members.map((u) => String(u.getLiteralValue()))
+    }
+    return []
+  }
+
   /**
-   * Walk the fluent chain down to `.from("literal")`. Resolves the builder pattern
-   * (`let q = db.from("x"); q = q.eq(…)`) by following a root identifier to its binding's initializer.
-   * Returns the table, or null if genuinely unresolvable (dynamic `.from(var)` / non-literal).
+   * Walk the fluent chain down to `.from(…)`. Resolves the builder pattern (`let q = db.from("x"); q =
+   * q.eq(…)`) via a root identifier's binding. Returns { table (literal or null), sawFrom, candidates }:
+   * candidates is [table] for a literal, the union members for a closed string-literal-union arg
+   * (generic helper), or [] for a genuinely-dynamic arg (`.from(g.table)` / `string`-typed → P3 frontier).
    */
   function fromTable(call) {
     let node = call.getExpression()
@@ -142,17 +159,18 @@ export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
         const callee = node.getExpression()
         if (Node.isPropertyAccessExpression(callee) && callee.getName() === "from") {
           const a = node.getArguments()[0]
-          // sawFrom: this IS a supabase chain; table null means dynamic .from(var) → an HONEST skip.
-          return { table: a && Node.isStringLiteral(a) ? a.getLiteralText() : null, sawFrom: true }
+          if (a && Node.isStringLiteral(a)) { const lit = a.getLiteralText(); return { table: lit, sawFrom: true, candidates: [lit] } }
+          // dynamic arg: recover a closed string-literal union (generic helper), else genuinely dynamic.
+          return { table: null, sawFrom: true, candidates: a ? literalUnionTables(a) : [] }
         }
         node = node.getExpression()
       } else if (Node.isIdentifier(node)) {
         const init = bindingInitializer(node)   // builder pattern: q → `db.from("x")…`
-        if (!init) return { table: null, sawFrom: false }
+        if (!init) return { table: null, sawFrom: false, candidates: [] }
         node = init
-      } else return { table: null, sawFrom: false }
+      } else return { table: null, sawFrom: false, candidates: [] }
     }
-    return { table: null, sawFrom: false }
+    return { table: null, sawFrom: false, candidates: [] }
   }
 
   /** chain takes "one of many" (.order()/.limit()) before .single() → throws-on-0 risk. */
@@ -203,37 +221,44 @@ export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
       const method = callee.getName()
       const at = `${rel}:${call.getStartLineNumber()}`
 
+      // candidates: the table(s) this chain resolves to — [literal], union members, or [] (dynamic).
+      // A generic helper's query must hold for EVERY member it's called with, so validate against each.
       if (method === "select") {
-        const { table, sawFrom } = fromTable(call)
+        const { table, sawFrom, candidates } = fromTable(call)
         const a = call.getArguments()[0]
         const hasLiteral = a && (Node.isStringLiteral(a) || Node.isNoSubstitutionTemplateLiteral(a))
         if (table && !tables[table]) { flagRelation(at, table); continue }   // phantom .from("x")
-        if (table && hasLiteral) {
-          const acc = validateSelectText(table, a.getLiteralText(), tables)
-          for (const v of acc.violations) add(at, "select", v.table, v.col)
-          for (const u of acc.unknownTables) unknown.add(u)
-        } else if (sawFrom && hasLiteral) skipped.select++   // dynamic .from(var) — couldn't attribute
+        const targets = candidates.filter((t) => tables[t])
+        if (targets.length && hasLiteral) {
+          for (const t of targets) {
+            const acc = validateSelectText(t, a.getLiteralText(), tables)
+            for (const v of acc.violations) add(at, "select", v.table, v.col)
+            for (const u of acc.unknownTables) unknown.add(u)
+          }
+        } else if (sawFrom && hasLiteral && !targets.length) { skipped.select++; skippedSites.push({ file: at, kind: "select" }) }   // genuinely dynamic .from(var)
         continue
       }
       if (FILTER_METHODS.has(method)) {
-        const { table, sawFrom } = fromTable(call)
+        const { table, sawFrom, candidates } = fromTable(call)
         const a = call.getArguments()[0]
         if (!a || !Node.isStringLiteral(a)) continue
-        if (!table) { if (sawFrom) skipped.filter++; continue }
-        if (!tables[table]) { flagRelation(at, table); continue }
+        if (table && !tables[table]) { flagRelation(at, table); continue }
+        const targets = candidates.filter((t) => tables[t])
+        if (!targets.length) { if (sawFrom) { skipped.filter++; skippedSites.push({ file: at, kind: "filter" }) } continue }
         const lit = a.getLiteralText()
         if (lit.includes(",") || lit.includes("(")) continue
-        if (lit.includes("::")) { add(at, "cast", table, lit); continue }
+        if (lit.includes("::")) { add(at, "cast", targets[0], lit); continue }
         if (lit.includes(".")) continue
         if (!/^[a-zA-Z_]\w*$/.test(lit)) continue
-        if (!tables[table].includes(lit)) add(at, "filter", table, lit)
+        for (const t of targets) if (!tables[t].includes(lit)) add(at, "filter", t, lit)
         continue
       }
       if (WRITE_METHODS.has(method)) {
-        const { table, sawFrom } = fromTable(call)
+        const { table, sawFrom, candidates } = fromTable(call)
         const a = call.getArguments()[0]
-        if (!table) { if (sawFrom && a) skipped.write++; continue }
-        if (!tables[table]) { flagRelation(at, table); continue }
+        if (table && !tables[table]) { flagRelation(at, table); continue }
+        const targets = candidates.filter((t) => tables[t])
+        if (!targets.length) { if (sawFrom && a) { skipped.write++; skippedSites.push({ file: at, kind: "write" }) } continue }
         if (!a) continue
         const objs = Node.isArrayLiteralExpression(a) ? a.getElements() : [a]
         for (const obj of objs) {
@@ -242,11 +267,11 @@ export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
             if (!Node.isPropertyAssignment(prop) && !Node.isShorthandPropertyAssignment(prop)) continue
             const name = prop.getName()
             if (!name || !/^[a-zA-Z_]\w*$/.test(name)) continue
-            if (!tables[table].includes(name)) add(at, "write", table, name)
+            for (const t of targets) if (!tables[t].includes(name)) add(at, "write", t, name)
           }
         }
-        if (criticality(table) === "CRITICAL" && writeIsUnnoticed(call)) {
-          add(at, "swallow", table, `${method} is best-effort (unawaited / .then / .catch) on a CRITICAL table — must be blocking`)
+        if (targets.some((t) => criticality(t) === "CRITICAL") && writeIsUnnoticed(call)) {
+          add(at, "swallow", targets[0], `${method} is best-effort (unawaited / .then / .catch) on a CRITICAL table — must be blocking`)
         }
         continue
       }
@@ -275,7 +300,7 @@ export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
       }
     }
   }
-  return { findings, unknown, skipped }
+  return { findings, unknown, skipped, skippedSites }
 }
 
 // ── Scanner (runs only when invoked directly) ──────────────────────────────────
@@ -287,7 +312,7 @@ async function main() {
 
   const { Project, SyntaxKind, Node } = await import("ts-morph")
   const project = new Project({ tsConfigFilePath: resolve(ROOT, "tsconfig.json"), skipAddingFilesFromTsConfig: false })
-  const { findings, unknown, skipped } = scanSourceFiles(project.getSourceFiles(), tables, rpcs, Node, SyntaxKind)
+  const { findings, unknown, skipped, skippedSites } = scanSourceFiles(project.getSourceFiles(), tables, rpcs, Node, SyntaxKind)
 
   // ── Baseline + policy ──
   const keyOf = (f) => `${f.file.split(":")[0]}::${f.kind}::${f.table}::${f.detail}`
@@ -324,7 +349,10 @@ async function main() {
   // Honest coverage: chains that ARE supabase but whose table couldn't be resolved (dynamic .from(var)).
   // Builder-pattern bindings (let q = db.from("x")) are resolved; what's left here is genuinely dynamic.
   const skips = skipped.select + skipped.filter + skipped.write
-  if (skips) console.log(`  ⚠ ${skips} call(s) skipped — dynamic .from(var), unattributable (select ${skipped.select} / filter ${skipped.filter} / write ${skipped.write}). "0 violations" = among resolvable chains.`)
+  if (skips) {
+    console.log(`  ⚠ ${skips} call(s) skipped — dynamic .from(var), unattributable (select ${skipped.select} / filter ${skipped.filter} / write ${skipped.write}). "0 violations" = among resolvable chains.`)
+    if (process.argv.includes("--skipped")) for (const s of skippedSites) console.log(`     ${s.file}  [${s.kind}]`)
+  }
 
   if (blocking.length === 0) {
     console.log("  ✓ no schema-contract violations (select/filter/write/rpc/cast; CRITICAL un-baselineable; §5 failure-policy)")

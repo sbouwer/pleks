@@ -89,6 +89,9 @@ describe("per-matcher canary — each matcher fires on a deliberately-wrong fixt
       let q = db.from("widgets").select("id")
       q = q.eq("phantom_via_binding", 1)                                     // binding resolution (builder pattern)
     }
+    async function genericHelper(t: "widgets" | "consent_log") {
+      await db.from(t).select("id, nope_union")                              // union resolution: validate each member
+    }
   `
   const project = new Project({ useInMemoryFileSystem: true })
   project.createSourceFile("fixture.ts", FIXTURE)
@@ -107,4 +110,6 @@ describe("per-matcher canary — each matcher fires on a deliberately-wrong fixt
   it("swallow fires on a best-effort CRITICAL write", () => expect(has("swallow")).toBe(true))
   it("binding resolution finds the builder-pattern phantom (the regression that went dead)", () =>
     expect(has("filter", "phantom_via_binding")).toBe(true))
+  it("union resolution validates a string-literal-union .from(table) against each member", () =>
+    expect(has("select", "nope_union")).toBe(true))
 })
