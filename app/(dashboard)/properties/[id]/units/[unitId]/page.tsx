@@ -195,7 +195,7 @@ export default async function UnitDetailPage({
       </div>
 
       {/* Status actions */}
-      <UnitStatusActions unitId={unitId} propertyId={id} currentStatus={unit.status} />
+      <UnitStatusActions unitId={unitId} propertyId={id} currentStatus={unit.status} isArchived={!!unit.deleted_at} />
 
       {/* Quick actions */}
       <div className="flex flex-wrap gap-2 mt-4 mb-6">

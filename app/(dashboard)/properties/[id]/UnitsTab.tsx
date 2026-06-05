@@ -8,14 +8,16 @@
  * Data:   units/archivedUnits/buildings props from server page; tenantByUnit and maintenanceByUnit lookup maps
  * Notes:  tier="owner" hides add-unit and add-building actions; multi-building grouping activates at ≥2 visible buildings
  */
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronRight, Archive, RotateCcw } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { formatZAR } from "@/lib/constants"
-import { ActionButton } from "@/components/ui/actions"
+import { ActionButton, DeleteButton } from "@/components/ui/actions"
 import { getUnitDescription } from "@/lib/units/typeAwareFields"
+import { archiveUnit, restoreUnit } from "@/lib/actions/units"
 import { AddUnitDialog } from "@/components/properties/AddUnitDialog"
 import { EnableMultiBuildingDialog } from "@/components/properties/EnableMultiBuildingDialog"
 
@@ -95,45 +97,88 @@ function UnitCard({ unit, propertyId, propertyType, tenant, maintenanceCount }: 
   else if (isVacant)             statusLabel = "Vacant"
   else                           statusLabel = unit.status
 
+  const router = useRouter()
+
   return (
-    <Link
-      href={`/properties/${propertyId}/units/${unit.id}`}
+    <div
       className={cn(
-        "flex items-start justify-between gap-4 px-4 py-3 rounded-lg border transition-colors hover:bg-surface",
+        "flex items-stretch rounded-lg border transition-colors hover:bg-surface",
         borderClass,
       )}
     >
-      <div className="min-w-0 flex-1">
-        {/* Line 1 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-sm">{unit.unit_number}</span>
-          {description && (
-            <span className="text-xs text-muted-foreground hidden sm:block">{description}</span>
-          )}
-          {maintenanceCount > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/10 text-warning">
-              {maintenanceCount} maint.
-            </span>
-          )}
+      <Link
+        href={`/properties/${propertyId}/units/${unit.id}`}
+        className="flex min-w-0 flex-1 items-start justify-between gap-4 px-4 py-3"
+      >
+        <div className="min-w-0 flex-1">
+          {/* Line 1 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-sm">{unit.unit_number}</span>
+            {description && (
+              <span className="text-xs text-muted-foreground hidden sm:block">{description}</span>
+            )}
+            {maintenanceCount > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/10 text-warning">
+                {maintenanceCount} maint.
+              </span>
+            )}
+          </div>
+          {/* Line 2 */}
+          <p className={cn("text-xs mt-0.5", isVacant ? "text-amber-500" : "text-muted-foreground")}>
+            {tenantLabel}
+          </p>
         </div>
-        {/* Line 2 */}
-        <p className={cn("text-xs mt-0.5", isVacant ? "text-amber-500" : "text-muted-foreground")}>
-          {tenantLabel}
-        </p>
+        {/* Right: status + rent */}
+        <div className="shrink-0 text-right">
+          <span className={cn(
+            "inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full mb-1",
+            statusClass,
+          )}>
+            {statusLabel}
+          </span>
+          {unit.asking_rent_cents ? (
+            <p className="text-xs font-medium">{formatZAR(unit.asking_rent_cents)}</p>
+          ) : null}
+        </div>
+      </Link>
+      {/* Archive (deleted_at) — sibling of the row link, not nested. In-force lease blocks it (in-dialog). */}
+      <div className="flex items-center pr-2">
+        <DeleteButton
+          icon={Archive}
+          label="Archive unit"
+          confirmLabel="Archive"
+          title={`Archive unit ${unit.unit_number}?`}
+          description="It's retired from active lists but kept and restorable — leases, inspections and history stay intact."
+          onConfirm={async () => {
+            const result = await archiveUnit(unit.id, propertyId)
+            if (result?.error) return { blocked: result.error }
+            toast.success("Unit archived")
+            router.refresh()
+          }}
+        />
       </div>
-      {/* Right: status + rent */}
-      <div className="shrink-0 text-right">
-        <span className={cn(
-          "inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full mb-1",
-          statusClass,
-        )}>
-          {statusLabel}
-        </span>
-        {unit.asking_rent_cents ? (
-          <p className="text-xs font-medium">{formatZAR(unit.asking_rent_cents)}</p>
-        ) : null}
-      </div>
-    </Link>
+    </div>
+  )
+}
+
+/** Restore a single archived unit from the property Units tab. */
+function UnitRestoreButton({ unitId, propertyId }: Readonly<{ unitId: string; propertyId: string }>) {
+  const router = useRouter()
+  const [busy, startTransition] = useTransition()
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => startTransition(async () => {
+        const res = await restoreUnit(unitId, propertyId)
+        if (res?.error) { toast.error(res.error); return }
+        toast.success("Unit restored")
+        router.refresh()
+      })}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--r-button)] border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+    >
+      <RotateCcw className="size-3" /> {busy ? "Restoring…" : "Restore"}
+    </button>
   )
 }
 
@@ -316,9 +361,12 @@ export function UnitsTab({
           </p>
           <div className="space-y-2">
             {archivedUnits.map((unit) => (
-              <div key={unit.id} className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-surface text-muted-foreground text-sm">
+              <div key={unit.id} className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg bg-surface text-muted-foreground text-sm">
                 <span>{unit.unit_number}</span>
-                <span className="text-xs bg-muted px-2 py-0.5 rounded-full">Archived</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded-full">Archived</span>
+                  <UnitRestoreButton unitId={unit.id} propertyId={propertyId} />
+                </div>
               </div>
             ))}
           </div>

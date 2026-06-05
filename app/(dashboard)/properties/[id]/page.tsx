@@ -25,6 +25,7 @@ import { InlineLink } from "@/components/ui/actions"
 import { LandlordPicker } from "./LandlordPicker"
 import { CompletenessWidgetWrapper } from "./CompletenessWidgetWrapper"
 import { ReclassifyDialog } from "./ReclassifyDialog"
+import { PropertyArchiveButton } from "@/components/properties/PropertyArchiveButton"
 import { SCENARIOS, type ScenarioType } from "@/lib/properties/scenarios"
 import { MobilePropertyView } from "@/components/mobile/MobilePropertyView"
 import { formatZAR } from "@/lib/constants"
@@ -741,6 +742,11 @@ export default async function PropertyDetailPage({
                 }
                 unitCount={baseUnits?.length ?? 0}
               />
+            )}
+            {isAdminUi && (
+              <div className="ml-auto">
+                <PropertyArchiveButton propertyId={id} unitCount={baseUnits?.length ?? 0} />
+              </div>
             )}
           </div>
           <p className="text-muted-foreground text-sm mt-0.5">{fullAddress}</p>
