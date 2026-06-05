@@ -20,7 +20,7 @@ export default async function LandlordPropertiesPage() {
 
   const { data: properties, error: propertiesError } = await service
     .from("properties")
-    .select("id, name, address_line1, suburb, city, unit_count, property_type:type")
+    .select("id, name, address_line1, suburb, city, units(count), property_type:type")
     .eq("landlord_id", session.landlordId)
     .is("deleted_at", null)
     .order("name")
@@ -67,7 +67,7 @@ export default async function LandlordPropertiesPage() {
 
       {(properties ?? []).map((p) => {
         const address = [p.address_line1, p.suburb, p.city].filter(Boolean).join(", ")
-        const units = p.unit_count ?? 0
+        const units = (p.units as unknown as { count: number }[] | null)?.[0]?.count ?? 0
         const occupied = leasesByProperty[p.id] ?? 0
         const occupancyPct = units > 0 ? Math.round((occupied / units) * 100) : 0
         const monthlyRent = rentByProperty[p.id] ?? 0

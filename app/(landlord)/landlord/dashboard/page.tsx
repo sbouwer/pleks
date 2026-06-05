@@ -20,7 +20,7 @@ export default async function LandlordDashboardPage() {
   // Properties owned by this landlord
   const { data: properties, error: propertiesError } = await service
     .from("properties")
-    .select("id, name, unit_count")
+    .select("id, name, units(count)")
     .eq("landlord_id", session.landlordId)
     .is("deleted_at", null)
     .order("name")
@@ -65,7 +65,7 @@ export default async function LandlordDashboardPage() {
   const expiringLeases = (leases ?? []).filter((l) => l.end_date && l.end_date <= in60Days && l.status !== "month_to_month")
 
   // Stats
-  const totalUnits = (properties ?? []).reduce((sum, p) => sum + (p.unit_count ?? 0), 0)
+  const totalUnits = (properties ?? []).reduce((sum, p) => sum + ((p.units as unknown as { count: number }[] | null)?.[0]?.count ?? 0), 0)
   const occupiedUnits = (leases ?? []).length
   const occupancyPct = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
   const monthlyIncome = (leases ?? []).reduce((sum, l) => sum + (l.rent_amount_cents ?? 0), 0)

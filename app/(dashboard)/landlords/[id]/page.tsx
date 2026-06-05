@@ -176,7 +176,7 @@ export default async function LandlordDetailPage({ params }: Props) {
       .order("is_primary", { ascending: false }),
     service
       .from("properties")
-      .select("id, name, address_line1, suburb, city, unit_count")
+      .select("id, name, address_line1, suburb, city, units(count)")
       .eq("landlord_id", id)
       .eq("org_id", membership.org_id)
       .is("deleted_at", null)
@@ -229,7 +229,8 @@ export default async function LandlordDetailPage({ params }: Props) {
     rentByProperty[lease.property_id] = (rentByProperty[lease.property_id] || 0) + (lease.rent_amount_cents || 0)
   }
   const totalMonthlyRent = Object.values(rentByProperty).reduce((sum, v) => sum + v, 0)
-  const totalUnits = (properties || []).reduce((sum, p) => sum + (p.unit_count || 0), 0)
+  const unitCountOf = (p: { units?: unknown }) => (p.units as { count: number }[] | null)?.[0]?.count ?? 0
+  const totalUnits = (properties || []).reduce((sum, p) => sum + unitCountOf(p), 0)
   const occupiedUnits = (landlordLeases || []).length
   const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
 
@@ -371,7 +372,7 @@ export default async function LandlordDetailPage({ params }: Props) {
                     icon={<Building2 className="h-4 w-4 text-blue-600" />}
                     iconBg="#E6F1FB"
                     title={p.name}
-                    subtitle={addressParts.join(", ") || `${p.unit_count ?? 0} unit${p.unit_count === 1 ? "" : "s"}`}
+                    subtitle={addressParts.join(", ") || `${unitCountOf(p)} unit${unitCountOf(p) === 1 ? "" : "s"}`}
                     rightLabel={rentByProperty[p.id] ? formatZAR(rentByProperty[p.id]) : undefined}
                     rightSublabel={rentByProperty[p.id] ? "/month" : undefined}
                     href={`/properties/${p.id}`}
