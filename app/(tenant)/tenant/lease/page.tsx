@@ -11,6 +11,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
+import { computeDepositBalance } from "@/lib/deposits/depositBalance"
 import { formatZAR } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
 import { ActionButton } from "@/components/ui/actions"
@@ -36,18 +37,14 @@ export default async function PortalLeasePage() {
   const service = await createServiceClient()
   const { leaseId, orgId, unitId, lease } = session
 
-  const [unitRes, depositRes] = await Promise.all([
+  const [unitRes, depositBalance] = await Promise.all([
     service.from("units")
       .select("unit_number, floor, properties(name, address_line1, suburb, city, province)")
       .eq("id", unitId)
       .single(),
-    service.from("deposit_transactions")
-      .select("debit_cents, credit_cents, balance_cents")
-      .eq("lease_id", leaseId)
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single(),
+    // deposit_transactions is a movement ledger (no balance column) — compute the held balance
+    // (or the reconciliation figure once reconciled). Replaces the phantom-column throwing .single().
+    computeDepositBalance(service, orgId, leaseId),
   ])
 
   const unit = unitRes.data
@@ -55,7 +52,6 @@ export default async function PortalLeasePage() {
     name: string; address_line1: string | null; suburb: string | null
     city: string | null; province: string | null
   } | null
-  const depositBalance = depositRes.data?.balance_cents
 
   const hasDocument = lease.generated_doc_path || lease.external_document_path
 

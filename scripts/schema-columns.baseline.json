@@ -1,6 +1,3 @@
 {
-  "app/(tenant)/tenant/lease/page.tsx::deposit_transactions::balance_cents": 1,
-  "app/(tenant)/tenant/lease/page.tsx::deposit_transactions::credit_cents": 1,
-  "app/(tenant)/tenant/lease/page.tsx::deposit_transactions::debit_cents": 1,
   "lib/portal/getTenantSession.ts::leases::payment_reference": 2
 }
