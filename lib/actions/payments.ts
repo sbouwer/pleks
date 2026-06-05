@@ -75,11 +75,12 @@ export async function recordPayment(formData: FormData) {
 
   if (error || !payment) return { error: error?.message || "Failed to record payment" }
 
-  // Store receipt path — on-demand generation at /api/payments/[id]/receipt
-  db.from("payments")
+  // Store receipt path — on-demand generation at /api/payments/[id]/receipt. Awaited + error-checked
+  // (CRITICAL table — not swallowed); the path is deterministic so a failure is logged, not fatal.
+  const { error: receiptErr } = await db.from("payments")
     .update({ receipt_path: `/api/payments/${payment.id}/receipt` })
     .eq("id", payment.id)
-    .then(() => { /* fire and forget */ })
+  if (receiptErr) console.error("recordPayment receipt_path update failed:", receiptErr.message)
 
   // Update invoice
   await db.from("rent_invoices").update({
