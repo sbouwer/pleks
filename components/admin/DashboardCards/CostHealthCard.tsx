@@ -25,7 +25,7 @@ async function fetchCostOutliers(): Promise<{ rows: CostRow[]; period: string | 
     .select("period")
     .order("period", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("fetchCostOutliers platform_cost_snapshots", latestError)
 
   if (!latest?.period) return { rows: [], period: null }

@@ -65,7 +65,7 @@ export default async function PortalDashboard() {
       .in("status", ["open", "partial", "overdue"])
       .order("due_date", { ascending: true })
       .limit(1)
-      .single(),
+      .maybeSingle(),
     // Recent payments
     service.from("payments")
       .select("id, payment_date, amount_cents, payment_method, reference")
@@ -82,7 +82,7 @@ export default async function PortalDashboard() {
       .gte("scheduled_date", new Date().toISOString().slice(0, 10))
       .order("scheduled_date", { ascending: true })
       .limit(1)
-      .single(),
+      .maybeSingle(),
     // Recent maintenance
     service.from("maintenance_requests")
       .select("id, title, category, status, created_at, urgency")

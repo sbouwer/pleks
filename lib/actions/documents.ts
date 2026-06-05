@@ -368,7 +368,7 @@ export async function getActiveCsWindow(leaseId: string): Promise<{
     .gt("expires_at", new Date().toISOString())
     .order("expires_at", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (error && error.code !== "PGRST116") {
     console.error("getActiveCsWindow failed:", error.message)

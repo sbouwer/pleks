@@ -30,7 +30,7 @@ export default async function PortalPaymentsPage() {
       .in("status", ["open", "partial", "overdue"])
       .order("due_date", { ascending: true })
       .limit(1)
-      .single(),
+      .maybeSingle(),
     // Full payment history
     service.from("payments")
       .select("id, payment_date, amount_cents, payment_method, reference")

@@ -53,7 +53,7 @@ export async function resolveDepositInterestConfig(
       query = query.is("property_id", null)
     }
 
-    const { data } = await query.order("effective_from", { ascending: false }).limit(1).single()
+    const { data } = await query.order("effective_from", { ascending: false }).limit(1).maybeSingle()
 
     if (data) return data as DepositInterestConfig
   }
@@ -72,7 +72,7 @@ export async function getPrimeRateOn(date: string): Promise<number | null> {
     .lte("effective_date", date)
     .order("effective_date", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("getPrimeRateOn prime_rates", queryError)
   return data?.rate_percent ?? null
 }

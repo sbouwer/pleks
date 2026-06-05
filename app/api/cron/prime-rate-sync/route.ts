@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
     .select("rate_percent, effective_date")
     .order("effective_date", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("GET prime_rates", latestError)
 
   if (latest && Number(latest.rate_percent) === fetchedRate) {

@@ -121,7 +121,7 @@ export async function getAdminDashboardData(): Promise<DashboardSnapshot> {
       .select("rate_percent, effective_date")
       .order("effective_date", { ascending: false })
       .limit(1)
-      .single(),
+      .maybeSingle(),
 
     // MRR current month
     db.from("subscriptions")

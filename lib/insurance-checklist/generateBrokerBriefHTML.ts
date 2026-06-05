@@ -80,7 +80,7 @@ async function fetchTenant(db: Db, propertyId: string): Promise<TenantInfo> {
     .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("fetchTenant leases", leaseError)
 
   const tc = (lease as unknown as {
@@ -128,7 +128,7 @@ async function fetchAgentInfo(
     .is("deleted_at", null)
     .eq("role", "admin")
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("fetchAgentInfo user_orgs", agentRowError)
 
   if (!agentRow?.user_id) return { agentName: fallbackName, agentEmail: fallbackEmail }

@@ -38,7 +38,7 @@ export default function DepositsSettingsPage() {
       .select("rate_percent")
       .order("effective_date", { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
       .then(({ data }) => {
         if (data) setCurrentPrime(data.rate_percent)
       })

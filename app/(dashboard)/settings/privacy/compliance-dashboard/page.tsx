@@ -34,7 +34,7 @@ export default async function ComplianceDashboardPage() {
       .eq("org_id", orgId)
       .order("run_started_at", { ascending: false })
       .limit(1)
-      .single(),
+      .maybeSingle(),
   ])
 
   const lastPurge = lastPurgeResult.data

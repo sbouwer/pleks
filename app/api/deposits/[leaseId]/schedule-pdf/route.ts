@@ -69,7 +69,7 @@ export async function GET(
     .eq("lease_id", leaseId)
     .order("created_at", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
   if (timerError) console.error("schedule-pdf deposit_timers read failed:", timerError.message)
 
   const propertyAddress = [

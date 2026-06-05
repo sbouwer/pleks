@@ -163,7 +163,7 @@ async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, re
     .is("deleted_at", null)
     .eq("role", "admin")
     .limit(1)
-    .single()
+    .maybeSingle()
   if (agentRowError) console.error("sendRenewalReminder user_orgs read failed:", agentRowError.message)
 
   if (!agentRow?.user_id) return

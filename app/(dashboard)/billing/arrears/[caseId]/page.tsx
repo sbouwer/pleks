@@ -63,7 +63,7 @@ export default async function ArrearsDetailPage({
     .select("rate_percent")
     .order("effective_date", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("ArrearsDetailPage prime_rates", primeRateError)
 
   const tenant = arrearsCase.tenant_view as unknown as { first_name: string; last_name: string; company_name: string; entity_type: string; email: string; phone: string } | null

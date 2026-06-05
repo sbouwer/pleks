@@ -190,7 +190,7 @@ async function lookupTenantByPhone(
     .select("contact_id")
     .eq("number", normalized)
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (cpErr && cpErr.code !== "PGRST116") {
     console.error("[wa-webhook] contact_phones lookup error", cpErr)
@@ -206,7 +206,7 @@ async function lookupTenantByPhone(
     .select("id, org_id")
     .eq("contact_id", cp.contact_id)
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (tErr && tErr.code !== "PGRST116") {
     console.error("[wa-webhook] tenant lookup error", tErr)
@@ -294,7 +294,7 @@ async function handleInboundMessage(
     .eq("tenant_id", tenant.id)
     .eq("status", "active")
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (leaseErr && leaseErr.code !== "PGRST116") {
     console.error("[wa-webhook] lease lookup error", leaseErr)

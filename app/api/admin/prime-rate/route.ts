@@ -20,7 +20,7 @@ export async function GET() {
     .select("rate_percent, effective_date, notes")
     .order("effective_date", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("GET prime_rates", queryError)
 
   return NextResponse.json({

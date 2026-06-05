@@ -42,7 +42,7 @@ export default async function DepositReconPage({
     supabase.from("deposit_reconciliations").select("*").eq("lease_id", leaseId).single(),
     supabase.from("deposit_deduction_items").select("*").eq("lease_id", leaseId).order("created_at"),
     supabase.from("deposit_charges").select("id, charge_type, description, deduction_amount_cents, agent_confirmed, source_arrears_case_id, source_invoice_id, source_supplier_invoice_id, source_municipal_bill_id, source_lease_charge_id, notes").eq("lease_id", leaseId).order("created_at"),
-    supabase.from("deposit_timers").select("deadline, status, return_days").eq("lease_id", leaseId).order("created_at", { ascending: false }).limit(1).single(),
+    supabase.from("deposit_timers").select("deadline, status, return_days").eq("lease_id", leaseId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("leases").select("start_date, end_date, lease_type, units(unit_number, properties(name)), tenant_view(first_name, last_name)").eq("id", leaseId).single(),
     supabase.from("deposit_transactions").select("id, created_at, amount_cents, effective_rate_percent, description").eq("lease_id", leaseId).eq("transaction_type", "interest_accrued").order("created_at", { ascending: true }),
     // Suggestions: open arrears cases for this lease

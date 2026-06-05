@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       .lte("effective_from", periodMonth.toISOString())
       .order("effective_from", { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     logErr("levy-generate levy_schedules read failed", scheduleError)
     if (!schedule) continue

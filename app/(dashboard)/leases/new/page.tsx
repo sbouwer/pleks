@@ -72,7 +72,7 @@ async function prefillOwnerTier(
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("prefillOwnerTier properties", ownerPropError)
   if (!ownerProp) return null
 
@@ -83,7 +83,7 @@ async function prefillOwnerTier(
     .is("deleted_at", null)
     .is("deleted_at", null)
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("prefillOwnerTier units", ownerUnitError)
 
   const u = ownerUnit as unknown as { id: string; prospective_tenant_id?: string | null; prospective_co_tenant_ids?: string[] } | null

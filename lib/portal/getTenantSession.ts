@@ -159,7 +159,7 @@ async function getActiveLease(
     .in("status", ["active", "draft"])
     .order("start_date", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (error || !lease) return null
 

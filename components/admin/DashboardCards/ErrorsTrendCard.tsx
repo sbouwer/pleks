@@ -20,7 +20,7 @@ async function getTopCostOrg(): Promise<{ name: string; ai_cost_cents: number } 
       .eq("period", period)
       .order("ai_cost_cents", { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
     logQueryError("getTopCostOrg platform_cost_snapshots", queryError)
     if (!data) return null
     const org = (data.organisations as unknown as { name: string } | null)

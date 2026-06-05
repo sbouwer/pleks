@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       .eq("category", category)
       .order("priority_order")
       .limit(1)
-      .single()
+      .maybeSingle()
     logQueryError("GET contractor_preferences", propPrefError)
 
     if (propPref?.contractor_view) {
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     .eq("category", category)
     .order("priority_order")
     .limit(1)
-    .single()
+    .maybeSingle()
     logQueryError("GET contractor_preferences", orgPrefError)
 
   if (orgPref?.contractor_view) {
