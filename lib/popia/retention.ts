@@ -28,6 +28,7 @@ export type DataCategory =
   | "audit_log"               // 7yr (SA business records standard)
   | "maintenance_records"     // 3yr post-completion
   | "platform_account"        // 30 days post account closure
+  | "fica_identity"           // 5yr post-relationship (FIC Act s23/s24) — the natural-person ID/verification clock
 
 export type RetentionDecision =
   | { erasable: true }
@@ -123,6 +124,14 @@ const PLATFORM_DEFAULTS: Record<DataCategory, RetentionPolicy> = {
     legal_basis: "consent",
     regulatory_source: "POPIA s14 minimisation — account data deleted 30 days post closure",
     erasable_during_retention: true,
+  },
+  fica_identity: {
+    // The natural person's identity/verification record (ID, FICA docs) has its OWN statutory clock,
+    // distinct from lease_documents — so "why do you still hold my ID" cites the actual statute (D-2).
+    retention_months: 60,
+    legal_basis: "legal_obligation",
+    regulatory_source: "FIC Act 38 of 2001 s23/s24 (5yr post business relationship)",
+    erasable_during_retention: false,
   },
 }
 
@@ -252,15 +261,22 @@ export async function getRetentionForSubject(
   const lease_active = latestLease?.status === "active"
   const termination_date = latestLease?.end_date ? new Date(latestLease.end_date) : undefined
 
+  // D-4: compose over the FULL referencing set — the contact shell is purgeable only when retention
+  // is satisfied across EVERY category the subject has data in. The prior list omitted
+  // trust_account_records (the landlord gate), fica_identity, and platform_account, so it could not
+  // answer "is this whole person purgeable?" for a landlord with trust records.
   const categories: DataCategory[] = [
     "lease_documents",
     "inspection_photos",
     "inspection_reports",
     "rent_ledger",
+    "trust_account_records",
     "communications",
     "credit_checks",
     "maintenance_records",
     "rejected_applications",
+    "fica_identity",
+    "platform_account",
     "consent_log",
     "audit_log",
   ]
@@ -320,7 +336,8 @@ function resolveAnchorDate(
     case "inspection_reports":
     case "communications":
     case "credit_checks":
-      // Anchored to termination date; fall back to created_at if unknown
+    case "fica_identity":
+      // Anchored to relationship-end (latest lease termination); fall back to created_at if unknown
       return context.termination_date ?? context.created_at
 
     case "trust_account_records":
