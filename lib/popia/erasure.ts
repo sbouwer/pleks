@@ -65,43 +65,6 @@ export interface SubjectIdentification {
   org_id: string
 }
 
-// ─── Preview (dry-run) ────────────────────────────────────────────────────────
-
-/**
- * Returns counts of what would happen without making any changes.
- * Used by the agency admin approval UI to show "this will delete X records."
- */
-export async function previewErasure(
-  subject: SubjectIdentification,
-  scope: ErasureScope,
-): Promise<ErasurePreview> {
-  const db = createServiceClient()
-  const categories = scopeToCategories(scope)
-  const preview: ErasurePreview["by_category"] = {} as ErasurePreview["by_category"]
-  let total_records = 0
-
-  for (const category of categories) {
-    const counts = await countRecordsForSubject(await db, subject, category)
-    const decision = await isErasableNow(category, {
-      orgId: subject.org_id,
-      created_at: new Date(),
-    })
-
-    if ("erasable" in decision && decision.erasable) {
-      preview[category] = { would_delete: counts, would_anonymise: 0, would_retain: 0 }
-    } else if ("anonymisable" in decision && decision.anonymisable) {
-      preview[category] = { would_delete: 0, would_anonymise: counts, would_retain: 0 }
-    } else {
-      const retained_until = "retained_until" in decision ? decision.retained_until.toISOString().slice(0, 10) : undefined
-      preview[category] = { would_delete: 0, would_anonymise: 0, would_retain: counts, retained_until }
-    }
-
-    total_records += counts
-  }
-
-  return { by_category: preview, total_records }
-}
-
 // ─── Execute ──────────────────────────────────────────────────────────────────
 
 /**
@@ -208,52 +171,7 @@ function scopeToCategories(scope: ErasureScope): DataCategory[] {
   return scope.categories
 }
 
-// Counts + deletes are expressed per category. This maps category → table + filter.
-// Tables added here as new data types are introduced.
-
-const SUBJECT_FIELD = {
-  tenants: "user_id",
-  contacts: "email",
-  applications: "user_id",
-  inspections: null,  // linked via lease_id → lease_parties
-  maintenance_requests: "requested_by_user_id",
-  communication_log: "user_id",
-} as const
-
 type DbClient = Awaited<ReturnType<typeof createServiceClient>>
-
-async function countRecordsForSubject(
-  db: DbClient,
-  subject: SubjectIdentification,
-  category: DataCategory,
-): Promise<number> {
-  // Simplified count — production implementation expands per category
-  switch (category) {
-    case "rejected_applications": {
-      const q = db.from("applications").select("id", { count: "exact", head: true })
-      if (subject.user_id) q.eq(SUBJECT_FIELD.applications, subject.user_id)
-      q.eq("org_id", subject.org_id)
-      const { count } = await q
-      return count ?? 0
-    }
-    case "communications": {
-      const q = db.from("communication_log").select("id", { count: "exact", head: true })
-      if (subject.user_id) q.eq("user_id", subject.user_id)
-      q.eq("org_id", subject.org_id)
-      const { count } = await q
-      return count ?? 0
-    }
-    case "maintenance_records": {
-      const q = db.from("maintenance_requests").select("id", { count: "exact", head: true })
-      if (subject.user_id) q.eq("requested_by_user_id", subject.user_id)
-      q.eq("org_id", subject.org_id)
-      const { count } = await q
-      return count ?? 0
-    }
-    default:
-      return 0
-  }
-}
 
 async function deleteRecordsForSubject(
   db: DbClient,
