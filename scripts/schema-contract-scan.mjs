@@ -91,16 +91,16 @@ export function validateSelectText(table, text, tbl, acc = { violations: [], unk
   return acc
 }
 
-// ── Scanner (runs only when invoked directly) ──────────────────────────────────
+// ── Matchers (pure over sourceFiles + manifest, so the canary can drive each one) ───────────────
 
-async function main() {
-  const updateBaseline = process.argv.includes("--update-baseline")
-  const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"))
-  const { tables, rpcs } = manifest
-
-  const { Project, SyntaxKind, Node } = await import("ts-morph")
-  const project = new Project({ tsConfigFilePath: resolve(ROOT, "tsconfig.json"), skipAddingFilesFromTsConfig: false })
-
+/**
+ * Run every matcher over the given ts-morph source files against a {tables, rpcs} manifest.
+ * Returns { findings, unknown, skipped }. Exported so scripts/__tests__ can assert each matcher fires
+ * on a deliberately-wrong fixture (the per-matcher canary, ADDENDUM_SCHEMA_CONTRACT_SCREEN D-7) — a
+ * matcher that goes dead in a refactor (as cardinality did) then fails its own test instead of
+ * silently reporting 0.
+ */
+export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
   const findings = []   // { file, kind, table, detail, criticality, severity }
   const unknown = new Set()
   const skipped = { select: 0, filter: 0, write: 0 }   // supabase chains seen but table unresolvable (honest coverage)
@@ -192,7 +192,7 @@ async function main() {
     return false
   }
 
-  for (const sf of project.getSourceFiles()) {
+  for (const sf of sourceFiles) {
     const fp = sf.getFilePath()
     if (EXCLUDE.some((re) => re.test(fp))) continue
     const rel = relative(ROOT, fp).replace(/\\/g, "/")
@@ -275,6 +275,19 @@ async function main() {
       }
     }
   }
+  return { findings, unknown, skipped }
+}
+
+// ── Scanner (runs only when invoked directly) ──────────────────────────────────
+
+async function main() {
+  const updateBaseline = process.argv.includes("--update-baseline")
+  const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"))
+  const { tables, rpcs } = manifest
+
+  const { Project, SyntaxKind, Node } = await import("ts-morph")
+  const project = new Project({ tsConfigFilePath: resolve(ROOT, "tsconfig.json"), skipAddingFilesFromTsConfig: false })
+  const { findings, unknown, skipped } = scanSourceFiles(project.getSourceFiles(), tables, rpcs, Node, SyntaxKind)
 
   // ── Baseline + policy ──
   const keyOf = (f) => `${f.file.split(":")[0]}::${f.kind}::${f.table}::${f.detail}`

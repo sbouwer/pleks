@@ -4,7 +4,8 @@
  * fixture manifest, including the exact org-branding drift shape that motivated the original guard.
  */
 import { describe, it, expect } from "vitest"
-import { validateSelectText, splitTopLevel, criticality } from "../schema-contract-scan.mjs"
+import { Project, Node, SyntaxKind } from "ts-morph"
+import { validateSelectText, splitTopLevel, criticality, scanSourceFiles } from "../schema-contract-scan.mjs"
 
 const tbl = {
   organisations: ["id", "name", "addr_line1", "addr_city", "brand_logo_path"],
@@ -61,4 +62,49 @@ describe("schema-contract select parser", () => {
     expect(criticality("user_orgs")).toBe("HIGH")
     expect(criticality("inspections")).toBe("NORMAL")
   })
+})
+
+/**
+ * Per-matcher canary (ADDENDUM_SCHEMA_CONTRACT_SCREEN D-7). Every matcher gets one deliberately-wrong
+ * example here; each test asserts that matcher still fires. The whole point: when a refactor breaks a
+ * seam (as the {table,sawFrom} change silently killed the cardinality matcher), the dead matcher fails
+ * its own canary instead of quietly reporting 0 while the run stays green. A new matcher MUST add a
+ * canary line here.
+ */
+describe("per-matcher canary — each matcher fires on a deliberately-wrong fixture", () => {
+  const TABLES = { widgets: ["id", "name"], consent_log: ["id", "org_id"] }  // consent_log is CRITICAL (§4)
+  const RPCS = { do_thing: ["p_id"] }
+  const FIXTURE = `
+    declare const db: any
+    export async function f() {
+      await db.from("widgets").select("id, nope")                            // select: phantom column
+      await db.from("widgets").select("id").eq("ghost", 1)                   // filter: phantom column
+      await db.from("widgets").insert({ phantom_key: 1 })                    // write:  phantom key
+      await db.from("ghost_table").select("id")                              // relation: phantom .from()
+      await db.rpc("do_thing", { bad_arg: 1 })                               // rpc: wrong arg name
+      await db.rpc("ghost_fn", { p_id: 1 })                                  // rpc-missing: phantom fn
+      await db.from("widgets").select("id").eq("created::date", 1)           // cast: :: in a filter column
+      await db.from("widgets").select("id").order("name").limit(1).single()  // cardinality (warn)
+      db.from("consent_log").insert({ org_id: 1 }).then(() => null)          // swallow: best-effort CRITICAL write
+      let q = db.from("widgets").select("id")
+      q = q.eq("phantom_via_binding", 1)                                     // binding resolution (builder pattern)
+    }
+  `
+  const project = new Project({ useInMemoryFileSystem: true })
+  project.createSourceFile("fixture.ts", FIXTURE)
+  const { findings } = scanSourceFiles(project.getSourceFiles(), TABLES, RPCS, Node, SyntaxKind)
+  const has = (kind, name) => findings.some((f) => f.kind === kind && (name === undefined || f.detail === name || f.table === name))
+
+  it("select fires on a phantom column", () => expect(has("select", "nope")).toBe(true))
+  it("filter fires on a phantom column", () => expect(has("filter", "ghost")).toBe(true))
+  it("write fires on a phantom insert key", () => expect(has("write", "phantom_key")).toBe(true))
+  it("relation fires on a phantom .from() table", () => expect(has("relation", "ghost_table")).toBe(true))
+  it("rpc fires on a wrong arg name", () => expect(has("rpc", "bad_arg")).toBe(true))
+  it("rpc-missing fires on a non-existent function", () => expect(has("rpc-missing", "ghost_fn")).toBe(true))
+  it("cast fires on :: in a filter column", () => expect(has("cast")).toBe(true))
+  it("cardinality warns on .single() after order/limit", () =>
+    expect(findings.some((f) => f.kind === "cardinality" && f.severity === "warn")).toBe(true))
+  it("swallow fires on a best-effort CRITICAL write", () => expect(has("swallow")).toBe(true))
+  it("binding resolution finds the builder-pattern phantom (the regression that went dead)", () =>
+    expect(has("filter", "phantom_via_binding")).toBe(true))
 })
