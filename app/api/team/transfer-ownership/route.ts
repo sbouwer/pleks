@@ -1,14 +1,16 @@
 /**
- * app/api/team/transfer-ownership/route.ts — FILL: one-line purpose
+ * app/api/team/transfer-ownership/route.ts — transfer org ownership to another member
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/team/transfer-ownership
+ * Auth:   auth.getUser; only the current owner may transfer (step-up: ownership_transfer)
+ * Data:   user_orgs (promote new owner / demote caller, with rollback), audit_log, Resend emails
+ * Notes:  Audited via recordAudit as action=UPDATE + new_values.action="ownership_transfer" — the shape
+ *         lib/admin/audit-severity.ts keys on (the old raw insert used action="OWNERSHIP_TRANSFERRED"
+ *         with no new_values, so the severity classifier never matched it).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { recordAudit } from "@/lib/audit/recordAudit";
 import { Resend } from "resend";
 
 const MARKETING = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
@@ -179,19 +181,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Write audit log
-    const { error: auditError } = await supabase.from("audit_log").insert({
-      org_id: orgId,
-      table_name: "user_orgs",
-      record_id: newOwnerUserId,
-      action: "OWNERSHIP_TRANSFERRED",
-      changed_by: callerId,
+    // Audit the ownership transfer (access-control event). action=UPDATE + new_values.action=
+    // "ownership_transfer" is the shape lib/admin/audit-severity.ts classifies on.
+    await recordAudit(supabase, {
+      orgId, actorId: callerId, action: "UPDATE", table: "user_orgs", recordId: newOwnerUserId,
+      after: { action: "ownership_transfer", from_user: callerId, to_user: newOwnerUserId },
     });
-
-    if (auditError) {
-      // Non-fatal: log but do not fail the request
-      console.error("Audit log insert failed:", auditError.message);
-    }
 
     // Send emails via Resend
     const resend = new Resend(process.env.RESEND_API_KEY);
