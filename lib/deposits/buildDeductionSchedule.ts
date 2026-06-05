@@ -29,7 +29,7 @@ export async function buildDeductionSchedule(
   // Get items from move-out inspection
   const { data: inspectionItems, error: inspectionItemsError } = await supabase
     .from("inspection_items")
-    .select("id, room, item_name, condition, notes, estimated_cost_cents")
+    .select("id, room_id, item_name, condition, condition_notes, estimated_deduction_cents")
     .eq("inspection_id", inspectionId)
     .in("condition", ["tenant_damage", "poor", "damaged", "wear_and_tear"])
   if (inspectionItemsError) console.error("buildDeductionSchedule inspection_items read failed:", inspectionItemsError.message)
@@ -39,7 +39,7 @@ export async function buildDeductionSchedule(
     .from("inspections")
     .select("id")
     .eq("lease_id", leaseId)
-    .eq("type", "move_in")
+    .eq("inspection_type", "move_in")
     .single()
   if (moveInInspectionError) console.error("buildDeductionSchedule move-in inspections read failed:", moveInInspectionError.message)
 
@@ -47,7 +47,7 @@ export async function buildDeductionSchedule(
   if (moveInInspection) {
     const { data, error: moveInItemsError } = await supabase
       .from("inspection_items")
-      .select("room, item_name, condition")
+      .select("room_id, item_name, condition")
       .eq("inspection_id", moveInInspection.id)
     if (moveInItemsError) console.error("buildDeductionSchedule move-in inspection_items read failed:", moveInItemsError.message)
     moveInItems = data ?? []
@@ -57,7 +57,7 @@ export async function buildDeductionSchedule(
   for (const item of inspectionItems ?? []) {
     // Check move-in condition for pre-existing
     const moveInMatch = moveInItems.find(
-      (mi) => mi.room === item.room && mi.item_name === item.item_name
+      (mi) => mi.room_id === item.room_id && mi.item_name === item.item_name
     )
 
     let classification: string
@@ -76,11 +76,11 @@ export async function buildDeductionSchedule(
         lease_id: leaseId,
         inspection_id: inspectionId,
         inspection_item_id: item.id,
-        room: item.room,
-        item_description: `${item.item_name}${item.notes ? ` — ${item.notes}` : ""}`,
+        room: item.room_id,
+        item_description: `${item.item_name}${item.condition_notes ? ` — ${item.condition_notes}` : ""}`,
         classification,
         deduction_amount_cents: classification === "tenant_damage"
-          ? (item.estimated_cost_cents ?? 0) : 0,
+          ? (item.estimated_deduction_cents ?? 0) : 0,
       })
       .select("id")
       .single()
