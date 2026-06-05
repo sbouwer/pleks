@@ -84,14 +84,25 @@ async function fetchLandlordInfo(
 
   const { data: landlord, error: landlordError } = await service
     .from("landlords")
-    .select("bank_name, bank_account, contact_id")
+    .select("contact_id")
     .eq("id", landlordId)
     .single()
 
   if (landlordError) console.error("fetchLandlordInfo landlords read failed:", landlordError.message)
   if (!landlord) return { hasOwnerBanking: false, ownerEmail: fallbackEmail }
 
-  const hasOwnerBanking = !!(landlord.bank_name && landlord.bank_account)
+  // Banking is contact-scoped in contact_bank_accounts (multi-account) — landlords.bank_* was
+  // superseded and no longer exists. "Has banking" = the owner's contact has ≥1 bank account.
+  let hasOwnerBanking = false
+  if (landlord.contact_id) {
+    const { count, error: bankError } = await service
+      .from("contact_bank_accounts")
+      .select("id", { count: "exact", head: true })
+      .eq("contact_id", landlord.contact_id)
+    if (bankError) console.error("fetchLandlordInfo bank accounts read failed:", bankError.message)
+    hasOwnerBanking = (count ?? 0) > 0
+  }
+
   if (fallbackEmail || !landlord.contact_id) {
     return { hasOwnerBanking, ownerEmail: fallbackEmail }
   }

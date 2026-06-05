@@ -6,8 +6,6 @@
   "app/(dashboard)/leases/[leaseId]/deposit/page.tsx::arrears_cases::case_reference": 1,
   "app/(dashboard)/leases/[leaseId]/deposit/page.tsx::deposit_transactions::statement_month": 1,
   "app/(dashboard)/leases/[leaseId]/deposit/page.tsx::deposit_transactions::transaction_date": 1,
-  "app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx::landlords::bank_account": 1,
-  "app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx::landlords::bank_name": 1,
   "app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx::managing_schemes::managing_agent_email": 1,
   "app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx::managing_schemes::managing_agent_name": 1,
   "app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx::property_brokers::id": 1,
