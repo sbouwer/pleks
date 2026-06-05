@@ -92,7 +92,7 @@ export async function buildWelcomePackData(
     .in("property_id", propertyIds)
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     .order("unit_number")
   if (unitsError) console.error("welcomePack/units:", unitsError.message)
 

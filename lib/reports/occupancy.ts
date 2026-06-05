@@ -32,7 +32,7 @@ export async function buildOccupancyReport(filters: ReportFilters): Promise<Occu
     .eq("org_id", orgId)
     .in("property_id", propIds)
     .is("deleted_at", null)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     logQueryError("buildOccupancyReport units", unitsError)
 
   const allUnits = units ?? []

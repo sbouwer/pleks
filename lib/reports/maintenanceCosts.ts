@@ -80,7 +80,7 @@ export async function buildMaintenanceCostReport(filters: ReportFilters): Promis
     .select("property_id")
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     logQueryError("buildMaintenanceCostReport units", unitCountsError)
 
   const unitsPerProp = new Map<string, number>()

@@ -38,7 +38,7 @@ async function fetchUnits(service: ServiceClient, propertyId: string | undefined
     .from("units")
     .select("id, unit_number, access_instructions, prospective_tenant_id")
     .eq("property_id", propertyId)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     .is("deleted_at", null)
     .order("unit_number")
   if (error) console.error("fetchUnits units read failed:", error.message)

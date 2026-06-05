@@ -30,17 +30,17 @@ interface Props {
 
 export function PropertyListView({ properties, view, arrearsPct, archived }: Readonly<Props>) {
   const totalUnits = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.is_archived).length, 0)
+    sum + p.units.filter(u => !u.deleted_at).length, 0)
   const occupiedUnits = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.is_archived && u.status === "occupied").length, 0)
+    sum + p.units.filter(u => !u.deleted_at && u.status === "occupied").length, 0)
   const rentRollCents = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.is_archived).reduce((us, u) => {
+    sum + p.units.filter(u => !u.deleted_at).reduce((us, u) => {
       const lease = u.leases.find(l => isInForceLease(l.status))
       return us + (lease?.rent_amount_cents ?? 0)
     }, 0), 0)
   // Potential income: in-force rent where let, asking rent where vacant.
   const potentialCents = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.is_archived).reduce((us, u) => {
+    sum + p.units.filter(u => !u.deleted_at).reduce((us, u) => {
       const lease = u.leases.find(l => isInForceLease(l.status))
       return us + (lease?.rent_amount_cents ?? u.asking_rent_cents ?? 0)
     }, 0), 0)
@@ -93,7 +93,7 @@ export function PropertyListView({ properties, view, arrearsPct, archived }: Rea
       <div className="lg:hidden min-h-0 flex-1 overflow-auto">
         <div className="space-y-2">
             {properties.map((p) => {
-              const activeUnits = p.units.filter(u => !u.is_archived)
+              const activeUnits = p.units.filter(u => !u.deleted_at)
               const occupiedCount = activeUnits.filter(u => u.status === "occupied").length
               const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.address_line1}, ${p.city}`)}`
               return (

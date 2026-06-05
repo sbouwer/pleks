@@ -304,13 +304,14 @@ export async function updateUnitStatus(
 
   if (!unit) return { error: "Unit not found" }
 
+  // D-1: `deleted_at` is the sole archive marker — never write is_archived / status='archived' again.
+  // An "archived" transition sets deleted_at and leaves status as occupancy; everything else sets status.
+  const archiving = newStatus === "archived"
   const { error } = await db
     .from("units")
-    .update({
-      status: newStatus,
-      is_archived: newStatus === "archived",
-    })
+    .update(archiving ? { deleted_at: new Date().toISOString() } : { status: newStatus })
     .eq("id", unitId)
+    .eq("org_id", unit.org_id)
 
   if (error) return { error: error.message }
 

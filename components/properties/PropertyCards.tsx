@@ -1,11 +1,9 @@
 /**
- * components/properties/PropertyCards.tsx — FILL: one-line purpose
+ * components/properties/PropertyCards.tsx — card-grid portfolio view (owner/steward tiers)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   PropertyCardData[] from properties/page.tsx (nested active units + leases)
+ * Notes:  Active units are those with deleted_at == null (the sole archive marker — D-1); the legacy
+ *         is_archived boolean is no longer consulted. KPIs (units/occupancy/rent-roll) sum active only.
  */
 import Link from "next/link"
 import { Home } from "lucide-react"
@@ -25,7 +23,7 @@ export interface PropertyCardData {
   address_line1: string
   city: string
   is_sectional_title?: boolean | null
-  units: { id: string; status: string; is_archived: boolean; asking_rent_cents: number | null; leases: { rent_amount_cents: number; status: string }[] }[]
+  units: { id: string; status: string; deleted_at: string | null; asking_rent_cents: number | null; leases: { rent_amount_cents: number; status: string }[] }[]
 }
 
 interface Props {
@@ -39,16 +37,16 @@ export function PropertyCards({ properties, tier, totalUnitCount, arrearsPct }: 
   const unitLimit = TIER_LIMITS[tier].leases
 
   const totalUnits = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.is_archived).length, 0)
+    sum + p.units.filter(u => !u.deleted_at).length, 0)
   const occupiedUnits = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.is_archived && u.status === "occupied").length, 0)
+    sum + p.units.filter(u => !u.deleted_at && u.status === "occupied").length, 0)
   const rentRollCents = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.is_archived).reduce((us, u) => {
+    sum + p.units.filter(u => !u.deleted_at).reduce((us, u) => {
       const lease = u.leases.find(l => isInForceLease(l.status))
       return us + (lease?.rent_amount_cents ?? 0)
     }, 0), 0)
   const potentialCents = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.is_archived).reduce((us, u) => {
+    sum + p.units.filter(u => !u.deleted_at).reduce((us, u) => {
       const lease = u.leases.find(l => isInForceLease(l.status))
       return us + (lease?.rent_amount_cents ?? u.asking_rent_cents ?? 0)
     }, 0), 0)
@@ -103,7 +101,7 @@ export function PropertyCards({ properties, tier, totalUnitCount, arrearsPct }: 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {properties.map((p) => {
-            const activeUnits = p.units.filter(u => !u.is_archived)
+            const activeUnits = p.units.filter(u => !u.deleted_at)
             const occupied = activeUnits.filter(u => u.status === "occupied").length
             const rentRoll = activeUnits.reduce((sum, u) => {
               const activeLease = u.leases.find(l => l.status === "active")

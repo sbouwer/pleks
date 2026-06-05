@@ -42,10 +42,10 @@ function filterProperties(properties: PropertyListItem[], q: string, statusFilte
       p.name.toLowerCase().includes(q) || p.address_line1.toLowerCase().includes(q) || p.city.toLowerCase().includes(q))
   }
   if (statusFilter === "vacancies") {
-    out = out.filter((p) => p.units.some((u) => !u.is_archived && u.status !== "occupied"))
+    out = out.filter((p) => p.units.some((u) => !u.deleted_at && u.status !== "occupied"))
   } else if (statusFilter === "occupied") {
     out = out.filter((p) => {
-      const active = p.units.filter((u) => !u.is_archived)
+      const active = p.units.filter((u) => !u.deleted_at)
       return active.length > 0 && active.every((u) => u.status === "occupied")
     })
   }
@@ -125,7 +125,7 @@ export default async function PropertiesPage({
         id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
         managing_agent_id, is_sectional_title, levy_amount_cents, levy_account_number, managing_scheme_id,
         units(
-          id, unit_number, status, is_archived,
+          id, unit_number, status, deleted_at,
           bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
           asking_rent_cents, deposit_amount_cents, features, assigned_agent_id,
           prospective_tenant_id, prospective_co_tenant_ids,
@@ -210,7 +210,7 @@ export default async function PropertiesPage({
       .from("properties")
       .select(`
         id, name, type, address_line1, city, province,
-        units(id, status, is_archived, asking_rent_cents, leases(id, status, rent_amount_cents))
+        units(id, status, deleted_at, asking_rent_cents, leases(id, status, rent_amount_cents))
       `)
       .eq("org_id", orgId)
       .is("deleted_at", null)
@@ -219,7 +219,7 @@ export default async function PropertiesPage({
     if (stewardErr) console.error("[properties] steward fetch failed:", stewardErr.message)
     const properties = (rawProperties ?? []) as unknown as PropertyListItem[]
     const totalUnitCount = properties.reduce(
-      (sum, p) => sum + p.units.filter(u => !u.is_archived).length, 0
+      (sum, p) => sum + p.units.filter(u => !u.deleted_at).length, 0
     )
 
     return <PropertyCards properties={properties} tier={tier} totalUnitCount={totalUnitCount} arrearsPct={arrearsPct} />
@@ -235,7 +235,7 @@ export default async function PropertiesPage({
     .from("properties")
     .select(`
       id, name, type, address_line1, city, province, landlord_id,
-      units(id, status, is_archived, asking_rent_cents, leases(id, status, rent_amount_cents))
+      units(id, status, deleted_at, asking_rent_cents, leases(id, status, rent_amount_cents))
     `)
     .eq("org_id", orgId)
   listQuery = archived ? listQuery.not("deleted_at", "is", null) : listQuery.is("deleted_at", null)

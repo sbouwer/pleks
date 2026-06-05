@@ -18,7 +18,7 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
     .select("id, property_id, unit_number, status, properties(name)")
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
 
   if (propertyIds?.length) unitQuery = unitQuery.in("property_id", propertyIds)
   const { data: units } = await unitQuery

@@ -150,7 +150,7 @@ export function NewInspectionForm({
         .select("id, unit_number, status, bedrooms, prospective_tenant_id")
         .eq("property_id", propertyId)
         .is("deleted_at", null)
-        .eq("is_archived", false)
+        .is("deleted_at", null)
         .order("unit_number")
       if (rowsError) console.error("NewInspectionForm units read failed:", rowsError.message)
       if (!cancelled) {

@@ -81,7 +81,7 @@ async function prefillOwnerTier(
     .select("id, prospective_tenant_id, prospective_co_tenant_ids")
     .eq("property_id", ownerProp.id)
     .is("deleted_at", null)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     .limit(1)
     .single()
     logQueryError("prefillOwnerTier units", ownerUnitError)

@@ -43,7 +43,7 @@ export async function generateOwnerStatement(
     .from("units")
     .select("id")
     .eq("property_id", propertyId)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     logQueryError("generateOwnerStatement units", unitsError)
 
   const unitIds = (units || []).map((u) => u.id)

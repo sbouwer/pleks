@@ -22,7 +22,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .from("units")
     .select("id, unit_number, access_instructions")
     .eq("property_id", propertyId)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     .is("deleted_at", null)
     .order("unit_number")
     logQueryError("GET units", unitsError)

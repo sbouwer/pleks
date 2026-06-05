@@ -40,7 +40,7 @@ export interface SinglePropertyData {
     id: string
     unit_number: string | null
     status: string
-    is_archived: boolean
+    deleted_at: string | null
     bedrooms?: number | null
     bathrooms?: number | null
     size_m2?: number | null
@@ -246,7 +246,7 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SinglePropertyView({ property, currentInvoice = null, orgId = "", prospectiveTenantId = null, prospectiveTenantName = null, prospectiveCoTenants = [] }: Props) {
-  const activeUnit = property.units.find(u => !u.is_archived) ?? null
+  const activeUnit = property.units.find(u => !u.deleted_at) ?? null
   const activeLease = activeUnit?.leases.find(l => l.status === "active" || l.status === "notice") ?? null
   const leaseEndDate = activeLease?.end_date ?? null
   const unitStatus = activeUnit?.status ?? null

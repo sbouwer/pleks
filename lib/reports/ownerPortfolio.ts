@@ -43,7 +43,7 @@ export async function buildOwnerPortfolio(filters: ReportFilters): Promise<Owner
     .select("property_id")
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     logQueryError("buildOwnerPortfolio units", unitCountsError)
 
   const unitsPerProp = new Map<string, number>()

@@ -433,7 +433,7 @@ export async function fetchUnitsForProperty(propertyId: string) {
     .select("id, unit_number, access_instructions, prospective_tenant_id")
     .eq("property_id", propertyId)
     .eq("org_id", orgId)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     .is("deleted_at", null)
     .order("unit_number")
   if (error) console.error("fetchUnitsForProperty failed:", error.message)

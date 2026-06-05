@@ -43,7 +43,7 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
         .eq("org_id", orgId)
         .in("property_id", propIds)
         .is("deleted_at", null)
-        .eq("is_archived", false),
+        .is("deleted_at", null),
       supabase
         .from("rent_invoices")
         .select("unit_id, total_amount_cents, amount_paid_cents, status")

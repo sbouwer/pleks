@@ -25,7 +25,7 @@ export interface UnitTabData {
   id: string
   unit_number: string
   status: string
-  is_archived: boolean
+  deleted_at: string | null
   bedrooms: number | null
   bathrooms: number | null
   size_m2: number | null

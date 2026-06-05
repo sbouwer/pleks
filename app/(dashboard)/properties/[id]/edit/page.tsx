@@ -55,7 +55,7 @@ export default async function EditPropertyPage({
     supabase
       .from("units")
       .select(
-        "id, unit_number, status, is_archived, leases(id, status, tenant:tenants!tenant_id(id, contact:contacts(first_name, last_name)))"
+        "id, unit_number, status, deleted_at, leases(id, status, tenant:tenants!tenant_id(id, contact:contacts(first_name, last_name)))"
       )
       .eq("property_id", id)
       .is("deleted_at", null)
@@ -92,7 +92,7 @@ export default async function EditPropertyPage({
   })
 
   const unitsSummary = (unitsData ?? [])
-    .filter((u) => !u.is_archived)
+    .filter((u) => !u.deleted_at)
     .map((u) => {
       const activeLease = (u.leases as unknown as Array<{
         status: string

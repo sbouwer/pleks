@@ -64,7 +64,7 @@ export function PropertyList({ properties, view }: Props) {
     return (
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((p) => {
-          const activeUnits = p.units.filter(u => !u.is_archived)
+          const activeUnits = p.units.filter(u => !u.deleted_at)
           const occupied = activeUnits.filter(u => u.status === "occupied").length
           const rentRoll = activeUnits.reduce((sum, u) => sum + (u.leases.find(l => isInForceLease(l.status))?.rent_amount_cents ?? 0), 0)
           return (
@@ -88,8 +88,8 @@ export function PropertyList({ properties, view }: Props) {
   }
 
   const sorted = [...filtered].sort((a, b) => {
-    const aUnits = a.units.filter(u => !u.is_archived)
-    const bUnits = b.units.filter(u => !u.is_archived)
+    const aUnits = a.units.filter(u => !u.deleted_at)
+    const bUnits = b.units.filter(u => !u.deleted_at)
     let av = 0, bv = 0
     if (sortKey === "name") return sortDir === "asc"
       ? a.name.localeCompare(b.name)
@@ -125,7 +125,7 @@ export function PropertyList({ properties, view }: Props) {
         </thead>
         <tbody className="divide-y divide-border/40">
           {sorted.map((p) => {
-            const activeUnits = p.units.filter(u => !u.is_archived)
+            const activeUnits = p.units.filter(u => !u.deleted_at)
             const occupied = activeUnits.filter(u => u.status === "occupied").length
             const total = activeUnits.length
             const occPct = total > 0 ? Math.round((occupied / total) * 100) : 0

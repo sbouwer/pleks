@@ -20,7 +20,7 @@ export async function buildVacancyAnalysis(filters: ReportFilters): Promise<Vaca
     .eq("org_id", orgId)
     .eq("status", "vacant")
     .is("deleted_at", null)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
   if (propertyIds?.length) unitsQuery = unitsQuery.in("property_id", propertyIds)
 
   const { data: unitsData, error: unitsError } = await unitsQuery

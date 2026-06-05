@@ -44,7 +44,7 @@ export async function buildPropertyPerformance(filters: ReportFilters): Promise<
       .eq("org_id", orgId)
       .in("property_id", propIds)
       .is("deleted_at", null)
-      .eq("is_archived", false),
+      .is("deleted_at", null),
     db.from("maintenance_requests")
       .select("property_id, actual_cost_cents")
       .eq("org_id", orgId)

@@ -240,10 +240,9 @@ export default async function DashboardPage() {
       .is("deleted_at", null),
     supabase
       .from("units")
-      .select("status, is_archived")
+      .select("status")
       .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .eq("is_archived", false),
+      .is("deleted_at", null),
     getCollectionRate(orgId),
     supabase.from("tenants").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
     supabase.from("leases").select("id", { count: "exact", head: true }).eq("org_id", orgId),

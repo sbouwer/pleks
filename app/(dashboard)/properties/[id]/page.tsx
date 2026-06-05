@@ -73,7 +73,9 @@ async function fetchUnitsTabData(
     { data: teamMemberRows },
     { data: buildings },
   ] = await Promise.all([
-    service.from("units").select("*").eq("property_id", propertyId).eq("org_id", orgId).is("deleted_at", null).order("unit_number"),
+    // NOT filtered by deleted_at — the detail page shows BOTH active + archived units (split below for
+    // the Active/Archived tabs, D-7). This is the by-id carve-out (D-5): archived rows still resolve here.
+    service.from("units").select("*").eq("property_id", propertyId).eq("org_id", orgId).order("unit_number"),
     service
       .from("leases")
       .select("unit_id, id, tenant_id, tenants(id, contacts(id, first_name, last_name, company_name))")
@@ -124,8 +126,8 @@ async function fetchUnitsTabData(
 
   const allUnits = (units ?? []) as UnitTabData[]
   return {
-    activeUnits:     allUnits.filter((u) => !u.is_archived),
-    archivedUnits:   allUnits.filter((u) => u.is_archived),
+    activeUnits:     allUnits.filter((u) => !u.deleted_at),
+    archivedUnits:   allUnits.filter((u) => u.deleted_at),
     buildings:       (buildings ?? []) as BuildingTabData[],
     tenantByUnit,
     maintenanceByUnit,
@@ -179,7 +181,7 @@ async function fetchOverviewData(
     { data: latestDeedsRaw },
     { data: latestLightstoneRaw },
   ] = await Promise.all([
-    service.from("units").select("id, status, asking_rent_cents").eq("property_id", propertyId).eq("org_id", orgId).is("deleted_at", null).eq("is_archived", false),
+    service.from("units").select("id, status, asking_rent_cents").eq("property_id", propertyId).eq("org_id", orgId).is("deleted_at", null),
     landlordId
       ? service.from("landlord_view").select("id, first_name, last_name, company_name, entity_type, email, phone, registration_number").eq("id", landlordId).single()
       : Promise.resolve({ data: null }),
@@ -643,7 +645,7 @@ export default async function PropertyDetailPage({
     .eq("property_id", id)
     .eq("org_id", orgId)
     .is("deleted_at", null)
-    .eq("is_archived", false)
+    .is("deleted_at", null)
     logQueryError("PropertyDetailPage units", baseUnitsError)
 
   const addressParts  = [property.address_line1, property.suburb, property.city, property.province].filter(Boolean)
