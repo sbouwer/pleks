@@ -296,14 +296,18 @@ export async function submitOwnerChecklistResponse(
     return { ok: false, error: "Link expired" }
   }
 
-  // POPIA consent log (best-effort)
-  await service.from("consent_log").insert({
+  // POPIA consent log — BLOCKING: a consent register write must not be swallowed (CRITICAL table).
+  const { error: consentErr } = await service.from("consent_log").insert({
     org_id:          req.org_id,
     consent_type:    "property_info_submission",
     consent_version: "1.0",
     consent_given:   true,
     metadata:        { topic: "insurance_checklist", entity_type: "property_info_request", entity_id: req.id },
-  }).then(() => null, () => null)
+  })
+  if (consentErr) {
+    console.error("property-info consent_log insert failed:", consentErr.message)
+    return { ok: false, error: "Could not record your consent — please try again." }
+  }
 
   let confirmedCount = 0
   let uncertainCount = 0
@@ -370,14 +374,18 @@ export async function submitPropertyInfo(input: SubmitPayload): Promise<SubmitRe
     if (allowed.has(k) || k === "notes" || k === "entity_type") filtered[k] = v
   }
 
-  // Also record a consent log
-  await service.from("consent_log").insert({
+  // Record consent — BLOCKING: a consent register write must not be swallowed (CRITICAL table).
+  const { error: consentLogErr } = await service.from("consent_log").insert({
     org_id:         req.org_id,
     consent_type:   "property_info_submission",
     consent_version: "1.0",
     consent_given:  true,
     metadata:       { topic: req.topic, entity_type: "property_info_request", entity_id: req.id },
-  }).then(() => null, () => null)   // best-effort
+  })
+  if (consentLogErr) {
+    console.error("submitPropertyInfo consent_log insert failed:", consentLogErr.message)
+    return { ok: false, error: "Could not record your consent — please try again." }
+  }
 
   // Writeback
   const writeback = WRITEBACKS[req.topic as string]
