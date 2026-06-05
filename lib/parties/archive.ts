@@ -76,3 +76,39 @@ export async function landlordHasInForceLease(
   logQueryError("landlordHasInForceLease unit leases", leaseErr)
   return (unitLeaseCount ?? 0) > 0
 }
+
+/**
+ * True when ANY lease on the property is in force (blocks archiving the property). leases.property_id
+ * is NOT NULL on every lease, so this catches unit-level leases too (each carries the property_id).
+ * ADDENDUM_PROPERTY_UNIT_ARCHIVE D-3.
+ */
+export async function propertyHasInForceLease(
+  db: SupabaseClient,
+  orgId: string,
+  propertyId: string,
+): Promise<boolean> {
+  const { count, error } = await db
+    .from("leases")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("property_id", propertyId)
+    .in("status", IN_FORCE)
+  logQueryError("propertyHasInForceLease", error)
+  return (count ?? 0) > 0
+}
+
+/** True when the unit has an in-force lease (blocks archiving the unit). D-2. */
+export async function unitHasInForceLease(
+  db: SupabaseClient,
+  orgId: string,
+  unitId: string,
+): Promise<boolean> {
+  const { count, error } = await db
+    .from("leases")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("unit_id", unitId)
+    .in("status", IN_FORCE)
+  logQueryError("unitHasInForceLease", error)
+  return (count ?? 0) > 0
+}

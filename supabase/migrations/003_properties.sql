@@ -577,3 +577,17 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER;
 -- Active reads filter deleted_at IS NULL.
 ALTER TABLE property_documents ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 CREATE INDEX IF NOT EXISTS idx_property_documents_active ON property_documents(property_id) WHERE deleted_at IS NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_PROPERTY_UNIT_ARCHIVE D-1: collapse 3 unit-retirement concepts into deleted_at
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- `deleted_at` is the SOLE archive marker. The legacy markers — `is_archived` (boolean) and the
+-- occupancy value `status='archived'` — are DEPRECATED: never write them again, reads no longer
+-- consult them. This backfills any row still carrying a legacy marker into deleted_at. Idempotent
+-- (only rows where deleted_at IS NULL). The legacy column + the 'archived' CHECK value are left in
+-- place (dropping/narrowing is destructive — deferred). `status` is occupancy-only henceforth
+-- (vacant/occupied/notice/maintenance).
+UPDATE units
+SET deleted_at = now()
+WHERE deleted_at IS NULL
+  AND (is_archived = true OR status = 'archived');

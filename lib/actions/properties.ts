@@ -6,13 +6,16 @@
  * Auth:   requireAgentWriteAccess (all paths are writes)
  * Data:   properties, buildings, managing_schemes tables via gateway service client
  * Notes:  createProperty auto-inserts a default building so single-building properties
- *         are transparent; archiveProperty soft-deletes (status='archived'), deleteProperty
- *         is a hard delete guarded by a zero-unit check.
+ *         are transparent; archiveProperty soft-deletes (deleted_at) + cascades the same timestamp
+ *         to its buildings/units (guarded by in-force leases), reactivateProperty reverses that exact
+ *         cascade; deleteProperty is a hard delete guarded by a zero-unit check.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
+import { propertyHasInForceLease } from "@/lib/parties/archive"
 
 export async function createProperty(formData: FormData) {
   const gw = await requireAgentWriteAccess("create_property")
@@ -155,46 +158,74 @@ export async function updateProperty(propertyId: string, formData: FormData) {
   return { success: true }
 }
 
+/**
+ * Archive a property (D-3): blocked if ANY lease on it is in force; otherwise soft-delete the property
+ * AND cascade the SAME deleted_at timestamp to its currently-active buildings + units, so a later
+ * Restore reverses exactly this cascade (independently-archived units keep their own timestamp).
+ */
 export async function archiveProperty(propertyId: string): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("edit_property")
-  const { db, isAdmin } = gw
+  const { db, orgId, userId, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
-  // Check for active leases first
-  const { count } = await db
-    .from("leases")
-    .select("id", { count: "exact", head: true })
-    .eq("property_id", propertyId)
-    .in("status", ["active", "notice", "month_to_month"])
-    .is("deleted_at", null)
-
-  if (count && count > 0) {
-    return { error: "Active leases must be terminated before archiving." }
+  if (await propertyHasInForceLease(db, orgId, propertyId)) {
+    return { error: "This property has an in-force lease (active, on notice, or month-to-month) on one of its units. End the lease before archiving — archiving only retires it from active lists." }
   }
 
-  const { error } = await db
-    .from("properties")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", propertyId)
+  const ts = new Date().toISOString()
 
-  if (error) return { error: error.message }
+  const { error: propErr } = await db
+    .from("properties").update({ deleted_at: ts }).eq("id", propertyId).eq("org_id", orgId)
+  if (propErr) return { error: propErr.message }
+
+  const { error: bErr } = await db
+    .from("buildings").update({ deleted_at: ts }).eq("property_id", propertyId).eq("org_id", orgId).is("deleted_at", null)
+  logQueryError("archiveProperty buildings cascade", bErr)
+  const { data: archivedUnits, error: uErr } = await db
+    .from("units").update({ deleted_at: ts }).eq("property_id", propertyId).eq("org_id", orgId).is("deleted_at", null).select("id")
+  logQueryError("archiveProperty units cascade", uErr)
+
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "properties", recordId: propertyId,
+    after: { action: "archive_property", cascade_ts: ts, units_archived: (archivedUnits ?? []).length },
+  })
 
   revalidatePath("/properties")
   return {}
 }
 
+/**
+ * Restore a property (D-4): clear deleted_at on the property + the buildings/units whose deleted_at
+ * EQUALS the property's (i.e. archived by that cascade) — units archived independently earlier (a
+ * different timestamp) stay archived.
+ */
 export async function reactivateProperty(propertyId: string): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("edit_property")
-  const { db, orgId, isAdmin } = gw
+  const { db, orgId, userId, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
-  const { error } = await db
-    .from("properties")
-    .update({ deleted_at: null })
-    .eq("id", propertyId)
-    .eq("org_id", orgId)
+  const { data: prop, error: readErr } = await db
+    .from("properties").select("deleted_at").eq("id", propertyId).eq("org_id", orgId).maybeSingle()
+  logQueryError("reactivateProperty read", readErr)
+  const ts = prop?.deleted_at as string | null
 
-  if (error) return { error: error.message }
+  const { error: propErr } = await db
+    .from("properties").update({ deleted_at: null }).eq("id", propertyId).eq("org_id", orgId)
+  if (propErr) return { error: propErr.message }
+
+  if (ts) {
+    const { error: bErr } = await db
+      .from("buildings").update({ deleted_at: null }).eq("property_id", propertyId).eq("org_id", orgId).eq("deleted_at", ts)
+    logQueryError("reactivateProperty buildings cascade", bErr)
+    const { error: uErr } = await db
+      .from("units").update({ deleted_at: null }).eq("property_id", propertyId).eq("org_id", orgId).eq("deleted_at", ts)
+    logQueryError("reactivateProperty units cascade", uErr)
+  }
+
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "properties", recordId: propertyId,
+    after: { action: "restore_property", cascade_ts: ts },
+  })
 
   revalidatePath("/properties")
   return {}

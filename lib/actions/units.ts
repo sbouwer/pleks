@@ -14,6 +14,8 @@ import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { syncUnitClauseProfile } from "@/lib/leases/syncUnitClauseProfile"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
+import { unitHasInForceLease } from "@/lib/parties/archive"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -392,6 +394,48 @@ export async function updateUnitFeatures(unitId: string, propertyId: string, fea
   const { error } = await db.from("units").update({ features }).eq("id", unitId)
   if (error) return { error: error.message }
   try { await syncUnitClauseProfile(db, unitId, unit.org_id, features) } catch {}
+  revalidatePath(`/properties/${propertyId}`)
+  return {}
+}
+
+/** Archive a unit (D-2): blocked if it has an in-force lease; otherwise soft-delete it alone. */
+export async function archiveUnit(unitId: string, propertyId: string): Promise<{ error?: string }> {
+  const gw = await requireAgentWriteAccess("edit_property")
+  const { db, orgId, userId, isAdmin } = gw
+  if (!isAdmin) return { error: "Admin access required" }
+
+  if (await unitHasInForceLease(db, orgId, unitId)) {
+    return { error: "This unit has an in-force lease (active, on notice, or month-to-month). End the lease before archiving." }
+  }
+
+  const { error } = await db
+    .from("units").update({ deleted_at: new Date().toISOString() }).eq("id", unitId).eq("org_id", orgId)
+  if (error) return { error: error.message }
+
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "units", recordId: unitId,
+    after: { action: "archive_unit" },
+  })
+
+  revalidatePath(`/properties/${propertyId}`)
+  return {}
+}
+
+/** Restore a single archived unit (D-4). */
+export async function restoreUnit(unitId: string, propertyId: string): Promise<{ error?: string }> {
+  const gw = await requireAgentWriteAccess("edit_property")
+  const { db, orgId, userId, isAdmin } = gw
+  if (!isAdmin) return { error: "Admin access required" }
+
+  const { error } = await db
+    .from("units").update({ deleted_at: null }).eq("id", unitId).eq("org_id", orgId)
+  if (error) return { error: error.message }
+
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "units", recordId: unitId,
+    after: { action: "restore_unit" },
+  })
+
   revalidatePath(`/properties/${propertyId}`)
   return {}
 }
