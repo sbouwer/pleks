@@ -267,9 +267,9 @@ async function main() {
         continue
       }
       if (method === "single") {
-        const table = fromTable(call)
+        const { table } = fromTable(call)
         if (table && tables[table] && chainTakesOneOfMany(call)) {
-          add(at, "cardinality", table, ".single() after .order()/.limit() — throws on 0 rows; prefer .maybeSingle()", "warn")
+          add(at, "cardinality", table, ".single() after .order()/.limit() — errors (PGRST116) on 0 rows; prefer .maybeSingle() where empty is normal", "warn")
         }
         continue
       }
@@ -303,7 +303,10 @@ async function main() {
 
   console.log("\n🔎  Schema-contract scan")
   console.log("──────────────────────────────────────────────────")
-  if (warns.length) console.log(`  ⚠ ${warns.length} cardinality warning(s) — .single() after order/limit (throws on 0 rows)`)
+  if (warns.length) {
+    console.log(`  ⚠ ${warns.length} cardinality warning(s) — .single() after order/limit (errors on 0 rows; --warnings to list)`)
+    if (process.argv.includes("--warnings")) for (const w of warns) console.log(`     ${w.file}  ${w.table}`)
+  }
   if (unknown.size) console.log(`  ⚠ ${unknown.size} unknown relation/rpc (not validated): ${[...unknown].slice(0, 8).join(", ")}`)
   // Honest coverage: chains that ARE supabase but whose table couldn't be resolved (dynamic .from(var)).
   // Builder-pattern bindings (let q = db.from("x")) are resolved; what's left here is genuinely dynamic.
