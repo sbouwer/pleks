@@ -103,9 +103,36 @@ async function main() {
 
   const findings = []   // { file, kind, table, detail, criticality, severity }
   const unknown = new Set()
+  const skipped = { select: 0, filter: 0, write: 0 }   // supabase chains seen but table unresolvable (honest coverage)
   const add = (file, kind, table, detail, severity = "fail") =>
     findings.push({ file, kind, table, detail, criticality: criticality(table), severity })
 
+  // Phantom .from("x") on a table the manifest doesn't have = a non-existent relation (42P01 — worse
+  // than a phantom column). The manifest is complete for public tables/views, so this is definitive.
+  // Deduped per file+table (one chain hits select + N filters on the same phantom table).
+  const seenRel = new Set()
+  const flagRelation = (at, table) => {
+    const k = `${at.split(":")[0]}::${table}`
+    if (seenRel.has(k)) return
+    seenRel.add(k)
+    add(at, "relation", table, "table/view does not exist")
+  }
+
+  /** The initializer of a `const/let q = …` binding, so we can resolve the builder pattern. */
+  function bindingInitializer(ident) {
+    let sym
+    try { sym = ident.getSymbol() } catch { return null }
+    for (const d of sym?.getDeclarations() ?? []) {
+      if (Node.isVariableDeclaration(d)) return d.getInitializer() ?? null
+    }
+    return null
+  }
+
+  /**
+   * Walk the fluent chain down to `.from("literal")`. Resolves the builder pattern
+   * (`let q = db.from("x"); q = q.eq(…)`) by following a root identifier to its binding's initializer.
+   * Returns the table, or null if genuinely unresolvable (dynamic `.from(var)` / non-literal).
+   */
   function fromTable(call) {
     let node = call.getExpression()
     let depth = 0
@@ -115,12 +142,17 @@ async function main() {
         const callee = node.getExpression()
         if (Node.isPropertyAccessExpression(callee) && callee.getName() === "from") {
           const a = node.getArguments()[0]
-          return a && Node.isStringLiteral(a) ? a.getLiteralText() : null
+          // sawFrom: this IS a supabase chain; table null means dynamic .from(var) → an HONEST skip.
+          return { table: a && Node.isStringLiteral(a) ? a.getLiteralText() : null, sawFrom: true }
         }
         node = node.getExpression()
-      } else return null
+      } else if (Node.isIdentifier(node)) {
+        const init = bindingInitializer(node)   // builder pattern: q → `db.from("x")…`
+        if (!init) return { table: null, sawFrom: false }
+        node = init
+      } else return { table: null, sawFrom: false }
     }
-    return null
+    return { table: null, sawFrom: false }
   }
 
   /** chain takes "one of many" (.order()/.limit()) before .single() → throws-on-0 risk. */
@@ -138,15 +170,23 @@ async function main() {
     return false
   }
 
-  /** does a CRITICAL write's chain swallow failure (.then(…)/.catch(…))? (§5) */
-  function isBestEffortChain(writeCall) {
+  /**
+   * Is a CRITICAL write unnoticed (§5)? Two best-effort shapes: (a) .then()/.catch() swallow, and
+   * (b) a bare un-awaited statement — `service.from("x").insert({…})` with no await/assign/return — the
+   * MORE common silent-write shape. "Noticed" = awaited / assigned / returned / inside Promise.all([…]).
+   */
+  function writeIsUnnoticed(writeCall) {
     let node = writeCall
     let depth = 0
-    while (depth++ < 12) {
+    while (depth++ < 14) {
       const parent = node.getParent()
       if (!parent) return false
-      if (Node.isPropertyAccessExpression(parent) && (parent.getName() === "then" || parent.getName() === "catch")) return true
-      if (Node.isCallExpression(parent) || Node.isPropertyAccessExpression(parent) || Node.isAwaitExpression(parent)) { node = parent; continue }
+      if (Node.isAwaitExpression(parent)) return false                 // awaited → noticed (ESLint checks error)
+      if (Node.isVariableDeclaration(parent) || Node.isBinaryExpression(parent)
+        || Node.isReturnStatement(parent) || Node.isArrayLiteralExpression(parent)) return false  // assigned / returned / Promise.all
+      if (Node.isPropertyAccessExpression(parent) && (parent.getName() === "then" || parent.getName() === "catch")) return true  // swallowed
+      if (Node.isExpressionStatement(parent)) return true              // bare discarded statement → fire-and-forget
+      if (Node.isCallExpression(parent) || Node.isPropertyAccessExpression(parent)) { node = parent; continue }
       return false
     }
     return false
@@ -164,19 +204,23 @@ async function main() {
       const at = `${rel}:${call.getStartLineNumber()}`
 
       if (method === "select") {
-        const table = fromTable(call)
+        const { table, sawFrom } = fromTable(call)
         const a = call.getArguments()[0]
-        if (table && a && (Node.isStringLiteral(a) || Node.isNoSubstitutionTemplateLiteral(a))) {
+        const hasLiteral = a && (Node.isStringLiteral(a) || Node.isNoSubstitutionTemplateLiteral(a))
+        if (table && !tables[table]) { flagRelation(at, table); continue }   // phantom .from("x")
+        if (table && hasLiteral) {
           const acc = validateSelectText(table, a.getLiteralText(), tables)
           for (const v of acc.violations) add(at, "select", v.table, v.col)
           for (const u of acc.unknownTables) unknown.add(u)
-        }
+        } else if (sawFrom && hasLiteral) skipped.select++   // dynamic .from(var) — couldn't attribute
         continue
       }
       if (FILTER_METHODS.has(method)) {
-        const table = fromTable(call)
+        const { table, sawFrom } = fromTable(call)
         const a = call.getArguments()[0]
-        if (!table || !tables[table] || !a || !Node.isStringLiteral(a)) continue
+        if (!a || !Node.isStringLiteral(a)) continue
+        if (!table) { if (sawFrom) skipped.filter++; continue }
+        if (!tables[table]) { flagRelation(at, table); continue }
         const lit = a.getLiteralText()
         if (lit.includes(",") || lit.includes("(")) continue
         if (lit.includes("::")) { add(at, "cast", table, lit); continue }
@@ -186,9 +230,11 @@ async function main() {
         continue
       }
       if (WRITE_METHODS.has(method)) {
-        const table = fromTable(call)
+        const { table, sawFrom } = fromTable(call)
         const a = call.getArguments()[0]
-        if (!table || !tables[table] || !a) continue
+        if (!table) { if (sawFrom && a) skipped.write++; continue }
+        if (!tables[table]) { flagRelation(at, table); continue }
+        if (!a) continue
         const objs = Node.isArrayLiteralExpression(a) ? a.getElements() : [a]
         for (const obj of objs) {
           if (!Node.isObjectLiteralExpression(obj)) continue
@@ -199,8 +245,8 @@ async function main() {
             if (!tables[table].includes(name)) add(at, "write", table, name)
           }
         }
-        if (criticality(table) === "CRITICAL" && isBestEffortChain(call)) {
-          add(at, "swallow", table, `${method} is best-effort (.then/.catch) on a CRITICAL table — must be blocking`)
+        if (criticality(table) === "CRITICAL" && writeIsUnnoticed(call)) {
+          add(at, "swallow", table, `${method} is best-effort (unawaited / .then / .catch) on a CRITICAL table — must be blocking`)
         }
         continue
       }
@@ -209,7 +255,7 @@ async function main() {
         const argObj = call.getArguments()[1]
         if (!a || !Node.isStringLiteral(a)) continue
         const fn = a.getLiteralText()
-        if (!rpcs[fn]) { unknown.add(`rpc:${fn}`); continue }
+        if (!rpcs[fn]) { add(at, "rpc-missing", fn, "function does not exist"); continue }
         if (argObj && Node.isObjectLiteralExpression(argObj)) {
           for (const prop of argObj.getProperties()) {
             if (!Node.isPropertyAssignment(prop) && !Node.isShorthandPropertyAssignment(prop)) continue
@@ -259,6 +305,10 @@ async function main() {
   console.log("──────────────────────────────────────────────────")
   if (warns.length) console.log(`  ⚠ ${warns.length} cardinality warning(s) — .single() after order/limit (throws on 0 rows)`)
   if (unknown.size) console.log(`  ⚠ ${unknown.size} unknown relation/rpc (not validated): ${[...unknown].slice(0, 8).join(", ")}`)
+  // Honest coverage: chains that ARE supabase but whose table couldn't be resolved (dynamic .from(var)).
+  // Builder-pattern bindings (let q = db.from("x")) are resolved; what's left here is genuinely dynamic.
+  const skips = skipped.select + skipped.filter + skipped.write
+  if (skips) console.log(`  ⚠ ${skips} call(s) skipped — dynamic .from(var), unattributable (select ${skipped.select} / filter ${skipped.filter} / write ${skipped.write}). "0 violations" = among resolvable chains.`)
 
   if (blocking.length === 0) {
     console.log("  ✓ no schema-contract violations (select/filter/write/rpc/cast; CRITICAL un-baselineable; §5 failure-policy)")
