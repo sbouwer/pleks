@@ -1851,7 +1851,8 @@
     "sent_for_signing_at",
     "sign_reminder_sent_at",
     "expiry_reminder_sent_at",
-    "escalation_notice_sent_at"
+    "escalation_notice_sent_at",
+    "payment_reference"
   ],
   "levy_invoices": [
     "id",
@@ -2661,7 +2662,8 @@
     "notes",
     "uploaded_by",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "deleted_at"
   ],
   "property_info_request_events": [
     "id",

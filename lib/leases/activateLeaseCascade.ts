@@ -509,8 +509,10 @@ export async function activateLeaseCascade(
     ((org?.name as string) ?? ""),
   )
 
-  // Step 1: Activate lease — must succeed (throws on failure)
-  await supabase.from("leases").update({ status: "active", signed_at: new Date().toISOString() }).eq("id", leaseId)
+  // Step 1: Activate lease — must succeed (throws on failure). Mint a STABLE per-lease payment
+  // reference for bank-statement matching (deterministic from the lease id; ADDENDUM_PHANTOM_COLUMN_TAIL D-1).
+  const paymentReference = "PL" + leaseId.replace(/-/g, "").slice(0, 8).toUpperCase()
+  await supabase.from("leases").update({ status: "active", signed_at: new Date().toISOString(), payment_reference: paymentReference }).eq("id", leaseId)
 
   const steps: CascadeStep[] = [
     { step: "Activate lease", status: "success" },

@@ -1709,3 +1709,15 @@ BEGIN
     ALTER TABLE trust_audit_exports RENAME COLUMN csv_storage_path TO xlsx_storage_path;
   END IF;
 END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_PHANTOM_COLUMN_TAIL D-1: stable per-lease payment reference (bank-match key)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- SA bank-statement reconciliation needs ONE stable reference per lease that the tenant puts on every
+-- EFT (a per-invoice ref defeats matching). Deterministic from the lease id (reproducible/idempotent);
+-- minted at activation (activateLeaseCascade) for new leases, backfilled here for existing ones.
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS payment_reference text;
+UPDATE leases
+SET payment_reference = 'PL' || upper(substring(replace(id::text, '-', '') from 1 for 8))
+WHERE payment_reference IS NULL;
+CREATE INDEX IF NOT EXISTS idx_leases_payment_reference ON leases(payment_reference) WHERE payment_reference IS NOT NULL;
