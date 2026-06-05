@@ -301,10 +301,8 @@ export async function submitOwnerChecklistResponse(
     org_id:          req.org_id,
     consent_type:    "property_info_submission",
     consent_version: "1.0",
-    given_at:        new Date().toISOString(),
-    entity_type:     "property_info_request",
-    entity_id:       req.id,
-    metadata:        { topic: "insurance_checklist" },
+    consent_given:   true,
+    metadata:        { topic: "insurance_checklist", entity_type: "property_info_request", entity_id: req.id },
   }).then(() => null, () => null)
 
   let confirmedCount = 0
@@ -377,11 +375,9 @@ export async function submitPropertyInfo(input: SubmitPayload): Promise<SubmitRe
     org_id:         req.org_id,
     consent_type:   "property_info_submission",
     consent_version: "1.0",
-    given_at:       new Date().toISOString(),
-    entity_type:    "property_info_request",
-    entity_id:      req.id,
-    metadata:       { topic: req.topic },
-  }).then(() => null, () => null)   // best-effort; no consent_log schema assumption
+    consent_given:  true,
+    metadata:       { topic: req.topic, entity_type: "property_info_request", entity_id: req.id },
+  }).then(() => null, () => null)   // best-effort
 
   // Writeback
   const writeback = WRITEBACKS[req.topic as string]

@@ -502,7 +502,6 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         company_name: tenantCompany || null,
         primary_email: email,
         primary_phone: getField(entry.row, "phone", ctx.mapping) || null,
-        work_phone: getField(entry.row, "work_phone", ctx.mapping) || null,
         id_number: getField(entry.row, "id_number", ctx.mapping) || null,
         ...(normIdType ? { id_type: normIdType } : {}),
         date_of_birth: dobRaw ? normaliseDate(dobRaw) : null,

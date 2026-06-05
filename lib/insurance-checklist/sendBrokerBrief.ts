@@ -110,7 +110,6 @@ export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBri
 
   await db.from("incident_notifications").insert({
     org_id:               orgId,
-    property_id:          propertyId,
     notified_party:       "broker",
     party_contact_id:     brokerContact?.broker_contact_id ?? null,
     channel:              "email",

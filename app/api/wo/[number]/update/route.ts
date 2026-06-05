@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     request_id: requestId,
     new_status: newStatus,
     notes,
-    updated_by: "contractor_portal",
+    actor_name: "Contractor (portal)",
     created_at: new Date().toISOString(),
   })
 

@@ -134,7 +134,7 @@ export async function POST(
     start_date,
     end_date: end_date || null,
     payable_to: payable_to || "landlord",
-    payable_to_contractor_id: payable_to_contractor_id || null,
+    payable_to_supplier_id: payable_to_contractor_id || null,
     deduct_from_owner_payment: deduct_from_owner_payment ?? false,
     vat_applicable: vat_applicable ?? false,
     created_by: user.id,

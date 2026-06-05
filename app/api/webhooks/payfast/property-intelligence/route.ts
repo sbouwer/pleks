@@ -45,7 +45,6 @@ export async function POST(req: Request) {
 
   try {
     const service = await createServiceClient()
-    const now     = new Date().toISOString()
 
     // Idempotency — if pull is already past 'pending', PayFast is retrying a delivered ITN
     const { data: pull, error: pullError } = await service
@@ -62,26 +61,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true })
     }
 
-    // Record payment
-    const { data: payment, error: paymentError } = await service
-      .from("payments")
-      .insert({
-        org_id:                orgId,
-        amount_cents:          pull.retail_cents,
-        currency:              "ZAR",
-        status:                "paid",
-        payfast_transaction_id: transactionId,
-        paid_at:               now,
-        metadata:              { pull_id: pullId, product_type: productType, source: "property_intelligence" },
-      })
-      .select("id")
-      .single()
-    logQueryError("POST payments", paymentError)
-
-    // Advance pull to 'running' and link payment
+    // Advance pull to 'running' and record the PayFast transaction on the pull itself. (The `payments`
+    // table is rent-specific — amount/payfast_transaction_id/status/metadata don't exist there, so the
+    // old payments insert always 42703'd and recorded nothing. The pull carries retail_cents +
+    // payfast_payment_id, which is the right home for a property-intelligence purchase.)
     await service
       .from("property_intelligence_pulls")
-      .update({ status: "running", payfast_payment_id: payment?.id ?? null })
+      .update({ status: "running", payfast_payment_id: transactionId })
       .eq("id", pullId)
 
     // Store tokenisation token for future 1-click adhoc charges (D-14A-19)

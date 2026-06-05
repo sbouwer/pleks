@@ -86,12 +86,10 @@ export async function submitMaintenanceRequest(payload: MaintenanceSubmitPayload
   // Log consent
   await service.from("consent_log").insert({
     org_id: orgId,
-    tenant_id: tenantId,
     consent_type: "maintenance_cost_liability",
     consent_version: payload.consentVersion,
-    given_at: new Date().toISOString(),
-    given_via: "tenant_portal",
-    reference_id: request.id,
+    consent_given: true,
+    metadata: { tenant_id: tenantId, given_via: "tenant_portal", reference_id: request.id },
   })
 
   // Audit log
