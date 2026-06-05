@@ -16,6 +16,10 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { isErasableNow, type DataCategory } from "./retention"
 import type { DataSubjectRequest } from "./requests"
+import {
+  resolveSubject, executeIdentityAnonymise, subjectTypeFromRole, MANUAL_REVIEW_TARGETS,
+  type ResolvedSubject,
+} from "./anonymiseIdentity"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -106,56 +110,57 @@ export async function executeErasure(
   request: DataSubjectRequest,
   actor_user_id: string,
 ): Promise<ErasureResult> {
-  const db = createServiceClient()
-  const scope: ErasureScope = request.request_type === "nuke"
-    ? {
-        type: "nuke",
-        acknowledged_carveouts: (request.request_scope?.acknowledged_carveouts as AcknowledgedCarveout[]) ?? [],
-      }
-    : {
-        type: "targeted",
-        categories: (request.request_scope?.categories as DataCategory[]) ?? [],
-      }
-
-  const categories = scopeToCategories(scope)
-  const result: ErasureResult["by_category"] = {} as ErasureResult["by_category"]
-  let total_affected = 0
-  let audit_entries = 0
-
+  const db = await createServiceClient()
   const subject: SubjectIdentification = {
     user_id: request.subject_user_id ?? undefined,
     email: request.subject_email,
     org_id: request.org_id,
   }
 
-  for (const category of categories) {
-    const decision = await isErasableNow(category, {
-      orgId: request.org_id,
-      created_at: new Date(),
-    })
-
-    let deleted = 0
-    let anonymised = 0
-    const skipped = 0
-
-    if ("erasable" in decision && decision.erasable) {
-      deleted = await deleteRecordsForSubject(await db, subject, category, request.id, actor_user_id)
-      audit_entries++
-    } else if ("anonymisable" in decision && decision.anonymisable) {
-      anonymised = await anonymiseRecordsForSubject(await db, subject, category, request.id, actor_user_id)
-      audit_entries++
-    }
-    // else: skip — isErasableNow decided retention
-
-    result[category] = { deleted, anonymised, skipped }
-    total_affected += deleted + anonymised
+  // D-14: supplier (deferred from v1, §7.2) or an unresolvable role → manual admin handling.
+  // POPIA's ~30-day window means we can't refuse a lawful request just because automation isn't
+  // built; record it for a human and return cleanly — never error, never silently no-op.
+  const subjectType = subjectTypeFromRole(request.subject_role_context)
+  if (subjectType === "supplier" || subjectType === null) {
+    const reason = subjectType === "supplier"
+      ? "Supplier erasure is deferred from v1 automation (§7.2) — handle manually within the SLA."
+      : "Subject role not auto-resolvable — handle manually within the SLA."
+    await db.from("data_subject_requests").update({
+      erasure_records_affected: { manual_handling: true, reason, manual_review: MANUAL_REVIEW_TARGETS },
+    }).eq("id", request.id)
+    return { by_category: {} as ErasureResult["by_category"], total_affected: 0, audit_entries: 0 }
   }
 
-  // Update data_subject_requests.erasure_records_affected
-  await (await db)
-    .from("data_subject_requests")
-    .update({ erasure_records_affected: result })
-    .eq("id", request.id)
+  // §7 (D-5) identity anonymise — strip the contact shell + every denormalised PII copy for the subject.
+  const resolved = await resolveSubject(db, {
+    org_id: request.org_id, user_id: request.subject_user_id, email: request.subject_email,
+  })
+  const identity = await executeIdentityAnonymise(db, resolved, subjectType, request.id, actor_user_id)
+
+  // Category-gated FULL-ROW deletes (retention permitting). The cron does the routine purges; this
+  // handles a record that's already past its window at erasure time. Currently rejected_applications.
+  const scope: ErasureScope = request.request_type === "nuke"
+    ? { type: "nuke", acknowledged_carveouts: (request.request_scope?.acknowledged_carveouts as AcknowledgedCarveout[]) ?? [] }
+    : { type: "targeted", categories: (request.request_scope?.categories as DataCategory[]) ?? [] }
+
+  const result: ErasureResult["by_category"] = {} as ErasureResult["by_category"]
+  let total_affected = identity.total
+  let audit_entries = identity.groups.length
+
+  for (const category of scopeToCategories(scope)) {
+    const decision = await isErasableNow(category, { orgId: request.org_id, created_at: new Date() })
+    let deleted = 0
+    if ("erasable" in decision && decision.erasable) {
+      deleted = await deleteRecordsForSubject(db, subject, resolved, category, request.id, actor_user_id)
+      if (deleted > 0) audit_entries++
+    }
+    result[category] = { deleted, anonymised: 0, skipped: 0 }
+    total_affected += deleted
+  }
+
+  await db.from("data_subject_requests").update({
+    erasure_records_affected: { categories: result, identity_groups: identity.groups, manual_review: MANUAL_REVIEW_TARGETS },
+  }).eq("id", request.id)
 
   return { by_category: result, total_affected, audit_entries }
 }
@@ -250,55 +255,28 @@ async function countRecordsForSubject(
 async function deleteRecordsForSubject(
   db: DbClient,
   subject: SubjectIdentification,
+  resolved: ResolvedSubject,
   category: DataCategory,
   requestId: string,
   actor_user_id: string,
 ): Promise<number> {
   let affected = 0
 
-  if (category === "rejected_applications" && subject.user_id) {
+  // rejected_applications: full-row delete of the subject's rejected/withdrawn applications.
+  // applications key on tenant_id (no user_id), and rejection lives in stage1/stage2_status — the
+  // prior stub filtered phantom `user_id` + `status` columns and silently no-op'd.
+  if (category === "rejected_applications" && resolved.applicationIds.length > 0) {
     const { data: rows, error: rowsError } = await db
       .from("applications")
-      .select("id")
-      .eq("org_id", subject.org_id)
-      .eq("user_id", subject.user_id)
-      .in("status", ["rejected", "withdrawn"])
+      .select("id, stage1_status, stage2_status")
+      .in("id", resolved.applicationIds)
     logQueryError("deleteRecordsForSubject applications", rowsError)
 
     for (const row of rows ?? []) {
+      const rejected = row.stage1_status === "not_shortlisted" || row.stage2_status === "declined"
+      if (!rejected) continue
       await db.from("applications").delete().eq("id", row.id)
-      await logAudit(db, subject.org_id, actor_user_id, "popia_erasure", "applications", row.id, requestId)
-      affected++
-    }
-  }
-
-  return affected
-}
-
-async function anonymiseRecordsForSubject(
-  db: DbClient,
-  subject: SubjectIdentification,
-  category: DataCategory,
-  requestId: string,
-  actor_user_id: string,
-): Promise<number> {
-  let affected = 0
-
-  if (category === "communications" && subject.user_id) {
-    // Null-out PII content while keeping delivery metadata for regulatory audit
-    const { data: rows, error: rowsError } = await db
-      .from("communication_log")
-      .select("id")
-      .eq("org_id", subject.org_id)
-      .eq("user_id", subject.user_id)
-    logQueryError("anonymiseRecordsForSubject communication_log", rowsError)
-
-    for (const row of rows ?? []) {
-      await db
-        .from("communication_log")
-        .update({ content: "[redacted — POPIA erasure]", metadata: null })
-        .eq("id", row.id)
-      await logAudit(db, subject.org_id, actor_user_id, "popia_anonymise", "communication_log", row.id, requestId)
+      await logAudit(db, subject.org_id, actor_user_id, "popia_erasure", "applications", row.id as string, requestId)
       affected++
     }
   }

@@ -111,18 +111,20 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
   { id: "C.application_screening_payments", table: "application_screening_payments", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { paid_by_email: null } },
 
-  // ── §7 D — communications & ancillary (delivery metadata retained) ────────────
-  { id: "D.communication_log", table: "communication_log", keyColumn: "user_id", keyFrom: "userId", appliesTo: ALL,
-    fields: { recipient_name: null, sent_to_email: null, sent_to_phone: null, content: REDACTED } },
-  { id: "D.communication_preferences", table: "communication_preferences", keyColumn: "user_id", keyFrom: "userId", appliesTo: ALL,
+  // ── §7 D — communications & ancillary (delivery metadata retained; keys verified vs live schema) ──
+  // communication_log is keyed by contact_id (NO user_id; the old stub's user_id+content were phantom).
+  // Structured recipient fields are stripped here; the free-text body/body_full → D-16 manual review.
+  { id: "D.communication_log", table: "communication_log", keyColumn: "contact_id", keyFrom: "contactId", appliesTo: ALL,
+    fields: { recipient_name: null, sent_to_email: null, sent_to_phone: null } },
+  { id: "D.communication_preferences", table: "communication_preferences", keyColumn: "contact_id", keyFrom: "contactId", appliesTo: ALL,
     fields: { email: null } },
-  { id: "D.consent_verifications", table: "consent_verifications", keyColumn: "user_id", keyFrom: "userId", appliesTo: ALL,
+  { id: "D.consent_verifications", table: "consent_verifications", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { target_email: null, target_phone_e164: null } },
-  { id: "D.maintenance_requests", table: "maintenance_requests", keyColumn: "requested_by_user_id", keyFrom: "userId", appliesTo: ["tenant"],
+  { id: "D.maintenance_requests", table: "maintenance_requests", keyColumn: "tenant_id", keyFrom: "tenantId", appliesTo: ["tenant"],
     fields: { contact_name: null, contact_phone: null } },
-  { id: "D.document_generation_jobs", table: "document_generation_jobs", keyColumn: "recipient_user_id", keyFrom: "userId", appliesTo: ALL,
+  { id: "D.document_generation_jobs", table: "document_generation_jobs", keyColumn: "user_id", keyFrom: "userId", appliesTo: ALL,
     fields: { recipient_name: null, recipient_email: null } },
-  { id: "D.property_info_requests", table: "property_info_requests", keyColumn: "recipient_user_id", keyFrom: "userId", appliesTo: ["landlord"],
+  { id: "D.property_info_requests", table: "property_info_requests", keyColumn: "recipient_contact_id", keyFrom: "contactId", appliesTo: ["landlord"],
     fields: { recipient_email: null, recipient_phone: null } },
 
   // ── §7 E — denormalised landlord/owner PII ───────────────────────────────────
