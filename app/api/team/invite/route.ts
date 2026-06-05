@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 // DELETE /api/team/invite
 // Body: { inviteId, orgId }
@@ -44,6 +45,12 @@ export async function DELETE(req: NextRequest) {
     .eq("org_id", orgId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Revoking a pending invite is an access-control event — audit it.
+  await recordAudit(service, {
+    orgId, actorId: user.id, action: "DELETE", table: "invites", recordId: inviteId,
+    after: { action: "invite_revoked" },
+  })
 
   return NextResponse.json({ ok: true })
 }

@@ -657,6 +657,11 @@ export async function addLeaseCoTenant(leaseId: string, tenantId: string): Promi
   const { error } = await db.from("lease_co_tenants").insert({ org_id: orgId, lease_id: leaseId, tenant_id: tenantId })
   if (error) return { error: error.message }
 
+  await recordAudit(db, {
+    orgId, actorId: gw.userId, action: "UPDATE", table: "lease_co_tenants", recordId: leaseId,
+    after: { action: "co_tenant_added", tenant_id: tenantId },
+  })
+
   revalidatePath(`/leases/${leaseId}`)
   return { success: true }
 }
@@ -671,6 +676,11 @@ export async function removeLeaseCoTenant(leaseId: string, tenantId: string): Pr
 
   const { error } = await db.from("lease_co_tenants").delete().eq("lease_id", leaseId).eq("tenant_id", tenantId)
   if (error) return { error: error.message }
+
+  await recordAudit(db, {
+    orgId, actorId: gw.userId, action: "DELETE", table: "lease_co_tenants", recordId: leaseId,
+    after: { action: "co_tenant_removed", tenant_id: tenantId },
+  })
 
   revalidatePath(`/leases/${leaseId}`)
   return { success: true }

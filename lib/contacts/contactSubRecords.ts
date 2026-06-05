@@ -8,8 +8,23 @@
  */
 import type { createServiceClient } from "@/lib/supabase/server"
 import { addBankAccount, editBankAccount, removeBankAccount } from "./contactBankAccounts"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
+
+/** Delete a contact child row (phone/email/address) + audit it (contact PII change). */
+async function deleteContactChild(
+  service: Service, orgId: string, contactId: string, userId: string, table: string, id: string, semantic: string,
+) {
+  const res = await service.from(table).delete().eq("id", id).eq("contact_id", contactId)
+  if (!res.error) {
+    await recordAudit(service, {
+      orgId, actorId: userId, action: "DELETE", table, recordId: id,
+      after: { action: semantic, contact_id: contactId },
+    })
+  }
+  return res
+}
 
 export interface SubRecordBody {
   type?: string
@@ -103,9 +118,9 @@ export async function updateSubRecord(service: Service, orgId: string, contactId
 export async function deleteSubRecord(service: Service, orgId: string, contactId: string, userId: string, b: SubRecordBody): Promise<SubRecordResult> {
   if (!b.id) return fail("Missing id", 400)
   switch (b.type) {
-    case "phone": return wrap(await service.from("contact_phones").delete().eq("id", b.id).eq("contact_id", contactId))
-    case "email": return wrap(await service.from("contact_emails").delete().eq("id", b.id).eq("contact_id", contactId))
-    case "address": return wrap(await service.from("contact_addresses").delete().eq("id", b.id).eq("contact_id", contactId))
+    case "phone": return wrap(await deleteContactChild(service, orgId, contactId, userId, "contact_phones", b.id, "contact_phone_removed"))
+    case "email": return wrap(await deleteContactChild(service, orgId, contactId, userId, "contact_emails", b.id, "contact_email_removed"))
+    case "address": return wrap(await deleteContactChild(service, orgId, contactId, userId, "contact_addresses", b.id, "contact_address_removed"))
     case "bank_account": return wrap(await removeBankAccount(service, orgId, contactId, b.id, userId))
     default: return fail("Invalid type", 400)
   }
