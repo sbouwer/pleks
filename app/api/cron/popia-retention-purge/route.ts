@@ -25,6 +25,7 @@ type CatSummary = { orgs_processed: number; deleted: number; skipped: number; er
 const PURGE_CATEGORIES: DataCategory[] = [
   "rejected_applications",
   "maintenance_records",
+  "property_documents",
   // communications, inspection_photos, lease_documents added progressively
   // as the per-table delete helpers mature (Phase 7 wires full cascade)
 ]
@@ -69,6 +70,43 @@ async function purgeRejectedApplications(
   return result
 }
 
+/**
+ * D-8 F-2: hard-purge SOFT-DELETED property documents once past retention. Soft-delete keeps the row +
+ * storage file (Your Data, Always); this removes both once isErasableNow clears (5yr from upload).
+ * Only deleted_at IS NOT NULL rows are candidates — active docs are never touched.
+ */
+async function purgePropertyDocuments(db: SupabaseClient, orgId: string, now: Date): Promise<CatResult> {
+  const cutoff = new Date(now)
+  cutoff.setMonth(cutoff.getMonth() - 60)
+  const result: CatResult = { evaluated: 0, deleted: 0, skipped_carveout: 0 }
+
+  const { data: rows, error: rowsError } = await db
+    .from("property_documents")
+    .select("id, created_at, storage_path")
+    .eq("org_id", orgId)
+    .not("deleted_at", "is", null)
+    .lt("created_at", cutoff.toISOString())
+    logQueryError("purgePropertyDocuments property_documents", rowsError)
+
+  for (const row of rows ?? []) {
+    result.evaluated++
+    const decision = await isErasableNow("property_documents", { orgId, created_at: new Date(row.created_at) })
+    if ("erasable" in decision && decision.erasable) {
+      if (row.storage_path) await db.storage.from("property-documents").remove([row.storage_path as string])
+      await db.from("property_documents").delete().eq("id", row.id).eq("org_id", orgId)
+      await recordAudit(db, {
+        orgId, actorId: null, action: "DELETE", table: "property_documents", recordId: row.id,
+        after: { action: "retention_purge", category: "property_documents" },
+      })
+      result.deleted++
+    } else {
+      result.skipped_carveout++
+    }
+  }
+
+  return result
+}
+
 // ─── Per-org orchestrator (one retention_purge_runs row per org) ──────────────
 
 async function runForOrg(
@@ -94,6 +132,8 @@ async function runForOrg(
 
       if (category === "rejected_applications") {
         catResult = await purgeRejectedApplications(db, orgId, now)
+      } else if (category === "property_documents") {
+        catResult = await purgePropertyDocuments(db, orgId, now)
       }
       // future categories appended here as helpers land
 

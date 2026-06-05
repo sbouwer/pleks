@@ -29,6 +29,7 @@ export type DataCategory =
   | "maintenance_records"     // 3yr post-completion
   | "platform_account"        // 30 days post account closure
   | "fica_identity"           // 5yr post-relationship (FIC Act s23/s24) — the natural-person ID/verification clock
+  | "property_documents"      // 5yr from upload (PPRA/RHA doc retention) — soft-deleted docs purged by the cron
 
 export type RetentionDecision =
   | { erasable: true }
@@ -131,6 +132,15 @@ const PLATFORM_DEFAULTS: Record<DataCategory, RetentionPolicy> = {
     retention_months: 60,
     legal_basis: "legal_obligation",
     regulatory_source: "FIC Act 38 of 2001 s23/s24 (5yr post business relationship)",
+    erasable_during_retention: false,
+  },
+  property_documents: {
+    // Title deeds / CoCs / inspection reports etc. A soft-deleted property doc (D-8 F-2) is purged by
+    // the retention cron only once 5yr have passed since upload — conservative single window over the
+    // 3–5yr range; per-type windows can be refined later.
+    retention_months: 60,
+    legal_basis: "legal_obligation",
+    regulatory_source: "PPRA / Rental Housing Act property-document retention practice",
     erasable_during_retention: false,
   },
 }
@@ -345,7 +355,8 @@ function resolveAnchorDate(
     case "audit_log":
     case "maintenance_records":
     case "rejected_applications":
-      // Anchored to when the record was created/transacted
+    case "property_documents":
+      // Anchored to when the record was created/transacted/uploaded
       return context.created_at
 
     case "platform_account":
