@@ -32,7 +32,7 @@ export function usePermissions() {
         .eq("user_id", user.id)
         .is("deleted_at", null)
         .limit(1)
-        .single()
+        .maybeSingle()   // no membership (onboarding) is normal — don't manufacture a PGRST116
       if (error || !row) return null
 
       const { role, is_admin } = row as { role: string; is_admin: boolean }

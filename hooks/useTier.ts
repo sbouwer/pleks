@@ -29,7 +29,7 @@ export function useTier() {
         .eq("org_id", orgId)
         .in("status", ["active", "trialing"])
         .limit(1)
-        .single()
+        .maybeSingle()   // an org with no active/trialing sub is a normal state — not an error to log
         logQueryError("{ data, isLoading } subscriptions", queryError)
       return data
     },

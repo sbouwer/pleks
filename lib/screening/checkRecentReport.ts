@@ -39,7 +39,7 @@ export async function getRecentCompletedCheck(
     .gte("searchworx_checked_at", cutoff.toISOString())
     .order("searchworx_checked_at", { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()   // "no recent check" is the COMMON case — it's a null result, not an error
     logQueryError("getRecentCompletedCheck applications", queryError)
 
   if (!data) return null

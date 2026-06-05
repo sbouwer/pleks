@@ -27,7 +27,7 @@ export function useOrg() {
         .eq("user_id", session.user.id)
         .is("deleted_at", null)
         .limit(1)
-        .single()
+        .maybeSingle()   // a user mid-onboarding has no membership yet — empty is normal, not an error
         logQueryError("{ data, isLoading } user_orgs", orgDataError)
       if (!orgData) return null
       const { data: subData, error: subDataError } = await supabase
