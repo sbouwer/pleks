@@ -29,7 +29,7 @@ export default async function LandlordApprovalPage({ params }: Props) {
       id, title, description, category, urgency, status,
       landlord_approval_token, estimated_cost_cents, quoted_cost_cents,
       landlord_approved_at, landlord_rejection_reason,
-      units(unit_number, properties(name, address_line1, city, maintenance_approval_threshold_cents)),
+      units(unit_number, properties(name, address_line1, city, organisations(maintenance_approval_threshold_cents))),
       contractor_view(first_name, last_name, company_name, phone)
     `)
     .eq("landlord_approval_token", token)
@@ -38,10 +38,10 @@ export default async function LandlordApprovalPage({ params }: Props) {
 
   if (!req) notFound()
 
-  const unit = req.units as unknown as { unit_number: string; properties: { name: string; address_line1: string | null; city: string | null; maintenance_approval_threshold_cents: number | null } } | null
+  const unit = req.units as unknown as { unit_number: string; properties: { name: string; address_line1: string | null; city: string | null; organisations: { maintenance_approval_threshold_cents: number | null } | null } } | null
   const contractor = req.contractor_view as unknown as { first_name: string; last_name: string; company_name: string; phone: string } | null
   const contractorName = contractor ? (contractor.company_name || `${contractor.first_name ?? ""} ${contractor.last_name ?? ""}`.trim()) : null
-  const approvalThresholdCents = unit?.properties?.maintenance_approval_threshold_cents ?? 200000
+  const approvalThresholdCents = unit?.properties?.organisations?.maintenance_approval_threshold_cents ?? 200000
   const costCents = req.quoted_cost_cents ?? req.estimated_cost_cents ?? null
 
   const URGENCY_LABEL: Record<string, string> = {

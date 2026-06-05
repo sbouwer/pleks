@@ -11,25 +11,12 @@ import { redirect } from "next/navigation"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { MaintenanceNewForm } from "./MaintenanceNewForm"
-import { logQueryError } from "@/lib/supabase/logQueryError"
 
-async function resolveClauseNumbers(leaseId: string, orgId: string, service: Awaited<ReturnType<typeof createServiceClient>>) {
-  const { data: selections, error: selectionsError } = await service
-    .from("lease_clause_selections")
-    .select("clause_key, order_position")
-    .eq("lease_id", leaseId)
-    .in("clause_key", ["maintenance_and_repairs", "maintenance_tenant_obligations"])
-    logQueryError("resolveClauseNumbers lease_clause_selections", selectionsError)
-
-  if (!selections || selections.length === 0) return { maintenanceClause: null, tenantLiabilityClause: null }
-
-  const maintenanceEntry = selections.find((s) => s.clause_key === "maintenance_and_repairs")
-  const tenantEntry = selections.find((s) => s.clause_key === "maintenance_tenant_obligations")
-
-  return {
-    maintenanceClause: maintenanceEntry?.order_position ?? null,
-    tenantLiabilityClause: tenantEntry?.order_position ?? null,
-  }
+async function resolveClauseNumbers(_leaseId: string, _orgId: string, _service: Awaited<ReturnType<typeof createServiceClient>>) {
+  // lease_clause_selections has no positional/order column — clause numbers aren't derivable here.
+  // (This previously selected a phantom `order_position`, so the numbers were always null.) Kept as a
+  // stable no-op so callers don't change; revisit if/when a clause-ordering source exists.
+  return { maintenanceClause: null, tenantLiabilityClause: null }
 }
 
 export default async function PortalMaintenanceNewPage() {
