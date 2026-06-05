@@ -53,7 +53,7 @@ export const depositReturnT7Rule: OrgRule = {
   async action({ supabase, org, now }) {
     const { data: recons, error } = await supabase
       .from("deposit_reconciliations")
-      .select("id, lease_id, leases!inner(end_date, deposit_return_days, units(full_address))")
+      .select("id, lease_id, leases!inner(end_date, deposit_return_days)")
       .eq("org_id", org.id)
       .not("status", "in", "(refunded,finalised,overdue)")
 
@@ -62,7 +62,7 @@ export const depositReturnT7Rule: OrgRule = {
     const actioned: string[] = []
 
     for (const recon of recons) {
-      const lease = recon.leases as unknown as { end_date: string; deposit_return_days: number; units: { full_address: string } | null }
+      const lease = recon.leases as unknown as { end_date: string; deposit_return_days: number }
       if (!lease?.end_date) continue
 
       const deadline = new Date(lease.end_date)

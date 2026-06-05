@@ -24,7 +24,7 @@ export async function buildCpaNoticeSchedule(filters: ReportFilters): Promise<Cp
 
   const query = db
     .from("leases")
-    .select("id, end_date, tenant_id, unit_id, status, cpa_notice_sent_at, tenants(contacts(first_name, last_name, company_name, entity_type)), units(unit_number, property_id, properties(name))")
+    .select("id, end_date, tenant_id, unit_id, status, auto_renewal_notice_sent_at, tenants(contacts(first_name, last_name, company_name, entity_type)), units(unit_number, property_id, properties(name))")
     .eq("org_id", orgId)
     .in("status", ["active", "notice"])
     .not("end_date", "is", null)
@@ -51,7 +51,7 @@ export async function buildCpaNoticeSchedule(filters: ReportFilters): Promise<Cp
       const daysRemaining = Math.floor((leaseEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       const noticeDueBy = new Date(leaseEnd)
       noticeDueBy.setDate(noticeDueBy.getDate() - 28)
-      const noticeSent = l.cpa_notice_sent_at != null
+      const noticeSent = l.auto_renewal_notice_sent_at != null
       let status: string
       if (noticeSent) { status = "sent" }
       else if (noticeDueBy < now) { status = "overdue" }

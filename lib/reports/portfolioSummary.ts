@@ -39,10 +39,9 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
     await Promise.all([
       supabase
         .from("units")
-        .select("id, property_id, status, vacant_since")
+        .select("id, property_id, status")
         .eq("org_id", orgId)
         .in("property_id", propIds)
-        .is("deleted_at", null)
         .is("deleted_at", null),
       supabase
         .from("rent_invoices")
@@ -58,7 +57,7 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
         .lte("payment_date", toStr),
       supabase
         .from("arrears_cases")
-        .select("property_id, unit_id, total_arrears_cents, oldest_outstanding_date, current_step, tenant_name")
+        .select("property_id, unit_id, total_arrears_cents, oldest_outstanding_date, current_step, tenants(contact:contacts(first_name, last_name, company_name))")
         .eq("org_id", orgId)
         .in("status", ["open", "arrangement"]),
       supabase
@@ -78,6 +77,9 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
   const invoices = invoicesRes.data ?? []
   const payments = paymentsRes.data ?? []
   const arrearsCases = arrearsRes.data ?? []
+
+  // vacant_since isn't a column on units — derive from the latest vacant transition (CD-D-3).
+  const vacantSinceByUnit = await deriveVacantSince(supabase, orgId, units)
 
   // Per-property arrears totals
   const propArrearsMap = new Map<string, number>()
@@ -143,7 +145,7 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
     return end > d60 && end <= d90
   }).length
 
-  const flags = buildFlags(arrearsCases, units, leases, propMap, now, todayDate, d30)
+  const flags = buildFlags(arrearsCases as unknown as ArrearsCaseRow[], units, vacantSinceByUnit, leases, propMap, now, todayDate, d30)
 
   // Optional period comparison — run previous-period income queries
   let comparison: PortfolioSummaryData["comparison"]
@@ -276,7 +278,7 @@ function makePeriodComparison(current: number, previous: number): PeriodComparis
 
 type ArrearsCaseRow = {
   oldest_outstanding_date?: string | null
-  tenant_name?: string | null
+  tenants?: { contact: { first_name: string | null; last_name: string | null; company_name: string | null } | null } | null
   total_arrears_cents?: number | null
   property_id?: string | null
   unit_id?: string | null
@@ -287,7 +289,6 @@ type UnitRow = {
   id: string
   property_id: string
   status: string
-  vacant_since?: string | null
 }
 
 type LeaseRow = {
@@ -297,9 +298,33 @@ type LeaseRow = {
   status: string
 }
 
+/** vacant_since isn't a column — derive each vacant unit's latest vacant transition from history. */
+async function deriveVacantSince(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  orgId: string,
+  units: { id: string; status: string }[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  const vacantUnitIds = units.filter((u) => u.status === "vacant").map((u) => u.id)
+  if (vacantUnitIds.length === 0) return map
+  const { data, error } = await supabase
+    .from("unit_status_history")
+    .select("unit_id, created_at")
+    .eq("org_id", orgId)
+    .eq("to_status", "vacant")
+    .in("unit_id", vacantUnitIds)
+    .order("created_at", { ascending: false })
+  if (error) console.error("portfolioSummary unit_status_history:", error.message)
+  for (const h of data ?? []) {
+    if (!map.has(h.unit_id as string)) map.set(h.unit_id as string, h.created_at as string)  // desc → first = latest
+  }
+  return map
+}
+
 function buildFlags(
   arrearsCases: ArrearsCaseRow[],
   units: UnitRow[],
+  vacantSinceByUnit: Map<string, string>,
   leases: LeaseRow[],
   propMap: Map<string, string>,
   now: number,
@@ -313,24 +338,27 @@ function buildFlags(
     const oldestMs = c.oldest_outstanding_date ? new Date(c.oldest_outstanding_date).getTime() : null
     if (oldestMs && (now - oldestMs) > MS_30D) {
       const sinceStr = new Date(c.oldest_outstanding_date as string).toLocaleDateString("en-ZA")
+      const ct = c.tenants?.contact
+      const tenantName = ct?.company_name?.trim() || [ct?.first_name, ct?.last_name].filter(Boolean).join(" ").trim() || null
       flags.push({
         type: "arrears_90d",
         label: "Arrears > 30 days",
-        detail: c.tenant_name
-          ? `${c.tenant_name} — outstanding since ${sinceStr}`
+        detail: tenantName
+          ? `${tenantName} — outstanding since ${sinceStr}`
           : `Outstanding arrears case since ${sinceStr}`,
       })
     }
   }
 
   for (const u of units) {
-    if (u.status === "vacant" && u.vacant_since) {
-      const vacantMs = new Date(u.vacant_since).getTime()
+    const vacantSince = vacantSinceByUnit.get(u.id)
+    if (u.status === "vacant" && vacantSince) {
+      const vacantMs = new Date(vacantSince).getTime()
       if ((now - vacantMs) > MS_30D) {
         flags.push({
           type: "vacant_30d",
           label: "Vacant > 30 days",
-          detail: `Unit at ${propMap.get(u.property_id) ?? "Unknown"} — vacant since ${new Date(u.vacant_since).toLocaleDateString("en-ZA")}`,
+          detail: `Unit at ${propMap.get(u.property_id) ?? "Unknown"} — vacant since ${new Date(vacantSince).toLocaleDateString("en-ZA")}`,
         })
       }
     }

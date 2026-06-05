@@ -3,9 +3,5 @@
   "app/(tenant)/tenant/lease/page.tsx::deposit_transactions::credit_cents": 1,
   "app/(tenant)/tenant/lease/page.tsx::deposit_transactions::debit_cents": 1,
   "app/api/cron/subscription-purge-warnings/route.ts::organisations::last_login_at": 1,
-  "lib/portal/getTenantSession.ts::leases::payment_reference": 2,
-  "lib/reports/cpaNoticeSchedule.ts::leases::cpa_notice_sent_at": 1,
-  "lib/reports/portfolioSummary.ts::arrears_cases::tenant_name": 1,
-  "lib/reports/portfolioSummary.ts::units::vacant_since": 1,
-  "lib/rules/tenant/deposit-return-t7.ts::units::full_address": 1
+  "lib/portal/getTenantSession.ts::leases::payment_reference": 2
 }
