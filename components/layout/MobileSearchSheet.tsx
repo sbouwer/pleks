@@ -120,6 +120,13 @@ export function MobileSearchSheet({ open, onOpenChange }: MobileSearchSheetProps
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               ref={inputRef}
+              type="search"
+              name="global-search"
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
               value={query}
               onChange={(e) => runSearch(e.target.value)}
               placeholder={online ? "Search properties, tenants, invoices…" : "Search saved contacts & properties…"}
