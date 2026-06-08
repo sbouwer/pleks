@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Users, User, Archive } from "lucide-react"
+import { Users, User, Archive, Phone } from "lucide-react"
 import { ActionButton, Modal, EditButton, DeleteButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
@@ -31,6 +31,11 @@ const FUNCTION_OPTIONS: { value: TeamFunction; label: string }[] = [
 ]
 const FN_LABEL = Object.fromEntries(FUNCTION_OPTIONS.map((o) => [o.value, o.label]))
 
+const ROLE_LABEL: Record<string, string> = {
+  owner: "Owner", property_manager: "Property Manager", agent: "Agent",
+  accountant: "Accountant", maintenance_manager: "Maintenance Manager",
+}
+
 type SortKey = "name" | "function" | "members"
 
 /** Header action — dispatches the event TeamsTab listens for (it lives outside this component). */
@@ -47,7 +52,8 @@ export function TeamsTab() {
   const [name, setName] = useState("")
   const [fn, setFn] = useState<TeamFunction>("general")
   const [busy, setBusy] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [membersId, setMembersId] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [fnFilter, setFnFilter] = useState("")
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("name")
@@ -60,7 +66,8 @@ export function TeamsTab() {
   }, [])
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["teams"] })
-  const selected = teams.find((t) => t.id === selectedId) ?? null
+  const membersTeam = teams.find((t) => t.id === membersId) ?? null
+  const editTeam = teams.find((t) => t.id === editId) ?? null
 
   async function run(p: Promise<{ ok: true } | { error: string }>, ok?: string): Promise<boolean> {
     setBusy(true)
@@ -147,7 +154,7 @@ export function TeamsTab() {
                   {filtered.map((t) => (
                     <tr
                       key={t.id}
-                      onClick={() => setSelectedId(t.id)}
+                      onClick={() => setMembersId(t.id)}
                       className="group cursor-pointer border-b border-border/50 transition-colors last:border-0 hover:bg-muted/20"
                     >
                       <td className="px-4 py-3 font-medium">{t.name}</td>
@@ -155,7 +162,7 @@ export function TeamsTab() {
                       <td className="px-4 py-3 text-muted-foreground">{t.members.length}</td>
                       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          <EditButton label="Edit team" onClick={() => setSelectedId(t.id)} />
+                          <EditButton label="Edit team" onClick={() => setEditId(t.id)} />
                           <DeleteButton
                             icon={Archive}
                             label="Archive team"
@@ -198,12 +205,14 @@ export function TeamsTab() {
       </Modal>
 
       {/* Team detail — edit name/function + members */}
-      {selected && <TeamDetailModal team={selected} agents={agents} busy={busy} run={run} onClose={() => setSelectedId(null)} />}
+      {membersTeam && <TeamMembersModal team={membersTeam} agents={agents} busy={busy} run={run} onClose={() => setMembersId(null)} />}
+      {editTeam && <TeamEditModal team={editTeam} busy={busy} run={run} onClose={() => setEditId(null)} />}
     </div>
   )
 }
 
-function TeamDetailModal({
+// Clicking a team → its members (People-modal grammar: icon + name + role, call, remove). Edit is separate.
+function TeamMembersModal({
   team, agents, busy, run, onClose,
 }: Readonly<{
   team: TeamWithMembers
@@ -212,28 +221,12 @@ function TeamDetailModal({
   run: (p: Promise<{ ok: true } | { error: string }>, ok?: string) => Promise<boolean>
   onClose: () => void
 }>) {
-  const [editName, setEditName] = useState(team.name)
-  const [editFn, setEditFn] = useState<TeamFunction>(team.function)
-  const dirty = editName.trim() !== team.name || editFn !== team.function
   const memberIds = new Set(team.members.map((m) => m.userId))
   const addable = agents.filter((a) => !memberIds.has(a.userId))
   return (
-    <Modal open onClose={onClose} title="Edit team" icon={<Users className="size-5" />}
-      actions={
-        <>
-          <ActionButton onClick={onClose}>Done</ActionButton>
-          <ActionButton tone="primary" disabled={busy || !dirty || !editName.trim()}
-            onClick={() => run(updateTeam(team.id, { name: editName.trim(), function: editFn }), "Team updated")}>
-            Save
-          </ActionButton>
-        </>
-      }>
+    <Modal open onClose={onClose} title={team.name} icon={<Users className="size-5" />}
+      actions={<ActionButton tone="primary" onClick={onClose}>Done</ActionButton>}>
       <div className="space-y-4">
-        <TextField label="Team name" value={editName} onChange={setEditName} />
-        <SelectField label="Function" value={editFn} onChange={(v) => setEditFn(v as TeamFunction)} options={FUNCTION_OPTIONS} />
-
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Members</p>
-
         {team.members.length === 0 ? (
           <p className="text-sm text-muted-foreground">No members yet.</p>
         ) : (
@@ -243,15 +236,26 @@ function TeamDetailModal({
                 <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[var(--r-button)] bg-muted">
                   <User className="h-[18px] w-[18px] text-muted-foreground" />
                 </div>
-                <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{m.name}</p>
-                <DeleteButton
-                  label={`Remove ${m.name}`}
-                  itemName={m.name}
-                  description="They'll be removed from this team (their account isn't affected)."
-                  confirmLabel="Remove"
-                  loading={busy}
-                  onConfirm={async () => { await run(removeTeamMember(team.id, m.userId)) }}
-                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{ROLE_LABEL[m.role] ?? m.role}</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {m.phone && (
+                    <a href={`tel:${m.phone}`} aria-label={`Call ${m.name}`}
+                      className="grid h-8 w-8 place-items-center rounded-[var(--r-button)] border border-border text-brand transition-colors hover:bg-muted">
+                      <Phone className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  <DeleteButton
+                    label={`Remove ${m.name}`}
+                    itemName={m.name}
+                    description="They'll be removed from this team (their account isn't affected)."
+                    confirmLabel="Remove"
+                    loading={busy}
+                    onConfirm={async () => { await run(removeTeamMember(team.id, m.userId)) }}
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -265,6 +269,37 @@ function TeamDetailModal({
             options={[{ value: "", label: "Add member…" }, ...addable.map((a) => ({ value: a.userId, label: a.name }))]}
           />
         )}
+      </div>
+    </Modal>
+  )
+}
+
+// Edit (hover) → rename + change function.
+function TeamEditModal({
+  team, busy, run, onClose,
+}: Readonly<{
+  team: TeamWithMembers
+  busy: boolean
+  run: (p: Promise<{ ok: true } | { error: string }>, ok?: string) => Promise<boolean>
+  onClose: () => void
+}>) {
+  const [editName, setEditName] = useState(team.name)
+  const [editFn, setEditFn] = useState<TeamFunction>(team.function)
+  const dirty = editName.trim() !== team.name || editFn !== team.function
+  return (
+    <Modal open onClose={onClose} title="Edit team" icon={<Users className="size-5" />}
+      actions={
+        <>
+          <ActionButton onClick={onClose}>Cancel</ActionButton>
+          <ActionButton tone="primary" disabled={busy || !dirty || !editName.trim()}
+            onClick={async () => { if (await run(updateTeam(team.id, { name: editName.trim(), function: editFn }), "Team updated")) onClose() }}>
+            Save
+          </ActionButton>
+        </>
+      }>
+      <div className="space-y-4">
+        <TextField label="Team name" value={editName} onChange={setEditName} />
+        <SelectField label="Function" value={editFn} onChange={(v) => setEditFn(v as TeamFunction)} options={FUNCTION_OPTIONS} />
       </div>
     </Modal>
   )

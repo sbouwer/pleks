@@ -17,7 +17,7 @@ export interface TeamWithMembers {
   id: string
   name: string
   function: TeamFunction
-  members: { userId: string; name: string }[]
+  members: { userId: string; name: string; role: string; phone: string | null }[]
 }
 
 export async function listTeams(): Promise<TeamWithMembers[]> {
@@ -38,18 +38,30 @@ export async function listTeams(): Promise<TeamWithMembers[]> {
 
   const userIds = [...new Set(memberRows.map((m) => m.user_id))]
   const nameById = new Map<string, string>()
+  const phoneById = new Map<string, string | null>()
+  const roleById = new Map<string, string>()
   if (userIds.length > 0) {
     const { data: profiles, error: pErr } = await db
-      .from("user_profiles").select("id, full_name, first_name, last_name").in("id", userIds)
+      .from("user_profiles").select("id, full_name, first_name, last_name, mobile").in("id", userIds)
     if (pErr) console.error("listTeams profiles:", pErr.message)
-    for (const p of (profiles ?? []) as { id: string; full_name: string | null; first_name: string | null; last_name: string | null }[]) {
+    for (const p of (profiles ?? []) as { id: string; full_name: string | null; first_name: string | null; last_name: string | null; mobile: string | null }[]) {
       nameById.set(p.id, [p.first_name, p.last_name].filter(Boolean).join(" ") || p.full_name || "Unnamed")
+      phoneById.set(p.id, p.mobile ?? null)
     }
+    const { data: orgs, error: oErr } = await db
+      .from("user_orgs").select("user_id, role").eq("org_id", orgId).in("user_id", userIds)
+    if (oErr) console.error("listTeams roles:", oErr.message)
+    for (const o of (orgs ?? []) as { user_id: string; role: string }[]) roleById.set(o.user_id, o.role)
   }
 
   return teamRows.map((t) => ({
     ...t,
-    members: memberRows.filter((m) => m.team_id === t.id).map((m) => ({ userId: m.user_id, name: nameById.get(m.user_id) ?? "Unnamed" })),
+    members: memberRows.filter((m) => m.team_id === t.id).map((m) => ({
+      userId: m.user_id,
+      name: nameById.get(m.user_id) ?? "Unnamed",
+      role: roleById.get(m.user_id) ?? "",
+      phone: phoneById.get(m.user_id) ?? null,
+    })),
   }))
 }
 
