@@ -13,7 +13,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getIdentityForkState } from "@/lib/auth/server"
 import { IdentityForkBanner } from "@/components/identity/IdentityForkBanner"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
-import { MyProfileTabs } from "./MyProfileTabs"
+import { CategoryTabs } from "@/components/settings/CategoryTabs"
 import { MyProfileForm } from "./MyProfileForm"
 import { PROFILE_TABS } from "./tabs"
 import { getUserSignature } from "./getSignature"
@@ -45,7 +45,7 @@ export default async function ProfilePage({ searchParams }: Readonly<{ searchPar
         title="My profile"
         sub="Your personal details, contact and signature — as they appear on leases and tenant communications."
         facts={[]}
-        tabs={<MyProfileTabs current={active} />}
+        tabs={<CategoryTabs tabs={PROFILE_TABS} current={active} />}
       >
         <DetailFullWidth>
           {active === "signature" && <SignatureSettings currentSignature={signature} />}

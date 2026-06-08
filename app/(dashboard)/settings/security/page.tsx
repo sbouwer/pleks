@@ -1,87 +1,80 @@
 /**
- * app/(dashboard)/settings/security/page.tsx — Security settings: TOTP factors and passkeys
+ * app/(dashboard)/settings/security/page.tsx — Security (Account) category page
  *
- * Route:  /settings/security
+ * Route:  /settings/security  (tabs: ?tab=password|mfa|sessions)
  * Auth:   gatewaySSR() — logged-in org member
- * Data:   auth.listFactors() for TOTP status; user_passkeys table for enrolled passkeys
+ * Data:   auth.mfa.listFactors() for TOTP count (MFA tab); PasskeyManager + SessionsView self-fetch
+ * Notes:  Universal DetailPageLayout + DetailTabs (CategoryTabs). MFA folds the authenticator status +
+ *         PasskeyManager; Sessions is SessionsView (self-only, with "revoke all other sessions").
  */
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import { Smartphone } from "lucide-react"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createClient } from "@/lib/supabase/server"
-import { Shield, Smartphone } from "lucide-react"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { CategoryTabs } from "@/components/settings/CategoryTabs"
 import { PasskeyManager } from "@/components/auth/PasskeyManager"
+import { SessionsView } from "@/components/auth/SessionsView"
+import { PasswordForm } from "./PasswordForm"
+import { SECURITY_TABS } from "./tabs"
 
-export const metadata = { title: "Security settings" }
+export const metadata = { title: "Security" }
 
-export default async function SecurityPage() {
+function AuthenticatorPanel({ totpCount }: Readonly<{ totpCount: number }>) {
+  return (
+    <div className="rounded-[var(--r-button)] border border-border">
+      <div className="flex items-start gap-4 p-4">
+        <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">Authenticator app</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {totpCount === 0 && "No authenticator enrolled"}
+            {totpCount === 1 && <span className="text-amber-600 dark:text-amber-400">1 device enrolled — add a second for backup</span>}
+            {totpCount >= 2 && <span className="text-success">{totpCount} devices enrolled</span>}
+          </div>
+        </div>
+        <Link href="/settings/security/enrol-totp" className="shrink-0 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+          {totpCount === 0 ? "Set up" : "Add another"}
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+export default async function SecurityPage({ searchParams }: Readonly<{ searchParams: Promise<{ tab?: string }> }>) {
   const gw = await gatewaySSR()
   if (!gw) redirect("/login")
 
-  const supabase = await createClient()
-  const { data: factors } = await supabase.auth.mfa.listFactors()
-  const totpCount = factors?.totp?.length ?? 0
+  const { tab } = await searchParams
+  const active = SECURITY_TABS.some((t) => t.id === tab) ? tab! : "password"
+
+  let totpCount = 0
+  if (active === "mfa") {
+    const supabase = await createClient()
+    const { data: factors } = await supabase.auth.mfa.listFactors()
+    totpCount = factors?.totp?.length ?? 0
+  }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
-      <div>
-        <h1 className="font-heading text-2xl mb-1">Security</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage two-factor authentication and active sessions.
-        </p>
-      </div>
-
-      {/* MFA Section */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Two-factor authentication
-        </h2>
-        <div className="rounded-lg border border-rule bg-surface-raised divide-y divide-rule">
-          <div className="flex items-start gap-4 p-4">
-            <Smartphone className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm">Authenticator app</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {totpCount === 0 && "No authenticator enrolled"}
-                {totpCount === 1 && <span className="text-amber-600">1 device enrolled — add a second for backup</span>}
-                {totpCount >= 2 && <span className="text-green-600">{totpCount} devices enrolled</span>}
-              </div>
-            </div>
-            <Link
-              href="/settings/security/enrol-totp"
-              className="text-xs font-medium text-muted-foreground hover:text-foreground shrink-0"
-            >
-              {totpCount === 0 ? "Set up" : "Add another"}
-            </Link>
+    <DetailPageLayout
+      category="Settings"
+      backHref="/settings"
+      title="Security"
+      sub="Your password, multi-factor methods and active sessions."
+      facts={[]}
+      tabs={<CategoryTabs tabs={SECURITY_TABS} current={active} />}
+    >
+      <DetailFullWidth>
+        {active === "password" && <PasswordForm />}
+        {active === "mfa" && (
+          <div className="max-w-2xl space-y-6">
+            <AuthenticatorPanel totpCount={totpCount} />
+            <PasskeyManager />
           </div>
-        </div>
-      </section>
-
-      <PasskeyManager />
-
-      {/* Sessions Section */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Sessions
-        </h2>
-        <div className="rounded-lg border border-rule bg-surface-raised divide-y divide-rule">
-          <div className="flex items-center gap-4 p-4">
-            <Shield className="h-5 w-5 text-muted-foreground shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm">Active sessions &amp; sign-in history</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                View and revoke access from other devices
-              </div>
-            </div>
-            <Link
-              href="/settings/security/sessions"
-              className="text-xs font-medium text-muted-foreground hover:text-foreground shrink-0"
-            >
-              View
-            </Link>
-          </div>
-        </div>
-      </section>
-    </div>
+        )}
+        {active === "sessions" && <SessionsView userId={gw.userId} selfOnly />}
+      </DetailFullWidth>
+    </DetailPageLayout>
   )
 }
