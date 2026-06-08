@@ -39,6 +39,7 @@ import { Trash2, RotateCcw } from "lucide-react"
 import { EditButton, RemoveButton } from "@/components/ui/actions"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { getMemberEmails } from "@/lib/actions/teamMembers"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -492,6 +493,7 @@ export function MembersTab() {
   const [roleFilter, setRoleFilter]     = useState("")
   const [status, setStatus]             = useState<"active" | "inactive">("active")
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
+  const [emails, setEmails]             = useState<Record<string, string>>({})
   const { sortKey, sortDir, onSort }    = useListSort<"name" | "role">("name")
 
   const showEmergency = PORTFOLIO_TIERS.has(tier)
@@ -602,6 +604,7 @@ export function MembersTab() {
     loadMembers(supabase)
     loadOrgRoles(supabase)
     reloadPending()
+    getMemberEmails().then(setEmails).catch(() => {})
     const onInvited = () => { reloadPending() }
     window.addEventListener("pleks:team-invited", onInvited)
     return () => window.removeEventListener("pleks:team-invited", onInvited)
@@ -736,6 +739,9 @@ export function MembersTab() {
                 <th className="px-4 py-2.5 text-left">
                   <SortHeader col="role" label="Role" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 </th>
+                <th className="hidden px-4 py-2.5 text-left lg:table-cell">
+                  <span className="text-xs font-medium text-muted-foreground">Email</span>
+                </th>
                 <th className="hidden px-4 py-2.5 text-left md:table-cell">
                   <span className="text-xs font-medium text-muted-foreground">Mobile</span>
                 </th>
@@ -760,6 +766,7 @@ export function MembersTab() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{getRoleLabel(m.role)}</td>
+                    <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{emails[m.user_id] ?? "—"}</td>
                     <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{m.user_profiles?.mobile ?? "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
