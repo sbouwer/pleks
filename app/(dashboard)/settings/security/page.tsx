@@ -76,7 +76,7 @@ export default async function SecurityPage({ searchParams }: Readonly<{ searchPa
             <PasskeyManager />
           </div>
         )}
-        {active === "sessions" && <SessionsView userId={gw.userId} selfOnly />}
+        {active === "sessions" && <SessionsView userId={gw.userId} selfOnly embedded />}
       </DetailFullWidth>
     </DetailPageLayout>
   )

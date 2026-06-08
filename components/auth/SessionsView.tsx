@@ -39,6 +39,8 @@ interface DeviceFingerprint {
 interface Props {
   readonly userId: string
   readonly selfOnly?: boolean
+  /** Rendered inside a settings category tab — drop the centered standalone-page chrome + own heading. */
+  readonly embedded?: boolean
 }
 
 function deviceIcon(label: string | null) {
@@ -49,7 +51,7 @@ function deviceIcon(label: string | null) {
   return <Monitor className="h-4 w-4 shrink-0 text-muted-foreground" />
 }
 
-export function SessionsView({ userId: _userId, selfOnly: _selfOnly }: Props) {
+export function SessionsView({ userId: _userId, selfOnly: _selfOnly, embedded }: Props) {
   const [events, setEvents] = useState<AuthEvent[]>([])
   const [devices, setDevices] = useState<DeviceFingerprint[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,6 +72,8 @@ export function SessionsView({ userId: _userId, selfOnly: _selfOnly }: Props) {
         .is("revoked_at", null)
         .order("last_seen_at", { ascending: false }),
     ]).then(([eventsRes, devicesRes]) => {
+      if (eventsRes.error) console.error("SessionsView auth_events:", eventsRes.error.message)
+      if (devicesRes.error) console.error("SessionsView device_fingerprints:", devicesRes.error.message)
       if (eventsRes.data) setEvents(eventsRes.data)
       if (devicesRes.data) setDevices(devicesRes.data)
       setLoading(false)
@@ -117,13 +121,15 @@ export function SessionsView({ userId: _userId, selfOnly: _selfOnly }: Props) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
-      <div>
-        <h1 className="font-heading text-2xl mb-1">Your sign-in activity</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage sessions and review your recent login history.
-        </p>
-      </div>
+    <div className={embedded ? "max-w-2xl space-y-8" : "mx-auto max-w-2xl space-y-8 px-4 py-8"}>
+      {!embedded && (
+        <div>
+          <h1 className="font-heading text-2xl mb-1">Your sign-in activity</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage sessions and review your recent login history.
+          </p>
+        </div>
+      )}
 
       {/* Active devices */}
       <section className="space-y-3">
