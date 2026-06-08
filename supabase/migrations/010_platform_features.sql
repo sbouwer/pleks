@@ -3056,3 +3056,74 @@ $transfer$;
 
 REVOKE EXECUTE ON FUNCTION transfer_org_ownership(uuid, uuid, uuid) FROM public;
 GRANT  EXECUTE ON FUNCTION transfer_org_ownership(uuid, uuid, uuid) TO service_role;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §41  ADDENDUM_TEAMS_ASSIGNMENT_MODEL Layer 1: named teams (firm-tier overlay)
+--      teams + team_members, and the team-assignment columns on properties/units/work items. Team columns
+--      live here (not the domain files) so the FK → teams resolves on a fresh 001→012 replay (003/005 run
+--      before this). assigned_user_id XOR assigned_team_id — both-null = Everyone/Org (D-1/D-11). The
+--      Everyone/Org "team" is virtual (the null state), never a teams row (D-11).
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS teams (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organisations(id),
+  name        text NOT NULL,
+  function    text NOT NULL DEFAULT 'general'
+              CHECK (function IN ('maintenance', 'rentals', 'billing', 'inspections', 'general')),
+  archived_at timestamptz,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(org_id) WHERE archived_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS team_members (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id     uuid NOT NULL REFERENCES organisations(id),
+  team_id    uuid NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  user_id    uuid NOT NULL REFERENCES auth.users(id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_uniq ON team_members(team_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(org_id, user_id);
+
+ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_teams" ON teams;
+CREATE POLICY "org_teams" ON teams FOR ALL
+  USING      (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_team_members" ON team_members;
+CREATE POLICY "org_team_members" ON team_members FOR ALL
+  USING      (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+-- Team-assignment columns (alongside the existing *_agent_id / assigned_user_id), with the not-both CHECK.
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS managing_team_id uuid REFERENCES teams(id);
+ALTER TABLE properties DROP CONSTRAINT IF EXISTS properties_manager_not_both;
+ALTER TABLE properties ADD  CONSTRAINT properties_manager_not_both
+  CHECK (managing_agent_id IS NULL OR managing_team_id IS NULL);
+
+ALTER TABLE units ADD COLUMN IF NOT EXISTS assigned_team_id uuid REFERENCES teams(id);
+ALTER TABLE units DROP CONSTRAINT IF EXISTS units_assignee_not_both;
+ALTER TABLE units ADD  CONSTRAINT units_assignee_not_both
+  CHECK (assigned_agent_id IS NULL OR assigned_team_id IS NULL);
+
+ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS assigned_team_id uuid REFERENCES teams(id);
+ALTER TABLE maintenance_requests DROP CONSTRAINT IF EXISTS maintenance_requests_assignee_not_both;
+ALTER TABLE maintenance_requests ADD  CONSTRAINT maintenance_requests_assignee_not_both
+  CHECK (assigned_user_id IS NULL OR assigned_team_id IS NULL);
+
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS assigned_team_id uuid REFERENCES teams(id);
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_assignee_not_both;
+ALTER TABLE applications ADD  CONSTRAINT applications_assignee_not_both
+  CHECK (assigned_user_id IS NULL OR assigned_team_id IS NULL);
+
+ALTER TABLE inspections ADD COLUMN IF NOT EXISTS assigned_team_id uuid REFERENCES teams(id);
+ALTER TABLE inspections DROP CONSTRAINT IF EXISTS inspections_assignee_not_both;
+ALTER TABLE inspections ADD  CONSTRAINT inspections_assignee_not_both
+  CHECK (assigned_user_id IS NULL OR assigned_team_id IS NULL);
+
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_assigned_team ON maintenance_requests(org_id, assigned_team_id) WHERE assigned_team_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_applications_assigned_team ON applications(org_id, assigned_team_id) WHERE assigned_team_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_inspections_assigned_team ON inspections(org_id, assigned_team_id) WHERE assigned_team_id IS NOT NULL;
