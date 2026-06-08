@@ -1,11 +1,13 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/team/TeamSettingsClient.tsx — Team management UI (client component)
+ * app/(dashboard)/settings/team/TeamSettingsClient.tsx — Members tab (client component)
  *
- * Route:  /settings/team (rendered by page.tsx server wrapper)
+ * Route:  /settings/team?tab=members (rendered by page.tsx; Invite is the header button, Transfer its own tab)
  * Auth:   Rendered inside gateway-protected server wrapper; org-type guard in page.tsx
- * Data:   user_orgs, invites, organisations via Supabase client; /api/team/* routes
+ * Data:   user_orgs (members + pending invites), organisations (roles); /api/team/member, /api/team/invite
+ * Notes:  Exports MembersTab. Archive is owner-only; pending-invite list refreshes on the
+ *         `pleks:team-invited` event the header TeamInviteButton dispatches.
  */
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react"
@@ -33,8 +35,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
-import { Plus, Trash2, ChevronUp, ChevronDown, ArrowUpDown, ShieldAlert } from "lucide-react"
-import { EditButton, InlineLink } from "@/components/ui/actions"
+import { Trash2, ChevronUp, ChevronDown, ArrowUpDown } from "lucide-react"
+import { EditButton } from "@/components/ui/actions"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -661,7 +663,7 @@ function FirmMemberTable({
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export function TeamSettingsClient() {
+export function MembersTab() {
   const { orgId }           = useOrg()
   const { tier }            = useTier()
   const { isOwner: callerIsOwner } = usePermissions()
@@ -669,15 +671,8 @@ export function TeamSettingsClient() {
   const [members, setMembers]           = useState<Member[]>([])
   const [orgRoles, setOrgRoles]         = useState<string[]>(DEFAULT_ROLES)
   const [pendingInvites, setPending]    = useState<PendingInvite[]>([])
-  const [inviteEmail, setInviteEmail]   = useState("")
-  const [inviteRole, setInviteRole]     = useState("")
-  const [loading, setLoading]           = useState(false)
   const [currentUserId, setCurrentUser] = useState<string | null>(null)
   const [editingMember, setEditing]     = useState<Member | null>(null)
-  const [showTransfer, setShowTransfer]           = useState(false)
-  const [transferTargetId, setTransferTargetId]   = useState("")
-  const [transferConfirm, setTransferConfirm]     = useState("")
-  const [transferring, setTransferring]           = useState(false)
   const [search, setSearch]             = useState("")
   const [roleFilter, setRoleFilter]     = useState("")
   const [sortCol, setSortCol]           = useState<SortCol>("name")
@@ -685,7 +680,6 @@ export function TeamSettingsClient() {
 
   const isFirm      = tier === "firm"
   const usersLimit: null = null
-  const atLimit     = false
   const showEmergency = PORTFOLIO_TIERS.has(tier)
 
   // ── Derived lists ────────────────────────────────────────────────────────────
@@ -775,15 +769,26 @@ export function TeamSettingsClient() {
     setOrgRoles([...DEFAULT_ROLES, ...saved.filter((r) => !DEFAULT_ROLES.includes(r))])
   }
 
+  // Refresh pending invites — on mount + when the header TeamInviteButton dispatches pleks:team-invited.
+  async function reloadPending() {
+    if (!orgId) return
+    const supabase = createClient()
+    const { data, error } = await supabase.from("invites").select("id, email, role")
+      .eq("org_id", orgId).is("accepted_at", null)
+    logQueryError("reloadPending invites", error)
+    setPending((data as unknown as PendingInvite[]) ?? [])
+  }
+
   useEffect(() => {
     if (!orgId) return
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user?.id ?? null))
     loadMembers(supabase)
     loadOrgRoles(supabase)
-    supabase.from("invites").select("id, email, role")
-      .eq("org_id", orgId).is("accepted_at", null)
-      .then(({ data }) => setPending((data as unknown as PendingInvite[]) ?? []))
+    reloadPending()
+    const onInvited = () => { reloadPending() }
+    window.addEventListener("pleks:team-invited", onInvited)
+    return () => window.removeEventListener("pleks:team-invited", onInvited)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId])
 
@@ -839,54 +844,6 @@ export function TeamSettingsClient() {
     } else {
       toast.success("Invite revoked")
       setPending((p) => p.filter((i) => i.id !== inviteId))
-    }
-  }
-
-  async function handleInvite() {
-    if (!inviteEmail || !inviteRole || !orgId) return
-    if (atLimit) { toast.error("User limit reached. Upgrade to add more members."); return }
-    setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const roleSlug = ROLE_LABEL_TO_SLUG[inviteRole] ?? inviteRole
-    const { error } = await supabase.from("invites").insert({
-      org_id: orgId, email: inviteEmail.trim(), role: roleSlug, invited_by: user?.id,
-    })
-    if (error) {
-      toast.error("Failed to send invite")
-    } else {
-      toast.success(`Invite sent to ${inviteEmail}`)
-      setInviteEmail(""); setInviteRole("")
-      const { data, error: queryError } = await supabase.from("invites").select("id, email, role")
-        .eq("org_id", orgId).is("accepted_at", null)
-        logQueryError("handleInvite invites", queryError)
-      setPending((data as unknown as PendingInvite[]) ?? [])
-    }
-    setLoading(false)
-  }
-
-  async function handleTransferOwnership() {
-    if (!orgId || !transferTargetId) return
-    if (transferConfirm !== "TRANSFER") {
-      toast.error("Type TRANSFER to confirm")
-      return
-    }
-    setTransferring(true)
-    const res = await fetch("/api/team/transfer-ownership", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ newOwnerUserId: transferTargetId, orgId }),
-    })
-    const data = await res.json() as { error?: string }
-    setTransferring(false)
-    if (!res.ok) {
-      toast.error(data.error ?? "Transfer failed")
-    } else {
-      toast.success("Ownership transferred. You are now a Property Manager.")
-      setShowTransfer(false)
-      setTransferTargetId("")
-      setTransferConfirm("")
-      loadMembers(createClient())
     }
   }
 
@@ -966,121 +923,6 @@ export function TeamSettingsClient() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Invite team member</CardTitle></CardHeader>
-        <CardContent>
-          {atLimit ? (
-            <p className="text-sm text-muted-foreground">
-              You&apos;ve reached the user limit for your plan.{" "}
-              <InlineLink href="/settings/subscription" withArrow={false}>Upgrade</InlineLink> to add more.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              <Input
-                type="email"
-                placeholder="Email address"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleInvite() }}
-              />
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Role</p>
-                <RoleCombobox
-                  value={inviteRole}
-                  onChange={setInviteRole}
-                  orgRoles={orgRoles.filter((r) => r !== "Owner")}
-                />
-              </div>
-              <ActionButton
-                tone="primary"
-                icon={<Plus className="h-4 w-4" />}
-                onClick={handleInvite}
-                disabled={loading || !inviteEmail || !inviteRole}
-                className="w-full"
-              >
-                Send invite
-              </ActionButton>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Transfer ownership — owner only */}
-      {callerIsOwner && (
-        <Card className="mt-6 border-destructive/30">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-destructive" />
-              Transfer ownership
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!showTransfer ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Transfer ownership of this organisation to another team member. You will become a Property Manager and lose owner privileges.
-                </p>
-                <ActionButton
-                  tone="destructive"
-                  onClick={() => setShowTransfer(true)}
-                >
-                  Transfer ownership…
-                </ActionButton>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Select the team member who will become the new owner. This cannot be undone without their consent.
-                </p>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">New owner</p>
-                  <select
-                    className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-brand/40"
-                    value={transferTargetId}
-                    onChange={(e) => setTransferTargetId(e.target.value)}
-                  >
-                    <option value="">— Select team member —</option>
-                    {members
-                      .filter((m) => m.role !== "owner")
-                      .map((m) => (
-                        <option key={m.user_id} value={m.user_id}>
-                          {getMemberDisplayName(m)} ({getRoleLabel(m.role)})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">
-                    Type <span className="font-mono font-semibold text-destructive">TRANSFER</span> to confirm
-                  </p>
-                  <Input
-                    value={transferConfirm}
-                    onChange={(e) => setTransferConfirm(e.target.value)}
-                    placeholder="TRANSFER"
-                    className="font-mono"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <ActionButton
-                    tone="secondary"
-                    onClick={() => { setShowTransfer(false); setTransferTargetId(""); setTransferConfirm("") }}
-                    disabled={transferring}
-                  >
-                    Cancel
-                  </ActionButton>
-                  <ActionButton
-                    tone="destructive"
-                    onClick={handleTransferOwnership}
-                    disabled={transferring || !transferTargetId || transferConfirm !== "TRANSFER"}
-                  >
-                    {transferring ? "Transferring…" : "Transfer ownership"}
-                  </ActionButton>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

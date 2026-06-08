@@ -1,19 +1,33 @@
 /**
  * app/(dashboard)/settings/team/page.tsx — Team & access (Workspace) category page
  *
- * Route:  /settings/team
- * Auth:   Dashboard layout gateway; org-type guard redirects landlord orgs to /settings/details
- * Data:   getCurrentOrgCapabilities() for org-type check; TeamSettingsClient loads members/roles
- * Notes:  Unified header — DetailPageLayout (no tabs), matching the Account category pages.
+ * Route:  /settings/team  (tabs: ?tab=members|transfer)
+ * Auth:   gatewaySSR; org-type guard redirects landlord orgs to /settings/details
+ * Data:   getCurrentOrgCapabilities (org-type); gw.role for owner-gating; tabs self-load
+ * Notes:  DetailPageLayout + DetailTabs. Invite is a header quick-action (TeamInviteButton). The
+ *         Transfer-ownership tab is OWNER-ONLY — hidden for non-owners, and ?tab=transfer falls back to
+ *         Members for them.
  */
 import { redirect } from "next/navigation"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getCurrentOrgCapabilities } from "@/lib/auth/server"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
-import { TeamSettingsClient } from "./TeamSettingsClient"
+import { CategoryTabs } from "@/components/settings/CategoryTabs"
+import { TeamInviteButton } from "./TeamInviteButton"
+import { MembersTab } from "./TeamSettingsClient"
+import { TransferOwnershipTab } from "./TransferOwnershipTab"
+import { MEMBERS_TAB, TRANSFER_TAB } from "./tabs"
 
-export default async function TeamSettingsPage() {
+export default async function TeamSettingsPage({ searchParams }: Readonly<{ searchParams: Promise<{ tab?: string }> }>) {
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
   const caps = await getCurrentOrgCapabilities()
   if (!caps?.hasTeam) redirect("/settings/details")
+
+  const isOwner = gw.role === "owner"
+  const tabs = isOwner ? [MEMBERS_TAB, TRANSFER_TAB] : [MEMBERS_TAB]
+  const { tab } = await searchParams
+  const active = tabs.some((t) => t.id === tab) ? tab! : "members"
 
   return (
     <DetailPageLayout
@@ -22,9 +36,11 @@ export default async function TeamSettingsPage() {
       title="Team & access"
       sub="Invite people, set their roles, and manage who can access this workspace."
       facts={[]}
+      actions={<TeamInviteButton />}
+      tabs={<CategoryTabs tabs={tabs} current={active} />}
     >
       <DetailFullWidth>
-        <TeamSettingsClient />
+        {active === "transfer" && isOwner ? <TransferOwnershipTab /> : <MembersTab />}
       </DetailFullWidth>
     </DetailPageLayout>
   )
