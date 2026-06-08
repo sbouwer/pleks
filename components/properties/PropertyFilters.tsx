@@ -42,6 +42,7 @@ export function PropertyFilters({ view }: PropertyFiltersProps) {
   const q = searchParams.get("q") ?? ""
   const status = searchParams.get("status") ?? ""
   const archived = searchParams.get("archived") === "1"
+  const scope = searchParams.get("scope") === "all" ? "all" : "mine"
 
   return (
     <div className="mb-5">
@@ -51,6 +52,14 @@ export function PropertyFilters({ view }: PropertyFiltersProps) {
         placeholder="Search properties…"
         view={view}
         onView={(v) => set("view", v)}
+        rightFilters={!archived ? (
+          <ToolbarFilter
+            label="View"
+            selected={[scope]}
+            onChange={(next) => set("scope", next[0] === "all" ? "all" : "")}
+            options={[{ value: "mine", label: "My portfolio" }, { value: "all", label: "All" }]}
+          />
+        ) : undefined}
         filters={
           <>
             <ToolbarFilter

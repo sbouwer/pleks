@@ -114,7 +114,7 @@ export default async function PropertiesPage({
   const gw = await gatewaySSR()
   if (!gw) redirect("/login")
 
-  const { db, orgId } = gw
+  const { db, orgId, userId } = gw
   const tier = await getOrgTier(orgId)
 
   // ── Owner tier: single property dashboard ──────────────────────────────────
@@ -230,11 +230,12 @@ export default async function PropertiesPage({
   const statusFilter = sp.status ?? ""
   const view = (sp.view ?? "list") as "list" | "cards"
   const archived = sp.archived === "1"
+  const scope = sp.scope === "all" ? "all" : "mine"
 
   let listQuery = db
     .from("properties")
     .select(`
-      id, name, type, address_line1, city, province, landlord_id,
+      id, name, type, address_line1, city, province, landlord_id, managing_agent_id,
       units(id, status, deleted_at, asking_rent_cents, leases(id, status, rent_amount_cents))
     `)
     .eq("org_id", orgId)
@@ -242,7 +243,13 @@ export default async function PropertiesPage({
   const { data: rawProperties, error: listErr } = await listQuery.order("created_at", { ascending: false })
 
   if (listErr) console.error("[properties] list fetch failed:", listErr.message)
-  let properties = filterProperties((rawProperties ?? []) as unknown as PropertyListItem[], q, archived ? "" : statusFilter)
+  let allProps = (rawProperties ?? []) as unknown as PropertyListItem[]
+  const orgHasProperties = allProps.length > 0
+  // My portfolio / All (ADDENDUM_TEAMS Layer 0) — properties I manage; not applicable to the archived view.
+  if (scope === "mine" && !archived) {
+    allProps = allProps.filter((p) => (p as { managing_agent_id?: string | null }).managing_agent_id === userId)
+  }
+  let properties = filterProperties(allProps, q, archived ? "" : statusFilter)
   properties = await attachLandlordNames(db, orgId, properties)
   if (!archived) properties = await attachCollection(db, orgId, properties)
 
@@ -252,6 +259,8 @@ export default async function PropertiesPage({
       view={view}
       arrearsPct={arrearsPct}
       archived={archived}
+      scope={scope}
+      orgHasProperties={orgHasProperties}
     />
   )
 }

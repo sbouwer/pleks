@@ -26,9 +26,11 @@ interface Props {
   view: "list" | "cards"
   arrearsPct?: number
   archived?: boolean
+  scope?: "mine" | "all"
+  orgHasProperties?: boolean
 }
 
-export function PropertyListView({ properties, view, arrearsPct, archived }: Readonly<Props>) {
+export function PropertyListView({ properties, view, arrearsPct, archived, scope = "all", orgHasProperties }: Readonly<Props>) {
   const totalUnits = properties.reduce((sum, p) =>
     sum + p.units.filter(u => !u.deleted_at).length, 0)
   const occupiedUnits = properties.reduce((sum, p) =>
@@ -45,6 +47,31 @@ export function PropertyListView({ properties, view, arrearsPct, archived }: Rea
       return us + (lease?.rent_amount_cents ?? u.asking_rent_cents ?? 0)
     }, 0), 0)
   const occupancyPct = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
+
+  // My portfolio empty, but the org has properties → offer "View all" (ADDENDUM_TEAMS Layer 0). A Link,
+  // not an onClick — this is a server component and the scope lives in the URL.
+  if (properties.length === 0 && !archived && scope === "mine" && orgHasProperties) {
+    return (
+      <EmptyResourceState
+        eyebrow="Portfolio"
+        title="Properties"
+        headline="Nothing in your portfolio"
+        headerSub="These are the properties you manage. Switch to All to see the whole organisation's portfolio."
+        emptyTitle="Nothing in your portfolio"
+        emptySub="There are properties in your organisation — just none you manage."
+        icon={<Home className="h-6 w-6" />}
+        headerAction={<AddPropertyButton />}
+        heroAction={
+          <Link
+            href="/properties?scope=all"
+            className="inline-flex items-center rounded-[var(--r-button)] bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-primary"
+          >
+            View all
+          </Link>
+        }
+      />
+    )
+  }
 
   if (properties.length === 0 && !archived) {
     return (
