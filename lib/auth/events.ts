@@ -46,20 +46,27 @@ export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
   try {
     let deviceFingerprintId = params.deviceFingerprintId ?? null
     let deviceLabel = params.deviceLabel ?? null
+    let ipCountry = params.ipCountry ?? null
+    let ipCity = params.ipCity ?? null
 
-    // On a successful auth event, record/refresh this device so "Active sessions" populates.
-    // This is the only writer of device_fingerprints. Best-effort — never break event logging.
+    // On a successful auth event, record/refresh this device so "Active sessions" populates, and
+    // derive geo from Vercel's edge headers. This is the only writer of device_fingerprints + the
+    // only geo source. Best-effort — never break event logging. (Edge geo headers are absent on
+    // localhost, so Location stays empty in dev; populated in prod/preview.)
     if (params.success && !deviceFingerprintId) {
       try {
         const h = await headers()
         const ua = h.get("user-agent") ?? ""
         if (ua) {
+          ipCountry = ipCountry ?? h.get("x-vercel-ip-country")
+          const cityRaw = h.get("x-vercel-ip-city")
+          if (!ipCity && cityRaw) ipCity = decodeURIComponent(cityRaw)
           const device = await resolveDeviceFingerprint({
             userId: params.userId,
             userAgent: ua,
             acceptLanguage: h.get("accept-language") ?? "",
-            ipCountry: params.ipCountry,
-            ipCity: params.ipCity,
+            ipCountry: ipCountry ?? undefined,
+            ipCity: ipCity ?? undefined,
           })
           deviceFingerprintId = device.fingerprintId
           deviceLabel = deviceLabel ?? device.label
@@ -79,8 +86,8 @@ export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
       active_role:        params.activeRole ?? null,
       aal:                params.aal ?? null,
       ip_hash:            params.ipHash ?? null,
-      ip_country:         params.ipCountry ?? null,
-      ip_city:            params.ipCity ?? null,
+      ip_country:         ipCountry,
+      ip_city:            ipCity,
       user_agent_hash:    params.userAgentHash ?? null,
       device_label:       deviceLabel,
       device_fingerprint: deviceFingerprintId,
