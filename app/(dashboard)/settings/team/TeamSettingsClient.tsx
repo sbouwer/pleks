@@ -740,10 +740,10 @@ export function MembersTab() {
                   <SortHeader col="role" label="Role" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 </th>
                 <th className="hidden px-4 py-2.5 text-left lg:table-cell">
-                  <span className="text-xs font-medium text-muted-foreground">Email</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Email</span>
                 </th>
                 <th className="hidden px-4 py-2.5 text-left md:table-cell">
-                  <span className="text-xs font-medium text-muted-foreground">Mobile</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Mobile</span>
                 </th>
                 <th className="px-4 py-2.5 text-right">
                   <span className="sr-only">Actions</span>
