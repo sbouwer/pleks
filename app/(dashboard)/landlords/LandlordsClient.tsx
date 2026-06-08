@@ -14,8 +14,10 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import { Archive, RotateCcw } from "lucide-react"
+import { Archive, RotateCcw, Building2 } from "lucide-react"
 import { ActionButton, EditButton, DeleteButton } from "@/components/ui/actions"
+import { AddButton } from "@/components/ui/add-button"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { Badge } from "@/components/ui/badge"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { toast } from "sonner"
@@ -291,10 +293,12 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
       )}
 
       {status === "active" && nothingInPortfolio && (
-        <div className="py-8 text-center">
-          <p className="text-sm text-muted-foreground">There are landlords in your organisation — just none in your portfolio.</p>
-          <button type="button" onClick={() => setScope("all")} className="pa-link mt-2 text-sm">View all</button>
-        </div>
+        <EmptyResourceState
+          emptyTitle="Nothing in your portfolio"
+          emptySub="There are landlords in your organisation — just none in your portfolio."
+          icon={<Building2 className="h-6 w-6" />}
+          heroAction={<AddButton label="View all" showPlus={false} onClick={() => setScope("all")} />}
+        />
       )}
 
       {status === "active" && !nothingInPortfolio && filtered.length === 0 && (
