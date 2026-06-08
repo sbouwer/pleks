@@ -29,14 +29,14 @@ const TIER_TERMS = "subscription plan tier upgrade downgrade cancel renew seats 
 
 const SETTINGS_INDEX: SettingsDest[] = [
   // ── Account ────────────────────────────────────────────────────────────────
-  { label: "My profile", subtitle: "Account", section: "account", href: "/settings/profile", kw: "personal name id number details" },
-  { label: "Contact & address", subtitle: "My profile", section: "account", href: "/settings/profile", kw: "mobile email address" },
-  { label: "Signature", subtitle: "My profile", section: "account", href: "/settings/profile/signature", kw: "sign signing leases" },
+  { label: "My profile", subtitle: "Account", section: "account", href: "/settings/profile?tab=personal", kw: "personal name id number details mobile email phone" },
+  { label: "Address", subtitle: "My profile", section: "account", href: "/settings/profile?tab=address", kw: "address postal billing suburb city" },
+  { label: "Signature", subtitle: "My profile", section: "account", href: "/settings/profile?tab=signature", kw: "sign signing leases" },
   { label: "Security", subtitle: "Account", section: "account", href: "/settings/security", kw: "sign in" },
-  { label: "Password", subtitle: "Security", section: "account", href: "/settings/security", kw: "change password" },
-  { label: "Two-factor", subtitle: "Security", section: "account", href: "/settings/security", kw: "2fa otp totp authenticator mfa" },
-  { label: "Passkeys", subtitle: "Security", section: "account", href: "/settings/security", kw: "passkey face id touch id biometric" },
-  { label: "Sign-in activity", subtitle: "Security", section: "account", href: "/settings/security/sessions", kw: "sessions devices sign out" },
+  { label: "Password", subtitle: "Security", section: "account", href: "/settings/security?tab=password", kw: "change password" },
+  { label: "Two-factor", subtitle: "Security", section: "account", href: "/settings/security?tab=mfa", kw: "2fa otp totp authenticator mfa" },
+  { label: "Passkeys", subtitle: "Security", section: "account", href: "/settings/security?tab=mfa", kw: "passkey face id touch id biometric" },
+  { label: "Sign-in activity", subtitle: "Security", section: "account", href: "/settings/security?tab=sessions", kw: "sessions devices sign out" },
   { label: "Notifications", subtitle: "Account", section: "account", href: "/settings/notifications", kw: "alerts" },
   { label: "Notification channels", subtitle: "Notifications", section: "account", href: "/settings/notifications", kw: "email whatsapp sms push quiet hours" },
   { label: "Notification events", subtitle: "Notifications", section: "account", href: "/settings/notifications", kw: "arrears applications maintenance" },
