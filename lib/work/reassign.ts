@@ -14,8 +14,22 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { recordAudit } from "@/lib/audit/recordAudit"
 
 const WORK_TABLES = ["maintenance_requests", "applications", "inspections"] as const
+type WorkTable = (typeof WORK_TABLES)[number]
 
-/** How much an agent owns — drives whether the archival reassign prompt is needed + the counts shown. */
+/**
+ * Restrict a work-item query to OPEN items (spec + modal copy: "open work items"). Terminal items stay with
+ * the archived agent — they're historical and don't surface in active queues; reassigning them would
+ * distort attribution. Applications: open = not yet approved/declined/withdrawn (incl. early/null stage 2).
+ */
+function applyOpenFilter<Q extends { not: (c: string, op: string, v: string) => Q; or: (f: string) => Q }>(
+  q: Q, table: WorkTable,
+): Q {
+  if (table === "maintenance_requests") return q.not("status", "in", "(completed,closed,cancelled,rejected,tenant_notified)")
+  if (table === "inspections") return q.not("status", "in", "(completed,finalised,dispute_resolved,cancelled)")
+  return q.or("stage2_status.is.null,stage2_status.not.in.(approved,declined,withdrawn)")
+}
+
+/** How much OPEN work an agent owns — drives whether the archival reassign prompt is needed + the counts. */
 export async function getAgentWorkload(userId: string): Promise<{ workItems: number; properties: number }> {
   const gw = await gateway()
   if (!gw) return { workItems: 0, properties: 0 }
@@ -23,9 +37,10 @@ export async function getAgentWorkload(userId: string): Promise<{ workItems: num
 
   let workItems = 0
   for (const table of WORK_TABLES) {
-    const { count, error } = await db
-      .from(table).select("id", { count: "exact", head: true })
-      .eq("org_id", orgId).eq("assigned_user_id", userId)
+    const { count, error } = await applyOpenFilter(
+      db.from(table).select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("assigned_user_id", userId),
+      table,
+    )
     if (error) { console.error(`getAgentWorkload ${table}:`, error.message); continue }
     workItems += count ?? 0
   }
@@ -50,11 +65,12 @@ export async function bulkReassignAgent(
 
   let workItems = 0
   for (const table of WORK_TABLES) {
-    const { data, error } = await db
-      .from(table)
-      .update({ assigned_user_id: toUserId, assigned_at: assignedAt })
-      .eq("org_id", orgId).eq("assigned_user_id", fromUserId)
-      .select("id")
+    const { data, error } = await applyOpenFilter(
+      db.from(table)
+        .update({ assigned_user_id: toUserId, assigned_at: assignedAt })
+        .eq("org_id", orgId).eq("assigned_user_id", fromUserId),
+      table,
+    ).select("id")
     if (error) return { error: `${table}: ${error.message}` }
     workItems += (data ?? []).length
   }

@@ -90,7 +90,7 @@ export function AgentPicker({ propertyId, currentAgentId, teamMembers }: Readonl
             <>
               <SelectSeparator />
               <SelectItem value="__none__">
-                <span className="text-danger">Remove</span>
+                <span>Everyone (org)</span>
               </SelectItem>
             </>
           )}
