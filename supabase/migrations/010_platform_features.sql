@@ -3024,3 +3024,35 @@ WHERE o.onboarding_dismissed_at IS NULL
 UPDATE organisations o SET onboarding_dismissed_at = NULL
 WHERE o.onboarding_dismissed_at IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM properties p WHERE p.org_id = o.id AND p.deleted_at IS NULL);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §40  ADDENDUM_TEAM: atomic ownership transfer (single-owner invariant)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The transfer-ownership route did promote-new-owner then demote-old-owner as two separate PostgREST
+-- updates with a best-effort manual rollback. A partial failure could leave the org with TWO owners (or
+-- zero), violating the single-owner invariant the tier/billing model rests on (owner = the account
+-- holder) and breaking any role='owner' + .single() resolution. This wraps both swaps in ONE plpgsql
+-- transaction — atomic by construction. Row-count guard: if the new owner isn't an active member the
+-- promote affects 0 rows → RAISE aborts the whole tx (no zero-owner state). SECURITY INVOKER (the route
+-- calls it via the service client, which bypasses RLS); EXECUTE locked to service_role.
+CREATE OR REPLACE FUNCTION transfer_org_ownership(p_org_id uuid, p_new_owner uuid, p_old_owner uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $transfer$
+DECLARE
+  v_promoted int;
+BEGIN
+  UPDATE user_orgs SET role = 'owner', is_admin = true
+    WHERE user_id = p_new_owner AND org_id = p_org_id AND deleted_at IS NULL;
+  GET DIAGNOSTICS v_promoted = ROW_COUNT;
+  IF v_promoted = 0 THEN
+    RAISE EXCEPTION 'transfer_org_ownership: new owner % is not an active member of org %', p_new_owner, p_org_id;
+  END IF;
+
+  UPDATE user_orgs SET role = 'property_manager', is_admin = true
+    WHERE user_id = p_old_owner AND org_id = p_org_id AND deleted_at IS NULL;
+END;
+$transfer$;
+
+REVOKE EXECUTE ON FUNCTION transfer_org_ownership(uuid, uuid, uuid) FROM public;
+GRANT  EXECUTE ON FUNCTION transfer_org_ownership(uuid, uuid, uuid) TO service_role;

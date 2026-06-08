@@ -155,42 +155,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Transaction-style updates: promote new owner first, then demote old owner
-    const { error: promoteError } = await supabase
-      .from("user_orgs")
-      .update({ role: "owner", is_admin: true })
-      .eq("user_id", newOwnerUserId)
-      .eq("org_id", orgId);
+    // Atomic ownership transfer — promote the new owner + demote the caller in ONE plpgsql transaction
+    // (RPC), so a partial failure can never leave the org with two owners or zero (the single-owner
+    // invariant the tier/billing model rests on). Replaces the old two-step update + best-effort manual
+    // rollback. The RPC row-count-guards that the new owner is an active member before demoting.
+    const { error: transferError } = await supabase.rpc("transfer_org_ownership", {
+      p_org_id: orgId,
+      p_new_owner: newOwnerUserId,
+      p_old_owner: callerId,
+    });
 
-    if (promoteError) {
+    if (transferError) {
       return NextResponse.json(
-        { error: `Failed to promote new owner: ${promoteError.message}` },
-        { status: 500 }
-      );
-    }
-
-    const { error: demoteError } = await supabase
-      .from("user_orgs")
-      .update({ role: "property_manager", is_admin: true })
-      .eq("user_id", callerId)
-      .eq("org_id", orgId);
-
-    if (demoteError) {
-      // Attempt to roll back the promotion
-      await supabase
-        .from("user_orgs")
-        .update({ role: "owner", is_admin: true })
-        .eq("user_id", callerId)
-        .eq("org_id", orgId);
-
-      await supabase
-        .from("user_orgs")
-        .update({ role: newOwnerMembership.role, is_admin: false })
-        .eq("user_id", newOwnerUserId)
-        .eq("org_id", orgId);
-
-      return NextResponse.json(
-        { error: `Failed to update previous owner role: ${demoteError.message}` },
+        { error: `Failed to transfer ownership: ${transferError.message}` },
         { status: 500 }
       );
     }
@@ -202,33 +179,36 @@ export async function POST(req: NextRequest) {
       after: { action: "ownership_transfer", from_user: callerId, to_user: newOwnerUserId },
     });
 
-    // Send emails via Resend
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
-    await resend.emails.send({
-      from: "Pleks <noreply@pleks.co.za>",
-      to: newOwnerEmail,
-      subject: `You are now the owner of ${orgName}`,
-      html: `
-        <p>Hi,</p>
-        <p>Ownership of <strong>${orgName}</strong> has been transferred to you. You are now the owner of this organisation on Pleks.</p>
-        <p>You can manage your organisation settings by logging in to <a href="${MARKETING}">pleks.co.za</a>.</p>
-        <p>The Pleks Team</p>
-      `,
-    });
-
-    await resend.emails.send({
-      from: "Pleks <noreply@pleks.co.za>",
-      to: callerEmail,
-      subject: `Ownership of ${orgName} has been transferred`,
-      html: `
-        <p>Hi,</p>
-        <p>You have successfully transferred ownership of <strong>${orgName}</strong> to another member of your organisation.</p>
-        <p>You remain a member of the organisation with the Property Manager role.</p>
-        <p>If you did not initiate this transfer, please contact support immediately.</p>
-        <p>The Pleks Team</p>
-      `,
-    });
+    // Notify both parties — best-effort. The transfer has already committed; a Resend hiccup must NOT
+    // throw to the outer catch and misreport a completed ownership change as a 500.
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: "Pleks <noreply@pleks.co.za>",
+        to: newOwnerEmail,
+        subject: `You are now the owner of ${orgName}`,
+        html: `
+          <p>Hi,</p>
+          <p>Ownership of <strong>${orgName}</strong> has been transferred to you. You are now the owner of this organisation on Pleks.</p>
+          <p>You can manage your organisation settings by logging in to <a href="${MARKETING}">pleks.co.za</a>.</p>
+          <p>The Pleks Team</p>
+        `,
+      });
+      await resend.emails.send({
+        from: "Pleks <noreply@pleks.co.za>",
+        to: callerEmail,
+        subject: `Ownership of ${orgName} has been transferred`,
+        html: `
+          <p>Hi,</p>
+          <p>You have successfully transferred ownership of <strong>${orgName}</strong> to another member of your organisation.</p>
+          <p>You remain a member of the organisation with the Property Manager role.</p>
+          <p>If you did not initiate this transfer, please contact support immediately.</p>
+          <p>The Pleks Team</p>
+        `,
+      });
+    } catch (mailErr) {
+      console.error("[transfer-ownership] notification email failed (transfer already committed):", mailErr);
+    }
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

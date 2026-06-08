@@ -8,11 +8,16 @@
  *         row). Accept link points at /invite/[token] (lib/actions/invite.ts handles acceptance).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { randomUUID } from "crypto"
+import { randomUUID } from "node:crypto"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { sendEmail } from "@/lib/comms/send-email"
+
+// Roles an invitee may be granted — mirrors the user_orgs.role CHECK minus 'owner' (admin is the is_admin
+// boolean, NOT a role; owner is only reachable via ownership transfer). The server must not trust the
+// client's role string — a crafted request could otherwise store role='admin'/'owner' and corrupt at accept.
+const INVITABLE_ROLES = new Set(["property_manager", "agent", "accountant", "maintenance_manager"])
 
 // POST /api/team/invite
 // Body: { email, role, orgId }
@@ -31,6 +36,9 @@ export async function POST(req: NextRequest) {
   const cleanEmail = email?.trim().toLowerCase()
   if (!cleanEmail || !role || !orgId) {
     return NextResponse.json({ error: "email, role and orgId required" }, { status: 400 })
+  }
+  if (!INVITABLE_ROLES.has(role)) {
+    return NextResponse.json({ error: "Invalid role for an invitation" }, { status: 400 })
   }
 
   const service = await createServiceClient()
