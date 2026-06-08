@@ -18,6 +18,7 @@ import Link from "next/link"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { FileText } from "lucide-react"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
+import { useMyPortfolio } from "@/hooks/useMyPortfolio"
 import { LeaseRow, type SerializedLease } from "./LeaseRow"
 import { LeaseListFooter } from "./LeaseListFooter"
 import { isExpiringSoon, getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
@@ -177,16 +178,25 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"list" | "cards">("list")
 
-  // Status counts — computed from all leases (drives the count line + draft hint)
-  const counts = useMemo(() => ({
-    active:   leases.filter((l) => ["active", "month_to_month"].includes(l.status)).length,
-    notice:   leases.filter((l) => l.status === "notice").length,
-    expiring: leases.filter((l) => ["active", "month_to_month"].includes(l.status) && isExpiringSoon(l)).length,
-    draft:    leases.filter((l) => ["draft", "pending_signing"].includes(l.status)).length,
-    all:      leases.length,
-  }), [leases])
+  // My portfolio / All (ADDENDUM_TEAMS Layer 0) — "mine" = leases on properties I manage (via the
+  // portfolio resolver). Default My portfolio; everything below works off the scoped list.
+  const portfolio = useMyPortfolio()
+  const [scope, setScope] = useState<"mine" | "all">("mine")
+  const scopedLeases = scope === "mine" && portfolio.ready
+    ? leases.filter((l) => portfolio.leaseIds.has(l.id))
+    : leases
+  const nothingInPortfolio = scope === "mine" && scopedLeases.length === 0
 
-  const byStatus = useMemo(() => filterByStatus(leases, statusFilter), [leases, statusFilter])
+  // Status counts — computed from the scoped leases (drives the count line + draft hint)
+  const counts = useMemo(() => ({
+    active:   scopedLeases.filter((l) => ["active", "month_to_month"].includes(l.status)).length,
+    notice:   scopedLeases.filter((l) => l.status === "notice").length,
+    expiring: scopedLeases.filter((l) => ["active", "month_to_month"].includes(l.status) && isExpiringSoon(l)).length,
+    draft:    scopedLeases.filter((l) => ["draft", "pending_signing"].includes(l.status)).length,
+    all:      scopedLeases.length,
+  }), [scopedLeases])
+
+  const byStatus = useMemo(() => filterByStatus(scopedLeases, statusFilter), [scopedLeases, statusFilter])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -211,24 +221,30 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
 
   const hasDraftHint = statusFilter === "active" && !search && counts.draft > 0
   const draftWord = counts.draft === 1 ? "lease" : "leases"
-  const emptyDescription = hasDraftHint
-    ? `You have ${counts.draft} draft ${draftWord}`
-    : "No leases match this filter."
-  const emptyAction = hasDraftHint
-    ? { label: "View drafts", onClick: () => setStatusFilter("draft") }
-    : undefined
+  let emptyDescription: string
+  let emptyAction: { label: string; onClick: () => void } | undefined
+  if (nothingInPortfolio) {
+    emptyDescription = "There are leases in your organisation — just none in your portfolio."
+    emptyAction = { label: "View all", onClick: () => setScope("all") }
+  } else if (hasDraftHint) {
+    emptyDescription = `You have ${counts.draft} draft ${draftWord}`
+    emptyAction = { label: "View drafts", onClick: () => setStatusFilter("draft") }
+  } else {
+    emptyDescription = "No leases match this filter."
+    emptyAction = undefined
+  }
 
   // KPI strip — portfolio-wide (stable, not filter-dependent) so the rent roll matches the properties list.
   const footerMetrics = useMemo(() => {
-    const inForce = leases.filter((l) => isInForceLease(l.status))
+    const inForce = scopedLeases.filter((l) => isInForceLease(l.status))
     const totalRent = inForce.reduce((s, l) => s + l.rent_amount_cents, 0)
     const avgRent = inForce.length > 0 ? Math.round(totalRent / inForce.length) : 0
-    const expiringSoon = leases.filter((l) => ["active", "month_to_month"].includes(l.status) && isExpiringSoon(l)).length
-    const cpaNoticesDue = leases.filter((l) =>
+    const expiringSoon = scopedLeases.filter((l) => ["active", "month_to_month"].includes(l.status) && isExpiringSoon(l)).length
+    const cpaNoticesDue = scopedLeases.filter((l) =>
       l.cpa_applies && l.is_fixed_term && !l.auto_renewal_notice_sent_at && isExpiringSoon(l)
     ).length
-    return { totalRent, avgRent, activeCount: inForce.length, totalCount: leases.length, expiringSoon, cpaNoticesDue }
-  }, [leases])
+    return { totalRent, avgRent, activeCount: inForce.length, totalCount: scopedLeases.length, expiringSoon, cpaNoticesDue }
+  }, [scopedLeases])
 
   const countWord = filtered.length === 1 ? "lease" : "leases"
 
@@ -244,6 +260,14 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
         placeholder="Search by tenant, property or unit…"
         view={view}
         onView={setView}
+        rightFilters={
+          <ToolbarFilter
+            label="View"
+            selected={[scope]}
+            onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
+            options={[{ value: "mine", label: "My portfolio" }, { value: "all", label: "All" }]}
+          />
+        }
         filters={
           <ToolbarFilter
             label="Status"
