@@ -469,8 +469,6 @@ export function ComplianceSettingsClient() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-6">Compliance</h1>
-
       <RoleSection
         value={scope}
         onChange={setScope}

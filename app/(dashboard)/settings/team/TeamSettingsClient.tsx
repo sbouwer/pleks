@@ -900,8 +900,6 @@ export function TeamSettingsClient() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-6">Team</h1>
-
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-lg">
