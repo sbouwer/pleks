@@ -17,7 +17,7 @@ export function DetailFullWidth({ children }: Readonly<{ children: ReactNode }>)
 }
 
 export function DetailPageLayout({
-  category, backHref, title, status, badge, facts, actions, tabs, children,
+  category, backHref, title, status, badge, sub, facts, actions, tabs, children,
 }: Readonly<{
   category: string
   backHref: string
@@ -25,6 +25,8 @@ export function DetailPageLayout({
   status?: DetailStatus
   /** optional type chip next to the status pill (e.g. UTILITY / SCHEME SERVICE / TRUST). */
   badge?: ReactNode
+  /** optional description line under the title (e.g. settings category pages). */
+  sub?: ReactNode
   facts: DetailFact[]
   actions?: ReactNode
   tabs?: ReactNode
@@ -38,6 +40,7 @@ export function DetailPageLayout({
         title={title}
         status={status}
         badge={badge}
+        sub={sub}
         facts={facts}
         actions={actions}
         tabs={tabs}

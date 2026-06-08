@@ -131,23 +131,28 @@ function DrawTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
 
   return (
     <div className="space-y-3">
-      <div className="border border-border rounded-md overflow-hidden bg-zinc-900">
-        <canvas
-          ref={canvasRef}
-          width={600}
-          height={200}
-          className="block w-full cursor-crosshair touch-none"
-          style={{ maxHeight: "200px" }}
-          onMouseDown={(e) => startDraw(getPos(e))}
-          onMouseMove={(e) => draw(getPos(e))}
-          onMouseUp={stopDraw}
-          onMouseLeave={stopDraw}
-          onTouchStart={(e) => { e.preventDefault(); startDraw(getTouchPos(e)) }}
-          onTouchMove={(e) => { e.preventDefault(); draw(getTouchPos(e)) }}
-          onTouchEnd={stopDraw}
-        />
+      <div className="relative w-full max-w-md">
+        <div className="overflow-hidden rounded-[var(--r-button)] border border-border bg-zinc-900">
+          <canvas
+            ref={canvasRef}
+            width={600}
+            height={340}
+            className="block h-64 w-full cursor-crosshair touch-none"
+            onMouseDown={(e) => startDraw(getPos(e))}
+            onMouseMove={(e) => draw(getPos(e))}
+            onMouseUp={stopDraw}
+            onMouseLeave={stopDraw}
+            onTouchStart={(e) => { e.preventDefault(); startDraw(getTouchPos(e)) }}
+            onTouchMove={(e) => { e.preventDefault(); draw(getTouchPos(e)) }}
+            onTouchEnd={stopDraw}
+          />
+        </div>
+        {!hasStrokes && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-zinc-500">
+            Draw your signature using your mouse or finger
+          </div>
+        )}
       </div>
-      <p className="text-xs text-muted-foreground">Draw your signature above using your mouse or finger.</p>
       <div className="flex gap-2">
         <ActionButton type="button" tone="secondary" onClick={clearCanvas}>
           Clear
@@ -211,7 +216,7 @@ function UploadTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
     <div className="space-y-3">
       <button
         type="button"
-        className="w-full border-2 border-dashed border-input rounded-md p-6 text-center cursor-pointer hover:bg-muted/30 transition-colors"
+        className="flex h-64 w-full max-w-md items-center justify-center border-2 border-dashed border-input rounded-[var(--r-button)] p-6 text-center cursor-pointer hover:bg-muted/30 transition-colors"
         onClick={() => inputRef.current?.click()}
       >
         <input
@@ -231,8 +236,11 @@ function UploadTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
       )}
 
       {preview && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={preview} alt="Signature preview" className="max-h-[80px] object-contain" />
+        <div className="space-y-1">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">New signature</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview} alt="New signature preview" className="max-h-[80px] object-contain" />
+        </div>
       )}
 
       <ActionButton type="button" tone="primary" onClick={handleSave} disabled={saving || !file}>
@@ -298,13 +306,12 @@ function TypeTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
       </div>
 
       {name.trim() && (
-        <div className="border border-border rounded-md overflow-hidden bg-zinc-900">
+        <div className="w-full max-w-md overflow-hidden rounded-[var(--r-button)] border border-border bg-zinc-900">
           <canvas
             ref={previewCanvasRef}
             width={600}
-            height={120}
-            className="block w-full"
-            style={{ maxHeight: "120px" }}
+            height={340}
+            className="block h-64 w-full"
           />
         </div>
       )}
@@ -337,7 +344,10 @@ function QrTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
         return
       }
       const tok = result.token
-      const signUrl = `${globalThis.location.origin}/sign-signature/${tok}`
+      // Absolute-URL discipline: the QR must point at NEXT_PUBLIC_APP_URL (phone-reachable in prod),
+      // not the browser origin (localhost in dev → a phone can't reach it). Falls back to origin if unset.
+      const base = process.env.NEXT_PUBLIC_APP_URL ?? globalThis.location.origin
+      const signUrl = `${base}/sign-signature/${tok}`
       const QRCode = await import("qrcode")
       const dataUrl = await QRCode.default.toDataURL(signUrl, { width: 200, margin: 2 })
       if (cancelled) return
@@ -386,19 +396,22 @@ function QrTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex h-64 w-full max-w-md items-center gap-5 border border-border rounded-[var(--r-button)] p-4">
       {qrDataUrl && (
-        <div className="border border-input rounded-lg p-4 inline-flex flex-col items-center gap-3 bg-white">
+        <div className="shrink-0 rounded-[var(--r-button)] bg-white p-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrDataUrl} alt="QR code for phone signature" className="size-[200px]" />
-          <p className="text-xs text-muted-foreground text-center max-w-[200px]">
-            Scan with your phone camera, draw your signature, then return here.
-          </p>
+          <img src={qrDataUrl} alt="QR code for phone signature" className="size-[130px]" />
         </div>
       )}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Loader2 className="size-3.5 animate-spin" />
-        Waiting for signature from phone…
+      <div className="min-w-0 space-y-2">
+        <p className="text-sm font-medium text-foreground">Sign on your phone</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Scan the code with your phone camera, draw your signature, then return here — it appears automatically.
+        </p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="size-3.5 animate-spin" />
+          Waiting for signature from phone…
+        </div>
       </div>
     </div>
   )
@@ -438,58 +451,20 @@ export function SignatureSettings({ currentSignature }: Readonly<Props>) {
   ]
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold mb-1">My signature</h2>
-        <p className="text-sm text-muted-foreground">
-          Your signature is applied to documents you generate.
-        </p>
+    // One grid: headers share row 1 (auto-equalised height) and the boxes share row 2, so the current
+    // card and the capture area line up. order-* keeps each column header→box stacked on mobile.
+    <div className="grid grid-cols-1 gap-x-6 gap-y-3 lg:grid-cols-2">
+      {/* Header — My signature (left, row 1) */}
+      <div className="order-1">
+        <h2 className="text-base font-semibold">My signature</h2>
+        <p className="text-sm text-muted-foreground">Applied to the documents you generate.</p>
       </div>
 
-      {/* Current signature */}
-      {currentSignature && (
-        <div className="border border-border rounded-lg p-4 space-y-3">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Current signature
-          </p>
-          {currentSignature.signedUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={currentSignature.signedUrl}
-              alt="Current signature"
-              className="max-h-[80px] object-contain"
-            />
-          )}
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Set via {SOURCE_LABELS[currentSignature.source] ?? currentSignature.source}
-              {" · "}
-              {formatDate(currentSignature.created_at)}
-            </p>
-            <button
-              type="button"
-              onClick={handleRemove}
-              disabled={removing}
-              className="flex items-center gap-1 text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50"
-            >
-              {removing ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <X className="size-3.5" />
-              )}
-              Remove
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Capture tabs */}
-      <div className="space-y-4">
-        <p className="text-sm font-medium">
+      {/* Header — Replace / add + tab pills (right, row 1) */}
+      <div className="order-3 space-y-3 lg:order-2">
+        <h2 className="text-base font-semibold">
           {currentSignature ? "Replace signature" : "Add a signature"}
-        </p>
-
-        {/* Tab pills */}
+        </h2>
         <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id
@@ -508,8 +483,51 @@ export function SignatureSettings({ currentSignature }: Readonly<Props>) {
             )
           })}
         </div>
+      </div>
 
-        {/* Tab content */}
+      {/* Box — current signature (left, row 2) */}
+      <div className="order-2 lg:order-3">
+        {currentSignature ? (
+          <div className="flex h-64 w-full max-w-md flex-col border border-border rounded-[var(--r-button)] p-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Current signature
+            </p>
+            <div className="flex flex-1 items-center justify-center">
+              {currentSignature.signedUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={currentSignature.signedUrl}
+                  alt="Current signature"
+                  className="max-h-[140px] object-contain"
+                />
+              )}
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Set via {SOURCE_LABELS[currentSignature.source] ?? currentSignature.source}
+                {" · "}
+                {formatDate(currentSignature.created_at)}
+              </p>
+              <button
+                type="button"
+                onClick={handleRemove}
+                disabled={removing}
+                className="flex items-center gap-1 text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50"
+              >
+                {removing ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                Remove
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-64 w-full max-w-md items-center justify-center border border-dashed border-border rounded-[var(--r-button)] bg-muted/20 px-5 text-center text-sm text-muted-foreground">
+            No signature yet — add one alongside.
+          </div>
+        )}
+      </div>
+
+      {/* Box — capture content (right, row 2) */}
+      <div className="order-4">
         {activeTab === "draw"   && <DrawTab   onSaved={handleSaved} />}
         {activeTab === "upload" && <UploadTab onSaved={handleSaved} />}
         {activeTab === "type"   && <TypeTab   onSaved={handleSaved} />}

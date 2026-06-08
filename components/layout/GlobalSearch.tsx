@@ -1,20 +1,22 @@
 "use client"
 
 /**
- * components/layout/GlobalSearch.tsx — header global search (inline combobox)
+ * components/layout/GlobalSearch.tsx — reusable inline search combobox
  *
- * Route:  rendered in the dashboard Topbar (desktop)
+ * Route:  the dashboard Topbar (header search) + the settings Overview (settings search)
  * Auth:   dashboard layout (gateway)
- * Data:   GET /api/search?q= (debounced); results grouped by type
- * Notes:  Inline — the header field IS the input; typing drops a results panel right below it (no
- *         modal). ⌘K focuses it; ↑↓ navigate, ↵ open, Esc/outside-click close. Square + bg-card +
- *         bg-popover panel, token-driven so it flips for dark.
+ * Data:   pluggable — defaults to GET /api/search?q= (debounced); a caller can pass its own `search`
+ *         (e.g. a client-side settings index). Results grouped by type via `typeConfig`/`groupOrder`.
+ * Notes:  Inline — the field IS the input; typing drops a results panel right below it (no modal).
+ *         ⌘K focuses it (when `enableShortcut`); ↑↓ navigate, ↵ open, Esc/outside-click close. Square +
+ *         bg-card + bg-popover, token-driven so it flips for dark. Defaults reproduce the header search
+ *         exactly, so <GlobalSearch /> with no props is unchanged.
  */
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Search, Building2, User, Wrench, FileText, Loader2 } from "lucide-react"
 
-type SearchResult = {
+export type SearchResult = {
   type: string
   id: string
   label: string
@@ -22,14 +24,25 @@ type SearchResult = {
   href: string
 }
 
-const TYPE_CONFIG: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  property: { label: "Property", icon: Building2 },
-  tenant: { label: "Tenant", icon: User },
-  maintenance: { label: "Maintenance", icon: Wrench },
-  invoice: { label: "Invoice", icon: FileText },
+export interface SearchGroupConfig {
+  /** the (already-plural) group header, e.g. "Properties", "Settings" */
+  label: string
+  icon: React.ComponentType<{ className?: string }>
 }
 
-const GROUP_ORDER = ["property", "tenant", "maintenance", "invoice"]
+const DEFAULT_TYPE_CONFIG: Record<string, SearchGroupConfig> = {
+  property: { label: "Properties", icon: Building2 },
+  tenant: { label: "Tenants", icon: User },
+  maintenance: { label: "Maintenance", icon: Wrench },
+  invoice: { label: "Invoices", icon: FileText },
+}
+const DEFAULT_GROUP_ORDER = ["property", "tenant", "maintenance", "invoice"]
+
+async function defaultSearch(value: string): Promise<SearchResult[]> {
+  const res = await fetch("/api/search?q=" + encodeURIComponent(value))
+  const data = (await res.json()) as { results: SearchResult[] }
+  return data.results ?? []
+}
 
 function groupResults(results: SearchResult[]): Record<string, SearchResult[]> {
   const groups: Record<string, SearchResult[]> = {}
@@ -40,7 +53,23 @@ function groupResults(results: SearchResult[]): Record<string, SearchResult[]> {
   return groups
 }
 
-export function GlobalSearch() {
+export function GlobalSearch({
+  placeholder = "Search properties, tenants, invoices…",
+  containerClassName = "w-[34rem] xl:w-[44rem]",
+  minChars = 2,
+  enableShortcut = true,
+  search = defaultSearch,
+  typeConfig = DEFAULT_TYPE_CONFIG,
+  groupOrder = DEFAULT_GROUP_ORDER,
+}: Readonly<{
+  placeholder?: string
+  containerClassName?: string
+  minChars?: number
+  enableShortcut?: boolean
+  search?: (value: string) => Promise<SearchResult[]>
+  typeConfig?: Record<string, SearchGroupConfig>
+  groupOrder?: string[]
+}>) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -51,8 +80,9 @@ export function GlobalSearch() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const router = useRouter()
 
-  // ⌘K / Ctrl+K focuses the field (no modal to open anymore).
+  // ⌘K / Ctrl+K focuses the field (no modal). Only the global header instance binds it.
   useEffect(() => {
+    if (!enableShortcut) return
     function handler(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault()
@@ -62,7 +92,7 @@ export function GlobalSearch() {
     }
     document.addEventListener("keydown", handler)
     return () => document.removeEventListener("keydown", handler)
-  }, [])
+  }, [enableShortcut])
 
   // Close the panel on any outside click.
   useEffect(() => {
@@ -80,23 +110,22 @@ export function GlobalSearch() {
     setQuery(value)
     setOpen(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (value.trim().length < 2) {
+    if (value.trim().length < minChars) {
       setResults([])
       setLoading(false)
       return
     }
     setLoading(true)
     debounceRef.current = setTimeout(async () => {
-      const res = await fetch("/api/search?q=" + encodeURIComponent(value))
-      const data = await res.json() as { results: SearchResult[] }
-      setResults(data.results ?? [])
+      const found = await search(value)
+      setResults(found)
       setLoading(false)
       setActiveIndex(0)
     }, 280)
-  }, [])
+  }, [search, minChars])
 
   const groups = groupResults(results)
-  const flatResults = GROUP_ORDER.flatMap((t) => groups[t] ?? [])
+  const flatResults = groupOrder.flatMap((t) => groups[t] ?? [])
 
   function navigate(href: string) {
     router.push(href)
@@ -113,25 +142,25 @@ export function GlobalSearch() {
     else if (e.key === "Enter" && flatResults[activeIndex]) { navigate(flatResults[activeIndex].href) }
   }
 
-  const showPanel = open && query.trim().length >= 2
+  const showPanel = open && query.trim().length >= minChars
 
   return (
-    <div ref={containerRef} className="relative w-[34rem] xl:w-[44rem]">
+    <div ref={containerRef} className={`relative ${containerClassName}`}>
       <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <input
         ref={inputRef}
         value={query}
         onChange={(e) => runSearch(e.target.value)}
-        onFocus={() => { if (query.trim().length >= 2) setOpen(true) }}
+        onFocus={() => { if (query.trim().length >= minChars) setOpen(true) }}
         onKeyDown={handleKeyDown}
-        placeholder="Search properties, tenants, invoices…"
+        placeholder={placeholder}
         aria-label="Search"
         className="h-10 w-full rounded-[var(--r-button)] border border-border bg-card pl-10 pr-12 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 hover:bg-muted/30 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
       />
       {loading ? (
         <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
       ) : (
-        !query && (
+        enableShortcut && !query && (
           <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-border bg-background px-1 py-0.5 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
         )
       )}
@@ -145,16 +174,15 @@ export function GlobalSearch() {
             </p>
           )}
 
-          {GROUP_ORDER.map((type) => {
+          {groupOrder.map((type) => {
             const group = groups[type]
             if (!group?.length) return null
-            const { label, icon: Icon } = TYPE_CONFIG[type] ?? { label: type, icon: Search }
-            const groupLabel = label === "Property" ? "Properties" : label + "s"
+            const { label, icon: Icon } = typeConfig[type] ?? { label: type, icon: Search }
             return (
               <div key={type}>
                 <div className="flex items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2">
                   <Icon className="size-3 text-muted-foreground" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{groupLabel}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</span>
                 </div>
                 {group.map((result) => {
                   const flatIdx = flatResults.indexOf(result)

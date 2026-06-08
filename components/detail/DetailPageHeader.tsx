@@ -44,7 +44,7 @@ function Fact({ fact }: Readonly<{ fact: DetailFact }>) {
 }
 
 export function DetailPageHeader({
-  category, backHref, title, status, badge, facts, actions, tabs,
+  category, backHref, title, status, badge, sub, facts, actions, tabs,
 }: Readonly<{
   category: string
   backHref: string
@@ -52,6 +52,9 @@ export function DetailPageHeader({
   status?: DetailStatus
   /** optional type chip next to the status pill (e.g. UTILITY / SCHEME SERVICE / TRUST). */
   badge?: ReactNode
+  /** optional description line under the title (the ResourcePageHeader "sub") — for pages that carry a
+   *  lead sentence rather than (or above) a facts strip, e.g. settings category pages. */
+  sub?: ReactNode
   facts: DetailFact[]
   actions?: ReactNode
   tabs?: ReactNode
@@ -76,8 +79,13 @@ export function DetailPageHeader({
       </div>
 
       <div className="mt-5 flex items-end justify-between gap-4 border-b border-dashed border-border pb-4">
-        <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-2">
-          {facts.map((f) => <Fact key={f.k} fact={f} />)}
+        <div className="flex min-w-0 flex-col gap-2">
+          {sub && <p className="max-w-2xl text-sm text-muted-foreground">{sub}</p>}
+          {facts.length > 0 && (
+            <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-2">
+              {facts.map((f) => <Fact key={f.k} fact={f} />)}
+            </div>
+          )}
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
       </div>

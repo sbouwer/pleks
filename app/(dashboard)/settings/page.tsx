@@ -1,34 +1,39 @@
-"use client"
-
 /**
- * app/(dashboard)/settings/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/page.tsx — settings overview landing
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings
+ * Auth:   dashboard layout (gatewaySSR)
+ * Data:   getSettingsOverview (subscriptions/branding/team) → the smart Set up / Needs action groups
+ * Notes:  Desktop renders the smart Overview (header + settings search + Set up / Needs action /
+ *         Frequently used). Replaces the prior desktop redirect to /settings/details — the generated
+ *         SettingsSidebar still provides per-page nav. Mobile keeps the existing drill-down list.
  */
-
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { SettingsPageHeader } from "@/components/settings/SettingsPageHeader"
+import { SettingsSearch } from "@/components/settings/SettingsSearch"
+import { SettingsOverviewGroups } from "@/components/settings/SettingsOverviewGroups"
 import { MobileSettingsNav } from "@/components/mobile/MobileSettingsNav"
+import { gatewaySSR } from "@/lib/supabase/gateway"
+import { getSettingsOverview } from "@/lib/settings/overview"
 
-export default function SettingsPage() {
-  const router = useRouter()
+export default async function SettingsPage() {
+  const gw = await gatewaySSR()
+  const overview = gw ? await getSettingsOverview(gw.db, gw.orgId) : { setup: [], action: [] }
 
-  useEffect(() => {
-    // On desktop (lg+, sidebar visible) redirect to the first settings page.
-    // On mobile the CSS lg:hidden wrapper below handles visibility instead.
-    if (!globalThis.matchMedia("(max-width: 1023px)").matches) {
-      router.replace("/settings/details")
-    }
-  }, [router])
-
-  // Mobile: visible drill-down nav. Desktop: hidden by lg:hidden while redirect fires.
   return (
-    <div className="lg:hidden">
-      <MobileSettingsNav />
-    </div>
+    <>
+      {/* Desktop: the smart settings Overview. Mobile: existing drill-down list. */}
+      <div className="hidden lg:block">
+        <SettingsPageHeader
+          eyebrow="Account"
+          title="Settings"
+          sub="Your account, workspace and plan — everything that shapes how Pleks runs for you."
+        />
+        <SettingsSearch />
+        <SettingsOverviewGroups setup={overview.setup} action={overview.action} />
+      </div>
+      <div className="lg:hidden">
+        <MobileSettingsNav />
+      </div>
+    </>
   )
 }

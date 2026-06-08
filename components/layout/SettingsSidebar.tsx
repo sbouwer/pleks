@@ -5,163 +5,152 @@
  *
  * Route:  /settings/*
  * Auth:   Rendered inside the dashboard layout (gateway-protected)
- * Notes:  Groups filtered via useOrgCapabilities() — replaces the old ad-hoc hasTeam +
- *         Supabase fetch pattern (D-61A-01). Compliance section hidden for landlord-type orgs;
- *         team + hours hidden too. Trust account label follows trustAccountLabel (D-61A-07).
+ * Notes:  The consolidated settings IA — Overview + four grouped, icon'd, tier-gated categories
+ *         (Workspace / Finance / Account / Support). Deliberately SHORT: multi-route areas fold into
+ *         one item (Organisation absorbs branding/hours/configuration; Documents absorbs lease-templates;
+ *         My profile absorbs signature; Feedback absorbs the inbox) — those become tabs on the category
+ *         pages, so the item links to the primary route for now (extraPrefixes keep the parent highlighted
+ *         while on a folded route). Gating is tier-based (useTier.isPaid): Team/Documents/Trust/Data are
+ *         paid; Organisation + Compliance stay visible for the free Owner (branding + light POPIA) per the
+ *         trimmed-workspace decision. Mobile mirror: components/mobile/MobileSettingsNav.tsx (to re-sync).
  */
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
-import { AccentBracket } from "@/components/ui/AccentBracket"
 import { usePathname } from "next/navigation"
-import { ChevronLeft } from "lucide-react"
+import {
+  ChevronLeft, Settings as SettingsIcon, LayoutGrid, Building2, Users, FileText,
+  ShieldCheck, CreditCard, Landmark, User, KeyRound, Bell, Database, MessageSquare,
+  type LucideIcon,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/client"
-import { useOrg } from "@/hooks/useOrg"
-import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
+import { useTier } from "@/hooks/useTier"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 
 interface SettingsItem {
   href: string
   label: string
+  icon: LucideIcon
+  /** hidden on the free Owner tier (steward and up only) */
+  paid?: boolean
+  /** keep this item highlighted while on a folded sub-route (a future tab) */
   extraPrefixes?: string[]
-  adminOnly?: boolean
 }
+interface SettingsGroup { title: string; items: SettingsItem[] }
 
-interface SettingsGroup {
-  title: string
-  items: SettingsItem[]
+const GROUPS: SettingsGroup[] = [
+  { title: "Account", items: [
+    { href: "/settings/profile", label: "My profile", icon: User },
+    { href: "/settings/security", label: "Security", icon: KeyRound },
+    { href: "/settings/notifications", label: "Notifications", icon: Bell },
+  ]},
+  { title: "Workspace", items: [
+    { href: "/settings/details", label: "Organisation", icon: Building2,
+      extraPrefixes: ["/settings/branding", "/settings/hours", "/settings/configuration"] },
+    { href: "/settings/team", label: "Team & access", icon: Users, paid: true },
+    { href: "/settings/documents/templates", label: "Documents", icon: FileText, paid: true,
+      extraPrefixes: ["/settings/documents", "/settings/lease-templates"] },
+    { href: "/settings/compliance", label: "Compliance", icon: ShieldCheck },
+  ]},
+  { title: "Finance", items: [
+    { href: "/settings/subscription", label: "Billing & plan", icon: CreditCard },
+    { href: "/settings/deposits", label: "Trust account", icon: Landmark, paid: true },
+  ]},
+  { title: "Support", items: [
+    { href: "/settings/import", label: "Data", icon: Database, paid: true },
+    { href: "/settings/my-feedback", label: "Feedback", icon: MessageSquare,
+      extraPrefixes: ["/settings/feedback"] },
+  ]},
+]
+
+function NavRow({ href, label, icon: Icon, active }: Readonly<{ href: string; label: string; icon: LucideIcon; active: boolean }>) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-3 rounded-[var(--r-button)] px-3 py-2 text-sm font-medium transition-colors",
+        active
+          ? "bg-primary/10 text-primary ring-1 ring-primary"
+          : "text-muted-foreground hover:bg-primary/[0.08] hover:text-foreground",
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {label}
+    </Link>
+  )
 }
 
 export function SettingsSidebar() {
-  const pathname  = usePathname()
-  const { orgId } = useOrg()
-  const caps      = useOrgCapabilities()
-  const [isAdmin, setIsAdmin] = useState(false)
+  const pathname = usePathname()
+  const { isPaid, isOwner } = useTier()
 
-  useEffect(() => {
-    if (!orgId) return
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      supabase
-        .from("user_orgs")
-        .select("role, is_admin")
-        .eq("user_id", user.id)
-        .eq("org_id", orgId)
-        .is("deleted_at", null)
-        .maybeSingle()
-        .then(({ data: membership }) => {
-          if (!membership) return
-          const m = membership as { role: string; is_admin: boolean }
-          setIsAdmin(m.role === "owner" || m.is_admin === true)
-        })
-    })
-  }, [orgId])
-
-  const depositLabel = caps?.trustAccountLabel === "deposits" ? "Deposits" : "Trust account"
-
-  const groups: SettingsGroup[] = [
-    {
-      title: "Organisation",
-      items: [
-        { href: "/settings/details", label: "Details" },
-        ...((caps === null || caps.hasTeam) ? [{ href: "/settings/team", label: "Team" }] : []),
-        ...((caps === null || caps.hasOpeningHours) ? [{ href: "/settings/hours", label: "Opening hours" }] : []),
-        { href: "/settings/branding", label: "Branding" },
-        { href: "/settings/configuration", label: "Configuration" },
-      ],
-    },
-    {
-      title: "Documents",
-      items: [
-        { href: "/settings/documents/templates", label: "Templates", extraPrefixes: ["/settings/documents"] },
-        { href: "/settings/lease-templates", label: "Lease templates" },
-      ],
-    },
-    ...((caps === null || caps.hasCompliance) ? [{
-      title: "Compliance",
-      items: [{ href: "/settings/compliance", label: "Compliance" }],
-    }] : []),
-    {
-      title: "Account",
-      items: [
-        { href: "/settings/deposits", label: depositLabel },
-        { href: "/settings/subscription", label: "Subscription" },
-        { href: "/settings/notifications", label: "Notifications" },
-        { href: "/settings/feedback", label: "Feedback inbox", adminOnly: true },
-        { href: "/settings/my-feedback", label: "My feedback" },
-      ],
-    },
-    {
-      title: "Data",
-      items: [{ href: "/settings/import", label: "Import" }],
-    },
-    {
-      title: "My Profile",
-      items: [
-        { href: "/settings/profile", label: "Profile" },
-        { href: "/settings/profile/signature", label: "Signature" },
-      ],
-    },
-  ]
-
-  function isActive(item: SettingsItem) {
-    if (pathname === item.href || pathname.startsWith(item.href + "/")) return true
-    return item.extraPrefixes?.some(
-      (p) => pathname === p || pathname.startsWith(p + "/")
-    ) ?? false
-  }
+  const isActive = (href: string, extra?: string[]) =>
+    pathname === href || pathname.startsWith(href + "/") ||
+    (extra?.some((p) => pathname === p || pathname.startsWith(p + "/")) ?? false)
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      {/* Logo bar — matches main sidebar height */}
+      {/* Logo bar — same height/border as the main sidebar so it aligns with the content topbar */}
       <div className="flex h-16 shrink-0 items-center border-b border-border/50 px-4">
         <Link href="/dashboard" className="pub-wordmark" style={{ fontSize: 20 }} aria-label="Pleks">
           <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
         </Link>
       </div>
 
-      {/* Back link + heading */}
+      {/* Settings header — back to app + the settings title, sitting below the logo */}
       <div className="px-3 pb-2 pt-4">
         <Link
           href="/dashboard"
-          className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="group inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
           Back to app
         </Link>
-        <p className="mt-3 text-base font-semibold text-foreground">Settings</p>
+        <div className="mt-2 flex items-center gap-2 px-2">
+          <SettingsIcon className="h-[19px] w-[19px] text-brand" />
+          <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">Settings</h2>
+        </div>
       </div>
 
-      {/* Settings nav */}
+      {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-2">
-        {groups.map((group) => (
-          <div key={group.title} className="mb-4">
-            <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-              {group.title}
-            </p>
-            <ul className="space-y-0.5">
-              {group.items.filter((item) => !item.adminOnly || isAdmin).map((item) => {
-                const active = isActive(item)
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "flex items-center rounded-lg py-1.5 pl-5 pr-3 text-sm transition-colors",
-                        active
-                          ? "font-medium text-brand bg-brand/10"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      {item.label}
-                    </Link>
+        <div className="mb-1">
+          <NavRow href="/settings" label="Overview" icon={LayoutGrid} active={pathname === "/settings"} />
+        </div>
+
+        {GROUPS.map((group) => {
+          const items = group.items.filter((it) => !it.paid || isPaid)
+          if (!items.length) return null
+          return (
+            <div key={group.title} className="mt-4">
+              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                {group.title}
+              </p>
+              <ul className="space-y-0.5">
+                {items.map((it) => (
+                  <li key={it.href}>
+                    <NavRow href={it.href} label={it.label} icon={it.icon} active={isActive(it.href, it.extraPrefixes)} />
                   </li>
-                )
-              })}
-            </ul>
+                ))}
+              </ul>
+            </div>
+          )
+        })}
+
+        {isOwner && (
+          <div className="mx-2 mt-5 rounded-xl border border-border border-b-2 border-b-brand bg-card p-3.5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-brand">Upgrade</p>
+            <p className="mt-1 text-[13px] font-semibold leading-snug text-foreground">Running more than your own rental?</p>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
+              Steward unlocks your agency workspace — team, documents, trust account and more.
+            </p>
+            <Link
+              href="/settings/subscription"
+              className="mt-3 flex w-full items-center justify-center rounded-md bg-foreground px-3 py-2 text-[13px] font-medium text-background transition-colors hover:bg-brand"
+            >
+              See Steward
+            </Link>
           </div>
-        ))}
+        )}
       </nav>
     </div>
   )

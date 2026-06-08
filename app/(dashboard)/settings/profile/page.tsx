@@ -1,64 +1,61 @@
 /**
- * app/(dashboard)/settings/profile/page.tsx — User profile page showing account email and signature link
+ * app/(dashboard)/settings/profile/page.tsx — My profile (Account) category page
  *
- * Route:  /settings/profile
- * Auth:   getServerUser (Supabase auth)
- * Data:   getServerUser for email; gatewaySSR for org membership check; getIdentityForkState for the fork banner
+ * Route:  /settings/profile  (tabs: ?tab=personal|contact|signature)
+ * Auth:   gatewaySSR (redirect to /login if no session)
+ * Data:   getIdentityForkState (fork banner); getOrgDetails (Personal/Contact); getUserSignature (Signature)
+ * Notes:  Universal DetailPageLayout + DetailTabs (same iconic template as suppliers). Per-tab server
+ *         fetch — only the active tab's data loads. Personal/Contact reuse the shared DetailsForm
+ *         sections + /api/org/details (the person/entity split); Signature folds in SignatureSettings.
  */
 import { redirect } from "next/navigation"
-import { getServerUser, getIdentityForkState } from "@/lib/auth/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { InlineLink } from "@/components/ui/actions"
+import { getIdentityForkState } from "@/lib/auth/server"
 import { IdentityForkBanner } from "@/components/identity/IdentityForkBanner"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { MyProfileTabs } from "./MyProfileTabs"
+import { MyProfileForm } from "./MyProfileForm"
+import { PROFILE_TABS } from "./tabs"
+import { getUserSignature } from "./getSignature"
+import { getOrgDetails } from "../details/getOrgDetails"
+import { SignatureSettings } from "./signature/SignatureSettings"
 
 export const metadata = { title: "My Profile" }
 
-export default async function ProfilePage() {
-  const user = await getServerUser()
-  if (!user) redirect("/login")
-
+export default async function ProfilePage({ searchParams }: Readonly<{ searchParams: Promise<{ tab?: string }> }>) {
   const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+
   const forkState = await getIdentityForkState()
+  const { tab } = await searchParams
+  const active = PROFILE_TABS.some((t) => t.id === tab) ? tab! : "personal"
+
+  const signature = active === "signature" ? await getUserSignature(gw.db, gw.userId) : null
+  const orgDetails = active === "personal" || active === "contact" ? await getOrgDetails(gw.db, gw.orgId) : null
 
   return (
-    <div className="max-w-lg space-y-6">
-      {forkState?.forked && !forkState.dismissedAgent && <IdentityForkBanner surface="agent" />}
-      <div>
-        <h1 className="text-xl font-semibold">My Profile</h1>
-        <p className="text-sm text-muted-foreground mt-1">Your personal account details.</p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Account</CardTitle>
-          <CardDescription>Contact support to change your email address.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <Label className="text-muted-foreground text-xs">Email</Label>
-            <p className="text-sm">{user.email}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Signature</CardTitle>
-          <CardDescription>Used on lease documents and reports.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <InlineLink href="/settings/profile/signature">Manage signature</InlineLink>
-        </CardContent>
-      </Card>
-
-      {gw && (
-        <p className="text-xs text-muted-foreground">
-          To update your organisation&apos;s name, logo, and contact details, visit{" "}
-          <InlineLink href="/settings/details">Settings → Details</InlineLink>.
-        </p>
+    <div>
+      {forkState?.forked && !forkState.dismissedAgent && (
+        <div className="mb-4"><IdentityForkBanner surface="agent" /></div>
       )}
+
+      <DetailPageLayout
+        category="Settings"
+        backHref="/settings"
+        title="My profile"
+        sub="Your personal details, contact and signature — as they appear on leases and tenant communications."
+        facts={[]}
+        tabs={<MyProfileTabs current={active} />}
+      >
+        <DetailFullWidth>
+          {active === "signature" && <SignatureSettings currentSignature={signature} />}
+          {(active === "personal" || active === "contact") && (
+            orgDetails
+              ? <MyProfileForm initialData={orgDetails} tab={active as "personal" | "contact"} />
+              : <div className="rounded-[var(--r-button)] border border-dashed border-border bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">Couldn&apos;t load your details.</div>
+          )}
+        </DetailFullWidth>
+      </DetailPageLayout>
     </div>
   )
 }
