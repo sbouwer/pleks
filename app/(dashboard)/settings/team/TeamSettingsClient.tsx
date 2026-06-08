@@ -35,8 +35,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
-import { Trash2, ChevronUp, ChevronDown, ArrowUpDown } from "lucide-react"
-import { EditButton } from "@/components/ui/actions"
+import { Trash2, RotateCcw } from "lucide-react"
+import { EditButton, RemoveButton } from "@/components/ui/actions"
+import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -158,9 +159,6 @@ interface PendingInvite {
   email: string
   role: string
 }
-
-type SortCol = "name" | "role"
-type SortDir = "asc" | "desc"
 
 // ── Role combobox ──────────────────────────────────────────────────────────────
 // Input that opens a filtered dropdown grouped by function.
@@ -303,15 +301,6 @@ function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
       {typeof document !== "undefined" && dropdown && createPortal(dropdown, document.body)}
     </div>
   )
-}
-
-// ── Sort icon ──────────────────────────────────────────────────────────────────
-
-function SortIcon({ col, sortCol, sortDir }: Readonly<{ col: SortCol; sortCol: SortCol; sortDir: SortDir }>) {
-  if (col !== sortCol) return <ArrowUpDown className="h-3 w-3 opacity-40" />
-  return sortDir === "asc"
-    ? <ChevronUp className="h-3 w-3" />
-    : <ChevronDown className="h-3 w-3" />
 }
 
 // ── Edit modal ─────────────────────────────────────────────────────────────────
@@ -487,180 +476,6 @@ function EditMemberModal({
   )
 }
 
-// ── Member row (compact list — owner/steward/portfolio tiers) ──────────────────
-
-function MemberRow({ member, currentUserId, callerIsOwner, onEdit, onRemove, onToggleAdmin }: Readonly<{
-  member: Member
-  currentUserId: string | null
-  callerIsOwner: boolean
-  onEdit: (m: Member) => void
-  onRemove: (id: string, orgId?: string) => void
-  onToggleAdmin: (m: Member) => void
-}>) {
-  const isMe     = member.user_id === currentUserId
-  const isOwner  = member.role === "owner"
-  const canRemove = !isMe && !isOwner
-
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-4 py-2.5">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium">
-            {getMemberDisplayName(member)}
-            {isMe && <span className="ml-1.5 text-xs text-muted-foreground font-normal">(you)</span>}
-          </span>
-          <span className="inline-block rounded-full bg-muted/50 border border-border/40 px-2 py-0.5 text-xs">
-            {getRoleLabel(member.role)}
-          </span>
-          {(isOwner || member.is_admin) && (
-            <span className="inline-block rounded-full bg-brand/10 border border-brand/30 px-2 py-0.5 text-xs text-brand">
-              {isOwner ? "Owner" : "Admin"}
-            </span>
-          )}
-        </div>
-        {member.user_profiles?.mobile && (
-          <p className="text-xs text-muted-foreground mt-0.5">{member.user_profiles.mobile}</p>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        {callerIsOwner && !isOwner && (
-          <button type="button"
-            className="h-7 text-xs text-muted-foreground hover:text-foreground px-2"
-            onClick={() => onToggleAdmin(member)}
-            title={member.is_admin ? "Revoke admin" : "Grant admin"}>
-            {member.is_admin ? "Admin ✓" : "Admin"}
-          </button>
-        )}
-        <EditButton label="Edit member" onClick={() => onEdit(member)} />
-        {canRemove && (
-          <IconButton icon={<Trash2 className="h-3.5 w-3.5" />} label="Remove member" onClick={() => onRemove(member.id)} className="pa-iconbtn--destructive" />
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── Firm member table (firm tier — search, filter, sortable columns) ────────────
-
-interface FirmTableProps {
-  members: Member[]
-  search: string
-  onSearch: (v: string) => void
-  roleFilter: string
-  onRoleFilter: (v: string) => void
-  uniqueRoles: string[]
-  sortCol: SortCol
-  sortDir: SortDir
-  onSort: (col: SortCol) => void
-  currentUserId: string | null
-  callerIsOwner: boolean
-  onEdit: (m: Member) => void
-  onRemove: (id: string) => void
-  onToggleAdmin: (m: Member) => void
-}
-
-function FirmMemberTable({
-  members, search, onSearch, roleFilter, onRoleFilter,
-  uniqueRoles, sortCol, sortDir, onSort, currentUserId, callerIsOwner, onEdit, onRemove, onToggleAdmin,
-}: Readonly<FirmTableProps>) {
-  return (
-    <div className="space-y-3">
-      {/* Search + role filter */}
-      <div className="flex gap-2">
-        <Input
-          placeholder="Search by name…"
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-          className="flex-1 h-8 text-sm"
-        />
-        <Select value={roleFilter} onValueChange={(v) => onRoleFilter(v ?? "")}>
-          <SelectTrigger className="w-44 h-8 text-sm">
-            <SelectValue placeholder="All roles" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All roles</SelectItem>
-            {uniqueRoles.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-lg border border-border/50 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/30 border-b border-border/50">
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-2/5">
-                <button type="button" onClick={() => onSort("name")}
-                  className="flex items-center gap-1 hover:text-foreground transition-colors">
-                  Name <SortIcon col="name" sortCol={sortCol} sortDir={sortDir} />
-                </button>
-              </th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
-                <button type="button" onClick={() => onSort("role")}
-                  className="flex items-center gap-1 hover:text-foreground transition-colors">
-                  Role <SortIcon col="role" sortCol={sortCol} sortDir={sortDir} />
-                </button>
-              </th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Mobile</th>
-              {callerIsOwner && <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Admin</th>}
-              <th className="px-4 py-2.5 w-20" />
-            </tr>
-          </thead>
-          <tbody>
-            {members.length === 0 && (
-              <tr>
-                <td colSpan={callerIsOwner ? 5 : 4} className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  No members match your search.
-                </td>
-              </tr>
-            )}
-            {members.map((m) => {
-              const isMe      = m.user_id === currentUserId
-              const isOwner   = m.role === "owner"
-              const canRemove = !isMe && !isOwner
-              return (
-                <tr key={m.id}
-                  className="border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-2.5 font-medium">
-                    {getMemberDisplayName(m)}
-                    {isMe && (
-                      <span className="ml-1.5 text-xs text-muted-foreground font-normal">(you)</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{getRoleLabel(m.role)}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{m.user_profiles?.mobile ?? "—"}</td>
-                  {callerIsOwner && (
-                    <td className="px-4 py-2.5">
-                      {isOwner ? (
-                        <span className="text-xs text-muted-foreground">always</span>
-                      ) : (
-                        <button type="button"
-                          className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
-                          onClick={() => onToggleAdmin(m)}
-                          title={m.is_admin ? "Revoke admin" : "Grant admin"}>
-                          {m.is_admin ? "✓ Admin" : "—"}
-                        </button>
-                      )}
-                    </td>
-                  )}
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-1 justify-end">
-                      <EditButton label="Edit member" onClick={() => onEdit(m)} />
-                      {canRemove && (
-                        <IconButton icon={<Trash2 className="h-3.5 w-3.5" />} label="Remove member" onClick={() => onRemove(m.id)} className="pa-iconbtn--destructive" />
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function MembersTab() {
@@ -675,11 +490,10 @@ export function MembersTab() {
   const [editingMember, setEditing]     = useState<Member | null>(null)
   const [search, setSearch]             = useState("")
   const [roleFilter, setRoleFilter]     = useState("")
-  const [sortCol, setSortCol]           = useState<SortCol>("name")
-  const [sortDir, setSortDir]           = useState<SortDir>("asc")
+  const [status, setStatus]             = useState<"active" | "inactive">("active")
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null)
+  const { sortKey, sortDir, onSort }    = useListSort<"name" | "role">("name")
 
-  const isFirm      = tier === "firm"
-  const usersLimit: null = null
   const showEmergency = PORTFOLIO_TIERS.has(tier)
 
   // ── Derived lists ────────────────────────────────────────────────────────────
@@ -704,21 +518,23 @@ export function MembersTab() {
       list = list.filter((m) => getRoleLabel(m.role) === roleFilter)
     }
     return [...list].sort((a, b) => {
-      const va = sortCol === "name" ? getMemberDisplayName(a) : getRoleLabel(a.role)
-      const vb = sortCol === "name" ? getMemberDisplayName(b) : getRoleLabel(b.role)
+      const va = sortKey === "name" ? getMemberDisplayName(a) : getRoleLabel(a.role)
+      const vb = sortKey === "name" ? getMemberDisplayName(b) : getRoleLabel(b.role)
       return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va)
     })
-  }, [members, search, roleFilter, sortCol, sortDir])
+  }, [members, search, roleFilter, sortKey, sortDir])
 
   // ── Data loading ─────────────────────────────────────────────────────────────
 
-  async function loadMembers(supabase: ReturnType<typeof createClient>) {
+  async function loadMembers(supabase: ReturnType<typeof createClient>, statusArg: "active" | "inactive" = status) {
     if (!orgId) return
-    const { data: coreData, error } = await supabase
+    const query = supabase
       .from("user_orgs")
       .select("id, user_id, role, user_profiles(full_name)")
       .eq("org_id", orgId)
-      .is("deleted_at", null)
+    const { data: coreData, error } = await (statusArg === "active"
+      ? query.is("deleted_at", null)
+      : query.not("deleted_at", "is", null))
     if (error) { console.error("loadMembers:", error.message); return }
 
     const base = (coreData as unknown as Omit<Member, "additional_roles" | "is_admin">[]) ?? []
@@ -794,9 +610,28 @@ export function MembersTab() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  function toggleSort(col: SortCol) {
-    if (sortCol === col) setSortDir((d) => d === "asc" ? "desc" : "asc")
-    else { setSortCol(col); setSortDir("asc") }
+  function changeStatus(s: "active" | "inactive") {
+    setStatus(s)
+    setRoleFilter("")
+    loadMembers(createClient(), s)
+  }
+
+  async function handleReactivate(memberOrgId: string) {
+    if (!orgId) return
+    setReactivatingId(memberOrgId)
+    const res = await fetch("/api/team/member", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberOrgId, orgId, reactivate: true }),
+    })
+    setReactivatingId(null)
+    if (!res.ok) {
+      const { error } = await res.json() as { error?: string }
+      toast.error(error ?? "Failed to reactivate member")
+    } else {
+      toast.success("Member reactivated")
+      loadMembers(createClient(), "inactive")
+    }
   }
 
   async function handleRemove(memberOrgId: string) {
@@ -856,38 +691,111 @@ export function MembersTab() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">
-            Members ({members.length}{usersLimit ? `/${usersLimit}` : ""})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isFirm ? (
-            <FirmMemberTable
-              members={filteredMembers}
-              search={search} onSearch={setSearch}
-              roleFilter={roleFilter} onRoleFilter={setRoleFilter}
-              uniqueRoles={uniqueRoles}
-              sortCol={sortCol} sortDir={sortDir} onSort={toggleSort}
-              currentUserId={currentUserId}
-              callerIsOwner={callerIsOwner}
-              onEdit={setEditing}
-              onRemove={handleRemove}
-              onToggleAdmin={handleToggleAdmin}
+    <div className="space-y-4">
+      <ListToolbar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Search by name…"
+        filters={
+          <>
+            <ToolbarFilter
+              label="Status"
+              selected={[status]}
+              onChange={(next) => changeStatus((next[0] as "active" | "inactive") ?? "active")}
+              options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]}
             />
-          ) : (
-            <div className="space-y-2">
-              {filteredMembers.map((m) => (
-                <MemberRow key={m.id} member={m} currentUserId={currentUserId}
-                  callerIsOwner={callerIsOwner}
-                  onEdit={setEditing} onRemove={handleRemove} onToggleAdmin={handleToggleAdmin} />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {status === "active" && uniqueRoles.length > 0 && (
+              <ToolbarFilter
+                label="Role"
+                selected={roleFilter ? [roleFilter] : []}
+                onChange={(next) => setRoleFilter(next[0] ?? "")}
+                options={uniqueRoles.map((r) => ({ value: r, label: r }))}
+              />
+            )}
+          </>
+        }
+      />
+
+      <p className="text-xs text-muted-foreground">
+        {filteredMembers.length} {status} member{filteredMembers.length === 1 ? "" : "s"}
+        {status === "active" && pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending` : ""}
+      </p>
+
+      {filteredMembers.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No {status} members{search ? " match your search" : ""}.
+        </p>
+      ) : (
+        <ListCard>
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr className="border-b border-border bg-muted/30">
+                <th className="px-4 py-2.5 text-left">
+                  <SortHeader col="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                </th>
+                <th className="px-4 py-2.5 text-left">
+                  <SortHeader col="role" label="Role" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                </th>
+                <th className="hidden px-4 py-2.5 text-left md:table-cell">
+                  <span className="text-xs font-medium text-muted-foreground">Mobile</span>
+                </th>
+                <th className="px-4 py-2.5 text-right">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredMembers.map((m) => {
+                const isMe = m.user_id === currentUserId
+                const isOwner = m.role === "owner"
+                return (
+                  <tr key={m.id} className="border-b border-border/50 transition-colors last:border-0 hover:bg-muted/20">
+                    <td className="px-4 py-3 font-medium">
+                      {getMemberDisplayName(m)}
+                      {isMe && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span>}
+                      {(isOwner || m.is_admin) && (
+                        <span className="ml-2 inline-block rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-xs text-brand">
+                          {isOwner ? "Owner" : "Admin"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{getRoleLabel(m.role)}</td>
+                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{m.user_profiles?.mobile ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {status === "active" && callerIsOwner && !isOwner && (
+                          <button
+                            type="button"
+                            className="px-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                            onClick={() => handleToggleAdmin(m)}
+                            title={m.is_admin ? "Revoke admin" : "Grant admin"}
+                          >
+                            {m.is_admin ? "Admin ✓" : "Admin"}
+                          </button>
+                        )}
+                        {status === "active" && <EditButton label="Edit member" onClick={() => setEditing(m)} />}
+                        {status === "active" && callerIsOwner && !isMe && !isOwner && (
+                          <RemoveButton mode="label" label="Archive" onClick={() => handleRemove(m.id)} />
+                        )}
+                        {status === "inactive" && callerIsOwner && (
+                          <button
+                            type="button"
+                            disabled={reactivatingId === m.id}
+                            onClick={() => handleReactivate(m.id)}
+                            className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                          >
+                            <RotateCcw className="size-3.5" /> {reactivatingId === m.id ? "Reactivating…" : "Reactivate"}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </ListCard>
+      )}
 
       {editingMember && orgId && (
         <EditMemberModal
