@@ -121,7 +121,7 @@ export function SessionsView({ userId: _userId, selfOnly: _selfOnly, embedded }:
   }
 
   return (
-    <div className={embedded ? "max-w-2xl space-y-8" : "mx-auto max-w-2xl space-y-8 px-4 py-8"}>
+    <div className={embedded ? "space-y-8" : "mx-auto max-w-2xl space-y-8 px-4 py-8"}>
       {!embedded && (
         <div>
           <h1 className="font-heading text-2xl mb-1">Your sign-in activity</h1>
@@ -150,7 +150,7 @@ export function SessionsView({ userId: _userId, selfOnly: _selfOnly, embedded }:
         {devices.length === 0 ? (
           <p className="text-sm text-muted-foreground">No active sessions found.</p>
         ) : (
-          <div className="rounded-lg border border-rule bg-surface-raised divide-y divide-rule">
+          <div className="divide-y divide-border rounded-[var(--r-button)] border border-border">
             {devices.map(device => (
               <div key={device.id} className="flex items-start gap-3 p-4">
                 {deviceIcon(device.label)}
@@ -183,29 +183,43 @@ export function SessionsView({ userId: _userId, selfOnly: _selfOnly, embedded }:
         {events.length === 0 ? (
           <p className="text-sm text-muted-foreground">No recent activity.</p>
         ) : (
-          <div className="divide-y divide-border rounded-[var(--r-button)] border border-border">
-            {(showAllEvents ? events : events.slice(0, 5)).map(event => (
-              <div key={event.id} className="flex items-center gap-3 px-4 py-3">
-                {!event.success && <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />}
-                {event.success && <div className="h-1.5 w-1.5 rounded-full bg-success shrink-0" />}
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm leading-tight">
-                    {formatEventType(event.event_type)}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {[event.device_label, event.ip_city, event.ip_country].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
-                <div className="text-xs text-muted-foreground shrink-0">
-                  {formatDistanceToNow(new Date(event.created_at), { addSuffix: true })}
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto rounded-[var(--r-button)] border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th className="px-4 py-2.5 font-medium">Event</th>
+                  <th className="px-4 py-2.5 font-medium">Device</th>
+                  <th className="px-4 py-2.5 font-medium">Location</th>
+                  <th className="whitespace-nowrap px-4 py-2.5 text-right font-medium">When</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {(showAllEvents ? events : events.slice(0, 5)).map(event => (
+                  <tr key={event.id}>
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center gap-2">
+                        {event.success
+                          ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+                          : <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />}
+                        {formatEventType(event.event_type)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{event.device_label ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      {[event.ip_city, event.ip_country].filter(Boolean).join(", ") || "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-right text-muted-foreground">
+                      {formatDistanceToNow(new Date(event.created_at), { addSuffix: true })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             {events.length > 5 && (
               <button
                 type="button"
                 onClick={() => setShowAllEvents((v) => !v)}
-                className="w-full px-4 py-2.5 text-xs font-medium text-primary transition-colors hover:bg-muted/40"
+                className="w-full border-t border-border px-4 py-2.5 text-xs font-medium text-primary transition-colors hover:bg-muted/40"
               >
                 {showAllEvents ? "Show less" : `Show ${events.length - 5} more`}
               </button>

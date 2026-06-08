@@ -2,9 +2,15 @@
  * lib/auth/events.ts — Write-only auth event logger into auth_events table
  *
  * Notes: fire-and-forget — errors are swallowed so a logging failure never
- *        blocks the auth flow that called it.
+ *        blocks the auth flow that called it. On a SUCCESSFUL event it also
+ *        resolves/refreshes the caller's device_fingerprints row (from the
+ *        request UA + IP) so Settings → Security "Active sessions" populates —
+ *        the only place that writes device_fingerprints. Best-effort: a headers()
+ *        or fingerprint failure must never break event logging.
  */
+import { headers } from "next/headers"
 import { createServiceClient } from "@/lib/supabase/server"
+import { resolveDeviceFingerprint } from "@/lib/auth/device"
 
 type AuthEventType =
   | "login_success" | "login_failure" | "logout"
@@ -38,6 +44,31 @@ interface LogAuthEventParams {
 
 export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
   try {
+    let deviceFingerprintId = params.deviceFingerprintId ?? null
+    let deviceLabel = params.deviceLabel ?? null
+
+    // On a successful auth event, record/refresh this device so "Active sessions" populates.
+    // This is the only writer of device_fingerprints. Best-effort — never break event logging.
+    if (params.success && !deviceFingerprintId) {
+      try {
+        const h = await headers()
+        const ua = h.get("user-agent") ?? ""
+        if (ua) {
+          const device = await resolveDeviceFingerprint({
+            userId: params.userId,
+            userAgent: ua,
+            acceptLanguage: h.get("accept-language") ?? "",
+            ipCountry: params.ipCountry,
+            ipCity: params.ipCity,
+          })
+          deviceFingerprintId = device.fingerprintId
+          deviceLabel = deviceLabel ?? device.label
+        }
+      } catch (e) {
+        console.error("[auth_events] device fingerprint resolve failed:", e)
+      }
+    }
+
     const db = await createServiceClient()
     await db.from("auth_events").insert({
       user_id:            params.userId,
@@ -51,8 +82,8 @@ export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
       ip_country:         params.ipCountry ?? null,
       ip_city:            params.ipCity ?? null,
       user_agent_hash:    params.userAgentHash ?? null,
-      device_label:       params.deviceLabel ?? null,
-      device_fingerprint: params.deviceFingerprintId ?? null,
+      device_label:       deviceLabel,
+      device_fingerprint: deviceFingerprintId,
       session_id:         params.sessionId ?? null,
       failure_reason:     params.failureReason ?? null,
       metadata:           params.metadata ?? {},
