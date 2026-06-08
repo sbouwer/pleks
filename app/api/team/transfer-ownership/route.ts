@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { recordAudit } from "@/lib/audit/recordAudit";
+import { requireStepUp } from "@/lib/auth/step-up";
 import { Resend } from "resend";
 
 const MARKETING = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
@@ -18,9 +19,10 @@ const MARKETING = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { newOwnerUserId, orgId } = body as {
+    const { newOwnerUserId, orgId, stepUpToken } = body as {
       newOwnerUserId?: string;
       orgId?: string;
+      stepUpToken?: string;
     };
 
     if (!newOwnerUserId || !orgId) {
@@ -75,6 +77,18 @@ export async function POST(req: NextRequest) {
         { error: "Only the organisation owner can transfer ownership" },
         { status: 403 }
       );
+    }
+
+    // Step-up MFA gate — ownership transfer is a re-auth-protected access-control action. The route only
+    // claimed this in its header before; it's now enforced. Unverified → return a challenge, no transfer.
+    const stepUp = await requireStepUp({
+      userId: callerId,
+      action: "ownership_transfer",
+      resourceId: orgId,
+      providedToken: stepUpToken,
+    });
+    if (!stepUp.verified) {
+      return NextResponse.json({ challengeToken: stepUp.challengeToken }, { status: 401 });
     }
 
     // Verify new owner is a member of the same org

@@ -251,6 +251,11 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     tone_profile: "relational", allowed_channels: ["email"],
     description: "Magic-link email inviting tenant to activate their portal account — auto-fires on lease activation (P1)",
   },
+  "team.member_invite": {
+    key: "team.member_invite", channel: "email", category: "portal", is_mandatory: false,
+    tone_profile: "relational", allowed_channels: ["email"],
+    description: "Email inviting a colleague to join the agency as a team member — accept link to /invite/[token]",
+  },
   "portal.tenant_link": {
     key: "portal.tenant_link", channel: "sms", category: "portal", is_mandatory: false,
     description: "WhatsApp/SMS token link for tenants without email (generated link flow)",

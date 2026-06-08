@@ -73,6 +73,28 @@ async function applyOrgFieldPatch(
   return null
 }
 
+// Reactivate a soft-deleted member: clear deleted_at (owner-only). Re-granting access → audited.
+async function handleReactivate(
+  service: SupabaseClient, actorId: string, orgId: string, callerIsOwner: boolean, body: Record<string, unknown>,
+): Promise<NextResponse> {
+  const { memberOrgId } = body as { memberOrgId?: string }
+  if (!memberOrgId) return NextResponse.json({ error: "memberOrgId required" }, { status: 400 })
+  if (!callerIsOwner) return NextResponse.json({ error: "Only the owner can reactivate members" }, { status: 403 })
+  const { data: inactiveRaw, error: inactiveErr } = await service
+    .from("user_orgs").select("id, role, user_id")
+    .eq("id", memberOrgId).eq("org_id", orgId).not("deleted_at", "is", null).single()
+  logQueryError("PATCH reactivate user_orgs", inactiveErr)
+  if (!inactiveRaw) return NextResponse.json({ error: "Inactive member not found" }, { status: 404 })
+  const t = inactiveRaw as unknown as { id: string; role: string; user_id: string }
+  const { error } = await service.from("user_orgs").update({ deleted_at: null }).eq("id", memberOrgId).eq("org_id", orgId)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await recordAudit(service, {
+    orgId, actorId, action: "UPDATE", table: "user_orgs", recordId: memberOrgId,
+    after: { action: "member_reactivated", target_user_id: t.user_id, role: t.role },
+  })
+  return NextResponse.json({ ok: true })
+}
+
 // PATCH /api/team/member
 // Body: { userId, orgId, ...profileFields, ...orgFields, is_admin? }
 // Own profile fields (title, name, mobile, emergency): any authenticated org member
@@ -89,8 +111,8 @@ export async function PATCH(req: NextRequest) {
   }
 
   const { userId, orgId } = body as { userId?: string; orgId?: string }
-  if (!userId || !orgId) {
-    return NextResponse.json({ error: "userId and orgId required" }, { status: 400 })
+  if (!orgId) {
+    return NextResponse.json({ error: "orgId required" }, { status: 400 })
   }
 
   const service = await createServiceClient()
@@ -101,6 +123,13 @@ export async function PATCH(req: NextRequest) {
 
   const callerIsOwner = caller.role === "owner"
   const callerIsAdmin = caller.isAdmin
+
+  // Reactivate a soft-deleted member (owner-only) — re-granting access is audited, like role-change/removal.
+  if (body.reactivate === true) {
+    return handleReactivate(service, user.id, orgId, callerIsOwner, body)
+  }
+
+  if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 })
   const isSelfEdit = userId === user.id
 
   // Non-admin can only edit their own profile fields (no role changes)
