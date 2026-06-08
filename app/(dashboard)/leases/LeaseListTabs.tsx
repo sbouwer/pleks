@@ -16,6 +16,8 @@
 import { useState, useMemo } from "react"
 import Link from "next/link"
 import { EmptyState } from "@/components/shared/EmptyState"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { AddButton } from "@/components/ui/add-button"
 import { FileText } from "lucide-react"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { useMyPortfolio } from "@/hooks/useMyPortfolio"
@@ -285,7 +287,16 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
       </p>
 
       {/* Lease rows / cards */}
-      {filtered.length === 0 && (
+      {filtered.length === 0 && nothingInPortfolio && (
+        <EmptyResourceState
+          emptyTitle="Nothing in your portfolio"
+          emptySub="There are leases in your organisation — just none in your portfolio."
+          icon={<FileText className="h-6 w-6" />}
+          heroAction={<AddButton label="View all" showPlus={false} onClick={() => setScope("all")} />}
+        />
+      )}
+
+      {filtered.length === 0 && !nothingInPortfolio && (
         <EmptyState
           icon={<FileText className="h-8 w-8 text-muted-foreground" />}
           title="No leases"

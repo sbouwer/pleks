@@ -313,7 +313,7 @@ export function TenantsClient({ tenants: initial }: Readonly<Props>) {
 
           {/* Desktop table (list view) */}
           {view === "list" && (
-          <ListCard fill className="hidden lg:flex">
+          <ListCard fill className="hidden lg:block">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-card">
                 <tr className="border-b border-border bg-muted/30">
