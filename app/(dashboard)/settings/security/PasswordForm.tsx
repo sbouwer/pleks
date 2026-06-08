@@ -33,8 +33,11 @@ export function PasswordForm() {
   return (
     <div className="max-w-2xl space-y-5">
       <FieldGrid>
-        <TextField label="New password" type="password" value={password} onChange={setPassword} placeholder="At least 12 characters" />
-        <TextField label="Confirm new password" type="password" value={confirm} onChange={setConfirm} placeholder="Re-enter new password" />
+        {/* Hidden username target — gives the browser/password-manager a field to fill the saved email
+            into, instead of hunting for one and landing on the global search bar. */}
+        <input type="text" name="username" autoComplete="username" tabIndex={-1} aria-hidden="true" className="sr-only" />
+        <TextField label="New password" type="password" autoComplete="new-password" value={password} onChange={setPassword} placeholder="At least 12 characters" />
+        <TextField label="Confirm new password" type="password" autoComplete="new-password" value={confirm} onChange={setConfirm} placeholder="Re-enter new password" />
       </FieldGrid>
       <div className="flex items-center justify-between gap-4">
         <p className="text-xs text-muted-foreground">You&apos;ll stay signed in on this device.</p>

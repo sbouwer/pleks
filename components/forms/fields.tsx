@@ -46,10 +46,11 @@ export function Field({
 }
 
 export function TextField({
-  label, value, onChange, required, span, type = "text", placeholder, error, maxLength,
+  label, value, onChange, required, span, type = "text", placeholder, error, maxLength, autoComplete,
 }: Readonly<{
   label: string; value?: string | null; onChange: (v: string) => void
   required?: boolean; span?: boolean; type?: string; placeholder?: string; error?: string; maxLength?: number
+  autoComplete?: string
 }>) {
   return (
     <Field label={label} required={required} error={error} span={span}>
@@ -59,6 +60,7 @@ export function TextField({
         value={value ?? ""}
         placeholder={placeholder}
         maxLength={maxLength}
+        autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)}
       />
     </Field>
