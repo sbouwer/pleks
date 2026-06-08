@@ -175,7 +175,7 @@ function AddWarrantyDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger>
+      <DialogTrigger asChild>
         <ActionButton size="sm" tone="secondary" className="h-7 text-xs gap-1" type="button" icon={<Plus className="size-3.5" />}>
           Add
         </ActionButton>
