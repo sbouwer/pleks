@@ -83,7 +83,7 @@ export function MobileSettingsNav() {
       title: "My profile",
       items: [
         { href: "/settings/profile", label: "Profile" },
-        { href: "/settings/profile/signature", label: "Signature" },
+        { href: "/settings/profile?tab=signature", label: "Signature" },
       ],
     },
   ].filter((group) => group.items.length > 0)
