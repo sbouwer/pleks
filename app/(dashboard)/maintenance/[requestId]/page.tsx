@@ -12,6 +12,7 @@ import { BackLink } from "@/components/ui/BackLink"
 import { MobileMaintenanceView } from "@/components/mobile/MobileMaintenanceView"
 import { CriticalIncidentWrapper } from "./CriticalIncidentWrapper"
 import { MaintenanceActions } from "./MaintenanceActions"
+import { AssigneePicker } from "@/components/work/AssigneePicker"
 import { RecordDelayPanel } from "./RecordDelayPanel"
 import { StatusStrip } from "@/components/maintenance/StatusStrip"
 import { StageRail } from "@/components/maintenance/StageRail"
@@ -58,6 +59,7 @@ export default async function MaintenanceDetailPage({
       in_progress_at, completed_at, closed_at, cancelled_at,
       cancellation_reason, cancellation_category,
       contractor_id, tenant_id, logged_by, property_id, unit_id,
+      assigned_user_id, handled_by,
       severity, insurance_decision, insurance_decision_at, insurance_decision_notes, org_id,
       units(unit_number, properties(name, address_line1, landlord_id)),
       tenant_view(first_name, last_name, phone),
@@ -263,6 +265,15 @@ export default async function MaintenanceDetailPage({
             {unit ? `Unit ${unitNumber}, ${propertyName}` : ""}
             {(req.category_override ?? req.category) ? ` · ${req.category_override ?? req.category}` : ""}
           </p>
+        </div>
+
+        {/* Assignee — drives My work routing (ADDENDUM_TEAMS); Everyone (org) = shared bucket */}
+        <div className="max-w-xs">
+          <AssigneePicker
+            workTable="maintenance_requests"
+            recordId={requestId}
+            currentAssigneeId={(req.assigned_user_id as string | null) ?? null}
+          />
         </div>
 
         {/* Action row */}
