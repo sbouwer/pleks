@@ -14,6 +14,9 @@ import { cn } from "@/lib/utils"
 export function underlineInputCls(err?: boolean): string {
   return cn(
     "w-full border-0 border-b bg-transparent px-0 py-2 text-sm text-foreground placeholder:text-muted-foreground/60",
+    // Dark native popups: color-scheme + explicit <option> colours (Chrome ignores color-scheme for the
+    // option list). Dashboard-only controls (always dark). Matches forms/fields inputCls.
+    "[color-scheme:dark] [&>option]:bg-popover [&>option]:text-popover-foreground",
     "focus:outline-none focus:ring-0 transition-colors",
     err ? "border-destructive focus:border-destructive" : "border-input focus:border-primary",
   )

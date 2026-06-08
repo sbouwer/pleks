@@ -37,8 +37,13 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
   const active = tabs.some((t) => t.id === tab) ? tab! : "members"
 
   let body = <MembersTab />
-  if (active === "teams" && isFirm) body = <TeamsTab />
-  else if (active === "transfer" && isOwner) body = <TransferOwnershipTab />
+  let sub = "Invite people, set their roles, and manage who can access this workspace."
+  if (active === "teams" && isFirm) {
+    body = <TeamsTab />
+    sub = "Group members into teams — work can be assigned to a team, and every member sees it until someone picks it up."
+  } else if (active === "transfer" && isOwner) {
+    body = <TransferOwnershipTab />
+  }
 
   return (
     <DetailPageLayout
@@ -46,7 +51,7 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
       category="Settings"
       backHref="/settings"
       title="Team & access"
-      sub="Invite people, set their roles, and manage who can access this workspace."
+      sub={sub}
       facts={[]}
       actions={active === "teams" ? <NewTeamButton /> : <TeamInviteButton />}
       tabs={<CategoryTabs tabs={tabs} current={active} />}

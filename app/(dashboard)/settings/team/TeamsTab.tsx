@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Users, X, Archive } from "lucide-react"
+import { Users, User, Archive } from "lucide-react"
 import { ActionButton, Modal, EditButton, DeleteButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
@@ -106,10 +106,6 @@ export function TeamsTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        Group members into teams — work can be assigned to a team, and every member sees it until someone picks it up.
-      </p>
-
       {teams.length === 0 ? (
         <EmptyResourceState
           emptyTitle="No teams yet"
@@ -238,23 +234,28 @@ function TeamDetailModal({
 
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Members</p>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {team.members.map((m) => (
-            <span key={m.userId} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-2.5 pr-1 text-xs">
-              {m.name}
-              <button
-                type="button"
-                aria-label={`Remove ${m.name}`}
-                disabled={busy}
-                onClick={() => run(removeTeamMember(team.id, m.userId))}
-                className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <X className="size-3" />
-              </button>
-            </span>
-          ))}
-          {team.members.length === 0 && <span className="text-xs text-muted-foreground">No members yet</span>}
-        </div>
+        {team.members.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No members yet.</p>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {team.members.map((m) => (
+              <div key={m.userId} className="flex items-center gap-3 py-2.5">
+                <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[var(--r-button)] bg-muted">
+                  <User className="h-[18px] w-[18px] text-muted-foreground" />
+                </div>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{m.name}</p>
+                <DeleteButton
+                  label={`Remove ${m.name}`}
+                  itemName={m.name}
+                  description="They'll be removed from this team (their account isn't affected)."
+                  confirmLabel="Remove"
+                  loading={busy}
+                  onConfirm={async () => { await run(removeTeamMember(team.id, m.userId)) }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {addable.length > 0 && (
           <SelectField
