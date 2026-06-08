@@ -19,6 +19,7 @@ import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import { assertEmailAvailableForRole, isPersonalEmailDomain } from "@/lib/auth/email-policy"
 import { mapPostgresMembershipError, MembershipRaceLost } from "@/lib/auth/membership"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
 
 export interface OnboardingData {
   userType: "owner" | "agent" | "agency" | "family" | "exploring"
@@ -143,6 +144,12 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
     console.error("[onboarding] user_profiles upsert failed:", profileError)
     return { error: profileError.message, errorType: "profile_failed" }
   }
+
+  // Create the agent's own contact (primary_role='agent') + bind agent_contact_id at signup
+  // (ADDENDUM_AGENT_CONTACT_IDENTITY — every user is an agent). Non-fatal: resolveAgentContact also
+  // backfills lazily on first My-profile open if this misses.
+  const agentContact = await resolveAgentContact(service, orgId, userId)
+  if (!agentContact.ok) console.error("[onboarding] agent contact create failed:", agentContact.error)
 
   // Audit log
   await service.from("audit_log").insert({
