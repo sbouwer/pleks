@@ -325,10 +325,10 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   const filtered = sortList(urgencyFiltered, sortField, sortDir) as MaintenanceItemExtended[]
   const actionCount = list.filter(r => matchesTab(r, "action")).length
 
-  let emptyListMessage: string
-  if (scope === "mine") emptyListMessage = "Nothing assigned to you. Switch View to “All” to see the team’s requests."
-  else if (q) emptyListMessage = "No requests match your search."
-  else emptyListMessage = "No requests in this category."
+  // Scoped list (after My work / contractor) is empty while the org has items → the "nothing assigned to
+  // you, view all" card. A non-empty scoped list with no matches → a plain search/category line.
+  const nothingAssignedToMe = allItems.length > 0 && scope === "mine" && list.length === 0
+  const emptyListMessage = q ? "No requests match your search." : "No requests in this category."
 
   // Supplier-scoped view (from a supplier's "View work orders" link). On desktop it rides on the right
   // of the tab row (filterNotice); on mobile / the empty state it's a boxed banner below the header.
@@ -371,14 +371,23 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
           </div>
         )}
 
-        {list.length === 0 ? (
+        {allItems.length === 0 && (
           <EmptyResourceState
             emptyTitle="No maintenance requests"
             emptySub="Log a request to get started."
             icon={<Wrench className="h-6 w-6" />}
             heroAction={<AddButton label="Log request" showPlus={false} onClick={() => router.push("/maintenance/new")} />}
           />
-        ) : (
+        )}
+        {nothingAssignedToMe && (
+          <EmptyResourceState
+            emptyTitle="Nothing assigned to you"
+            emptySub="There's maintenance in your organisation — just none assigned to you right now."
+            icon={<Wrench className="h-6 w-6" />}
+            heroAction={<AddButton label="View all" showPlus={false} onClick={() => setScope("all")} />}
+          />
+        )}
+        {list.length > 0 && (
           <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-border bg-surface-elevated px-3">
             {sortList(list, "age", "desc").map(req => (
               <MobileRow key={req.id} req={req as MaintenanceItemExtended} />
@@ -489,7 +498,15 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
             heroAction={<AddButton label="Log request" showPlus={false} onClick={() => router.push("/maintenance/new")} />}
           />
         )}
-        {allItems.length > 0 && filtered.length === 0 && (
+        {nothingAssignedToMe && (
+          <EmptyResourceState
+            emptyTitle="Nothing assigned to you"
+            emptySub="There's maintenance in your organisation — just none assigned to you right now."
+            icon={<Wrench className="h-6 w-6" />}
+            heroAction={<AddButton label="View all" showPlus={false} onClick={() => setScope("all")} />}
+          />
+        )}
+        {!nothingAssignedToMe && list.length > 0 && filtered.length === 0 && (
           <p className="text-sm text-muted-foreground py-4">{emptyListMessage}</p>
         )}
         {allItems.length > 0 && filtered.length > 0 && view === "list" && (
