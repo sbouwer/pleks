@@ -14,7 +14,7 @@ export function DetailTabs({
   tabs, current, onChange,
 }: Readonly<{ tabs: DetailTab[]; current: string; onChange: (id: string) => void }>) {
   return (
-    <div className="flex flex-wrap gap-1" role="tablist">
+    <div className="flex flex-wrap gap-1 border-b border-border" role="tablist">
       {tabs.map((t) => {
         const active = t.id === current
         return (
