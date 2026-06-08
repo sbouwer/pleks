@@ -64,7 +64,12 @@ export function IndividualIdentity({ f, set, errors, fullFica, stepNumber = "01"
   useEffect(() => {
     const v = validateSAId(f.idNumber)
     if (!v?.valid) return
-    if (!f.dob && v.dob) set("dob", v.dob.toISOString().slice(0, 10))
+    if (!f.dob && v.dob) {
+      // Format in LOCAL terms — validateSAId builds a local-midnight Date, so toISOString() (UTC) would
+      // shift the day back in +tz (SAST), giving a DOB one day before the ID readout.
+      const d = v.dob
+      set("dob", `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`)
+    }
     if (!f.gender) set("gender", v.gender.toLowerCase())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [f.idNumber])

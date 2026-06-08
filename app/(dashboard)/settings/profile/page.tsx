@@ -12,7 +12,7 @@
  */
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
-import { getIdentityForkState } from "@/lib/auth/server"
+import { getIdentityForkState, getServerUser } from "@/lib/auth/server"
 import { IdentityForkBanner } from "@/components/identity/IdentityForkBanner"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import { CategoryTabs } from "@/components/settings/CategoryTabs"
@@ -21,6 +21,7 @@ import { PROFILE_TABS } from "./tabs"
 import { getUserSignature } from "./getSignature"
 import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
 import { fetchAgentContactParty } from "@/lib/actions/parties"
+import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { SignatureSettings } from "./signature/SignatureSettings"
 
 export const metadata = { title: "My Profile" }
@@ -38,13 +39,18 @@ export default async function ProfilePage({ searchParams }: Readonly<{ searchPar
 
   // Resolve (or backfill-create) the agent contact, then load it as a party form for the active tab.
   let contactId: string | null = null
-  let profileForm = null
+  let profileForm: PartyFormState | null = null
   if (needsContact) {
-    const resolved = await resolveAgentContact(gw.db, gw.orgId, gw.userId)
+    const authEmail = (await getServerUser())?.email ?? null
+    const resolved = await resolveAgentContact(gw.db, gw.orgId, gw.userId, authEmail)
     if (resolved.ok && resolved.contactId) {
       contactId = resolved.contactId
       const fetched = await fetchAgentContactParty(contactId)
-      if (fetched.ok) profileForm = fetched.form
+      if (fetched.ok && fetched.form) {
+        profileForm = fetched.form
+        // Pre-fill the registration email for contacts created before email seeding (saving persists it).
+        if (!profileForm.email && authEmail) profileForm.email = authEmail
+      }
     }
   }
 

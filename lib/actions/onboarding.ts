@@ -148,7 +148,7 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
   // Create the agent's own contact (primary_role='agent') + bind agent_contact_id at signup
   // (ADDENDUM_AGENT_CONTACT_IDENTITY — every user is an agent). Non-fatal: resolveAgentContact also
   // backfills lazily on first My-profile open if this misses.
-  const agentContact = await resolveAgentContact(service, orgId, userId)
+  const agentContact = await resolveAgentContact(service, orgId, userId, data.email)
   if (!agentContact.ok) console.error("[onboarding] agent contact create failed:", agentContact.error)
 
   // Audit log

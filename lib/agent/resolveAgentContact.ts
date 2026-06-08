@@ -25,6 +25,7 @@ export async function resolveAgentContact(
   db: Db,
   orgId: string,
   userId: string,
+  email?: string | null,
 ): Promise<ResolveAgentContactResult> {
   const { data: profile, error: profErr } = await db
     .from("user_profiles")
@@ -53,6 +54,7 @@ export async function resolveAgentContact(
     title:         (profile?.title as string | null) ?? null,
     first_name:    firstName,
     last_name:     lastName,
+    primary_email: email?.trim() || null,
     primary_phone: phone,
     created_by:    userId,
   }).select("id").single()

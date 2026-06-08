@@ -69,6 +69,9 @@
 
 /* Pleks dark-first design system */
 :root {
+  /* Dark-by-default dashboard — tells the OS to draw native controls (the <select> option popup,
+     date-picker calendar, scrollbars) dark instead of white. .pleks-public/.pleks-portal override. */
+  color-scheme: dark;
   /* Brand */
   --brand: oklch(0.75 0.14 65);
   --brand-hover: oklch(0.82 0.12 70);
