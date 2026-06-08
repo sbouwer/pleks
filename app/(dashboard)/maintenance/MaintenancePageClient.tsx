@@ -19,6 +19,8 @@ import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, ListCard, type ListView } from "@/components/ui/resource-list"
+import { useUser } from "@/hooks/useUser"
+import { isMine } from "@/lib/work/myWorkFilter"
 import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
@@ -270,7 +272,10 @@ interface Props { orgId: string; contractorFilter?: string | null; contractorNam
 export function MaintenancePageClient({ orgId, contractorFilter, contractorName }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { user } = useUser()
+  const currentUserId = user?.id ?? null
   const queryKey = OPERATIONAL_QUERY_KEYS.maintenance(orgId)
+  const [scope, setScope] = useState<"mine" | "all">("mine")
   const [activeTab, setActiveTab] = useState<Tab>("all")
   const [urgencies, setUrgencies] = useState<string[]>([])
   const [search, setSearch] = useState("")
@@ -283,10 +288,15 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
     queryFn: () => fetchMaintenanceAction(orgId),
     staleTime: STALE_TIME.maintenance,
   })
+  // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org,
+  // shown only under "All". Falls back to All until the current user resolves.
+  const scopeFiltered = scope === "mine" && currentUserId
+    ? allItems.filter((r) => isMine(r as { assigned_user_id: string | null }, currentUserId))
+    : allItems
   // Optional ?contractor= scope (e.g. from a supplier's "View work orders" quick link).
   const list = contractorFilter
-    ? allItems.filter((r) => (r as { contractor_id?: string | null }).contractor_id === contractorFilter)
-    : allItems
+    ? scopeFiltered.filter((r) => (r as { contractor_id?: string | null }).contractor_id === contractorFilter)
+    : scopeFiltered
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -314,6 +324,11 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
     : tabFiltered
   const filtered = sortList(urgencyFiltered, sortField, sortDir) as MaintenanceItemExtended[]
   const actionCount = list.filter(r => matchesTab(r, "action")).length
+
+  let emptyListMessage: string
+  if (scope === "mine") emptyListMessage = "Nothing assigned to you. Switch View to “All” to see the team’s requests."
+  else if (q) emptyListMessage = "No requests match your search."
+  else emptyListMessage = "No requests in this category."
 
   // Supplier-scoped view (from a supplier's "View work orders" link). On desktop it rides on the right
   // of the tab row (filterNotice); on mobile / the empty state it's a boxed banner below the header.
@@ -381,13 +396,13 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
           sub={
             (list.length > 0 || dataUpdatedAt > 0) ? (
               <div className="space-y-0.5">
-                {list.length > 0 && (
-                  <p>
-                    {list.length} request{list.length !== 1 ? "s" : ""}
-                    {emergencies.length > 0 && ` · ${emergencies.length} emergency`}
-                    {actionCount > 0 && ` · ${actionCount} need action`}
-                  </p>
-                )}
+                {/* Always render the count (even "0 requests") so toggling the filter doesn't pop the
+                    line in/out and jump the sticky header. */}
+                <p>
+                  {list.length} request{list.length !== 1 ? "s" : ""}
+                  {emergencies.length > 0 && ` · ${emergencies.length} emergency`}
+                  {actionCount > 0 && ` · ${actionCount} need action`}
+                </p>
                 {dataUpdatedAt > 0 && (
                   <span className="flex items-center gap-2 text-xs">
                     Updated {relativeTime(new Date(dataUpdatedAt))}
@@ -417,8 +432,9 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
           </div>
         )}
 
-        {/* Joint toolbar: status compartment · urgency compartment · search · List/Cards toggle. */}
-        {list.length > 0 && (
+        {/* Joint toolbar: view (my work/all) · status · urgency · search · List/Cards toggle. Gated on
+            allItems (not the scoped list) so the View toggle stays reachable when My-work is empty. */}
+        {allItems.length > 0 && (
           <div className="space-y-2">
             <ListToolbar
               search={search}
@@ -426,6 +442,14 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
               placeholder="Search by title, unit, property, address or contractor…"
               view={view}
               onView={setView}
+              rightFilters={
+                <ToolbarFilter
+                  label="View"
+                  selected={[scope]}
+                  onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
+                  options={[{ value: "mine", label: "My work" }, { value: "all", label: "All" }]}
+                />
+              }
               filters={
                 <>
                   <ToolbarFilter
@@ -457,7 +481,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
         {/* No tabs to ride on when the scoped supplier has zero work orders — fall back to the boxed banner. */}
         {list.length === 0 && filterBanner}
 
-        {list.length === 0 && (
+        {allItems.length === 0 && (
           <EmptyResourceState
             emptyTitle="No maintenance requests"
             emptySub="Log a maintenance request to get started."
@@ -465,10 +489,10 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
             heroAction={<AddButton label="Log request" showPlus={false} onClick={() => router.push("/maintenance/new")} />}
           />
         )}
-        {list.length > 0 && filtered.length === 0 && (
-          <p className="text-sm text-muted-foreground py-4">{q ? "No requests match your search." : "No requests in this category."}</p>
+        {allItems.length > 0 && filtered.length === 0 && (
+          <p className="text-sm text-muted-foreground py-4">{emptyListMessage}</p>
         )}
-        {list.length > 0 && filtered.length > 0 && view === "list" && (
+        {allItems.length > 0 && filtered.length > 0 && view === "list" && (
           <ListCard fill>
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-card">
@@ -518,7 +542,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
           </ListCard>
         )}
 
-        {list.length > 0 && filtered.length > 0 && view === "cards" && (
+        {allItems.length > 0 && filtered.length > 0 && view === "cards" && (
           <div className="grid min-h-0 flex-1 gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map(req => (
               <MaintenanceCard

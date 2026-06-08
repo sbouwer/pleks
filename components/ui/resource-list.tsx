@@ -216,7 +216,7 @@ export function ToolbarFilter({
 }
 
 export function ListToolbar({
-  search, onSearch, placeholder = "Search…", view, onView, filters,
+  search, onSearch, placeholder = "Search…", view, onView, filters, rightFilters,
 }: Readonly<{
   search: string
   onSearch: (v: string) => void
@@ -226,6 +226,8 @@ export function ListToolbar({
   onView?: (v: ListView) => void
   /** one or more ToolbarSelect compartments (or any control) shown between the toggle and search */
   filters?: ReactNode
+  /** control(s) shown on the right, just before the list/grid toggle (e.g. a My work / All view filter) */
+  rightFilters?: ReactNode
 }>) {
   return (
     <div className="flex items-center gap-2">
@@ -233,6 +235,7 @@ export function ListToolbar({
       <div className="min-w-0 flex-1">
         <ListSearchBar value={search} onChange={onSearch} placeholder={placeholder} />
       </div>
+      {rightFilters}
       {view && onView && <ViewToggle view={view} onView={onView} />}
     </div>
   )

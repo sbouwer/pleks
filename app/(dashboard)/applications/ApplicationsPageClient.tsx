@@ -22,6 +22,7 @@ import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter } from "@/components/ui/resource-list"
+import { isMine } from "@/lib/work/myWorkFilter"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { BulkDecidePanel } from "@/components/applications/BulkDecidePanel"
 import { Users, Copy, Check, ExternalLink } from "lucide-react"
@@ -226,16 +227,23 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
     staleTime: STALE_TIME.applications,
   })
 
+  const [scope, setScope] = useState<"mine" | "all">("mine")
   const [search, setSearch] = useState("")
   const [stages, setStages] = useState<string[]>([])
   const [view, setView] = useState<"list" | "cards">("list")
 
-  const prescreenReady = list.filter((a) => a.stage1_status === "pre_screen_complete")
-  const screeningComplete = list.filter((a) => a.stage2_status === "screening_complete")
+  // My work / All (ADDENDUM_TEAMS Layer 0) — scope the applications (the listing frame stays org-wide as
+  // context); null assignee = Everyone/Org, shown only under "All".
+  const scopedList = scope === "mine" && user?.id
+    ? list.filter((a) => isMine(a as { assigned_user_id: string | null }, user.id))
+    : list
+
+  const prescreenReady = scopedList.filter((a) => a.stage1_status === "pre_screen_complete")
+  const screeningComplete = scopedList.filter((a) => a.stage2_status === "screening_complete")
 
   // Apply search (applicant name / email) + stage filter before grouping.
   const q = search.trim().toLowerCase()
-  const filteredList = list.filter((a) => {
+  const filteredList = scopedList.filter((a) => {
     const name = `${a.first_name || ""} ${a.last_name || ""}`.trim().toLowerCase()
     const matchSearch = !q || name.includes(q) || (a.applicant_email?.toLowerCase().includes(q) ?? false)
     const matchStage = stages.length === 0 || stages.includes(appStage(a))
@@ -248,8 +256,8 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   // The toolbar is only meaningful once there's underlying data to filter.
   const showToolbar = list.length > 0
   const filteredCount = filteredList.length
-  const appWord = list.length === 1 ? "application" : "applications"
-  const countLabel = isFiltering ? `${filteredCount} of ${list.length} ${appWord}` : `${list.length} ${appWord}`
+  const appWord = scopedList.length === 1 ? "application" : "applications"
+  const countLabel = isFiltering ? `${filteredCount} of ${scopedList.length} ${appWord}` : `${scopedList.length} ${appWord}`
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -260,9 +268,8 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
         sub={
           (list.length > 0 || dataUpdatedAt > 0) ? (
             <div className="space-y-0.5">
-              {list.length > 0 && (
-                <p>{prescreenReady.length} ready to review &middot; {screeningComplete.length} screening complete</p>
-              )}
+              {/* Always render (even "0 ready") so toggling the filter doesn't jump the sticky header. */}
+              <p>{prescreenReady.length} ready to review &middot; {screeningComplete.length} screening complete</p>
               {dataUpdatedAt > 0 && (
                 <span className="flex items-center gap-2 text-xs">
                   Updated {relativeTime(new Date(dataUpdatedAt))}
@@ -284,6 +291,14 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
               placeholder="Search applicants by name or email…"
               view={view}
               onView={setView}
+              rightFilters={
+                <ToolbarFilter
+                  label="View"
+                  selected={[scope]}
+                  onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
+                  options={[{ value: "mine", label: "My work" }, { value: "all", label: "All" }]}
+                />
+              }
               filters={
                 <ToolbarFilter
                   label="Stage"
