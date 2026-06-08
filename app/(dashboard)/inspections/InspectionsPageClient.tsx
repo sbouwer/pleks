@@ -15,6 +15,8 @@ import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, type ListView } from "@/components/ui/resource-list"
+import { useUser } from "@/hooks/useUser"
+import { isMine } from "@/lib/work/myWorkFilter"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { ClipboardCheck } from "lucide-react"
@@ -99,11 +101,19 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
     staleTime: STALE_TIME.inspections,
   })
 
+  const { user } = useUser()
+  const [scope, setScope] = useState<"mine" | "all">("mine")
   const [search, setSearch] = useState("")
   const [statuses, setStatuses] = useState<string[]>([])
   const [view, setView] = useState<ListView>("list")
 
-  const filtered = list.filter((insp) => {
+  // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org.
+  const scopedList = scope === "mine" && user?.id
+    ? list.filter((insp) => isMine(insp as { assigned_user_id: string | null }, user.id))
+    : list
+  const nothingAssignedToMe = list.length > 0 && scope === "mine" && scopedList.length === 0
+
+  const filtered = scopedList.filter((insp) => {
     const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
     const haystack = [
       insp.inspection_type?.replaceAll("_", " "),
@@ -117,7 +127,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
 
   const statusWord = statuses.length === 1 ? "status" : "statuses"
   const statusNote = statuses.length > 0 ? ` · ${statuses.length} ${statusWord}` : ""
-  const countLabel = `${filtered.length} of ${list.length} inspection${list.length === 1 ? "" : "s"}${statusNote}`
+  const countLabel = `${filtered.length} of ${scopedList.length} inspection${scopedList.length === 1 ? "" : "s"}${statusNote}`
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -151,6 +161,14 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
             placeholder="Search by type, property or unit…"
             view={view}
             onView={setView}
+            rightFilters={
+              <ToolbarFilter
+                label="View"
+                selected={[scope]}
+                onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
+                options={[{ value: "mine", label: "My work" }, { value: "all", label: "All" }]}
+              />
+            }
             filters={
               <ToolbarFilter
                 label="Status"
@@ -164,7 +182,16 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
 
           <p className="text-xs text-muted-foreground">{countLabel}</p>
 
-          {filtered.length === 0 && (
+          {nothingAssignedToMe && (
+            <EmptyResourceState
+              emptyTitle="Nothing assigned to you"
+              emptySub="There are inspections in your organisation — just none assigned to you right now."
+              icon={<ClipboardCheck className="h-6 w-6" />}
+              heroAction={<AddButton label="View all" showPlus={false} onClick={() => setScope("all")} />}
+            />
+          )}
+
+          {!nothingAssignedToMe && filtered.length === 0 && (
             <p className="text-sm text-muted-foreground py-8 text-center">No inspections match your search.</p>
           )}
 

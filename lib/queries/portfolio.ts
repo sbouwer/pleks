@@ -118,12 +118,13 @@ export async function fetchLeases(supabase: SupabaseClient, orgId: string) {
   return data ?? []
 }
 
-export async function fetchInspections(supabase: SupabaseClient, orgId: string) {
-  const { data, error } = await supabase
+export async function fetchInspections(supabase: SupabaseClient, orgId: string, scope: WorkScope = "all", userId?: string) {
+  let query = supabase
     .from("inspections")
-    .select("id, inspection_type, lease_type, status, scheduled_date, conducted_date, units(unit_number, properties(name))")
+    .select("id, inspection_type, lease_type, status, scheduled_date, conducted_date, assigned_user_id, units(unit_number, properties(name))")
     .eq("org_id", orgId)
-    .order("created_at", { ascending: false })
+  if (scope === "mine" && userId) query = applyWorkScope(query, "mine", userId)
+  const { data, error } = await query.order("created_at", { ascending: false })
   if (error) { console.error("fetchInspections failed:", error.message); return [] }
   return data ?? []
 }
