@@ -13,6 +13,7 @@ import { LeaseTemplateIntro } from "@/components/leases/LeaseTemplateIntro"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+// eslint-disable-next-line pleks/settings-use-detail-tabs -- legacy; folds into the Documents category page's tabs
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"

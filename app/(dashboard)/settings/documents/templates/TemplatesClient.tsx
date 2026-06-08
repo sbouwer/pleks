@@ -23,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+// eslint-disable-next-line pleks/settings-use-detail-tabs -- legacy; folds into the Documents category page's tabs
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { FormSelect } from "@/components/ui/FormSelect"
 import {

@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react"
 import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+// eslint-disable-next-line pleks/settings-use-detail-tabs -- legacy; folds into the Organisation category page's tabs
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { DocumentPreview } from "@/components/settings/DocumentPreview"

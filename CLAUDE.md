@@ -1063,6 +1063,32 @@ Source: ADDENDUM_AUTH_RESOLVER_SELF_REFERENCE_FIX_2026-05-27.
 
 ---
 
+## ⚠ COMPONENT CANON — which component to use
+
+Reusing whatever component is nearby inherits its style — that's how the app drifted into two tab
+systems, two header styles, and mixed radii. Before building UI, pick from this table. Reach for the
+**Use** column; never the **Not** column without a reason.
+
+| Building… | Use | Not |
+|---|---|---|
+| Detail / category page (an entity **or** a settings category) | `DetailPageLayout` + `DetailTabs` (`components/detail/`) | shadcn `ui/tabs`, ad-hoc `<h1>` headers |
+| List / index resource page | `ResourcePageHeader` (`components/ui/resource-page-header`) | ad-hoc page headers |
+| Settings overview (landing) | `SettingsPageHeader` (`components/settings/`) | — |
+| Tabs on a detail page | `DetailTabs` (amber-underline) | shadcn `ui/tabs` (segmented) |
+| Form fields (text / select / textarea) | `components/forms/fields` — `FieldGrid` · `TextField` · `SelectField` · `TextareaField` (the add-contact grammar) | raw `<input>`/`<Label>`/shadcn `Select`; the old `DetailsForm` `F`/`Sel` |
+| Buttons / actions | `ActionButton` · `AddButton` · `DeleteButton` (`components/ui/actions`) | shadcn `Button` |
+| Cards in a detail grid | `DetailCard` (`components/detail/DetailCard`) | ad-hoc bordered divs |
+| Corner radius | `rounded-[var(--r-button)]` (3px square) | `rounded-md` / `rounded-lg` (pills → `rounded-full`) |
+
+**Tabs:** URL-sync via `?tab=` so they deep-link; keep the tab set in a plain `tabs.ts` — **not** the
+`"use client"` strip (a server page importing data from a client module gets a client *reference*, not
+the value → `X.some is not a function`).
+
+**Enforced:** `pleks/settings-use-detail-tabs` fails the build if a `/settings/**` file imports shadcn
+`ui/tabs`. The rest is code-review against this table.
+
+---
+
 ## DO NOT DO
 
 - Do not deploy without running `npm run security:quick` first
