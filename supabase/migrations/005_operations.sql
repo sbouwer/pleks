@@ -2738,3 +2738,33 @@ BEGIN
   END IF;
 END
 $do$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §31  ADDENDUM_TEAMS_ASSIGNMENT_MODEL: per-agent assignment (Layer 0)
+--      assigned_user_id = the individual assignee; NULL = Everyone/Org shared bucket (D-11/12),
+--      defaults to the creating agent. handled_by = who picked up a shared item (D-5; audit_log
+--      .changed_by stays system-of-record). assigned_at/picked_up_at = the D-9 routing timestamps.
+--      assigned_team_id + the not-both CHECK arrive in Phase 2 (firm-tier named teams).
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE maintenance_requests
+  ADD COLUMN IF NOT EXISTS assigned_user_id uuid REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS handled_by      uuid REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS assigned_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS picked_up_at    timestamptz;
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_assigned_user
+  ON maintenance_requests(org_id, assigned_user_id) WHERE assigned_user_id IS NOT NULL;
+COMMENT ON COLUMN maintenance_requests.assigned_user_id IS
+  'Individual assignee (auth.users). NULL = Everyone/Org shared bucket (ADDENDUM_TEAMS D-11/12); defaults to the creating agent.';
+COMMENT ON COLUMN maintenance_requests.handled_by IS
+  'Who picked up a shared (null-assignee) item — surfaced convenience; audit_log.changed_by is system-of-record (D-5).';
+
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS assigned_user_id uuid REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS handled_by      uuid REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS assigned_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS picked_up_at    timestamptz;
+CREATE INDEX IF NOT EXISTS idx_applications_assigned_user
+  ON applications(org_id, assigned_user_id) WHERE assigned_user_id IS NOT NULL;
+COMMENT ON COLUMN applications.assigned_user_id IS
+  'Individual assignee (auth.users). NULL = Everyone/Org shared bucket (ADDENDUM_TEAMS D-11/12); defaults to the creating agent.';

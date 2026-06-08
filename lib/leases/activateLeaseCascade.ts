@@ -235,6 +235,7 @@ async function stepScheduleMoveIn(
   lease: { unit_id: string; property_id: string; tenant_id: string; start_date: string; lease_type: string | null },
   leaseId: string,
   orgId: string,
+  userId: string | undefined,
 ): Promise<CascadeStep> {
   try {
     const { data: existing, error: existingError } = await supabase
@@ -251,6 +252,9 @@ async function stepScheduleMoveIn(
         lease_id: leaseId, tenant_id: lease.tenant_id,
         inspection_type: "move_in", lease_type: leaseType,
         scheduled_date: lease.start_date, status: "scheduled",
+        // Default-on-create = the activating agent (ADDENDUM_TEAMS D-12); null → Everyone/Org.
+        assigned_user_id: userId ?? null,
+        assigned_at: new Date().toISOString(),
       })
       .select("id").single()
 
@@ -521,7 +525,7 @@ export async function activateLeaseCascade(
     await stepRecordDeposit(supabase, lease, leaseId, orgId, userId),
     await stepSendDepositReceived(supabase, lease, leaseId, orgId, capabilities),
     await stepGenerateFirstInvoice(supabase, lease, leaseId, orgId),
-    await stepScheduleMoveIn(supabase, lease, leaseId, orgId),
+    await stepScheduleMoveIn(supabase, lease, leaseId, orgId, userId),
     await stepLogLifecycleEvents(supabase, leaseId, orgId, triggeredBy, userId),
     await stepAuditLog(supabase, leaseId, orgId, triggeredBy, userId),
     // BUILD_63 Phase 5: L3 + L4 + P1

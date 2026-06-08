@@ -173,6 +173,9 @@ export async function createInspection(formData: FormData) {
       scheduled_date: scheduledDate,
       status: "scheduled",
       conducted_by: userId,
+      // Default-on-create = the creating agent (ADDENDUM_TEAMS D-12) → lands in their My-work.
+      assigned_user_id: userId,
+      assigned_at: new Date().toISOString(),
     })
     .select("id")
     .single()

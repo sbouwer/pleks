@@ -591,3 +591,18 @@ UPDATE units
 SET deleted_at = now()
 WHERE deleted_at IS NULL
   AND (is_archived = true OR status = 'archived');
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_TEAMS_ASSIGNMENT_MODEL: per-agent assignment (Layer 0) on inspections
+-- assigned_user_id = individual assignee; NULL = Everyone/Org shared bucket (D-11/12), defaults to the
+-- creating agent. handled_by = who picked up a shared item (D-5). assigned_team_id + not-both CHECK: Phase 2.
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE inspections
+  ADD COLUMN IF NOT EXISTS assigned_user_id uuid REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS handled_by      uuid REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS assigned_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS picked_up_at    timestamptz;
+CREATE INDEX IF NOT EXISTS idx_inspections_assigned_user
+  ON inspections(org_id, assigned_user_id) WHERE assigned_user_id IS NOT NULL;
+COMMENT ON COLUMN inspections.assigned_user_id IS
+  'Individual assignee (auth.users). NULL = Everyone/Org shared bucket (ADDENDUM_TEAMS D-11/12); defaults to the creating agent.';

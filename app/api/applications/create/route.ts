@@ -40,6 +40,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Listing not found or no longer active" }, { status: 404 })
   }
 
+  // Public applicant → no creating agent. Route to the responsible agent (unit → property manager) so it
+  // lands in their My-work; null falls to Everyone/Org (ADDENDUM_TEAMS D-11/12), visible under All.
+  let routedAgent: string | null = null
+  if (listing.unit_id) {
+    const { data: unit, error: unitErr } = await service
+      .from("units").select("assigned_agent_id").eq("id", listing.unit_id).maybeSingle()
+    logQueryError("POST units routing", unitErr)
+    routedAgent = unit?.assigned_agent_id ?? null
+  }
+  if (!routedAgent && listing.property_id) {
+    const { data: prop, error: propErr } = await service
+      .from("properties").select("managing_agent_id").eq("id", listing.property_id).maybeSingle()
+    logQueryError("POST properties routing", propErr)
+    routedAgent = prop?.managing_agent_id ?? null
+  }
+
   const incomeCents = body.gross_monthly_income
     ? Math.round(parseFloat(body.gross_monthly_income) * 100)
     : null
@@ -68,6 +84,8 @@ export async function POST(req: NextRequest) {
       gross_monthly_income_cents: incomeCents,
       applicant_motivation: body.motivation || null,
       stage1_status: "pending_documents",
+      assigned_user_id: routedAgent,
+      assigned_at: routedAgent ? new Date().toISOString() : null,
     })
     .select("id")
     .single()

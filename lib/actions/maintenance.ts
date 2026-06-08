@@ -185,6 +185,9 @@ export async function createMaintenanceRequest(formData: FormData) {
       description,
       logged_by: "agent",
       logged_by_user: userId,
+      // Default-on-create = the creating agent (ADDENDUM_TEAMS D-12) → lands in their My-work.
+      assigned_user_id: userId,
+      assigned_at: new Date().toISOString(),
       category: triage.category,
       urgency: triage.urgency,
       ai_triage_notes: buildingRhythm && buildingRhythm !== "standard"

@@ -29,14 +29,24 @@ export async function submitMaintenanceRequest(payload: MaintenanceSubmitPayload
   const { tenantId, leaseId, orgId, unitId } = session
   const service = await createServiceClient()
 
-  // Get property_id from the unit
+  // Get property_id + the routing agent from the unit.
   const { data: unit, error: unitErr } = await service
     .from("units")
-    .select("property_id")
+    .select("property_id, assigned_agent_id")
     .eq("id", unitId)
     .single()
 
   if (unitErr || !unit) return { error: "Could not resolve unit" }
+
+  // Tenant-reported → no creating agent. Route to the responsible agent (unit agent → property manager) so
+  // it lands in their My-work; null falls to Everyone/Org (ADDENDUM_TEAMS D-11/12), visible under All.
+  let routedAgent: string | null = unit.assigned_agent_id ?? null
+  if (!routedAgent) {
+    const { data: prop, error: propErr } = await service
+      .from("properties").select("managing_agent_id").eq("id", unit.property_id).maybeSingle()
+    if (propErr) console.error("submitMaintenanceRequest property routing:", propErr.message)
+    routedAgent = prop?.managing_agent_id ?? null
+  }
 
   // Validate input
   if (!payload.description || payload.description.trim().length < 20) {
@@ -74,6 +84,8 @@ export async function submitMaintenanceRequest(payload: MaintenanceSubmitPayload
       logged_by: "tenant",
       reported_via: "portal",
       status: "pending_review",
+      assigned_user_id: routedAgent,
+      assigned_at: routedAgent ? new Date().toISOString() : null,
     })
     .select("id, work_order_number")
     .single()
