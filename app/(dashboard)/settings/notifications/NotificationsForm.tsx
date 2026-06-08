@@ -100,7 +100,7 @@ export function NotificationsForm({ tab }: Readonly<{ tab: "notifications" | "em
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       {tab === "notifications" ? <NotificationToggles settings={settings} set={set} /> : <EmailSetup settings={settings} set={set} />}
       <div className="flex justify-end">
         <ActionButton tone="primary" onClick={handleSave} disabled={saving}>
