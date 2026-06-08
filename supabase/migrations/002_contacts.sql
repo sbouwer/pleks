@@ -1080,3 +1080,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_tenants_org_contact_live
   ON tenants(org_id, contact_id) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_landlords_org_contact_live
   ON landlords(org_id, contact_id) WHERE deleted_at IS NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §19  ADDENDUM_AGENT_CONTACT_IDENTITY: the agent's own person contact
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Every user IS an agent (user_orgs membership) and has their own individual contact —
+-- their identity as a person, independent of any landlord role. Created at onboarding
+-- (resolveAgentContact is the create-or-resolve safety net), primary_role='agent'. This is
+-- what Settings → My profile reads/writes. Landlord-ness is a separate, later, OPTIONAL
+-- determination (self_landlord_id, §13 — set only at first property if "I am the landlord");
+-- while that link is live the agent contact and the self-landlord contact mirror-sync shared
+-- person-fields (name/ID/DOB), decoupling on upgrade via forked_landlord_id. ON DELETE SET NULL
+-- — deleting the contact just clears the pointer.
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS agent_contact_id uuid REFERENCES contacts(id) ON DELETE SET NULL;
