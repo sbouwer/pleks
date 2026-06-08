@@ -18,8 +18,10 @@ export type FieldOption = { value: string; label: string }
 const inputCls = (err?: boolean) =>
   cn(
     "w-full border-0 border-b bg-transparent px-0 py-2 text-sm text-foreground placeholder:text-muted-foreground/60",
-    // color-scheme on the control so native <select>/date popups render dark (see partyFields).
-    "[color-scheme:dark] focus:outline-none focus:ring-0 transition-colors",
+    // Dark native popups: color-scheme + explicit <option> colors (Chrome ignores color-scheme for the
+    // option list). Dashboard-only controls (always dark). See partyFields.
+    "[color-scheme:dark] [&>option]:bg-popover [&>option]:text-popover-foreground",
+    "focus:outline-none focus:ring-0 transition-colors",
     err ? "border-destructive focus:border-destructive" : "border-input focus:border-primary",
   )
 

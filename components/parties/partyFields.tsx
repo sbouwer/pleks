@@ -69,9 +69,10 @@ export function Field({
 const inputCls = (err?: boolean) =>
   cn(
     "w-full border-0 border-b bg-transparent px-0 py-2 text-sm text-foreground placeholder:text-muted-foreground/60",
-    // color-scheme on the control itself so the native <select> option popup + date-picker render dark
-    // (inherited color-scheme doesn't always reach the OS popup — same reason the portal sets it directly).
-    "[color-scheme:dark] focus:outline-none focus:ring-0 transition-colors",
+    // Dark native popups: color-scheme on the control + explicit <option> colors, because Chrome/Windows
+    // ignores color-scheme for the option list. These controls are dashboard-only (always dark).
+    "[color-scheme:dark] [&>option]:bg-popover [&>option]:text-popover-foreground",
+    "focus:outline-none focus:ring-0 transition-colors",
     err ? "border-destructive focus:border-destructive" : "border-input focus:border-primary",
   )
 
