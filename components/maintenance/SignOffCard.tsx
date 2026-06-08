@@ -147,9 +147,7 @@ export function SignOffCard({ requestId, actualCostCents }: Readonly<SignOffCard
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <ActionButton tone="primary" size="sm" type="button">Sign Off</ActionButton>
-      </DialogTrigger>
+      <DialogTrigger render={<ActionButton tone="primary" size="sm" type="button">Sign Off</ActionButton>} />
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Sign off</DialogTitle>
