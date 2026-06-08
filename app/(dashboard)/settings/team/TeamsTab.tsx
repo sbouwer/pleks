@@ -13,13 +13,13 @@
 import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Users, X } from "lucide-react"
-import { ActionButton, Modal, EditButton, RemoveButton } from "@/components/ui/actions"
+import { Users, X, Archive } from "lucide-react"
+import { ActionButton, Modal, EditButton, DeleteButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { TextField, SelectField } from "@/components/forms/fields"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
-import { listTeams, createTeam, archiveTeam, addTeamMember, removeTeamMember, type TeamFunction, type TeamWithMembers } from "@/lib/work/teams"
+import { listTeams, createTeam, updateTeam, archiveTeam, addTeamMember, removeTeamMember, type TeamFunction, type TeamWithMembers } from "@/lib/work/teams"
 import { listOrgAgents } from "@/lib/work/assignees"
 
 const FUNCTION_OPTIONS: { value: TeamFunction; label: string }[] = [
@@ -48,7 +48,6 @@ export function TeamsTab() {
   const [fn, setFn] = useState<TeamFunction>("general")
   const [busy, setBusy] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [archiveCandidate, setArchiveCandidate] = useState<TeamWithMembers | null>(null)
   const [search, setSearch] = useState("")
   const [fnFilter, setFnFilter] = useState("")
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("name")
@@ -81,6 +80,19 @@ export function TeamsTab() {
     toast.success("Team created"); setName(""); setFn("general"); setCreating(false); refresh()
   }
 
+  // DeleteButton confirm — a team with members can't be archived; the {blocked} return morphs the dialog
+  // into an acknowledge view (server-side guard in archiveTeam).
+  async function handleArchive(team: TeamWithMembers): Promise<void | { blocked: string }> {
+    const res = await archiveTeam(team.id)
+    if ("error" in res) {
+      if (res.error.toLowerCase().includes("member")) return { blocked: res.error }
+      toast.error(res.error)
+      return
+    }
+    toast.success("Team archived")
+    refresh()
+  }
+
   const q = search.trim().toLowerCase()
   const filtered = teams
     .filter((t) => (!q || t.name.toLowerCase().includes(q)) && (!fnFilter || t.function === fnFilter))
@@ -92,15 +104,8 @@ export function TeamsTab() {
       return sortDir === "asc" ? cmp : -cmp
     })
 
-  const archiveHasMembers = !!archiveCandidate && archiveCandidate.members.length > 0
-  let archiveMsg = "Its assigned work moves to Everyone (org). This can't be undone."
-  if (archiveCandidate && archiveHasMembers) {
-    const n = archiveCandidate.members.length
-    archiveMsg = `This team has ${n} member${n === 1 ? "" : "s"}. Remove or reassign them from the team before you can archive it.`
-  }
-
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <p className="text-sm text-muted-foreground">
         Group members into teams — work can be assigned to a team, and every member sees it until someone picks it up.
       </p>
@@ -132,7 +137,7 @@ export function TeamsTab() {
           {filtered.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No teams match your search.</p>
           ) : (
-            <ListCard>
+            <ListCard fill>
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-card">
                   <tr className="border-b border-border bg-muted/30">
@@ -155,7 +160,15 @@ export function TeamsTab() {
                       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <EditButton label="Edit team" onClick={() => setSelectedId(t.id)} />
-                          <RemoveButton mode="label" label="Archive" onClick={() => setArchiveCandidate(t)} />
+                          <DeleteButton
+                            icon={Archive}
+                            label="Archive team"
+                            title={`Archive ${t.name}?`}
+                            itemName="this team"
+                            description="Its assigned work moves to Everyone (org). A team with members can't be archived — remove or reassign them first."
+                            confirmLabel="Archive"
+                            onConfirm={() => handleArchive(t)}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -188,32 +201,8 @@ export function TeamsTab() {
         </div>
       </Modal>
 
-      {/* Team detail — members + add/remove */}
+      {/* Team detail — edit name/function + members */}
       {selected && <TeamDetailModal team={selected} agents={agents} busy={busy} run={run} onClose={() => setSelectedId(null)} />}
-
-      {/* Archive — blocked while the team has members */}
-      {archiveCandidate && (
-        <Modal
-          open
-          onClose={() => setArchiveCandidate(null)}
-          title={archiveHasMembers ? "Empty the team first" : `Archive ${archiveCandidate.name}?`}
-          actions={archiveHasMembers ? (
-            <>
-              <ActionButton onClick={() => setArchiveCandidate(null)}>Cancel</ActionButton>
-              <ActionButton tone="primary" onClick={() => { setSelectedId(archiveCandidate.id); setArchiveCandidate(null) }}>Manage members</ActionButton>
-            </>
-          ) : (
-            <>
-              <ActionButton onClick={() => setArchiveCandidate(null)}>Cancel</ActionButton>
-              <ActionButton tone="destructive" disabled={busy} onClick={async () => { if (await run(archiveTeam(archiveCandidate.id), "Team archived")) setArchiveCandidate(null) }}>
-                Archive
-              </ActionButton>
-            </>
-          )}
-        >
-          <p className="text-sm text-muted-foreground">{archiveMsg}</p>
-        </Modal>
-      )}
     </div>
   )
 }
@@ -227,13 +216,27 @@ function TeamDetailModal({
   run: (p: Promise<{ ok: true } | { error: string }>, ok?: string) => Promise<boolean>
   onClose: () => void
 }>) {
+  const [editName, setEditName] = useState(team.name)
+  const [editFn, setEditFn] = useState<TeamFunction>(team.function)
+  const dirty = editName.trim() !== team.name || editFn !== team.function
   const memberIds = new Set(team.members.map((m) => m.userId))
   const addable = agents.filter((a) => !memberIds.has(a.userId))
   return (
-    <Modal open onClose={onClose} title={team.name} icon={<Users className="size-5" />}
-      actions={<ActionButton tone="primary" onClick={onClose}>Done</ActionButton>}>
+    <Modal open onClose={onClose} title="Edit team" icon={<Users className="size-5" />}
+      actions={
+        <>
+          <ActionButton onClick={onClose}>Done</ActionButton>
+          <ActionButton tone="primary" disabled={busy || !dirty || !editName.trim()}
+            onClick={() => run(updateTeam(team.id, { name: editName.trim(), function: editFn }), "Team updated")}>
+            Save
+          </ActionButton>
+        </>
+      }>
       <div className="space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">{FN_LABEL[team.function] ?? team.function}</p>
+        <TextField label="Team name" value={editName} onChange={setEditName} />
+        <SelectField label="Function" value={editFn} onChange={(v) => setEditFn(v as TeamFunction)} options={FUNCTION_OPTIONS} />
+
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Members</p>
 
         <div className="flex flex-wrap items-center gap-2">
           {team.members.map((m) => (

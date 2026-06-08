@@ -17,7 +17,7 @@ export function DetailFullWidth({ children }: Readonly<{ children: ReactNode }>)
 }
 
 export function DetailPageLayout({
-  category, backHref, title, status, badge, sub, facts, actions, tabs, children,
+  category, backHref, title, status, badge, sub, facts, actions, tabs, children, fill = false,
 }: Readonly<{
   category: string
   backHref: string
@@ -31,9 +31,12 @@ export function DetailPageLayout({
   actions?: ReactNode
   tabs?: ReactNode
   children: ReactNode
+  /** fill: render the body as a single viewport-filling column (for list tabs that scroll inside) instead
+      of the page-scrolling 2-col card grid. The dashboard slot is already bounded, so the list fills. */
+  fill?: boolean
 }>) {
   return (
-    <div>
+    <div className={fill ? "flex h-full min-h-0 flex-col" : undefined}>
       <DetailPageHeader
         category={category}
         backHref={backHref}
@@ -45,7 +48,7 @@ export function DetailPageLayout({
         actions={actions}
         tabs={tabs}
       />
-      <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">{children}</div>
+      <div className={fill ? "flex min-h-0 flex-1 flex-col" : "grid grid-cols-1 items-stretch gap-4 md:grid-cols-2"}>{children}</div>
     </div>
   )
 }

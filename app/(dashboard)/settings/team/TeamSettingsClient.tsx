@@ -35,8 +35,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
-import { Trash2, RotateCcw } from "lucide-react"
-import { EditButton, RemoveButton } from "@/components/ui/actions"
+import { Trash2, RotateCcw, Archive } from "lucide-react"
+import { EditButton, DeleteButton } from "@/components/ui/actions"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getMemberEmails } from "@/lib/actions/teamMembers"
@@ -710,7 +710,7 @@ export function MembersTab() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ListToolbar
         search={search}
         onSearch={setSearch}
@@ -745,7 +745,7 @@ export function MembersTab() {
           No {status} members{search ? " match your search" : ""}.
         </p>
       ) : (
-        <ListCard>
+        <ListCard fill>
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border bg-muted/30">
@@ -771,7 +771,7 @@ export function MembersTab() {
                 const isMe = m.user_id === currentUserId
                 const isOwner = m.role === "owner"
                 return (
-                  <tr key={m.id} className="border-b border-border/50 transition-colors last:border-0 hover:bg-muted/20">
+                  <tr key={m.id} className="group border-b border-border/50 transition-colors last:border-0 hover:bg-muted/20">
                     <td className="px-4 py-3 font-medium">
                       {getMemberDisplayName(m)}
                       {isMe && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span>}
@@ -785,7 +785,7 @@ export function MembersTab() {
                     <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{emails[m.user_id] ?? "—"}</td>
                     <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{m.user_profiles?.mobile ?? "—"}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                         {status === "active" && callerIsOwner && !isOwner && (
                           <button
                             type="button"
@@ -798,7 +798,15 @@ export function MembersTab() {
                         )}
                         {status === "active" && <EditButton label="Edit member" onClick={() => setEditing(m)} />}
                         {status === "active" && callerIsOwner && !isMe && !isOwner && (
-                          <RemoveButton mode="label" label="Archive" onClick={() => startArchive(m)} />
+                          <DeleteButton
+                            icon={Archive}
+                            label="Archive member"
+                            title={`Archive ${getMemberDisplayName(m)}?`}
+                            itemName="this member"
+                            description="They lose workspace access (history is kept — you can reactivate later). If they manage work, you'll reassign it first."
+                            confirmLabel="Archive"
+                            onConfirm={() => startArchive(m)}
+                          />
                         )}
                         {status === "inactive" && callerIsOwner && (
                           <button

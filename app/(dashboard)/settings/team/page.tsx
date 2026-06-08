@@ -12,7 +12,7 @@ import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getCurrentOrgCapabilities } from "@/lib/auth/server"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
-import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailPageLayout } from "@/components/detail/DetailPageLayout"
 import { CategoryTabs } from "@/components/settings/CategoryTabs"
 import { TeamInviteButton } from "./TeamInviteButton"
 import { MembersTab } from "./TeamSettingsClient"
@@ -42,6 +42,7 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
 
   return (
     <DetailPageLayout
+      fill
       category="Settings"
       backHref="/settings"
       title="Team & access"
@@ -50,9 +51,7 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
       actions={active === "teams" ? <NewTeamButton /> : <TeamInviteButton />}
       tabs={<CategoryTabs tabs={tabs} current={active} />}
     >
-      <DetailFullWidth>
-        {body}
-      </DetailFullWidth>
+      {body}
     </DetailPageLayout>
   )
 }
