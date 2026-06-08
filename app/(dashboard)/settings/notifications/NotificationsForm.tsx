@@ -1,18 +1,20 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/notifications/NotificationsForm.tsx — notification preferences form
+ * app/(dashboard)/settings/notifications/NotificationsForm.tsx — notification + email-setup forms
  *
- * Data:   GET/PATCH /api/org/notifications (NotificationSettings — one object, saved together)
- * Notes:  Rendered inside the Notifications category page (DetailPageLayout). Single scroll — email +
- *         SMS are one settings object, so no URL tabs (would drop cross-section unsaved edits). Square
- *         cards per the Component Canon.
+ * Data:   GET/PATCH /api/org/notifications (NotificationSettings — one object)
+ * Notes:  Rendered per tab by the Notifications category page. Each tab loads the FULL settings and saves
+ *         the FULL object, so switching tabs never drops the other tab's saved fields. "notifications" =
+ *         which events send (email categories + SMS); "email" = sender identity (From name + reply-to) +
+ *         the sending-domain explanation. DetailCard grammar (supplier detail page) + canonical fields.
  */
 import { useEffect, useState } from "react"
 import { ActionButton } from "@/components/ui/actions"
-import { Input } from "@/components/ui/input"
+import { DetailCard } from "@/components/detail/DetailCard"
+import { FieldGrid, TextField } from "@/components/forms/fields"
 import { toast } from "sonner"
-import { Loader2, Lock } from "lucide-react"
+import { Loader2, Lock, Info } from "lucide-react"
 import type { NotificationSettings } from "@/app/api/org/notifications/route"
 
 const DEFAULT: NotificationSettings = {
@@ -30,18 +32,6 @@ const DEFAULT: NotificationSettings = {
   sms_inspections: true,
 }
 
-function Section({ title, action, children }: Readonly<{ title: string; action?: React.ReactNode; children: React.ReactNode }>) {
-  return (
-    <section className="rounded-[var(--r-button)] border border-border">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {action}
-      </div>
-      <div className="p-4">{children}</div>
-    </section>
-  )
-}
-
 function ToggleRow({ label, description, checked, onChange, disabled = false }: Readonly<{
   label: string; description?: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean
 }>) {
@@ -52,7 +42,7 @@ function ToggleRow({ label, description, checked, onChange, disabled = false }: 
         checked={checked}
         onChange={(e) => { if (!disabled) onChange(e.target.checked) }}
         disabled={disabled}
-        className="mt-0.5 size-4 shrink-0"
+        className="mt-0.5 size-4 shrink-0 accent-primary"
       />
       <div>
         <p className="text-sm font-medium leading-none">{label}</p>
@@ -71,7 +61,7 @@ function MandatoryRow({ label }: Readonly<{ label: string }>) {
   )
 }
 
-export function NotificationsForm() {
+export function NotificationsForm({ tab }: Readonly<{ tab: "notifications" | "email" }>) {
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -95,7 +85,7 @@ export function NotificationsForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       })
-      if (res.ok) toast.success("Notification settings saved")
+      if (res.ok) toast.success("Saved")
       else {
         const data = await res.json() as { error?: string }
         toast.error(data.error ?? "Failed to save")
@@ -111,29 +101,25 @@ export function NotificationsForm() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <Section title="Email sender">
-        <div className="space-y-3">
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">From name</label>
-            <Input
-              placeholder="Leave blank to use your organisation name"
-              value={settings.email_from_name ?? ""}
-              onChange={(e) => set("email_from_name", e.target.value || null)}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Reply-to email</label>
-            <Input
-              type="email"
-              placeholder="Leave blank to use your organisation email"
-              value={settings.reply_to_email ?? ""}
-              onChange={(e) => set("reply_to_email", e.target.value || null)}
-            />
-          </div>
-        </div>
-      </Section>
+      {tab === "notifications" ? <NotificationToggles settings={settings} set={set} /> : <EmailSetup settings={settings} set={set} />}
+      <div className="flex justify-end">
+        <ActionButton tone="primary" onClick={handleSave} disabled={saving}>
+          {saving ? <><Loader2 className="mr-1.5 size-4 animate-spin" />Saving…</> : "Save settings"}
+        </ActionButton>
+      </div>
+    </div>
+  )
+}
 
-      <Section title="Email notifications">
+type SectionProps = Readonly<{
+  settings: NotificationSettings
+  set: <K extends keyof NotificationSettings>(key: K, value: NotificationSettings[K]) => void
+}>
+
+function NotificationToggles({ settings, set }: SectionProps) {
+  return (
+    <>
+      <DetailCard title="Email notifications">
         <div className="divide-y divide-border/60">
           <ToggleRow label="Applications" description="Applicant confirmation, agent new-application alert, review reminders" checked={settings.email_applications} onChange={(v) => set("email_applications", v)} />
           <ToggleRow label="Maintenance" description="Tenant status updates, contractor assignment, landlord approval requests" checked={settings.email_maintenance} onChange={(v) => set("email_maintenance", v)} />
@@ -150,14 +136,14 @@ export function NotificationsForm() {
             <MandatoryRow label="Lease termination notice" />
           </div>
         </div>
-      </Section>
+      </DetailCard>
 
-      <Section
+      <DetailCard
         title="SMS notifications"
-        action={
+        headerAction={
           <label className="flex cursor-pointer items-center gap-2">
             <span className="text-xs text-muted-foreground">{settings.sms_enabled ? "Enabled" : "Disabled"}</span>
-            <input type="checkbox" checked={settings.sms_enabled} onChange={(e) => set("sms_enabled", e.target.checked)} className="size-4" />
+            <input type="checkbox" checked={settings.sms_enabled} onChange={(e) => set("sms_enabled", e.target.checked)} className="size-4 accent-primary" />
           </label>
         }
       >
@@ -167,13 +153,59 @@ export function NotificationsForm() {
           <ToggleRow label="Inspection reminders" description="24h reminder before scheduled inspection" checked={settings.sms_inspections} onChange={(v) => set("sms_inspections", v)} disabled={!settings.sms_enabled} />
           <ToggleRow label="Arrears reminders" description="Overdue payment reminders (email preferred)" checked={settings.sms_arrears} onChange={(v) => set("sms_arrears", v)} disabled={!settings.sms_enabled} />
         </div>
-      </Section>
+      </DetailCard>
+    </>
+  )
+}
 
-      <div className="flex justify-end">
-        <ActionButton tone="primary" onClick={handleSave} disabled={saving}>
-          {saving ? <><Loader2 className="mr-1.5 size-4 animate-spin" />Saving…</> : "Save settings"}
-        </ActionButton>
+function EmailSetup({ settings, set }: SectionProps) {
+  const fromName = settings.email_from_name?.trim()
+  const sender = `${fromName || "{Your organisation}"} via Pleks <notifications@pleks.co.za>`
+  return (
+    <>
+      <div className="flex gap-3 rounded-[var(--r-button)] border border-border bg-muted/20 p-4">
+        <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p>
+            All email sends over Pleks&apos;s verified domain (<span className="font-mono text-foreground">pleks.co.za</span>),
+            so it reaches inboxes reliably. You control how it&apos;s <em>labelled</em> and where replies go:
+          </p>
+          <p className="font-mono text-xs text-foreground">{sender}</p>
+          <p>Replies go to your <strong>reply-to</strong> address below — never to Pleks.</p>
+        </div>
       </div>
-    </div>
+
+      <DetailCard title="Sender identity">
+        <FieldGrid>
+          <TextField
+            label="From name"
+            value={settings.email_from_name ?? ""}
+            onChange={(v) => set("email_from_name", v || null)}
+            placeholder="Your organisation name"
+          />
+          <TextField
+            label="Reply-to email"
+            type="email"
+            value={settings.reply_to_email ?? ""}
+            onChange={(v) => set("reply_to_email", v || null)}
+            placeholder="replies@youragency.co.za"
+          />
+        </FieldGrid>
+        <p className="mt-3 text-xs text-muted-foreground">
+          From name is what recipients see (&ldquo;{fromName || "Your organisation"} via Pleks&rdquo;); reply-to is where
+          tenant/landlord replies land. Both fall back to your organisation defaults when blank.
+        </p>
+      </DetailCard>
+
+      <DetailCard title="Send from your own domain">
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <p>
+            Want email to come straight from <span className="font-mono text-foreground">notices@youragency.co.za</span>
+            {" "}instead of &ldquo;via Pleks&rdquo;? We verify your domain (DKIM/SPF/DMARC) so it sends as your own.
+          </p>
+          <p className="text-xs">Coming soon — being scoped now. You&apos;ll add a few DNS records, we verify, and your From address switches over.</p>
+        </div>
+      </DetailCard>
+    </>
   )
 }
