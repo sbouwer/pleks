@@ -90,3 +90,52 @@ export async function bulkReassignAgent(
 
   return { ok: true, moved: { workItems, properties } }
 }
+
+// ── Property handover ─────────────────────────────────────────────────────────
+// When a property's manager changes, its open work (maintenance + inspections carry property_id) can move
+// to the new manager. Applications are listing/unit-scoped (no property_id) — out of scope here.
+const PROPERTY_WORK_TABLES = ["maintenance_requests", "inspections"] as const
+
+/** Count a property's OPEN maintenance + inspections still assigned to the outgoing manager. */
+export async function getPropertyHandoverCount(propertyId: string, fromUserId: string): Promise<number> {
+  const gw = await gateway()
+  if (!gw) return 0
+  const { db, orgId } = gw
+  let count = 0
+  for (const table of PROPERTY_WORK_TABLES) {
+    const { count: c, error } = await applyOpenFilter(
+      db.from(table).select("id", { count: "exact", head: true })
+        .eq("org_id", orgId).eq("property_id", propertyId).eq("assigned_user_id", fromUserId),
+      table,
+    )
+    if (error) { console.error(`getPropertyHandoverCount ${table}:`, error.message); continue }
+    count += c ?? 0
+  }
+  return count
+}
+
+/** Move a property's OPEN work items from the outgoing manager to the new manager (or Everyone/Org). */
+export async function movePropertyItems(
+  propertyId: string, fromUserId: string, toUserId: string | null,
+): Promise<{ ok: true; moved: number } | { error: string }> {
+  const gw = await requireAgentWriteAccess("move_property_items")
+  const { db, orgId, userId } = gw
+  const assignedAt = toUserId ? new Date().toISOString() : null
+  let moved = 0
+  for (const table of PROPERTY_WORK_TABLES) {
+    const { data, error } = await applyOpenFilter(
+      db.from(table)
+        .update({ assigned_user_id: toUserId, assigned_at: assignedAt })
+        .eq("org_id", orgId).eq("property_id", propertyId).eq("assigned_user_id", fromUserId),
+      table,
+    ).select("id")
+    if (error) return { error: `${table}: ${error.message}` }
+    moved += (data ?? []).length
+  }
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "properties", recordId: propertyId,
+    after: { action: "property_items_reassigned", from_user: fromUserId, to_user: toUserId, items_moved: moved },
+  })
+  return { ok: true, moved }
+}
+
