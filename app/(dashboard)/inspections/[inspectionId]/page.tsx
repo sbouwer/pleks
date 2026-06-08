@@ -1,13 +1,13 @@
 /**
- * app/(dashboard)/inspections/[inspectionId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/inspections/[inspectionId]/page.tsx — single inspection detail (rooms, photos, report)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /inspections/[inspectionId]
+ * Auth:   gatewaySSR (agent workspace — service client, explicit org_id filter)
+ * Data:   inspections (+ inspection_rooms/items), move-in photos; assignee via AssigneePicker
+ * Notes:  Seeds rooms on first open if none exist. Mobile + desktop render branches.
  */
 import { gatewaySSR } from "@/lib/supabase/gateway"
+import { AssigneePicker } from "@/components/work/AssigneePicker"
 import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
 import { redirect, notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -140,6 +140,10 @@ export default async function InspectionDetailPage({
   return (
     <div>
       <BackLink href="/inspections" label="Inspections" />
+      {/* Assignee — drives My work routing (ADDENDUM_TEAMS); UX placement TBD */}
+      <div className="mb-4 max-w-xs">
+        <AssigneePicker workTable="inspections" recordId={inspectionId} currentAssigneeId={(inspection.assigned_user_id as string | null) ?? null} />
+      </div>
       {/* Mobile view */}
       <div className="lg:hidden">
         <MobileInspectionView
