@@ -19,6 +19,7 @@ import { ActionButton, EditButton, DeleteButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { toast } from "sonner"
+import { useMyPortfolio } from "@/hooks/useMyPortfolio"
 import { useOrg } from "@/hooks/useOrg"
 import { usePermissions } from "@/hooks/usePermissions"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
@@ -112,6 +113,8 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const queryClient = useQueryClient()
   const { orgId } = useOrg()
   const { isAdmin } = usePermissions()
+  const portfolio = useMyPortfolio()
+  const [scope, setScope] = useState<"mine" | "all">("mine")
   const [search, setSearch] = useState("")
   const [types, setTypes] = useState<string[]>([])
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("name")
@@ -156,7 +159,13 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
     }
   }
 
-  const filtered = initial
+  // My portfolio / All (ADDENDUM_TEAMS Layer 0) — "mine" = landlords who own a property I manage.
+  const scopedInitial = scope === "mine" && portfolio.ready
+    ? initial.filter((l) => portfolio.landlordIds.has(l.id))
+    : initial
+  const nothingInPortfolio = status === "active" && scope === "mine" && scopedInitial.length === 0
+
+  const filtered = scopedInitial
     .filter((l) => {
       if (types.length > 0 && !types.includes(l.entity_type)) return false
       if (!search) return true
@@ -207,7 +216,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const plural = (n: number) => (n === 1 ? "" : "s")
   const countLabel = status === "archived"
     ? `${archived.length} archived landlord${plural(archived.length)}`
-    : `${filtered.length} of ${initial.length} landlord${plural(initial.length)}`
+    : `${filtered.length} of ${scopedInitial.length} landlord${plural(scopedInitial.length)}`
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -217,6 +226,14 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
         placeholder="Search by name, email or phone…"
         view={view}
         onView={setView}
+        rightFilters={status === "active" ? (
+          <ToolbarFilter
+            label="View"
+            selected={[scope]}
+            onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
+            options={[{ value: "mine", label: "My portfolio" }, { value: "all", label: "All" }]}
+          />
+        ) : undefined}
         filters={
           <>
             <ToolbarFilter
@@ -273,7 +290,14 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
         </>
       )}
 
-      {status === "active" && filtered.length === 0 && (
+      {status === "active" && nothingInPortfolio && (
+        <div className="py-8 text-center">
+          <p className="text-sm text-muted-foreground">There are landlords in your organisation — just none in your portfolio.</p>
+          <button type="button" onClick={() => setScope("all")} className="pa-link mt-2 text-sm">View all</button>
+        </div>
+      )}
+
+      {status === "active" && !nothingInPortfolio && filtered.length === 0 && (
         <p className="text-sm text-muted-foreground py-8 text-center">No landlords match your search.</p>
       )}
 
