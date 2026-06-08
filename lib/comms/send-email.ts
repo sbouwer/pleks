@@ -82,6 +82,7 @@ interface OrgSettings {
   brand_logo_url?: string
   brand_accent_color?: string
   custom_from_address?: string   // verified custom domain from address
+  from_name?: string             // display name override (notification_settings.email_from_name)
   reply_to_email?: string
   emergency_phone?: string
   emergency_contact_name?: string
@@ -116,6 +117,7 @@ export async function fetchOrgSettings(orgId: string): Promise<OrgSettings | nul
     // custom_from_address is not a column on organisations (the verified-custom-domain
     // from-address was never stored) — omitted so the select doesn't 42703. Senders fall
     // back to the default From. Wire from a real source if/when the feature lands.
+    from_name: notifSettings?.email_from_name,
     reply_to_email: notifSettings?.reply_to_email,
     emergency_phone: data.emergency_phone as string | undefined,
     emergency_contact_name: data.emergency_contact_name as string | undefined,
@@ -219,11 +221,13 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
   // 2. Fetch org settings for branding + from address
   const orgSettings = await fetchOrgSettings(params.orgId)
 
+  // Display name: the agency's configured "From name" (notification_settings.email_from_name), else the org name.
   let fromAddress: string
+  const displayName = orgSettings?.from_name?.trim() || orgSettings?.name
   if (orgSettings?.custom_from_address) {
-    fromAddress = `${orgSettings.name} <${orgSettings.custom_from_address}>`
-  } else if (orgSettings?.name) {
-    fromAddress = `${orgSettings.name} via Pleks <notifications@pleks.co.za>`
+    fromAddress = `${displayName} <${orgSettings.custom_from_address}>`
+  } else if (displayName) {
+    fromAddress = `${displayName} via Pleks <notifications@pleks.co.za>`
   } else {
     fromAddress = DEFAULT_FROM
   }
