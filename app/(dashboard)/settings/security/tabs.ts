@@ -8,6 +8,6 @@ import type { DetailTab } from "@/lib/detail/types"
 
 export const SECURITY_TABS: DetailTab[] = [
   { id: "password", label: "Password" },
-  { id: "mfa", label: "MFA" },
+  { id: "mfa", label: "Two-factor" },
   { id: "sessions", label: "Sessions" },
 ]

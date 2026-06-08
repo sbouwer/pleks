@@ -68,8 +68,11 @@ export default async function SecurityPage({ searchParams }: Readonly<{ searchPa
       <DetailFullWidth>
         {active === "password" && <PasswordForm />}
         {active === "mfa" && (
-          <div className="max-w-2xl space-y-6">
-            <AuthenticatorPanel totpCount={totpCount} />
+          <div className="max-w-2xl space-y-8">
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Two-factor authentication</h2>
+              <AuthenticatorPanel totpCount={totpCount} />
+            </section>
             <PasskeyManager />
           </div>
         )}

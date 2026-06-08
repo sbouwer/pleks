@@ -31,12 +31,12 @@ export function PasswordForm() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-5">
       <FieldGrid>
-        <TextField span label="New password" type="password" value={password} onChange={setPassword} placeholder="At least 12 characters" />
-        <TextField span label="Confirm new password" type="password" value={confirm} onChange={setConfirm} placeholder="Re-enter new password" />
+        <TextField label="New password" type="password" value={password} onChange={setPassword} placeholder="At least 12 characters" />
+        <TextField label="Confirm new password" type="password" value={confirm} onChange={setConfirm} placeholder="Re-enter new password" />
       </FieldGrid>
-      <div className="flex items-center justify-between border-t border-border/40 pt-4">
+      <div className="flex items-center justify-between gap-4">
         <p className="text-xs text-muted-foreground">You&apos;ll stay signed in on this device.</p>
         <ActionButton tone="primary" onClick={save} disabled={saving || !password}>
           {saving ? "Updating…" : "Update password"}

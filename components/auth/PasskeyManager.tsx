@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * components/auth/PasskeyManager.tsx — FILL: one-line purpose
+ * components/auth/PasskeyManager.tsx — enrol, list + revoke the user's passkeys
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   the active session
+ * Data:   user_passkeys via /api/auth/passkeys/{list,revoke}; WebAuthn enrol via useEnrolPasskey
+ * Notes:  Rendered in Settings → Security (Two-factor tab). Canonical styling + buttons (Component Canon).
  */
 
 import { useState, useEffect } from "react"
@@ -15,6 +13,7 @@ import { KeyRound, Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { useEnrolPasskey } from "@/lib/auth/passkeys/useEnrolPasskey"
+import { ActionButton, RemoveButton } from "@/components/ui/actions"
 
 interface Passkey {
   id: string
@@ -22,18 +21,6 @@ interface Passkey {
   device_type: string
   last_used_at: string | null
   created_at: string
-}
-
-const BTN_SM: React.CSSProperties = {
-  padding: "4px 10px", borderRadius: 4, fontSize: 12, fontWeight: 600,
-  cursor: "pointer", border: "1px solid var(--rule)", background: "transparent",
-  color: "inherit",
-}
-const BTN_PRIMARY: React.CSSProperties = {
-  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-  padding: "8px 14px", borderRadius: 5, fontSize: 13, fontWeight: 600,
-  cursor: "pointer", border: "none",
-  background: "oklch(0.68 0.14 65)", color: "oklch(0.18 0.012 260)",
 }
 
 export function PasskeyManager() {
@@ -117,13 +104,12 @@ export function PasskeyManager() {
               : `Added ${formatDistanceToNow(new Date(pk.created_at), { addSuffix: true })}`}
           </div>
         </div>
-        <button
-          style={{ ...BTN_SM, color: "var(--danger)" }}
+        <RemoveButton
+          mode="label"
+          label={revoking === pk.id ? "Removing…" : "Remove"}
           onClick={() => handleRevoke(pk.id)}
           disabled={revoking === pk.id}
-        >
-          {revoking === pk.id ? "Removing…" : "Remove"}
-        </button>
+        />
       </div>
     ))
   }
@@ -133,22 +119,22 @@ export function PasskeyManager() {
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
         Passkeys
       </h2>
-      <div className="rounded-lg border border-rule bg-surface-raised divide-y divide-rule">
+      <div className="divide-y divide-border rounded-[var(--r-button)] border border-border">
         {renderPasskeyList()}
 
         {capable && (
           <div className="p-4">
             {enrolError && (
-              <div className="mb-3 text-xs text-danger">{enrolError}</div>
+              <div className="mb-3 text-xs text-destructive">{enrolError}</div>
             )}
-            <button
-              style={{ ...BTN_PRIMARY, opacity: enrolState === "in_progress" ? 0.6 : 1 }}
+            <ActionButton
+              tone="primary"
+              icon={enrolState === "in_progress" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
               disabled={enrolState === "in_progress"}
               onClick={handleEnrol}
             >
-              {enrolState === "in_progress" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {enrolState === "success" ? "Passkey added" : "+ Add a passkey"}
-            </button>
+              {enrolState === "success" ? "Passkey added" : "Add a passkey"}
+            </ActionButton>
           </div>
         )}
 

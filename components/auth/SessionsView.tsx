@@ -54,6 +54,7 @@ export function SessionsView({ userId: _userId, selfOnly: _selfOnly }: Props) {
   const [devices, setDevices] = useState<DeviceFingerprint[]>([])
   const [loading, setLoading] = useState(true)
   const [revoking, setRevoking] = useState<string | null>(null)
+  const [showAllEvents, setShowAllEvents] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -176,11 +177,11 @@ export function SessionsView({ userId: _userId, selfOnly: _selfOnly }: Props) {
         {events.length === 0 ? (
           <p className="text-sm text-muted-foreground">No recent activity.</p>
         ) : (
-          <div className="rounded-lg border border-rule bg-surface-raised divide-y divide-rule">
-            {events.map(event => (
+          <div className="divide-y divide-border rounded-[var(--r-button)] border border-border">
+            {(showAllEvents ? events : events.slice(0, 5)).map(event => (
               <div key={event.id} className="flex items-center gap-3 px-4 py-3">
-                {!event.success && <AlertCircle className="h-3.5 w-3.5 shrink-0 text-danger" />}
-                {event.success && <div className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />}
+                {!event.success && <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />}
+                {event.success && <div className="h-1.5 w-1.5 rounded-full bg-success shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm leading-tight">
                     {formatEventType(event.event_type)}
@@ -194,6 +195,15 @@ export function SessionsView({ userId: _userId, selfOnly: _selfOnly }: Props) {
                 </div>
               </div>
             ))}
+            {events.length > 5 && (
+              <button
+                type="button"
+                onClick={() => setShowAllEvents((v) => !v)}
+                className="w-full px-4 py-2.5 text-xs font-medium text-primary transition-colors hover:bg-muted/40"
+              >
+                {showAllEvents ? "Show less" : `Show ${events.length - 5} more`}
+              </button>
+            )}
           </div>
         )}
       </section>
