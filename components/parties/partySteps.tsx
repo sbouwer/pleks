@@ -59,7 +59,7 @@ function entityBlurb(entity: PartyEntity, fullFica: boolean): string {
 // ── Step 1 — Identity ─────────────────────────────────────────────────────────
 type IdentityBodyProps = Readonly<{ f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean }>
 
-function IndividualIdentity({ f, set, errors, fullFica }: IdentityBodyProps) {
+export function IndividualIdentity({ f, set, errors, fullFica, stepNumber = "01" }: IdentityBodyProps & { stepNumber?: string }) {
   // Auto-fill DOB + gender from a valid SA ID — only when empty, so a manual choice (e.g. unlabelled gender) sticks.
   useEffect(() => {
     const v = validateSAId(f.idNumber)
@@ -71,7 +71,7 @@ function IndividualIdentity({ f, set, errors, fullFica }: IdentityBodyProps) {
 
   return (
     <div className="mt-6">
-      <SectLabel n="01">Personal details</SectLabel>
+      <SectLabel n={stepNumber}>Personal details</SectLabel>
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
         {/* Title + initials share one cell (neither needs a full column) so first name sits beside them. */}
         <div className="grid grid-cols-2 gap-x-3">
@@ -101,7 +101,7 @@ function IndividualIdentity({ f, set, errors, fullFica }: IdentityBodyProps) {
 const ADDRESS_TYPE_LABEL: Record<string, string> = { physical: "Street address", postal: "Postal address", billing: "Billing address" }
 
 /** Multi-address (25A): physical + collapsed opt-in postal / billing. Physical required unless `optional`. */
-function CompanyAddressSection({
+export function CompanyAddressSection({
   addresses, onChange, error, n = "02", title = "Registered / street address", optional = false,
 }: Readonly<{
   addresses: PartyAddressInput[]; onChange: (a: PartyAddressInput[]) => void; error?: string

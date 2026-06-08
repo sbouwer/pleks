@@ -176,7 +176,7 @@ async function auditPartyCreate(db: Db, orgId: string, userId: string, table: st
   })
 }
 
-async function auditPartyUpdate(db: Db, orgId: string, userId: string, table: string, recordId: string, role: PartyRole, entity: PartyEntity, name: string) {
+async function auditPartyUpdate(db: Db, orgId: string, userId: string, table: string, recordId: string, role: PartyRole | "agent", entity: PartyEntity, name: string) {
   await db.from("audit_log").insert({
     org_id: orgId,
     table_name: table,
@@ -588,6 +588,91 @@ export async function updateLandlordParty(input: AddPartyInput, landlordId: stri
     console.error("[updateLandlordParty] failed:", err instanceof Error ? err.message : err)
     return { ok: false, error: err instanceof Error ? err.message : "Failed to update landlord" }
   }
+}
+
+// ── Agent's own contact (Settings → My profile) ─────────────────────────────────
+// ADDENDUM_AGENT_CONTACT_IDENTITY: My profile reads/writes the user's own agent contact
+// (user_profiles.agent_contact_id), an individual contact. Reuses the party contact read/write so the
+// fields + PII-safe save match the add-party modal exactly.
+
+/** Fetch the agent's own contact as a pre-filled PartyFormState for My profile (always individual). */
+export async function fetchAgentContactParty(contactId: string): Promise<PartyEditData> {
+  const gw = await gateway()
+  if (!gw) return { ok: false, error: "Not authorised" }
+  const { db, orgId } = gw
+
+  const { data: c, error } = await db.from("contacts")
+    .select("id, first_name, last_name, primary_email, primary_phone, notes")
+    .eq("id", contactId).eq("org_id", orgId).single()
+  if (error) console.error("fetchAgentContactParty contacts read failed:", error.message)
+  if (!c) return { ok: false, error: "Profile not found" }
+
+  const { data: addrs, error: addrErr } = await db.from("contact_addresses")
+    .select("street_line1, street_line2, suburb, city, province, postal_code, country, address_type")
+    .eq("contact_id", contactId)
+  if (addrErr) console.error("fetchAgentContactParty addresses read failed:", addrErr.message)
+
+  const form: PartyFormState = {
+    firstName: (c.first_name as string | null) ?? undefined,
+    lastName: (c.last_name as string | null) ?? undefined,
+    email: (c.primary_email as string | null) ?? undefined,
+    phone: (c.primary_phone as string | null) ?? undefined,
+    notes: (c.notes as string | null) ?? undefined,
+    addresses: mapAddressesToForm(addrs),
+  }
+  Object.assign(form, await individualIdentityForm(db, contactId))
+  return { ok: true, entity: "individual", form, name: partyDisplayName("landlord", "individual", form) }
+}
+
+/** Update the agent's own contact from My profile: individual scalars + typed addresses + self-landlord sync. */
+export async function updateAgentContactParty(form: PartyFormState, contactId: string): Promise<AddPartyResult> {
+  try {
+    const { db, userId, orgId } = await requireAgentWriteAccess("update_profile")
+    const f = form
+
+    // Ownership guard — the contact MUST be this user's bound agent_contact_id.
+    const { data: prof, error: profErr } = await db.from("user_profiles")
+      .select("agent_contact_id, self_landlord_id").eq("id", userId).maybeSingle()
+    if (profErr) console.error("updateAgentContactParty profile read failed:", profErr.message)
+    if (!prof || prof.agent_contact_id !== contactId) return { ok: false, error: "Not your profile" }
+
+    const { error: cErr } = await db.from("contacts")
+      .update(buildContactScalarUpdate("individual", f)).eq("id", contactId).eq("org_id", orgId)
+    if (cErr) { console.error("[updateAgentContactParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update your profile" } }
+
+    await replaceTypedAddresses(db, orgId, contactId, f.addresses)
+
+    // Self-landlord sync overlay: while the agent is also their own landlord (owner tier + "I am the
+    // landlord"), mirror the shared identity fields to the landlord's contact so the two stay one person.
+    // Decoupled on upgrade (self_landlord_id cleared → forked_landlord_id), so this no-ops afterwards.
+    if (prof.self_landlord_id) {
+      await syncSelfLandlordContact(db, orgId, prof.self_landlord_id as string, f)
+    }
+
+    const name = partyDisplayName("landlord", "individual", f)
+    await auditPartyUpdate(db, orgId, userId, "contacts", contactId, "agent", "individual", name)
+    return { ok: true, name, id: contactId }
+  } catch (err) {
+    console.error("[updateAgentContactParty] failed:", err instanceof Error ? err.message : err)
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to update your profile" }
+  }
+}
+
+/** Mirror the SHARED identity fields (name/ID/DOB) to the self-landlord's contact while the link is live. */
+async function syncSelfLandlordContact(db: Db, orgId: string, landlordId: string, f: PartyFormState) {
+  const { data: ll, error } = await db.from("landlords")
+    .select("contact_id").eq("id", landlordId).eq("org_id", orgId).maybeSingle()
+  if (error) { console.error("[syncSelfLandlordContact] landlord read failed:", error.message); return }
+  if (!ll?.contact_id) return
+  const id = f.idNumber?.trim() || null
+  const { error: upErr } = await db.from("contacts").update({
+    title: f.title?.trim() || null, initials: f.initials?.trim() || null,
+    first_name: f.firstName?.trim() || null, middle_names: f.middleNames?.trim() || null,
+    last_name: f.lastName?.trim() || null, suffix: f.suffix?.trim() || null,
+    gender: f.gender || null, date_of_birth: f.dob || null,
+    id_type: f.idType || "sa_id", id_number: id, id_number_hash: id ? hashIdNumber(id) : null,
+  }).eq("id", ll.contact_id as string).eq("org_id", orgId)
+  if (upErr) console.error("[syncSelfLandlordContact] sync failed:", upErr.message)
 }
 
 // ── Tenant ────────────────────────────────────────────────────────────────────
