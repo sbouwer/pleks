@@ -1,0 +1,16 @@
+# Normalise line endings: text files are stored LF in the repo regardless of the OS / mount that commits.
+# Prevents the cross-environment CRLF flip (OneDrive ↔ WSL/mount) that shows phantom whole-file diffs.
+* text=auto eol=lf
+
+# Binary assets — never normalise.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.pdf   binary
