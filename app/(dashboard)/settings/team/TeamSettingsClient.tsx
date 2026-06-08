@@ -40,6 +40,8 @@ import { EditButton, RemoveButton } from "@/components/ui/actions"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getMemberEmails } from "@/lib/actions/teamMembers"
+import { getAgentWorkload } from "@/lib/work/reassign"
+import { ReassignBeforeArchiveModal } from "@/components/work/ReassignBeforeArchiveModal"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -494,6 +496,8 @@ export function MembersTab() {
   const [status, setStatus]             = useState<"active" | "inactive">("active")
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
   const [emails, setEmails]             = useState<Record<string, string>>({})
+  const [archivingMember, setArchivingMember] = useState<Member | null>(null)
+  const [archiveWorkload, setArchiveWorkload] = useState({ workItems: 0, properties: 0 })
   const { sortKey, sortDir, onSort }    = useListSort<"name" | "role">("name")
 
   const showEmergency = PORTFOLIO_TIERS.has(tier)
@@ -653,6 +657,18 @@ export function MembersTab() {
     }
   }
 
+  // Archive flow: if the member owns work/properties, reassign first (ADDENDUM_TEAMS §1d two-flow); else
+  // archive directly.
+  async function startArchive(m: Member) {
+    const workload = await getAgentWorkload(m.user_id)
+    if (workload.workItems + workload.properties > 0) {
+      setArchiveWorkload(workload)
+      setArchivingMember(m)
+    } else {
+      handleRemove(m.id)
+    }
+  }
+
   async function handleToggleAdmin(member: Member) {
     if (!orgId) return
     const res = await fetch("/api/team/member", {
@@ -782,7 +798,7 @@ export function MembersTab() {
                         )}
                         {status === "active" && <EditButton label="Edit member" onClick={() => setEditing(m)} />}
                         {status === "active" && callerIsOwner && !isMe && !isOwner && (
-                          <RemoveButton mode="label" label="Archive" onClick={() => handleRemove(m.id)} />
+                          <RemoveButton mode="label" label="Archive" onClick={() => startArchive(m)} />
                         )}
                         {status === "inactive" && callerIsOwner && (
                           <button
@@ -815,6 +831,21 @@ export function MembersTab() {
           showEmergency={showEmergency}
           onClose={() => setEditing(null)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {archivingMember && (
+        <ReassignBeforeArchiveModal
+          open
+          memberName={getMemberDisplayName(archivingMember)}
+          fromUserId={archivingMember.user_id}
+          workload={archiveWorkload}
+          onCancel={() => setArchivingMember(null)}
+          onReassigned={() => {
+            const id = archivingMember.id
+            setArchivingMember(null)
+            handleRemove(id)
+          }}
         />
       )}
 
