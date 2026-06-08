@@ -13,6 +13,7 @@ import { useOrg } from "@/hooks/useOrg"
 import { toast } from "sonner"
 import { UserPlus } from "lucide-react"
 import { ActionButton, Modal } from "@/components/ui/actions"
+import { AddButton } from "@/components/ui/add-button"
 import { TextField, SelectField } from "@/components/forms/fields"
 import { INVITABLE_ROLES } from "./roles"
 
@@ -45,9 +46,7 @@ export function TeamInviteButton() {
 
   return (
     <>
-      <ActionButton tone="primary" icon={<UserPlus className="size-4" />} onClick={() => setOpen(true)}>
-        Invite
-      </ActionButton>
+      <AddButton label="Invite" onClick={() => setOpen(true)} />
       <Modal
         open={open}
         onClose={() => setOpen(false)}

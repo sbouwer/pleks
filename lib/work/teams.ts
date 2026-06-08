@@ -88,10 +88,20 @@ export async function updateTeam(teamId: string, patch: { name?: string; functio
   return { ok: true }
 }
 
-/** Archive a team — clears its assignment off items + properties (they fall to Everyone/Org) so none dangle. */
+/**
+ * Archive a team. Guarded: the team must be EMPTY first — a team with members can't be archived; the agent
+ * must remove/reassign them (so accountability is explicit). Clears the team's assignment off its
+ * items/properties (they fall to Everyone/Org) so nothing dangles (§5).
+ */
 export async function archiveTeam(teamId: string): Promise<{ ok: true } | { error: string }> {
   const gw = await requireAgentWriteAccess("archive_team")
   const { db, orgId, userId } = gw
+
+  const { count, error: cErr } = await db
+    .from("team_members").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("team_id", teamId)
+  if (cErr) return { error: cErr.message }
+  if ((count ?? 0) > 0) return { error: "This team still has members. Remove or reassign them before archiving." }
+
   for (const table of ["maintenance_requests", "applications", "inspections"] as const) {
     const { error } = await db.from(table).update({ assigned_team_id: null }).eq("org_id", orgId).eq("assigned_team_id", teamId)
     if (error) return { error: `${table}: ${error.message}` }

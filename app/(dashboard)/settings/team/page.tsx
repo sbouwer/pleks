@@ -17,7 +17,7 @@ import { CategoryTabs } from "@/components/settings/CategoryTabs"
 import { TeamInviteButton } from "./TeamInviteButton"
 import { MembersTab } from "./TeamSettingsClient"
 import { TransferOwnershipTab } from "./TransferOwnershipTab"
-import { TeamsTab } from "./TeamsTab"
+import { TeamsTab, NewTeamButton } from "./TeamsTab"
 import { MEMBERS_TAB, TEAMS_TAB, TRANSFER_TAB } from "./tabs"
 
 export default async function TeamSettingsPage({ searchParams }: Readonly<{ searchParams: Promise<{ tab?: string }> }>) {
@@ -47,7 +47,7 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
       title="Team & access"
       sub="Invite people, set their roles, and manage who can access this workspace."
       facts={[]}
-      actions={<TeamInviteButton />}
+      actions={active === "teams" ? <NewTeamButton /> : <TeamInviteButton />}
       tabs={<CategoryTabs tabs={tabs} current={active} />}
     >
       <DetailFullWidth>
