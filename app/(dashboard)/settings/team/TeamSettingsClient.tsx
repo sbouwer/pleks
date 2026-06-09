@@ -5,9 +5,11 @@
  *
  * Route:  /settings/team?tab=members (rendered by page.tsx; Invite is the header button, Transfer its own tab)
  * Auth:   Rendered inside gateway-protected server wrapper; org-type guard in page.tsx
- * Data:   user_orgs (members + pending invites), organisations (roles); /api/team/member, /api/team/invite
+ * Data:   user_orgs (members + pending invites) via /api/team/member, /api/team/invite; roles via
+ *         listAssignableRoles (tier-gated picker) + getOrgRoles (full-library label resolver).
  * Notes:  Exports MembersTab. Archive is owner-only; pending-invite list refreshes on the
- *         `pleks:team-invited` event the header TeamInviteButton dispatches.
+ *         `pleks:team-invited` event the header TeamInviteButton dispatches. The role picker is slug-based
+ *         and tier-gated; custom roles are created only on the owner-only Roles tab (no free-text here).
  */
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react"
@@ -42,93 +44,26 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getMemberEmails } from "@/lib/actions/teamMembers"
 import { getAgentWorkload } from "@/lib/work/reassign"
 import { ReassignBeforeArchiveModal } from "@/components/work/ReassignBeforeArchiveModal"
+import { listAssignableRoles, getOrgRoles } from "@/lib/auth/orgRoles"
+import { BUILTIN_ROLES } from "@/lib/auth/capabilities"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-// Grouped role definitions — single source of truth.
-// Each group has a display label and a list of [slug, displayName] pairs.
-// "owner" is special-cased separately (never appears in invite dropdowns).
-const ROLE_GROUPS: { group: string; roles: [string, string][] }[] = [
-  {
-    group: "Management",
-    roles: [
-      ["property_manager",  "Property Manager"],
-      ["office_manager",    "Office Manager"],
-      ["portfolio_manager", "Portfolio Manager"],
-      ["director",          "Director"],
-    ],
-  },
-  {
-    group: "Leasing & Applications",
-    roles: [
-      ["agent",               "Letting Agent"],
-      ["leasing_consultant",  "Leasing Consultant"],
-      ["sales_agent",         "Sales Agent"],
-    ],
-  },
-  {
-    group: "Finance & Accounts",
-    roles: [
-      ["accountant",      "Accountant"],
-      ["bookkeeper",      "Bookkeeper"],
-      ["account_manager", "Account Manager"],
-      ["accounts_payable","Accounts Payable"],
-      ["trust_accountant","Trust Accountant"],
-    ],
-  },
-  {
-    group: "Operations",
-    roles: [
-      ["maintenance_manager", "Maintenance Manager"],
-      ["inspection_manager",  "Inspection Manager"],
-      ["facilities_manager",  "Facilities Manager"],
-    ],
-  },
-  {
-    group: "Admin & Support",
-    roles: [
-      ["admin_assistant", "Admin Assistant"],
-      ["receptionist",    "Receptionist"],
-    ],
-  },
-  {
-    group: "HR & Compliance",
-    roles: [
-      ["hr_manager",         "HR Manager"],
-      ["compliance_officer", "Compliance Officer"],
-    ],
-  },
-  {
-    group: "IT",
-    roles: [
-      ["it_manager",    "IT Manager"],
-      ["it_department", "IT Department"],
-    ],
-  },
-]
+type AssignableRole = { slug: string; label: string; group: string | null }
 
-// Slug → display label (includes owner which is never in ROLE_GROUPS)
-const ROLE_LABELS: Record<string, string> = {
+// Seed the display-label map from the built-ins so roles render their label immediately; getOrgRoles()
+// (the full, tier-INDEPENDENT library incl. per-org overrides + custom roles) refines it on load. The
+// picker is tier-gated (listAssignableRoles); the label resolver is not — a member on a downgraded-out or
+// custom role must still show its label, never a raw slug (D-3B-01).
+const BUILTIN_LABELS: Record<string, string> = {
   owner: "Owner",
-  ...Object.fromEntries(ROLE_GROUPS.flatMap((g) => g.roles)),
+  ...Object.fromEntries(BUILTIN_ROLES.map((r) => [r.slug, r.label])),
 }
-
-// Reverse map: display label → system slug
-const ROLE_LABEL_TO_SLUG: Record<string, string> = Object.fromEntries(
-  Object.entries(ROLE_LABELS).map(([k, v]) => [v, k])
-)
-
-// Flat list of all non-owner display labels (used as the org default quick-pick set)
-const DEFAULT_ROLES: string[] = ROLE_GROUPS.flatMap((g) => g.roles.map(([, label]) => label))
 
 const TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof", "Adv"]
 const PORTFOLIO_TIERS = new Set(["portfolio", "firm"])
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function getRoleLabel(role: string): string {
-  return ROLE_LABELS[role] ?? role
-}
 
 function getMemberDisplayName(m: Member): string {
   return (
@@ -164,15 +99,16 @@ interface PendingInvite {
 }
 
 // ── Role combobox ──────────────────────────────────────────────────────────────
-// Input that opens a filtered dropdown grouped by function.
-// Typing narrows results across all groups; no match shows "+ Add '…'" option.
+// Picker over the org's ASSIGNABLE (tier-gated) roles. value/onChange are SLUGs; typing filters by label.
+// No free-text "add" — custom roles are created only on the owner-only Roles tab.
 
-function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
+function RoleCombobox({ value, onChange, assignable, labelOf }: Readonly<{
   value: string
-  onChange: (v: string) => void
-  orgRoles: string[]
+  onChange: (slug: string) => void
+  assignable: AssignableRole[]
+  labelOf: (slug: string) => string
 }>) {
-  const [inputVal, setInputVal]   = useState(getRoleLabel(value))
+  const [inputVal, setInputVal]   = useState(labelOf(value))
   const [open, setOpen]           = useState(false)
   const [dropRect, setDropRect]   = useState<DOMRect | null>(null)
   const containerRef              = useRef<HTMLDivElement>(null)
@@ -196,43 +132,29 @@ function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
 
   const query = inputVal.trim().toLowerCase()
 
-  // Standard labels not in the default set that the org has saved as custom
-  const standardLabels = new Set(DEFAULT_ROLES)
-  const customRoles    = orgRoles.filter((r) => !standardLabels.has(r) && r !== "Owner")
+  const groups = useMemo(() => {
+    const byGroup = new Map<string, AssignableRole[]>()
+    for (const r of assignable) {
+      const g = r.group ?? "Other"
+      const arr = byGroup.get(g) ?? []
+      arr.push(r)
+      byGroup.set(g, arr)
+    }
+    return [...byGroup.entries()].map(([group, roles]) => ({ group, roles }))
+  }, [assignable])
 
-  // Build filtered groups: standard groups + custom section
-  const allGroups: { group: string; labels: string[] }[] = [
-    ...ROLE_GROUPS.map((g) => ({
-      group:  g.group,
-      labels: g.roles.map(([, label]) => label),
-    })),
-    ...(customRoles.length > 0 ? [{ group: "Custom", labels: customRoles }] : []),
-  ]
-
-  const filteredGroups = allGroups
+  const filteredGroups = groups
     .map((g) => ({
-      group:  g.group,
-      labels: query
-        ? g.labels.filter((l) => l.toLowerCase().includes(query))
-        : g.labels,
+      group: g.group,
+      roles: query ? g.roles.filter((r) => r.label.toLowerCase().includes(query)) : g.roles,
     }))
-    .filter((g) => g.labels.length > 0)
+    .filter((g) => g.roles.length > 0)
 
   const hasResults = filteredGroups.length > 0
-  const showAddOption = query.length > 0 && !DEFAULT_ROLES.some(
-    (l) => l.toLowerCase() === query
-  ) && !customRoles.some((l) => l.toLowerCase() === query)
 
-  function pick(label: string) {
-    setInputVal(label)
-    onChange(label)
-    setOpen(false)
-  }
-
-  function addCustom() {
-    const trimmed = inputVal.trim()
-    if (!trimmed) return
-    onChange(trimmed)
+  function pick(role: AssignableRole) {
+    setInputVal(role.label)
+    onChange(role.slug)
     setOpen(false)
   }
 
@@ -255,19 +177,19 @@ function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
                             uppercase tracking-wider">
                 {g.group}
               </p>
-              {g.labels.map((label) => (
+              {g.roles.map((role) => (
                 <button
-                  key={label}
+                  key={role.slug}
                   type="button"
-                  onPointerDown={(e) => { e.preventDefault(); pick(label) }}
+                  onPointerDown={(e) => { e.preventDefault(); pick(role) }}
                   className={cn(
                     "w-full px-3 py-1.5 text-left text-sm transition-colors",
-                    inputVal === label
+                    inputVal === role.label
                       ? "bg-brand/10 text-brand"
                       : "hover:bg-muted/60 text-foreground"
                   )}
                 >
-                  {label}
+                  {role.label}
                 </button>
               ))}
             </div>
@@ -275,17 +197,6 @@ function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
         </div>
       ) : (
         <p className="px-3 py-2 text-sm text-muted-foreground">No roles match.</p>
-      )}
-      {showAddOption && (
-        <div className="border-t border-border/50">
-          <button
-            type="button"
-            onPointerDown={(e) => { e.preventDefault(); addCustom() }}
-            className="w-full px-3 py-2 text-left text-sm text-brand hover:bg-brand/5 transition-colors"
-          >
-            + Add &ldquo;{inputVal.trim()}&rdquo;
-          </button>
-        </div>
       )}
     </div>
   )
@@ -295,9 +206,9 @@ function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
       <Input
         ref={inputRef}
         value={inputVal}
-        onChange={(e) => { setInputVal(e.target.value); onChange(e.target.value); measureAndOpen() }}
+        onChange={(e) => { setInputVal(e.target.value); measureAndOpen() }}
         onFocus={measureAndOpen}
-        placeholder="Type or select a role…"
+        placeholder="Select a role…"
         className="h-8 text-sm"
         autoComplete="off"
       />
@@ -311,7 +222,8 @@ function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
 interface EditModalProps {
   member: Member
   orgId: string
-  orgRoles: string[]
+  assignable: AssignableRole[]
+  labelOf: (slug: string) => string
   isMe: boolean
   isOwner: boolean
   showEmergency: boolean
@@ -320,7 +232,7 @@ interface EditModalProps {
 }
 
 function EditMemberModal({
-  member, orgId, orgRoles, isMe, isOwner, showEmergency, onClose, onSaved,
+  member, orgId, assignable, labelOf, isMe, isOwner, showEmergency, onClose, onSaved,
 }: Readonly<EditModalProps>) {
   const p = member.user_profiles
   const [title, setTitle]               = useState(p?.title ?? "")
@@ -329,7 +241,7 @@ function EditMemberModal({
   const [mobile, setMobile]             = useState(p?.mobile ?? "")
   const [emergencyPhone, setEmPhone]    = useState(p?.emergency_phone ?? "")
   const [emergencyName, setEmName]      = useState(p?.emergency_contact_name ?? "")
-  const [roleInput, setRoleInput]       = useState(getRoleLabel(member.role))
+  const [roleSlug, setRoleSlug]         = useState(member.role)
   const [saving, setSaving]             = useState(false)
 
   async function handleSave() {
@@ -342,10 +254,8 @@ function EditMemberModal({
       mobile: mobile || null,
     }
 
-    if (!isOwner) {
-      // Map display label back to system slug where possible; otherwise save as-is
-      body.role = ROLE_LABEL_TO_SLUG[roleInput] ?? roleInput
-    }
+    // roleSlug is always a valid slug (only set by picking from the tier-gated list); server re-validates.
+    if (!isOwner) body.role = roleSlug
 
     if (showEmergency && isMe) {
       body.emergency_phone = emergencyPhone || null
@@ -414,7 +324,7 @@ function EditMemberModal({
             </div>
           </div>
 
-          {/* Role — free-text + quick-pick chips */}
+          {/* Role — tier-gated picker (slug-based) */}
           <div className="border-t border-border/40 pt-4 space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</p>
             {isOwner ? (
@@ -423,9 +333,9 @@ function EditMemberModal({
               </p>
             ) : (
               <>
-                <RoleCombobox value={member.role} onChange={setRoleInput} orgRoles={orgRoles} />
+                <RoleCombobox value={member.role} onChange={setRoleSlug} assignable={assignable} labelOf={labelOf} />
                 <p className="text-xs text-muted-foreground">
-                  Type a custom title or pick from the list. New labels are saved to your org&apos;s role library.
+                  Pick from your organisation&apos;s roles. New roles are created on the Roles tab.
                 </p>
               </>
             )}
@@ -487,7 +397,8 @@ export function MembersTab() {
   const { isOwner: callerIsOwner } = usePermissions()
 
   const [members, setMembers]           = useState<Member[]>([])
-  const [orgRoles, setOrgRoles]         = useState<string[]>(DEFAULT_ROLES)
+  const [assignableRoles, setAssignable] = useState<AssignableRole[]>([])
+  const [roleLabels, setRoleLabels]     = useState<Record<string, string>>(BUILTIN_LABELS)
   const [pendingInvites, setPending]    = useState<PendingInvite[]>([])
   const [currentUserId, setCurrentUser] = useState<string | null>(null)
   const [editingMember, setEditing]     = useState<Member | null>(null)
@@ -502,17 +413,20 @@ export function MembersTab() {
 
   const showEmergency = PORTFOLIO_TIERS.has(tier)
 
+  // Full-library label resolver (tier-independent): any assigned slug → its label, never a raw slug.
+  const roleLabelOf = useCallback((slug: string) => roleLabels[slug] ?? slug, [roleLabels])
+
   // ── Derived lists ────────────────────────────────────────────────────────────
 
   const uniqueRoles = useMemo(() => {
     const seen = new Set<string>()
     const roles: string[] = []
     for (const m of members) {
-      const label = getRoleLabel(m.role)
+      const label = roleLabelOf(m.role)
       if (!seen.has(label)) { seen.add(label); roles.push(label) }
     }
     return roles.sort()
-  }, [members])
+  }, [members, roleLabelOf])
 
   const filteredMembers = useMemo(() => {
     let list = members
@@ -521,14 +435,14 @@ export function MembersTab() {
       list = list.filter((m) => getMemberDisplayName(m).toLowerCase().includes(q))
     }
     if (roleFilter) {
-      list = list.filter((m) => getRoleLabel(m.role) === roleFilter)
+      list = list.filter((m) => roleLabelOf(m.role) === roleFilter)
     }
     return [...list].sort((a, b) => {
-      const va = sortKey === "name" ? getMemberDisplayName(a) : getRoleLabel(a.role)
-      const vb = sortKey === "name" ? getMemberDisplayName(b) : getRoleLabel(b.role)
+      const va = sortKey === "name" ? getMemberDisplayName(a) : roleLabelOf(a.role)
+      const vb = sortKey === "name" ? getMemberDisplayName(b) : roleLabelOf(b.role)
       return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va)
     })
-  }, [members, search, roleFilter, sortKey, sortDir])
+  }, [members, search, roleFilter, sortKey, sortDir, roleLabelOf])
 
   // ── Data loading ─────────────────────────────────────────────────────────────
 
@@ -566,8 +480,8 @@ export function MembersTab() {
       .select("id, title, first_name, last_name, mobile, emergency_phone, emergency_contact_name")
       .in("id", userIds)
     logQueryError("loadMembers user_profiles", profileDataError)
-    for (const p of (profileData as unknown as (Partial<Member["user_profiles"]> & { id: string })[]) ?? []) {
-      profileMap.set(p.id, p)
+    for (const profile of (profileData as unknown as (Partial<Member["user_profiles"]> & { id: string })[]) ?? []) {
+      profileMap.set(profile.id, profile)
     }
 
     setMembers(base.map((m) => ({
@@ -581,14 +495,12 @@ export function MembersTab() {
     })))
   }
 
-  async function loadOrgRoles(supabase: ReturnType<typeof createClient>) {
-    if (!orgId) return
-    const { data, error: queryError } = await supabase
-      .from("organisations").select("custom_roles").eq("id", orgId).single()
-    logQueryError("loadOrgRoles organisations", queryError)
-    const saved = (data as unknown as { custom_roles: string[] } | null)?.custom_roles ?? []
-    // Merge: system defaults first, then org-specific custom labels
-    setOrgRoles([...DEFAULT_ROLES, ...saved.filter((r) => !DEFAULT_ROLES.includes(r))])
+  // Roles: the tier-gated assignable list (picker) + the full-library label map (display).
+  function loadRoles() {
+    listAssignableRoles().then(setAssignable).catch(() => {})
+    getOrgRoles()
+      .then((roles) => setRoleLabels({ owner: "Owner", ...Object.fromEntries(roles.map((r) => [r.slug, r.label])) }))
+      .catch(() => {})
   }
 
   // Refresh pending invites — on mount + when the header TeamInviteButton dispatches pleks:team-invited.
@@ -606,7 +518,7 @@ export function MembersTab() {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user?.id ?? null))
     loadMembers(supabase)
-    loadOrgRoles(supabase)
+    loadRoles()
     reloadPending()
     getMemberEmails().then(setEmails).catch(() => {})
     const onInvited = () => { reloadPending() }
@@ -697,14 +609,13 @@ export function MembersTab() {
       toast.error(error ?? "Failed to revoke invite")
     } else {
       toast.success("Invite revoked")
-      setPending((p) => p.filter((i) => i.id !== inviteId))
+      setPending((prev) => prev.filter((i) => i.id !== inviteId))
     }
   }
 
   function handleSaved() {
-    const supabase = createClient()
-    loadMembers(supabase)
-    loadOrgRoles(supabase)
+    loadMembers(createClient())
+    loadRoles()
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -781,7 +692,7 @@ export function MembersTab() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{getRoleLabel(m.role)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{roleLabelOf(m.role)}</td>
                     <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{emails[m.user_id] ?? "—"}</td>
                     <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{m.user_profiles?.mobile ?? "—"}</td>
                     <td className="px-4 py-3">
@@ -833,7 +744,8 @@ export function MembersTab() {
           key={editingMember.id}
           member={editingMember}
           orgId={orgId}
-          orgRoles={orgRoles}
+          assignable={assignableRoles}
+          labelOf={roleLabelOf}
           isMe={editingMember.user_id === currentUserId}
           isOwner={editingMember.role === "owner"}
           showEmergency={showEmergency}
@@ -867,7 +779,7 @@ export function MembersTab() {
                   className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-4 py-2.5">
                   <div className="min-w-0">
                     <p className="text-sm truncate">{inv.email}</p>
-                    <p className="text-xs text-muted-foreground">{getRoleLabel(inv.role)} · pending</p>
+                    <p className="text-xs text-muted-foreground">{roleLabelOf(inv.role)} · pending</p>
                   </div>
                   <IconButton icon={<Trash2 className="h-3.5 w-3.5" />} label="Revoke invite" onClick={() => handleRevokeInvite(inv.id)} className="pa-iconbtn--destructive" />
                 </div>

@@ -13,12 +13,10 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { assignableRoleSlugs } from "@/lib/auth/orgRoles"
 
 const ALLOWED_PROFILE_FIELDS = ["title", "first_name", "last_name", "mobile", "emergency_phone", "emergency_contact_name"] as const
 const ALLOWED_ORG_FIELDS = ["role", "additional_roles"] as const
-
-// System role slugs — these are never added to org custom_roles
-const SYSTEM_ROLE_SLUGS = new Set(["owner", "property_manager", "agent", "accountant", "maintenance_manager"])
 
 function buildProfilePatch(body: Record<string, unknown>): Record<string, unknown> {
   const patch: Record<string, unknown> = {}
@@ -42,35 +40,53 @@ function buildOrgPatch(body: Record<string, unknown>): Record<string, unknown> {
   return patch
 }
 
-// If the role is a custom label (not a system slug), append it to org's
-// custom_roles library so it appears in the picker for future members.
-// Fails silently if the column doesn't exist yet (migration pending).
-async function appendOrgCustomRole(service: SupabaseClient, orgId: string, roleValue: string): Promise<void> {
-  if (SYSTEM_ROLE_SLUGS.has(roleValue)) return
-  const { data, error: queryError } = await service.from("organisations").select("custom_roles").eq("id", orgId).single()
-    logQueryError("appendOrgCustomRole organisations", queryError)
-  const existing = (data as unknown as { custom_roles: string[] } | null)?.custom_roles ?? []
-  if (existing.includes(roleValue)) return
-  const { error } = await service.from("organisations")
-    .update({ custom_roles: [...existing, roleValue] }).eq("id", orgId)
-  if (error) console.warn("appendOrgCustomRole:", error.message)
-}
-
-// Apply role/additional_roles patch and persist custom role labels. Returns error string or null.
+// Apply role/additional_roles patch. Returns error string or null. Role validity (assignable slug) is
+// checked by the caller against assignableRoleSlugs — this never mints a role label (custom roles
+// originate only from the owner-only Roles tab via saveOrgRole; organisations.custom_roles is deprecated).
 async function applyOrgFieldPatch(
   service: SupabaseClient,
   targetOrgRowId: string,
-  orgId: string,
   body: Record<string, unknown>
 ): Promise<string | null> {
   const orgPatch = buildOrgPatch(body)
   if (Object.keys(orgPatch).length === 0) return null
   const { error } = await service.from("user_orgs").update(orgPatch).eq("id", targetOrgRowId)
   if (error) return `roles: ${error.message}`
-  if (typeof orgPatch.role === "string") {
-    await appendOrgCustomRole(service, orgId, orgPatch.role)
-  }
   return null
+}
+
+// Role change guard (admin-only path): reject owner (transfer-only) and any slug outside the org's
+// tier-gated assignable set. Returns an error string (→ 400) or null.
+async function validateRoleChange(
+  orgId: string, body: Record<string, unknown>, callerIsAdmin: boolean,
+): Promise<string | null> {
+  if (!callerIsAdmin || typeof body.role !== "string") return null
+  if (body.role === "owner") return "Ownership transfers via the transfer-ownership flow, not here"
+  const assignable = await assignableRoleSlugs(orgId)
+  if (!assignable.has(body.role)) return "That role isn't assignable on this plan"
+  return null
+}
+
+// Apply profile + (admin) org-role + (owner) is_admin patches; collect non-fatal errors.
+async function applyMemberPatches(
+  service: SupabaseClient, target: { id: string }, userId: string,
+  body: Record<string, unknown>, callerIsAdmin: boolean, callerIsOwner: boolean,
+): Promise<string[]> {
+  const errors: string[] = []
+  const profilePatch = buildProfilePatch(body)
+  if (Object.keys(profilePatch).length > 0) {
+    const { error } = await service.from("user_profiles").update(profilePatch).eq("id", userId)
+    if (error) errors.push(`profile: ${error.message}`)
+  }
+  if (callerIsAdmin) {
+    const orgErr = await applyOrgFieldPatch(service, target.id, body)
+    if (orgErr) errors.push(orgErr)
+  }
+  if (callerIsOwner && "is_admin" in body) {
+    const { error } = await service.from("user_orgs").update({ is_admin: body.is_admin === true }).eq("id", target.id)
+    if (error) errors.push(`is_admin: ${error.message}`)
+  }
+  return errors
 }
 
 // Reactivate a soft-deleted member: clear deleted_at (owner-only). Re-granting access → audited.
@@ -163,25 +179,12 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Cannot change owner role" }, { status: 403 })
   }
 
-  const errors: string[] = []
+  // Role change: validate against the org's assignable set (tier-gated, enabled, owner excluded) server-side.
+  // The client picker is tier-gated for convenience; this is the actual guard against a forged/free-typed slug.
+  const roleErr = await validateRoleChange(orgId, body, callerIsAdmin)
+  if (roleErr) return NextResponse.json({ error: roleErr }, { status: 400 })
 
-  const profilePatch = buildProfilePatch(body)
-  if (Object.keys(profilePatch).length > 0) {
-    const { error } = await service.from("user_profiles").update(profilePatch).eq("id", userId)
-    if (error) errors.push(`profile: ${error.message}`)
-  }
-
-  if (callerIsAdmin) {
-    const orgErr = await applyOrgFieldPatch(service, target.id, orgId, body)
-    if (orgErr) errors.push(orgErr)
-  }
-
-  if (callerIsOwner && "is_admin" in body) {
-    const { error } = await service
-      .from("user_orgs").update({ is_admin: body.is_admin === true }).eq("id", target.id)
-    if (error) errors.push(`is_admin: ${error.message}`)
-  }
-
+  const errors = await applyMemberPatches(service, target, userId, body, callerIsAdmin, callerIsOwner)
   if (errors.length > 0) return NextResponse.json({ error: errors.join("; ") }, { status: 500 })
 
   // Audit access-control changes (role / additional_roles / is_admin) — not pure profile edits.
