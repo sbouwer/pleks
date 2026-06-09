@@ -19,7 +19,8 @@ import listPlugin from "@fullcalendar/list"
 import interactionPlugin from "@fullcalendar/interaction"
 import type { EventClickArg, EventContentArg } from "@fullcalendar/core"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, Search, X, Plus, ChevronDown, FileText, Wrench, ClipboardCheck, Users, User, Globe } from "lucide-react"
+import { Search, X, Plus, ChevronDown, FileText, Wrench, ClipboardCheck, Users, User, Globe } from "lucide-react"
+import { WarningBell } from "@/components/ui/WarningBell"
 import { useMyTeams } from "@/hooks/useMyTeams"
 import { useUser } from "@/hooks/useUser"
 import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
@@ -318,19 +319,11 @@ export function CalendarClient({ events, alerts, searchEntities }: CalendarClien
         sub="Inspections, lease deadlines, legal dates and move-ins across your portfolio."
         action={
           <div className="flex items-center gap-2">
-            {alerts.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowAlerts((s) => !s)}
-                aria-expanded={showAlerts}
-                aria-label={`${alerts.length} overdue — action required`}
-                title={`${alerts.length} overdue — action required`}
-                className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--r-button)] border border-danger/40 bg-danger/5 text-danger transition-colors hover:bg-danger/10"
-              >
-                <AlertTriangle className="size-4" />
-                <span className="absolute -right-1 -top-1 grid min-w-[16px] place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-4 text-white">{alerts.length}</span>
-              </button>
-            )}
+            <WarningBell
+              count={alerts.length}
+              label={`${alerts.length} overdue — action required`}
+              onClick={() => setShowAlerts((s) => !s)}
+            />
             <CalendarQuickAdd selected={selectedEntity} />
           </div>
         }
