@@ -5,12 +5,19 @@
  * Notes:  Longest-match wins. Every path prefix the app serves must have an entry.
  *         Webhook/cron/auth/admin API routes are handled separately in proxy.ts.
  */
+// Agent-class roles = owner (implicit-all) + every built-in RBAC role. The agent WORKSPACE admits any of
+// these (capabilities gate individual surfaces — RBAC P4 — not workspace entry); only portal roles route
+// elsewhere. KEEP IN SYNC with BUILTIN_ROLES in lib/auth/capabilities.ts (owner is implicit, not listed
+// there) — a built-in role missing here would 403 on the agent workspace.
 export const AGENT_ROLES = [
   "owner",
-  "property_manager",
-  "agent",
-  "accountant",
-  "maintenance_manager",
+  "property_manager", "office_manager", "portfolio_manager", "director",
+  "agent", "leasing_consultant", "sales_agent",
+  "accountant", "bookkeeper", "account_manager", "accounts_payable", "trust_accountant",
+  "maintenance_manager", "inspection_manager", "facilities_manager",
+  "admin_assistant", "receptionist",
+  "hr_manager", "compliance_officer",
+  "it_manager", "it_department",
 ] as const
 
 export type AgentRole = typeof AGENT_ROLES[number]

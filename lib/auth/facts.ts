@@ -49,14 +49,14 @@ function resolverRouteRequiresAal2(
   return lookupManifestRule(effectivePath)?.requiresAal2 ?? false
 }
 
-const AGENT_ROLE_VALUES = new Set<string>([
-  "owner", "property_manager", "agent", "accountant", "maintenance_manager",
-])
-
+// Any non-portal org role is agent-class: the agent workspace admits every RBAC agent role (owner + the
+// built-in role library), and specific capabilities gate individual surfaces (RBAC P4), not workspace entry.
+// Portal roles route to their own portal.
 function deriveRoleClass(sr: SessionRole): RoleClass {
-  if (AGENT_ROLE_VALUES.has(sr)) return "agent"
+  if (sr === "tenant") return "tenant"
+  if (sr === "landlord") return "landlord"
   if (sr === "supplier" || sr === "contractor") return "supplier"
-  return sr as RoleClass
+  return "agent"
 }
 
 function consentCurrent(request: NextRequest): boolean {

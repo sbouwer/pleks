@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest"
-import { ROUTE_MANIFEST } from "@/lib/routing/manifest"
+import { ROUTE_MANIFEST, AGENT_ROLES } from "@/lib/routing/manifest"
 
+const AGENT_ROLE_SET = AGENT_ROLES as readonly string[]
 const AGENT_ONLY_ROUTES = Object.entries(ROUTE_MANIFEST)
-  .filter(([, rule]) => rule.auth && !rule.skipOrgCheck && rule.roles?.every(r =>
-    ["owner", "property_manager", "agent", "accountant", "maintenance_manager"].includes(r)
-  ))
+  .filter(([, rule]) => rule.auth && !rule.skipOrgCheck && rule.roles?.every(r => AGENT_ROLE_SET.includes(r)))
   .map(([path]) => path)
 
 describe("ROUTE_MANIFEST — structural invariants", () => {
@@ -30,7 +29,7 @@ describe("ROUTE_MANIFEST — structural invariants", () => {
   it("/help/fitscore-report stays agent-only (its URL is stamped into screening PDFs)", () => {
     const rule = ROUTE_MANIFEST["/help/fitscore-report"]
     expect(rule).toBeDefined()
-    expect(rule.roles).toEqual(["owner", "property_manager", "agent", "accountant", "maintenance_manager"])
+    expect(rule.roles).toEqual(AGENT_ROLES)   // agent-only (every agent-class role; no portal role)
     expect(rule.requiresAal2).toBeFalsy()    // AAL1, as it was under the old /help rule
   })
 
