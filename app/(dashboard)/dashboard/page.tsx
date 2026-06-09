@@ -351,7 +351,7 @@ export default async function DashboardPage() {
       <PlanUsageBanner tier={tier as Tier} leaseCount={leasesCountRes.count ?? 0} />
 
       {/* KPI strip — connected panel */}
-      <div className="grid grid-cols-2 overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary md:grid-cols-5">
+      <div className="grid grid-cols-2 overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card md:grid-cols-5">
         <MetricCard
           label="Properties"
           value={String(totalProperties)}

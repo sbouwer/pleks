@@ -44,7 +44,7 @@ export function FinancialsPanel({
       </div>
 
       {/* 2×2 grid */}
-      <div className="grid grid-cols-2 divide-x divide-y">
+      <div className="grid grid-cols-2 divide-x divide-y divide-border">
         {/* Rent expected */}
         <div className="p-4">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Rent expected</p>
@@ -91,7 +91,7 @@ export function FinancialsPanel({
       </div>
 
       {/* Summary row */}
-      <div className="flex items-center divide-x border-t">
+      <div className="flex items-center divide-x divide-border border-t border-border">
         <div className="flex-1 px-4 py-3">
           <p className="text-[11px] text-muted-foreground">Owners not yet paid</p>
           <p className={`mt-0.5 text-sm font-semibold ${unpaidOwners.count > 0 ? "text-amber-600" : ""}`}>
