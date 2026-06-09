@@ -12,6 +12,7 @@
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useCallback } from "react"
 import { ListToolbar, ToolbarFilter } from "@/components/ui/resource-list"
+import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 
 interface PropertyFiltersProps {
   view: "list" | "cards"
@@ -39,6 +40,7 @@ export function PropertyFilters({ view }: PropertyFiltersProps) {
     router.push(`${pathname}?${params.toString()}`)
   }, [router, pathname, searchParams])
 
+  const showScope = useShowScopeFilter()  // My portfolio / All only from Portfolio up
   const q = searchParams.get("q") ?? ""
   const status = searchParams.get("status") ?? ""
   const archived = searchParams.get("archived") === "1"
@@ -52,7 +54,7 @@ export function PropertyFilters({ view }: PropertyFiltersProps) {
         placeholder="Search properties…"
         view={view}
         onView={(v) => set("view", v)}
-        rightFilters={!archived ? (
+        rightFilters={!archived && showScope ? (
           <ToolbarFilter
             label="View"
             selected={[scope]}

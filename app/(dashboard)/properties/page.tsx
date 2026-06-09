@@ -9,9 +9,9 @@ import type { ReactNode } from "react"
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { TIER_ORDER } from "@/lib/constants"
 import { contactDisplayName } from "@/lib/contacts/displayName"
 import { SinglePropertyView, NoPropertyYet } from "@/components/properties/SinglePropertyView"
-import { PropertyCards } from "@/components/properties/PropertyCards"
 import { PropertyListView } from "@/components/properties/PropertyListView"
 import type { SinglePropertyData } from "@/components/properties/SinglePropertyView"
 import type { PropertyListItem } from "@/components/properties/PropertyList"
@@ -218,33 +218,14 @@ export default async function PropertiesPage({
 
   const arrearsPct = await fetchArrearsPct(db, orgId)
 
-  // ── Steward tier: enriched card grid ──────────────────────────────────────
-  if (tier === "steward") {
-    const { data: rawProperties, error: stewardErr } = await db
-      .from("properties")
-      .select(`
-        id, name, type, address_line1, city, province,
-        units(id, status, deleted_at, asking_rent_cents, leases(id, status, rent_amount_cents))
-      `)
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-
-    if (stewardErr) console.error("[properties] steward fetch failed:", stewardErr.message)
-    const properties = (rawProperties ?? []) as unknown as PropertyListItem[]
-    const totalUnitCount = properties.reduce(
-      (sum, p) => sum + p.units.filter(u => !u.deleted_at).length, 0
-    )
-
-    return <PropertyCards properties={properties} tier={tier} totalUnitCount={totalUnitCount} arrearsPct={arrearsPct} />
-  }
-
-  // ── Portfolio / Firm tier: filterable list ────────────────────────────────
+  // ── Steward and up: one filterable list view (owner's single-property view handled above) ──────────
   const q = sp.q?.toLowerCase() ?? ""
   const statusFilter = sp.status ?? ""
   const view = (sp.view ?? "list") as "list" | "cards"
   const archived = sp.archived === "1"
-  const scope = sp.scope === "all" ? "all" : "mine"
+  // My portfolio / All scoping only applies from Portfolio up; below that everything is "all".
+  let scope: "mine" | "all" = "all"
+  if (TIER_ORDER[tier] >= TIER_ORDER.portfolio) scope = sp.scope === "all" ? "all" : "mine"
 
   let listQuery = db
     .from("properties")
@@ -270,6 +251,7 @@ export default async function PropertiesPage({
   return (
     <PropertyListView
       properties={properties}
+      tier={tier}
       view={view}
       arrearsPct={arrearsPct}
       archived={archived}

@@ -19,10 +19,13 @@ import { PropertyFilters } from "./PropertyFilters"
 import { PropertyList } from "./PropertyList"
 import { ArchivedPropertyList } from "./ArchivedPropertyList"
 import { isInForceLease } from "@/lib/leases/rentRoll"
+import { TIER_LIMITS, TIER_ORDER } from "@/lib/constants"
+import type { Tier } from "@/lib/constants"
 import type { PropertyListItem } from "./PropertyList"
 
 interface Props {
   properties: PropertyListItem[]
+  tier: Tier
   view: "list" | "cards"
   arrearsPct?: number
   archived?: boolean
@@ -30,7 +33,14 @@ interface Props {
   orgHasProperties?: boolean
 }
 
-export function PropertyListView({ properties, view, arrearsPct, archived, scope = "all", orgHasProperties }: Readonly<Props>) {
+export function PropertyListView({ properties, tier, view, arrearsPct, archived, scope = "all", orgHasProperties }: Readonly<Props>) {
+  // Near-limit nudge — tiers are limited by active LEASES; name the next tier up.
+  const leaseLimit = TIER_LIMITS[tier].leases
+  const activeLeaseCount = properties.reduce((sum, p) =>
+    sum + p.units.filter((u) => !u.deleted_at).reduce((s, u) => s + u.leases.filter((l) => isInForceLease(l.status)).length, 0), 0)
+  const nextTier = (Object.keys(TIER_ORDER) as Tier[]).find((t) => TIER_ORDER[t] === TIER_ORDER[tier] + 1)
+  const nextTierLabel = nextTier ? nextTier.charAt(0).toUpperCase() + nextTier.slice(1) : null
+  const showLeaseNudge = !archived && leaseLimit != null && activeLeaseCount >= leaseLimit - 3
   const totalUnits = properties.reduce((sum, p) =>
     sum + p.units.filter(u => !u.deleted_at).length, 0)
   const occupiedUnits = properties.reduce((sum, p) =>
@@ -161,6 +171,17 @@ export function PropertyListView({ properties, view, arrearsPct, archived, scope
           potentialCents={potentialCents}
           arrearsPct={arrearsPct}
         />
+
+        {showLeaseNudge && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-600">
+            <span>
+              {activeLeaseCount}/{leaseLimit} leases used on your plan.{" "}
+              <Link href="/settings/subscription" className="underline underline-offset-2 hover:text-amber-700">
+                {nextTierLabel ? `Upgrade to ${nextTierLabel} →` : "Upgrade your plan →"}
+              </Link>
+            </span>
+          </div>
+        )}
 
         <Suspense>
           <PropertyFilters view={view} />
