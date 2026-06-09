@@ -34,6 +34,8 @@ export interface CalendarEvent {
   priority: number    // Lower = higher priority (for same-day ordering)
   allDay: boolean
   sourceId: string    // Original record id
+  assignedUserId?: string | null  // assigned_user_id of the source — for the "My work" View filter
+  teamId?: string | null          // assigned_team_id of the source — for the Team View filter
 }
 
 // FullCalendar event colours (mapped to CSS vars in the theme)
@@ -149,7 +151,7 @@ async function buildLeaseEvents(
 }
 
 function buildInspectionEvents(
-  inspections: { id: string; type: string | null; scheduled_date: string; units: unknown }[],
+  inspections: { id: string; type: string | null; scheduled_date: string; units: unknown; assigned_user_id?: string | null; assigned_team_id?: string | null }[],
   today: string
 ): CalendarEvent[] {
   return inspections.map((insp) => {
@@ -176,12 +178,14 @@ function buildInspectionEvents(
       priority: EVENT_PRIORITY[eventType],
       allDay: !hasTime,
       sourceId: insp.id,
+      assignedUserId: insp.assigned_user_id ?? null,
+      teamId: insp.assigned_team_id ?? null,
     }
   })
 }
 
 function buildMaintenanceEvents(
-  requests: { id: string; title: string; scheduled_date: string; scheduled_time_from: string | null; scheduled_time_to: string | null; units: unknown }[]
+  requests: { id: string; title: string; scheduled_date: string; scheduled_time_from: string | null; scheduled_time_to: string | null; units: unknown; assigned_user_id?: string | null; assigned_team_id?: string | null }[]
 ): CalendarEvent[] {
   return requests.map((req) => {
     const unit = req.units as UnitRef
@@ -199,6 +203,8 @@ function buildMaintenanceEvents(
       priority: EVENT_PRIORITY.maintenance,
       allDay: !req.scheduled_time_from,
       sourceId: req.id,
+      assignedUserId: req.assigned_user_id ?? null,
+      teamId: req.assigned_team_id ?? null,
     }
   })
 }
@@ -244,7 +250,7 @@ export async function fetchCalendarEvents(
   ] = await Promise.all([
     service
       .from("inspections")
-      .select("id, type:inspection_type, scheduled_date, status, units(unit_number, properties(name))")
+      .select("id, type:inspection_type, scheduled_date, status, assigned_user_id, assigned_team_id, units(unit_number, properties(name))")
       .eq("org_id", orgId)
       .in("status", ["scheduled"])
       .gte("scheduled_date", rangeStart)
@@ -252,7 +258,7 @@ export async function fetchCalendarEvents(
 
     service
       .from("maintenance_requests")
-      .select("id, title, category, urgency, scheduled_date, scheduled_time_from, scheduled_time_to, status, units(unit_number, properties(name))")
+      .select("id, title, category, urgency, scheduled_date, scheduled_time_from, scheduled_time_to, status, assigned_user_id, assigned_team_id, units(unit_number, properties(name))")
       .eq("org_id", orgId)
       .not("scheduled_date", "is", null)
       .gte("scheduled_date", rangeStart)

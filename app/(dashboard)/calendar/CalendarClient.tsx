@@ -19,7 +19,9 @@ import listPlugin from "@fullcalendar/list"
 import interactionPlugin from "@fullcalendar/interaction"
 import type { EventClickArg, EventContentArg } from "@fullcalendar/core"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, Search, X, Plus, ChevronDown, FileText, Wrench, ClipboardCheck } from "lucide-react"
+import { AlertTriangle, Search, X, Plus, ChevronDown, FileText, Wrench, ClipboardCheck, Users, User, Globe } from "lucide-react"
+import { useMyTeams } from "@/hooks/useMyTeams"
+import { useUser } from "@/hooks/useUser"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ToolbarFilter } from "@/components/ui/resource-list"
@@ -252,10 +254,13 @@ function CalendarQuickAdd({ selected }: { selected: CalendarSearchEntity | null 
   )
 }
 
-export function CalendarClient({ events, alerts, searchEntities, isFirm }: CalendarClientProps) {
+export function CalendarClient({ events, alerts, searchEntities }: CalendarClientProps) {
   const router = useRouter()
   const calendarRef = useRef<FullCalendar>(null)
   const [typeFilter, setTypeFilter] = useState("all")
+  const [scope, setScope] = useState<"mine" | "all" | `team:${string}`>("all")
+  const { teams, teamIds } = useMyTeams()
+  const { user } = useUser()
   const [selectedEntity, setSelectedEntity] = useState<CalendarSearchEntity | null>(null)
   const [view, setView] = useState<CalView>("dayGridMonth")
   const [showAlerts, setShowAlerts] = useState(false)
@@ -266,6 +271,11 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
   const filteredEvents = useMemo(() => {
     return events
       .filter((e) => eventMatchesFilter(e.eventType, typeFilter))
+      .filter((e) => {
+        if (scope === "all") return true
+        if (scope.startsWith("team:")) return e.teamId === scope.slice(5)
+        return e.assignedUserId === user?.id || (e.teamId != null && teamIds.includes(e.teamId))  // "mine"
+      })
       .filter((e) => !selectedEntity || selectedEntity.propertyNames.includes(e.propertyName))
       .map((e) => ({
         id: e.id,
@@ -278,7 +288,7 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
         textColor: "#ffffff",
         extendedProps: { link: e.link, eventType: e.eventType },
       }))
-  }, [events, typeFilter, selectedEntity])
+  }, [events, typeFilter, scope, selectedEntity, user?.id, teamIds])
 
   const handleEventClick = useCallback((info: EventClickArg) => {
     const link = info.event.extendedProps.link as string
@@ -304,7 +314,24 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
         title="Calendar"
         headline="Your schedule"
         sub="Inspections, lease deadlines, legal dates and move-ins across your portfolio."
-        action={<CalendarQuickAdd selected={selectedEntity} />}
+        action={
+          <div className="flex items-center gap-2">
+            {alerts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAlerts((s) => !s)}
+                aria-expanded={showAlerts}
+                aria-label={`${alerts.length} overdue — action required`}
+                title={`${alerts.length} overdue — action required`}
+                className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--r-button)] border border-danger/40 bg-danger/5 text-danger transition-colors hover:bg-danger/10"
+              >
+                <AlertTriangle className="size-4" />
+                <span className="absolute -right-1 -top-1 grid min-w-[16px] place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-4 text-white">{alerts.length}</span>
+              </button>
+            )}
+            <CalendarQuickAdd selected={selectedEntity} />
+          </div>
+        }
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -340,16 +367,16 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
           onClear={() => setSelectedEntity(null)}
         />
 
-        {alerts.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowAlerts((s) => !s)}
-            aria-expanded={showAlerts}
-            className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[var(--r-button)] border border-danger/40 bg-danger/5 px-3.5 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
-          >
-            <AlertTriangle className="size-4" /> {alerts.length} overdue
-          </button>
-        )}
+        <ToolbarFilter
+          label="View"
+          selected={[scope]}
+          onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "all")}
+          options={[
+            { value: "mine", label: "My work", icon: <User /> },
+            { value: "all", label: "All", icon: <Globe /> },
+            ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
+          ]}
+        />
       </div>
 
       {view !== "listWeek" && (
@@ -396,11 +423,6 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-orange-500" />Move-out</span>
       </div>
 
-      {isFirm && (
-        <p className="shrink-0 text-xs text-muted-foreground">
-          Team view is available for Firm accounts — coming soon.
-        </p>
-      )}
 
       <Modal open={showAlerts} onClose={() => setShowAlerts(false)} title="Overdue items">
         <div className="space-y-1">
