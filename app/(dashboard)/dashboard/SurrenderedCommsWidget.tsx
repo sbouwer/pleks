@@ -1,24 +1,22 @@
-"use client"
-
 /**
  * app/(dashboard)/dashboard/SurrenderedCommsWidget.tsx — surrendered mandatory comms list (grouped)
  *
- * Auth:   agent session (rendered inside the dashboard alerts bell modal, data from page.tsx)
+ * Auth:   rendered inside the dashboard alerts bell modal (Operations category); data from page.tsx
  * Data:   mandatory_comm_retries (surrendered, undispatched) + the linked lease_id, via props
  * Notes:  Identical notices (same template + recipient + lease) collapse into one card with a ×count badge.
- *         "View on lease" deep-links to the related lease where the agent verifies + dispatches; "Mark
- *         dispatched" clears the whole group (markManuallyDispatchedBulk). BUILD_63 Phase 8.
+ *         Each operational item uses the standard "Review →" affordance (InlineLink withArrow, same as the
+ *         Needs-attention queue) and deep-links to the related lease where the agent reviews + actions it.
  *
- *         TODO(lease-ops-tab): when the lease detail page's Operations tab is redesigned, add a "manual
- *         verify + dispatch" surface there and point this link at it (e.g. /leases/[id]?tab=operations).
- *         Until then the link lands on the lease detail page so the agent has the context to act.
+ *         TODO(lease-ops-tab): the lease detail page's Operations tab is where this lifecycle completes —
+ *         it needs a "manual verify + dispatch" surface so "Review →" lands somewhere actionable
+ *         (e.g. /leases/[id]?tab=operations). That surface also owns RESOLUTION: a surrendered notice
+ *         should clear when (a) it's verified/dispatched there, (b) the lease is finalised/terminated, or
+ *         (c) it's superseded — e.g. a new active lease is already in place, so an old expiry reminder that
+ *         was never followed up is no longer applicable. Until then "Review →" lands on the lease detail
+ *         page and notices are not auto-resolved (the dispatch server actions in lib/actions/surrendered-comms
+ *         are retained for that tab to call).
  */
-import { useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { toast } from "sonner"
-import { ActionButton } from "@/components/ui/actions"
-import { markManuallyDispatchedBulk } from "@/lib/actions/surrendered-comms"
+import { InlineLink } from "@/components/ui/actions"
 
 export interface SurrenderedCommRow {
   id: string
@@ -64,57 +62,31 @@ function groupItems(items: SurrenderedCommRow[]): CommGroup[] {
 }
 
 export function SurrenderedCommsWidget({ items }: Readonly<{ items: SurrenderedCommRow[] }>) {
-  const router = useRouter()
-  const [busy, setBusy] = useState<string | null>(null)
-
-  async function handleDispatch(g: CommGroup) {
-    const notes = window.prompt(`Dispatch notes for ${g.ids.length} notice${g.ids.length === 1 ? "" : "s"} (optional — e.g. 'Registered mail ref 12345'):`)
-    if (notes === null) return
-    setBusy(g.key)
-    const res = await markManuallyDispatchedBulk(g.ids, notes)
-    setBusy(null)
-    if (res.error) {
-      toast.error(res.error)
-    } else {
-      toast.success(`Marked ${res.dispatched} dispatched`)
-      router.refresh()
-    }
-  }
-
   if (items.length === 0) return null
-
   const groups = groupItems(items)
 
   return (
     <div className="space-y-2">
-      {groups.map((g) => {
-        const dispatchLabel = g.ids.length > 1 ? "Mark all dispatched" : "Mark dispatched"
-        return (
-          <div key={g.key} className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-border px-3 py-2.5">
-            <div className="min-w-0">
-              <p className="flex items-center gap-1.5 truncate text-[13px] font-medium text-foreground">
-                {g.templateLabel}
-                {g.ids.length > 1 && (
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">×{g.ids.length}</span>
-                )}
-              </p>
-              <p className="truncate text-[11px] text-muted-foreground">
-                {g.recipient}
-                {" · "}{g.ids.length} notice{g.ids.length === 1 ? "" : "s"}
-                {" · "}latest {new Date(g.latest).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {g.leaseId && (
-                <Link href={`/leases/${g.leaseId}`} className="pa-link text-[11px]">View on lease →</Link>
+      {groups.map((g) => (
+        <div key={g.key} className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-border px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 truncate text-[13px] font-medium text-foreground">
+              {g.templateLabel}
+              {g.ids.length > 1 && (
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">×{g.ids.length}</span>
               )}
-              <ActionButton tone="secondary" disabled={busy === g.key} onClick={() => handleDispatch(g)}>
-                {busy === g.key ? "Saving…" : dispatchLabel}
-              </ActionButton>
-            </div>
+            </p>
+            <p className="truncate text-[11px] text-muted-foreground">
+              {g.recipient}
+              {" · "}{g.ids.length} notice{g.ids.length === 1 ? "" : "s"}
+              {" · "}latest {new Date(g.latest).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+            </p>
           </div>
-        )
-      })}
+          {g.leaseId && (
+            <InlineLink href={`/leases/${g.leaseId}`} withArrow className="shrink-0 text-[12px] font-medium">Review</InlineLink>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
