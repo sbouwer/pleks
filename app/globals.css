@@ -702,7 +702,7 @@ table.ledger tr.paid td:first-child::before {
   --fc-border-color: var(--border);
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: color-mix(in oklab, var(--muted) 40%, transparent);
-  --fc-today-bg-color: color-mix(in oklab, var(--primary) 12%, transparent);
+  --fc-today-bg-color: transparent;  /* today is marked by a clean date chip (below), not a muddy cell tint */
   --fc-list-event-hover-bg-color: color-mix(in oklab, var(--muted) 50%, transparent);
   --fc-neutral-text-color: var(--muted-foreground);
   --fc-button-bg-color: var(--foreground);
@@ -725,6 +725,19 @@ table.ledger tr.paid td:first-child::before {
 .calendar-wrapper .fc .fc-button:focus { box-shadow: none; }
 .calendar-wrapper .fc .fc-list-empty { background: transparent; color: var(--muted-foreground); }
 .calendar-wrapper .fc-theme-standard .fc-list-day-cushion { background: color-mix(in oklab, var(--muted) 40%, transparent); }
+/* Today marker — a clean primary chip on the date (month) / column header date (week/day), instead of the
+   old muddy full-cell amber tint. Month col-headers are weekday names (undated) so the header rule is a no-op
+   there; it only fires on the dated timeGrid headers. */
+.calendar-wrapper .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number,
+.calendar-wrapper .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.5rem; height: 1.5rem; margin: 2px; padding: 0 0.4rem;
+  border-radius: 9999px; background: var(--primary); color: var(--primary-foreground); font-weight: 600;
+}
+/* Hide FullCalendar's scrollbar chrome (the up/down arrows + track that showed in the day-view header /
+   all-day section). Scrolling still works via wheel/trackpad. */
+.calendar-wrapper .fc .fc-scroller { scrollbar-width: none; -ms-overflow-style: none; }
+.calendar-wrapper .fc .fc-scroller::-webkit-scrollbar { width: 0; height: 0; display: none; }
 /* Square the calendar grid (the wrapper supplies the --r-button frame; FC's own corners are rounded). */
 .calendar-wrapper .fc-scrollgrid,
 .calendar-wrapper .fc-scrollgrid-section > * > *,
