@@ -18,7 +18,8 @@ import { TeamInviteButton } from "./TeamInviteButton"
 import { MembersTab } from "./TeamSettingsClient"
 import { TransferOwnershipTab } from "./TransferOwnershipTab"
 import { TeamsTab, NewTeamButton } from "./TeamsTab"
-import { MEMBERS_TAB, TEAMS_TAB, TRANSFER_TAB } from "./tabs"
+import { RolesTab } from "./RolesTab"
+import { MEMBERS_TAB, TEAMS_TAB, ROLES_TAB, TRANSFER_TAB } from "./tabs"
 
 export default async function TeamSettingsPage({ searchParams }: Readonly<{ searchParams: Promise<{ tab?: string }> }>) {
   const gw = await gatewaySSR()
@@ -31,7 +32,7 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
   const tabs = [
     MEMBERS_TAB,
     ...(isFirm ? [TEAMS_TAB] : []),
-    ...(isOwner ? [TRANSFER_TAB] : []),
+    ...(isOwner ? [ROLES_TAB, TRANSFER_TAB] : []),
   ]
   const { tab } = await searchParams
   const active = tabs.some((t) => t.id === tab) ? tab! : "members"
@@ -41,9 +42,16 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
   if (active === "teams" && isFirm) {
     body = <TeamsTab />
     sub = "Group members into teams — work can be assigned to a team, and every member sees it until someone picks it up."
+  } else if (active === "roles" && isOwner) {
+    body = <RolesTab />
+    sub = "Define the roles in your agency and what each can access."
   } else if (active === "transfer" && isOwner) {
     body = <TransferOwnershipTab />
   }
+
+  let headerAction: React.ReactNode = <TeamInviteButton />
+  if (active === "teams") headerAction = <NewTeamButton />
+  else if (active === "roles") headerAction = null
 
   return (
     <DetailPageLayout
@@ -53,7 +61,7 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
       title="Team & access"
       sub={sub}
       facts={[]}
-      actions={active === "teams" ? <NewTeamButton /> : <TeamInviteButton />}
+      actions={headerAction}
       tabs={<CategoryTabs tabs={tabs} current={active} />}
     >
       {body}

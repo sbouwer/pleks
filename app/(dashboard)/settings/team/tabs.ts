@@ -9,4 +9,5 @@ import type { DetailTab } from "@/lib/detail/types"
 
 export const MEMBERS_TAB: DetailTab = { id: "members", label: "Members" }
 export const TEAMS_TAB: DetailTab = { id: "teams", label: "Teams" }
+export const ROLES_TAB: DetailTab = { id: "roles", label: "Roles" }
 export const TRANSFER_TAB: DetailTab = { id: "transfer", label: "Transfer ownership" }
