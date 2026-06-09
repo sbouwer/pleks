@@ -5,6 +5,7 @@
  * Auth:   gatewaySSR (service-role client + explicit org_id filter — Pattern A)
  * Data:   properties, units, leases via service client with .eq("org_id", orgId)
  */
+import type { ReactNode } from "react"
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
@@ -105,6 +106,91 @@ async function attachCollection(db: GatewayDB, orgId: string, properties: Proper
   })
 }
 
+/** Owner tier single-property dashboard — the org's one property + its current invoice / prospective tenants. */
+async function renderOwnerSingleProperty(db: GatewayDB, orgId: string): Promise<ReactNode> {
+  const { data: rawProperty, error: ownerErr } = await db
+    .from("properties")
+    .select(`
+      id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
+      managing_agent_id, is_sectional_title, levy_amount_cents, levy_account_number, managing_scheme_id,
+      units(
+        id, unit_number, status, deleted_at,
+        bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
+        asking_rent_cents, deposit_amount_cents, features, assigned_agent_id,
+        prospective_tenant_id, prospective_co_tenant_ids,
+        leases(
+          id, status, rent_amount_cents, deposit_amount_cents,
+          start_date, end_date, escalation_percent, escalation_review_date,
+          tenant:tenants!tenant_id(
+            id,
+            contact:contacts(first_name, last_name, primary_phone, primary_email)
+          )
+        )
+      )
+    `)
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .maybeSingle()
+
+  if (ownerErr) console.error("[properties] owner property fetch failed:", ownerErr.message)
+  if (!rawProperty) return <NoPropertyYet />
+
+  // Managing scheme resolved separately — decoupled from the properties→contractors FK embed so a
+  // missing/uncached relationship can never 400 the whole select and blank the page.
+  const schemeId = (rawProperty as { managing_scheme_id?: string | null }).managing_scheme_id ?? null
+  let managingScheme: { id: string; contact: { company_name: string | null } | null } | null = null
+  if (schemeId) {
+    const { data: scheme, error: schemeErr } = await db
+      .from("contractors").select("id, contact:contacts(company_name)")
+      .eq("id", schemeId).eq("org_id", orgId).maybeSingle()
+    if (schemeErr) console.error("[properties] managing scheme fetch failed:", schemeErr.message)
+    managingScheme = (scheme as typeof managingScheme) ?? null
+  }
+
+  const activeUnit = (rawProperty.units ?? [])[0]
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
+  type UnitExtra = { prospective_tenant_id?: string | null; prospective_co_tenant_ids?: string[] }
+  const unitExtra = activeUnit as unknown as UnitExtra
+  const prospTenantId = unitExtra?.prospective_tenant_id ?? null
+  const prospCoTenantIds = unitExtra?.prospective_co_tenant_ids ?? []
+
+  function tenantDisplayName(row: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null) {
+    if (!row) return null
+    return contactDisplayName(row, "") || null
+  }
+
+  const [invoiceRes, prospTenantRes, ...coTenantResults] = await Promise.all([
+    activeUnit
+      ? db.from("rent_invoices").select("total_amount_cents, amount_paid_cents, due_date").eq("unit_id", activeUnit.id).gte("period_from", monthStart).maybeSingle()
+      : Promise.resolve({ data: null }),
+    prospTenantId
+      ? db.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single()
+      : Promise.resolve({ data: null }),
+    ...prospCoTenantIds.map((id) =>
+      db.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
+        .then((res) => ({ id, data: res.data }))
+    ),
+  ])
+
+  const prospCoTenants = (coTenantResults as { id: string; data: Parameters<typeof tenantDisplayName>[0] }[])
+    .map((r) => ({ id: r.id, name: tenantDisplayName(r.data) ?? r.id }))
+
+  const property = { ...(rawProperty as object), managing_scheme: managingScheme } as unknown as SinglePropertyData
+
+  return (
+    <SinglePropertyView
+      property={property}
+      currentInvoice={invoiceRes.data ?? null}
+      orgId={orgId}
+      prospectiveTenantId={prospTenantId}
+      prospectiveTenantName={tenantDisplayName(prospTenantRes.data)}
+      prospectiveCoTenants={prospCoTenants}
+    />
+  )
+}
+
 export default async function PropertiesPage({
   searchParams,
 }: Readonly<{
@@ -118,88 +204,16 @@ export default async function PropertiesPage({
   const tier = await getOrgTier(orgId)
 
   // ── Owner tier: single property dashboard ──────────────────────────────────
+  // Owner tier is normally one property. After a downgrade an org can hold more than its tier allows, and
+  // those reads must still work (your-data-always) — so use the single-property dashboard only when there's
+  // exactly one; otherwise fall through to the standard list below, which shows them all.
   if (tier === "owner") {
-    const { data: rawProperty, error: ownerErr } = await db
-      .from("properties")
-      .select(`
-        id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
-        managing_agent_id, is_sectional_title, levy_amount_cents, levy_account_number, managing_scheme_id,
-        units(
-          id, unit_number, status, deleted_at,
-          bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
-          asking_rent_cents, deposit_amount_cents, features, assigned_agent_id,
-          prospective_tenant_id, prospective_co_tenant_ids,
-          leases(
-            id, status, rent_amount_cents, deposit_amount_cents,
-            start_date, end_date, escalation_percent, escalation_review_date,
-            tenant:tenants!tenant_id(
-              id,
-              contact:contacts(first_name, last_name, primary_phone, primary_email)
-            )
-          )
-        )
-      `)
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .maybeSingle()
-
-    if (ownerErr) console.error("[properties] owner property fetch failed:", ownerErr.message)
-    if (!rawProperty) return <NoPropertyYet />
-
-    // Managing scheme resolved separately — decoupled from the properties→contractors FK embed so a
-    // missing/uncached relationship can never 400 the whole select and blank the page.
-    const schemeId = (rawProperty as { managing_scheme_id?: string | null }).managing_scheme_id ?? null
-    let managingScheme: { id: string; contact: { company_name: string | null } | null } | null = null
-    if (schemeId) {
-      const { data: scheme, error: schemeErr } = await db
-        .from("contractors").select("id, contact:contacts(company_name)")
-        .eq("id", schemeId).eq("org_id", orgId).maybeSingle()
-      if (schemeErr) console.error("[properties] managing scheme fetch failed:", schemeErr.message)
-      managingScheme = (scheme as typeof managingScheme) ?? null
-    }
-
-    const activeUnit = (rawProperty.units ?? [])[0]
-    const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-
-    type UnitExtra = { prospective_tenant_id?: string | null; prospective_co_tenant_ids?: string[] }
-    const unitExtra = activeUnit as unknown as UnitExtra
-    const prospTenantId = unitExtra?.prospective_tenant_id ?? null
-    const prospCoTenantIds = unitExtra?.prospective_co_tenant_ids ?? []
-
-    function tenantDisplayName(row: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null) {
-      if (!row) return null
-      return contactDisplayName(row, "") || null
-    }
-
-    const [invoiceRes, prospTenantRes, ...coTenantResults] = await Promise.all([
-      activeUnit
-        ? db.from("rent_invoices").select("total_amount_cents, amount_paid_cents, due_date").eq("unit_id", activeUnit.id).gte("period_from", monthStart).maybeSingle()
-        : Promise.resolve({ data: null }),
-      prospTenantId
-        ? db.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single()
-        : Promise.resolve({ data: null }),
-      ...prospCoTenantIds.map((id) =>
-        db.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
-          .then((res) => ({ id, data: res.data }))
-      ),
-    ])
-
-    const prospCoTenants = (coTenantResults as { id: string; data: Parameters<typeof tenantDisplayName>[0] }[])
-      .map((r) => ({ id: r.id, name: tenantDisplayName(r.data) ?? r.id }))
-
-    const property = { ...(rawProperty as object), managing_scheme: managingScheme } as unknown as SinglePropertyData
-
-    return (
-      <SinglePropertyView
-        property={property}
-        currentInvoice={invoiceRes.data ?? null}
-        orgId={orgId}
-        prospectiveTenantId={prospTenantId}
-        prospectiveTenantName={tenantDisplayName(prospTenantRes.data)}
-        prospectiveCoTenants={prospCoTenants}
-      />
-    )
+    const { count: ownerPropCount, error: ownerCountErr } = await db
+      .from("properties").select("*", { count: "exact", head: true })
+      .eq("org_id", orgId).is("deleted_at", null)
+    if (ownerCountErr) console.error("[properties] owner property count failed:", ownerCountErr.message)
+    if (!ownerPropCount) return <NoPropertyYet />
+    if (ownerPropCount === 1) return await renderOwnerSingleProperty(db, orgId)
   }
 
   const arrearsPct = await fetchArrearsPct(db, orgId)
