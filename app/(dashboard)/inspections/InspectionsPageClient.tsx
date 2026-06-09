@@ -17,6 +17,7 @@ import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, type ListView } from "@/components/ui/resource-list"
 import { useUser } from "@/hooks/useUser"
 import { useMyTeams } from "@/hooks/useMyTeams"
+import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { isMine } from "@/lib/work/myWorkFilter"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -104,20 +105,22 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
 
   const { user } = useUser()
   const { teams, teamIds } = useMyTeams()
+  const showScope = useShowScopeFilter()  // View filter only from Growth up; below that, everything is "all"
   const [scope, setScope] = useState<"mine" | "all" | `team:${string}`>("mine")
   const [search, setSearch] = useState("")
   const [statuses, setStatuses] = useState<string[]>([])
   const [view, setView] = useState<ListView>("list")
 
   // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org.
+  const effScope = showScope ? scope : "all"
   let scopedList = list
-  if (scope === "mine" && user?.id) {
+  if (effScope === "mine" && user?.id) {
     scopedList = list.filter((insp) => isMine(insp as { assigned_user_id: string | null; assigned_team_id: string | null }, user.id, teamIds))
-  } else if (scope.startsWith("team:")) {
-    const tid = scope.slice(5)
+  } else if (effScope.startsWith("team:")) {
+    const tid = effScope.slice(5)
     scopedList = list.filter((insp) => (insp as { assigned_team_id?: string | null }).assigned_team_id === tid)
   }
-  const nothingAssignedToMe = list.length > 0 && scope === "mine" && scopedList.length === 0
+  const nothingAssignedToMe = list.length > 0 && effScope === "mine" && scopedList.length === 0
 
   const filtered = scopedList.filter((insp) => {
     const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
@@ -168,16 +171,18 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
             view={view}
             onView={setView}
             rightFilters={
-              <ToolbarFilter
-                label="View"
-                selected={[scope]}
-                onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
-                options={[
-                  { value: "mine", label: "My work", icon: <User /> },
-                  { value: "all", label: "All", icon: <Globe /> },
-                  ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
-                ]}
-              />
+              showScope ? (
+                <ToolbarFilter
+                  label="View"
+                  selected={[scope]}
+                  onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
+                  options={[
+                    { value: "mine", label: "My work", icon: <User /> },
+                    { value: "all", label: "All", icon: <Globe /> },
+                    ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
+                  ]}
+                />
+              ) : null
             }
             filters={
               <ToolbarFilter

@@ -21,6 +21,7 @@ import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, ListCard, type ListView } from "@/components/ui/resource-list"
 import { useUser } from "@/hooks/useUser"
 import { useMyTeams } from "@/hooks/useMyTeams"
+import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { isMine } from "@/lib/work/myWorkFilter"
 import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, User, Users, Globe } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
@@ -278,6 +279,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   const currentUserId = user?.id ?? null
   const queryKey = OPERATIONAL_QUERY_KEYS.maintenance(orgId)
   const [scope, setScope] = useState<"mine" | "all" | `team:${string}`>("mine")
+  const showScope = useShowScopeFilter()  // View filter only from Growth up; below that, everything is "all"
   const [activeTab, setActiveTab] = useState<Tab>("all")
   const [urgencies, setUrgencies] = useState<string[]>([])
   const [search, setSearch] = useState("")
@@ -292,11 +294,12 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   })
   // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org,
   // shown only under "All". Falls back to All until the current user resolves.
+  const effScope = showScope ? scope : "all"
   let scopeFiltered = allItems
-  if (scope === "mine" && currentUserId) {
+  if (effScope === "mine" && currentUserId) {
     scopeFiltered = allItems.filter((r) => isMine(r as { assigned_user_id: string | null; assigned_team_id: string | null }, currentUserId, teamIds))
-  } else if (scope.startsWith("team:")) {
-    const tid = scope.slice(5)
+  } else if (effScope.startsWith("team:")) {
+    const tid = effScope.slice(5)
     scopeFiltered = allItems.filter((r) => (r as { assigned_team_id?: string | null }).assigned_team_id === tid)
   }
   // Optional ?contractor= scope (e.g. from a supplier's "View work orders" quick link).
@@ -333,7 +336,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
 
   // Scoped list (after My work / contractor) is empty while the org has items → the "nothing assigned to
   // you, view all" card. A non-empty scoped list with no matches → a plain search/category line.
-  const nothingAssignedToMe = allItems.length > 0 && scope === "mine" && list.length === 0
+  const nothingAssignedToMe = allItems.length > 0 && effScope === "mine" && list.length === 0
   const emptyListMessage = q ? "No requests match your search." : "No requests in this category."
 
   // Supplier-scoped view (from a supplier's "View work orders" link). On desktop it rides on the right
@@ -458,16 +461,18 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
               view={view}
               onView={setView}
               rightFilters={
-                <ToolbarFilter
-                  label="View"
-                  selected={[scope]}
-                  onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
-                  options={[
-                    { value: "mine", label: "My work", icon: <User /> },
-                    { value: "all", label: "All", icon: <Globe /> },
-                    ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
-                  ]}
-                />
+                showScope ? (
+                  <ToolbarFilter
+                    label="View"
+                    selected={[scope]}
+                    onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
+                    options={[
+                      { value: "mine", label: "My work", icon: <User /> },
+                      { value: "all", label: "All", icon: <Globe /> },
+                      ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
+                    ]}
+                  />
+                ) : null
               }
               filters={
                 <>

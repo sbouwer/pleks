@@ -32,6 +32,7 @@ import { fetchApplicationsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 import { useUser } from "@/hooks/useUser"
 import { useMyTeams } from "@/hooks/useMyTeams"
+import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
@@ -230,17 +231,19 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   })
 
   const [scope, setScope] = useState<"mine" | "all" | `team:${string}`>("mine")
+  const showScope = useShowScopeFilter()  // View filter only from Growth up; below that, everything is "all"
   const [search, setSearch] = useState("")
   const [stages, setStages] = useState<string[]>([])
   const [view, setView] = useState<"list" | "cards">("list")
 
   // My work / All (ADDENDUM_TEAMS Layer 0) — scope the applications (the listing frame stays org-wide as
   // context); null assignee = Everyone/Org, shown only under "All".
+  const effScope = showScope ? scope : "all"
   let scopedList = list
-  if (scope === "mine" && user?.id) {
+  if (effScope === "mine" && user?.id) {
     scopedList = list.filter((a) => isMine(a as { assigned_user_id: string | null; assigned_team_id: string | null }, user.id, teamIds))
-  } else if (scope.startsWith("team:")) {
-    const tid = scope.slice(5)
+  } else if (effScope.startsWith("team:")) {
+    const tid = effScope.slice(5)
     scopedList = list.filter((a) => (a as { assigned_team_id?: string | null }).assigned_team_id === tid)
   }
 
@@ -298,16 +301,18 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
               view={view}
               onView={setView}
               rightFilters={
-                <ToolbarFilter
-                  label="View"
-                  selected={[scope]}
-                  onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
-                  options={[
-                    { value: "mine", label: "My work", icon: <User /> },
-                    { value: "all", label: "All", icon: <Globe /> },
-                    ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
-                  ]}
-                />
+                showScope ? (
+                  <ToolbarFilter
+                    label="View"
+                    selected={[scope]}
+                    onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
+                    options={[
+                      { value: "mine", label: "My work", icon: <User /> },
+                      { value: "all", label: "All", icon: <Globe /> },
+                      ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
+                    ]}
+                  />
+                ) : null
               }
               filters={
                 <ToolbarFilter

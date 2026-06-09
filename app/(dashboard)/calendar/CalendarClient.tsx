@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation"
 import { AlertTriangle, Search, X, Plus, ChevronDown, FileText, Wrench, ClipboardCheck, Users, User, Globe } from "lucide-react"
 import { useMyTeams } from "@/hooks/useMyTeams"
 import { useUser } from "@/hooks/useUser"
+import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ToolbarFilter } from "@/components/ui/resource-list"
@@ -260,6 +261,8 @@ export function CalendarClient({ events, alerts, searchEntities }: CalendarClien
   const [scope, setScope] = useState<"mine" | "all" | `team:${string}`>("all")
   const { teams, teamIds } = useMyTeams()
   const { user } = useUser()
+  const showScope = useShowScopeFilter()  // View filter only from Growth up; below that, everything is "all"
+  const effScope = showScope ? scope : "all"
   const [selectedEntity, setSelectedEntity] = useState<CalendarSearchEntity | null>(null)
   const [view, setView] = useState<CalView>("dayGridMonth")
   const [showAlerts, setShowAlerts] = useState(false)
@@ -271,8 +274,8 @@ export function CalendarClient({ events, alerts, searchEntities }: CalendarClien
     return events
       .filter((e) => eventMatchesFilter(e.eventType, typeFilter))
       .filter((e) => {
-        if (scope === "all") return true
-        if (scope.startsWith("team:")) return e.teamId === scope.slice(5)
+        if (effScope === "all") return true
+        if (effScope.startsWith("team:")) return e.teamId === effScope.slice(5)
         return e.assignedUserId === user?.id || (e.teamId != null && teamIds.includes(e.teamId))  // "mine"
       })
       .filter((e) => !selectedEntity || selectedEntity.propertyNames.includes(e.propertyName))
@@ -287,7 +290,7 @@ export function CalendarClient({ events, alerts, searchEntities }: CalendarClien
         textColor: "#ffffff",
         extendedProps: { link: e.link, eventType: e.eventType },
       }))
-  }, [events, typeFilter, scope, selectedEntity, user?.id, teamIds])
+  }, [events, typeFilter, effScope, selectedEntity, user?.id, teamIds])
 
   const handleEventClick = useCallback((info: EventClickArg) => {
     const link = info.event.extendedProps.link as string
@@ -366,16 +369,18 @@ export function CalendarClient({ events, alerts, searchEntities }: CalendarClien
           onClear={() => setSelectedEntity(null)}
         />
 
-        <ToolbarFilter
-          label="View"
-          selected={[scope]}
-          onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "all")}
-          options={[
-            { value: "mine", label: "My work", icon: <User /> },
-            { value: "all", label: "All", icon: <Globe /> },
-            ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
-          ]}
-        />
+        {showScope && (
+          <ToolbarFilter
+            label="View"
+            selected={[scope]}
+            onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "all")}
+            options={[
+              { value: "mine", label: "My work", icon: <User /> },
+              { value: "all", label: "All", icon: <Globe /> },
+              ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
+            ]}
+          />
+        )}
       </div>
 
       {view !== "listWeek" && (
