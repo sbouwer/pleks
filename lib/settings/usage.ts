@@ -8,6 +8,7 @@
 import { SETTINGS_CATALOG, matchSettingsPage, type SettingsPage } from "./catalog"
 
 const KEY = "pleks:settings-usage"
+const DISMISS_KEY = "pleks:settings-setup-dismissed"
 
 function read(): Record<string, number> {
   if (typeof window === "undefined") return {}
@@ -41,4 +42,26 @@ export function topSettingsPages(n: number): { page: SettingsPage; count: number
     .filter((x) => x.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, n)
+}
+
+/** Ids of "Set up" Overview cards the user has dismissed on this device. */
+export function getDismissedSetup(): string[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = window.localStorage.getItem(DISMISS_KEY)
+    return raw ? (JSON.parse(raw) as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+/** Dismiss a single "Set up" card (by id) for this device. */
+export function dismissSetupCard(id: string): void {
+  if (typeof window === "undefined") return
+  try {
+    const cur = getDismissedSetup()
+    if (!cur.includes(id)) window.localStorage.setItem(DISMISS_KEY, JSON.stringify([...cur, id]))
+  } catch {
+    /* best-effort */
+  }
 }

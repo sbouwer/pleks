@@ -1,20 +1,25 @@
+"use client"
+
 /**
  * components/settings/SettingsOverviewGroups.tsx — the smart Overview groups
  *
- * Auth:   presentational — takes resolved data from lib/settings/overview
+ * Auth:   client — resolved data is passed from the server page (lib/settings/overview)
  * Notes:  Three groups in the mockup's layout (section header + count → card grid) using our cards:
- *         1) Set up — incomplete items; the whole group disappears once empty.
+ *         1) Set up — incomplete items; individually dismissible (per-device, localStorage); the whole
+ *            group disappears once empty or all-dismissed.
  *         2) Needs action — flagged items; becomes the first group once Set up is done.
  *         3) Frequently used — the most-visited pages as quick-access cards (per-device, localStorage).
  *         Icons arrive as string names from the resolver (server→client safe) and map here.
  */
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Settings, Zap, Users, CreditCard, ShieldCheck, Landmark, FileText, Bell, KeyRound,
-  Building2, UserCheck, type LucideIcon,
+  Building2, UserCheck, X, type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { OverviewItem, SettingsOverviewData } from "@/lib/settings/overview"
+import { getDismissedSetup, dismissSetupCard } from "@/lib/settings/usage"
 import { FrequentlyUsed } from "./FrequentlyUsed"
 
 const ICONS: Record<string, LucideIcon> = {
@@ -28,29 +33,42 @@ const PILL: Record<string, string> = {
   danger: "border-destructive/30 bg-destructive/10 text-destructive",
 }
 
-function OverviewCard({ item, kind }: Readonly<{ item: OverviewItem; kind: "setup" | "action" }>) {
+function OverviewCard({ item, kind, onDismiss }: Readonly<{ item: OverviewItem; kind: "setup" | "action"; onDismiss?: (id: string) => void }>) {
   const Icon = ICONS[item.icon] ?? Settings
   const pillKind = kind === "setup" ? "setup" : (item.tone ?? "warn")
   const actionLabel = item.tone === "danger" ? "Action" : "Review"
   const pillLabel = kind === "setup" ? "Set up" : actionLabel
+  // Stretched-link card: the Link covers the whole card; the dismiss button sits above it (z-10) so it's
+  // independently clickable without nesting a <button> inside the <a>.
   return (
-    <Link
-      href={item.href}
-      className="group flex flex-col gap-3 rounded-[var(--r-button)] border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/30"
-    >
+    <div className="group relative flex flex-col gap-3 rounded-[var(--r-button)] border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/30">
+      <Link href={item.href} aria-label={item.title} className="absolute inset-0 z-0 rounded-[var(--r-button)]" />
       <div className="flex items-center justify-between">
         <span className="grid h-9 w-9 place-items-center rounded-[var(--r-button)] border border-border bg-muted/40 text-muted-foreground">
           <Icon className="h-[18px] w-[18px]" />
         </span>
-        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", PILL[pillKind])}>
-          {pillLabel}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", PILL[pillKind])}>
+            {pillLabel}
+          </span>
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={() => onDismiss(item.id)}
+              aria-label={`Dismiss ${item.title}`}
+              title="Dismiss"
+              className="relative z-10 grid h-6 w-6 place-items-center rounded-[var(--r-button)] text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="min-w-0">
         <p className="font-heading text-[13.5px] font-semibold text-foreground">{item.title}</p>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{item.desc}</p>
       </div>
-    </Link>
+    </div>
   )
 }
 
@@ -65,13 +83,24 @@ function SectionHeader({ label, count }: Readonly<{ label: string; count?: numbe
 }
 
 export function SettingsOverviewGroups({ setup, action }: Readonly<SettingsOverviewData>) {
+  // Dismissed setup ids (per-device). Starts empty so SSR/first paint matches; filtered after mount.
+  const [dismissed, setDismissed] = useState<string[]>([])
+  useEffect(() => { setDismissed(getDismissedSetup()) }, [])
+
+  function handleDismiss(id: string) {
+    dismissSetupCard(id)
+    setDismissed((prev) => (prev.includes(id) ? prev : [...prev, id]))
+  }
+
+  const visibleSetup = setup.filter((it) => !dismissed.includes(it.id))
+
   return (
     <div className="mt-6 space-y-6">
-      {setup.length > 0 && (
+      {visibleSetup.length > 0 && (
         <section>
-          <SectionHeader label="Set up" count={setup.length} />
+          <SectionHeader label="Set up" count={visibleSetup.length} />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {setup.map((it) => <OverviewCard key={it.id} item={it} kind="setup" />)}
+            {visibleSetup.map((it) => <OverviewCard key={it.id} item={it} kind="setup" onDismiss={handleDismiss} />)}
           </div>
         </section>
       )}
