@@ -18,6 +18,7 @@ import { KeyboardShortcuts } from "@/components/layout/KeyboardShortcuts"
 import { SyncEngineClient } from "@/components/layout/SyncEngineClient"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
 import { MfaGuard } from "@/components/auth/MfaGuard"
+import { CapabilitiesProvider } from "@/components/auth/CapabilitiesProvider"
 import { FeedbackButton } from "@/components/feedback/FeedbackButton"
 import { SubscriptionStateBanner } from "@/components/layout/SubscriptionStateBanner"
 import { PrivacyPolicyBanner } from "@/components/layout/PrivacyPolicyBanner"
@@ -30,6 +31,7 @@ export default function DashboardLayout({
 }>) {
   return (
     <PortalThemeProvider>
+      <CapabilitiesProvider>
       <MfaGuard />
       <ConsentGate />
       <NavigationProgress />
@@ -46,6 +48,7 @@ export default function DashboardLayout({
         <SyncEngineClient />
       </div>
       <FeedbackButton role="agent" />
+      </CapabilitiesProvider>
     </PortalThemeProvider>
   )
 }
