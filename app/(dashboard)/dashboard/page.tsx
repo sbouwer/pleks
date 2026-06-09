@@ -241,7 +241,7 @@ export default async function DashboardPage() {
     // Surrendered mandatory comms requiring manual dispatch (BUILD_63 Phase 8)
     getCachedServiceClient().then((c) =>
       c.from("mandatory_comm_retries")
-        .select("id, template_key, surrender_reason, surrendered_at, attempt_count, recipient_snapshot")
+        .select("id, template_key, surrender_reason, surrendered_at, attempt_count, recipient_snapshot, communication_log(lease_id)")
         .eq("org_id", orgId)
         .not("surrendered_at", "is", null)
         .limit(20)
@@ -280,8 +280,8 @@ export default async function DashboardPage() {
   const trialDaysLeft = computeTrialDaysLeft(trialEndsAt ?? null)
   const showTrustBanner = tier !== "owner" && org?.has_trust_account !== true
 
-  type RetryRow = { id: string; template_key: string; surrender_reason: string | null; surrendered_at: string; attempt_count: number; recipient_snapshot: { email?: string; phone?: string } | null }
-  const surrenderedCommItems: SurrenderedCommRow[] = ((surrenderedCommsRes.data ?? []) as RetryRow[]).map((r) => ({
+  type RetryRow = { id: string; template_key: string; surrender_reason: string | null; surrendered_at: string; attempt_count: number; recipient_snapshot: { email?: string; phone?: string } | null; communication_log: { lease_id: string | null } | null }
+  const surrenderedCommItems: SurrenderedCommRow[] = ((surrenderedCommsRes.data ?? []) as unknown as RetryRow[]).map((r) => ({
     id:               r.id,
     template_key:     r.template_key,
     surrender_reason: r.surrender_reason,
@@ -289,6 +289,7 @@ export default async function DashboardPage() {
     attempt_count:    r.attempt_count,
     recipient_email:  r.recipient_snapshot?.email ?? null,
     recipient_name:   null,
+    lease_id:         r.communication_log?.lease_id ?? null,
   }))
 
   return (
