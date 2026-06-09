@@ -142,7 +142,7 @@ export function ToolbarFilter({
   label, options, selected, onChange, multiple = false,
 }: Readonly<{
   label: string
-  options: ReadonlyArray<{ value: string; label: string }>
+  options: ReadonlyArray<{ value: string; label: string; icon?: ReactNode }>
   selected: string[]
   onChange: (next: string[]) => void
   multiple?: boolean
@@ -160,6 +160,7 @@ export function ToolbarFilter({
   }, [open])
 
   const labelFor = (v: string) => options.find((o) => o.value === v)?.label ?? v
+  const selectedIcon = selected.length === 1 ? options.find((o) => o.value === selected[0])?.icon : null
   let summary = "All"
   if (selected.length === 1) summary = labelFor(selected[0] ?? "")
   else if (selected.length > 1) summary = `${labelFor(selected[0] ?? "")} +${selected.length - 1}`
@@ -183,6 +184,7 @@ export function ToolbarFilter({
         className={cn(COMPARTMENT, "flex items-center gap-1.5 px-3.5 text-sm text-foreground transition-colors hover:bg-muted/30", open && "border-primary/60 ring-2 ring-primary/15")}
       >
         <span className="text-muted-foreground">{label}:</span>
+        {selectedIcon && <span className="text-muted-foreground [&_svg]:size-3.5">{selectedIcon}</span>}
         <span className="font-medium">{summary}</span>
         <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
@@ -205,6 +207,7 @@ export function ToolbarFilter({
                 ) : (
                   <span className="grid size-4 shrink-0 place-items-center">{checked && <Check className="size-3.5 text-primary" strokeWidth={3} />}</span>
                 )}
+                {o.icon && <span className="text-muted-foreground [&_svg]:size-4">{o.icon}</span>}
                 <span className={cn(checked && "font-medium")}>{o.label}</span>
               </button>
             )

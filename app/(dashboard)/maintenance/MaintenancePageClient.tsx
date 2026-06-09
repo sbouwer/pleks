@@ -20,9 +20,9 @@ import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, ListCard, type ListView } from "@/components/ui/resource-list"
 import { useUser } from "@/hooks/useUser"
-import { useMyTeamIds } from "@/hooks/useMyTeamIds"
+import { useMyTeams } from "@/hooks/useMyTeams"
 import { isMine } from "@/lib/work/myWorkFilter"
-import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, User, Users, Globe } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
@@ -274,10 +274,10 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   const router = useRouter()
   const queryClient = useQueryClient()
   const { user } = useUser()
-  const { teamIds } = useMyTeamIds()
+  const { teams, teamIds } = useMyTeams()
   const currentUserId = user?.id ?? null
   const queryKey = OPERATIONAL_QUERY_KEYS.maintenance(orgId)
-  const [scope, setScope] = useState<"mine" | "all">("mine")
+  const [scope, setScope] = useState<"mine" | "all" | `team:${string}`>("mine")
   const [activeTab, setActiveTab] = useState<Tab>("all")
   const [urgencies, setUrgencies] = useState<string[]>([])
   const [search, setSearch] = useState("")
@@ -292,9 +292,13 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   })
   // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org,
   // shown only under "All". Falls back to All until the current user resolves.
-  const scopeFiltered = scope === "mine" && currentUserId
-    ? allItems.filter((r) => isMine(r as { assigned_user_id: string | null; assigned_team_id: string | null }, currentUserId, teamIds))
-    : allItems
+  let scopeFiltered = allItems
+  if (scope === "mine" && currentUserId) {
+    scopeFiltered = allItems.filter((r) => isMine(r as { assigned_user_id: string | null; assigned_team_id: string | null }, currentUserId, teamIds))
+  } else if (scope.startsWith("team:")) {
+    const tid = scope.slice(5)
+    scopeFiltered = allItems.filter((r) => (r as { assigned_team_id?: string | null }).assigned_team_id === tid)
+  }
   // Optional ?contractor= scope (e.g. from a supplier's "View work orders" quick link).
   const list = contractorFilter
     ? scopeFiltered.filter((r) => (r as { contractor_id?: string | null }).contractor_id === contractorFilter)
@@ -457,8 +461,12 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
                 <ToolbarFilter
                   label="View"
                   selected={[scope]}
-                  onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
-                  options={[{ value: "mine", label: "My work" }, { value: "all", label: "All" }]}
+                  onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
+                  options={[
+                    { value: "mine", label: "My work", icon: <User /> },
+                    { value: "all", label: "All", icon: <Globe /> },
+                    ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
+                  ]}
                 />
               }
               filters={

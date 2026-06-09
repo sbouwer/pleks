@@ -16,11 +16,11 @@ import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, type ListView } from "@/components/ui/resource-list"
 import { useUser } from "@/hooks/useUser"
-import { useMyTeamIds } from "@/hooks/useMyTeamIds"
+import { useMyTeams } from "@/hooks/useMyTeams"
 import { isMine } from "@/lib/work/myWorkFilter"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
-import { ClipboardCheck } from "lucide-react"
+import { ClipboardCheck, User, Users, Globe } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchInspectionsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
@@ -103,16 +103,20 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
   })
 
   const { user } = useUser()
-  const { teamIds } = useMyTeamIds()
-  const [scope, setScope] = useState<"mine" | "all">("mine")
+  const { teams, teamIds } = useMyTeams()
+  const [scope, setScope] = useState<"mine" | "all" | `team:${string}`>("mine")
   const [search, setSearch] = useState("")
   const [statuses, setStatuses] = useState<string[]>([])
   const [view, setView] = useState<ListView>("list")
 
   // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org.
-  const scopedList = scope === "mine" && user?.id
-    ? list.filter((insp) => isMine(insp as { assigned_user_id: string | null; assigned_team_id: string | null }, user.id, teamIds))
-    : list
+  let scopedList = list
+  if (scope === "mine" && user?.id) {
+    scopedList = list.filter((insp) => isMine(insp as { assigned_user_id: string | null; assigned_team_id: string | null }, user.id, teamIds))
+  } else if (scope.startsWith("team:")) {
+    const tid = scope.slice(5)
+    scopedList = list.filter((insp) => (insp as { assigned_team_id?: string | null }).assigned_team_id === tid)
+  }
   const nothingAssignedToMe = list.length > 0 && scope === "mine" && scopedList.length === 0
 
   const filtered = scopedList.filter((insp) => {
@@ -167,8 +171,12 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
               <ToolbarFilter
                 label="View"
                 selected={[scope]}
-                onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
-                options={[{ value: "mine", label: "My work" }, { value: "all", label: "All" }]}
+                onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
+                options={[
+                  { value: "mine", label: "My work", icon: <User /> },
+                  { value: "all", label: "All", icon: <Globe /> },
+                  ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
+                ]}
               />
             }
             filters={

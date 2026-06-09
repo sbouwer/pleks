@@ -179,3 +179,19 @@ export async function getMyTeamIds(): Promise<string[]> {
   if (error) { console.error("getMyTeamIds:", error.message); return [] }
   return (data ?? []).map((r) => r.team_id as string)
 }
+
+/** The current user's active teams (id + name) — for the per-team "View" filter on the queues. */
+export async function getMyTeams(): Promise<{ id: string; name: string }[]> {
+  const gw = await gateway()
+  if (!gw) return []
+  const { db, orgId, userId } = gw
+  const { data: tm, error: tmErr } = await db
+    .from("team_members").select("team_id").eq("org_id", orgId).eq("user_id", userId)
+  if (tmErr) { console.error("getMyTeams members:", tmErr.message); return [] }
+  const ids = (tm ?? []).map((r) => r.team_id)
+  if (ids.length === 0) return []
+  const { data, error } = await db
+    .from("teams").select("id, name").eq("org_id", orgId).in("id", ids).is("archived_at", null).order("name")
+  if (error) { console.error("getMyTeams:", error.message); return [] }
+  return data ?? []
+}

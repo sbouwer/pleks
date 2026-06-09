@@ -25,13 +25,13 @@ import { ListToolbar, ToolbarFilter } from "@/components/ui/resource-list"
 import { isMine } from "@/lib/work/myWorkFilter"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { BulkDecidePanel } from "@/components/applications/BulkDecidePanel"
-import { Users, Copy, Check, ExternalLink } from "lucide-react"
+import { Users, Copy, Check, ExternalLink, User, Globe } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchApplicationsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 import { useUser } from "@/hooks/useUser"
-import { useMyTeamIds } from "@/hooks/useMyTeamIds"
+import { useMyTeams } from "@/hooks/useMyTeams"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
@@ -221,7 +221,7 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { user } = useUser()
-  const { teamIds } = useMyTeamIds()
+  const { teams, teamIds } = useMyTeams()
   const queryKey = OPERATIONAL_QUERY_KEYS.applications(orgId)
   const { data: list = [], dataUpdatedAt } = useQuery({
     queryKey,
@@ -229,16 +229,20 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
     staleTime: STALE_TIME.applications,
   })
 
-  const [scope, setScope] = useState<"mine" | "all">("mine")
+  const [scope, setScope] = useState<"mine" | "all" | `team:${string}`>("mine")
   const [search, setSearch] = useState("")
   const [stages, setStages] = useState<string[]>([])
   const [view, setView] = useState<"list" | "cards">("list")
 
   // My work / All (ADDENDUM_TEAMS Layer 0) — scope the applications (the listing frame stays org-wide as
   // context); null assignee = Everyone/Org, shown only under "All".
-  const scopedList = scope === "mine" && user?.id
-    ? list.filter((a) => isMine(a as { assigned_user_id: string | null; assigned_team_id: string | null }, user.id, teamIds))
-    : list
+  let scopedList = list
+  if (scope === "mine" && user?.id) {
+    scopedList = list.filter((a) => isMine(a as { assigned_user_id: string | null; assigned_team_id: string | null }, user.id, teamIds))
+  } else if (scope.startsWith("team:")) {
+    const tid = scope.slice(5)
+    scopedList = list.filter((a) => (a as { assigned_team_id?: string | null }).assigned_team_id === tid)
+  }
 
   const prescreenReady = scopedList.filter((a) => a.stage1_status === "pre_screen_complete")
   const screeningComplete = scopedList.filter((a) => a.stage2_status === "screening_complete")
@@ -297,8 +301,12 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
                 <ToolbarFilter
                   label="View"
                   selected={[scope]}
-                  onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
-                  options={[{ value: "mine", label: "My work" }, { value: "all", label: "All" }]}
+                  onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
+                  options={[
+                    { value: "mine", label: "My work", icon: <User /> },
+                    { value: "all", label: "All", icon: <Globe /> },
+                    ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
+                  ]}
                 />
               }
               filters={
