@@ -1,18 +1,19 @@
 /**
- * app/(dashboard)/settings/layout.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/layout.tsx — shared chrome for every /settings/* page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/**
+ * Auth:   inherits the dashboard layout's gate
+ * Notes:  Mounts the mobile back-link + the usage recorder (bumps per-device visit counts that feed the
+ *         Overview "Frequently used" cards — lib/settings/usage).
  */
 import { MobileSettingsBackLink } from "@/components/mobile/MobileSettingsBackLink"
+import { SettingsUsageRecorder } from "@/components/settings/SettingsUsageRecorder"
 
 export default function SettingsLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <>
       <MobileSettingsBackLink />
+      <SettingsUsageRecorder />
       {children}
     </>
   )

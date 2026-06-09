@@ -5,7 +5,7 @@
  * Notes:  Three groups in the mockup's layout (section header + count → card grid) using our cards:
  *         1) Set up — incomplete items; the whole group disappears once empty.
  *         2) Needs action — flagged items; becomes the first group once Set up is done.
- *         3) Frequently used — placeholder until usage tracking lands.
+ *         3) Frequently used — the most-visited pages as quick-access cards (per-device, localStorage).
  *         Icons arrive as string names from the resolver (server→client safe) and map here.
  */
 import Link from "next/link"
@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { OverviewItem, SettingsOverviewData } from "@/lib/settings/overview"
+import { FrequentlyUsed } from "./FrequentlyUsed"
 
 const ICONS: Record<string, LucideIcon> = {
   property: Building2, landlord: UserCheck, branding: Zap, team: Users, billing: CreditCard,
@@ -86,12 +87,7 @@ export function SettingsOverviewGroups({ setup, action }: Readonly<SettingsOverv
 
       <section>
         <SectionHeader label="Frequently used" />
-        <div className="rounded-[var(--r-button)] border border-dashed border-border bg-muted/20 px-5 py-8 text-center">
-          <p className="text-sm font-medium text-foreground">Your most-visited settings will appear here</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            As you use Settings, the pages you open most will show up for quick access.
-          </p>
-        </div>
+        <FrequentlyUsed />
       </section>
     </div>
   )
