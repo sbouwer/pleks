@@ -21,6 +21,7 @@ import { AddButton } from "@/components/ui/add-button"
 import { FileText } from "lucide-react"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { useMyPortfolio } from "@/hooks/useMyPortfolio"
+import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { LeaseRow, type SerializedLease } from "./LeaseRow"
 import { LeaseListFooter } from "./LeaseListFooter"
 import { isExpiringSoon, getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
@@ -183,11 +184,13 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
   // My portfolio / All (ADDENDUM_TEAMS Layer 0) — "mine" = leases on properties I manage (via the
   // portfolio resolver). Default My portfolio; everything below works off the scoped list.
   const portfolio = useMyPortfolio()
+  const showScope = useShowScopeFilter()  // My portfolio / All only from Portfolio up
   const [scope, setScope] = useState<"mine" | "all">("mine")
-  const scopedLeases = scope === "mine" && portfolio.ready
+  const effScope = showScope ? scope : "all"
+  const scopedLeases = effScope === "mine" && portfolio.ready
     ? leases.filter((l) => portfolio.leaseIds.has(l.id))
     : leases
-  const nothingInPortfolio = scope === "mine" && scopedLeases.length === 0
+  const nothingInPortfolio = effScope === "mine" && scopedLeases.length === 0
 
   // Status counts — computed from the scoped leases (drives the count line + draft hint)
   const counts = useMemo(() => ({
@@ -262,14 +265,14 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
         placeholder="Search by tenant, property or unit…"
         view={view}
         onView={setView}
-        rightFilters={
+        rightFilters={showScope ? (
           <ToolbarFilter
             label="View"
             selected={[scope]}
             onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
             options={[{ value: "mine", label: "My portfolio" }, { value: "all", label: "All" }]}
           />
-        }
+        ) : undefined}
         filters={
           <ToolbarFilter
             label="Status"

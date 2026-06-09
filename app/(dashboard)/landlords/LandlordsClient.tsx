@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { toast } from "sonner"
 import { useMyPortfolio } from "@/hooks/useMyPortfolio"
+import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { useOrg } from "@/hooks/useOrg"
 import { usePermissions } from "@/hooks/usePermissions"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
@@ -116,6 +117,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const { orgId } = useOrg()
   const { isAdmin } = usePermissions()
   const portfolio = useMyPortfolio()
+  const showScope = useShowScopeFilter()  // My portfolio / All only from Portfolio up
   const [scope, setScope] = useState<"mine" | "all">("mine")
   const [search, setSearch] = useState("")
   const [types, setTypes] = useState<string[]>([])
@@ -162,10 +164,11 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   }
 
   // My portfolio / All (ADDENDUM_TEAMS Layer 0) — "mine" = landlords who own a property I manage.
-  const scopedInitial = scope === "mine" && portfolio.ready
+  const effScope = showScope ? scope : "all"
+  const scopedInitial = effScope === "mine" && portfolio.ready
     ? initial.filter((l) => portfolio.landlordIds.has(l.id))
     : initial
-  const nothingInPortfolio = status === "active" && scope === "mine" && scopedInitial.length === 0
+  const nothingInPortfolio = status === "active" && effScope === "mine" && scopedInitial.length === 0
 
   const filtered = scopedInitial
     .filter((l) => {
@@ -228,7 +231,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
         placeholder="Search by name, email or phone…"
         view={view}
         onView={setView}
-        rightFilters={status === "active" ? (
+        rightFilters={status === "active" && showScope ? (
           <ToolbarFilter
             label="View"
             selected={[scope]}
