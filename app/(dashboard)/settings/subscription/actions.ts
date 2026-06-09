@@ -8,8 +8,10 @@
  * Notes:  Cancel is two-step: initiateCancellation → confirmCancellation (AAL2 or email link).
  *         Pause and resume are direct (no extra identity verification required).
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { gateway, type GatewayContext } from "@/lib/supabase/gateway"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { can } from "@/lib/auth/can"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import {
@@ -20,6 +22,16 @@ import {
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+
+// Billing actions require the 'billing' capability (owner / is_admin exempt). This is orthogonal to the
+// §10.3 "your data always" rule — that's about subscription STATE (never block on paused/cancelled), this is
+// about WHO may manage billing. Returns the gateway context or an error to return straight to the client.
+async function requireBilling(): Promise<{ gw: GatewayContext } | { error: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  if (!gw.isAdmin && !(await can("billing"))) return { error: "You don't have access to billing." }
+  return { gw }
+}
 
 // ── Shared helper: fetch org contact for emails ───────────────────────────────
 
@@ -57,8 +69,15 @@ async function fetchOrgContact(service: Awaited<ReturnType<typeof createServiceC
 export async function pauseSubscription(
   reason: string,
 ): Promise<{ success: true } | { error: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const auth = await requireBilling()
+  if ("error" in auth) return auth
+  const { gw } = auth
+
+  // The free Owner plan has no paid subscription — pausing it is meaningless and leaves it reading as
+  // arrears. Pause/resume apply to paid tiers only.
+  const tier = await getOrgTierCanonical(gw.orgId)
+  if (tier === "owner") return { error: "The free Owner plan has nothing to pause." }
+
   const service = await createServiceClient()
   const now = new Date().toISOString()
 
@@ -102,8 +121,9 @@ export async function pauseSubscription(
 // ── resumeSubscription ────────────────────────────────────────────────────────
 
 export async function resumeSubscription(): Promise<{ success: true } | { error: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const auth = await requireBilling()
+  if ("error" in auth) return auth
+  const { gw } = auth
   const service = await createServiceClient()
 
   const { data: sub, error: fetchErr } = await service
@@ -155,8 +175,9 @@ export type InitiateCancellationResult =
   | { error: string }
 
 export async function initiateCancellation(): Promise<InitiateCancellationResult> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const auth = await requireBilling()
+  if ("error" in auth) return auth
+  const { gw } = auth
   const service = await createServiceClient()
 
   const { data: sub, error: fetchErr } = await service
@@ -230,8 +251,9 @@ export async function initiateCancellation(): Promise<InitiateCancellationResult
 // then transitions subscription → cancelled and fires the confirmation email.
 
 export async function confirmCancellation(): Promise<{ success: true } | { error: string; code?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const auth = await requireBilling()
+  if ("error" in auth) return auth
+  const { gw } = auth
   const service = await createServiceClient()
 
   const { data: sub, error: fetchErr } = await service
