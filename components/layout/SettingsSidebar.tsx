@@ -81,7 +81,7 @@ function NavRow({ href, label, icon: Icon, active }: Readonly<{ href: string; la
 
 export function SettingsSidebar() {
   const pathname = usePathname()
-  const { isPaid, isOwner } = useTier()
+  const { isPaid, isOwner, loading } = useTier()
 
   const isActive = (href: string, extra?: string[]) =>
     pathname === href || pathname.startsWith(href + "/") ||
@@ -136,7 +136,7 @@ export function SettingsSidebar() {
           )
         })}
 
-        {isOwner && (
+        {!loading && isOwner && (
           <div className="mx-2 mt-5 rounded-xl border border-border border-b-2 border-b-brand bg-card p-3.5">
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-brand">Upgrade</p>
             <p className="mt-1 text-[13px] font-semibold leading-snug text-foreground">Running more than your own rental?</p>
