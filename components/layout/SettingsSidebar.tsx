@@ -141,7 +141,7 @@ export function SettingsSidebar() {
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-brand">Upgrade</p>
             <p className="mt-1 text-[13px] font-semibold leading-snug text-foreground">Running more than your own rental?</p>
             <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
-              Steward unlocks your agency workspace — team, documents, trust account and more.
+              Steward unlocks your agency workspace — documents, trust account and more.
             </p>
             <Link
               href="/settings/subscription"
