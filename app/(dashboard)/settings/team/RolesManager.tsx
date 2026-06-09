@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Pencil, EyeOff } from "lucide-react"
+import { Pencil, EyeOff, Info } from "lucide-react"
 import { Modal, ActionButton, DeleteButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { TextField, SelectField } from "@/components/forms/fields"
@@ -130,9 +130,17 @@ export function RolesManager({ roles, canAddCustom }: Readonly<{ roles: OrgRole[
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
       <p className="text-sm text-muted-foreground">
         Define the roles in your agency and what each can access. Tune or hide the built-in roles, or add
-        your own with “Add role”. (Permission enforcement rolls out separately — for now these shape the
-        role library.)
+        your own with “Add role”.
       </p>
+
+      <div className="flex items-start gap-2.5 rounded-[var(--r-button)] border border-amber-500/40 bg-amber-500/10 px-3.5 py-2.5">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <p className="text-[13px] leading-relaxed text-foreground">
+          <span className="font-semibold">Capabilities are configured here, not yet enforced.</span>{" "}
+          Setting what a role can access shapes the role library — it does <span className="font-semibold">not</span> restrict
+          members across the app yet. Enforcement ships in a later update.
+        </p>
+      </div>
 
       {groupOrder.map((group) => {
         const inGroup = roles.filter((r) => (r.group ?? "Custom") === group)
