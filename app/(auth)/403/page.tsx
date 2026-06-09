@@ -11,6 +11,7 @@ import { cookies } from "next/headers"
 import Link from "next/link"
 import { ShieldAlert } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
+import { BUILTIN_ROLE_BY_SLUG } from "@/lib/auth/capabilities"
 
 export const metadata = { title: "Not available here" }
 
@@ -43,20 +44,36 @@ export default async function ForbiddenPage() {
     }
   } catch { /* cookies malformed */ }
 
-  const roleLabel = activeRole ? (ROLE_LABELS[activeRole] ?? activeRole) : null
+  const roleLabel = activeRole
+    ? (BUILTIN_ROLE_BY_SLUG[activeRole]?.label ?? ROLE_LABELS[activeRole] ?? activeRole)
+    : null
 
+  // Mirrors the login modal: stripped background + a centred card, so this reads as part of the app.
   return (
-    <div className="flex flex-col items-center justify-center flex-1 px-4 py-24 text-center">
-      <ShieldAlert className="h-12 w-12 text-muted-foreground mb-6" />
-      <h1 className="font-heading text-3xl mb-2">Not available here</h1>
-      <p className="text-muted-foreground text-sm max-w-xs mb-8">
-        {roleLabel
-          ? `This page isn't available in your current workspace. You're signed in as ${roleLabel}.`
-          : "This page isn't available in your current workspace."}
-      </p>
-      <div className="flex flex-col sm:flex-row gap-3">
-        <ActionButton asChild tone="primary"><Link href="/auth/resolver">Go to my workspace</Link></ActionButton>
-        <ActionButton asChild tone="secondary"><Link href="/login">Sign out</Link></ActionButton>
+    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 20px" }}>
+      <div
+        style={{
+          background: "var(--surface-base, #fff)",
+          borderRadius: 10,
+          boxShadow: "0 8px 40px rgba(0,0,0,0.10)",
+          maxWidth: 448,
+          width: "100%",
+          padding: "36px 36px 32px",
+        }}
+      >
+        <div className="flex flex-col items-center text-center">
+          <ShieldAlert className="mb-6 h-12 w-12 text-muted-foreground" />
+          <h1 className="mb-2 font-heading text-2xl">Not available here</h1>
+          <p className="mb-8 max-w-xs text-sm text-muted-foreground">
+            {roleLabel
+              ? `This page isn't available in your current workspace. You're signed in as ${roleLabel}.`
+              : "This page isn't available in your current workspace."}
+          </p>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+            <ActionButton asChild tone="primary"><Link href="/auth/resolver">Go to my workspace</Link></ActionButton>
+            <ActionButton asChild tone="secondary"><Link href="/login">Sign out</Link></ActionButton>
+          </div>
+        </div>
       </div>
     </div>
   )
