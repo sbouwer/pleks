@@ -8,11 +8,13 @@
  * Data:   fetchLeasesAction via react-query; stale time from STALE_TIME.leases
  */
 
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
 import { WarningBell } from "@/components/ui/WarningBell"
+import { WarningListModal, type WarningItem } from "@/components/ui/WarningListModal"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { FileText } from "lucide-react"
@@ -41,6 +43,7 @@ interface Props { orgId: string }
 
 export function LeasesPageClient({ orgId }: Props) {
   const router = useRouter()
+  const [showExpiring, setShowExpiring] = useState(false)
   const { data: rawLeases = [], isLoading } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.leases(orgId),
     queryFn: () => fetchLeasesAction(orgId),
@@ -85,7 +88,15 @@ export function LeasesPageClient({ orgId }: Props) {
     }
   })
 
-  const expiringCount = serialised.filter((l) => ["active", "month_to_month"].includes(l.status) && isExpiringSoon(l)).length
+  const expiringItems: WarningItem[] = serialised
+    .filter((l) => ["active", "month_to_month"].includes(l.status) && isExpiringSoon(l))
+    .map((l) => {
+      const tv = l.tenant_view
+      const name = tv ? (tv.company_name || `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim() || "Tenant") : "Tenant"
+      const unit = l.units
+      const sub = [unit ? `${unit.unit_number}, ${unit.properties.name}` : null, l.end_date ? `ends ${new Date(l.end_date).toLocaleDateString("en-ZA")}` : null].filter(Boolean).join(" · ")
+      return { id: l.id, title: name, sub, href: `/leases/${l.id}` }
+    })
 
   // Empty → the shared empty state (no tabs/filters or footer metrics — nothing to filter or total).
   if (!isLoading && serialised.length === 0) {
@@ -118,14 +129,15 @@ export function LeasesPageClient({ orgId }: Props) {
         action={
           <div className="flex items-center gap-2">
             <WarningBell
-              count={expiringCount}
-              label={`${expiringCount} lease${expiringCount === 1 ? "" : "s"} expiring soon`}
-              onClick={() => globalThis.dispatchEvent(new CustomEvent("pleks:leases-expiring"))}
+              count={expiringItems.length}
+              label={`${expiringItems.length} lease${expiringItems.length === 1 ? "" : "s"} expiring soon`}
+              onClick={() => setShowExpiring(true)}
             />
             <AddButton label="Create lease" onClick={() => router.push("/leases/new")} />
           </div>
         }
       />
+      <WarningListModal open={showExpiring} onClose={() => setShowExpiring(false)} title="Leases expiring soon" items={expiringItems} />
 
       {/* Mobile lease cards */}
       <div className="lg:hidden min-h-0 flex-1 space-y-2 overflow-auto">
