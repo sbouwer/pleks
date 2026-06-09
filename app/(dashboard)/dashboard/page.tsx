@@ -20,13 +20,12 @@ import { ActivityFeed } from "./ActivityFeed"
 import { PropertySetupCards } from "./PropertySetupCards"
 import { GettingStarted, type GettingStartedProgress } from "./GettingStarted"
 import { WorkspaceSetup } from "./WorkspaceSetup"
-import { PlanUsageBanner } from "./PlanUsageBanner"
 import { QuickAddMenu } from "./QuickAddMenu"
 import { DashboardGreeting } from "./DashboardGreeting"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import type { Tier } from "@/lib/constants"
 import { type SurrenderedCommRow } from "./SurrenderedCommsWidget"
-import { SurrenderedCommsBell } from "./SurrenderedCommsBell"
+import { DashboardAlertsBell } from "./DashboardAlertsBell"
 import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
 import { getTrustBalance } from "@/lib/dashboard/trustBalance"
@@ -307,7 +306,12 @@ export default async function DashboardPage() {
         sub={showOnboarding ? "Ready when you are — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
         action={
           <div className="flex items-center gap-2">
-            <SurrenderedCommsBell items={surrenderedCommItems} showDepositSetup={showTrustBanner} />
+            <DashboardAlertsBell
+              surrendered={surrenderedCommItems}
+              showDepositSetup={showTrustBanner}
+              tier={tier as Tier}
+              leaseCount={leasesCountRes.count ?? 0}
+            />
             <QuickAddMenu />
           </div>
         }
@@ -337,9 +341,6 @@ export default async function DashboardPage() {
         totalProperties={totalProperties}
         isAdmin={membership.role === "owner"}
       />
-
-      {/* Tier-aware plan / usage banner */}
-      <PlanUsageBanner tier={tier as Tier} leaseCount={leasesCountRes.count ?? 0} />
 
       {/* KPI strip — connected panel */}
       <div className="grid grid-cols-2 overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card md:grid-cols-4">
