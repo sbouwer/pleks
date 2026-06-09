@@ -12,6 +12,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
+import { WarningBell } from "@/components/ui/WarningBell"
+import { WarningListModal, type WarningItem } from "@/components/ui/WarningListModal"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, type ListView } from "@/components/ui/resource-list"
@@ -19,6 +21,7 @@ import { useUser } from "@/hooks/useUser"
 import { useMyTeams } from "@/hooks/useMyTeams"
 import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { isMine } from "@/lib/work/myWorkFilter"
+import { isPastDate } from "@/lib/work/overdue"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { ClipboardCheck, User, Users, Globe } from "lucide-react"
@@ -110,6 +113,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
   const [search, setSearch] = useState("")
   const [statuses, setStatuses] = useState<string[]>([])
   const [view, setView] = useState<ListView>("list")
+  const [showOverdue, setShowOverdue] = useState(false)
 
   // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org.
   const effScope = showScope ? scope : "all"
@@ -138,6 +142,23 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
   const statusNote = statuses.length > 0 ? ` · ${statuses.length} ${statusWord}` : ""
   const countLabel = `${filtered.length} of ${scopedList.length} inspection${scopedList.length === 1 ? "" : "s"}${statusNote}`
 
+  // Overdue = still scheduled but the date has passed.
+  const overdueItems: WarningItem[] = list
+    .filter((insp) => {
+      const sd = (insp as { scheduled_date?: string | null }).scheduled_date
+      return insp.status === "scheduled" && isPastDate(sd)
+    })
+    .map((insp) => {
+      const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
+      const sd = (insp as { scheduled_date?: string | null }).scheduled_date
+      return {
+        id: insp.id,
+        title: insp.inspection_type?.replaceAll("_", " ") ?? "Inspection",
+        sub: [unit ? `${unit.unit_number}, ${unit.properties.name}` : null, sd ? `due ${new Date(sd).toLocaleDateString("en-ZA")}` : null].filter(Boolean).join(" · "),
+        href: `/inspections/${insp.id}`,
+      }
+    })
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ResourcePageHeader
@@ -152,8 +173,18 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
             </span>
           ) : undefined
         }
-        action={<AddButton label="Schedule inspection" onClick={() => router.push("/inspections/new")} />}
+        action={
+          <div className="flex items-center gap-2">
+            <WarningBell
+              count={overdueItems.length}
+              label={`${overdueItems.length} overdue inspection${overdueItems.length === 1 ? "" : "s"}`}
+              onClick={() => setShowOverdue(true)}
+            />
+            <AddButton label="Schedule inspection" onClick={() => router.push("/inspections/new")} />
+          </div>
+        }
       />
+      <WarningListModal open={showOverdue} onClose={() => setShowOverdue(false)} title="Overdue inspections" items={overdueItems} />
 
       {list.length === 0 ? (
         <EmptyResourceState

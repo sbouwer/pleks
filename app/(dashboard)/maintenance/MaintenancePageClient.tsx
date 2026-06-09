@@ -16,6 +16,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
+import { WarningBell } from "@/components/ui/WarningBell"
+import { WarningListModal, type WarningItem } from "@/components/ui/WarningListModal"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, ListCard, type ListView } from "@/components/ui/resource-list"
@@ -23,6 +25,7 @@ import { useUser } from "@/hooks/useUser"
 import { useMyTeams } from "@/hooks/useMyTeams"
 import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { isMine } from "@/lib/work/myWorkFilter"
+import { isPastDate } from "@/lib/work/overdue"
 import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, User, Users, Globe } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
@@ -292,6 +295,24 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
     queryFn: () => fetchMaintenanceAction(orgId),
     staleTime: STALE_TIME.maintenance,
   })
+
+  // Overdue = an open request whose scheduled date has passed (terminal states excluded).
+  const [showOverdue, setShowOverdue] = useState(false)
+  const overdueItems: WarningItem[] = allItems
+    .filter((req) => {
+      const r = req as { status: string; scheduled_date?: string | null }
+      const terminal = ["completed", "closed", "rejected", "cancelled"].includes(r.status)
+      return !terminal && isPastDate(r.scheduled_date)
+    })
+    .map((req) => {
+      const r = req as { id: string; title?: string | null; scheduled_date?: string | null }
+      return {
+        id: r.id,
+        title: r.title ?? "Maintenance request",
+        sub: r.scheduled_date ? `scheduled ${new Date(r.scheduled_date).toLocaleDateString("en-ZA")}` : undefined,
+        href: `/maintenance/${r.id}`,
+      }
+    })
   // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org,
   // shown only under "All". Falls back to All until the current user resolves.
   const effScope = showScope ? scope : "all"
@@ -430,8 +451,18 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
               </div>
             ) : undefined
           }
-          action={<AddButton label="Log request" onClick={() => router.push("/maintenance/new")} />}
+          action={
+            <div className="flex items-center gap-2">
+              <WarningBell
+                count={overdueItems.length}
+                label={`${overdueItems.length} overdue request${overdueItems.length === 1 ? "" : "s"}`}
+                onClick={() => setShowOverdue(true)}
+              />
+              <AddButton label="Log request" onClick={() => router.push("/maintenance/new")} />
+            </div>
+          }
         />
+        <WarningListModal open={showOverdue} onClose={() => setShowOverdue(false)} title="Overdue maintenance" items={overdueItems} />
 
         {emergencies.length > 0 && (
           <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-2.5 mb-4 flex items-start gap-3">
