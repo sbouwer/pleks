@@ -1,32 +1,24 @@
 /**
- * app/(dashboard)/dashboard/FinancialsPanel.tsx — Dashboard financial summary panel: rent, collections, arrears, trust balance
+ * app/(dashboard)/dashboard/FinancialsPanel.tsx — dashboard financial summary (rent, collections, arrears, trust)
  *
  * Route:  /dashboard (embedded)
  * Auth:   gateway-protected dashboard layout
- * Data:   CollectionRateData, TrustBalanceSummary, FeesDueWidget, UnpaidOwnersData passed from server
+ * Data:   CollectionRateData + TrustBalanceSummary passed from the server page
+ * Notes:  2×2 grid with explicit per-cell border-border (NOT divide-*, which defaults to currentColor in
+ *         Tailwind v4 and renders dark). Management fees live on the rent-roll KPI card; owners-unpaid was
+ *         dropped (it double-counted deposits + the owners figure was unreliable).
  */
 import { InlineLink } from "@/components/ui/actions"
 import { formatZAR, formatZARAbbrev } from "@/lib/constants"
 import type { CollectionRateData } from "@/lib/dashboard/collectionRate"
 import type { TrustBalanceSummary } from "@/lib/dashboard/trustBalance"
-import type { FeesDueWidget } from "@/lib/dashboard/feesDue"
-import type { UnpaidOwnersData } from "@/lib/dashboard/unpaidOwners"
 
 interface FinancialsPanelProps {
   collection: CollectionRateData
   trustBalance: TrustBalanceSummary
-  feesDue: FeesDueWidget
-  unpaidOwners: UnpaidOwnersData
-  totalLandlords: number
 }
 
-export function FinancialsPanel({
-  collection,
-  trustBalance,
-  feesDue,
-  unpaidOwners,
-  totalLandlords,
-}: Readonly<FinancialsPanelProps>) {
+export function FinancialsPanel({ collection, trustBalance }: Readonly<FinancialsPanelProps>) {
   const outstanding = collection.totalExpected - collection.totalCollected
   const collectionPct =
     collection.totalExpected > 0
@@ -43,30 +35,27 @@ export function FinancialsPanel({
         <InlineLink href="/reports" withArrow>Reports</InlineLink>
       </div>
 
-      {/* 2×2 grid */}
-      <div className="grid grid-cols-2 divide-x divide-y divide-border">
+      {/* 2×2 grid — explicit cell borders (border-border), not divide-* */}
+      <div className="grid grid-cols-2">
         {/* Rent expected */}
-        <div className="p-4">
+        <div className="border-b border-r border-border p-4">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Rent expected</p>
           <p className="mt-1 font-heading text-lg">{formatZAR(collection.totalExpected)}</p>
           <p className="text-[11px] text-muted-foreground">This month</p>
         </div>
 
         {/* Collected */}
-        <div className="p-4">
+        <div className="border-b border-border p-4">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Collected</p>
           <p className="mt-1 font-heading text-lg text-emerald-600">{formatZAR(collection.totalCollected)}</p>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-emerald-500"
-              style={{ width: `${collectionPct}%` }}
-            />
+            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${collectionPct}%` }} />
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">{collectionPct}% collected</p>
         </div>
 
         {/* Outstanding arrears */}
-        <div className="p-4">
+        <div className="border-r border-border p-4">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Outstanding arrears</p>
           <p className={`mt-1 font-heading text-lg ${outstanding > 0 ? "text-red-600" : "text-muted-foreground"}`}>
             {formatZAR(outstanding)}
@@ -79,32 +68,12 @@ export function FinancialsPanel({
         {/* Trust balance */}
         <div className="p-4">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Trust balance</p>
-          <p className="mt-1 font-heading text-lg">
-            {formatZARAbbrev(trustBalance.total_in_trust_cents)}
-          </p>
+          <p className="mt-1 font-heading text-lg">{formatZARAbbrev(trustBalance.total_in_trust_cents)}</p>
           <p className="text-[11px] text-muted-foreground">
             Deposits: {formatZARAbbrev(trustBalance.deposits_held_cents)}
             {" · "}
             Undisbursed: {formatZARAbbrev(trustBalance.rent_collected_undisbursed_cents)}
           </p>
-        </div>
-      </div>
-
-      {/* Summary row */}
-      <div className="flex items-center divide-x divide-border border-t border-border">
-        <div className="flex-1 px-4 py-3">
-          <p className="text-[11px] text-muted-foreground">Owners not yet paid</p>
-          <p className={`mt-0.5 text-sm font-semibold ${unpaidOwners.count > 0 ? "text-amber-600" : ""}`}>
-            {unpaidOwners.count} of {totalLandlords}
-          </p>
-        </div>
-        <div className="flex-1 px-4 py-3">
-          <p className="text-[11px] text-muted-foreground">Management fees</p>
-          <p className="mt-0.5 text-sm font-semibold">{formatZAR(feesDue.total_fees_due_cents)}</p>
-        </div>
-        <div className="flex-1 px-4 py-3">
-          <p className="text-[11px] text-muted-foreground">Deposits held</p>
-          <p className="mt-0.5 text-sm font-semibold">{formatZARAbbrev(trustBalance.deposits_held_cents)}</p>
         </div>
       </div>
     </div>

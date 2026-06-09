@@ -29,7 +29,6 @@ import { SurrenderedCommsWidget, type SurrenderedCommRow } from "./SurrenderedCo
 import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
 import { getTrustBalance } from "@/lib/dashboard/trustBalance"
-import { getUnpaidOwners } from "@/lib/dashboard/unpaidOwners"
 import { getCollectionRate, type CollectionRateData } from "@/lib/dashboard/collectionRate"
 import { getAttentionItems } from "@/lib/dashboard/attentionItems"
 import { getActivityFeed } from "@/lib/dashboard/activityFeed"
@@ -67,20 +66,13 @@ async function DashboardHeavySections({
   /** owner tier (single property, no trust/agency) — skip the agency Financials panel */
   isOwner: boolean
 }>) {
-  const [feesDue, trustBalance, unpaidOwners, attentionItems, activityItems, expiringLeases, landlordsCountRes] =
+  const [trustBalance, attentionItems, activityItems, expiringLeases] =
     await Promise.all([
-      getFeesDue(orgId),
       getTrustBalance(orgId),
-      getUnpaidOwners(orgId),
       getAttentionItems(orgId),
       getActivityFeed(orgId),
       getExpiringLeases(orgId),
-      getCachedServiceClient().then((c) =>
-        c.from("landlord_view").select("id", { count: "exact", head: true }).eq("org_id", orgId)
-      ),
     ])
-
-  const totalLandlords = landlordsCountRes.count ?? 0
 
   // Owner tier: a single property with no trust account or other owners — the agency Financials
   // panel (trust balance, owners-unpaid, management fees) doesn't apply, so lead with what's
@@ -101,13 +93,7 @@ async function DashboardHeavySections({
     <>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <AttentionQueue items={attentionItems} />
-        <FinancialsPanel
-          collection={collectionRate}
-          trustBalance={trustBalance}
-          feesDue={feesDue}
-          unpaidOwners={unpaidOwners}
-          totalLandlords={totalLandlords}
-        />
+        <FinancialsPanel collection={collectionRate} trustBalance={trustBalance} />
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <LeaseExpiryTimeline leases={expiringLeases} />
@@ -216,7 +202,7 @@ export default async function DashboardPage() {
   const supabase = await createClient()
 
   // Light wave — all independent, renders greeting + metrics immediately
-  const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate, tenantsCountRes, leasesCountRes, inspectionsCountRes, landlordsCountRes, contractorsCountRes, surrenderedCommsRes] = await Promise.all([
+  const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate, feesDue, tenantsCountRes, leasesCountRes, inspectionsCountRes, landlordsCountRes, contractorsCountRes, surrenderedCommsRes] = await Promise.all([
     supabase
       .from("organisations")
       .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents, onboarding_dismissed_at")
@@ -244,6 +230,7 @@ export default async function DashboardPage() {
       .eq("org_id", orgId)
       .is("deleted_at", null),
     getCollectionRate(orgId),
+    getFeesDue(orgId),
     supabase.from("tenants").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
     supabase.from("leases").select("id", { count: "exact", head: true }).eq("org_id", orgId),
     supabase.from("inspections").select("id", { count: "exact", head: true }).eq("org_id", orgId),
@@ -351,33 +338,29 @@ export default async function DashboardPage() {
       <PlanUsageBanner tier={tier as Tier} leaseCount={leasesCountRes.count ?? 0} />
 
       {/* KPI strip — connected panel */}
-      <div className="grid grid-cols-2 overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card md:grid-cols-5">
+      <div className="grid grid-cols-2 overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card md:grid-cols-4">
         <MetricCard
           label="Properties"
           value={String(totalProperties)}
+          subtext={`${totalUnits} ${totalUnits === 1 ? "unit" : "units"}`}
           href="/properties"
           className="border-b border-r border-border md:border-b-0"
-        />
-        <MetricCard
-          label="Units"
-          value={String(totalUnits)}
-          href="/properties"
-          className="border-b border-border md:border-b-0 md:border-r"
         />
         <MetricCard
           label="Occupancy"
           value={`${occupancyPercent}%`}
-          subtext={vacantUnits > 0 ? `${vacantUnits} vacant` : "Fully occupied"}
+          subtext={`${occupiedUnits}/${totalUnits} occupied`}
           subtextVariant={vacantUnits > 0 ? "warning" : "success"}
           href="/reports"
           dotColor={vacantUnits > 0 ? "#EF9F27" : "#1D9E75"}
-          className="border-b border-r border-border md:border-b-0"
+          className="border-b border-border md:border-b-0 md:border-r"
         />
         <MetricCard
           label="Monthly rent roll"
           value={collectionRate ? formatZARAbbrev(collectionRate.totalRentRoll) : "R 0"}
+          subtext={`${formatZARAbbrev(feesDue.total_fees_due_cents)} fees`}
           href="/reports"
-          className="border-b border-border md:border-b-0 md:border-r"
+          className="border-r border-border"
         />
         <MetricCard
           label="Collection rate"
@@ -385,7 +368,6 @@ export default async function DashboardPage() {
           progressBar={collectionRate?.collectionRate ?? 0}
           href="/billing"
           dotColor="#1D9E75"
-          className="col-span-2 md:col-span-1"
         />
       </div>
 
