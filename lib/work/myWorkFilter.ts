@@ -40,10 +40,13 @@ export function applyWorkScope<Q extends EqFilterable<Q>>(
   return query
 }
 
-/** Client-side predicate for an already-loaded list — same semantics as the query filter. */
+/** Client-side predicate for an already-loaded list. "Mine" = assigned to me OR to a team I'm on
+ *  (ADDENDUM_TEAMS Layer 1); null/null = Everyone/Org (not mine). teamIds is empty on non-firm orgs. */
 export function isMine(
-  item: { assigned_user_id: string | null },
+  item: { assigned_user_id: string | null; assigned_team_id?: string | null },
   userId: string,
+  teamIds: readonly string[] = [],
 ): boolean {
-  return item.assigned_user_id === userId
+  if (item.assigned_user_id === userId) return true
+  return item.assigned_team_id != null && teamIds.includes(item.assigned_team_id)
 }

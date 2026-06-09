@@ -142,7 +142,7 @@ export default async function InspectionDetailPage({
       <BackLink href="/inspections" label="Inspections" />
       {/* Assignee — drives My work routing (ADDENDUM_TEAMS); UX placement TBD */}
       <div className="mb-4 max-w-xs">
-        <AssigneePicker workTable="inspections" recordId={inspectionId} currentAssigneeId={(inspection.assigned_user_id as string | null) ?? null} />
+        <AssigneePicker workTable="inspections" recordId={inspectionId} currentAssigneeId={(inspection.assigned_user_id as string | null) ?? null} currentTeamId={(inspection.assigned_team_id as string | null) ?? null} />
       </div>
       {/* Mobile view */}
       <div className="lg:hidden">

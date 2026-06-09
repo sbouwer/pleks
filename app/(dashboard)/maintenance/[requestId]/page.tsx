@@ -59,7 +59,7 @@ export default async function MaintenanceDetailPage({
       in_progress_at, completed_at, closed_at, cancelled_at,
       cancellation_reason, cancellation_category,
       contractor_id, tenant_id, logged_by, property_id, unit_id,
-      assigned_user_id, handled_by,
+      assigned_user_id, assigned_team_id, handled_by,
       severity, insurance_decision, insurance_decision_at, insurance_decision_notes, org_id,
       units(unit_number, properties(name, address_line1, landlord_id)),
       tenant_view(first_name, last_name, phone),
@@ -273,6 +273,7 @@ export default async function MaintenanceDetailPage({
             workTable="maintenance_requests"
             recordId={requestId}
             currentAssigneeId={(req.assigned_user_id as string | null) ?? null}
+            currentTeamId={(req.assigned_team_id as string | null) ?? null}
           />
         </div>
 

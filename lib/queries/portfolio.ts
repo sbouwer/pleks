@@ -121,7 +121,7 @@ export async function fetchLeases(supabase: SupabaseClient, orgId: string) {
 export async function fetchInspections(supabase: SupabaseClient, orgId: string, scope: WorkScope = "all", userId?: string) {
   let query = supabase
     .from("inspections")
-    .select("id, inspection_type, lease_type, status, scheduled_date, conducted_date, assigned_user_id, units(unit_number, properties(name))")
+    .select("id, inspection_type, lease_type, status, scheduled_date, conducted_date, assigned_user_id, assigned_team_id, units(unit_number, properties(name))")
     .eq("org_id", orgId)
   if (scope === "mine" && userId) query = applyWorkScope(query, "mine", userId)
   const { data, error } = await query.order("created_at", { ascending: false })
@@ -132,7 +132,7 @@ export async function fetchInspections(supabase: SupabaseClient, orgId: string, 
 export async function fetchMaintenance(supabase: SupabaseClient, orgId: string, scope: WorkScope = "all", userId?: string) {
   let query = supabase
     .from("maintenance_requests")
-    .select("id, title, category, urgency, status, work_order_number, contractor_id, logged_by, reported_via, created_at, assigned_user_id, handled_by, units(unit_number, properties(name, address_line1, suburb, city)), contractor_view(first_name, last_name, company_name)")
+    .select("id, title, category, urgency, status, work_order_number, contractor_id, logged_by, reported_via, created_at, assigned_user_id, assigned_team_id, handled_by, units(unit_number, properties(name, address_line1, suburb, city)), contractor_view(first_name, last_name, company_name)")
     .eq("org_id", orgId)
   if (scope === "mine" && userId) query = applyWorkScope(query, "mine", userId)
   const { data, error } = await query.order("created_at", { ascending: false })
@@ -143,7 +143,7 @@ export async function fetchMaintenance(supabase: SupabaseClient, orgId: string, 
 export async function fetchApplications(supabase: SupabaseClient, orgId: string, scope: WorkScope = "all", userId?: string) {
   let query = supabase
     .from("applications")
-    .select("id, first_name, last_name, applicant_email, stage1_status, stage2_status, prescreen_score, fitscore, gross_monthly_income_cents, is_foreign_national, has_co_applicant, applicant_motivation, created_at, assigned_user_id, handled_by, listing_id, listings(id, public_slug, asking_rent_cents, applications_count, units(unit_number, properties(name)))")
+    .select("id, first_name, last_name, applicant_email, stage1_status, stage2_status, prescreen_score, fitscore, gross_monthly_income_cents, is_foreign_national, has_co_applicant, applicant_motivation, created_at, assigned_user_id, assigned_team_id, handled_by, listing_id, listings(id, public_slug, asking_rent_cents, applications_count, units(unit_number, properties(name)))")
     .eq("org_id", orgId)
   if (scope === "mine" && userId) query = applyWorkScope(query, "mine", userId)
   const { data, error } = await query.order("created_at", { ascending: false }).limit(100)

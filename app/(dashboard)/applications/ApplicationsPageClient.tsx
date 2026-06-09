@@ -31,6 +31,7 @@ import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchApplicationsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 import { useUser } from "@/hooks/useUser"
+import { useMyTeamIds } from "@/hooks/useMyTeamIds"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
@@ -220,6 +221,7 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { user } = useUser()
+  const { teamIds } = useMyTeamIds()
   const queryKey = OPERATIONAL_QUERY_KEYS.applications(orgId)
   const { data: list = [], dataUpdatedAt } = useQuery({
     queryKey,
@@ -235,7 +237,7 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   // My work / All (ADDENDUM_TEAMS Layer 0) — scope the applications (the listing frame stays org-wide as
   // context); null assignee = Everyone/Org, shown only under "All".
   const scopedList = scope === "mine" && user?.id
-    ? list.filter((a) => isMine(a as { assigned_user_id: string | null }, user.id))
+    ? list.filter((a) => isMine(a as { assigned_user_id: string | null; assigned_team_id: string | null }, user.id, teamIds))
     : list
 
   const prescreenReady = scopedList.filter((a) => a.stage1_status === "pre_screen_complete")

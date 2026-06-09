@@ -37,54 +37,64 @@ export async function listOrgAgents(): Promise<OrgAgent[]> {
 const WORK_TABLES = new Set(["maintenance_requests", "applications", "inspections"])
 export type WorkTable = "maintenance_requests" | "applications" | "inspections"
 
-/** Reassign a work item to an agent (userId) or to Everyone/Org (null). Audited. */
+/** Reassign a work item to an agent (userId), a team (teamId), or Everyone/Org (both null). Audited.
+ *  assigned_user_id XOR assigned_team_id — the caller passes at most one non-null (not-both CHECK). */
 export async function reassignWorkItem(
   table: WorkTable,
   recordId: string,
   assignedUserId: string | null,
+  assignedTeamId: string | null = null,
 ): Promise<{ ok: true } | { error: string }> {
   if (!WORK_TABLES.has(table)) return { error: "Invalid work type" }
   const gw = await requireAgentWriteAccess("reassign_work_item")
   const { db, orgId, userId } = gw
 
   const { data: before, error: readErr } = await db
-    .from(table).select("assigned_user_id").eq("id", recordId).eq("org_id", orgId).single()
+    .from(table).select("assigned_user_id, assigned_team_id").eq("id", recordId).eq("org_id", orgId).single()
   if (readErr) return { error: readErr.message }
 
   const { error } = await db
     .from(table)
-    .update({ assigned_user_id: assignedUserId, assigned_at: assignedUserId ? new Date().toISOString() : null })
+    .update({
+      assigned_user_id: assignedUserId,
+      assigned_team_id: assignedTeamId,
+      assigned_at: (assignedUserId || assignedTeamId) ? new Date().toISOString() : null,
+    })
     .eq("id", recordId).eq("org_id", orgId)
   if (error) return { error: error.message }
 
+  const prev = before as { assigned_user_id: string | null; assigned_team_id: string | null } | null
   await recordAudit(db, {
     orgId, actorId: userId, action: "UPDATE", table, recordId,
-    before: { assigned_user_id: (before as { assigned_user_id: string | null } | null)?.assigned_user_id ?? null },
-    after: { assigned_user_id: assignedUserId },
+    before: { assigned_user_id: prev?.assigned_user_id ?? null, assigned_team_id: prev?.assigned_team_id ?? null },
+    after: { assigned_user_id: assignedUserId, assigned_team_id: assignedTeamId },
   })
   return { ok: true }
 }
 
-/** Set the property manager to an agent (userId) or to Everyone/Org (null). Audited. */
+/** Set the property manager to an agent (userId), a team (teamId), or Everyone/Org (both null). Audited.
+ *  managing_agent_id XOR managing_team_id (not-both CHECK) — caller passes at most one non-null. */
 export async function setPropertyManager(
   propertyId: string,
   agentUserId: string | null,
+  teamId: string | null = null,
 ): Promise<{ ok: true } | { error: string }> {
   const gw = await requireAgentWriteAccess("set_property_manager")
   const { db, orgId, userId } = gw
 
   const { data: before, error: readErr } = await db
-    .from("properties").select("managing_agent_id").eq("id", propertyId).eq("org_id", orgId).single()
+    .from("properties").select("managing_agent_id, managing_team_id").eq("id", propertyId).eq("org_id", orgId).single()
   if (readErr) return { error: readErr.message }
 
   const { error } = await db
-    .from("properties").update({ managing_agent_id: agentUserId }).eq("id", propertyId).eq("org_id", orgId)
+    .from("properties").update({ managing_agent_id: agentUserId, managing_team_id: teamId }).eq("id", propertyId).eq("org_id", orgId)
   if (error) return { error: error.message }
 
+  const prev = before as { managing_agent_id: string | null; managing_team_id: string | null } | null
   await recordAudit(db, {
     orgId, actorId: userId, action: "UPDATE", table: "properties", recordId: propertyId,
-    before: { managing_agent_id: (before as { managing_agent_id: string | null } | null)?.managing_agent_id ?? null },
-    after: { managing_agent_id: agentUserId },
+    before: { managing_agent_id: prev?.managing_agent_id ?? null, managing_team_id: prev?.managing_team_id ?? null },
+    after: { managing_agent_id: agentUserId, managing_team_id: teamId },
   })
   return { ok: true }
 }

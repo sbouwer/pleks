@@ -20,6 +20,7 @@ import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, ListCard, type ListView } from "@/components/ui/resource-list"
 import { useUser } from "@/hooks/useUser"
+import { useMyTeamIds } from "@/hooks/useMyTeamIds"
 import { isMine } from "@/lib/work/myWorkFilter"
 import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
@@ -273,6 +274,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   const router = useRouter()
   const queryClient = useQueryClient()
   const { user } = useUser()
+  const { teamIds } = useMyTeamIds()
   const currentUserId = user?.id ?? null
   const queryKey = OPERATIONAL_QUERY_KEYS.maintenance(orgId)
   const [scope, setScope] = useState<"mine" | "all">("mine")
@@ -291,7 +293,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org,
   // shown only under "All". Falls back to All until the current user resolves.
   const scopeFiltered = scope === "mine" && currentUserId
-    ? allItems.filter((r) => isMine(r as { assigned_user_id: string | null }, currentUserId))
+    ? allItems.filter((r) => isMine(r as { assigned_user_id: string | null; assigned_team_id: string | null }, currentUserId, teamIds))
     : allItems
   // Optional ?contractor= scope (e.g. from a supplier's "View work orders" quick link).
   const list = contractorFilter

@@ -37,7 +37,7 @@ export default async function ApplicationDetailPage({
   const { data: app, error: appErr } = await db
     .from("applications")
     .select(`
-      id, org_id, assigned_user_id, first_name, last_name, applicant_email, applicant_phone,
+      id, org_id, assigned_user_id, assigned_team_id, first_name, last_name, applicant_email, applicant_phone,
       id_type, id_number, employment_type, employer_name,
       gross_monthly_income_cents, bank_statement_extracted,
       applicant_nationality_type, is_foreign_national,
@@ -138,7 +138,7 @@ export default async function ApplicationDetailPage({
 
       {/* Assignee — drives My work routing (ADDENDUM_TEAMS); UX placement TBD */}
       <div className="mb-4 max-w-xs">
-        <AssigneePicker workTable="applications" recordId={id} currentAssigneeId={(app.assigned_user_id as string | null) ?? null} />
+        <AssigneePicker workTable="applications" recordId={id} currentAssigneeId={(app.assigned_user_id as string | null) ?? null} currentTeamId={(app.assigned_team_id as string | null) ?? null} />
       </div>
 
       {/* Header */}

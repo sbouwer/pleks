@@ -16,6 +16,7 @@ import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { ListToolbar, ToolbarFilter, type ListView } from "@/components/ui/resource-list"
 import { useUser } from "@/hooks/useUser"
+import { useMyTeamIds } from "@/hooks/useMyTeamIds"
 import { isMine } from "@/lib/work/myWorkFilter"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -102,6 +103,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
   })
 
   const { user } = useUser()
+  const { teamIds } = useMyTeamIds()
   const [scope, setScope] = useState<"mine" | "all">("mine")
   const [search, setSearch] = useState("")
   const [statuses, setStatuses] = useState<string[]>([])
@@ -109,7 +111,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
 
   // My work / All (ADDENDUM_TEAMS Layer 0) — flat client-side predicate; null assignee = Everyone/Org.
   const scopedList = scope === "mine" && user?.id
-    ? list.filter((insp) => isMine(insp as { assigned_user_id: string | null }, user.id))
+    ? list.filter((insp) => isMine(insp as { assigned_user_id: string | null; assigned_team_id: string | null }, user.id, teamIds))
     : list
   const nothingAssignedToMe = list.length > 0 && scope === "mine" && scopedList.length === 0
 

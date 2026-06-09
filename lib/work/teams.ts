@@ -157,3 +157,25 @@ export async function removeTeamMember(teamId: string, memberUserId: string): Pr
   await recordAudit(db, { orgId, actorId: userId, action: "DELETE", table: "team_members", recordId: teamId, before: { team_id: teamId, user_id: memberUserId } })
   return { ok: true }
 }
+
+/** Light team list (id + name) for the assignee picker — no members/email fetch. */
+export async function listTeamOptions(): Promise<{ id: string; name: string }[]> {
+  const gw = await gateway()
+  if (!gw) return []
+  const { db, orgId } = gw
+  const { data, error } = await db
+    .from("teams").select("id, name").eq("org_id", orgId).is("archived_at", null).order("name")
+  if (error) { console.error("listTeamOptions:", error.message); return [] }
+  return data ?? []
+}
+
+/** The team ids the current user belongs to — feeds "my work" (team-assigned items) + the team filter. */
+export async function getMyTeamIds(): Promise<string[]> {
+  const gw = await gateway()
+  if (!gw) return []
+  const { db, orgId, userId } = gw
+  const { data, error } = await db
+    .from("team_members").select("team_id").eq("org_id", orgId).eq("user_id", userId)
+  if (error) { console.error("getMyTeamIds:", error.message); return [] }
+  return (data ?? []).map((r) => r.team_id as string)
+}
