@@ -3151,3 +3151,39 @@ CREATE POLICY "settings_ui_state_self" ON settings_ui_state
   FOR ALL
   USING (user_id = (SELECT auth.uid()))
   WITH CHECK (user_id = (SELECT auth.uid()));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §43  ADDENDUM_RBAC Phase 1: per-org role definitions + capabilities
+--      Override layer over the in-code built-in roles (lib/auth/capabilities.ts): a row exists only when
+--      an org has edited a built-in role's capabilities/visibility or added a custom role. The resolver
+--      merges code defaults with these rows. `owner` is implicit-all and never stored here.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS org_roles (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id       uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  slug         text NOT NULL,
+  label        text NOT NULL,
+  role_group   text,
+  is_system    boolean NOT NULL DEFAULT false,   -- built-in (overridden) vs org-created custom role
+  capabilities text[]  NOT NULL DEFAULT '{}',
+  enabled      boolean NOT NULL DEFAULT true,     -- hide a role from pickers without deleting it
+  sort         integer NOT NULL DEFAULT 0,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_roles_org ON org_roles(org_id);
+
+ALTER TABLE org_roles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_roles_org" ON org_roles;
+CREATE POLICY "org_roles_org" ON org_roles
+  FOR ALL
+  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+DROP TRIGGER IF EXISTS trg_org_roles_updated ON org_roles;
+CREATE TRIGGER trg_org_roles_updated BEFORE UPDATE ON org_roles
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

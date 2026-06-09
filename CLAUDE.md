@@ -556,7 +556,7 @@ All build specifications live in `brief/build/`. The master index is `brief/buil
 
 These are real constraints that cause non-obvious bugs. Check before writing migrations or queries.
 
-- `user_orgs.role` CHECK constraint only allows: `owner / property_manager / agent / accountant / maintenance_manager` — `admin` is not valid and will fail silently
+- `user_orgs.role` CHECK now only requires a **non-empty string** (relaxed for the RBAC role library — ADDENDUM_RBAC). The five *permission-bearing* system slugs are `owner / property_manager / agent / accountant / maintenance_manager`; any other value (e.g. `office_manager`, a custom slug) is a valid **title** but carries no built-in permissions. `admin` is the `is_admin` boolean, not a role. Role definitions + capabilities live in `org_roles` (010 §43) + `lib/auth/capabilities.ts`
 - `auth.users` has no unique constraint on email — `ON CONFLICT (email)` will fail. Use SELECT-first pattern to check existence before INSERT
 - `maintenance_delay_events.delay_type` CHECK does not include `parts_unavailable` — do not add it without a migration first
 

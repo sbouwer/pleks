@@ -2279,6 +2279,19 @@
       "enabled",
       "created_at"
     ],
+    "org_roles": [
+      "id",
+      "org_id",
+      "slug",
+      "label",
+      "role_group",
+      "is_system",
+      "capabilities",
+      "enabled",
+      "sort",
+      "created_at",
+      "updated_at"
+    ],
     "org_whatsapp_template_preferences": [
       "org_id",
       "template_id",
