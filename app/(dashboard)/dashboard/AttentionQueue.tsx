@@ -27,7 +27,7 @@ const badgeVariant: Record<string, string> = {
 
 export function AttentionQueue({ items }: Readonly<AttentionQueueProps>) {
   return (
-    <div className="overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card">
+    <div className="flex h-full flex-col overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card">
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
         <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
           <span className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
@@ -42,11 +42,11 @@ export function AttentionQueue({ items }: Readonly<AttentionQueueProps>) {
       </div>
 
       {items.length === 0 ? (
-        <div className="px-5 py-8 text-center">
+        <div className="flex flex-1 items-center justify-center px-5 py-8 text-center">
           <p className="text-sm text-muted-foreground">All clear — nothing needs attention right now.</p>
         </div>
       ) : (
-        <ul>
+        <ul className="flex-1">
           {items.map((item) => (
             <li key={item.id} className="border-b border-border last:border-b-0">
               <div className="grid grid-cols-[20px_1fr_auto_auto] items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/20">

@@ -14,7 +14,7 @@ import { getServerOrgMembership, getServerUser } from "@/lib/auth/server"
 import { DashboardBanners } from "./DashboardBanners"
 import { MetricCard } from "@/components/ui/metric-card"
 import { AttentionQueue } from "./AttentionQueue"
-import { FinancialsPanel } from "./FinancialsPanel"
+import { PortfolioHealthPanel } from "./PortfolioHealthPanel"
 import { LeaseExpiryTimeline } from "./LeaseExpiryTimeline"
 import { ActivityFeed } from "./ActivityFeed"
 import { PropertySetupCards } from "./PropertySetupCards"
@@ -30,6 +30,7 @@ import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
 import { getTrustBalance } from "@/lib/dashboard/trustBalance"
 import { getCollectionRate, type CollectionRateData } from "@/lib/dashboard/collectionRate"
+import { getPortfolioHealth } from "@/lib/dashboard/portfolioHealth"
 import { getAttentionItems } from "@/lib/dashboard/attentionItems"
 import { getActivityFeed } from "@/lib/dashboard/activityFeed"
 import { getExpiringLeases } from "@/lib/dashboard/leaseExpiry"
@@ -66,12 +67,13 @@ async function DashboardHeavySections({
   /** owner tier (single property, no trust/agency) — skip the agency Financials panel */
   isOwner: boolean
 }>) {
-  const [trustBalance, attentionItems, activityItems, expiringLeases] =
+  const [trustBalance, attentionItems, activityItems, expiringLeases, portfolioHealth] =
     await Promise.all([
       getTrustBalance(orgId),
       getAttentionItems(orgId),
       getActivityFeed(orgId),
       getExpiringLeases(orgId),
+      getPortfolioHealth(orgId),
     ])
 
   // Owner tier: a single property with no trust account or other owners — the agency Financials
@@ -93,7 +95,7 @@ async function DashboardHeavySections({
     <>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <AttentionQueue items={attentionItems} />
-        <FinancialsPanel collection={collectionRate} trustBalance={trustBalance} />
+        <PortfolioHealthPanel collection={collectionRate} trustBalance={trustBalance} health={portfolioHealth} />
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <LeaseExpiryTimeline leases={expiringLeases} />
