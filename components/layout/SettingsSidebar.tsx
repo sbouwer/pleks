@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTier } from "@/hooks/useTier"
+import { usePermissions } from "@/hooks/usePermissions"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 
 interface SettingsItem {
@@ -82,6 +83,7 @@ function NavRow({ href, label, icon: Icon, active }: Readonly<{ href: string; la
 export function SettingsSidebar() {
   const pathname = usePathname()
   const { isPaid, isOwner, loading } = useTier()
+  const { isAdmin } = usePermissions()  // owner / is_admin — the upgrade nudge is theirs, not every member's
 
   const isActive = (href: string, extra?: string[]) =>
     pathname === href || pathname.startsWith(href + "/") ||
@@ -136,7 +138,7 @@ export function SettingsSidebar() {
           )
         })}
 
-        {!loading && isOwner && (
+        {!loading && isOwner && isAdmin && (
           <div className="mx-2 mt-5 rounded-xl border border-border border-b-2 border-b-brand bg-card p-3.5">
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-brand">Upgrade</p>
             <p className="mt-1 text-[13px] font-semibold leading-snug text-foreground">Running more than your own rental?</p>

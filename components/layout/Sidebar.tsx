@@ -17,6 +17,7 @@ import { SettingsSidebar } from "./SettingsSidebar"
 import { useTier } from "@/hooks/useTier"
 import { useNavBadges } from "@/hooks/useNavBadges"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
+import { useCan } from "@/components/auth/CapabilitiesProvider"
 import {
   LayoutDashboard,
   Building2,
@@ -90,6 +91,7 @@ export function Sidebar() {
   const { isSteward, isGrowth, isPortfolio, isFirm } = useTier()
   const badges = useNavBadges()
   const caps = useOrgCapabilities()
+  const canBilling = useCan("billing")  // hide the Billing item from members without the capability (RBAC P4)
 
   // Settings pages get their own dedicated sidebar
   if (pathname.startsWith("/settings")) {
@@ -109,6 +111,8 @@ export function Sidebar() {
     ...group,
     items: group.items
       .filter((item) => {
+        // Capability gate — Billing & plan needs the 'billing' capability (RBAC P4)
+        if (item.href === "/billing") return canBilling
         // Tier gates
         if (item.href === "/calendar") return isPortfolio || isFirm
         if (item.href === "/finance/trust-ledger") return isSteward || isGrowth || isPortfolio || isFirm
