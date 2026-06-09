@@ -319,6 +319,18 @@
   margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rule);
 }
 
+/* Wide, viewport-bounded variant for content-heavy dialogs (e.g. the role capability editor): a roomier
+   width for multi-column grids, with the body scrolling so the head + actions stay pinned and the dialog
+   never exceeds the viewport. */
+.pa-modal.pa-modal-wide {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  display: flex; flex-direction: column;
+}
+.pa-modal.pa-modal-wide .pa-modal-head,
+.pa-modal.pa-modal-wide .pa-modal-actions { flex-shrink: 0; }
+.pa-modal.pa-modal-wide .pa-modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
 /* ── Dark-mode adjustments (.pleks-portal[data-theme="dark"]) ────────── */
 /* pa-primary fill is theme-aware (var(--foreground)/var(--background)) so it needs no
    dark override — white fill + dark text in dark, dark fill + light text in light. */

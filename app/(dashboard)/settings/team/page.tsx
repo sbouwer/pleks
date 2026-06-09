@@ -19,6 +19,7 @@ import { MembersTab } from "./TeamSettingsClient"
 import { TransferOwnershipTab } from "./TransferOwnershipTab"
 import { TeamsTab, NewTeamButton } from "./TeamsTab"
 import { RolesTab } from "./RolesTab"
+import { NewRoleButton } from "./RolesManager"
 import { MEMBERS_TAB, TEAMS_TAB, ROLES_TAB, TRANSFER_TAB } from "./tabs"
 
 export default async function TeamSettingsPage({ searchParams }: Readonly<{ searchParams: Promise<{ tab?: string }> }>) {
@@ -51,7 +52,7 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
 
   let headerAction: React.ReactNode = <TeamInviteButton />
   if (active === "teams") headerAction = <NewTeamButton />
-  else if (active === "roles") headerAction = null
+  else if (active === "roles") headerAction = <NewRoleButton />
 
   return (
     <DetailPageLayout

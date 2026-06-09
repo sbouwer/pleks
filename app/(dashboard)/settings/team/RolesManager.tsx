@@ -9,7 +9,7 @@
  *         are fully CRUD. Capabilities are the domain-level set from lib/auth/capabilities. Enforcement of
  *         these capabilities across the app is a later phase — here we only define them.
  */
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Pencil, EyeOff } from "lucide-react"
@@ -70,6 +70,11 @@ function RoleCard({ role, onEdit }: Readonly<{ role: OrgRole; onEdit: () => void
   )
 }
 
+/** Header action for the Roles tab — opens the add-role dialog in RolesManager via a window event. */
+export function NewRoleButton() {
+  return <AddButton label="Add role" onClick={() => globalThis.dispatchEvent(new CustomEvent("pleks:new-role"))} />
+}
+
 export function RolesManager({ roles }: Readonly<{ roles: OrgRole[] }>) {
   const router = useRouter()
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -80,11 +85,15 @@ export function RolesManager({ roles }: Readonly<{ roles: OrgRole[] }>) {
   const customGroups = [...present].filter((g) => !ROLE_GROUP_ORDER.includes(g))
   const groupOrder = [...ROLE_GROUP_ORDER.filter((g) => present.has(g)), ...customGroups]
 
+  // "Add role" lives in the page header (NewRoleButton dispatches pleks:new-role), like the other tabs.
+  useEffect(() => {
+    const open = () => setDraft({ slug: "", label: "", group: "Custom", capabilities: [], enabled: true, isSystem: false, isNew: true })
+    globalThis.addEventListener("pleks:new-role", open)
+    return () => globalThis.removeEventListener("pleks:new-role", open)
+  }, [])
+
   function openEdit(r: OrgRole) {
     setDraft({ slug: r.slug, label: r.label, group: r.group ?? "Custom", capabilities: [...r.capabilities], enabled: r.enabled, isSystem: r.isSystem, isNew: false })
-  }
-  function openAdd() {
-    setDraft({ slug: "", label: "", group: "Custom", capabilities: [], enabled: true, isSystem: false, isNew: true })
   }
   function toggleCap(c: string) {
     setDraft((d) => d ? { ...d, capabilities: d.capabilities.includes(c) ? d.capabilities.filter((x) => x !== c) : [...d.capabilities, c] } : d)
@@ -116,13 +125,11 @@ export function RolesManager({ roles }: Readonly<{ roles: OrgRole[] }>) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
-      <div className="flex items-start justify-between gap-4">
-        <p className="max-w-prose text-sm text-muted-foreground">
-          Define the roles in your agency and what each can access. Tune or hide the built-in roles, or add
-          your own. (Permission enforcement rolls out separately — for now these shape the role library.)
-        </p>
-        <AddButton label="Add role" onClick={openAdd} />
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Define the roles in your agency and what each can access. Tune or hide the built-in roles, or add
+        your own with “Add role”. (Permission enforcement rolls out separately — for now these shape the
+        role library.)
+      </p>
 
       {groupOrder.map((group) => {
         const inGroup = roles.filter((r) => (r.group ?? "Custom") === group)
@@ -144,6 +151,7 @@ export function RolesManager({ roles }: Readonly<{ roles: OrgRole[] }>) {
       {draft && (
         <Modal
           open
+          className="pa-modal-wide"
           onClose={() => setDraft(null)}
           title={draft.isNew ? "Add role" : `Edit ${draft.label || "role"}`}
           actions={
@@ -166,7 +174,7 @@ export function RolesManager({ roles }: Readonly<{ roles: OrgRole[] }>) {
 
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Can access</p>
-              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
                 {CAPABILITIES.map((cap) => {
                   const on = draft.capabilities.includes(cap.slug)
                   return (
