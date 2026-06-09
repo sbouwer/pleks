@@ -75,7 +75,7 @@ export function NewRoleButton() {
   return <AddButton label="Add role" onClick={() => globalThis.dispatchEvent(new CustomEvent("pleks:new-role"))} />
 }
 
-export function RolesManager({ roles }: Readonly<{ roles: OrgRole[] }>) {
+export function RolesManager({ roles, canAddCustom }: Readonly<{ roles: OrgRole[]; canAddCustom: boolean }>) {
   const router = useRouter()
   const [draft, setDraft] = useState<Draft | null>(null)
   const [saving, setSaving] = useState(false)
@@ -86,11 +86,14 @@ export function RolesManager({ roles }: Readonly<{ roles: OrgRole[] }>) {
   const groupOrder = [...ROLE_GROUP_ORDER.filter((g) => present.has(g)), ...customGroups]
 
   // "Add role" lives in the page header (NewRoleButton dispatches pleks:new-role), like the other tabs.
+  // Only Firm/Bespoke may add custom roles, so the listener no-ops otherwise (defence; the header button is
+  // also hidden on lower tiers).
   useEffect(() => {
+    if (!canAddCustom) return
     const open = () => setDraft({ slug: "", label: "", group: "Custom", capabilities: [], enabled: true, isSystem: false, isNew: true })
     globalThis.addEventListener("pleks:new-role", open)
     return () => globalThis.removeEventListener("pleks:new-role", open)
-  }, [])
+  }, [canAddCustom])
 
   function openEdit(r: OrgRole) {
     setDraft({ slug: r.slug, label: r.label, group: r.group ?? "Custom", capabilities: [...r.capabilities], enabled: r.enabled, isSystem: r.isSystem, isNew: false })

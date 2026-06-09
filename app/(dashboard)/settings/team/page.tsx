@@ -12,6 +12,7 @@ import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getCurrentOrgCapabilities } from "@/lib/auth/server"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
+import { canAddCustomRoles } from "@/lib/auth/roleTiers"
 import { DetailPageLayout } from "@/components/detail/DetailPageLayout"
 import { CategoryTabs } from "@/components/settings/CategoryTabs"
 import { TeamInviteButton } from "./TeamInviteButton"
@@ -29,7 +30,9 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
   if (!caps?.hasTeam) redirect("/settings/details")
 
   const isOwner = gw.role === "owner"
-  const isFirm = (await getOrgTierCanonical(gw.orgId)) === "firm"  // named teams = firm-tier (ADDENDUM_TEAMS L1)
+  const tier = await getOrgTierCanonical(gw.orgId)
+  const isFirm = tier === "firm"  // named teams = firm-tier (ADDENDUM_TEAMS L1)
+  const canAddRole = canAddCustomRoles(tier)  // custom roles = Firm/Bespoke only
   const tabs = [
     MEMBERS_TAB,
     ...(isFirm ? [TEAMS_TAB] : []),
@@ -52,7 +55,7 @@ export default async function TeamSettingsPage({ searchParams }: Readonly<{ sear
 
   let headerAction: React.ReactNode = <TeamInviteButton />
   if (active === "teams") headerAction = <NewTeamButton />
-  else if (active === "roles") headerAction = <NewRoleButton />
+  else if (active === "roles") headerAction = canAddRole ? <NewRoleButton /> : null
 
   return (
     <DetailPageLayout

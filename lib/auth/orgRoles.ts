@@ -11,6 +11,8 @@
  */
 import { gateway } from "@/lib/supabase/gateway"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
+import { canAddCustomRoles } from "./roleTiers"
 import {
   BUILTIN_ROLES, BUILTIN_ROLE_BY_SLUG, CAPABILITY_SLUGS, ALL_CAPABILITIES,
 } from "./capabilities"
@@ -101,6 +103,18 @@ export async function saveOrgRole(input: Readonly<{
   if (!slug || !label) return { error: "A role needs a name" }
   const capabilities = input.capabilities.filter((c) => CAPABILITY_SLUGS.includes(c))
   const enabled = input.enabled ?? true
+
+  // Adding a NEW custom role is Firm/Bespoke only. Editing an existing custom (e.g. after a downgrade) and
+  // tuning built-ins stay available on every tier.
+  if (!input.isSystem) {
+    const tier = await getOrgTierCanonical(orgId)
+    if (!canAddCustomRoles(tier)) {
+      const { data: existing, error: exErr } = await db
+        .from("org_roles").select("slug").eq("org_id", orgId).eq("slug", slug).maybeSingle()
+      if (exErr) return { error: exErr.message }
+      if (!existing) return { error: "Adding custom roles is available on the Firm plan" }
+    }
+  }
 
   const { error } = await db.from("org_roles").upsert({
     org_id: orgId, slug, label, role_group: input.group, is_system: input.isSystem, capabilities, enabled,
