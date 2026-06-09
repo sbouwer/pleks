@@ -13,6 +13,8 @@
 
 import * as React from "react"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { can } from "@/lib/auth/can"
+import type { GatewayContext } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
@@ -31,8 +33,14 @@ function formatDateLocal(iso: string): string {
   return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
 }
 
+// Deposit actions are finance writes (RBAC P4) — owner/is_admin exempt; others need the 'finance' capability.
+async function denyNonFinance(gw: GatewayContext): Promise<{ error: string } | null> {
+  return (!gw.isAdmin && !(await can("finance"))) ? { error: "Finance access is required for deposit actions." } : null
+}
+
 export async function sendDepositSchedule(leaseId: string): Promise<{ success?: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  const denied = await denyNonFinance(gw); if (denied) return denied
   const { db, orgId } = gw
 
   const { data: recon, error: reconErr } = await db
@@ -192,6 +200,7 @@ export async function createDepositCharge(
   input: CreateDepositChargeInput
 ): Promise<{ id?: string; error?: string }> {
   const gw = await requireAgentWriteAccess("edit_lease")
+  const denied = await denyNonFinance(gw); if (denied) return denied
   const { db, orgId, userId } = gw
 
   const { data, error } = await db.from("deposit_charges").insert({
@@ -212,6 +221,7 @@ export async function updateDepositCharge(
   input: Partial<CreateDepositChargeInput>
 ): Promise<{ success?: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("edit_lease")
+  const denied = await denyNonFinance(gw); if (denied) return denied
   const { db, orgId } = gw
 
   const { error } = await db
@@ -231,6 +241,7 @@ export async function confirmDepositCharge(
   leaseId: string
 ): Promise<{ success?: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("edit_lease")
+  const denied = await denyNonFinance(gw); if (denied) return denied
   const { db, orgId, userId } = gw
 
   const { error } = await db
@@ -253,6 +264,7 @@ export async function deleteDepositCharge(
   leaseId: string
 ): Promise<{ success?: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("edit_lease")
+  const denied = await denyNonFinance(gw); if (denied) return denied
   const { db, orgId } = gw
 
   const { error } = await db

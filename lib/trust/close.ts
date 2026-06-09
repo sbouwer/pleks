@@ -1,7 +1,7 @@
 /**
  * lib/trust/close.ts — Trust period close server action
  *
- * Auth:   requireAgentWriteAccess + trust_account_write step-up
+ * Auth:   requireAgentWriteAccess + the 'finance' capability (RBAC P4) + trust_account_write step-up
  * Notes:  Writing a signed_off period is a professional-liability act. IP, user,
  *         and timestamp are captured. The DB trigger enforces immutability of
  *         trust_transactions in closed periods (SOVEREIGN_TRUST_VIOLATION).
@@ -10,6 +10,7 @@
 
 import { headers } from "next/headers"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { can } from "@/lib/auth/can"
 import { requireStepUp } from "@/lib/auth/step-up"
 import { createServiceClient } from "@/lib/supabase/server"
 import { generateAuditExport } from "@/lib/trust/audit-export"
@@ -45,6 +46,7 @@ export async function closeTrustPeriod(
   params: CloseTrustPeriodParams
 ): Promise<CloseTrustPeriodResult> {
   const gw = await requireAgentWriteAccess("close_trust_period")
+  if (!gw.isAdmin && !(await can("finance"))) return { ok: false, error: "Finance access is required to close trust periods." }
   const { orgId, userId } = gw
 
   const stepUp = await requireStepUp({

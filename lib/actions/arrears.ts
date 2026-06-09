@@ -1,16 +1,14 @@
 "use server"
 
 /**
- * lib/actions/arrears.ts — FILL: one-line purpose
+ * lib/actions/arrears.ts — arrears case server actions (status transitions + payment arrangements)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess + the 'finance' capability (RBAC P4; owner/is_admin exempt)
+ * Data:   arrears_cases, arrears_actions, audit_log via gateway db
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { can } from "@/lib/auth/can"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -20,6 +18,7 @@ export async function updateArrearsStatus(
   notes?: string
 ) {
   const gw = await requireAgentWriteAccess("update_arrears_status")
+  if (!gw.isAdmin && !(await can("finance"))) return { error: "Finance access is required for arrears actions." }
   const { db, userId } = gw
 
   const updates: Record<string, unknown> = { status: newStatus }
@@ -75,6 +74,7 @@ export async function recordPaymentArrangement(
   formData: FormData
 ) {
   const gw = await requireAgentWriteAccess("record_payment_arrangement")
+  if (!gw.isAdmin && !(await can("finance"))) return { error: "Finance access is required for arrears actions." }
   const { db } = gw
 
   const amountCents = Math.round(parseFloat(formData.get("amount") as string) * 100)
