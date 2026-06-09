@@ -46,7 +46,7 @@ const GROUPS: SettingsGroup[] = [
   { title: "Workspace", items: [
     { href: "/settings/details", label: "Organisation", icon: Building2,
       extraPrefixes: ["/settings/branding", "/settings/hours", "/settings/configuration"] },
-    { href: "/settings/team", label: "Team & access", icon: Users, paid: true },
+    { href: "/settings/team", label: "Team & access", icon: Users },
     { href: "/settings/documents/templates", label: "Documents", icon: FileText, paid: true,
       extraPrefixes: ["/settings/documents", "/settings/lease-templates"] },
     { href: "/settings/compliance", label: "Compliance", icon: ShieldCheck },
