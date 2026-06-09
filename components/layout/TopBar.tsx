@@ -19,6 +19,7 @@ import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
 import { useRouter, usePathname } from "next/navigation"
 import { RoleSwitcher } from "@/components/role-switcher/RoleSwitcher"
+import { DevTierToggle } from "@/components/dev/DevTierToggle"  // DEV-ONLY — remove before launch
 
 interface TopbarProps {
   readonly settingsHref?: string
@@ -95,6 +96,9 @@ export function Topbar({
       <span className="hidden sm:inline" style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-mute)" }}>
         {displayName}
       </span>
+
+      {/* DEV-ONLY tier switcher — renders only for the dev account; remove before launch */}
+      <DevTierToggle />
 
       {/* Centre: global search — desktop only */}
       <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex">
