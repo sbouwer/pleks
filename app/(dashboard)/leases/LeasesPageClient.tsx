@@ -12,9 +12,11 @@ import { useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
+import { WarningBell } from "@/components/ui/WarningBell"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { FileText } from "lucide-react"
+import { isExpiringSoon } from "@/lib/leases/expiringLogic"
 import { LeaseListTabs } from "./LeaseListTabs"
 import type { SerializedLease } from "./LeaseRow"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
@@ -83,6 +85,8 @@ export function LeasesPageClient({ orgId }: Props) {
     }
   })
 
+  const expiringCount = serialised.filter((l) => ["active", "month_to_month"].includes(l.status) && isExpiringSoon(l)).length
+
   // Empty → the shared empty state (no tabs/filters or footer metrics — nothing to filter or total).
   if (!isLoading && serialised.length === 0) {
     return (
@@ -111,7 +115,16 @@ export function LeasesPageClient({ orgId }: Props) {
             <span className="lg:hidden">{serialised.length} lease{serialised.length === 1 ? "" : "s"}</span>
           </>
         }
-        action={<AddButton label="Create lease" onClick={() => router.push("/leases/new")} />}
+        action={
+          <div className="flex items-center gap-2">
+            <WarningBell
+              count={expiringCount}
+              label={`${expiringCount} lease${expiringCount === 1 ? "" : "s"} expiring soon`}
+              onClick={() => globalThis.dispatchEvent(new CustomEvent("pleks:leases-expiring"))}
+            />
+            <AddButton label="Create lease" onClick={() => router.push("/leases/new")} />
+          </div>
+        }
       />
 
       {/* Mobile lease cards */}

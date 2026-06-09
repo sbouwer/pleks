@@ -13,7 +13,7 @@
  *         ListCard fill (sticky header), and LeaseListFooter stays below it as an
  *         auto-height (shrink-0) row so the metrics remain visible without page scroll.
  */
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
@@ -180,6 +180,13 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"list" | "cards">("list")
+
+  // The header WarningBell (LeasesPageClient) jumps here to the Expiring-soon tab.
+  useEffect(() => {
+    const show = () => setStatusFilter("expiring")
+    globalThis.addEventListener("pleks:leases-expiring", show)
+    return () => globalThis.removeEventListener("pleks:leases-expiring", show)
+  }, [])
 
   // My portfolio / All (ADDENDUM_TEAMS Layer 0) — "mine" = leases on properties I manage (via the
   // portfolio resolver). Default My portfolio; everything below works off the scoped list.
