@@ -32,3 +32,9 @@ export function useCan(capability: string): boolean {
   const { caps, hydrated } = useContext(CapabilitiesContext)
   return !hydrated || caps.includes(capability)
 }
+
+/** Like useCan but returns a `has(cap)` checker — for filtering many nav items in one place. Same fail-open. */
+export function useCapabilities(): { has: (capability: string) => boolean; hydrated: boolean } {
+  const { caps, hydrated } = useContext(CapabilitiesContext)
+  return { has: (capability) => !hydrated || caps.includes(capability), hydrated }
+}

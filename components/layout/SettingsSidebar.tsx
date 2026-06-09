@@ -25,7 +25,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useTier } from "@/hooks/useTier"
 import { usePermissions } from "@/hooks/usePermissions"
-import { useCan } from "@/components/auth/CapabilitiesProvider"
+import { useCapabilities } from "@/components/auth/CapabilitiesProvider"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 
 interface SettingsItem {
@@ -64,6 +64,18 @@ const GROUPS: SettingsGroup[] = [
   ]},
 ]
 
+// Settings sub-route → required capability (RBAC P4). Personal sections (profile/security/notifications/
+// feedback) + the Overview are intentionally ungated — a member must always reach their own account.
+const SETTINGS_CAPABILITY: Record<string, string> = {
+  "/settings/details": "org",
+  "/settings/team": "team",
+  "/settings/documents/templates": "documents",
+  "/settings/compliance": "org",
+  "/settings/subscription": "billing",
+  "/settings/deposits": "finance",
+  "/settings/import": "org",
+}
+
 function NavRow({ href, label, icon: Icon, active }: Readonly<{ href: string; label: string; icon: LucideIcon; active: boolean }>) {
   return (
     <Link
@@ -85,7 +97,7 @@ export function SettingsSidebar() {
   const pathname = usePathname()
   const { isPaid, isOwner, loading } = useTier()
   const { isAdmin } = usePermissions()  // owner / is_admin — the upgrade nudge is theirs, not every member's
-  const canBilling = useCan("billing")  // hide "Billing & plan" from members without the capability
+  const { has } = useCapabilities()     // hide settings sections the member lacks the capability for (RBAC P4)
 
   const isActive = (href: string, extra?: string[]) =>
     pathname === href || pathname.startsWith(href + "/") ||
@@ -122,8 +134,11 @@ export function SettingsSidebar() {
         </div>
 
         {GROUPS.map((group) => {
-          const items = group.items.filter((it) =>
-            (!it.paid || isPaid) && (it.href !== "/settings/subscription" || canBilling))
+          const items = group.items.filter((it) => {
+            if (it.paid && !isPaid) return false
+            const reqCap = SETTINGS_CAPABILITY[it.href]
+            return !reqCap || has(reqCap)
+          })
           if (!items.length) return null
           return (
             <div key={group.title} className="mt-4">

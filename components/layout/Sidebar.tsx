@@ -17,7 +17,7 @@ import { SettingsSidebar } from "./SettingsSidebar"
 import { useTier } from "@/hooks/useTier"
 import { useNavBadges } from "@/hooks/useNavBadges"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
-import { useCan } from "@/components/auth/CapabilitiesProvider"
+import { useCapabilities } from "@/components/auth/CapabilitiesProvider"
 import {
   LayoutDashboard,
   Building2,
@@ -38,6 +38,25 @@ import {
   BookOpen,
   PieChart,
 } from "lucide-react"
+
+// href → required capability (RBAC P4 nav visibility). Unlisted items are ungated (Dashboard, Settings,
+// Calendar/HOA keep their own tier/org-type gates). Owner/is_admin hold every capability.
+const NAV_CAPABILITY: Record<string, string> = {
+  "/properties": "properties",
+  "/landlords": "landlords",
+  "/tenants": "tenants",
+  "/suppliers": "maintenance",
+  "/leases": "leases",
+  "/applications": "applications",
+  "/maintenance": "maintenance",
+  "/inspections": "inspections",
+  "/finance": "finance",
+  "/finance/deposits": "finance",
+  "/finance/trust-ledger": "finance",
+  "/billing": "billing",
+  "/statements": "finance",
+  "/reports": "reports",
+}
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -91,7 +110,7 @@ export function Sidebar() {
   const { isSteward, isGrowth, isPortfolio, isFirm } = useTier()
   const badges = useNavBadges()
   const caps = useOrgCapabilities()
-  const canBilling = useCan("billing")  // hide the Billing item from members without the capability (RBAC P4)
+  const { has } = useCapabilities()  // hide nav items the member lacks the capability for (RBAC P4)
 
   // Settings pages get their own dedicated sidebar
   if (pathname.startsWith("/settings")) {
@@ -111,8 +130,9 @@ export function Sidebar() {
     ...group,
     items: group.items
       .filter((item) => {
-        // Capability gate — Billing & plan needs the 'billing' capability (RBAC P4)
-        if (item.href === "/billing") return canBilling
+        // Capability gate (RBAC P4) — hide items the member lacks the capability for
+        const reqCap = NAV_CAPABILITY[item.href]
+        if (reqCap && !has(reqCap)) return false
         // Tier gates
         if (item.href === "/calendar") return isPortfolio || isFirm
         if (item.href === "/finance/trust-ledger") return isSteward || isGrowth || isPortfolio || isFirm
