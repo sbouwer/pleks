@@ -5,13 +5,13 @@
  *
  * Auth:   client — resolved data is passed from the server page (lib/settings/overview)
  * Notes:  Three groups in the mockup's layout (section header + count → card grid) using our cards:
- *         1) Set up — incomplete items; individually dismissible (per-device, localStorage); the whole
- *            group disappears once empty or all-dismissed.
+ *         1) Set up — incomplete items; individually dismissible (cross-device, settings_ui_state); the
+ *            whole group disappears once empty or all-dismissed.
  *         2) Needs action — flagged items; becomes the first group once Set up is done.
- *         3) Frequently used — the most-visited pages as quick-access cards (per-device, localStorage).
+ *         3) Frequently used — the most-visited pages as quick-access cards (cross-device).
  *         Icons arrive as string names from the resolver (server→client safe) and map here.
  */
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import {
   Settings, Zap, Users, CreditCard, ShieldCheck, Landmark, FileText, Bell, KeyRound,
@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { OverviewItem, SettingsOverviewData } from "@/lib/settings/overview"
-import { getDismissedSetup, dismissSetupCard } from "@/lib/settings/usage"
+import { dismissSetupCard } from "@/lib/settings/uiState"
 import { FrequentlyUsed } from "./FrequentlyUsed"
 
 const ICONS: Record<string, LucideIcon> = {
@@ -82,14 +82,15 @@ function SectionHeader({ label, count }: Readonly<{ label: string; count?: numbe
   )
 }
 
-export function SettingsOverviewGroups({ setup, action }: Readonly<SettingsOverviewData>) {
-  // Dismissed setup ids (per-device). Starts empty so SSR/first paint matches; filtered after mount.
-  const [dismissed, setDismissed] = useState<string[]>([])
-  useEffect(() => { setDismissed(getDismissedSetup()) }, [])
+export function SettingsOverviewGroups({
+  setup, action, dismissedSetup, frequent,
+}: Readonly<SettingsOverviewData & { dismissedSetup: string[]; frequent: string[] }>) {
+  // Dismissed setup ids — seeded from the server (cross-device), updated optimistically on dismiss.
+  const [dismissed, setDismissed] = useState<string[]>(dismissedSetup)
 
   function handleDismiss(id: string) {
-    dismissSetupCard(id)
     setDismissed((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    dismissSetupCard(id).catch(() => { /* best-effort; the optimistic hide stands */ })
   }
 
   const visibleSetup = setup.filter((it) => !dismissed.includes(it.id))
@@ -116,7 +117,7 @@ export function SettingsOverviewGroups({ setup, action }: Readonly<SettingsOverv
 
       <section>
         <SectionHeader label="Frequently used" />
-        <FrequentlyUsed />
+        <FrequentlyUsed hrefs={frequent} />
       </section>
     </div>
   )

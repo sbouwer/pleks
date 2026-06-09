@@ -3127,3 +3127,27 @@ ALTER TABLE inspections ADD  CONSTRAINT inspections_assignee_not_both
 CREATE INDEX IF NOT EXISTS idx_maintenance_requests_assigned_team ON maintenance_requests(org_id, assigned_team_id) WHERE assigned_team_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_applications_assigned_team ON applications(org_id, assigned_team_id) WHERE assigned_team_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_inspections_assigned_team ON inspections(org_id, assigned_team_id) WHERE assigned_team_id IS NOT NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §42  Settings Overview UI state: per-(user, org) dismissed "Set up" cards + page visit counts
+--      Personal, cross-device UI state for the settings Overview — dismissed setup nudges and the
+--      "Frequently used" visit tallies. Per user + org (setup is org-specific). RLS: each user sees
+--      only their own rows.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS settings_ui_state (
+  user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  org_id          uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  dismissed_setup text[]  NOT NULL DEFAULT '{}',
+  page_visits     jsonb   NOT NULL DEFAULT '{}'::jsonb,
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, org_id)
+);
+
+ALTER TABLE settings_ui_state ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "settings_ui_state_self" ON settings_ui_state;
+CREATE POLICY "settings_ui_state_self" ON settings_ui_state
+  FOR ALL
+  USING (user_id = (SELECT auth.uid()))
+  WITH CHECK (user_id = (SELECT auth.uid()));

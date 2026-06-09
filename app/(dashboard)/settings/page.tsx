@@ -14,10 +14,14 @@ import { SettingsOverviewGroups } from "@/components/settings/SettingsOverviewGr
 import { MobileSettingsNav } from "@/components/mobile/MobileSettingsNav"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getSettingsOverview } from "@/lib/settings/overview"
+import { getSettingsUiState } from "@/lib/settings/uiState"
+import { topVisitedHrefs } from "@/lib/settings/catalog"
 
 export default async function SettingsPage() {
   const gw = await gatewaySSR()
   const overview = gw ? await getSettingsOverview(gw.db, gw.orgId) : { setup: [], action: [] }
+  const ui = gw ? await getSettingsUiState() : { dismissedSetup: [], pageVisits: {} }
+  const frequent = topVisitedHrefs(ui.pageVisits, 6)
 
   return (
     <>
@@ -29,7 +33,12 @@ export default async function SettingsPage() {
           sub="Your account, workspace and plan — everything that shapes how Pleks runs for you."
         />
         <SettingsSearch />
-        <SettingsOverviewGroups setup={overview.setup} action={overview.action} />
+        <SettingsOverviewGroups
+          setup={overview.setup}
+          action={overview.action}
+          dismissedSetup={ui.dismissedSetup}
+          frequent={frequent}
+        />
       </div>
       <div className="lg:hidden">
         <MobileSettingsNav />

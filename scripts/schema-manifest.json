@@ -2915,6 +2915,13 @@
       "regeneration_reason",
       "created_at"
     ],
+    "settings_ui_state": [
+      "user_id",
+      "org_id",
+      "dismissed_setup",
+      "page_visits",
+      "updated_at"
+    ],
     "signature_sign_tokens": [
       "token",
       "user_id",

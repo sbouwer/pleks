@@ -34,6 +34,16 @@ export const SETTINGS_CATALOG: SettingsPage[] = [
   { href: "/settings/my-feedback", title: "Feedback", desc: "Your feedback and requests", icon: MessageSquare, prefixes: ["/settings/feedback"] },
 ]
 
+/** Top-N most-visited catalog hrefs (count > 0), most-visited first — derived from stored visit counts. */
+export function topVisitedHrefs(pageVisits: Record<string, number>, n: number): string[] {
+  return SETTINGS_CATALOG
+    .map((p) => ({ href: p.href, count: pageVisits[p.href] ?? 0 }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, n)
+    .map((x) => x.href)
+}
+
 /** The catalog page a pathname belongs to (exact, child route, or a declared prefix) — longest match wins. */
 export function matchSettingsPage(pathname: string): SettingsPage | null {
   let best: SettingsPage | null = null

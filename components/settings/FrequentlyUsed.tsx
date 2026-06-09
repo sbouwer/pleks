@@ -1,22 +1,19 @@
-"use client"
-
 /**
- * components/settings/FrequentlyUsed.tsx — Overview "Frequently used" cards (per-device)
+ * components/settings/FrequentlyUsed.tsx — Overview "Frequently used" cards
  *
- * Notes:  Reads the localStorage visit counts (lib/settings/usage) on mount and renders the most-visited
- *         pages as quick-access cards (same grammar as the Set up / Needs action cards). Before any visits
- *         — and on SSR / first paint — it shows the hint placeholder, so there's no hydration flash.
+ * Notes:  Presentational. Receives the most-visited page hrefs (resolved server-side from
+ *         settings_ui_state — cross-device) and renders them as quick-access cards in the shared card
+ *         grammar. Empty → the hint placeholder.
  */
-import { useEffect, useState } from "react"
 import Link from "next/link"
-import { topSettingsPages } from "@/lib/settings/usage"
-import type { SettingsPage } from "@/lib/settings/catalog"
+import { SETTINGS_CATALOG, type SettingsPage } from "@/lib/settings/catalog"
 
-export function FrequentlyUsed({ max = 6 }: Readonly<{ max?: number }>) {
-  const [top, setTop] = useState<{ page: SettingsPage; count: number }[]>([])
-  useEffect(() => { setTop(topSettingsPages(max)) }, [max])
+export function FrequentlyUsed({ hrefs }: Readonly<{ hrefs: string[] }>) {
+  const pages = hrefs
+    .map((h) => SETTINGS_CATALOG.find((p) => p.href === h))
+    .filter((p): p is SettingsPage => !!p)
 
-  if (top.length === 0) {
+  if (pages.length === 0) {
     return (
       <div className="rounded-[var(--r-button)] border border-dashed border-border bg-muted/20 px-5 py-8 text-center">
         <p className="text-sm font-medium text-foreground">Your most-visited settings will appear here</p>
@@ -29,7 +26,7 @@ export function FrequentlyUsed({ max = 6 }: Readonly<{ max?: number }>) {
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {top.map(({ page }) => {
+      {pages.map((page) => {
         const Icon = page.icon
         return (
           <Link
