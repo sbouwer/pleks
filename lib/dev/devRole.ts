@@ -36,8 +36,10 @@ export async function devSetRole(role: string): Promise<{ ok: true } | { error: 
     .is("deleted_at", null)
   if (error) return { error: error.message }
 
-  // Clear the cached org cookie so middleware re-reads the role from the DB on the reload.
+  // Clear BOTH cached org cookies so middleware re-reads the role from the DB on the reload. pleks_has_org
+  // (7-day) also carries the role, so leaving it would repopulate pleks_org with the stale role.
   const jar = await cookies()
   jar.delete("pleks_org")
+  jar.delete("pleks_has_org")
   return { ok: true }
 }
