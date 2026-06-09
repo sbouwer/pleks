@@ -18,6 +18,7 @@ import { useTier } from "@/hooks/useTier"
 import { useOrg } from "@/hooks/useOrg"
 import { devSetTier } from "@/lib/dev/devTier"
 import { devSetRole } from "@/lib/dev/devRole"
+import { devSetSubStatus, type DevSubStatus } from "@/lib/dev/devSubStatus"
 import { DEV_TIER_EMAIL } from "@/lib/dev/devTierConfig"
 import { type Tier } from "@/lib/constants"
 import { BUILTIN_ROLES, ROLE_GROUP_ORDER } from "@/lib/auth/capabilities"
@@ -40,7 +41,7 @@ const LABEL_CLS = "mb-1 block text-[11px] font-semibold uppercase tracking-wide 
 
 export function DevTierToggle() {
   const { user } = useUser()
-  const { tier } = useTier()
+  const { tier, status } = useTier()
   const { orgId } = useOrg()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -73,6 +74,15 @@ export function DevTierToggle() {
     setBusy(false)
     if ("error" in res) { toast.error(res.error); return }
     toast.success(`Role → ${next}`)
+    globalThis.location.reload()
+  }
+
+  async function applySubStatus(next: string) {
+    setBusy(true)
+    const res = await devSetSubStatus(next as DevSubStatus)
+    setBusy(false)
+    if ("error" in res) { toast.error(res.error); return }
+    toast.success(`Subscription → ${next}`)
     globalThis.location.reload()
   }
 
@@ -122,6 +132,20 @@ export function DevTierToggle() {
             </select>
             <p className="mt-1 text-[11px] text-muted-foreground">
               Non-owner roles drop your is_admin so capability gating reflects the role.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="dev-substatus" className={LABEL_CLS}>Subscription state</label>
+            <select id="dev-substatus" value={status ?? "active"} disabled={busy} className={SELECT_CLS}
+              onChange={(e) => applySubStatus(e.target.value)}>
+              <option value="active">Active (normal)</option>
+              <option value="past_due">Past due (arrears — advisory)</option>
+              <option value="paused">Paused (writes locked)</option>
+              <option value="cancelled">Cancelled (closing)</option>
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Paused / cancelled block new writes (requireAgentWriteAccess) — reads &amp; exports stay open.
             </p>
           </div>
         </div>
