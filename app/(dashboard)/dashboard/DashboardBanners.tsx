@@ -14,7 +14,6 @@ import { AlertTriangle, Clock, Sparkles } from "lucide-react"
 import Link from "next/link"
 
 interface DashboardBannersProps {
-  readonly showTrustBanner: boolean
   readonly isTrialing?: boolean
   readonly trialDaysLeft?: number | null
   readonly trialTier?: string | null
@@ -75,7 +74,7 @@ function TrialContent({ daysLeft, trialTier, isFoundingAgent, foundingPriceCents
   )
 }
 
-export function DashboardBanners({ showTrustBanner, isTrialing, trialDaysLeft, trialTier, isFoundingAgent, foundingPriceCents }: DashboardBannersProps) {
+export function DashboardBanners({ isTrialing, trialDaysLeft, trialTier, isFoundingAgent, foundingPriceCents }: DashboardBannersProps) {
   let trialCardClass = "border-brand/30 bg-brand-dim/30"
   if (trialDaysLeft != null && trialDaysLeft <= 2) { trialCardClass = "border-red-300 bg-red-50 dark:bg-red-950/20" }
   else if (trialDaysLeft != null && trialDaysLeft <= 7) { trialCardClass = "border-amber-300 bg-amber-50 dark:bg-amber-950/20" }
@@ -105,23 +104,6 @@ export function DashboardBanners({ showTrustBanner, isTrialing, trialDaysLeft, t
         </Card>
       )}
 
-      {/* Trust account banner */}
-      {showTrustBanner && (
-        <Card className="mb-6 border-warning/30 bg-warning-bg">
-          <CardContent className="flex items-center gap-3 pt-4">
-            <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium">Deposit management restricted</p>
-              <p className="text-xs text-muted-foreground">
-                Add your trust account to unlock full deposit management.
-              </p>
-            </div>
-            <Link href="/settings/compliance" className="pa-secondary">
-              Add Account
-            </Link>
-          </CardContent>
-        </Card>
-      )}
     </>
   )
 }

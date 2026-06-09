@@ -307,7 +307,7 @@ export default async function DashboardPage() {
         sub={showOnboarding ? "Ready when you are — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
         action={
           <div className="flex items-center gap-2">
-            <SurrenderedCommsBell items={surrenderedCommItems} />
+            <SurrenderedCommsBell items={surrenderedCommItems} showDepositSetup={showTrustBanner} />
             <QuickAddMenu />
           </div>
         }
@@ -315,7 +315,6 @@ export default async function DashboardPage() {
 
       {/* Banners */}
       <DashboardBanners
-        showTrustBanner={showTrustBanner}
         isTrialing={isTrialing}
         trialDaysLeft={trialDaysLeft}
         trialTier={sub?.trial_tier}
