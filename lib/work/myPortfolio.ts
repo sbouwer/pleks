@@ -27,13 +27,18 @@ export async function getMyPortfolio(): Promise<MyPortfolio> {
   if (!gw) return EMPTY
   const { db, orgId, userId } = gw
 
-  // 1. Properties I manage → property ids + the landlords who own them.
-  const { data: props, error: pErr } = await db
-    .from("properties")
-    .select("id, landlord_id")
-    .eq("org_id", orgId)
-    .eq("managing_agent_id", userId)
-    .is("deleted_at", null)
+  // 1. Properties I manage — directly (managing_agent_id) or via a team I'm on (managing_team_id) — →
+  //    property ids + the landlords who own them.
+  const { data: tm, error: tmErr } = await db
+    .from("team_members").select("team_id").eq("org_id", orgId).eq("user_id", userId)
+  if (tmErr) console.error("getMyPortfolio team_members:", tmErr.message)
+  const myTeamIds = (tm ?? []).map((r) => r.team_id as string)
+
+  let propQuery = db.from("properties").select("id, landlord_id").eq("org_id", orgId).is("deleted_at", null)
+  propQuery = myTeamIds.length > 0
+    ? propQuery.or(`managing_agent_id.eq.${userId},managing_team_id.in.(${myTeamIds.join(",")})`)
+    : propQuery.eq("managing_agent_id", userId)
+  const { data: props, error: pErr } = await propQuery
   if (pErr) { console.error("getMyPortfolio properties:", pErr.message); return EMPTY }
   const propertyIds = (props ?? []).map((p) => p.id as string)
   const landlordIds = [...new Set((props ?? []).map((p) => p.landlord_id as string | null).filter((x): x is string => !!x))]

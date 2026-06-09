@@ -759,6 +759,7 @@ export default async function PropertyDetailPage({
             <AgentPicker
               propertyId={id}
               currentAgentId={property.managing_agent_id ?? null}
+              currentTeamId={property.managing_team_id ?? null}
               teamMembers={overviewData?.teamMembers ?? unitsData?.teamMembers ?? []}
             />
           )}
