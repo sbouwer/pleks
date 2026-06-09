@@ -1,11 +1,11 @@
 /**
- * lib/dashboard/collectionRate.ts — FILL: one-line purpose
+ * lib/dashboard/collectionRate.ts — current-month rent collection summary for the dashboard Financials panel
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   service client (getCachedServiceClient); org-scoped by org_id.
+ * Data:   rent_invoices for the current calendar month (expected vs collected) + active-lease rent roll.
+ * Notes:  Month bounds are plain YYYY-MM-DD strings, NOT new Date().toISOString() — the latter shifts the
+ *         month-end back a day on UTC+ timezones (e.g. SA dev = UTC+2 → "29th 22:00Z"), which silently
+ *         excluded month-end invoices and zeroed the panel. Date strings compare cleanly to the date columns.
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
 
@@ -19,8 +19,12 @@ export interface CollectionRateData {
 export async function getCollectionRate(orgId: string): Promise<CollectionRateData> {
   const supabase = await getCachedServiceClient()
   const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString()
+  const y = now.getFullYear()
+  const m = now.getMonth() // 0-indexed
+  const mm = String(m + 1).padStart(2, "0")
+  const lastDay = new Date(y, m + 1, 0).getDate()
+  const monthStart = `${y}-${mm}-01`
+  const monthEnd = `${y}-${mm}-${String(lastDay).padStart(2, "0")}`
 
   const [invoicesRes, leaseRentsRes] = await Promise.all([
     supabase
@@ -36,6 +40,9 @@ export async function getCollectionRate(orgId: string): Promise<CollectionRateDa
       .in("status", ["active", "notice", "month_to_month"])
       .is("deleted_at", null),
   ])
+
+  if (invoicesRes.error) console.error("getCollectionRate invoices:", invoicesRes.error.message)
+  if (leaseRentsRes.error) console.error("getCollectionRate leases:", leaseRentsRes.error.message)
 
   const invoices = invoicesRes.data ?? []
   const totalExpected = invoices.reduce((s, i) => s + (i.total_amount_cents ?? 0), 0)
