@@ -465,7 +465,8 @@ function BillingPageInner() {
   const isPaused    = liveStatus === "paused"
   const isCancelled = liveStatus === "cancelled"
   const isPending   = liveStatus === "pending_cancellation"
-  const canPause    = liveStatus === "active" || liveStatus === "past_due"
+  // Free Owner plan has no paid subscription to pause (the server rejects it too).
+  const canPause    = (liveStatus === "active" || liveStatus === "past_due") && tier !== "owner"
   const canResume   = isPaused
   const canCancel   = liveStatus === "active" || liveStatus === "past_due" || isPaused
 
