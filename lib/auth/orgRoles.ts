@@ -10,9 +10,10 @@
  * Notes:  Enforcement (can()) consumes capabilitiesForRole; gating real pages/actions is a later phase.
  */
 import { gateway } from "@/lib/supabase/gateway"
+import { createServiceClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
-import { canAddCustomRoles } from "./roleTiers"
+import { allowedRoleSlugs, canAddCustomRoles } from "./roleTiers"
 import {
   BUILTIN_ROLES, BUILTIN_ROLE_BY_SLUG, CAPABILITY_SLUGS, ALL_CAPABILITIES,
 } from "./capabilities"
@@ -70,6 +71,43 @@ export async function getOrgRoles(): Promise<OrgRole[]> {
     })
   }
   return result
+}
+
+/** Roles a member may be invited/assigned as in the current org — enabled + tier-allowed (excludes owner).
+ *  Drives the invite + member-edit pickers. */
+export async function listAssignableRoles(): Promise<{ slug: string; label: string; group: string | null }[]> {
+  const gw = await gateway()
+  if (!gw) return []
+  const tier = await getOrgTierCanonical(gw.orgId)
+  const allowed = allowedRoleSlugs(tier)
+  const roles = await getOrgRoles()
+  return roles
+    .filter((r) => r.enabled)
+    .filter((r) => !r.isSystem || allowed === "all" || allowed.has(r.slug))
+    .map((r) => ({ slug: r.slug, label: r.label, group: r.group }))
+}
+
+/** Server-side allowlist of assignable role slugs for an org (service client; for the invite/member APIs
+ *  which authenticate via getMembership, not gateway). Built-ins gated by tier + enabled; customs if enabled. */
+export async function assignableRoleSlugs(orgId: string): Promise<Set<string>> {
+  const tier = await getOrgTierCanonical(orgId)
+  const allowed = allowedRoleSlugs(tier)
+  const service = await createServiceClient()
+  const { data, error } = await service.from("org_roles").select("slug, is_system, enabled").eq("org_id", orgId)
+  if (error) console.error("assignableRoleSlugs:", error.message)
+  const rows = (data ?? []) as { slug: string; is_system: boolean; enabled: boolean }[]
+  const overrides = new Map(rows.map((r) => [r.slug, r]))
+  const set = new Set<string>()
+  for (const b of BUILTIN_ROLES) {
+    if (allowed !== "all" && !allowed.has(b.slug)) continue
+    if (overrides.get(b.slug)?.enabled === false) continue
+    set.add(b.slug)
+  }
+  for (const r of rows) {
+    if (BUILTIN_ROLE_BY_SLUG[r.slug] || r.is_system) continue
+    if (r.enabled) set.add(r.slug)
+  }
+  return set
 }
 
 /** Resolve a single role's capabilities (owner → all). For can() enforcement in a later phase. */
