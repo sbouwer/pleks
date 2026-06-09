@@ -56,6 +56,7 @@ const NAV_CAPABILITY: Record<string, string> = {
   "/billing": "billing",
   "/statements": "finance",
   "/reports": "reports",
+  "/hoa": "properties",
 }
 
 const NAV_GROUPS: NavGroup[] = [
