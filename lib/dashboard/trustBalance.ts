@@ -13,6 +13,8 @@ export interface TrustBalanceSummary {
   total_in_trust_cents: number
   rent_collected_undisbursed_cents: number
   deposits_held_cents: number
+  /** interest accrued on deposits held in trust (deposit_interest credits) */
+  interest_held_cents: number
   management_fees_pending_cents: number
   last_recon_date: string | null
 }
@@ -53,12 +55,14 @@ export async function getTrustBalance(orgId: string): Promise<TrustBalanceSummar
   let totalOut = 0
   let depositsIn = 0
   let depositsOut = 0
+  let interestIn = 0
 
   for (const t of transactionsRes.data ?? []) {
     const amount = t.amount_cents ?? 0
     if (t.direction === "credit") {
       totalIn += amount
       if (t.transaction_type === "deposit_received") depositsIn += amount
+      else if (t.transaction_type === "deposit_interest") interestIn += amount
     } else {
       totalOut += amount
       if (t.transaction_type === "deposit_refund" || t.transaction_type === "deposit_deduction") {
@@ -71,6 +75,7 @@ export async function getTrustBalance(orgId: string): Promise<TrustBalanceSummar
     total_in_trust_cents: totalIn - totalOut,
     rent_collected_undisbursed_cents: (unpaidStatementsRes.data ?? []).reduce((s, st) => s + (st.net_to_owner_cents ?? 0), 0),
     deposits_held_cents: depositsIn - depositsOut,
+    interest_held_cents: interestIn,
     management_fees_pending_cents: (unreleasedFeesRes.data ?? []).reduce((s, f) => s + (f.total_cents ?? 0), 0),
     last_recon_date: lastReconRes.data?.[0]?.period_end ?? null,
   }

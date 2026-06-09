@@ -70,7 +70,7 @@ export function PortfolioHealthPanel({
           sub="this month"
           href={outstanding > 0 ? "/billing/arrears" : undefined}
         />
-        <Tile label="Trust balance" value={formatZARAbbrev(trustBalance.total_in_trust_cents)} sub={`Deposits ${formatZARAbbrev(trustBalance.deposits_held_cents)}`} />
+        <Tile label="Trust balance" value={formatZARAbbrev(trustBalance.total_in_trust_cents)} sub={`Interest ${formatZARAbbrev(trustBalance.interest_held_cents)}`} />
       </div>
     </div>
   )

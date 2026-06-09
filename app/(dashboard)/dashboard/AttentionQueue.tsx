@@ -18,11 +18,13 @@ const priorityBullet: Record<number, string> = {
   3: "bg-slate-400 shadow-[0_0_0_3px_rgb(100_116_139/0.15)]",
 }
 
+// Solid pill in the variant colour; font contrasts per theme (white on the -600 pill in light, the deep
+// -950 shade on the brighter -500 pill in dark).
 const badgeVariant: Record<string, string> = {
-  red:   "border border-red-300 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950/60 dark:text-red-400",
-  amber: "border border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-400",
-  blue:  "border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400",
-  green: "border border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-400",
+  red:   "bg-red-600 text-white dark:bg-red-500 dark:text-red-950",
+  amber: "bg-amber-600 text-white dark:bg-amber-500 dark:text-amber-950",
+  blue:  "bg-slate-600 text-white dark:bg-slate-500 dark:text-slate-950",
+  green: "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-emerald-950",
 }
 
 export function AttentionQueue({ items }: Readonly<AttentionQueueProps>) {
@@ -33,7 +35,7 @@ export function AttentionQueue({ items }: Readonly<AttentionQueueProps>) {
           <span className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
           Needs attention
           {items.length > 0 && (
-            <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800 dark:bg-red-900/40 dark:text-red-300">
+            <span className="ml-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white dark:bg-red-500 dark:text-red-950">
               {items.length}
             </span>
           )}

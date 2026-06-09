@@ -25,7 +25,8 @@ import { QuickAddMenu } from "./QuickAddMenu"
 import { DashboardGreeting } from "./DashboardGreeting"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import type { Tier } from "@/lib/constants"
-import { SurrenderedCommsWidget, type SurrenderedCommRow } from "./SurrenderedCommsWidget"
+import { type SurrenderedCommRow } from "./SurrenderedCommsWidget"
+import { SurrenderedCommsBell } from "./SurrenderedCommsBell"
 import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
 import { getTrustBalance } from "@/lib/dashboard/trustBalance"
@@ -304,7 +305,12 @@ export default async function DashboardPage() {
         title={<DashboardGreeting firstName={firstName} fallback={`${greeting}, ${firstName}.`} />}
         headline="Your workspace"
         sub={showOnboarding ? "Ready when you are — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
-        action={<QuickAddMenu />}
+        action={
+          <div className="flex items-center gap-2">
+            <SurrenderedCommsBell items={surrenderedCommItems} />
+            <QuickAddMenu />
+          </div>
+        }
       />
 
       {/* Banners */}
@@ -316,9 +322,6 @@ export default async function DashboardPage() {
         isFoundingAgent={!!org?.founding_agent}
         foundingPriceCents={org?.founding_agent_price_cents as number | null}
       />
-
-      {/* Surrendered mandatory comms widget (BUILD_63 Phase 8) */}
-      <SurrenderedCommsWidget items={surrenderedCommItems} />
 
       {showOnboarding ? (
         /* ── New-user empty state — get-started steps + workspace setup ──────── */

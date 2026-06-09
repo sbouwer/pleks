@@ -30,9 +30,11 @@ export interface SurrenderedCommRow {
 
 interface SurrenderedCommsWidgetProps {
   items: SurrenderedCommRow[]
+  /** render just the list (no Card chrome / header) — for embedding in the header bell's modal */
+  bare?: boolean
 }
 
-export function SurrenderedCommsWidget({ items }: SurrenderedCommsWidgetProps) {
+export function SurrenderedCommsWidget({ items, bare = false }: SurrenderedCommsWidgetProps) {
   const router = useRouter()
   const [dispatching, setDispatching] = useState<string | null>(null)
 
@@ -54,19 +56,8 @@ export function SurrenderedCommsWidget({ items }: SurrenderedCommsWidgetProps) {
 
   if (items.length === 0) return null
 
-  return (
-    <Card className="border-amber-200 bg-amber-50/30">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center gap-2 text-amber-800">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          Surrendered notices requiring manual dispatch ({items.length})
-        </CardTitle>
-        <p className="text-xs text-amber-700 mt-1">
-          These mandatory communications failed all delivery attempts. Print and dispatch physically,
-          then mark as dispatched below to complete the audit trail.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-3">
+  const list = (
+    <div className="space-y-3">
         {items.map((item) => (
           <div
             key={item.id}
@@ -104,7 +95,24 @@ export function SurrenderedCommsWidget({ items }: SurrenderedCommsWidgetProps) {
             </ActionButton>
           </div>
         ))}
-      </CardContent>
+    </div>
+  )
+
+  if (bare) return list
+
+  return (
+    <Card className="border-amber-200 bg-amber-50/30">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2 text-amber-800">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          Surrendered notices requiring manual dispatch ({items.length})
+        </CardTitle>
+        <p className="text-xs text-amber-700 mt-1">
+          These mandatory communications failed all delivery attempts. Print and dispatch physically,
+          then mark as dispatched below to complete the audit trail.
+        </p>
+      </CardHeader>
+      <CardContent>{list}</CardContent>
     </Card>
   )
 }
