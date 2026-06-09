@@ -39,7 +39,6 @@ interface CalendarClientProps {
   events: CalendarEvent[]
   alerts: CalendarEvent[]
   searchEntities: CalendarSearchEntity[]
-  isFirm: boolean
 }
 
 const TYPE_OPTIONS = [

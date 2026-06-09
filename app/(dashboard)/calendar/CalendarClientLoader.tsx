@@ -19,9 +19,8 @@ interface Props {
   events: CalendarEvent[]
   alerts: CalendarEvent[]
   searchEntities: CalendarSearchEntity[]
-  isFirm: boolean
 }
 
-export function CalendarClientLoader({ events, alerts, searchEntities, isFirm }: Readonly<Props>) {
-  return <CalendarClient events={events} alerts={alerts} searchEntities={searchEntities} isFirm={isFirm} />
+export function CalendarClientLoader({ events, alerts, searchEntities }: Readonly<Props>) {
+  return <CalendarClient events={events} alerts={alerts} searchEntities={searchEntities} />
 }

@@ -65,7 +65,6 @@ export default async function CalendarPage() {
       events={events}
       alerts={alerts}
       searchEntities={searchEntities}
-      isFirm={tier === "firm"}
     />
   )
 }
