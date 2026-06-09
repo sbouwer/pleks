@@ -191,6 +191,18 @@ export function ToolbarFilter({
 
       {open && (
         <div className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-[12rem] overflow-hidden rounded-[var(--r-button)] border border-border bg-popover p-1 shadow-lg">
+          {/* Single-select filters that use empty-selection = "All" (no explicit all/"" option) get a
+              reset row, so you can return to All after picking a value (clears the selection). */}
+          {!multiple && !options.some((o) => o.value === "all" || o.value === "") && (
+            <button
+              type="button"
+              onClick={() => { onChange([]); setOpen(false) }}
+              className="flex w-full items-center gap-2.5 rounded-[calc(var(--r-button)-1px)] px-2.5 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
+            >
+              <span className="grid size-4 shrink-0 place-items-center">{selected.length === 0 && <Check className="size-3.5 text-primary" strokeWidth={3} />}</span>
+              <span className={cn(selected.length === 0 && "font-medium")}>All</span>
+            </button>
+          )}
           {options.map((o) => {
             const checked = selected.includes(o.value)
             return (
