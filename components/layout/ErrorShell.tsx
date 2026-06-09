@@ -17,7 +17,10 @@ import { AccentBracket } from "@/components/ui/AccentBracket"
 export function ErrorShell({
   icon, title, message, children,
 }: Readonly<{ icon?: ReactNode; title: string; message: string; children: ReactNode }>) {
+  // .pleks-public scopes the warm focus-shell palette (--paper-raised, --ink, …). ErrorShell can be hit from
+  // the dark dashboard/root where that scope is otherwise absent — without it the card renders see-through.
   return (
+    <div className="pleks-public">
     <FocusShell>
       <div className="fs-panel" style={{ maxWidth: 400, textAlign: "center" }}>
         <span className="fs-knob" aria-hidden="true" />
@@ -25,15 +28,18 @@ export function ErrorShell({
           <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
         </span>
 
+        {/* Warm focus-shell vars, not theme Tailwind colours — this card is a forced light surface even when
+            the error is hit from the dark dashboard (text-muted-foreground would wash out there). */}
         <div style={{ marginTop: 22, display: "flex", flexDirection: "column", alignItems: "center" }}>
-          {icon ? <div className="text-muted-foreground" style={{ marginBottom: 12 }}>{icon}</div> : null}
-          <h1 className="text-xl font-semibold" style={{ marginBottom: 6 }}>{title}</h1>
+          {icon ? <div style={{ marginBottom: 12, color: "var(--ink-soft)" }}>{icon}</div> : null}
+          <h1 style={{ marginBottom: 6, fontSize: 20, fontWeight: 600, color: "var(--ink)" }}>{title}</h1>
           <p className="fs-subhead" style={{ maxWidth: 300, margin: "0 auto" }}>{message}</p>
         </div>
 
         <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 10 }}>{children}</div>
       </div>
     </FocusShell>
+    </div>
   )
 }
 

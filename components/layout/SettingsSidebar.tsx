@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useTier } from "@/hooks/useTier"
 import { usePermissions } from "@/hooks/usePermissions"
+import { useCan } from "@/components/auth/CapabilitiesProvider"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 
 interface SettingsItem {
@@ -84,6 +85,7 @@ export function SettingsSidebar() {
   const pathname = usePathname()
   const { isPaid, isOwner, loading } = useTier()
   const { isAdmin } = usePermissions()  // owner / is_admin — the upgrade nudge is theirs, not every member's
+  const canBilling = useCan("billing")  // hide "Billing & plan" from members without the capability
 
   const isActive = (href: string, extra?: string[]) =>
     pathname === href || pathname.startsWith(href + "/") ||
@@ -120,7 +122,8 @@ export function SettingsSidebar() {
         </div>
 
         {GROUPS.map((group) => {
-          const items = group.items.filter((it) => !it.paid || isPaid)
+          const items = group.items.filter((it) =>
+            (!it.paid || isPaid) && (it.href !== "/settings/subscription" || canBilling))
           if (!items.length) return null
           return (
             <div key={group.title} className="mt-4">
