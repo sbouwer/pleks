@@ -10,7 +10,8 @@
 import { cookies } from "next/headers"
 import Link from "next/link"
 import { ShieldAlert } from "lucide-react"
-import { ActionButton } from "@/components/ui/actions"
+import { FocusShell } from "@/components/layout/FocusShell"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 import { BUILTIN_ROLE_BY_SLUG } from "@/lib/auth/capabilities"
 
 export const metadata = { title: "Not available here" }
@@ -48,33 +49,34 @@ export default async function ForbiddenPage() {
     ? (BUILTIN_ROLE_BY_SLUG[activeRole]?.label ?? ROLE_LABELS[activeRole] ?? activeRole)
     : null
 
-  // Mirrors the login modal: stripped background + a centred card, so this reads as part of the app.
+  // Same branded shell + card chrome as the login screen (warm backdrop, wordmark, amber doorsill, dot).
   return (
-    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px 20px" }}>
-      <div
-        style={{
-          background: "var(--surface-base, #fff)",
-          borderRadius: 10,
-          boxShadow: "0 8px 40px rgba(0,0,0,0.10)",
-          maxWidth: 448,
-          width: "100%",
-          padding: "36px 36px 32px",
-        }}
-      >
-        <div className="flex flex-col items-center text-center">
-          <ShieldAlert className="mb-6 h-12 w-12 text-muted-foreground" />
-          <h1 className="mb-2 font-heading text-2xl">Not available here</h1>
-          <p className="mb-8 max-w-xs text-sm text-muted-foreground">
+    <FocusShell>
+      <div className="fs-panel" style={{ maxWidth: 400, textAlign: "center" }}>
+        <span className="fs-knob" aria-hidden="true" />
+        <span className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center", fontSize: 22, display: "inline-flex" }}>
+          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+        </span>
+
+        <div style={{ marginTop: 22, display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <ShieldAlert className="h-10 w-10 text-muted-foreground" style={{ marginBottom: 12 }} aria-hidden="true" />
+          <h1 className="text-xl font-semibold" style={{ marginBottom: 6 }}>Not available here</h1>
+          <p className="fs-subhead" style={{ maxWidth: 300, margin: "0 auto" }}>
             {roleLabel
               ? `This page isn't available in your current workspace. You're signed in as ${roleLabel}.`
               : "This page isn't available in your current workspace."}
           </p>
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
-            <ActionButton asChild tone="primary"><Link href="/auth/resolver">Go to my workspace</Link></ActionButton>
-            <ActionButton asChild tone="secondary"><Link href="/login">Sign out</Link></ActionButton>
-          </div>
+        </div>
+
+        <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+          <Link href="/auth/resolver" className="fs-cta">
+            <span className="fs-cta-bar" aria-hidden="true" />
+            <span className="fs-cta-label">Go to my workspace</span>
+            <span className="fs-cta-arrow" aria-hidden="true">→</span>
+          </Link>
+          <Link href="/login" className="fs-cta-ghost">Sign out</Link>
         </div>
       </div>
-    </div>
+    </FocusShell>
   )
 }
