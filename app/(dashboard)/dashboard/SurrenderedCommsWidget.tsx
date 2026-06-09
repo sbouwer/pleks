@@ -44,16 +44,21 @@ function humanizeTemplate(key: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : key
 }
 
-/** Collapse identical notices (same template + recipient + lease) into one group. */
+/**
+ * Collapse one notice's repeated delivery failures into a single row. The retry engine writes a row per
+ * failed attempt, so 20 rows of the same template→recipient = ONE notice that failed 20×, not 20 notices.
+ * Group by template + recipient only; pick up the lease ref from whichever attempt carries it.
+ */
 function groupItems(items: SurrenderedCommRow[]): CommGroup[] {
   const map = new Map<string, CommGroup>()
   for (const it of items) {
     const recipient = it.recipient_email ?? it.recipient_name ?? "—"
-    const gkey = `${it.template_key}|${recipient}|${it.lease_id ?? ""}`
+    const gkey = `${it.template_key}|${recipient}`
     const g = map.get(gkey)
     if (g) {
       g.ids.push(it.id)
       if (it.surrendered_at > g.latest) g.latest = it.surrendered_at
+      g.leaseId = g.leaseId ?? it.lease_id
     } else {
       map.set(gkey, { key: gkey, templateLabel: humanizeTemplate(it.template_key), recipient, leaseId: it.lease_id, ids: [it.id], latest: it.surrendered_at })
     }
@@ -70,15 +75,10 @@ export function SurrenderedCommsWidget({ items }: Readonly<{ items: SurrenderedC
       {groups.map((g) => (
         <div key={g.key} className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-border px-3 py-2.5">
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 truncate text-[13px] font-medium text-foreground">
-              {g.templateLabel}
-              {g.ids.length > 1 && (
-                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">×{g.ids.length}</span>
-              )}
-            </p>
+            <p className="truncate text-[13px] font-medium text-foreground">{g.templateLabel}</p>
             <p className="truncate text-[11px] text-muted-foreground">
               {g.recipient}
-              {" · "}{g.ids.length} notice{g.ids.length === 1 ? "" : "s"}
+              {g.ids.length > 1 && <> · failed {g.ids.length}×</>}
               {" · "}latest {new Date(g.latest).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
             </p>
           </div>

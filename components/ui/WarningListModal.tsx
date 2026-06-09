@@ -6,8 +6,7 @@
  * Notes:  Pairs with WarningBell on pages that have no matching filter to jump to (inspections overdue,
  *         maintenance overdue, dashboard dispatches). Each row links to the item and closes the modal.
  */
-import Link from "next/link"
-import { Modal } from "@/components/ui/actions"
+import { Modal, InlineLink } from "@/components/ui/actions"
 
 export interface WarningItem {
   id: string
@@ -27,15 +26,16 @@ export function WarningListModal({
           <p className="text-sm text-muted-foreground">Nothing needs attention right now.</p>
         ) : (
           items.map((it) => (
-            <Link
+            <div
               key={it.id}
-              href={it.href}
-              onClick={onClose}
-              className="flex flex-col rounded-[var(--r-button)] border border-border px-3 py-2 transition-colors hover:bg-muted/40"
+              className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-border px-3 py-2.5"
             >
-              <span className="text-sm font-medium text-foreground">{it.title}</span>
-              {it.sub && <span className="text-xs text-muted-foreground">{it.sub}</span>}
-            </Link>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">{it.title}</p>
+                {it.sub && <p className="truncate text-xs text-muted-foreground">{it.sub}</p>}
+              </div>
+              <InlineLink href={it.href} withArrow onClick={onClose} className="shrink-0 text-[12px] font-medium">Review</InlineLink>
+            </div>
           ))
         )}
       </div>
