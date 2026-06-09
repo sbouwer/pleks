@@ -448,7 +448,7 @@ function BillingPageInner() {
         setActionFeedback({ type: "error", msg: result.error })
       } else {
         setActionFeedback({ type: "success", msg: "Subscription resumed. Full access restored." })
-        router.refresh()
+        globalThis.location.reload()  // full reload so the header bell + org capabilities re-read the new state
       }
     })
   }
@@ -704,7 +704,7 @@ function BillingPageInner() {
         onOpenChange={setPauseOpen}
         onSuccess={() => {
           setActionFeedback({ type: "success", msg: "Subscription paused." })
-          router.refresh()
+          globalThis.location.reload()  // full reload so the header bell + org capabilities re-read the new state
         }}
       />
       <CancelDialog
@@ -712,7 +712,7 @@ function BillingPageInner() {
         onOpenChange={setCancelOpen}
         onSuccess={() => {
           setActionFeedback({ type: "success", msg: "Your subscription has been cancelled." })
-          router.refresh()
+          globalThis.location.reload()  // full reload so the header bell + org capabilities re-read the new state
         }}
       />
     </div>

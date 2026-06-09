@@ -20,7 +20,6 @@ import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
 import { MfaGuard } from "@/components/auth/MfaGuard"
 import { CapabilitiesProvider } from "@/components/auth/CapabilitiesProvider"
 import { FeedbackButton } from "@/components/feedback/FeedbackButton"
-import { SubscriptionStateBanner } from "@/components/layout/SubscriptionStateBanner"
 import { PrivacyPolicyBanner } from "@/components/layout/PrivacyPolicyBanner"
 import { ConsentGate } from "@/components/legal/ConsentGate"
 
@@ -39,7 +38,6 @@ export default function DashboardLayout({
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <PrivacyPolicyBanner />
-        <SubscriptionStateBanner />
         <Topbar />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6 pb-16 lg:pb-6">{children}</main>
         <MobileBottomBar />

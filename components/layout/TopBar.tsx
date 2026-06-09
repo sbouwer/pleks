@@ -19,6 +19,7 @@ import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
 import { useRouter, usePathname } from "next/navigation"
 import { RoleSwitcher } from "@/components/role-switcher/RoleSwitcher"
+import { SubscriptionStateBell } from "@/components/layout/SubscriptionStateBell"
 import { DevTierToggle } from "@/components/dev/DevTierToggle"  // DEV-ONLY — remove before launch
 
 interface TopbarProps {
@@ -109,6 +110,7 @@ export function Topbar({
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
         <RoleSwitcher />
         <SyncIndicator />
+        <SubscriptionStateBell />
 
         {/* Theme toggle */}
         <button
