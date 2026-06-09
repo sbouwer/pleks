@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Users, User, Archive, Phone } from "lucide-react"
+import { Users, User, Archive, Phone, Mail } from "lucide-react"
 import { ActionButton, Modal, EditButton, DeleteButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
@@ -245,6 +245,12 @@ function TeamMembersModal({
                     <a href={`tel:${m.phone}`} aria-label={`Call ${m.name}`}
                       className="grid h-8 w-8 place-items-center rounded-[var(--r-button)] border border-border text-brand transition-colors hover:bg-muted">
                       <Phone className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  {m.email && (
+                    <a href={`mailto:${m.email}`} aria-label={`Email ${m.name}`}
+                      className="grid h-8 w-8 place-items-center rounded-[var(--r-button)] border border-border text-muted-foreground transition-colors hover:bg-muted">
+                      <Mail className="h-3.5 w-3.5" />
                     </a>
                   )}
                   <DeleteButton

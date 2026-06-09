@@ -17,7 +17,7 @@ export interface TeamWithMembers {
   id: string
   name: string
   function: TeamFunction
-  members: { userId: string; name: string; role: string; phone: string | null }[]
+  members: { userId: string; name: string; role: string; phone: string | null; email: string | null }[]
 }
 
 export async function listTeams(): Promise<TeamWithMembers[]> {
@@ -40,6 +40,7 @@ export async function listTeams(): Promise<TeamWithMembers[]> {
   const nameById = new Map<string, string>()
   const phoneById = new Map<string, string | null>()
   const roleById = new Map<string, string>()
+  const emailById = new Map<string, string>()
   if (userIds.length > 0) {
     const { data: profiles, error: pErr } = await db
       .from("user_profiles").select("id, full_name, first_name, last_name, mobile").in("id", userIds)
@@ -52,6 +53,12 @@ export async function listTeams(): Promise<TeamWithMembers[]> {
       .from("user_orgs").select("user_id, role").eq("org_id", orgId).in("user_id", userIds)
     if (oErr) console.error("listTeams roles:", oErr.message)
     for (const o of (orgs ?? []) as { user_id: string; role: string }[]) roleById.set(o.user_id, o.role)
+
+    // Email lives on auth.users — fetched via admin (small N: one org's team members).
+    for (const uid of userIds) {
+      const { data } = await db.auth.admin.getUserById(uid)
+      if (data?.user?.email) emailById.set(uid, data.user.email)
+    }
   }
 
   return teamRows.map((t) => ({
@@ -61,6 +68,7 @@ export async function listTeams(): Promise<TeamWithMembers[]> {
       name: nameById.get(m.user_id) ?? "Unnamed",
       role: roleById.get(m.user_id) ?? "",
       phone: phoneById.get(m.user_id) ?? null,
+      email: emailById.get(m.user_id) ?? null,
     })),
   }))
 }
