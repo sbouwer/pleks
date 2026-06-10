@@ -68,7 +68,9 @@ async function handleCpaRenewal(supabase: Supabase, lease: CpaLease): Promise<vo
   const unit = lease.units as { unit_number: string; properties: { name: string } } | null
   if (!tenant?.email) return
 
-  void sendLeaseRenewalNotice(
+  // C-1 belt: await (serverless-freeze-safe) + log — was a floating void (silent loss). The helper is awaited
+  // by GET, so this completes before the response. Per-lease failure logged, not thrown (non-fatal).
+  await sendLeaseRenewalNotice(
     { email: tenant.email, name: [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant" },
     {
       id: lease.id,
@@ -77,7 +79,7 @@ async function handleCpaRenewal(supabase: Supabase, lease: CpaLease): Promise<vo
       unitLabel: unit?.unit_number ? `Unit ${unit.unit_number}` : "Unit",
     },
     { orgId: lease.org_id, orgName: org ? getOrgDisplayName(org) : "Pleks", orgPhone: org?.phone ?? undefined, orgEmail: org?.email ?? undefined, branding: buildBranding(orgSettings) }
-  )
+  ).catch((e) => console.error("[lease-expiry-check] CPA renewal notice failed:", e instanceof Error ? e.message : String(e)))
 }
 
 async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Promise<void> {

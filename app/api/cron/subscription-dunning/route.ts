@@ -15,6 +15,7 @@ import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendPastDueFirst, sendPastDueDay7, sendPausedAuto } from "@/lib/subscriptions/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getUserEmail } from "@/lib/auth/userEmail"
+import { trackSend, settleSends } from "@/lib/cron/settleSends"
 
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
   let pastDueFirst = 0
   let pastDueDay7 = 0
   let autoPaused = 0
+  const sends: Promise<unknown>[] = []   // C-1 belt: collect + await + surface failures before return
 
   const { data: pastDueSubs, error } = await supabase
     .from("subscriptions")
@@ -88,7 +90,7 @@ export async function GET(req: NextRequest) {
         action: "UPDATE",
         new_values: { action: "subscription_paused_auto", reason: "past_due_grace_expired", days_past_due: daysElapsed },
       })
-      void sendPausedAuto(contact)
+      trackSend(sends, `subscription-dunning paused ${sub.org_id}`, sendPausedAuto(contact))
       autoPaused++
     } else if (daysElapsed === 7) {
       // Check idempotency via comm log
@@ -100,7 +102,7 @@ export async function GET(req: NextRequest) {
         .limit(1)
         logQueryError("GET communication_log", priorError)
       if (prior && prior.length > 0) continue
-      void sendPastDueDay7(contact)
+      trackSend(sends, `subscription-dunning day7 ${sub.org_id}`, sendPastDueDay7(contact))
       pastDueDay7++
     } else if (daysElapsed === 0) {
       // First notice — check idempotency
@@ -112,12 +114,13 @@ export async function GET(req: NextRequest) {
         .limit(1)
         logQueryError("GET communication_log", priorError2)
       if (prior && prior.length > 0) continue
-      void sendPastDueFirst(contact)
+      trackSend(sends, `subscription-dunning first ${sub.org_id}`, sendPastDueFirst(contact))
       pastDueFirst++
     }
   }
 
   const pendingExpired = await runPendingExpiryStep(supabase, now)
+  const { sent, failed } = await settleSends(sends)
 
   return Response.json({
     ok: true,
@@ -125,6 +128,7 @@ export async function GET(req: NextRequest) {
     past_due_day7: pastDueDay7,
     auto_paused: autoPaused,
     pending_expired: pendingExpired,
+    sent, failed,
   })
 }
 

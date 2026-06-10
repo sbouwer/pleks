@@ -97,13 +97,13 @@ async function processWarn30dSub(
     const purgeEligibleStr = purgeEligibleAt.toLocaleDateString("en-ZA", {
       day: "numeric", month: "long", year: "numeric",
     })
-    void sendPurgeWarning30d(contact, {
+    await sendPurgeWarning30d(contact, {
       cancelledDate:   cancelledDateStr,
       purgeEligibleAt: purgeEligibleStr,
       daysUntilPurge:  30,
       exportUrl:       `${APP_URL}/reports`,
       settingsUrl:     `${APP_URL}/settings/subscription`,
-    })
+    }).catch((e) => console.error("[subscription-purge-warnings] 30d warning send failed for", sub.org_id, e instanceof Error ? e.message : String(e)))
   }
   await supabase.from("audit_log").insert({
     org_id: sub.org_id,
@@ -138,13 +138,13 @@ async function processFinalWarnSub(
     const purgeEligibleStr = new Date(sub.purge_eligible_at ?? "").toLocaleDateString("en-ZA", {
       day: "numeric", month: "long", year: "numeric",
     })
-    void sendPurgeWarningFinal(contact, {
+    await sendPurgeWarningFinal(contact, {
       cancelledDate:   cancelledDateStr,
       purgeEligibleAt: purgeEligibleStr,
       daysUntilPurge:  1,
       exportUrl:       `${APP_URL}/reports`,
       settingsUrl:     `${APP_URL}/settings/subscription`,
-    })
+    }).catch((e) => console.error("[subscription-purge-warnings] final warning send failed for", sub.org_id, e instanceof Error ? e.message : String(e)))
   }
   await supabase.from("audit_log").insert({
     org_id: sub.org_id,

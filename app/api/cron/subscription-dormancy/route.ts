@@ -80,7 +80,8 @@ async function processFirstWarningOrg(supabase: SupabaseClient, org: OrgRow, now
     action: "UPDATE",
     new_values: { action: "dormancy_warning_sent", purge_date: purgeDateStr },
   })
-  void sendDormancyWarning(contact, purgeDateStr)
+  await sendDormancyWarning(contact, purgeDateStr)   // C-1 belt: await (freeze-safe) + log; helper is awaited by GET
+    .catch((e) => console.error("[subscription-dormancy] warning send failed for", org.id, e instanceof Error ? e.message : String(e)))
   return true
 }
 
@@ -112,7 +113,8 @@ async function processFinalWarningOrg(
     action: "UPDATE",
     new_values: { action: "dormancy_final_sent", purge_date: purgeDateStr },
   })
-  void sendDormancyFinal(contact, purgeDateStr)
+  await sendDormancyFinal(contact, purgeDateStr)   // C-1 belt: await (freeze-safe) + log; helper is awaited by GET
+    .catch((e) => console.error("[subscription-dormancy] final send failed for", org.id, e instanceof Error ? e.message : String(e)))
   return true
 }
 

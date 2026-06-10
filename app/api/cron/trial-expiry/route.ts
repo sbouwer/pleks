@@ -16,6 +16,7 @@ import {
   sendTrialEndingSoon,
   sendFoundingExpiryWarning,
 } from "@/lib/subscriptions/emails"
+import { trackSend, settleSends } from "@/lib/cron/settleSends"
 
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
   const now = new Date()
   let expired = 0
   let warned = 0
+  const sends: Promise<unknown>[] = []   // C-1 belt: collect + await + surface failures before return
 
   // Helper: fetch org branding + admin email for a given orgId
   async function fetchOrgContact(orgId: string) {
@@ -93,7 +95,7 @@ export async function GET(req: NextRequest) {
 
     const contact = await fetchOrgContact(trial.org_id)
     if (contact) {
-      void sendTrialExpired(contact, trial.trial_tier ?? "trial")
+      trackSend(sends, `trial-expiry expired ${trial.org_id}`, sendTrialExpired(contact, trial.trial_tier ?? "trial"))
     }
 
     expired++
@@ -124,7 +126,7 @@ export async function GET(req: NextRequest) {
 
     const contact = await fetchOrgContact(trial.org_id)
     if (contact) {
-      void sendTrialEndingSoon(contact, trial.trial_ends_at)
+      trackSend(sends, `trial-expiry ending ${trial.org_id}`, sendTrialEndingSoon(contact, trial.trial_ends_at))
     }
 
     warned++
@@ -155,11 +157,12 @@ export async function GET(req: NextRequest) {
 
     const contact = await fetchOrgContact(org.id)
     if (contact) {
-      void sendFoundingExpiryWarning(contact, org.founding_agent_expires_at)
+      trackSend(sends, `trial-expiry founding ${org.id}`, sendFoundingExpiryWarning(contact, org.founding_agent_expires_at))
     }
 
     foundingWarned++
   }
 
-  return Response.json({ ok: true, expired, warned, founding_warned: foundingWarned })
+  const { sent, failed } = await settleSends(sends)
+  return Response.json({ ok: true, expired, warned, founding_warned: foundingWarned, sent, failed })
 }

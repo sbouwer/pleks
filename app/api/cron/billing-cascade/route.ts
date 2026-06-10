@@ -18,6 +18,7 @@ import {
 } from "@/lib/subscriptions/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getUserEmail } from "@/lib/auth/userEmail"
+import { trackSend, settleSends } from "@/lib/cron/settleSends"
 
 const GRACE_DAYS = 14
 const REMINDER_WINDOW_DAYS = { min: 9, max: 11 } // ~4 days in from 14-day window
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createServiceClient()
   const now = new Date()
+  const sends: Promise<unknown>[] = []   // C-1 belt: collect + await + surface failures before return
 
   // ── Helper: fetch org branding + admin email ───────────────────────────────
   async function fetchOrgContact(orgId: string) {
@@ -130,7 +132,7 @@ export async function GET(req: NextRequest) {
     if (!sent) {
       const contact = await fetchOrgContact(sub.org_id)
       if (contact) {
-        void sendPaymentFailed(contact, sub.amount_cents as number, gracePeriodEnd.toISOString())
+        trackSend(sends, `billing-cascade payment-failed ${sub.org_id}`, sendPaymentFailed(contact, sub.amount_cents as number, gracePeriodEnd.toISOString()))
       }
     }
 
@@ -162,11 +164,11 @@ export async function GET(req: NextRequest) {
 
     const contact = await fetchOrgContact(sub.org_id)
     if (contact) {
-      void sendPaymentReminder(
+      trackSend(sends, `billing-cascade reminder ${sub.org_id}`, sendPaymentReminder(
         contact,
         sub.amount_cents as number,
         sub.grace_period_end as string,
-      )
+      ))
     }
 
     reminded++
@@ -215,7 +217,7 @@ export async function GET(req: NextRequest) {
     if (!sent) {
       const contact = await fetchOrgContact(sub.org_id)
       if (contact) {
-        void sendAccountFrozen(contact, sub.amount_cents as number)
+        trackSend(sends, `billing-cascade cancelled ${sub.org_id}`, sendAccountFrozen(contact, sub.amount_cents as number))
       }
     }
 
@@ -224,5 +226,6 @@ export async function GET(req: NextRequest) {
 
   pingHeartbeat(process.env.HEARTBEAT_BILLING_CASCADE)
 
-  return Response.json({ ok: true, marked_past_due: markedPastDue, reminded, cancelled })
+  const { sent: emailsSent, failed: emailsFailed } = await settleSends(sends)
+  return Response.json({ ok: true, marked_past_due: markedPastDue, reminded, cancelled, sent: emailsSent, failed: emailsFailed })
 }

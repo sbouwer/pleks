@@ -16,6 +16,7 @@ import { sendReviewReminder } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { trackSend, settleSends } from "@/lib/cron/settleSends"
 
 function getServiceClient() {
   return createClient(
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
 
   const service = getServiceClient()
   const now = new Date()
+  const sends: Promise<unknown>[] = []   // C-1 belt: collect sends, await + surface failures before return
   const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
 
   // ── 1. Agent review reminders (unreviewed 24h+) ───────────────────────────
@@ -87,10 +89,10 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    void sendReviewReminder(
+    trackSend(sends, `application-reminders ${orgId}`, sendReviewReminder(
       { orgId, orgName: org?.name ?? "Pleks", agentEmail, agentName: agentProfile?.full_name, branding },
       pending
-    )
+    ))
   }
 
   // ── 2. Shortlisted but Stage 2 not started after 3 days ──────────────────
@@ -107,9 +109,12 @@ export async function GET(req: NextRequest) {
   // Omitted for brevity — same pattern as above using sendShortlistInvitation resend
   void stalledApps
 
+  const { sent, failed } = await settleSends(sends)
+
   return NextResponse.json({
     ok: true,
     reviewReminders: byOrg.size,
     stalledShortlists: (stalledApps ?? []).length,
+    sent, failed,
   })
 }
