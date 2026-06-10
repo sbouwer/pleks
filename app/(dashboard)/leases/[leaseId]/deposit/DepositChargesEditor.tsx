@@ -67,6 +67,7 @@ interface FormState {
   charge_type: string
   description: string
   deduction_amount_cents: string
+  justification: string
   source_arrears_case_id: string
   source_invoice_id: string
   notes: string
@@ -76,6 +77,7 @@ const EMPTY_FORM: FormState = {
   charge_type:            "other",
   description:            "",
   deduction_amount_cents: "",
+  justification:          "",
   source_arrears_case_id: "",
   source_invoice_id:      "",
   notes:                  "",
@@ -137,6 +139,7 @@ export function DepositChargesEditor({
       charge_type:            form.charge_type,
       description:            form.description.trim(),
       deduction_amount_cents: Math.round(amountRand * 100),
+      justification:          form.justification.trim() || undefined,
       source_arrears_case_id: form.source_arrears_case_id || undefined,
       source_invoice_id:      form.source_invoice_id || undefined,
       notes:                  form.notes.trim() || undefined,
@@ -256,6 +259,17 @@ export function DepositChargesEditor({
                 placeholder="e.g. Outstanding rent for April 2026"
               />
             </div>
+            {!form.source_arrears_case_id && !form.source_invoice_id && (
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Reason (required — appears on the tenant&apos;s deposit schedule)</label>
+                <textarea
+                  value={form.justification}
+                  onChange={(e) => setForm((f) => ({ ...f, justification: e.target.value }))}
+                  className="w-full border rounded-md px-2 py-1.5 text-sm min-h-[3rem]"
+                  placeholder="Why is this an ad-hoc deduction? (RHA s5 — each deduction needs a reason)"
+                />
+              </div>
+            )}
             {form.source_arrears_case_id && (
               <p className="text-xs text-muted-foreground">Linked to arrears case: {form.source_arrears_case_id.slice(0, 8).toUpperCase()}</p>
             )}

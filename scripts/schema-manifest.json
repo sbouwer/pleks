@@ -1183,7 +1183,8 @@
       "dispute_resolution",
       "created_by",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "justification"
     ],
     "deposit_deduction_items": [
       "id",
@@ -3557,6 +3558,7 @@
     ]
   },
   "rpcs": {
+    "assert_deduction_justification": [],
     "audit_applications_fitscore_changes": [],
     "check_email_exists": [
       "p_email"

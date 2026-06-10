@@ -185,6 +185,7 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
 interface CreateDepositChargeInput {
   charge_type: string
   description: string
+  justification?: string   // required for Pattern-C (ad-hoc, no source ref) — gated at confirm (F-2)
   deduction_amount_cents: number
   reconciliation_id?: string
   source_invoice_id?: string
@@ -244,6 +245,24 @@ export async function confirmDepositCharge(
   const gw = await requireAgentWriteAccess("edit_lease")
   const denied = await denyNonFinance(gw); if (denied) return denied
   const { db, orgId, userId } = gw
+
+  // Pattern-C (ad-hoc — no documentary source ref) charges are agent-asserted, so they need a substantive
+  // reason before confirming (F-2; RHA s5). Source-backed charges (invoice/arrears/supplier/municipal/lease)
+  // carry their own evidence and pass through.
+  const { data: charge, error: chargeErr } = await db
+    .from("deposit_charges")
+    .select("justification, source_invoice_id, source_arrears_case_id, source_supplier_invoice_id, source_municipal_bill_id, source_lease_charge_id")
+    .eq("id", chargeId)
+    .eq("org_id", orgId)
+    .single()
+  logQueryError("confirmDepositCharge deposit_charges", chargeErr)
+  if (!charge) return { error: "Charge not found" }
+
+  const isPatternC = !charge.source_invoice_id && !charge.source_arrears_case_id && !charge.source_supplier_invoice_id
+    && !charge.source_municipal_bill_id && !charge.source_lease_charge_id
+  if (isPatternC && !isValidJustification(charge.justification as string | null)) {
+    return { error: "Add a reason for this ad-hoc deduction before confirming it — it appears on the tenant's deposit schedule (RHA s5)." }
+  }
 
   const { error } = await db
     .from("deposit_charges")

@@ -1747,3 +1747,8 @@ DROP TRIGGER IF EXISTS trg_deduction_justification ON deposit_deduction_items;
 CREATE TRIGGER trg_deduction_justification
   BEFORE INSERT OR UPDATE ON deposit_deduction_items
   FOR EACH ROW EXECUTE FUNCTION assert_deduction_justification();
+
+-- F-2 (Pattern-C): ad-hoc deposit charges (no source invoice/arrears/supplier/municipal/lease ref) are
+-- agent-asserted, so they need their own reason before they can be confirmed + disbursed (RHA s5). Gated in
+-- lib/actions/deposits.ts confirmDepositCharge + lib/deposits/disburse.ts settlePatternC.
+ALTER TABLE deposit_charges ADD COLUMN IF NOT EXISTS justification text;
