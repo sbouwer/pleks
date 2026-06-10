@@ -24,9 +24,10 @@ interface DepositActionsProps {
   readonly reconStatus: string
   readonly hasUnconfirmedItems: boolean
   readonly hasUnconfirmedCharges: boolean
+  readonly timerOverdue?: boolean
 }
 
-export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems, hasUnconfirmedCharges }: DepositActionsProps) {
+export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems, hasUnconfirmedCharges, timerOverdue }: DepositActionsProps) {
   const { user } = useUser()
   const router = useRouter()
   const [processing, setProcessing] = useState(false)
@@ -59,6 +60,7 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems, hasU
       else toast.error("All non-damage charges must be confirmed before disbursement")
       return
     }
+    if (timerOverdue && !confirm("This deposit return is PAST its statutory deadline (RHA 14/21-day). Disbursing now is late — the tenant may have a Tribunal claim. Continue anyway?")) return
     if (!confirm("This will disburse the deposit and settle all charges. Continue?")) return
 
     setProcessing(true)

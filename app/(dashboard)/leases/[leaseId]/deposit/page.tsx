@@ -326,6 +326,7 @@ export default async function DepositReconPage({
         reconStatus={recon.status as string}
         hasUnconfirmedItems={hasUnconfirmedItems}
         hasUnconfirmedCharges={hasUnconfirmedCharges}
+        timerOverdue={isOverdue || timer?.status === "overdue"}
       />
     </div>
   )
