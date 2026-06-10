@@ -137,9 +137,11 @@ export function Sidebar() {
         // Tier gates
         if (item.href === "/calendar") return isPortfolio || isFirm
         if (item.href === "/finance/trust-ledger") return isSteward || isGrowth || isPortfolio || isFirm
+        // HOA / sectional-title management is a Firm-tier feature — hidden on every lower tier, and only for
+        // HOA-managing org types when on Firm.
+        if (item.href === "/hoa") return isFirm && (caps === null || caps.hasHOA)
         // Org-type gates — D-61A-04: hide, don't grey-out
         if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
-        if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
         return true
       })
       .map((item) => ({
