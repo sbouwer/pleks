@@ -1,16 +1,16 @@
 "use client"
 
 /**
- * app/(public)/forgot-password/page.tsx — FILL: one-line purpose
+ * app/(public)/forgot-password/page.tsx — request a password-reset email
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /forgot-password
+ * Auth:   public
+ * Data:   requestPasswordReset server action (rate-limited per IP + email; resetPasswordForEmail server-side)
+ * Notes:  Goes through the action — never the browser Supabase client — so reset emails are throttled and the
+ *         email-existence answer isn't leaked (ADDENDUM_AUTH_HARDENING Tier-2).
  */
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { requestPasswordReset } from "@/lib/actions/passwordReset"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,16 +28,10 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setLoading(true)
 
-    const supabase = createClient()
-    // Reset link must point at the canonical app origin, never the current browser origin —
-    // a wrong/preview host would otherwise mint a reset link to the wrong place (ADDENDUM_69 C.1).
-    const appOrigin = process.env.NEXT_PUBLIC_APP_URL ?? globalThis.location.origin
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${appOrigin}/reset-password`,
-    })
-
-    if (error) {
-      toast.error(error.message)
+    // Server action throttles + sends server-side (the reset link's origin is the canonical app URL there).
+    const res = await requestPasswordReset(email)
+    if ("error" in res) {
+      toast.error(res.error)
     } else {
       setSent(true)
     }

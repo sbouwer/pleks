@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * app/(public)/reset-password/page.tsx — FILL: one-line purpose
+ * app/(public)/reset-password/page.tsx — set a new password from a reset link
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /reset-password (reached via the recovery link → Supabase recovery session)
+ * Auth:   the recovery session established by the reset link
+ * Notes:  After updating the password we revoke ALL sessions (scope: global) so a stolen/old session can't
+ *         survive the reset — the user re-authenticates with the new password (ADDENDUM_AUTH_HARDENING Tier-2).
+ *         The password-changed log POST runs first (it needs the live session); revoke after.
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -37,6 +37,9 @@ export default function ResetPasswordPage() {
       toast.success("Password updated successfully.")
       // Await so the auth_events record + notification land before we navigate away (fetch would cancel).
       await fetch("/api/auth/log-password-changed", { method: "POST" }).catch(() => {})
+      // Revoke ALL sessions (incl. any attacker's stolen session) — a reset must not leave one alive. Runs
+      // after the log POST, which needs the live session. User re-authenticates with the new password.
+      await supabase.auth.signOut({ scope: "global" }).catch(() => {})
       router.push("/login")
     }
     setLoading(false)
