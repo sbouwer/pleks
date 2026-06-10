@@ -100,6 +100,7 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
       applicant_email: REDACTED, applicant_phone: null,             // applicant_email NOT NULL
       employer_name: null, current_landlord_name: null,
       bank_statement_holder_name_extracted: null,                   // §7.1 add — extracted holder name
+      fitscore_narrative: null, fitscore_material_flags: null,      // P-1 — derived AI PII (income/affordability/risk), JSONB
     } },
   { id: "C.application_co_applicants", table: "application_co_applicants", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { first_name: null, last_name: null, id_number: null, id_number_hash: null, date_of_birth: null, employer_name: null, applicant_email: REDACTED, applicant_phone: null } },
@@ -111,6 +112,14 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
     fields: { applicant_email: REDACTED } },                        // NOT NULL
   { id: "C.application_screening_payments", table: "application_screening_payments", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { paid_by_email: null } },
+
+  // ── §7 C.1 — BUILD_14 FitScore / screening PII (P-1 coverage-drift fix — these tables/columns landed AFTER
+  //    the plan was frozen, so they survived erasure). The Storage files referenced by the *_path columns are
+  //    purged separately in erasure.ts (file-then-redact); screening_artifacts is manual-review (below). ──────
+  { id: "C1.bank_statement_classifications", table: "application_bank_statement_classifications", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
+    fields: { bank_statement_doc_path: REDACTED, payee_signature: REDACTED, payee_description_example: REDACTED } },  // all NOT NULL → REDACTED; doc_path file purged in erasure.ts
+  { id: "C1.application_screening_lines", table: "application_screening_lines", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
+    fields: { pdf_storage_path: null, result_summary: null, searchworx_search_token: null } },                       // nullable; pdf file purged in erasure.ts
 
   // ── §7 D — communications & ancillary (delivery metadata retained; keys verified vs live schema) ──
   // communication_log is keyed by contact_id (NO user_id; the old stub's user_id+content were phantom).

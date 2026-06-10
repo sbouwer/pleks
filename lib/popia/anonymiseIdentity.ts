@@ -48,6 +48,7 @@ export const MANUAL_REVIEW_TARGETS: ReadonlyArray<{ table: string; field: string
   { table: "maintenance_requests", field: "description / completion_notes / cancellation_reason", note: "free-text notes" },
   { table: "document_generation_jobs", field: "body_html", note: "generated document body" },
   { table: "warranties", field: "claim_email / claim_phone", note: "claimant may be the subject or the manager (§7.1)" },
+  { table: "screening_artifacts", field: "(whole row)", note: "immutable-by-RLS bureau records — Information Officer must action erasure within SLA (ADDENDUM_POPIA_LIFECYCLE P-1)" },
   { table: "(documents/storage)", field: "PDF/photo contents", note: "lease docs, inspection photos — out-of-band" },
 ]
 

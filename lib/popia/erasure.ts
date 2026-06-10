@@ -101,6 +101,11 @@ export async function executeErasure(
   const resolved = await resolveSubject(db, {
     org_id: request.org_id, user_id: request.subject_user_id, email: request.subject_email,
   })
+
+  // P-1: purge the bank-statement + screening PDFs from Storage BEFORE the strip redacts their path columns
+  // (the files are out-of-band; the plan only redacts the DB *_path values). File-then-redact.
+  await purgeSubjectScreeningStorage(db, resolved, request.id, actor_user_id)
+
   const identity = await executeIdentityAnonymise(db, resolved, subjectType, request.id, actor_user_id)
 
   // Category-gated FULL-ROW deletes (retention permitting). The cron does the routine purges; this
@@ -203,6 +208,45 @@ async function deleteRecordsForSubject(
   }
 
   return affected
+}
+
+/**
+ * P-1: delete the Storage objects holding the subject's bank-statement + screening PDFs. The plan redacts the
+ * *_path DB columns; the referenced files are out-of-band and must be removed here, BEFORE the strip overwrites
+ * those paths. Best-effort + audited (one row per bucket touched). Mirrors the property-documents file-then-row
+ * purge. screening_artifacts (immutable-by-RLS) is NOT touched here — it's flagged for manual review.
+ */
+async function purgeSubjectScreeningStorage(
+  db: DbClient,
+  resolved: ResolvedSubject,
+  requestId: string,
+  actor_user_id: string,
+): Promise<void> {
+  if (resolved.applicationIds.length === 0) return
+
+  const remove = async (bucket: string, table: string, paths: Array<string | null>): Promise<void> => {
+    const files = [...new Set(paths.filter((p): p is string => !!p))]
+    if (files.length === 0) return
+    const { error } = await db.storage.from(bucket).remove(files)
+    if (error) { console.error(`[popia/erasure] storage purge ${bucket} failed:`, error.message); return }
+    await logAudit(db, resolved.orgId, actor_user_id, "popia_erasure", table, resolved.applicationIds[0], requestId)
+  }
+
+  const { data: bsc, error: bscErr } = await db
+    .from("application_bank_statement_classifications")
+    .select("bank_statement_doc_path")
+    .in("application_id", resolved.applicationIds)
+  logQueryError("purgeSubjectScreeningStorage bank_statement_classifications", bscErr)
+  await remove("bank-statements", "application_bank_statement_classifications",
+    (bsc ?? []).map((r) => r.bank_statement_doc_path as string | null))
+
+  const { data: lines, error: linesErr } = await db
+    .from("application_screening_lines")
+    .select("pdf_storage_path")
+    .in("application_id", resolved.applicationIds)
+  logQueryError("purgeSubjectScreeningStorage application_screening_lines", linesErr)
+  await remove("screening-reports", "application_screening_lines",
+    (lines ?? []).map((r) => r.pdf_storage_path as string | null))
 }
 
 async function logAudit(
