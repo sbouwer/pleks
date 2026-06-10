@@ -45,11 +45,14 @@ The header uses the hosted wordmark PNG (not text), served from `public/logo/`:
 
 | Asset | Ink | Use on | URL (after deploy) |
 |---|---|---|---|
-| `pleks-wordmark-light.png` | **dark** | light backgrounds — **the email card** ✅ | `https://app.pleks.co.za/logo/pleks-wordmark-light.png` |
-| `pleks-wordmark-dark.png` | light/cream | dark backgrounds | `https://app.pleks.co.za/logo/pleks-wordmark-dark.png` |
+| `pleks-wordmark-light.png` | **dark** | light backgrounds (the white card) | `https://app.pleks.co.za/logo/pleks-wordmark-light.png` |
+| `pleks-wordmark-dark.png` | light/cream | dark backgrounds (dark-mode clients) | `https://app.pleks.co.za/logo/pleks-wordmark-dark.png` |
 
-(The name is the *theme*, not the ink — "light theme" = dark ink. The templates point at the **light**/dark-ink
-one because the card is white.) Transparent PNG, 1080×618, rendered at `height:44`. Two caveats:
+(The name is the *theme*, not the ink — "light theme" = dark ink.) **Both are shipped and swapped by colour
+scheme:** the header carries two `<img>` (`.pl-logo-light` shown by default, `.pl-logo-dark` hidden), and a
+`@media (prefers-color-scheme: dark)` + `[data-ogsc]` rule in `<head>` flips them so the dark-ink wordmark
+doesn't vanish on a dark card (Outlook/Apple Mail/iOS dark mode). Old Outlook desktop (Word engine) supports
+neither and falls back to the light-ink default. Transparent PNG, 1080×618, rendered at `height:44`. Two caveats:
 - **Image blocking:** many clients (Outlook desktop, Gmail "ask before showing") hide images by default, so
   the `alt="Pleks"` text is the fallback — keep it.
 - **Deploy first:** the URL only resolves once `public/logo/` is live on `app.pleks.co.za`. Until then the
