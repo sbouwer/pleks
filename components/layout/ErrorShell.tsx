@@ -12,7 +12,7 @@
 import Link from "next/link"
 import type { ReactNode } from "react"
 import { FocusShell } from "./FocusShell"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 
 export function ErrorShell({
   icon, title, message, children,
@@ -24,9 +24,7 @@ export function ErrorShell({
     <FocusShell>
       <div className="fs-panel" style={{ maxWidth: 400, textAlign: "center" }}>
         <span className="fs-knob" aria-hidden="true" />
-        <span className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center", fontSize: 22, display: "inline-flex" }}>
-          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-        </span>
+        <Wordmark style={{ justifyContent: "center", fontSize: 22, display: "inline-flex" }} />
 
         {/* Warm focus-shell vars, not theme Tailwind colours — this card is a forced light surface even when
             the error is hit from the dark dashboard (text-muted-foreground would wash out there). */}

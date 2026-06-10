@@ -12,7 +12,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { DemoProvider } from "@/lib/demo/DemoContext"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
 import {
   LayoutDashboard, Building2, Users, FileText,
@@ -107,9 +107,7 @@ export default function DemoInnerLayout({ children }: Readonly<{ children: React
           {/* Sidebar — desktop only */}
           <aside className="hidden md:flex w-56 flex-col border-r border-sidebar-border bg-sidebar shrink-0">
             <div style={{ padding: "16px", borderBottom: "1px solid var(--sidebar-border)" }}>
-              <Link href="/demo" className="pub-wordmark" aria-label="Pleks" style={{ fontSize: 20 }}>
-                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-              </Link>
+              <Wordmark href="/demo" style={{ fontSize: 20 }} />
               <p style={{ fontSize: 10, color: "var(--brand)", marginTop: 4, fontWeight: 600, letterSpacing: "0.08em" }}>DEMO</p>
             </div>
 

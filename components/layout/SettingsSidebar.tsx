@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils"
 import { useTier } from "@/hooks/useTier"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useNavGate } from "@/hooks/useNavGate"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 
 interface SettingsItem {
   href: string
@@ -99,9 +99,7 @@ export function SettingsSidebar() {
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Logo bar — same height/border as the main sidebar so it aligns with the content topbar */}
       <div className="flex h-16 shrink-0 items-center border-b border-border/50 px-4">
-        <Link href="/dashboard" className="pub-wordmark" style={{ fontSize: 20 }} aria-label="Pleks">
-          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-        </Link>
+        <Wordmark href="/dashboard" style={{ fontSize: 20 }} />
       </div>
 
       {/* Settings header — back to app + the settings title, sitting below the logo */}

@@ -9,7 +9,7 @@
  *         apply correctly (root layout hardcodes class="dark").
  */
 import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 import "@/app/(public)/public.css"
 
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
@@ -29,9 +29,7 @@ export default function StatusLayout({
         display: "flex",
         alignItems: "center",
       }}>
-        <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks">
-          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-        </a>
+        <Wordmark href={MARKETING_URL} external />
       </header>
       <main>{children}</main>
     </PublicThemeProvider>

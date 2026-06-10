@@ -11,7 +11,7 @@
  *         "door" look and feel with the onboarding surface.
  */
 import { useState } from "react"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
 import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/app/(public)/public.css"
@@ -49,9 +49,7 @@ export default function AdminLoginPage() {
       <div className="fs-shell">
         <FocusBackdrop />
         <div className="fs-content">
-          <span className="pub-wordmark" aria-label="Pleks" style={{ fontSize: 28, marginBottom: 32 }}>
-            <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-          </span>
+          <Wordmark style={{ fontSize: 28, marginBottom: 32 }} />
 
           <form onSubmit={handleSubmit} className="fs-panel">
             <span className="fs-knob" aria-hidden="true" />

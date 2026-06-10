@@ -20,7 +20,7 @@ import { Eye, EyeOff, Info } from "lucide-react"
 import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { PasskeyButton } from "@/components/auth/PasskeyButton"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { FocusShell } from "@/components/layout/FocusShell"
 
@@ -208,9 +208,7 @@ function LoginContent() {
       <FocusShell>
         <div className="fs-panel" style={{ maxWidth: 400, textAlign: "center" }}>
           <span className="fs-knob" aria-hidden="true" />
-          <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center", fontSize: 22 }}>
-            <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-          </a>
+          <Wordmark href={MARKETING_URL} external style={{ justifyContent: "center", fontSize: 22 }} />
           <p className="fs-subhead" style={{ margin: "10px 0 20px" }}>Check your email for a login link.</p>
           <p className="text-sm text-muted-foreground mb-4">
             We sent a link to <strong>{email}</strong>
@@ -233,9 +231,7 @@ function LoginContent() {
       <div className="fs-panel" style={{ maxWidth: 400 }}>
         <span className="fs-knob" aria-hidden="true" />
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center", fontSize: 22 }}>
-            <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-          </a>
+          <Wordmark href={MARKETING_URL} external style={{ justifyContent: "center", fontSize: 22 }} />
           <p className="fs-subhead" style={{ margin: "10px 0 0" }}>Sign in to your account</p>
         </div>
         <div>

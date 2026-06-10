@@ -9,7 +9,7 @@
  *         Wordmark + back-home use absolute MARKETING_URL — app.pleks.co.za/ redirects
  *         cross-origin to pleks.co.za/, so <Link href="/"> triggers a CORS-blocked prefetch.
  */
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { PublicThemeProvider } from "../(public)/PublicThemeProvider"
 import "../(public)/public.css"
 import "./onboarding-shell.css"
@@ -29,9 +29,7 @@ export default function OnboardingGroupLayout({
         <div className="ob-bd-vignette" aria-hidden="true"/>
 
         <div className="ob-content">
-          <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ marginBottom: 40 }}>
-            <span className="pub-wm-name">plek<AccentBracket>s</AccentBracket></span>
-          </a>
+          <Wordmark href={MARKETING_URL} external style={{ marginBottom: 40 }} />
 
           <div className="ob-panel-wrap">
             {children}

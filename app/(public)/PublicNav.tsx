@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
 import { Menu, User, LogIn, LogOut, LayoutDashboard, Sun, Moon } from "lucide-react"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { createClient } from "@/lib/supabase/client"
 import { usePublicTheme } from "./PublicThemeProvider"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -207,11 +207,7 @@ export function PublicNav() {
       <div className="pub-wrap" style={{ height: 64, display: "flex", alignItems: "center", gap: 24 }}>
 
         {/* Wordmark */}
-        <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ flexShrink: 0 }}>
-          <span className="pub-wm-name">
-            {"plek"}<AccentBracket>{"s"}</AccentBracket>
-          </span>
-        </a>
+        <Wordmark href={MARKETING_URL} external style={{ flexShrink: 0 }} />
 
         {/* Centre nav — desktop only */}
         <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2, alignItems: "center" }}>

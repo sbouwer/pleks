@@ -14,7 +14,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Menu } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 
 export interface NavGroup {
   title: string
@@ -90,9 +90,7 @@ export function SidebarContent({
         ) : (
           <>
             <div className="flex items-center gap-2">
-              <Link href={homeHref} className="pub-wordmark" style={{ fontSize: 20 }} aria-label="Pleks">
-                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-              </Link>
+              <Wordmark href={homeHref} style={{ fontSize: 20 }} />
               {badge && (
                 <span className="text-[10px] text-muted-foreground bg-surface-elevated px-1.5 py-0.5 rounded">
                   {badge}

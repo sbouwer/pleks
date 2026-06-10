@@ -9,7 +9,7 @@ import { PublicNav } from "./PublicNav"
 import { PublicThemeProvider } from "./PublicThemeProvider"
 import { FooterColumns } from "@/components/marketing/FooterColumns"
 import { StatusWidget } from "@/components/marketing/StatusWidget"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 import "./public.css"
 import "@/components/ui/actions/action-language.css"
 
@@ -41,9 +41,7 @@ export default function PublicLayout({
           }}>
             {/* Brand — wordmark matches nav */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ alignSelf: "flex-start" }}>
-                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-              </a>
+              <Wordmark href={MARKETING_URL} external style={{ alignSelf: "flex-start" }} />
               <p className="pub-small" style={{ maxWidth: "28ch", margin: 0 }}>
                 Built from the inside out.<br />
                 <span style={{ color: "var(--ink-soft)" }}>Every feature earned in the field.</span>

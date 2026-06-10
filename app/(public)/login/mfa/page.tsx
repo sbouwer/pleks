@@ -17,7 +17,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { Loader2, ShieldCheck } from "lucide-react"
-import { AccentBracket } from "@/components/ui/AccentBracket"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { mfaVerifyNeedsEnrol, enrolChooserPath } from "@/lib/auth/mfaVerifyDecision"
 import { FocusShell } from "@/components/layout/FocusShell"
@@ -175,9 +175,7 @@ function MfaContent() {
     <FocusShell>
       <div className="fs-panel" style={{ maxWidth: 400, textAlign: "center" }}>
         <span className="fs-knob" aria-hidden="true" />
-        <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center", fontSize: 22 }}>
-          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-        </a>
+        <Wordmark href={MARKETING_URL} external style={{ justifyContent: "center", fontSize: 22 }} />
         <div style={{ display: "flex", justifyContent: "center", margin: "12px 0 2px" }}>
           <ShieldCheck className="h-7 w-7 text-muted-foreground" />
         </div>
