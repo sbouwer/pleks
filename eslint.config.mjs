@@ -145,6 +145,25 @@ const eslintConfig = defineConfig([
       }],
     },
   },
+  {
+    // C-4 (ADDENDUM_CRON_RELIABILITY): a cron handler MUST await its async work. A floating email send is
+    // silently lost when the serverless instance freezes after the response (this is how C-1 spread — `void`
+    // was silencing the rule). Disallow the void-escape here (ignoreVoid:false); genuine best-effort pings
+    // (HEARTBEAT_*) stay exempt because they use `.catch()` (a handled promise). Type-aware + scoped to crons
+    // only, so the rest of the lint stays fast.
+    files: ["app/api/cron/**/*.ts"],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      "@typescript-eslint/no-floating-promises": ["error", { ignoreVoid: false }],
+      // Turning on type-awareness (for the rule above) also wakes this type-aware SonarJS rule, which
+      // false-positives on every cron's `req.headers.get(...) !== process.env.CRON_SECRET` (string|null vs
+      // string|undefined CAN be equal, so the comparison is not "always true"). Off here; it was dormant
+      // everywhere else anyway (no type info → never ran).
+      "sonarjs/different-types-comparison": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;
