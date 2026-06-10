@@ -7,8 +7,8 @@
  * Data:   user_profiles.email_verified_at (NULL until the user clicks the verification magic link).
  * Notes:  Signup uses admin.createUser({ email_confirm: true }) so the user can work immediately (low churn)
  *         — but that auto-confirms the email, proving nothing. This adds a SOFT verification: send a Supabase
- *         magic link to the address; clicking it (→ /auth/verify-email) stamps email_verified_at. Never
- *         blocks access; a notice nudges the user, escalating after a grace window.
+ *         magic link to the address; clicking it (→ /auth/callback?verify_email=1, the proven in-manifest
+ *         handler) stamps email_verified_at. Never blocks access; a notice nudges, escalating after a grace.
  */
 import { createClient } from "@/lib/supabase/server"
 import { gateway } from "@/lib/supabase/gateway"
@@ -23,7 +23,7 @@ export async function sendEmailVerification(): Promise<{ ok: true } | { error: s
   if (!user?.email) return { error: "Not signed in" }
   const { error } = await supa.auth.signInWithOtp({
     email: user.email,
-    options: { shouldCreateUser: false, emailRedirectTo: `${APP_URL}/auth/verify-email` },
+    options: { shouldCreateUser: false, emailRedirectTo: `${APP_URL}/auth/callback?verify_email=1` },
   })
   if (error) return { error: error.message }
   return { ok: true }

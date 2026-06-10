@@ -14,7 +14,6 @@ const AUTH_INTERNAL_PREFIXES = [
   "/auth/resolver",
   "/auth/callback",
   "/auth/verify",
-  "/auth/verify-email",
   "/login",
   "/onboarding",
   "/403",
