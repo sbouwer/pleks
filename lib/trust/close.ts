@@ -10,7 +10,7 @@
 
 import { headers } from "next/headers"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
-import { can } from "@/lib/auth/can"
+import { hasCapability } from "@/lib/auth/can"
 import { requireStepUp } from "@/lib/auth/step-up"
 import { createServiceClient } from "@/lib/supabase/server"
 import { generateAuditExport } from "@/lib/trust/audit-export"
@@ -46,7 +46,7 @@ export async function closeTrustPeriod(
   params: CloseTrustPeriodParams
 ): Promise<CloseTrustPeriodResult> {
   const gw = await requireAgentWriteAccess("close_trust_period")
-  if (!gw.isAdmin && !(await can("finance"))) return { ok: false, error: "Finance access is required to close trust periods." }
+  if (!(await hasCapability(gw, "finance"))) return { ok: false, error: "Finance access is required to close trust periods." }
   const { orgId, userId } = gw
 
   const stepUp = await requireStepUp({

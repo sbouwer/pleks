@@ -7,19 +7,18 @@
  */
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"
-import { getServerOrgMembership } from "@/lib/auth/server"
-import { can } from "@/lib/auth/can"
+import { gatewaySSR } from "@/lib/supabase/gateway"
+import { hasCapability } from "@/lib/auth/can"
 import { createServiceClient } from "@/lib/supabase/server"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchPayments } from "@/lib/queries/portfolio"
 import { BillingPageClient } from "./BillingPageClient"
 
 export default async function PaymentsPage() {
-  const membership = await getServerOrgMembership()
-  if (!membership) redirect("/login")
-  // can('billing') is true for owner / is_admin (getMyCapabilities short-circuits), false for roles without it.
-  if (!(await can("billing"))) redirect("/403")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  if (!(await hasCapability(gw, "billing"))) redirect("/403")
 
-  const { org_id: orgId } = membership
+  const orgId = gw.orgId
   const queryClient = new QueryClient()
   const supabase = await createServiceClient()
 

@@ -7,11 +7,11 @@
  */
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
-import { can } from "@/lib/auth/can"
+import { hasCapability } from "@/lib/auth/can"
 
 export default async function SubscriptionLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const gw = await gatewaySSR()
   if (!gw) redirect("/login")
-  if (!gw.isAdmin && !(await can("billing"))) redirect("/403")
+  if (!(await hasCapability(gw, "billing"))) redirect("/403")
   return <>{children}</>
 }

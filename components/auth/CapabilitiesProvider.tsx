@@ -17,7 +17,9 @@ export function CapabilitiesProvider({ children }: Readonly<{ children: ReactNod
   const [caps, setCaps] = useState<readonly string[]>([])
   const [hydrated, setHydrated] = useState(false)
   useEffect(() => {
-    fetchMyCapabilities().then((c) => { setCaps(c); setHydrated(true) }).catch(() => setHydrated(true))
+    // On error (e.g. a transient DB timeout) leave hydrated=false so useCan stays fail-OPEN — never hide the
+    // whole nav because capabilities couldn't load; the route/action guards remain the boundary.
+    fetchMyCapabilities().then((c) => { setCaps(c); setHydrated(true) }).catch(() => {})
   }, [])
   const value = useMemo(() => ({ caps, hydrated }), [caps, hydrated])
   return <CapabilitiesContext.Provider value={value}>{children}</CapabilitiesContext.Provider>

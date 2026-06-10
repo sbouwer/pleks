@@ -13,7 +13,7 @@ import { setSentryUser } from "@/lib/observability/user-context"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
 import { gateway, type GatewayContext } from "@/lib/supabase/gateway"
-import { can } from "@/lib/auth/can"
+import { hasCapability } from "@/lib/auth/can"
 import {
   canPerformAgentAction,
   SubscriptionLockdownError,
@@ -254,9 +254,10 @@ export async function requireAgentWriteAccess(
 ): Promise<GatewayContext> {
   const gw = await gateway()
   if (!gw) throw new Error("Not authenticated")
-  // Capability gate (RBAC P4) — owner/is_admin exempt; the server boundary for the mapped write actions.
+  // Capability gate (RBAC P4) — owner/is_admin exempt (hasCapability short-circuits); the server boundary
+  // for the mapped write actions. Uses the resolved gw — no extra gateway() round-trip.
   const reqCap = ACTION_CAPABILITY[action]
-  if (reqCap && !gw.isAdmin && !(await can(reqCap))) {
+  if (reqCap && !(await hasCapability(gw, reqCap))) {
     throw new Error(`Missing capability: ${reqCap}`)
   }
   const sub = await getSubscriptionState(gw.orgId)

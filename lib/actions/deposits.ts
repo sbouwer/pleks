@@ -13,7 +13,7 @@
 
 import * as React from "react"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
-import { can } from "@/lib/auth/can"
+import { hasCapability } from "@/lib/auth/can"
 import type { GatewayContext } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { routeAndSend } from "@/lib/messaging/router"
@@ -35,7 +35,7 @@ function formatDateLocal(iso: string): string {
 
 // Deposit actions are finance writes (RBAC P4) — owner/is_admin exempt; others need the 'finance' capability.
 async function denyNonFinance(gw: GatewayContext): Promise<{ error: string } | null> {
-  return (!gw.isAdmin && !(await can("finance"))) ? { error: "Finance access is required for deposit actions." } : null
+  return (await hasCapability(gw, "finance")) ? null : { error: "Finance access is required for deposit actions." }
 }
 
 export async function sendDepositSchedule(leaseId: string): Promise<{ success?: boolean; error?: string }> {

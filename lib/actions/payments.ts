@@ -11,7 +11,7 @@
 
 import * as React from "react"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
-import { can } from "@/lib/auth/can"
+import { hasCapability } from "@/lib/auth/can"
 import { revalidatePath } from "next/cache"
 import { allocatePayment } from "@/lib/finance/paymentAllocation"
 import { routeAndSend } from "@/lib/messaging/router"
@@ -21,7 +21,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function recordPayment(formData: FormData) {
   const gw = await requireAgentWriteAccess("record_payment")
-  if (!gw.isAdmin && !(await can("finance"))) throw new Error("Finance capability required to record payments")
+  if (!(await hasCapability(gw, "finance"))) throw new Error("Finance capability required to record payments")
   const { db, userId, orgId } = gw
 
   const invoiceId = formData.get("invoice_id") as string

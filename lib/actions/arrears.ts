@@ -8,7 +8,7 @@
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
-import { can } from "@/lib/auth/can"
+import { hasCapability } from "@/lib/auth/can"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -18,7 +18,7 @@ export async function updateArrearsStatus(
   notes?: string
 ) {
   const gw = await requireAgentWriteAccess("update_arrears_status")
-  if (!gw.isAdmin && !(await can("finance"))) return { error: "Finance access is required for arrears actions." }
+  if (!(await hasCapability(gw, "finance"))) return { error: "Finance access is required for arrears actions." }
   const { db, userId } = gw
 
   const updates: Record<string, unknown> = { status: newStatus }
@@ -74,7 +74,7 @@ export async function recordPaymentArrangement(
   formData: FormData
 ) {
   const gw = await requireAgentWriteAccess("record_payment_arrangement")
-  if (!gw.isAdmin && !(await can("finance"))) return { error: "Finance access is required for arrears actions." }
+  if (!(await hasCapability(gw, "finance"))) return { error: "Finance access is required for arrears actions." }
   const { db } = gw
 
   const amountCents = Math.round(parseFloat(formData.get("amount") as string) * 100)

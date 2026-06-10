@@ -10,7 +10,7 @@
  */
 import { gateway, type GatewayContext } from "@/lib/supabase/gateway"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { can } from "@/lib/auth/can"
+import { hasCapability } from "@/lib/auth/can"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
@@ -29,7 +29,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 async function requireBilling(): Promise<{ gw: GatewayContext } | { error: string }> {
   const gw = await gateway()
   if (!gw) return { error: "Not authenticated" }
-  if (!gw.isAdmin && !(await can("billing"))) return { error: "You don't have access to billing." }
+  if (!(await hasCapability(gw, "billing"))) return { error: "You don't have access to billing." }
   return { gw }
 }
 

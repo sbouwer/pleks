@@ -8,10 +8,10 @@
  */
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
-import { can } from "@/lib/auth/can"
+import { hasCapability } from "@/lib/auth/can"
 
 export async function requireCapability(capability: string): Promise<void> {
   const gw = await gatewaySSR()
   if (!gw) redirect("/login")
-  if (!gw.isAdmin && !(await can(capability))) redirect("/403")
+  if (!(await hasCapability(gw, capability))) redirect("/403")
 }
