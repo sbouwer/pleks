@@ -1,11 +1,11 @@
 /**
- * lib/finance/vatCalculation.ts — FILL: one-line purpose
+ * lib/finance/vatCalculation.ts — single VAT computation path for SA 15% VAT (pure)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:  pure functions; integer-cent money math.
+ * Notes: THE one place VAT is rounded — every caller (management fee, supplier invoices) must route through
+ *        calculateVAT so fee+VAT can't diverge by a cent on a recalc path (F-6). Money convention across the
+ *        finance lib: integer cents, rounded round-half-away-from-zero (JS Math.round); interest day-count is
+ *        a fixed /365 divisor (see depositInterest.ts / arrears). Also exposes generateEFTReference.
  */
 export const SA_VAT_RATE = 0.15
 

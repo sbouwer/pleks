@@ -1,12 +1,12 @@
 /**
- * lib/finance/managementFee.ts — FILL: one-line purpose
+ * lib/finance/managementFee.ts — agency management-fee + VAT computation (pure)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:  inputs from the lease fee config (percent or fixed) + rent collected; integer-cent money math.
+ * Notes: VAT goes through the single calculateVAT() path (F-6) so fee+VAT can't diverge by a cent on a recalc.
+ *        Rounding convention = round-half-away-from-zero (JS Math.round) on cents — see vatCalculation.ts.
  */
+import { calculateVAT } from "@/lib/finance/vatCalculation"
+
 export function calculateManagementFee(
   rentCollectedCents: number,
   feePercent: number,
@@ -18,19 +18,10 @@ export function calculateManagementFee(
   vatAmount: number
   feeInclVat: number
 } {
-  let feeExclVat: number
+  const feeExclVat = feeType === "fixed"
+    ? (feeFixedCents ?? 0)
+    : Math.round(rentCollectedCents * (feePercent / 100))
 
-  if (feeType === "fixed") {
-    feeExclVat = feeFixedCents ?? 0
-  } else {
-    feeExclVat = Math.round(rentCollectedCents * (feePercent / 100))
-  }
-
-  const vatAmount = vatApplicable ? Math.round(feeExclVat * 0.15) : 0
-
-  return {
-    feeExclVat,
-    vatAmount,
-    feeInclVat: feeExclVat + vatAmount,
-  }
+  const { vatAmount, inclVat } = calculateVAT(feeExclVat, vatApplicable)
+  return { feeExclVat, vatAmount, feeInclVat: inclVat }
 }
