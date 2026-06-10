@@ -9,6 +9,7 @@
 
 import * as React from "react"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 import { sendEmail, buildBranding, fetchOrgSettings, type SendEmailResult } from "@/lib/comms/send-email"
 import { EmailLayout, EmailButton, EmailDetail, EmailSectionHeading } from "@/lib/comms/templates/layout"
 import { formatZAR } from "@/lib/constants"
@@ -21,6 +22,7 @@ export async function inviteLandlordPortal(landlordId: string): Promise<{ succes
 
 export async function emailLeaseToTenant(leaseId: string): Promise<SendEmailResult & { error?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "leases"))) throw new Error("Leases access is required")
   const { db, userId, orgId } = gw
 
   const { data: lease, error: leaseError } = await db

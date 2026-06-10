@@ -7,6 +7,7 @@
  * Data:   property_documents, document_generation_jobs, communication_log, whatsapp_cs_windows
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 import { gateway } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
@@ -140,6 +141,7 @@ export async function sendDocument(
   formData: FormData
 ): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, orgId, userId, email: agentEmail } = gw
 
   const templateId = formData.get("template_id") as string | null
@@ -255,6 +257,7 @@ export async function generateDocumentPdf(
   formData: FormData
 ): Promise<{ error?: string; printUrl?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, orgId, userId } = gw
 
   const templateId = formData.get("template_id") as string | null
@@ -301,6 +304,7 @@ export async function saveDraftDocument(
   formData: FormData
 ): Promise<{ error?: string; id?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, orgId, userId } = gw
 
   const templateId = formData.get("template_id") as string | null

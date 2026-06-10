@@ -10,6 +10,7 @@
  *         logCommunication records a communication_log entry.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -69,6 +70,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
 
 export async function logCommunication(formData: FormData) {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "tenants"))) throw new Error("Tenants access is required")
   const { db, userId, orgId } = gw
 
   const { error } = await db.from("communication_log").insert({

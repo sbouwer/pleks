@@ -9,6 +9,7 @@
 
 import * as React from "react"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { resolveCompanyContact } from "@/lib/contacts/resolveCompanyContact"
 import { fetchBrokerBriefData, renderBrokerBriefHTML } from "./generateBrokerBriefHTML"
@@ -22,6 +23,7 @@ export interface SendBrokerBriefResult {
 
 export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBriefResult> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "properties"))) throw new Error("Properties access is required")
   const { db, userId, orgId } = gw
 
   // Verify property belongs to org

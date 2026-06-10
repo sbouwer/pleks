@@ -11,6 +11,7 @@
  */
 import { randomBytes } from "node:crypto"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 import { createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { sendInfoRequestEmail } from "@/lib/info-requests/sendInfoRequestEmail"
@@ -62,6 +63,7 @@ export async function createPropertyInfoRequest(
   // The wizard save action calls us in the same request; cookies/session carry
   // through nested server-action calls in Next 14, so gateway() resolves here too.
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "properties"))) throw new Error("Properties access is required")
   if (gw.orgId !== params.orgId)      return { ok: false, error: "Org mismatch" }
   if (gw.userId !== params.requestedBy) return { ok: false, error: "Requester mismatch" }
 
@@ -173,6 +175,7 @@ export async function createInfoRequestFromWidget(
   params: UiCreateInfoRequestParams,
 ): Promise<InfoRequestResult> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "properties"))) throw new Error("Properties access is required")
   const { userId, orgId } = gw
 
   const expiresAt = new Date()
@@ -194,6 +197,7 @@ export async function createInfoRequestFromWidget(
 
 export async function sendInfoRequestReminder(requestId: string): Promise<InfoRequestResult> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "properties"))) throw new Error("Properties access is required")
   const { userId, orgId } = gw
 
   const service = await createServiceClient()

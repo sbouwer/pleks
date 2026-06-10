@@ -10,6 +10,7 @@
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 
 /** Mark several surrendered comms dispatched in one go (used by the grouped dispatch list). Writes a
  *  manual_fallback communication_log row per comm and stamps each retry row. */
@@ -18,6 +19,7 @@ export async function markManuallyDispatchedBulk(
   notes: string,
 ): Promise<{ success: boolean; dispatched: number; error?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "leases"))) throw new Error("Leases access is required")
   const { db, userId, orgId } = gw
 
   const { data: retries, error } = await db
@@ -77,6 +79,7 @@ export async function markManuallyDispatched(
   notes: string,
 ): Promise<{ success: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "leases"))) throw new Error("Leases access is required")
   const { db, userId, orgId } = gw
 
   // Fetch the retry row to verify ownership and get the original log ID

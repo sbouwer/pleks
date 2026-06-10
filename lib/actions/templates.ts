@@ -11,6 +11,7 @@
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -18,6 +19,7 @@ export async function createDocumentTemplate(
   formData: FormData
 ): Promise<{ error?: string; id?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, orgId } = gw
 
   const name = formData.get("name") as string
@@ -55,6 +57,7 @@ export async function updateDocumentTemplate(
   formData: FormData
 ): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, orgId } = gw
 
   const name = formData.get("name") as string
@@ -80,6 +83,7 @@ export async function deleteDocumentTemplate(
   id: string
 ): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, orgId, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
@@ -101,6 +105,7 @@ export async function duplicateTemplateToOrg(
   templateId: string
 ): Promise<{ error?: string; id?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, orgId } = gw
 
   const { data: source, error: fetchError } = await db
@@ -141,6 +146,7 @@ export async function toggleFavourite(
   templateId: string
 ): Promise<{ error?: string; favourited: boolean }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, userId } = gw
 
   const { data: existing, error: existingError } = await db
@@ -173,6 +179,7 @@ export async function setWhatsAppOptIn(
   optedIn: boolean
 ): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, orgId } = gw
 
   const { error } = await db
@@ -191,6 +198,7 @@ export async function setWhatsAppTone(
   tone: string
 ): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
   const { db, orgId } = gw
 
   const { error } = await db

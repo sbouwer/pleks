@@ -8,6 +8,7 @@
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 import { sendSMS } from "@/lib/sms/sendSMS"
 
 function normalizeSAPhone(phone: string): string {
@@ -23,6 +24,7 @@ export async function sendBulkRentReminders(): Promise<{
   error?: string
 }> {
   const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "billing"))) throw new Error("Billing access is required")
 
   const { db, orgId } = gw
 
