@@ -31,6 +31,7 @@ export interface SubRecordBody {
   type?: string
   id?: string
   contactId?: string
+  stepUpToken?: string  // fresh re-auth token for bank_account changes (ADDENDUM_AUTH_HARDENING Finding 1)
   number?: string; phone_type?: string; label?: string; is_primary?: boolean; can_whatsapp?: boolean
   email?: string; email_type?: string
   street_line1?: string; street_line2?: string; suburb?: string; city?: string

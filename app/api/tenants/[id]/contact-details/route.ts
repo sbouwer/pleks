@@ -12,6 +12,7 @@ import {
   createSubRecord, updateSubRecord, deleteSubRecord, type SubRecordBody, type SubRecordResult,
 } from "@/lib/contacts/contactSubRecords"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { bankDetailStepUp } from "@/lib/auth/contactStepUp"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -59,17 +60,23 @@ const respond = (r: SubRecordResult) =>
 export async function POST(req: NextRequest, { params }: RouteContext) {
   const ctx = await resolve(req, (await params).id)
   if ("error" in ctx) return ctx.error
+  const challenge = await bankDetailStepUp(ctx.body, ctx.userId, ctx.contactId)
+  if (challenge) return challenge
   return respond(await createSubRecord(ctx.service, ctx.orgId, ctx.contactId, ctx.userId, ctx.body))
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const ctx = await resolve(req, (await params).id)
   if ("error" in ctx) return ctx.error
+  const challenge = await bankDetailStepUp(ctx.body, ctx.userId, ctx.contactId)
+  if (challenge) return challenge
   return respond(await updateSubRecord(ctx.service, ctx.orgId, ctx.contactId, ctx.userId, ctx.body))
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
   const ctx = await resolve(req, (await params).id)
   if ("error" in ctx) return ctx.error
+  const challenge = await bankDetailStepUp(ctx.body, ctx.userId, ctx.contactId)
+  if (challenge) return challenge
   return respond(await deleteSubRecord(ctx.service, ctx.orgId, ctx.contactId, ctx.userId, ctx.body))
 }

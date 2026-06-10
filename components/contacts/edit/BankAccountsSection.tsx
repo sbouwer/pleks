@@ -9,12 +9,13 @@
  *         contact can hold many accounts (utilities keep one per bank for same-bank payment). Used by the
  *         supplier + landlord detail pages; entityType routes to the right contact-details endpoint.
  */
-import { useState, useTransition } from "react"
+import { useState, useTransition, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-form"
-import { ActionButton, AddInline, EditButton, DeleteButton } from "@/components/ui/actions"
+import { ActionButton, AddInline, EditButton, DeleteButton, Modal } from "@/components/ui/actions"
 import { DetailCard } from "@/components/detail/DetailCard"
+import { StepUpModal } from "@/components/auth/StepUpModal"
 
 export interface BankAccount {
   id: string
@@ -38,9 +39,48 @@ const ACCOUNT_TYPE_SELECT = [
 
 const maskAccount = (n: string | null) => (n ? `••••${n.slice(-4)}` : "—")
 
+/** A bank-detail mutation: build the fetch (optionally with a step-up token), report final success. */
+type Submit = (doFetch: (stepUpToken?: string) => Promise<Response>, onOk: () => void) => Promise<void>
+
+/**
+ * Step-up for bank-detail changes (ADDENDUM_AUTH_HARDENING Finding 1). The contact-details route 401s with a
+ * { challengeToken } for any bank_account change; we surface StepUpModal, then retry with the verified token.
+ */
+function useBankStepUp(): { submit: Submit; stepUpModal: ReactNode } {
+  const [pending, setPending] = useState<{ token: string; doFetch: (t: string) => Promise<Response>; onOk: () => void } | null>(null)
+
+  const submit: Submit = async (doFetch, onOk) => {
+    let res: Response
+    try { res = await doFetch() } catch { toast.error("Action failed"); return }
+    if (res.status === 401) {
+      const data = await res.json().catch(() => ({})) as { challengeToken?: string }
+      if (data.challengeToken) { setPending({ token: data.challengeToken, doFetch, onOk }); return }
+    }
+    if (!res.ok) { toast.error("Action failed"); return }
+    onOk()
+  }
+
+  async function afterStepUp() {
+    if (!pending) return
+    const { doFetch, onOk, token } = pending
+    setPending(null)
+    let res: Response
+    try { res = await doFetch(token) } catch { toast.error("Action failed"); return }
+    if (res.ok) onOk()
+    else toast.error("Action failed")
+  }
+
+  const stepUpModal = pending ? (
+    <StepUpModal open actionLabel="change banking details" challengeToken={pending.token}
+      onSuccess={() => { void afterStepUp() }} onCancel={() => setPending(null)} />
+  ) : null
+
+  return { submit, stepUpModal }
+}
+
 function AccountForm({
-  baseUrl, contactId, account, firstAccount, onDone,
-}: Readonly<{ baseUrl: string; contactId: string; account: BankAccount | null; firstAccount?: boolean; onDone: () => void }>) {
+  baseUrl, contactId, account, firstAccount, onDone, submit,
+}: Readonly<{ baseUrl: string; contactId: string; account: BankAccount | null; firstAccount?: boolean; onDone: () => void; submit: Submit }>) {
   const [isPending, startTransition] = useTransition()
   const [form, setForm] = useState({
     account_name: account?.account_name ?? "",
@@ -55,23 +95,19 @@ function AccountForm({
 
   function save() {
     startTransition(async () => {
-      try {
-        const res = await fetch(baseUrl, {
+      await submit(
+        (stepUpToken) => fetch(baseUrl, {
           method: account ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "bank_account", contactId, ...(account ? { id: account.id } : {}), ...form }),
-        })
-        if (!res.ok) throw new Error()
-        toast.success("Bank account saved")
-        onDone()
-      } catch {
-        toast.error("Failed to save bank account")
-      }
+          body: JSON.stringify({ type: "bank_account", contactId, ...(account ? { id: account.id } : {}), ...form, ...(stepUpToken ? { stepUpToken } : {}) }),
+        }),
+        () => { toast.success("Bank account saved"); onDone() },
+      )
     })
   }
 
   return (
-    <div className="space-y-3 rounded-[var(--r-button)] border border-border bg-muted/20 p-3.5">
+    <div className="space-y-3">
       <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
         <Field label="Bank"><UnderlineInput value={form.bank_name} onChange={(e) => set("bank_name", e.target.value)} placeholder="e.g. FNB" /></Field>
         <Field label="Label (optional)"><UnderlineInput value={form.label} onChange={(e) => set("label", e.target.value)} placeholder="e.g. Municipal account" /></Field>
@@ -93,24 +129,20 @@ function AccountForm({
 }
 
 function AccountRow({
-  baseUrl, contactId, account, onEdit, onChanged,
-}: Readonly<{ baseUrl: string; contactId: string; account: BankAccount; onEdit: () => void; onChanged: () => void }>) {
+  baseUrl, contactId, account, onEdit, onChanged, submit,
+}: Readonly<{ baseUrl: string; contactId: string; account: BankAccount; onEdit: () => void; onChanged: () => void; submit: Submit }>) {
   const [isPending, startTransition] = useTransition()
 
   function mutate(method: "PATCH" | "DELETE", extra: Record<string, unknown>, okMsg: string) {
     startTransition(async () => {
-      try {
-        const res = await fetch(baseUrl, {
+      await submit(
+        (stepUpToken) => fetch(baseUrl, {
           method,
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "bank_account", contactId, id: account.id, ...extra }),
-        })
-        if (!res.ok) throw new Error()
-        toast.success(okMsg)
-        onChanged()
-      } catch {
-        toast.error("Action failed")
-      }
+          body: JSON.stringify({ type: "bank_account", contactId, id: account.id, ...extra, ...(stepUpToken ? { stepUpToken } : {}) }),
+        }),
+        () => { toast.success(okMsg); onChanged() },
+      )
     })
   }
 
@@ -157,31 +189,43 @@ export function BankAccountsSection({
   const [editingId, setEditingId] = useState<string | null>(null)
   const baseUrl = `/api/${entityType}/${entityId}/contact-details`
   const refresh = () => router.refresh()
+  const { submit, stepUpModal } = useBankStepUp()  // bank changes require fresh re-auth (Finding 1)
+
+  const editing = editingId ? accounts.find((a) => a.id === editingId) ?? null : null
+  const formOpen = adding || editingId !== null
+  const closeForm = () => { setAdding(false); setEditingId(null) }
 
   return (
     <DetailCard title="Banking">
-      {accounts.length === 0 && !adding && (
+      {accounts.length === 0 ? (
         <AddInline label="Add bank account" onClick={() => setAdding(true)} />
+      ) : (
+        <>
+          <div className="space-y-2">
+            {accounts.map((acc) => (
+              <AccountRow key={acc.id} baseUrl={baseUrl} contactId={contactId} account={acc} onEdit={() => setEditingId(acc.id)} onChanged={refresh} submit={submit} />
+            ))}
+          </div>
+          <div className="mt-2">
+            <AddInline label="Add another account" onClick={() => setAdding(true)} />
+          </div>
+        </>
       )}
 
-      <div className="space-y-2">
-        {accounts.map((acc) =>
-          editingId === acc.id ? (
-            <AccountForm key={acc.id} baseUrl={baseUrl} contactId={contactId} account={acc} onDone={() => { setEditingId(null); refresh() }} />
-          ) : (
-            <AccountRow key={acc.id} baseUrl={baseUrl} contactId={contactId} account={acc} onEdit={() => setEditingId(acc.id)} onChanged={refresh} />
-          ),
-        )}
-        {adding && (
-          <AccountForm baseUrl={baseUrl} contactId={contactId} account={null} firstAccount={accounts.length === 0} onDone={() => { setAdding(false); refresh() }} />
-        )}
-      </div>
+      {/* Add / edit happens in a popup modal, not inline (no card-in-card). */}
+      <Modal open={formOpen} onClose={closeForm} title={editing ? "Edit bank account" : "Add bank account"}>
+        <AccountForm
+          key={editingId ?? "new"}
+          baseUrl={baseUrl}
+          contactId={contactId}
+          account={editing}
+          firstAccount={accounts.length === 0}
+          onDone={() => { closeForm(); refresh() }}
+          submit={submit}
+        />
+      </Modal>
 
-      {!adding && editingId === null && accounts.length > 0 && (
-        <div className="mt-2">
-          <AddInline label="Add another account" onClick={() => setAdding(true)} />
-        </div>
-      )}
+      {stepUpModal}
     </DetailCard>
   )
 }
