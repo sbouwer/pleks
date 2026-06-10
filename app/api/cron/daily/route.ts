@@ -45,6 +45,7 @@ import { GET as popiaRetentionPurge } from "../popia-retention-purge/route"
 import { runLegalArchiveStep } from "@/lib/legal/archive"
 import { runRulesEngine, type EngineRuleSummary } from "@/lib/rules/engine"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { sendCronDigest, type CronJobDetail } from "@/lib/cron/cronDigest"
 
 export const runtime     = "nodejs"
 export const maxDuration = 90   // Hobby caps at 60s; honoured on Pro. ~11s typical run.
@@ -55,14 +56,20 @@ async function runJob(
   name: string,
   handler: CronHandler,
   cronReq: NextRequest,
-  results: Record<string, string>
+  results: Record<string, string>,
+  detail: Record<string, CronJobDetail>
 ) {
   try {
     const res = await handler(cronReq)
     results[name] = res.ok ? "ok" : "failed"
+    // Capture the C-1 belt's { sent, failed } so the digest can flag "ran ok but N emails failed".
+    let body: { sent?: number; failed?: number } = {}
+    try { body = await res.json() } catch { /* non-JSON body — fine */ }
+    detail[name] = { status: results[name], sent: body?.sent, failed: body?.failed }
   } catch (err) {
     Sentry.captureException(err, { tags: { cron_job: name } })
     results[name] = "error"
+    detail[name] = { status: "error", error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -73,6 +80,7 @@ export async function GET(req: NextRequest) {
   }
 
   const results: Record<string, string> = {}
+  const detail: Record<string, CronJobDetail> = {}
   const today = new Date()
   const dayOfMonth = today.getUTCDate()
 
@@ -91,31 +99,31 @@ export async function GET(req: NextRequest) {
   const cronRunId = cronRun?.id ?? null
 
   // Daily jobs
-  await runJob("invoice_generate", invoiceGenerate, cronReq, results)
-  await runJob("lease_expiry_check", leaseExpiryCheck, cronReq, results)
-  await runJob("scheduled_reports", scheduledReports, cronReq, results)
-  await runJob("deposit_interest", depositInterest, cronReq, results)
-  await runJob("deposit_deadline_check", depositDeadlineCheck, cronReq, results)
-  await runJob("arrears_interest", arrearsInterest, cronReq, results)
-  await runJob("trial_expiry", trialExpiry, cronReq, results)
-  await runJob("billing_cascade", billingCascade, cronReq, results)
-  await runJob("purge_import_data", purgeImportData, cronReq, results)
-  await runJob("prime_rate_sync", primeRateSync, cronReq, results)
-  await runJob("info_requests", infoRequests, cronReq, results)
-  await runJob("insurance_renewals", insuranceRenewals, cronReq, results)
-  await runJob("feedback_digest", feedbackDigest, cronReq, results)
-  await runJob("cost_snapshots", costSnapshots, cronReq, results)
-  await runJob("process_audit_exports", processAuditExports, cronReq, results)
-  await runJob("pre_moveout_inspection", preMoveoutInspection, cronReq, results)
-  await runJob("inspection_reminder", inspectionReminder, cronReq, results)
-  await runJob("lease_lifecycle", leaseLifecycle, cronReq, results)
-  await runJob("monthly_statement", monthlyStatement, cronReq, results)
-  await runJob("subscription_dunning", subscriptionDunning, cronReq, results)
-  await runJob("subscription_dormancy", subscriptionDormancy, cronReq, results)
-  await runJob("subscription_purge_warnings", subscriptionPurgeWarnings, cronReq, results)
-  await runJob("screening_portal_reminders", screeningPortalReminders, cronReq, results)
-  await runJob("consent_cleanup", consentCleanup, cronReq, results)
-  await runJob("popia_retention_purge", popiaRetentionPurge, cronReq, results)
+  await runJob("invoice_generate", invoiceGenerate, cronReq, results, detail)
+  await runJob("lease_expiry_check", leaseExpiryCheck, cronReq, results, detail)
+  await runJob("scheduled_reports", scheduledReports, cronReq, results, detail)
+  await runJob("deposit_interest", depositInterest, cronReq, results, detail)
+  await runJob("deposit_deadline_check", depositDeadlineCheck, cronReq, results, detail)
+  await runJob("arrears_interest", arrearsInterest, cronReq, results, detail)
+  await runJob("trial_expiry", trialExpiry, cronReq, results, detail)
+  await runJob("billing_cascade", billingCascade, cronReq, results, detail)
+  await runJob("purge_import_data", purgeImportData, cronReq, results, detail)
+  await runJob("prime_rate_sync", primeRateSync, cronReq, results, detail)
+  await runJob("info_requests", infoRequests, cronReq, results, detail)
+  await runJob("insurance_renewals", insuranceRenewals, cronReq, results, detail)
+  await runJob("feedback_digest", feedbackDigest, cronReq, results, detail)
+  await runJob("cost_snapshots", costSnapshots, cronReq, results, detail)
+  await runJob("process_audit_exports", processAuditExports, cronReq, results, detail)
+  await runJob("pre_moveout_inspection", preMoveoutInspection, cronReq, results, detail)
+  await runJob("inspection_reminder", inspectionReminder, cronReq, results, detail)
+  await runJob("lease_lifecycle", leaseLifecycle, cronReq, results, detail)
+  await runJob("monthly_statement", monthlyStatement, cronReq, results, detail)
+  await runJob("subscription_dunning", subscriptionDunning, cronReq, results, detail)
+  await runJob("subscription_dormancy", subscriptionDormancy, cronReq, results, detail)
+  await runJob("subscription_purge_warnings", subscriptionPurgeWarnings, cronReq, results, detail)
+  await runJob("screening_portal_reminders", screeningPortalReminders, cronReq, results, detail)
+  await runJob("consent_cleanup", consentCleanup, cronReq, results, detail)
+  await runJob("popia_retention_purge", popiaRetentionPurge, cronReq, results, detail)
 
   // Legal archive — called directly (not via runJob) so structured result goes into cron_runs.metadata
   let legalArchive: import("@/lib/legal/archive").LegalArchiveResult = {}
@@ -141,9 +149,9 @@ export async function GET(req: NextRequest) {
 
   // Monthly jobs
   if (dayOfMonth === 1) {
-    await runJob("levy_generate", levyGenerate, cronReq, results)
-    await runJob("deposit_interest_statement", depositInterestStatement, cronReq, results)
-    await runJob("trust_period_close", trustPeriodClose, cronReq, results)
+    await runJob("levy_generate", levyGenerate, cronReq, results, detail)
+    await runJob("deposit_interest_statement", depositInterestStatement, cronReq, results, detail)
+    await runJob("trust_period_close", trustPeriodClose, cronReq, results, detail)
   } else {
     results.levy_generate = "skipped (not 1st)"
     results.deposit_interest_statement = "skipped (not 1st)"
@@ -151,7 +159,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (dayOfMonth === 2) {
-    await runJob("owner_statement_gen", ownerStatementGen, cronReq, results)
+    await runJob("owner_statement_gen", ownerStatementGen, cronReq, results, detail)
   } else {
     results.owner_statement_gen = "skipped (not 2nd)"
   }
@@ -170,5 +178,10 @@ export async function GET(req: NextRequest) {
     await fetch(process.env.HEARTBEAT_DAILY, { method: "POST" }).catch(() => undefined)
   }
 
-  return Response.json({ ok: true, ran_at: today.toISOString(), results })
+  // Failure-only digest: fold in statuses set outside runJob (legal_archive, rules_engine, skipped monthly),
+  // then email ADMIN_EMAIL ONCE iff something failed or any emails failed to send. A clean run sends nothing.
+  for (const [name, status] of Object.entries(results)) detail[name] ??= { status }
+  const digest = await sendCronDigest(today.toISOString(), detail)
+
+  return Response.json({ ok: true, ran_at: today.toISOString(), results, digest })
 }
