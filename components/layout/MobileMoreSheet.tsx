@@ -13,6 +13,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { CloudDownload } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
+import { useNavGate } from "@/hooks/useNavGate"
 
 const SECTIONS = [
   {
@@ -63,6 +64,7 @@ export function MobileMoreSheet({ open, onOpenChange, onOpenOffline }: MobileMor
   const pathname = usePathname()
   const router = useRouter()
   const caps = useOrgCapabilities()
+  const canSee = useNavGate()  // shared capability + tier gate (same predicate as desktop) — RBAC P4
 
   async function handleSignOut() {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -74,6 +76,7 @@ export function MobileMoreSheet({ open, onOpenChange, onOpenOffline }: MobileMor
     ...section,
     items: section.items
       .filter((item) => {
+        if (!canSee(item.href)) return false  // capability + tier (shared SSOT predicate)
         if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
         if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
         return true

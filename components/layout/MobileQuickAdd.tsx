@@ -10,6 +10,7 @@
  */
 
 import { useRouter } from "next/navigation"
+import { useNavGate } from "@/hooks/useNavGate"
 import {
   UserSquare2,
   Home,
@@ -70,6 +71,9 @@ function TileGrid({ tiles, onPick }: Readonly<{ tiles: AddTile[]; onPick: (href:
 
 export function MobileQuickAdd({ open, onOpenChange }: MobileQuickAddProps) {
   const router = useRouter()
+  const canSee = useNavGate()  // capability + tier — don't offer an add the member can't perform (RBAC P4)
+  const addTiles = ADD.filter((t) => canSee(t.href))
+  const captureTiles = CAPTURE.filter((t) => canSee(t.href))
 
   function pick(href: string) {
     onOpenChange(false)
@@ -84,14 +88,18 @@ export function MobileQuickAdd({ open, onOpenChange }: MobileQuickAddProps) {
         </SheetHeader>
 
         <div className="px-4 pb-6 space-y-5">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Add</p>
-            <TileGrid tiles={ADD} onPick={pick} />
-          </div>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Capture</p>
-            <TileGrid tiles={CAPTURE} onPick={pick} />
-          </div>
+          {addTiles.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Add</p>
+              <TileGrid tiles={addTiles} onPick={pick} />
+            </div>
+          )}
+          {captureTiles.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Capture</p>
+              <TileGrid tiles={captureTiles} onPick={pick} />
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

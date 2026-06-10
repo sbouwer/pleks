@@ -33,6 +33,7 @@ import {
 import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
 import { useMobileHomeBadges } from "@/hooks/useMobileHomeBadges"
+import { useNavGate } from "@/hooks/useNavGate"
 import { useTodaySchedule, type ScheduleStop } from "@/hooks/useTodaySchedule"
 import { formatZARAbbrev } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
@@ -150,11 +151,14 @@ const CAPTURE: CaptureTile[] = [
 ]
 
 function QuickCapture() {
+  const canSee = useNavGate()
+  const tiles = CAPTURE.filter((t) => canSee(t.href))
+  if (tiles.length === 0) return null
   return (
     <section className="px-4 mt-6">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Quick capture</p>
       <div className="grid grid-cols-4 gap-2">
-        {CAPTURE.map((t) => (
+        {tiles.map((t) => (
           <Link
             key={t.label}
             href={t.href}
@@ -179,6 +183,7 @@ interface NavTile {
 }
 
 function GoTo({ badges }: Readonly<{ badges: ReturnType<typeof useMobileHomeBadges> }>) {
+  const canSee = useNavGate()
   const tiles: NavTile[] = [
     { href: "/properties", icon: Building2, label: "Properties" },
     { href: "/tenants", icon: Users, label: "Tenants" },
@@ -188,7 +193,7 @@ function GoTo({ badges }: Readonly<{ badges: ReturnType<typeof useMobileHomeBadg
     { href: "/maintenance", icon: Wrench, label: "Maintenance", badge: badges.maintenance },
     { href: "/finance", icon: PieChart, label: "Finance" },
     { href: "/calendar", icon: CalendarDays, label: "Calendar" },
-  ]
+  ].filter((t) => canSee(t.href))
 
   return (
     <section className="px-4 mt-6">

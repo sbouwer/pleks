@@ -14,11 +14,9 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { SidebarContent, type NavGroup } from "./SidebarContent"
 import { SettingsSidebar } from "./SettingsSidebar"
-import { useTier } from "@/hooks/useTier"
 import { useNavBadges } from "@/hooks/useNavBadges"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
-import { useCapabilities } from "@/components/auth/CapabilitiesProvider"
-import { tierFloorForPath, hasAccess } from "@/lib/tier/gates"
+import { useNavGate } from "@/hooks/useNavGate"
 import {
   LayoutDashboard,
   Building2,
@@ -39,26 +37,6 @@ import {
   BookOpen,
   PieChart,
 } from "lucide-react"
-
-// href → required capability (RBAC P4 nav visibility). Unlisted items are ungated (Dashboard, Settings,
-// Calendar/HOA keep their own tier/org-type gates). Owner/is_admin hold every capability.
-const NAV_CAPABILITY: Record<string, string> = {
-  "/properties": "properties",
-  "/landlords": "landlords",
-  "/tenants": "tenants",
-  "/suppliers": "maintenance",
-  "/leases": "leases",
-  "/applications": "applications",
-  "/maintenance": "maintenance",
-  "/inspections": "inspections",
-  "/finance": "finance",
-  "/finance/deposits": "finance",
-  "/finance/trust-ledger": "finance",
-  "/billing": "billing",
-  "/statements": "finance",
-  "/reports": "reports",
-  "/hoa": "properties",
-}
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -109,10 +87,9 @@ const NAV_GROUPS: NavGroup[] = [
 export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
-  const { tier } = useTier()
   const badges = useNavBadges()
   const caps = useOrgCapabilities()
-  const { has } = useCapabilities()  // hide nav items the member lacks the capability for (RBAC P4)
+  const canSee = useNavGate()  // shared capability + tier gate (same predicate as mobile) — RBAC P4
 
   // Settings pages get their own dedicated sidebar
   if (pathname.startsWith("/settings")) {
@@ -132,13 +109,9 @@ export function Sidebar() {
     ...group,
     items: group.items
       .filter((item) => {
-        // Capability gate (RBAC P4) — hide items the member lacks the capability for
-        const reqCap = NAV_CAPABILITY[item.href]
-        if (reqCap && !has(reqCap)) return false
-        // Tier floor (SSOT — ROUTE_TIER_FLOORS; same source the route guard reads, so nav + URL never split)
-        const floor = tierFloorForPath(item.href)
-        if (floor && !hasAccess(tier, floor)) return false
-        // Org-type gates — D-61A-04: hide, don't grey-out
+        // Capability + tier gate (shared SSOT predicate — desktop + mobile read the same maps)
+        if (!canSee(item.href)) return false
+        // Org-type gates — D-61A-04: hide, don't grey-out (a separate axis, per-component)
         if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
         if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
         return true

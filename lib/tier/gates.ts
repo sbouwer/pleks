@@ -85,9 +85,10 @@ export const ROUTE_TIER_FLOORS = {
   "/calendar":             "portfolio",
   "/finance/trust-ledger": "steward",
   "/hoa":                  "firm",
-  "/settings/documents":   "steward",
-  "/settings/deposits":    "steward",
-  "/settings/import":      "steward",
+  "/settings/documents":      "steward",
+  "/settings/lease-templates": "steward",
+  "/settings/deposits":       "steward",
+  "/settings/import":         "steward",
 } as const satisfies Record<string, Tier>
 
 /** The tier floor that applies to `path` (longest matching route prefix), or null if the route is untiered. */

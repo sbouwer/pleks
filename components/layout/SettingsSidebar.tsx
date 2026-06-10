@@ -26,8 +26,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useTier } from "@/hooks/useTier"
 import { usePermissions } from "@/hooks/usePermissions"
-import { useCapabilities } from "@/components/auth/CapabilitiesProvider"
-import { tierFloorForPath, hasAccess } from "@/lib/tier/gates"
+import { useNavGate } from "@/hooks/useNavGate"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 
 interface SettingsItem {
@@ -68,15 +67,6 @@ const GROUPS: SettingsGroup[] = [
 
 // Settings sub-route → required capability (RBAC P4). Personal sections (profile/security/notifications/
 // feedback) + the Overview are intentionally ungated — a member must always reach their own account.
-const SETTINGS_CAPABILITY: Record<string, string> = {
-  "/settings/details": "org",
-  "/settings/team": "team",
-  "/settings/documents/templates": "documents",
-  "/settings/compliance": "org",
-  "/settings/subscription": "billing",
-  "/settings/deposits": "finance",
-  "/settings/import": "org",
-}
 
 function NavRow({ href, label, icon: Icon, active }: Readonly<{ href: string; label: string; icon: LucideIcon; active: boolean }>) {
   return (
@@ -97,9 +87,9 @@ function NavRow({ href, label, icon: Icon, active }: Readonly<{ href: string; la
 
 export function SettingsSidebar() {
   const pathname = usePathname()
-  const { tier, isOwner, loading } = useTier()
+  const { isOwner, loading } = useTier()
   const { isAdmin } = usePermissions()  // owner / is_admin — the upgrade nudge is theirs, not every member's
-  const { has } = useCapabilities()     // hide settings sections the member lacks the capability for (RBAC P4)
+  const canSee = useNavGate()           // shared capability + tier gate (same predicate as mobile) — RBAC P4
 
   const isActive = (href: string, extra?: string[]) =>
     pathname === href || pathname.startsWith(href + "/") ||
@@ -136,13 +126,7 @@ export function SettingsSidebar() {
         </div>
 
         {GROUPS.map((group) => {
-          const items = group.items.filter((it) => {
-            // Tier floor (SSOT — ROUTE_TIER_FLOORS; same source as the route guard)
-            const floor = tierFloorForPath(it.href)
-            if (floor && !hasAccess(tier, floor)) return false
-            const reqCap = SETTINGS_CAPABILITY[it.href]
-            return !reqCap || has(reqCap)
-          })
+          const items = group.items.filter((it) => canSee(it.href))
           if (!items.length) return null
           return (
             <div key={group.title} className="mt-4">

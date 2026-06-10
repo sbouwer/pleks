@@ -16,13 +16,12 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
-import { useTier } from "@/hooks/useTier"
-import { tierFloorForPath, hasAccess } from "@/lib/tier/gates"
+import { useNavGate } from "@/hooks/useNavGate"
 
 export function MobileSettingsNav() {
   const { orgId } = useOrg()
   const caps = useOrgCapabilities()
-  const { tier } = useTier()
+  const canSee = useNavGate()  // shared capability + tier gate (same predicate as desktop) — RBAC P4
   const depositLabel = caps?.trustAccountLabel === "deposits" ? "Deposits" : "Trust account"
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -90,13 +89,10 @@ export function MobileSettingsNav() {
       ],
     },
   ]
-    // Tier floor — read the SAME ROUTE_TIER_FLOORS SSOT the desktop nav + route guards use (no mobile copy).
+    // Capability + tier — the SAME shared predicate the desktop nav uses (one map, no mobile copy).
     .map((group) => ({
       ...group,
-      items: group.items.filter((it) => {
-        const floor = tierFloorForPath(it.href)
-        return !floor || hasAccess(tier, floor)
-      }),
+      items: group.items.filter((it) => canSee(it.href)),
     }))
     .filter((group) => group.items.length > 0)
 
