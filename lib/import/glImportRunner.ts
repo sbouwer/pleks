@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { GLPropertyBlock, GLTransaction, GLDepositTransaction } from "./parseGLReport"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordTrustTransaction, type TrustTransactionType } from "@/lib/trust/invariants"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -41,25 +42,9 @@ function isWithinDateFilter(
   return date >= from && date <= to
 }
 
-// ⚠ ADDENDUM_FINANCIAL_INTEGRITY F-3: this returns "rent_invoice", which is NOT a valid trust_transactions
-// transaction_type (CHECK enum) — so GL "invoice" lines currently fail to insert into the trust ledger (error
-// pushed to result.errors). The two trust_transactions inserts below are therefore NOT yet routed through
-// recordTrustTransaction (the rest of F-3 is). Resolving needs a TPN-GL-domain call: does a GL invoice belong in
-// the trust ledger at all (it's a charge, not a money movement), or map to a valid type? Until then, the
-// invariant-coverage ratchet's trust entry stays pending and the direct-insert ESLint ban is held.
-function mapTransactionType(
-  txType: GLTransaction["type"],
-): string {
-  return txType === "invoice" ? "rent_invoice" : "rent_received"
-}
-
-function mapDirection(txType: GLTransaction["type"]): "debit" | "credit" {
-  return txType === "invoice" ? "debit" : "credit"
-}
-
 function mapDepositTransactionType(
   depType: GLDepositTransaction["type"],
-): string {
+): TrustTransactionType {
   switch (depType) {
     case "deposit_received":
       return "deposit_received"
@@ -203,26 +188,33 @@ async function importArTransaction(
     return
   }
 
-  const { error } = await ctx.supabase.from("trust_transactions").insert({
-    org_id: ctx.orgId,
-    property_id: details.propertyId,
-    unit_id: details.unitId,
-    lease_id: leaseId,
-    transaction_type: mapTransactionType(tx.type),
-    direction: mapDirection(tx.type),
-    amount_cents: tx.amountCents,
-    description: `${tx.description} (imported from TPN GL)`,
-    is_opening_balance: true,
-    created_by: ctx.agentId,
-  })
+  // A GL "invoice" is a receivable (rent charged), not a movement in the agency's trust account — it doesn't
+  // belong in trust_transactions. The old code mapped it to the invalid 'rent_invoice', so the insert always
+  // failed the CHECK anyway; skip it explicitly. (F-3 ruling; revisit if GL invoice opening balances ever need
+  // their own recording — they'd be rent_invoices, not trust rows.)
+  if (tx.type === "invoice") {
+    ctx.result.skipped++
+    return
+  }
 
-  if (error) {
-    ctx.result.errors.push({
-      description: tx.rawDescription,
-      message: `Insert failed: ${error.message}`,
+  try {
+    await recordTrustTransaction({
+      orgId: ctx.orgId,
+      propertyId: details.propertyId ?? undefined,
+      unitId: details.unitId ?? undefined,
+      leaseId,
+      transactionType: "rent_received",
+      direction: "credit",
+      amountCents: tx.amountCents,
+      description: `${tx.description} (imported from TPN GL)`,
+      isOpeningBalance: true,
+      createdBy: ctx.agentId,
+      source: "agency_bank",
+      initiatedBy: "agent",
     })
-  } else {
     ctx.result.transactionsCreated++
+  } catch (e) {
+    ctx.result.errors.push({ description: tx.rawDescription, message: `Insert failed: ${e instanceof Error ? e.message : String(e)}` })
   }
 }
 
@@ -264,26 +256,24 @@ async function importDepositTransaction(
     return
   }
 
-  const { error } = await ctx.supabase.from("trust_transactions").insert({
-    org_id: ctx.orgId,
-    property_id: details.propertyId,
-    unit_id: details.unitId,
-    lease_id: leaseId,
-    transaction_type: mapDepositTransactionType(dep.type),
-    direction: mapDepositDirection(dep),
-    amount_cents: amount,
-    description: `${dep.rawDescription} (imported from TPN GL)`,
-    is_opening_balance: true,
-    created_by: ctx.agentId,
-  })
-
-  if (error) {
-    ctx.result.errors.push({
-      description: dep.rawDescription,
-      message: `Deposit insert failed: ${error.message}`,
+  try {
+    await recordTrustTransaction({
+      orgId: ctx.orgId,
+      propertyId: details.propertyId ?? undefined,
+      unitId: details.unitId ?? undefined,
+      leaseId,
+      transactionType: mapDepositTransactionType(dep.type),
+      direction: mapDepositDirection(dep),
+      amountCents: amount,
+      description: `${dep.rawDescription} (imported from TPN GL)`,
+      isOpeningBalance: true,
+      createdBy: ctx.agentId,
+      source: "agency_bank",
+      initiatedBy: "agent",
     })
-  } else {
     ctx.result.depositsCreated++
+  } catch (e) {
+    ctx.result.errors.push({ description: dep.rawDescription, message: `Deposit insert failed: ${e instanceof Error ? e.message : String(e)}` })
   }
 }
 

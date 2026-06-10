@@ -60,7 +60,7 @@ const INVARIANT_REGISTRY: Invariant[] = [
     domain: "trust",
     name: "trust writes route through recordTrustTransaction (no direct trust_transactions inserts)",
     wired: () => !FILES.some((f) => !f.path.includes("invariants.ts") && directTrustInsert.test(f.content)),
-    pending: "ADDENDUM_FINANCIAL_INTEGRITY F-3 balance: ~11 direct trust_transactions inserts remain; wire the single insert path, then delete this entry",
+    // F-3 balance landed (all 13 inserts wired); this now ENFORCES it — a new direct insert fails the build.
   },
   {
     domain: "recon",
