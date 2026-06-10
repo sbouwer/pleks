@@ -49,8 +49,12 @@ export const metadata: Metadata = {
     "South African property management platform. Smarter inspections, automated collections, legal-grade compliance.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.svg?v=8",
-    apple: "/icons/icon-192.png",
+    icon: [
+      { url: "/favicon.svg?v=9", type: "image/svg+xml" },
+      { url: "/favicon/pleks-favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon/pleks-favicon-16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/favicon/pleks-favicon-180.png",
   },
   appleWebApp: {
     capable: true,
