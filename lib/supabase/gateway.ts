@@ -173,21 +173,22 @@ async function resolveFromCookieHint(service: SupabaseClient, userId: string): P
   }
   if (!parsed.org_id || parsed.user_id !== userId) return null
 
-  const { data: membership, error } = await service
-    .from("user_orgs")
-    .select("role, is_admin")
-    .eq("user_id", userId)
-    .eq("org_id", parsed.org_id)
-    .is("deleted_at", null)
+  // A transient timeout/throttle is NOT "no membership" (maybeSingle returns no error for 0 rows). Retry
+  // once before giving up — the throttled dev nano often answers on the 2nd attempt, and it covers prod
+  // blips too; a persistent failure still throws GatewayUnavailableError (don't misread a slow DB as "no org").
+  const queryMembership = () => service
+    .from("user_orgs").select("role, is_admin")
+    .eq("user_id", userId).eq("org_id", parsed.org_id).is("deleted_at", null)
     .abortSignal(AbortSignal.timeout(GATEWAY_DB_TIMEOUT_MS))
     .maybeSingle()
 
-  // A real query error (timeout/throttle) is NOT "no membership" — maybeSingle() returns no
-  // error for 0 rows, so any error here is transient.
-  if (error) throw new GatewayUnavailableError(error.message)
+  let res = await queryMembership()
+  if (res.error) res = await queryMembership()
+  if (res.error) throw new GatewayUnavailableError(res.error.message)
+  const membership = res.data
   if (!membership) return null // claimed org not a current membership — fall through
 
-  const m = membership as unknown as { role: string; is_admin: boolean }
+  const m = membership
   return {
     org_id: parsed.org_id,
     role: m.role,
