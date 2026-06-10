@@ -35,6 +35,8 @@ export default function ResetPasswordPage() {
       toast.error(error.message)
     } else {
       toast.success("Password updated successfully.")
+      // Await so the auth_events record + notification land before we navigate away (fetch would cancel).
+      await fetch("/api/auth/log-password-changed", { method: "POST" }).catch(() => {})
       router.push("/login")
     }
     setLoading(false)

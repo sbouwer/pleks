@@ -26,6 +26,8 @@ export function PasswordForm() {
     setSaving(false)
     if (error) { toast.error(error.message); return }
     toast.success("Password updated")
+    // Record server-side (auth_events) + fire the security notification. Fire-and-forget — the user stays here.
+    void fetch("/api/auth/log-password-changed", { method: "POST" }).catch(() => {})
     setPassword("")
     setConfirm("")
   }
