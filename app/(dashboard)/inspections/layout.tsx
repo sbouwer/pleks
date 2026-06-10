@@ -1,0 +1,9 @@
+/**
+ * app/(dashboard)/inspections/layout.tsx — RBAC P4 route guard ('inspections' capability; owner/is_admin exempt)
+ */
+import { requireCapability } from "@/lib/auth/requireCapability"
+
+export default async function Layout({ children }: Readonly<{ children: React.ReactNode }>) {
+  await requireCapability("inspections")
+  return children
+}

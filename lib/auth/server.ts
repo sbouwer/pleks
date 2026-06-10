@@ -13,6 +13,7 @@ import { setSentryUser } from "@/lib/observability/user-context"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
 import { gateway, type GatewayContext } from "@/lib/supabase/gateway"
+import { can } from "@/lib/auth/can"
 import {
   canPerformAgentAction,
   SubscriptionLockdownError,
@@ -233,11 +234,31 @@ async function getSubscriptionState(orgId: string): Promise<SubscriptionState> {
  *   const gw = await requireAgentWriteAccess("create_lease")
  *   // proceed — org is active and user is authenticated
  */
+// RBAC P4 — central action→capability map. A mutation's write-action gates on the matching capability
+// (owner/is_admin exempt). Only cleanly-mapped actions are listed; reused actions (edit_lease — also deposit
+// charges; send_manual_comm — many senders) + the finance actions are gated at their call sites instead, and
+// unmapped/arbitrary actions are not capability-gated here (the route guard is their access control).
+const ACTION_CAPABILITY: Record<string, string> = {
+  create_lease: "leases", activate_lease: "leases", renew_lease: "leases", terminate_lease: "leases",
+  create_property: "properties", edit_property: "properties",
+  create_tenant: "tenants", edit_tenant: "tenants",
+  create_application: "applications", run_searchworx_check: "applications",
+  sign_off_inspection: "inspections",
+  assign_maintenance: "maintenance", accept_quote: "maintenance",
+  invite_user: "team", change_team_role: "team",
+  run_ai_clause_draft: "documents",
+}
+
 export async function requireAgentWriteAccess(
   action: AgentWriteAction,
 ): Promise<GatewayContext> {
   const gw = await gateway()
   if (!gw) throw new Error("Not authenticated")
+  // Capability gate (RBAC P4) — owner/is_admin exempt; the server boundary for the mapped write actions.
+  const reqCap = ACTION_CAPABILITY[action]
+  if (reqCap && !gw.isAdmin && !(await can(reqCap))) {
+    throw new Error(`Missing capability: ${reqCap}`)
+  }
   const sub = await getSubscriptionState(gw.orgId)
   const result = canPerformAgentAction(sub, action)
   if (!result.allowed) throw new SubscriptionLockdownError(result.reason, action)
