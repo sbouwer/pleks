@@ -52,21 +52,16 @@ export async function generateDeductionJustification(deductionItemId: string) {
     const { getOrgTier } = await import("@/lib/tier/getOrgTier")
     const tier = await getOrgTier(leaseForTier.org_id)
     if (!hasFeature(tier, "ai_inspection")) {
-      await supabase.from("deposit_deduction_items").update({
-        ai_justification: "AI justification available on Steward tier and above.",
-        ai_justification_at: new Date().toISOString(),
-        ai_model: "skipped",
-      }).eq("id", deductionItemId)
+      // No AI tier → leave ai_justification EMPTY so the agent must enter a reason before confirming (F-2).
+      // No placeholder (a placeholder is the absence of a reason masquerading as one).
+      await supabase.from("deposit_deduction_items").update({ ai_model: "skipped" }).eq("id", deductionItemId)
       return
     }
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    await supabase.from("deposit_deduction_items").update({
-      ai_justification: "AI justification unavailable — Anthropic API key not configured.",
-      ai_justification_at: new Date().toISOString(),
-      ai_model: "manual",
-    }).eq("id", deductionItemId)
+    // No key → leave ai_justification EMPTY for the agent to fill (F-2). No placeholder.
+    await supabase.from("deposit_deduction_items").update({ ai_model: "manual" }).eq("id", deductionItemId)
     return
   }
 
@@ -109,13 +104,14 @@ Write 2-4 sentences justifying why this is tenant damage (not normal wear and te
     )
     justification = message.content[0].type === "text" ? message.content[0].text.trim() : ""
   } catch {
-    justification = "AI justification temporarily unavailable — please add manually."
+    justification = ""   // AI failed → leave empty for the agent (F-2), never a placeholder
     aiModel = "error"
   }
 
+  // Only write the draft when we actually have one; an empty/failed run leaves ai_justification null so the
+  // confirm gate forces the agent to enter a reason (F-2).
   await supabase.from("deposit_deduction_items").update({
-    ai_justification: justification,
-    ai_justification_at: new Date().toISOString(),
+    ...(justification ? { ai_justification: justification, ai_justification_at: new Date().toISOString() } : {}),
     ai_model: aiModel,
   }).eq("id", deductionItemId)
 }

@@ -16,6 +16,7 @@ import { formatZAR } from "@/lib/constants"
 import { formatDateShort } from "@/lib/reports/periods"
 import { DepositActions } from "./DepositActions"
 import { DepositChargesEditor } from "./DepositChargesEditor"
+import { DamageItemsEditor } from "./DamageItemsEditor"
 import type { DepositCharge, ArrearssuggestionItem, InvoiceSuggestionItem } from "./DepositChargesEditor"
 import { BackLink } from "@/components/ui/BackLink"
 
@@ -187,37 +188,8 @@ export default async function DepositReconPage({
           <CardHeader>
             <CardTitle className="text-sm">Tenant Damage — Deductible ({damageItems.length})</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-xs text-muted-foreground">
-                  <th className="text-left py-2 pr-2">Room</th>
-                  <th className="text-left py-2 pr-2">Description</th>
-                  <th className="text-right py-2 px-2">Amount</th>
-                  <th className="text-left py-2 px-2">AI Justification</th>
-                  <th className="text-center py-2">Confirmed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {damageItems.map((item) => (
-                  <tr key={item.id} className="border-b border-border/50">
-                    <td className="py-2 pr-2">{item.room ?? "—"}</td>
-                    <td className="py-2 pr-2">{item.item_description}</td>
-                    <td className="text-right py-2 px-2 font-semibold">{formatZAR(item.deduction_amount_cents)}</td>
-                    <td className="py-2 px-2 text-xs text-muted-foreground max-w-xs">
-                      {item.ai_justification ? (
-                        <span className="line-clamp-2">{item.ai_justification}</span>
-                      ) : (
-                        <span className="text-amber-600">Pending</span>
-                      )}
-                    </td>
-                    <td className="text-center py-2">
-                      {item.agent_confirmed ? "✓" : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <CardContent>
+            <DamageItemsEditor leaseId={leaseId} items={damageItems} />
           </CardContent>
         </Card>
       )}

@@ -1721,3 +1721,29 @@ UPDATE leases
 SET payment_reference = 'PL' || upper(substring(replace(id::text, '-', '') from 1 for 8))
 WHERE payment_reference IS NULL;
 CREATE INDEX IF NOT EXISTS idx_leases_payment_reference ON leases(payment_reference) WHERE payment_reference IS NOT NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_FINANCIAL_INTEGRITY F-2: a tenant_damage deduction can't be confirmed without a real reason
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Durable backstop for the app-side confirm gate (lib/actions/deposits.ts confirmDeductionItem). A tenant_damage
+-- item only counts against the refund once agent_confirmed (calculateReturn sums confirmed items), and a confirmed
+-- damage line MUST carry a substantive justification (RHA s5 / Tribunal). "Valid" excludes the legacy auto-
+-- placeholders ("AI justification …") and anything too short — not just NULL (length 20 matches
+-- MIN_JUSTIFICATION_LENGTH in lib/deposits/justification.ts). Inserts (agent_confirmed defaults false) and
+-- non-damage classifications pass straight through.
+CREATE OR REPLACE FUNCTION assert_deduction_justification() RETURNS trigger AS $$
+BEGIN
+  IF NEW.agent_confirmed AND NEW.classification = 'tenant_damage'
+     AND (NEW.ai_justification IS NULL
+          OR length(btrim(NEW.ai_justification)) < 20
+          OR btrim(NEW.ai_justification) LIKE 'AI justification %') THEN
+    RAISE EXCEPTION 'A tenant_damage deduction cannot be confirmed without a substantive justification (ADDENDUM_FINANCIAL_INTEGRITY F-2)';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_deduction_justification ON deposit_deduction_items;
+CREATE TRIGGER trg_deduction_justification
+  BEFORE INSERT OR UPDATE ON deposit_deduction_items
+  FOR EACH ROW EXECUTE FUNCTION assert_deduction_justification();

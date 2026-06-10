@@ -24,6 +24,7 @@ import {
   type DepositChargeItem,
 } from "@/lib/comms/templates/tenant/deposits/deposit-return-schedule"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { isValidJustification } from "@/lib/deposits/justification"
 
 function formatZARLocal(cents: number): string {
   return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
@@ -273,6 +274,64 @@ export async function deleteDepositCharge(
     .eq("id", chargeId)
     .eq("org_id", orgId)
     .eq("agent_confirmed", false)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/leases/${leaseId}/deposit`)
+  return { success: true }
+}
+
+// ─── Deduction-item confirm + justification (ADDENDUM_FINANCIAL_INTEGRITY F-2) ────────────────────────────────
+// Inspection-derived tenant-damage items were never confirmed in code (agent_confirmed never set true), so
+// calculateReturn's damageTotal — which sums confirmed tenant_damage items — was always 0: itemised damage never
+// reduced the refund. These wire the confirm (so it counts) AND gate it on a real reason (RHA s5 / Tribunal).
+
+/** Agent edits/enters a deduction item's justification (only before confirm — the schedule is immutable after). */
+export async function updateDeductionJustification(
+  itemId: string, leaseId: string, text: string
+): Promise<{ success?: boolean; error?: string }> {
+  const gw = await requireAgentWriteAccess("edit_lease")
+  const denied = await denyNonFinance(gw); if (denied) return denied
+  const { db, orgId } = gw
+
+  const { error } = await db
+    .from("deposit_deduction_items")
+    .update({ ai_justification: text.trim(), ai_justification_at: new Date().toISOString(), ai_model: "manual_edited" })
+    .eq("id", itemId)
+    .eq("org_id", orgId)
+    .eq("agent_confirmed", false)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/leases/${leaseId}/deposit`)
+  return { success: true }
+}
+
+/** Confirm a deduction item — only allowed on a tenant_damage item that has a valid justification. confirmed_by/
+ *  confirmed_at on the row are the who/when trail; the DB trigger is the durable backstop. */
+export async function confirmDeductionItem(
+  itemId: string, leaseId: string
+): Promise<{ success?: boolean; error?: string }> {
+  const gw = await requireAgentWriteAccess("edit_lease")
+  const denied = await denyNonFinance(gw); if (denied) return denied
+  const { db, orgId, userId } = gw
+
+  const { data: item, error: itemErr } = await db
+    .from("deposit_deduction_items")
+    .select("classification, ai_justification")
+    .eq("id", itemId)
+    .eq("org_id", orgId)
+    .single()
+  logQueryError("confirmDeductionItem deposit_deduction_items", itemErr)
+  if (!item) return { error: "Deduction item not found" }
+
+  if (item.classification === "tenant_damage" && !isValidJustification(item.ai_justification as string | null)) {
+    return { error: "Add a reason for this deduction before confirming it — it appears on the tenant's deposit schedule (RHA s5)." }
+  }
+
+  const { error } = await db
+    .from("deposit_deduction_items")
+    .update({ agent_confirmed: true, confirmed_by: userId, confirmed_at: new Date().toISOString() })
+    .eq("id", itemId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
   revalidatePath(`/leases/${leaseId}/deposit`)
