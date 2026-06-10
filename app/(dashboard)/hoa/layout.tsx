@@ -1,12 +1,13 @@
 /**
- * app/(dashboard)/hoa/layout.tsx — RBAC P4 route guard ('properties' capability; owner/is_admin exempt)
+ * app/(dashboard)/hoa/layout.tsx — RBAC P4 route guard
  *
- * Notes: HOA / scheme management is a property-operations area — gated on the properties capability (on top
- *        of the org-type gate that hides it for non-HOA orgs).
+ * Auth:  'properties' capability (owner/is_admin exempt) + Firm tier (NOT exempt — it's a plan feature).
+ * Notes: HOA / sectional-title management is a Firm-tier feature; below Firm → /403.
  */
-import { requireCapability } from "@/lib/auth/requireCapability"
+import { requireCapability, requireMinTier } from "@/lib/auth/requireCapability"
 
 export default async function Layout({ children }: Readonly<{ children: React.ReactNode }>) {
+  await requireMinTier("firm")
   await requireCapability("properties")
   return children
 }

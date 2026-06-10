@@ -9,9 +9,23 @@
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { hasCapability } from "@/lib/auth/can"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
+import { TIER_ORDER, type Tier } from "@/lib/constants"
 
 export async function requireCapability(capability: string): Promise<void> {
   const gw = await gatewaySSR()
   if (!gw) redirect("/login")
   if (!(await hasCapability(gw, capability))) redirect("/403")
+}
+
+/**
+ * Tier route guard (RBAC P4 — hard-block tier-gated surfaces, not just hide the nav). Uses the CANONICAL
+ * tier (subscriptions, not the forgeable cookie). Tier is a plan limit, NOT a permission — owner/is_admin are
+ * NOT exempt (a Firm feature is unreachable on Steward until they upgrade). Redirects below the minimum → /403.
+ */
+export async function requireMinTier(minTier: Tier): Promise<void> {
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const tier = await getOrgTierCanonical(gw.orgId)
+  if (TIER_ORDER[tier] < TIER_ORDER[minTier]) redirect("/403")
 }
