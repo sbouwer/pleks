@@ -1,0 +1,61 @@
+<!--
+  Pleks wordmark → PNG export helper (dev tool — NOT deployed; lives outside /public and /app).
+
+  The wordmark is pure CSS (plek + amber corner-bracket on "s" + the "stoep" underline), so there's no file
+  to grab — you render it big and screenshot the node. This page reproduces it faithfully (Inter Tight 500,
+  the exact bracket + underline geometry from app/globals.css) on a TRANSPARENT background.
+
+  HOW TO EXPORT (Chrome / Edge — gives a transparent PNG):
+    1. Open this file in the browser (double-click it, or drag it into a tab — file:// is fine).
+    2. Right-click the big wordmark → Inspect.
+    3. In DevTools, right-click the highlighted  <span class="wm">…</span>  element →
+       "Capture node screenshot". A transparent PNG downloads.
+    4. Save it as  public/email-logo.png  in the repo.
+    5. Tell me — I'll swap the text wordmark for <img src="…/email-logo.png"> in all six templates.
+
+  Want it bigger/smaller? Change --size below (it's the only knob — everything scales in em).
+  Need it on white instead of transparent? Set BG to #ffffff in <body>.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Pleks wordmark export</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink: #18181b; --amber: #E8A838; --size: 120px; }
+    body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; background: transparent; font-family: -apple-system, sans-serif; }
+
+    /* ── faithful copy of .pub-wordmark + .accent-bracket from app/globals.css (px → em so it scales) ── */
+    .wm {
+      position: relative; display: inline-flex; align-items: baseline; gap: 0;
+      font-family: "Inter Tight", -apple-system, sans-serif;
+      font-weight: 500; font-size: var(--size); line-height: 1;
+      letter-spacing: -0.01em; color: var(--ink); text-decoration: none;
+    }
+    .wm::after {                       /* stoep underline: ink | amber(26–41%) | ink */
+      content: ""; position: absolute; left: 0.35em; right: 0; bottom: -0.15em; height: 0.1em;
+      background: linear-gradient(to right, currentColor 0% 26%, var(--amber) 26% 41%, currentColor 41% 100%);
+    }
+    .br { position: relative; display: inline-block; }   /* the "s" */
+    .br .mk {                          /* amber top-right corner bracket */
+      position: absolute; top: -0.08em; right: -0.1em; width: 0.3em; height: 0.3em;
+      border-top: 0.08em solid var(--amber); border-right: 0.08em solid var(--amber);
+    }
+    .hint { font-size: 13px; color: #9a9a9a; max-width: 520px; text-align: center; line-height: 1.5; }
+    .hint b { color: #555; }
+  </style>
+</head>
+<body>
+  <!-- Right-click THIS element in DevTools → "Capture node screenshot" -->
+  <span class="wm">plek<span class="br">s<i class="mk"></i></span></span>
+
+  <p class="hint">
+    Right-click the wordmark → <b>Inspect</b> → in DevTools right-click <b>&lt;span class="wm"&gt;</b> →
+    <b>Capture node screenshot</b> → save as <b>public/email-logo.png</b>.<br>
+    (Transparent background. Change <b>--size</b> in the &lt;style&gt; for a larger export.)
+  </p>
+</body>
+</html>
