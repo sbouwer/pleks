@@ -54,6 +54,13 @@ const log = (s: string) => process.stdout.write(s + "\n")
 async function main() {
   log("\n━━━ Category 14 — Audit behavioural coverage ━━━")
   if (!SUPABASE_URL || !SERVICE_KEY) {
+    // CI's static-Supabase subset deliberately runs without secrets — skip-and-pass like audit.mjs does
+    // (the job is the static check; behavioural coverage runs locally / in the secret-bearing job).
+    if (ciMode) {
+      log("skipped: CI secrets absent")
+      log("Set CI_SUPABASE_URL + CI_SUPABASE_SERVICE_ROLE_KEY in GitHub secrets to enable behavioural coverage.")
+      process.exit(0)
+    }
     log("🔴 CRITICAL: SUPABASE_URL / SERVICE_ROLE_KEY not set — cannot run behavioural coverage.")
     process.exit(1)
   }
