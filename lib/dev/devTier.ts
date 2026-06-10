@@ -24,7 +24,8 @@ export async function devSetTier(tier: Tier): Promise<{ ok: true } | { error: st
   const service = await createServiceClient()
   const { orgId } = gw
   const { data: existing, error: readErr } = await service
-    .from("subscriptions").select("id").eq("org_id", orgId).in("status", ["active", "trialing"]).limit(1).maybeSingle()
+    .from("subscriptions").select("id").eq("org_id", orgId).not("status", "in", "(purged)")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle()
   if (readErr) return { error: readErr.message }
 
   if (existing?.id) {

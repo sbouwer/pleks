@@ -35,6 +35,8 @@ export function useOrg() {
         .select("status, cancelled_at")
         .eq("org_id", orgData.org_id)
         .not("status", "eq", "purged")
+        .order("created_at", { ascending: false })
+        .limit(1)            // an org should have one sub, but never throw on >1 — take the latest
         .maybeSingle()
         logQueryError("{ data, isLoading } subscriptions", subDataError)
       return {
