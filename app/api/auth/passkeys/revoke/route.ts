@@ -6,6 +6,7 @@
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logAuthEvent } from "@/lib/auth/events"
+import { requireStepUp } from "@/lib/auth/step-up"
 import { revokePasskeyAalForUser } from "@/lib/auth/passkey-aal-server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new Response("Unauthenticated", { status: 401 })
 
-  const body = await req.json() as { passkeyId: string }
+  const body = await req.json() as { passkeyId: string; stepUpToken?: string }
   const { passkeyId } = body
 
   const serviceDb = await createServiceClient()
@@ -30,6 +31,10 @@ export async function POST(req: Request) {
     logQueryError("POST user_passkeys", pkError)
 
   if (!pk) return new Response("Not found", { status: 404 })
+
+  // Removing an MFA factor is re-auth-protected (ADDENDUM_AUTH_HARDENING Finding 1.3) — an account-takeover step.
+  const stepUp = await requireStepUp({ userId: user.id, action: "passkey_unenroll", resourceId: passkeyId, providedToken: body.stepUpToken })
+  if (!stepUp.verified) return Response.json({ challengeToken: stepUp.challengeToken }, { status: 401 })
 
   await serviceDb
     .from("user_passkeys")

@@ -14,6 +14,7 @@ import { formatDistanceToNow } from "date-fns"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { useEnrolPasskey } from "@/lib/auth/passkeys/useEnrolPasskey"
 import { ActionButton, RemoveButton } from "@/components/ui/actions"
+import { useStepUpSubmit } from "@/components/auth/useStepUpSubmit"
 
 interface Passkey {
   id: string
@@ -29,6 +30,7 @@ export function PasskeyManager() {
   const [capable, setCapable] = useState(false)
   const [revoking, setRevoking] = useState<string | null>(null)
   const { enrol, state: enrolState, errorMsg: enrolError, reset } = useEnrolPasskey()
+  const { submit, stepUpModal } = useStepUpSubmit("remove a passkey")  // revoke is re-auth-gated (Finding 1.3)
 
   async function loadPasskeys() {
     setLoading(true)
@@ -52,14 +54,14 @@ export function PasskeyManager() {
   async function handleRevoke(id: string) {
     if (!confirm("Remove this passkey?")) return
     setRevoking(id)
-    const res = await fetch("/api/auth/passkeys/revoke", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passkeyId: id }),
-    })
-    if (res.ok) {
-      setPasskeys(prev => prev.filter(p => p.id !== id))
-    }
+    await submit(
+      (stepUpToken) => fetch("/api/auth/passkeys/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passkeyId: id, ...(stepUpToken ? { stepUpToken } : {}) }),
+      }),
+      () => setPasskeys(prev => prev.filter(p => p.id !== id)),
+    )
     setRevoking(null)
   }
 
@@ -144,6 +146,7 @@ export function PasskeyManager() {
           </div>
         )}
       </div>
+      {stepUpModal}
     </section>
   )
 }

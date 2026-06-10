@@ -33,8 +33,8 @@ const SECURITY_NOTIFY = values(read("lib/auth/events.ts"), /SECURITY_NOTIFY = ne
 // Declared but not yet enforced/emitted. SHRINK these as the ADDENDUM_AUTH_HARDENING findings land — wiring a
 // value makes the test fail until you delete it here, so the list can't silently go stale.
 const STEP_UP_PENDING = new Set([
-  "deposit_refund_approval", "team_role_change", "subscription_change", "tenant_data_deletion",
-  "security_settings_change", "passkey_unenroll", "totp_unenroll", "bulk_export",
+  "deposit_refund_approval", "subscription_change", "tenant_data_deletion",
+  "security_settings_change", "totp_unenroll", "bulk_export",
 ])
 const NOTIFY_PENDING = new Set(["totp_unenrolled", "recovery_used"])
 

@@ -45,6 +45,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getMemberEmails } from "@/lib/actions/teamMembers"
 import { getAgentWorkload } from "@/lib/work/reassign"
 import { ReassignBeforeArchiveModal } from "@/components/work/ReassignBeforeArchiveModal"
+import { useStepUpSubmit } from "@/components/auth/useStepUpSubmit"
 import { listAssignableRoles, getOrgRoles } from "@/lib/auth/orgRoles"
 import { BUILTIN_ROLES } from "@/lib/auth/capabilities"
 
@@ -244,6 +245,7 @@ function EditMemberModal({
   const [emergencyName, setEmName]      = useState(p?.emergency_contact_name ?? "")
   const [roleSlug, setRoleSlug]         = useState(member.role)
   const [saving, setSaving]             = useState(false)
+  const { submit, stepUpModal } = useStepUpSubmit("change a member's role")  // role change is re-auth-gated (Finding 1.2)
 
   async function handleSave() {
     setSaving(true)
@@ -263,21 +265,16 @@ function EditMemberModal({
       body.emergency_contact_name = emergencyName || null
     }
 
-    const res = await fetch("/api/team/member", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-
+    // A role change 401s for step-up; pure profile self-edits pass straight through (no modal).
+    await submit(
+      (stepUpToken) => fetch("/api/team/member", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, ...(stepUpToken ? { stepUpToken } : {}) }),
+      }),
+      () => { toast.success("Saved"); onSaved(); onClose() },
+    )
     setSaving(false)
-    if (!res.ok) {
-      const { error } = await res.json() as { error: string }
-      toast.error(error ?? "Failed to save")
-    } else {
-      toast.success("Saved")
-      onSaved()
-      onClose()
-    }
   }
 
   const displayName = getMemberDisplayName(member)
@@ -386,6 +383,7 @@ function EditMemberModal({
           <ActionButton tone="primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</ActionButton>
         </DialogFooter>
       </DialogContent>
+      {stepUpModal}
     </Dialog>
   )
 }
@@ -444,6 +442,7 @@ export function MembersTab() {
   const [archivingMember, setArchivingMember] = useState<Member | null>(null)
   const [archiveWorkload, setArchiveWorkload] = useState({ workItems: 0, properties: 0 })
   const { sortKey, sortDir, onSort }    = useListSort<"name" | "role">("name")
+  const { submit: submitAccess, stepUpModal: accessStepUpModal } = useStepUpSubmit("change team access")  // remove / admin-toggle are re-auth-gated (Finding 1.2)
 
   const showEmergency = PORTFOLIO_TIERS.has(tier)
 
@@ -589,18 +588,14 @@ export function MembersTab() {
 
   async function handleRemove(memberOrgId: string) {
     if (!orgId) return
-    const res = await fetch("/api/team/member", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ memberOrgId, orgId }),
-    })
-    if (!res.ok) {
-      const { error } = await res.json() as { error: string }
-      toast.error(error ?? "Failed to remove member")
-    } else {
-      toast.success("Member removed")
-      loadMembers(createClient())
-    }
+    await submitAccess(
+      (stepUpToken) => fetch("/api/team/member", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberOrgId, orgId, ...(stepUpToken ? { stepUpToken } : {}) }),
+      }),
+      () => { toast.success("Member removed"); loadMembers(createClient()) },
+    )
   }
 
   // Archive flow: if the member owns work/properties, reassign first (ADDENDUM_TEAMS §1d two-flow); else
@@ -617,18 +612,14 @@ export function MembersTab() {
 
   async function handleToggleAdmin(member: Member) {
     if (!orgId) return
-    const res = await fetch("/api/team/member", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: member.user_id, orgId, is_admin: !member.is_admin }),
-    })
-    if (!res.ok) {
-      const { error } = await res.json() as { error: string }
-      toast.error(error ?? "Failed to update admin status")
-    } else {
-      toast.success(member.is_admin ? "Admin access revoked" : "Admin access granted")
-      loadMembers(createClient())
-    }
+    await submitAccess(
+      (stepUpToken) => fetch("/api/team/member", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: member.user_id, orgId, is_admin: !member.is_admin, ...(stepUpToken ? { stepUpToken } : {}) }),
+      }),
+      () => { toast.success(member.is_admin ? "Admin access revoked" : "Admin access granted"); loadMembers(createClient()) },
+    )
   }
 
   async function handleRevokeInvite(inviteId: string) {
@@ -829,6 +820,7 @@ export function MembersTab() {
         </Card>
       )}
 
+      {accessStepUpModal}
     </div>
   )
 }

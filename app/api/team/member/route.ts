@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { assignableRoleSlugs } from "@/lib/auth/orgRoles"
+import { requireStepUp } from "@/lib/auth/step-up"
 
 const ALLOWED_PROFILE_FIELDS = ["title", "first_name", "last_name", "mobile", "emergency_phone", "emergency_contact_name"] as const
 const ALLOWED_ORG_FIELDS = ["role", "additional_roles"] as const
@@ -111,6 +112,16 @@ async function handleReactivate(
   return NextResponse.json({ ok: true })
 }
 
+// Access-control changes (role / additional_roles / is_admin / member removal) are re-auth-gated
+// (ADDENDUM_AUTH_HARDENING Finding 1.2) — additive to the isAdmin/owner checks. Returns a 401 challenge when
+// step-up is needed and unverified; null to proceed.
+async function teamRoleStepUp(userId: string, resourceId: string, token: unknown): Promise<NextResponse | null> {
+  const stepUp = await requireStepUp({
+    userId, action: "team_role_change", resourceId, providedToken: typeof token === "string" ? token : undefined,
+  })
+  return stepUp.verified ? null : NextResponse.json({ challengeToken: stepUp.challengeToken }, { status: 401 })
+}
+
 // PATCH /api/team/member
 // Body: { userId, orgId, ...profileFields, ...orgFields, is_admin? }
 // Own profile fields (title, name, mobile, emergency): any authenticated org member
@@ -184,6 +195,12 @@ export async function PATCH(req: NextRequest) {
   const roleErr = await validateRoleChange(orgId, body, callerIsAdmin)
   if (roleErr) return NextResponse.json({ error: roleErr }, { status: 400 })
 
+  // Step-up on access-control changes (not pure profile self-edits).
+  if ("role" in body || "additional_roles" in body || "is_admin" in body) {
+    const challenge = await teamRoleStepUp(user.id, target.id, body.stepUpToken)
+    if (challenge) return challenge
+  }
+
   const errors = await applyMemberPatches(service, target, userId, body, callerIsAdmin, callerIsOwner)
   if (errors.length > 0) return NextResponse.json({ error: errors.join("; ") }, { status: 500 })
 
@@ -249,6 +266,9 @@ export async function DELETE(req: NextRequest) {
   if (target.role === "owner") {
     return NextResponse.json({ error: "Cannot remove the owner" }, { status: 403 })
   }
+
+  const challenge = await teamRoleStepUp(user.id, memberOrgId, body.stepUpToken)
+  if (challenge) return challenge
 
   const { error } = await service
     .from("user_orgs")
