@@ -239,14 +239,34 @@ async function getSubscriptionState(orgId: string): Promise<SubscriptionState> {
 // charges; send_manual_comm — many senders) + the finance actions are gated at their call sites instead, and
 // unmapped/arbitrary actions are not capability-gated here (the route guard is their access control).
 const ACTION_CAPABILITY: Record<string, string> = {
+  // leases
   create_lease: "leases", activate_lease: "leases", renew_lease: "leases", terminate_lease: "leases",
+  // properties (+ warranties, which are property records)
   create_property: "properties", edit_property: "properties",
-  create_tenant: "tenants", edit_tenant: "tenants",
-  create_application: "applications", run_searchworx_check: "applications",
+  create_warranty: "properties", archive_warranty: "properties",
+  // tenants
+  create_tenant: "tenants", edit_tenant: "tenants", update_tenant: "tenants", ensure_tenant_for_contact: "tenants",
+  // landlords
+  create_landlord: "landlords", update_landlord: "landlords", add_self_as_landlord: "landlords",
+  // applications
+  create_application: "applications", run_searchworx_check: "applications", upload_application_document: "applications",
+  // inspections
   sign_off_inspection: "inspections",
+  // maintenance (incl. contractors/suppliers)
   assign_maintenance: "maintenance", accept_quote: "maintenance",
+  add_contractor: "maintenance", update_contractor: "maintenance", reactivate_supplier: "maintenance",
+  // finance (bank import + reconciliation sign-off; payment/arrears/trust actions are call-site gated)
+  create_bank_import: "finance", sign_off_recon: "finance",
+  // team
   invite_user: "team", change_team_role: "team",
+  create_team: "team", update_team: "team", archive_team: "team", add_team_member: "team", remove_team_member: "team",
+  // org settings
+  edit_org_settings: "org",
+  // documents
   run_ai_clause_draft: "documents",
+  // NOTE deliberately NOT mapped (call-site gated or intentionally broad): edit_lease (reused by deposit
+  // charges → finance call-site), send_manual_comm (reused across domains → call-site), update_profile
+  // (own account — never gate), save_signature (portal), work-reassignment actions (not destructive/cost).
 }
 
 export async function requireAgentWriteAccess(

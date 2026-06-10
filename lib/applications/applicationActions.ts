@@ -7,6 +7,7 @@
  */
 
 import { gateway } from "@/lib/supabase/gateway"
+import { hasCapability } from "@/lib/auth/can"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { revalidatePath } from "next/cache"
 import { buildEmailContext } from "./buildEmailContext"
@@ -22,6 +23,7 @@ import {
 export async function declineStage1Action(applicationId: string) {
   const gw = await gateway()
   if (!gw) return { error: "Unauthorized" }
+  if (!(await hasCapability(gw, "applications"))) return { error: "Applications access is required." }
   const { db, userId, orgId } = gw
 
   const { error } = await db
@@ -50,6 +52,7 @@ export async function declineStage1Action(applicationId: string) {
 export async function approveAction(applicationId: string, agentId: string, tenantId: string) {
   const gw = await gateway()
   if (!gw) return { error: "Unauthorized" }
+  if (!(await hasCapability(gw, "applications"))) return { error: "Applications access is required." }
   const { db, userId, orgId } = gw
 
   const { error } = await db
@@ -83,6 +86,7 @@ export async function approveAction(applicationId: string, agentId: string, tena
 export async function declineStage2Action(applicationId: string) {
   const gw = await gateway()
   if (!gw) return { error: "Unauthorized" }
+  if (!(await hasCapability(gw, "applications"))) return { error: "Applications access is required." }
   const { db, userId, orgId } = gw
 
   const { error } = await db
