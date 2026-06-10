@@ -26,6 +26,7 @@ import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import type { Tier } from "@/lib/constants"
 import { type SurrenderedCommRow } from "./SurrenderedCommsWidget"
 import { DashboardAlertsBell } from "./DashboardAlertsBell"
+import { getEmailVerificationState } from "@/lib/actions/emailVerification"
 import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
 import { getTrustBalance } from "@/lib/dashboard/trustBalance"
@@ -297,6 +298,8 @@ export default async function DashboardPage() {
     }
   })
 
+  const emailVerify = await getEmailVerificationState()
+
   return (
     <>
     <div className="lg:hidden">
@@ -317,6 +320,7 @@ export default async function DashboardPage() {
               showDepositSetup={showTrustBanner}
               tier={tier as Tier}
               leaseCount={leasesCountRes.count ?? 0}
+              emailVerify={emailVerify}
             />
             <QuickAddMenu />
           </div>

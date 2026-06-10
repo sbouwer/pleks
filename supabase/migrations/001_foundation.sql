@@ -115,6 +115,11 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
 
+-- Soft email verification: signup uses admin.createUser({ email_confirm: true }) so auth.users.email_confirmed_at
+-- is auto-set and proves nothing. This column tracks REAL ownership — set when the user clicks the verification
+-- magic link (/auth/verify-email). NULL = unverified (soft notice; non-blocking).
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS email_verified_at timestamptz;
+
 
 -- ═══════════════════════════════════════════════════════════════
 -- SECTION: User Orgs (many-to-many)

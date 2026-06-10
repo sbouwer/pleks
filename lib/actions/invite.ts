@@ -59,6 +59,10 @@ export async function acceptInviteNewUser(
 
   const userId = created.user.id
 
+  // Accepting an emailed invite proves the user owns this inbox — mark email verified so they never see the
+  // verification notice (that's for self-signup, where the address is unproven). Upsert keeps any trigger row.
+  await service.from("user_profiles").upsert({ id: userId, email_verified_at: new Date().toISOString() }, { onConflict: "id" })
+
   // Sign in immediately so the client has a session for /welcome
   const supabase = await createClient()
   const { error: signInErr } = await supabase.auth.signInWithPassword({
