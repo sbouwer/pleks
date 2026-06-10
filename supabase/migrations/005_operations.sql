@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS contractors (
   -- Contractor portal access
   portal_access_enabled boolean DEFAULT false,
   portal_invite_sent_at timestamptz,
-  access_token    text UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+  -- access_token (old token-link mechanism) removed §32 — superseded by auth_user_id (ADDENDUM_AUTH_HARDENING P-2)
   auth_user_id    uuid REFERENCES auth.users(id),
   notification_email boolean DEFAULT true,
   notification_sms   boolean DEFAULT false,
@@ -2768,3 +2768,13 @@ CREATE INDEX IF NOT EXISTS idx_applications_assigned_user
   ON applications(org_id, assigned_user_id) WHERE assigned_user_id IS NOT NULL;
 COMMENT ON COLUMN applications.assigned_user_id IS
   'Individual assignee (auth.users). NULL = Everyone/Org shared bucket (ADDENDUM_TEAMS D-11/12); defaults to the creating agent.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §32  ADDENDUM_AUTH_HARDENING P-2: drop vestigial contractors.access_token
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Old token-link portal-access mechanism, superseded by contractors.auth_user_id (Supabase auth). Zero code
+-- reads (grep-verified) and no view dependency (live pg_depend check — only the auto UNIQUE index, dropped with
+-- the column; 7 rows held inert default tokens). A deliberate destructive drop — the rare amend-forward exception
+-- (D-8 / BUILD_72 token hygiene). Also removed from the CREATE TABLE above so a fresh replay never adds it; this
+-- DROP IF EXISTS cleans any DB created before that removal. Idempotent: re-run is a clean no-op.
+ALTER TABLE contractors DROP COLUMN IF EXISTS access_token;

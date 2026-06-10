@@ -1077,7 +1077,6 @@
       "hourly_rate_cents",
       "portal_access_enabled",
       "portal_invite_sent_at",
-      "access_token",
       "auth_user_id",
       "notification_email",
       "notification_sms",
