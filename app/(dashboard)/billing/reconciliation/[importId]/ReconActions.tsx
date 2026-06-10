@@ -41,7 +41,13 @@ export function ReconActions({ importId, reconciled, unmatched }: ReconActionsPr
   }
 
   async function handleSignOff() {
-    const result = await signOffReconciliation(importId)
+    let result = await signOffReconciliation(importId)
+    // Non-zero discrepancy (F-5): require an explicit accept-variance reason before closing.
+    if (result && "needsVariance" in result && result.needsVariance) {
+      const reason = window.prompt(`${result.error}\n\nTo sign off anyway, enter the reason for accepting this variance:`)?.trim()
+      if (!reason) { toast.info("Sign-off cancelled — discrepancy not accepted"); return }
+      result = await signOffReconciliation(importId, { reason })
+    }
     if (result?.error) {
       toast.error(result.error)
     } else {

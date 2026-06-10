@@ -324,7 +324,7 @@ export async function runAutoMatch(importId: string): Promise<{ matched: number 
   return { matched }
 }
 
-export async function signOffReconciliation(importId: string) {
+export async function signOffReconciliation(importId: string, acceptVariance?: { reason: string }) {
   const gw = await requireAgentWriteAccess("sign_off_recon")
   const { db, userId } = gw
 
@@ -340,6 +340,24 @@ export async function signOffReconciliation(importId: string) {
     return { error: "All transactions must be matched or ignored before sign-off" }
   }
 
+  // F-5 part 2: don't let a reconciliation close with an unexplained discrepancy. Require it to net to zero, or
+  // an explicit accept-variance with a reason (audited). Reads the maintained field from F-5 part 1.
+  const { data: imp, error: impError } = await db
+    .from("bank_statement_imports")
+    .select("org_id, balance_discrepancy_cents")
+    .eq("id", importId)
+    .single()
+    logQueryError("signOffReconciliation bank_statement_imports", impError)
+
+  const discrepancy = imp?.balance_discrepancy_cents ?? 0
+  if (discrepancy !== 0 && !acceptVariance?.reason?.trim()) {
+    return {
+      error: `This statement doesn't reconcile to zero (R${(discrepancy / 100).toFixed(2)} unaccounted). Resolve the matches, or sign off with an accepted-variance reason.`,
+      needsVariance: true,
+      discrepancyCents: discrepancy,
+    }
+  }
+
   const { error } = await db
     .from("bank_statement_imports")
     .update({
@@ -352,13 +370,6 @@ export async function signOffReconciliation(importId: string) {
 
   if (error) return { error: error.message }
 
-  const { data: imp, error: impError } = await db
-    .from("bank_statement_imports")
-    .select("org_id")
-    .eq("id", importId)
-    .single()
-    logQueryError("signOffReconciliation bank_statement_imports", impError)
-
   if (imp) {
     await db.from("audit_log").insert({
       org_id: imp.org_id,
@@ -366,7 +377,10 @@ export async function signOffReconciliation(importId: string) {
       record_id: importId,
       action: "UPDATE",
       changed_by: userId,
-      new_values: { reconciled: true },
+      new_values: {
+        reconciled: true,
+        ...(discrepancy !== 0 ? { variance_accepted_cents: discrepancy, variance_reason: acceptVariance?.reason?.trim() } : {}),
+      },
     })
   }
 
