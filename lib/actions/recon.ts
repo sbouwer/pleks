@@ -1,13 +1,13 @@
 "use server"
 
 /**
- * lib/actions/recon.ts — FILL: one-line purpose
+ * lib/actions/recon.ts — bank-statement import, auto-match + manual resolve, reconciliation sign-off
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess("sign_off_recon") on the mutating actions.
+ * Data:   bank_statement_imports + bank_statement_lines + rent_invoices/payments via the gateway db; audited.
+ * Notes:  recomputeDiscrepancy() maintains bank_statement_imports.balance_discrepancy_cents after every match
+ *         change (F-5 part 1) — the figure the reconciliation page shows. The sign-off-on-zero gate (F-5 part 2)
+ *         builds on this; don't gate until the field is maintained (it now is, here).
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
@@ -68,6 +68,37 @@ async function insertStatementLines(
   return inserted?.length ?? 0
 }
 
+/**
+ * Compute + store the reconciliation discrepancy (F-5 part 1). pleks_calculated_closing = opening_balance +
+ * Σ(matched credits − matched debits); balance_discrepancy_cents = statement_closing − pleks_calculated_closing.
+ * "Matched" = any line not unmatched/ignored (same set as matched_count). Surfaces "your statement doesn't
+ * reconcile to zero" so the agent can investigate before sign-off. No-op until both statement balances are known.
+ */
+async function recomputeDiscrepancy(db: SupabaseClient, importId: string): Promise<void> {
+  const { data: imp, error: impErr } = await db
+    .from("bank_statement_imports")
+    .select("opening_balance_cents, closing_balance_cents")
+    .eq("id", importId)
+    .single()
+  logQueryError("recomputeDiscrepancy bank_statement_imports", impErr)
+  if (imp?.opening_balance_cents == null || imp?.closing_balance_cents == null) return
+
+  const { data: lines, error: linesErr } = await db
+    .from("bank_statement_lines")
+    .select("amount_cents, direction, match_status")
+    .eq("import_id", importId)
+  logQueryError("recomputeDiscrepancy bank_statement_lines", linesErr)
+
+  let matchedNet = 0
+  for (const l of lines ?? []) {
+    if (l.match_status === "unmatched" || l.match_status === "ignored") continue
+    matchedNet += l.direction === "credit" ? l.amount_cents : -l.amount_cents
+  }
+  const discrepancy = imp.closing_balance_cents - (imp.opening_balance_cents + matchedNet)
+
+  await db.from("bank_statement_imports").update({ balance_discrepancy_cents: discrepancy }).eq("id", importId)
+}
+
 async function autoMatchLines(
   db: SupabaseClient,
   orgId: string,
@@ -124,6 +155,7 @@ async function autoMatchLines(
     .update({ transaction_count: total, matched_count: matchedCount, unmatched_count: unmatchedCount })
     .eq("id", importId)
 
+  await recomputeDiscrepancy(db, importId)
   return matched
 }
 
@@ -275,9 +307,10 @@ export async function resolveStatementLine(
     if (matchData?.supplierInvoiceId) updates.matched_supplier_inv_id = matchData.supplierInvoiceId
   }
 
-  const { error } = await db.from("bank_statement_lines").update(updates).eq("id", lineId)
+  const { data: updated, error } = await db.from("bank_statement_lines").update(updates).eq("id", lineId).select("import_id").single()
   if (error) return { error: error.message }
 
+  if (updated?.import_id) await recomputeDiscrepancy(db, updated.import_id as string)
   revalidatePath("/billing/reconciliation")
   return { success: true }
 }
