@@ -18,6 +18,7 @@ import { GET as leaseExpiryCheck } from "../lease-expiry-check/route"
 import { GET as scheduledReports } from "../scheduled-reports/route"
 import { GET as ownerStatementGen } from "../owner-statement-gen/route"
 import { GET as depositInterest } from "../deposit-interest/route"
+import { GET as depositDeadlineCheck } from "../deposit-deadline-check/route"
 import { GET as levyGenerate } from "../levy-generate/route"
 import { GET as trustPeriodClose } from "../trust-period-close/route"
 import { GET as arrearsInterest } from "../arrears-interest/route"
@@ -94,6 +95,7 @@ export async function GET(req: NextRequest) {
   await runJob("lease_expiry_check", leaseExpiryCheck, cronReq, results)
   await runJob("scheduled_reports", scheduledReports, cronReq, results)
   await runJob("deposit_interest", depositInterest, cronReq, results)
+  await runJob("deposit_deadline_check", depositDeadlineCheck, cronReq, results)
   await runJob("arrears_interest", arrearsInterest, cronReq, results)
   await runJob("trial_expiry", trialExpiry, cronReq, results)
   await runJob("billing_cascade", billingCascade, cronReq, results)
