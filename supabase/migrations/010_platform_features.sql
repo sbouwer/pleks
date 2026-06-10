@@ -1293,6 +1293,11 @@ CREATE TABLE IF NOT EXISTS external_links (
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
 
+-- ADDENDUM_CRON_RELIABILITY C-2: debounce link-health alerts. check-links increments this on a failed run and
+-- resets it to 0 on a healthy one; the alert fires only once N consecutive checks have failed (kills transient
+-- network blips + bot-block flaps that produced the false-positive 404s).
+ALTER TABLE external_links ADD COLUMN IF NOT EXISTS consecutive_failures integer NOT NULL DEFAULT 0;
+
 ALTER TABLE external_links ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "external_links_read" ON external_links;
