@@ -217,6 +217,7 @@ const CRON_ROUTES = [
   "/api/cron/lease-expiry-check",
   "/api/cron/arrears-sequence",
   "/api/cron/deposit-interest",
+  "/api/cron/deposit-deadline-check",
   "/api/cron/trial-expiry",
   "/api/cron/prime-rate-sync",
   "/api/cron/application-reminders",
