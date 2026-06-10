@@ -11,6 +11,7 @@ import { differenceInDays, format, startOfMonth } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"
 import { resolveDepositInterestConfig, resolveEffectiveRate } from "@/lib/deposits/interestConfig"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordTrustTransaction } from "@/lib/trust/invariants"
 
 /**
  * Pure calculation — used by both the server action and the cron route.
@@ -124,15 +125,17 @@ export async function accrueDepositInterest(
   })
 
   // Also record to trust_transactions (main trust ledger)
-  await supabase.from("trust_transactions").insert({
-    org_id: lease.org_id,
-    lease_id: leaseId,
-    transaction_type: "deposit_interest",
+  await recordTrustTransaction({
+    orgId: lease.org_id,
+    leaseId,
+    transactionType: "deposit_interest",
     direction: "credit",
-    amount_cents: interestCents,
+    amountCents: interestCents,
     description: `Deposit interest: ${ratePercent.toFixed(2)}% p.a. × ${daysElapsed} days`,
-    statement_month: startOfMonth(upToDate).toISOString(),
-  })
+    statementMonth: startOfMonth(upToDate).toISOString(),
+    source: "agency_bank",
+    initiatedBy: "pleks_system",   // cron interest accrual — inbound credit, allowed (Rule 2 blocks only outbound system)
+  }).catch((e) => console.error("[trust] deposit_interest insert failed:", e instanceof Error ? e.message : String(e)))
 
   // Update last accrued date
   await supabase

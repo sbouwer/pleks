@@ -11,6 +11,7 @@
 import * as React from "react"
 import { SupabaseClient } from "@supabase/supabase-js"
 import { createServiceClient } from "@/lib/supabase/server"
+import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
@@ -102,11 +103,12 @@ async function stepRecordDeposit(
       amount_cents: lease.deposit_amount_cents,
       description: "Security deposit received", created_by: userId ?? null,
     })
-    await supabase.from("trust_transactions").insert({
-      org_id: orgId, property_id: lease.property_id, unit_id: lease.unit_id,
-      lease_id: leaseId, transaction_type: "deposit_received", direction: "credit",
-      amount_cents: lease.deposit_amount_cents,
-      description: "Security deposit", created_by: userId ?? null,
+    await recordTrustTransaction({
+      orgId, propertyId: lease.property_id ?? undefined, unitId: lease.unit_id ?? undefined,
+      leaseId, transactionType: "deposit_received", direction: "credit",
+      amountCents: lease.deposit_amount_cents,
+      description: "Security deposit", createdBy: userId ?? undefined,
+      source: "agency_bank", initiatedBy: "agent",
     })
     return { step: "Record deposit", status: "success", detail: `R ${(lease.deposit_amount_cents / 100).toFixed(2)}` }
   } catch (e) {

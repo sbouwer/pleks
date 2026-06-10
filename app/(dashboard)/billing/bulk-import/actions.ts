@@ -9,6 +9,7 @@
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
+import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { allocatePayment } from "@/lib/finance/paymentAllocation"
@@ -193,19 +194,21 @@ async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receip
       paid_at: newStatus === "paid" ? new Date().toISOString() : null,
     }).eq("id", p.invoiceId)
 
-    await db.from("trust_transactions").insert({
-      org_id: orgId,
-      unit_id: inv.unit_id,
-      lease_id: p.leaseId,
-      transaction_type: "rent_received",
+    await recordTrustTransaction({
+      orgId,
+      unitId: inv.unit_id ?? undefined,
+      leaseId: p.leaseId ?? undefined,
+      transactionType: "rent_received",
       direction: "credit",
-      amount_cents: p.amountCents,
+      amountCents: p.amountCents,
       description: "Bulk import — " + (p.reference ?? p.description),
       reference: receiptNumber,
-      invoice_id: p.invoiceId,
-      statement_month: p.date.slice(0, 7) + "-01",
-      created_by: userId,
-    })
+      invoiceId: p.invoiceId,
+      statementMonth: p.date.slice(0, 7) + "-01",
+      createdBy: userId,
+      source: "agency_bank",
+      initiatedBy: "agent",
+    }).catch((e) => console.error("[trust] rent_received (bulk) insert failed:", e instanceof Error ? e.message : String(e)))
 
     if (p.leaseId) {
       await allocatePayment(payment.id, p.leaseId, p.amountCents, userId)

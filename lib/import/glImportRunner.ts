@@ -41,6 +41,12 @@ function isWithinDateFilter(
   return date >= from && date <= to
 }
 
+// ⚠ ADDENDUM_FINANCIAL_INTEGRITY F-3: this returns "rent_invoice", which is NOT a valid trust_transactions
+// transaction_type (CHECK enum) — so GL "invoice" lines currently fail to insert into the trust ledger (error
+// pushed to result.errors). The two trust_transactions inserts below are therefore NOT yet routed through
+// recordTrustTransaction (the rest of F-3 is). Resolving needs a TPN-GL-domain call: does a GL invoice belong in
+// the trust ledger at all (it's a charge, not a money movement), or map to a valid type? Until then, the
+// invariant-coverage ratchet's trust entry stays pending and the direct-insert ESLint ban is held.
 function mapTransactionType(
   txType: GLTransaction["type"],
 ): string {

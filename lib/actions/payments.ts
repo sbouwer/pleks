@@ -14,6 +14,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { hasCapability } from "@/lib/auth/can"
 import { revalidatePath } from "next/cache"
 import { allocatePayment } from "@/lib/finance/paymentAllocation"
+import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { PaymentReceivedEmail } from "@/lib/comms/templates/tenant/rent/payment-received"
@@ -96,20 +97,21 @@ export async function recordPayment(formData: FormData) {
   const currentMonth = new Date()
   currentMonth.setDate(1)
 
-  await db.from("trust_transactions").insert({
-    org_id: orgId,
-    property_id: null,
-    unit_id: invoice.unit_id,
-    lease_id: invoice.lease_id,
-    transaction_type: "rent_received",
+  await recordTrustTransaction({
+    orgId,
+    unitId: invoice.unit_id ?? undefined,
+    leaseId: invoice.lease_id ?? undefined,
+    transactionType: "rent_received",
     direction: "credit",
-    amount_cents: amountCents,
+    amountCents,
     description: `Payment received — ${paymentMethod.toUpperCase()}${reference ? ` ref: ${reference}` : ""}`,
     reference: receiptNumber,
-    invoice_id: invoiceId,
-    statement_month: currentMonth.toISOString().split("T")[0],
-    created_by: userId,
-  })
+    invoiceId,
+    statementMonth: currentMonth.toISOString().split("T")[0],
+    createdBy: userId,
+    source: "agency_bank",
+    initiatedBy: "agent",
+  }).catch((e) => console.error("[trust] rent_received insert failed:", e instanceof Error ? e.message : String(e)))
 
   // Allocate payment: interest first, then rent (lease clause 6.6)
   if (invoice.lease_id) {

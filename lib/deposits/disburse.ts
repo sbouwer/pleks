@@ -15,6 +15,7 @@
  */
 import * as React from "react"
 import { createServiceClient } from "@/lib/supabase/server"
+import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { formatZAR } from "@/lib/constants"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
@@ -214,19 +215,17 @@ async function settlePatternB(
   if (dtErr) throw new Error(`Pattern B deposit_transactions insert failed: ${dtErr.message}`)
 
   // Trust credit — recovers the expense that was paid from trust
-  const { error: ttErr } = await supabase
-    .from("trust_transactions")
-    .insert({
-      org_id:           recon.org_id,
-      lease_id:         recon.lease_id,
-      transaction_type: "deposit_deduction",
-      direction:        "credit",
-      amount_cents:     charge.deduction_amount_cents,
-      description:      `${charge.description} — cost recovery from deposit (${sourceLabel})`,
-      created_by:       agentId,
-    })
-
-  if (ttErr) throw new Error(`Pattern B trust_transactions insert failed: ${ttErr.message}`)
+  await recordTrustTransaction({
+    orgId:           recon.org_id,
+    leaseId:         recon.lease_id,
+    transactionType: "deposit_deduction",
+    direction:       "credit",
+    amountCents:     charge.deduction_amount_cents,
+    description:     `${charge.description} — cost recovery from deposit (${sourceLabel})`,
+    createdBy:       agentId,
+    source:          "agency_bank",
+    initiatedBy:     "agent",
+  })
 
   await supabase
     .from("deposit_charges")
@@ -362,15 +361,17 @@ export async function disburseDeposit(leaseId: string, agentId: string) {
       created_by:       agentId,
     })
 
-    await supabase.from("trust_transactions").insert({
-      org_id:           recon.org_id,
-      lease_id:         leaseId,
-      transaction_type: "deposit_refund",
-      direction:        "debit",
-      amount_cents:     recon.refund_to_tenant_cents,
-      description:      `Deposit refund to tenant — ${tenantName}`,
-      created_by:       agentId,
-    })
+    await recordTrustTransaction({
+      orgId:           recon.org_id,
+      leaseId,
+      transactionType: "deposit_returned",   // was the invalid 'deposit_refund' (not in the CHECK) — F-3
+      direction:       "debit",
+      amountCents:     recon.refund_to_tenant_cents as number,
+      description:     `Deposit refund to tenant — ${tenantName}`,
+      createdBy:       agentId,
+      source:          "agency_bank",
+      initiatedBy:     "agent",
+    }).catch((e) => console.error("[trust] deposit_returned insert failed:", e instanceof Error ? e.message : String(e)))
   }
 
   // 2. Damage deductions to landlord
@@ -387,15 +388,17 @@ export async function disburseDeposit(leaseId: string, agentId: string) {
       created_by:       agentId,
     })
 
-    await supabase.from("trust_transactions").insert({
-      org_id:           recon.org_id,
-      lease_id:         leaseId,
-      transaction_type: "deposit_deduction",
-      direction:        "credit",
-      amount_cents:     recon.deductions_to_landlord_cents,
-      description:      "Deposit deductions received",
-      created_by:       agentId,
-    })
+    await recordTrustTransaction({
+      orgId:           recon.org_id,
+      leaseId,
+      transactionType: "deposit_deduction",
+      direction:       "credit",
+      amountCents:     recon.deductions_to_landlord_cents as number,
+      description:     "Deposit deductions received",
+      createdBy:       agentId,
+      source:          "agency_bank",
+      initiatedBy:     "agent",
+    }).catch((e) => console.error("[trust] deposit_deduction insert failed:", e instanceof Error ? e.message : String(e)))
   }
 
   // 3. Forfeiture check

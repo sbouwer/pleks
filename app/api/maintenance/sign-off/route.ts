@@ -12,6 +12,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { recordTrustTransaction } from "@/lib/trust/invariants"
 import * as React from "react"
 import { addMonths } from "date-fns"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
@@ -49,19 +50,21 @@ async function writeFinancialRecords(
     .toISOString().split("T")[0]
 
   for (const alloc of created.filter((a) => a.allocation_type === "landlord_expense")) {
-    await service.from("trust_transactions").insert({
-      org_id: orgId,
-      property_id: request.property_id,
-      unit_id: request.unit_id,
-      lease_id: request.lease_id,
-      transaction_type: "maintenance_expense",
+    await recordTrustTransaction({
+      orgId,
+      propertyId: request.property_id ?? undefined,
+      unitId: request.unit_id ?? undefined,
+      leaseId: request.lease_id ?? undefined,
+      transactionType: "maintenance_expense",
       direction: "debit",
-      amount_cents: alloc.amount_cents,
+      amountCents: alloc.amount_cents,
       description: alloc.description,
-      maintenance_request_id: requestId,
-      statement_month: statementMonth,
-      created_by: userId,
-    })
+      maintenanceRequestId: requestId,
+      statementMonth: statementMonth,
+      createdBy: userId,
+      source: "agency_bank",
+      initiatedBy: "agent",
+    }).catch((e) => console.error("[trust] maintenance_expense insert failed:", e instanceof Error ? e.message : String(e)))
   }
 
   if (request.lease_id) {

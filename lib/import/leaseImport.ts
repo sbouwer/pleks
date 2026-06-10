@@ -10,6 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { createClient } from "@/lib/supabase/server"
+import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { parseCSV, type ImportResult } from "./csvParser"
 import { validateLeaseRow } from "./validators"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -87,19 +88,21 @@ async function createOpeningBalances(
   const { orgId, agentId, propertyId, unitId, leaseId, tenantId, depositCents, leaseType, row } = params
 
   if (depositCents > 0) {
-    await supabase.from("trust_transactions").insert({
-      org_id: orgId,
-      property_id: propertyId,
-      unit_id: unitId,
-      lease_id: leaseId,
-      transaction_type: "deposit_received",
+    await recordTrustTransaction({
+      orgId,
+      propertyId: propertyId ?? undefined,
+      unitId: unitId ?? undefined,
+      leaseId,
+      transactionType: "deposit_received",
       direction: "credit",
-      amount_cents: depositCents,
+      amountCents: depositCents,
       description: `Opening balance — deposit migrated`,
       reference: `MIGRATION-${new Date().toISOString().slice(0, 10)}`,
-      is_opening_balance: true,
-      created_by: agentId,
-    })
+      isOpeningBalance: true,
+      createdBy: agentId,
+      source: "agency_bank",
+      initiatedBy: "agent",
+    }).catch((e) => console.error("[trust] deposit_received (migration) insert failed:", e instanceof Error ? e.message : String(e)))
 
     await supabase.from("deposit_transactions").insert({
       org_id: orgId,

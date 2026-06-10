@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function getOrgId(): Promise<string | null> {
@@ -120,20 +121,22 @@ export async function POST(req: NextRequest) {
       : null
 
     const refSuffix = p.reference ? ` — ref: ${p.reference}` : ""
-    await service.from("trust_transactions").insert({
-      org_id: orgId,
-      lease_id: inv.lease_id,
-      unit_id: inv.unit_id,
-      transaction_type: "rent_received",
+    await recordTrustTransaction({
+      orgId,
+      leaseId: inv.lease_id ?? undefined,
+      unitId: inv.unit_id ?? undefined,
+      transactionType: "rent_received",
       direction: "credit",
-      amount_cents: applied,
+      amountCents: applied,
       description: `Rent payment${refSuffix}`,
-      reference: p.reference || null,
-      invoice_id: p.invoiceId,
-      payment_method: safeMethod,
-      statement_month: monthStart,
-      created_by: user.id,
-    })
+      reference: p.reference || undefined,
+      invoiceId: p.invoiceId,
+      paymentMethod: safeMethod ?? undefined,
+      statementMonth: monthStart,
+      createdBy: user.id,
+      source: "agency_bank",
+      initiatedBy: "agent",
+    }).catch((e) => console.error("[trust] rent_received insert failed:", e instanceof Error ? e.message : String(e)))
 
     recorded++
     totalCents += applied
