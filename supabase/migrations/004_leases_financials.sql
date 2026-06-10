@@ -1752,3 +1752,15 @@ CREATE TRIGGER trg_deduction_justification
 -- agent-asserted, so they need their own reason before they can be confirmed + disbursed (RHA s5). Gated in
 -- lib/actions/deposits.ts confirmDepositCharge + lib/deposits/disburse.ts settlePatternC.
 ALTER TABLE deposit_charges ADD COLUMN IF NOT EXISTS justification text;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_FINANCIAL_INTEGRITY F-3 balance: provenance columns for the D-TRUST-01 guard
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- assertPleksIsNotTrustee() reads source + initiated_by, but they never existed on the table (so the guard
+-- couldn't act even if called). recordTrustTransaction() — now the single insert path — persists them. source
+-- is never 'pleks_controlled_account' (no such account); initiated_by is never 'pleks_system' on an outbound
+-- (debit) movement (Rules 1 + 2). Nullable — historical rows predate the columns; new rows always set them.
+ALTER TABLE trust_transactions ADD COLUMN IF NOT EXISTS source text
+  CHECK (source IS NULL OR source IN ('agency_bank', 'tenant_initiated', 'pleks_controlled_account'));
+ALTER TABLE trust_transactions ADD COLUMN IF NOT EXISTS initiated_by text
+  CHECK (initiated_by IS NULL OR initiated_by IN ('agent', 'tenant', 'pleks_system'));

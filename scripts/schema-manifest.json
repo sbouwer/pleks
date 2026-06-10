@@ -3268,7 +3268,9 @@
       "created_by",
       "created_at",
       "maintenance_request_id",
-      "payment_method"
+      "payment_method",
+      "source",
+      "initiated_by"
     ],
     "unit_clause_defaults": [
       "id",

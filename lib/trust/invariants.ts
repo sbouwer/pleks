@@ -72,6 +72,7 @@ export type TrustTransactionType =
   | "deposit_returned"
   | "deposit_deduction"
   | "adjustment"
+  | "maintenance_expense"
 
 interface RecordTrustTransactionParams {
   orgId: string
@@ -92,6 +93,8 @@ interface RecordTrustTransactionParams {
   statementMonth?: string  // ISO date 'YYYY-MM-DD'
   isOpeningBalance?: boolean
   createdBy?: string
+  maintenanceRequestId?: string
+  paymentMethod?: string
 }
 
 export async function recordTrustTransaction(
@@ -128,6 +131,10 @@ export async function recordTrustTransaction(
       statement_month:      params.statementMonth ?? null,
       is_opening_balance:   params.isOpeningBalance ?? false,
       created_by:           params.createdBy ?? null,
+      maintenance_request_id: params.maintenanceRequestId ?? null,
+      payment_method:       params.paymentMethod ?? null,
+      source:               params.source,
+      initiated_by:         params.initiatedBy,
     })
     .select("id")
     .single()
