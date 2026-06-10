@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
+import { logAuthEvent } from "@/lib/auth/events"
 
 // Soft email verification: clicking the emailed link proves inbox ownership → stamp user_profiles.
 async function stampEmailVerified(supabase: Awaited<ReturnType<typeof createClient>>): Promise<void> {
@@ -32,7 +33,14 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      if (verifyEmail) await stampEmailVerified(supabase)
+      if (verifyEmail) {
+        await stampEmailVerified(supabase)
+      } else if (!next?.includes("reset-password")) {
+        // Genuine sign-in (magic-link / OAuth / invite acceptance) — not verification or password reset.
+        // The callback fires once per one-time code exchange, so this is the initial sign-in, never a refresh.
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) await logAuthEvent({ userId: user.id, eventType: "login_success", success: true })
+      }
       const resolverUrl = new URL(`${origin}/auth/resolver`)
       if (next) {
         const safe = safeRedirect(next)

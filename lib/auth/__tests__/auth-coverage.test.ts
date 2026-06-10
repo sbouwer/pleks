@@ -30,13 +30,26 @@ const values = (src: string, re: RegExp) => [...(re.exec(src)?.[1] ?? "").matchA
 const STEP_UP_ACTIONS = values(read("lib/auth/step-up.ts"), /export type StepUpAction =([\s\S]*?)\n\n/)
 const SECURITY_NOTIFY = values(read("lib/auth/events.ts"), /SECURITY_NOTIFY = new Set<AuthEventType>\(\[([\s\S]*?)\]\)/)
 
-// Declared but not yet enforced/emitted. SHRINK these as the ADDENDUM_AUTH_HARDENING findings land — wiring a
-// value makes the test fail until you delete it here, so the list can't silently go stale.
-const STEP_UP_PENDING = new Set([
+// Pending values, in two HONEST categories (ADDENDUM_AUTH_HARDENING §4 refinement — keeps the ratchet honest
+// instead of a dumping ground):
+//   NO_FEATURE — the underlying feature doesn't exist yet; the gate/emit ships WITH the feature. Acceptable
+//                indefinitely (e.g. recovery_used: no recovery-code login path; role_switched: no /api/switch-role
+//                handler — both have nothing to instrument).
+//   UNWIRED    — the feature EXISTS but the gate/emit isn't wired. Real debt — burn it down. (bank_detail_change,
+//                team_role_change, passkey_unenroll lived here; now wired + removed.)
+// Wiring (or building the feature for) any value still fails the test until it's removed here — debt only shrinks.
+const STEP_UP_NO_FEATURE = new Set<string>([])
+const STEP_UP_UNWIRED = new Set([
   "deposit_refund_approval", "subscription_change", "tenant_data_deletion",
   "security_settings_change", "totp_unenroll", "bulk_export",
 ])
-const NOTIFY_PENDING = new Set(["totp_unenrolled", "recovery_used"])
+const NOTIFY_NO_FEATURE = new Set([
+  "recovery_used",    // recovery-code login consumption path isn't built
+  "totp_unenrolled",  // no remove-authenticator (TOTP) flow built
+])
+const NOTIFY_UNWIRED = new Set<string>([])
+const STEP_UP_PENDING = new Set([...STEP_UP_NO_FEATURE, ...STEP_UP_UNWIRED])
+const NOTIFY_PENDING = new Set([...NOTIFY_NO_FEATURE, ...NOTIFY_UNWIRED])
 
 describe("auth coverage — declarations must not outrun their wiring (ADDENDUM_AUTH_HARDENING §4)", () => {
   it("discovered the declared sets", () => {
