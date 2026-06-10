@@ -11,6 +11,7 @@ import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { jwtIdentity } from "@/lib/auth/passkey-aal"
 import { revokePasskeyAalForSession, clearPasskeyAalCookie } from "@/lib/auth/passkey-aal-server"
+import { logAuthEvent } from "@/lib/auth/events"
 
 /**
  * POST /api/auth/logout
@@ -26,6 +27,7 @@ export async function POST() {
   // (ADDENDUM_69 Slice A). The httpOnly pleks_aal cookie is cleared here too.
   const { data: { session } } = await supabase.auth.getSession()
   const sessionId = session ? jwtIdentity(session.access_token).sessionId : null
+  const userId = session?.user?.id ?? null
 
   await supabase.auth.signOut()
 
@@ -35,6 +37,9 @@ export async function POST() {
 
   if (sessionId) await revokePasskeyAalForSession(sessionId)
   else await clearPasskeyAalCookie()
+
+  // Forensic trail (ADDENDUM_AUTH_HARDENING Finding 2). Not a sensitive/notify event — auth_events only.
+  if (userId) await logAuthEvent({ userId, eventType: "logout", success: true, sessionId: sessionId ?? undefined })
 
   return NextResponse.json({ ok: true })
 }
