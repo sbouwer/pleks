@@ -1,45 +1,21 @@
-"use client"
-
 /**
- * app/(landlord)/landlord/layout.tsx — Landlord/owner portal root layout
+ * app/(landlord)/landlord/layout.tsx — Landlord/owner portal root layout (server auth guard + chrome)
  *
  * Route:  /landlord/*
- * Auth:   Supabase auth + landlord record check (getLandlordSession in each page)
- * Notes:  FeedbackButton mounts here so landlords can submit feedback from any portal page.
+ * Auth:   getLandlordSession — redirects to /login when there's no active landlord session (it redirects
+ *         internally). Defence-in-depth: pages still call it, but the layout is now the boundary.
+ * Notes:  Interactive chrome lives in LandlordPortalShell (client). getLandlordSession is React.cache'd, so this
+ *         guard dedupes with the pages' own calls — no extra DB cost (ADDENDUM_AUTH_HARDENING P-1).
  */
+import { getLandlordSession } from "@/lib/portal/getLandlordSession"
+import { LandlordPortalShell } from "@/components/layout/LandlordPortalShell"
 
-import { useCallback, useState } from "react"
-import { LandlordSidebar, LANDLORD_NAV_GROUPS } from "@/components/portal/LandlordSidebar"
-import { Topbar } from "@/components/layout/TopBar"
-import { MobileNav } from "@/components/layout/MobileNav"
-import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
-import { FeedbackButton } from "@/components/feedback/FeedbackButton"
-import { ConsentGate } from "@/components/legal/ConsentGate"
-
-export default function LandlordPortalLayout({
+export default async function LandlordPortalLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const handleOpenChange = useCallback((open: boolean) => setMobileNavOpen(open), [])
+  await getLandlordSession()  // redirects to /login if there's no active landlord session
 
-  return (
-    <PortalThemeProvider>
-      <ConsentGate />
-      <LandlordSidebar />
-      <MobileNav
-        open={mobileNavOpen}
-        onOpenChange={handleOpenChange}
-        groups={LANDLORD_NAV_GROUPS}
-        homeHref="/landlord/dashboard"
-        badge="Owner"
-      />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar settingsHref="/landlord/profile" />
-        <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
-      </div>
-      <FeedbackButton role="landlord" />
-    </PortalThemeProvider>
-  )
+  return <LandlordPortalShell>{children}</LandlordPortalShell>
 }
