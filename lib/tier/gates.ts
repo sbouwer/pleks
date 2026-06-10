@@ -71,3 +71,34 @@ export function hasFeature(tier: Tier, feature: string): boolean {
 export function hasAccess(orgTier: Tier, requiredTier: Tier): boolean {
   return TIER_ORDER[orgTier] >= TIER_ORDER[requiredTier]
 }
+
+/**
+ * Minimum tier floor per route PREFIX — the single source the nav AND the route guard (requireRouteTier)
+ * both read, so a tier-gated surface can never disagree between sidebar visibility and URL access (Truth
+ * Pipeline). Keyed by the route's own prefix (a child path inherits its parent's floor via tierFloorForPath).
+ * Distinct from TIER_FEATURES (capability features for hasFeature); this is route access only.
+ *   Documents/Trust-account/Data are Steward ("Steward unlocks documents, trust account"); HOA is the Firm
+ *   sectional-title module (hoa_module); Calendar + Trust Ledger are Portfolio/Steward views with no feature
+ *   key of their own. custom_templates stays a separate (Firm) feature — not the basic Documents settings.
+ */
+export const ROUTE_TIER_FLOORS = {
+  "/calendar":             "portfolio",
+  "/finance/trust-ledger": "steward",
+  "/hoa":                  "firm",
+  "/settings/documents":   "steward",
+  "/settings/deposits":    "steward",
+  "/settings/import":      "steward",
+} as const satisfies Record<string, Tier>
+
+/** The tier floor that applies to `path` (longest matching route prefix), or null if the route is untiered. */
+export function tierFloorForPath(path: string): Tier | null {
+  let floor: Tier | null = null
+  let bestLen = -1
+  for (const [route, tier] of Object.entries(ROUTE_TIER_FLOORS)) {
+    if ((path === route || path.startsWith(route + "/")) && route.length > bestLen) {
+      floor = tier
+      bestLen = route.length
+    }
+  }
+  return floor
+}

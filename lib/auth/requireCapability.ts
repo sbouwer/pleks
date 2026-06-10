@@ -10,6 +10,7 @@ import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { hasCapability } from "@/lib/auth/can"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
+import { ROUTE_TIER_FLOORS } from "@/lib/tier/gates"
 import { TIER_ORDER, type Tier } from "@/lib/constants"
 
 export async function requireCapability(capability: string): Promise<void> {
@@ -28,4 +29,9 @@ export async function requireMinTier(minTier: Tier): Promise<void> {
   if (!gw) redirect("/login")
   const tier = await getOrgTierCanonical(gw.orgId)
   if (TIER_ORDER[tier] < TIER_ORDER[minTier]) redirect("/403")
+}
+
+/** Tier route guard whose floor comes from the SSOT (ROUTE_TIER_FLOORS) — keeps nav + route in lockstep. */
+export async function requireRouteTier(route: keyof typeof ROUTE_TIER_FLOORS): Promise<void> {
+  await requireMinTier(ROUTE_TIER_FLOORS[route])
 }

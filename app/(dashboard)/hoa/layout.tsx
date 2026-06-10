@@ -4,10 +4,10 @@
  * Auth:  'properties' capability (owner/is_admin exempt) + Firm tier (NOT exempt — it's a plan feature).
  * Notes: HOA / sectional-title management is a Firm-tier feature; below Firm → /403.
  */
-import { requireCapability, requireMinTier } from "@/lib/auth/requireCapability"
+import { requireCapability, requireRouteTier } from "@/lib/auth/requireCapability"
 
 export default async function Layout({ children }: Readonly<{ children: React.ReactNode }>) {
-  await requireMinTier("firm")
+  await requireRouteTier("/hoa")
   await requireCapability("properties")
   return children
 }

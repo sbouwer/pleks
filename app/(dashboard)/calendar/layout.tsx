@@ -4,9 +4,9 @@
  * Auth:  Portfolio tier or higher (canonical tier; not exempt for owner/admin — it's a plan feature).
  * Notes: The calendar is a cross-cutting view with no single capability; tier is its only gate.
  */
-import { requireMinTier } from "@/lib/auth/requireCapability"
+import { requireRouteTier } from "@/lib/auth/requireCapability"
 
 export default async function Layout({ children }: Readonly<{ children: React.ReactNode }>) {
-  await requireMinTier("portfolio")
+  await requireRouteTier("/calendar")
   return children
 }

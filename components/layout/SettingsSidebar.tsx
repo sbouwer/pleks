@@ -10,9 +10,10 @@
  *         one item (Organisation absorbs branding/hours/configuration; Documents absorbs lease-templates;
  *         My profile absorbs signature; Feedback absorbs the inbox) — those become tabs on the category
  *         pages, so the item links to the primary route for now (extraPrefixes keep the parent highlighted
- *         while on a folded route). Gating is tier-based (useTier.isPaid): Team/Documents/Trust/Data are
- *         paid; Organisation + Compliance stay visible for the free Owner (branding + light POPIA) per the
- *         trimmed-workspace decision. Mobile mirror: components/mobile/MobileSettingsNav.tsx (to re-sync).
+ *         while on a folded route). Gating: tier floors from the ROUTE_TIER_FLOORS SSOT (lib/tier/gates —
+ *         Documents/Trust/Data are Steward+; the same table the route guard reads) + the per-item capability
+ *         (SETTINGS_CAPABILITY). Organisation + Compliance stay visible for the free Owner (branding + light
+ *         POPIA). Mobile mirror: components/mobile/MobileSettingsNav.tsx (to re-sync).
  */
 
 import Link from "next/link"
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils"
 import { useTier } from "@/hooks/useTier"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useCapabilities } from "@/components/auth/CapabilitiesProvider"
+import { tierFloorForPath, hasAccess } from "@/lib/tier/gates"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 
 interface SettingsItem {
@@ -95,7 +97,7 @@ function NavRow({ href, label, icon: Icon, active }: Readonly<{ href: string; la
 
 export function SettingsSidebar() {
   const pathname = usePathname()
-  const { isPaid, isOwner, loading } = useTier()
+  const { tier, isOwner, loading } = useTier()
   const { isAdmin } = usePermissions()  // owner / is_admin — the upgrade nudge is theirs, not every member's
   const { has } = useCapabilities()     // hide settings sections the member lacks the capability for (RBAC P4)
 
@@ -135,7 +137,9 @@ export function SettingsSidebar() {
 
         {GROUPS.map((group) => {
           const items = group.items.filter((it) => {
-            if (it.paid && !isPaid) return false
+            // Tier floor (SSOT — ROUTE_TIER_FLOORS; same source as the route guard)
+            const floor = tierFloorForPath(it.href)
+            if (floor && !hasAccess(tier, floor)) return false
             const reqCap = SETTINGS_CAPABILITY[it.href]
             return !reqCap || has(reqCap)
           })

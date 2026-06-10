@@ -18,6 +18,7 @@ import { useTier } from "@/hooks/useTier"
 import { useNavBadges } from "@/hooks/useNavBadges"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
 import { useCapabilities } from "@/components/auth/CapabilitiesProvider"
+import { tierFloorForPath, hasAccess } from "@/lib/tier/gates"
 import {
   LayoutDashboard,
   Building2,
@@ -108,7 +109,7 @@ const NAV_GROUPS: NavGroup[] = [
 export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
-  const { isSteward, isGrowth, isPortfolio, isFirm } = useTier()
+  const { tier } = useTier()
   const badges = useNavBadges()
   const caps = useOrgCapabilities()
   const { has } = useCapabilities()  // hide nav items the member lacks the capability for (RBAC P4)
@@ -134,13 +135,11 @@ export function Sidebar() {
         // Capability gate (RBAC P4) — hide items the member lacks the capability for
         const reqCap = NAV_CAPABILITY[item.href]
         if (reqCap && !has(reqCap)) return false
-        // Tier gates
-        if (item.href === "/calendar") return isPortfolio || isFirm
-        if (item.href === "/finance/trust-ledger") return isSteward || isGrowth || isPortfolio || isFirm
-        // HOA / sectional-title management is a Firm-tier feature — hidden on every lower tier, and only for
-        // HOA-managing org types when on Firm.
-        if (item.href === "/hoa") return isFirm && (caps === null || caps.hasHOA)
+        // Tier floor (SSOT — ROUTE_TIER_FLOORS; same source the route guard reads, so nav + URL never split)
+        const floor = tierFloorForPath(item.href)
+        if (floor && !hasAccess(tier, floor)) return false
         // Org-type gates — D-61A-04: hide, don't grey-out
+        if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
         if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
         return true
       })
