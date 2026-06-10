@@ -258,7 +258,10 @@ export default async function LandlordDetailPage({ params }: Props) {
     .from("subscriptions")
     .select("tier")
     .eq("org_id", membership.org_id)
-    .single()
+    .not("status", "eq", "purged")
+    .order("created_at", { ascending: false })
+    .limit(1)            // an org can have >1 subscription row over time — take the latest, never throw on .single()
+    .maybeSingle()
   if (subError) console.error("LandlordDetailPage subscriptions read failed:", subError.message)
   const orgTier = sub?.tier ?? "steward"
   const canAccessIntelligence = hasFeature((orgTier ?? "owner") as Tier, "property_intelligence")

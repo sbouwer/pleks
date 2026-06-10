@@ -133,7 +133,7 @@ function StepUpModalInner({ actionLabel, challengeToken, onSuccess, onCancel }: 
     >
       <div
         style={{
-          background: "var(--surface-raised)", borderRadius: 12,
+          background: "var(--surface-elevated)", borderRadius: 12,
           border: "1px solid var(--rule)", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
           padding: 28, maxWidth: 380, width: "100%",
         }}
