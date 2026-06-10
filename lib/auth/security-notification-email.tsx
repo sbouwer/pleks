@@ -74,10 +74,14 @@ function SecurityNotificationEmail({ userName, eventType, deviceLabel, location 
   )
 }
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Guard construction — new Resend(undefined) THROWS at module load, and this module is imported by
+// logAuthEvent, so an unset key would crash every sensitive auth event. Null = dark (auth_events still logs).
+const resendKey = process.env.RESEND_API_KEY
+const resend = resendKey ? new Resend(resendKey) : null
 
 /** Send a Pleks-branded security notification. Best-effort; caller swallows errors/timeouts. */
 export async function sendSecurityNotificationEmail(params: SecurityNotificationParams): Promise<void> {
+  if (!resend) return  // RESEND_API_KEY unset → security emails dark; the auth_events row was still written
   const html = await render(
     React.createElement(SecurityNotificationEmail, {
       userName: params.userName,

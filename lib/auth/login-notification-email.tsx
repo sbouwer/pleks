@@ -95,9 +95,12 @@ function LoginNotificationEmail({ userName, deviceLabel, city, country, method, 
   )
 }
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Guard construction — new Resend(undefined) THROWS at module load (not caught by the try below). Null = dark.
+const resendKey = process.env.RESEND_API_KEY
+const resend = resendKey ? new Resend(resendKey) : null
 
 export async function sendLoginNotificationEmail(params: LoginNotificationParams): Promise<void> {
+  if (!resend) return  // RESEND_API_KEY unset → login-notification dark
   try {
     const html = await render(
       React.createElement(LoginNotificationEmail, {
