@@ -16,10 +16,13 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
+import { useTier } from "@/hooks/useTier"
+import { tierFloorForPath, hasAccess } from "@/lib/tier/gates"
 
 export function MobileSettingsNav() {
   const { orgId } = useOrg()
   const caps = useOrgCapabilities()
+  const { tier } = useTier()
   const depositLabel = caps?.trustAccountLabel === "deposits" ? "Deposits" : "Trust account"
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -86,7 +89,16 @@ export function MobileSettingsNav() {
         { href: "/settings/profile?tab=signature", label: "Signature" },
       ],
     },
-  ].filter((group) => group.items.length > 0)
+  ]
+    // Tier floor — read the SAME ROUTE_TIER_FLOORS SSOT the desktop nav + route guards use (no mobile copy).
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((it) => {
+        const floor = tierFloorForPath(it.href)
+        return !floor || hasAccess(tier, floor)
+      }),
+    }))
+    .filter((group) => group.items.length > 0)
 
   return (
     <div className="px-4 pb-20">
