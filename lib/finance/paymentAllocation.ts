@@ -66,7 +66,7 @@ async function applyRentInvoices(
 ): Promise<{ rentApplied: number; remaining: number }> {
   const { data: invoices, error: invoicesError } = await supabase
     .from("rent_invoices")
-    .select("id, balance_cents, due_date")
+    .select("id, balance_cents, amount_paid_cents, due_date")
     .eq("lease_id", leaseId)
     .in("status", ["open", "partial", "overdue"])
     .order("due_date", { ascending: true })
@@ -82,7 +82,7 @@ async function applyRentInvoices(
     await supabase
       .from("rent_invoices")
       .update({
-        amount_paid_cents: apply,
+        amount_paid_cents: (invoice.amount_paid_cents ?? 0) + apply,  // accumulate — was overwriting with just this tranche (F-1)
         balance_cents: newBalance,
         status: newBalance <= 0 ? "paid" : "partial",
         paid_at: newBalance <= 0 ? new Date().toISOString() : null,
