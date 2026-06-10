@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
   DialogContent,
@@ -389,6 +390,38 @@ function EditMemberModal({
   )
 }
 
+// Loading skeleton — mirrors the members table (same columns + responsive visibility) so the layout doesn't
+// flash an empty "0 members" state before data arrives.
+function MembersSkeleton() {
+  const rows = ["a", "b", "c", "d"]
+  return (
+    <ListCard fill>
+      <table className="w-full text-sm">
+        <thead className="sticky top-0 z-10 bg-card">
+          <tr className="border-b border-border bg-muted/30">
+            <th className="px-4 py-2.5 text-left"><Skeleton className="h-4 w-16" /></th>
+            <th className="px-4 py-2.5 text-left"><Skeleton className="h-4 w-12" /></th>
+            <th className="hidden px-4 py-2.5 text-left lg:table-cell"><Skeleton className="h-4 w-14" /></th>
+            <th className="hidden px-4 py-2.5 text-left md:table-cell"><Skeleton className="h-4 w-14" /></th>
+            <th className="px-4 py-2.5" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r} className="border-b border-border/50 last:border-0">
+              <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
+              <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+              <td className="hidden px-4 py-3 lg:table-cell"><Skeleton className="h-5 w-48" /></td>
+              <td className="hidden px-4 py-3 md:table-cell"><Skeleton className="h-5 w-28" /></td>
+              <td className="px-4 py-3"><Skeleton className="ml-auto h-5 w-16" /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ListCard>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function MembersTab() {
@@ -397,6 +430,7 @@ export function MembersTab() {
   const { isOwner: callerIsOwner } = usePermissions()
 
   const [members, setMembers]           = useState<Member[]>([])
+  const [loading, setLoading]           = useState(true)   // skeleton until the first member load resolves
   const [assignableRoles, setAssignable] = useState<AssignableRole[]>([])
   const [roleLabels, setRoleLabels]     = useState<Record<string, string>>(BUILTIN_LABELS)
   const [pendingInvites, setPending]    = useState<PendingInvite[]>([])
@@ -517,7 +551,7 @@ export function MembersTab() {
     if (!orgId) return
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user?.id ?? null))
-    loadMembers(supabase)
+    loadMembers(supabase).finally(() => setLoading(false))
     loadRoles()
     reloadPending()
     getMemberEmails().then(setEmails).catch(() => {})
@@ -646,16 +680,22 @@ export function MembersTab() {
         }
       />
 
-      <p className="text-xs text-muted-foreground">
-        {filteredMembers.length} {status} member{filteredMembers.length === 1 ? "" : "s"}
-        {status === "active" && pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending` : ""}
-      </p>
+      {!loading && (
+        <p className="text-xs text-muted-foreground">
+          {filteredMembers.length} {status} member{filteredMembers.length === 1 ? "" : "s"}
+          {status === "active" && pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending` : ""}
+        </p>
+      )}
 
-      {filteredMembers.length === 0 ? (
+      {loading && <MembersSkeleton />}
+
+      {!loading && filteredMembers.length === 0 && (
         <p className="py-8 text-center text-sm text-muted-foreground">
           No {status} members{search ? " match your search" : ""}.
         </p>
-      ) : (
+      )}
+
+      {!loading && filteredMembers.length > 0 && (
         <ListCard fill>
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-card">
