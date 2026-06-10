@@ -55,6 +55,33 @@ interface EmailLayoutProps {
 }
 
 const DEFAULT_ACCENT = "#1a56db"
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.pleks.co.za"
+
+// Dark-mode logo swap — the dark-ink Pleks wordmark vanishes on the dark card mail clients force in dark mode,
+// so show the light-ink variant there. Covers prefers-color-scheme (Apple Mail/iOS/Gmail app) + Outlook.com.
+const LOGO_SWAP_CSS =
+  "@media (prefers-color-scheme: dark){.pl-logo-light{display:none!important}.pl-logo-dark{display:inline-block!important}}" +
+  "[data-ogsc] .pl-logo-light{display:none!important}[data-ogsc] .pl-logo-dark{display:inline-block!important}"
+
+/**
+ * Header brand mark: an org's uploaded logo if set; else the Pleks wordmark PNG (light/dark swap) for
+ * Pleks-platform emails; else the org name as text. Tenant/landlord/supplier emails carry the AGENCY's logo —
+ * only Pleks-to-agent emails (orgName "Pleks", no uploaded logo) get the Pleks wordmark.
+ */
+function HeaderLogo({ branding, accent }: Readonly<{ branding: OrgBranding; accent: string }>) {
+  if (branding.logoUrl) {
+    return <Img src={branding.logoUrl} alt={branding.orgName} height={40} style={styles.logo} />
+  }
+  if (branding.orgName === "Pleks") {
+    return (
+      <>
+        <Img className="pl-logo-light" src={`${APP_URL}/logo/pleks-wordmark-light.png`} alt="Pleks" height={36} style={{ display: "block" }} />
+        <Img className="pl-logo-dark" src={`${APP_URL}/logo/pleks-wordmark-dark.png`} alt="Pleks" height={36} style={{ display: "none" }} />
+      </>
+    )
+  }
+  return <Text style={{ ...styles.orgName, color: accent }}>{branding.orgName}</Text>
+}
 
 export function EmailLayout({ preview, branding, children, templateCategory, footerVariant, subscriptionAlert }: Readonly<EmailLayoutProps>) {
   const accent = branding.accentColor ?? DEFAULT_ACCENT
@@ -63,7 +90,9 @@ export function EmailLayout({ preview, branding, children, templateCategory, foo
 
   return (
     <Html lang="en">
-      <Head />
+      <Head>
+        <style dangerouslySetInnerHTML={{ __html: LOGO_SWAP_CSS }} />
+      </Head>
       <Preview>{preview}</Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
@@ -72,11 +101,7 @@ export function EmailLayout({ preview, branding, children, templateCategory, foo
           <Section style={{ ...styles.header, borderTop: `4px solid ${accent}` }}>
             <Row>
               <Column>
-                {branding.logoUrl ? (
-                  <Img src={branding.logoUrl} alt={branding.orgName} height={40} style={styles.logo} />
-                ) : (
-                  <Text style={{ ...styles.orgName, color: accent }}>{branding.orgName}</Text>
-                )}
+                <HeaderLogo branding={branding} accent={accent} />
               </Column>
               <Column align="right">
                 <Text style={styles.headerOrgName}>{branding.orgName}</Text>
