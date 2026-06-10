@@ -2,9 +2,13 @@
  * lib/trust/invariants.ts — Runtime enforcement of D-TRUST-01: Pleks is not the trustee.
  *
  * Auth:  Internal — called from server actions and API routes only.
- * Notes: Every trust_transactions INSERT path goes through recordTrustTransaction().
- *        assertPleksIsNotTrustee() is the code-level backstop for the architectural
- *        invariant documented in brief/legal/TRUST_ACCOUNT_POSITIONING.md.
+ * Notes: recordTrustTransaction() is the INTENDED single insert path + assertPleksIsNotTrustee() the
+ *        code-level backstop for D-TRUST-01 — but it is NOT yet wired: 0 call sites today (the ~11 trust
+ *        writes insert directly), and the guard reads source/initiated_by fields that don't exist on
+ *        trust_transactions, so even if called it couldn't act. The LIVE guarantee is structural — schema
+ *        (bank_accounts.type CHECK, no Pleks org) + the ESLint payment-SDK import ban. Wiring this as the
+ *        enforced single path is ADDENDUM_FINANCIAL_INTEGRITY F-3 (the "balance"). Until then, do NOT cite
+ *        this as active enforcement. See brief/legal/TRUST_ACCOUNT_POSITIONING.md §3.2.
  */
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
