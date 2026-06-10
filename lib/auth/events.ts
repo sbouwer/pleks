@@ -11,6 +11,7 @@
 import { headers } from "next/headers"
 import { createServiceClient } from "@/lib/supabase/server"
 import { resolveDeviceFingerprint } from "@/lib/auth/device"
+import { sendSecurityNotificationEmail, type SecurityEventType } from "@/lib/auth/security-notification-email"
 
 type AuthEventType =
   | "login_success" | "login_failure" | "logout"
@@ -40,6 +41,46 @@ interface LogAuthEventParams {
   sessionId?: string
   failureReason?: string
   metadata?: Record<string, unknown>
+}
+
+// Sensitive events that ALSO send a Pleks-branded security email (after the auth_events row is written).
+const SECURITY_NOTIFY = new Set<AuthEventType>([
+  "password_changed", "totp_enrolled", "totp_unenrolled", "passkey_enrolled", "passkey_unenrolled", "recovery_used",
+])
+
+/**
+ * Fire the Pleks-branded security email for a sensitive event. STRICTLY after the auth_events insert, own
+ * try/catch (a slow/failing email must never sit upstream of the record-of-truth), timeout-bounded so a hung
+ * send can't stall the awaited auth action. Reuses the device/geo logAuthEvent already resolved — no extra
+ * lookups beyond the recipient's email/name. Best-effort: errors AND timeouts are swallowed.
+ */
+async function notifySecurityEvent(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  params: LogAuthEventParams,
+  deviceLabel: string | null,
+  ipCity: string | null,
+  ipCountry: string | null,
+): Promise<void> {
+  try {
+    const [{ data: u }, { data: profile }] = await Promise.all([
+      db.auth.admin.getUserById(params.userId),
+      db.from("user_profiles").select("full_name").eq("id", params.userId).maybeSingle(),
+    ])
+    const email = u.user?.email
+    if (!email) return
+    const location = [ipCity, ipCountry].filter(Boolean).join(", ") || null
+    const send = sendSecurityNotificationEmail({
+      to: email,
+      userName: profile?.full_name ?? "there",
+      eventType: params.eventType as SecurityEventType,
+      deviceLabel,
+      location,
+    }).catch((e) => console.error("[auth_events] security notification send error:", e))
+    const timeout = new Promise<void>((resolve) => { setTimeout(resolve, 4000) })
+    await Promise.race([send, timeout])
+  } catch (e) {
+    console.error("[auth_events] security notification failed:", e)
+  }
 }
 
 export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
@@ -95,6 +136,11 @@ export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
       failure_reason:     params.failureReason ?? null,
       metadata:           params.metadata ?? {},
     })
+
+    // Notify SECOND — strictly after the record-of-truth insert (condition: log first, notify second).
+    if (params.success && SECURITY_NOTIFY.has(params.eventType)) {
+      await notifySecurityEvent(db, params, deviceLabel, ipCity, ipCountry)
+    }
   } catch (err) {
     // Auth events are observability — never let a logging failure break the auth flow
     console.error("[auth_events] insert failed:", err)
