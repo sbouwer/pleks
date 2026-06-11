@@ -9,12 +9,11 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { yodlee } from "@/lib/yodlee/client"
 import { transformYodleeTransaction } from "@/lib/yodlee/transform"
 import { syncYodleeTransactions } from "@/lib/actions/recon"
+import { withCronRun } from "@/lib/cron/withCronRun"
 
-export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const GET = withCronRun("bank_feed_sync", handler)
 
+async function handler(_req: NextRequest): Promise<Response> {
   const db = await createServiceClient()
   const now = new Date()
   const toDate = now.toISOString().slice(0, 10)

@@ -18,6 +18,7 @@ import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { trackSend, settleSends } from "@/lib/cron/settleSends"
+import { withCronRun } from "@/lib/cron/withCronRun"
 
 function getServiceClient() {
   return createClient(
@@ -26,13 +27,9 @@ function getServiceClient() {
   )
 }
 
-export async function GET(req: NextRequest) {
-  // Verify cron secret. Prefer x-cron-secret (the cPanel standard — survives the app-domain redirect that
-  // strips Authorization); keep Bearer as a fallback for backward compatibility.
-  const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const GET = withCronRun("application_reminders", handler)
+
+async function handler(_req: NextRequest): Promise<Response> {
 
   const service = getServiceClient()
   const now = new Date()

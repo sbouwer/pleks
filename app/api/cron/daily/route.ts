@@ -46,6 +46,7 @@ import { runLegalArchiveStep } from "@/lib/legal/archive"
 import { runRulesEngine, type EngineRuleSummary } from "@/lib/rules/engine"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { sendCronDigest, type CronJobDetail } from "@/lib/cron/cronDigest"
+import { collectCronRunFailures } from "@/lib/cron/withCronRun"
 
 export const runtime     = "nodejs"
 export const maxDuration = 90   // Hobby caps at 60s; honoured on Pro. ~11s typical run.
@@ -178,10 +179,16 @@ export async function GET(req: NextRequest) {
     await fetch(process.env.HEARTBEAT_DAILY, { method: "POST" }).catch(() => undefined)
   }
 
-  // Failure-only digest: fold in statuses set outside runJob (legal_archive, rules_engine, skipped monthly),
-  // then email ADMIN_EMAIL ONCE iff something failed or any emails failed to send. A clean run sends nothing.
+  // Failure-only digest: fold in statuses set outside runJob (legal_archive, rules_engine, skipped monthly) +
+  // the last 24h of EXTERNAL (out-of-process, cPanel-triggered) cron failures from cron_runs, then email
+  // ADMIN_EMAIL ONCE iff anything failed. A clean run across all crons sends nothing.
   for (const [name, status] of Object.entries(results)) detail[name] ??= { status }
+  Object.assign(detail, await collectCronRunFailures(24))
   const digest = await sendCronDigest(today.toISOString(), detail)
+
+  // Hygiene: keep cron_runs bounded (the wrapper writes a row per external-cron invocation).
+  // eslint-disable-next-line pleks/require-scope-on-delete -- cron_runs is platform-level (no org_id); age-based purge
+  await service.from("cron_runs").delete().lt("started_at", new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString())
 
   return Response.json({ ok: true, ran_at: today.toISOString(), results, digest })
 }

@@ -17,14 +17,13 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { runStandardBundle } from "@/lib/screening/bundle-runner"
 import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { withCronRun } from "@/lib/cron/withCronRun"
 
 const BATCH_SIZE = 50
 
-export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret")
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const GET = withCronRun("screening_line_runner", handler)
+
+async function handler(_req: NextRequest): Promise<Response> {
 
   const service = await createServiceClient()
   const results: Record<string, string> = {}

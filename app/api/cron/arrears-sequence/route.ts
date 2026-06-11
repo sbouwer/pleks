@@ -22,6 +22,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { ArrearsReminderEmail } from "@/lib/comms/templates/tenant/arrears/reminder"
 import { LetterOfDemandEmail } from "@/lib/comms/templates/tenant/arrears/letter-of-demand"
 import { FinalNoticeEmail } from "@/lib/comms/templates/tenant/arrears/final-notice"
+import { withCronRun } from "@/lib/cron/withCronRun"
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -560,11 +561,9 @@ async function phase3AutoResolve(supabase: SupabaseClient): Promise<number> {
 
 // ── Route handler ────────────────────────────────────────────────────────────
 
-export async function GET(req: Request) {
-  const cronSecret = req.headers.get("x-cron-secret") ?? new URL(req.url).searchParams.get("secret")
-  if (cronSecret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const GET = withCronRun("arrears_sequence", handler)
+
+async function handler(_req: Request): Promise<Response> {
 
   const supabase = await createServiceClient()
   const today    = new Date()

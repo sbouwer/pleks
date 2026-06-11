@@ -17,6 +17,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceDelayEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-delay"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { withCronRun } from "@/lib/cron/withCronRun"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -129,11 +130,9 @@ async function fireDelayComm(
   })
 }
 
-export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
-  if (secret !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const GET = withCronRun("maintenance_delay_check", handler)
+
+async function handler(_req: NextRequest): Promise<Response> {
 
   const service = await createServiceClient()
   const now = new Date()

@@ -13,6 +13,7 @@
 import { NextRequest } from "next/server"
 import { Resend } from "resend"
 import { createServiceClient } from "@/lib/supabase/server"
+import { withCronRun } from "@/lib/cron/withCronRun"
 
 // Browser-like UA — Google/CDNs bot-block UA-less HEAD/GET requests, which is what produced the false-positive
 // 404s (a live support.google.com page reported broken). Sent on both the HEAD and the GET (C-2).
@@ -36,11 +37,9 @@ type LinkResult = DbLink & {
   error?:  string
 }
 
-export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
-  if (secret !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const GET = withCronRun("check_links", handler)
+
+async function handler(_req: NextRequest): Promise<Response> {
 
   const service = await createServiceClient()
 

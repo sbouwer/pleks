@@ -16,8 +16,8 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { routeAndSend } from "@/lib/messaging/router"
 import { createDeliveryNoticeToken } from "@/lib/comms/delivery-notice-tokens"
 import { drainPlatformEmailRetries } from "@/lib/subscriptions/sendWithRetry"
+import { withCronRun } from "@/lib/cron/withCronRun"
 
-const CRON_SECRET = process.env.CRON_SECRET
 const MAX_ATTEMPTS = 4
 
 // Offset hours for each attempt after the first
@@ -119,10 +119,9 @@ async function settleRetry(
   return "advanced"
 }
 
-export async function POST(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+export const POST = withCronRun("mandatory_retry", handler)
+
+async function handler(_req: NextRequest): Promise<Response> {
 
   const service = await createServiceClient()
 
