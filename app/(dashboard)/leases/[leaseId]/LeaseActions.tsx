@@ -103,14 +103,17 @@ export function LeaseActions({ leaseId, status, unitId }: LeaseActionsProps) {
           {isActive && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => toast.info("Escalation processing coming soon")}>
+              <DropdownMenuItem disabled>
                 <TrendingUp className="h-4 w-4" /> Process escalation
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">Soon</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("Renewal offers coming soon")}>
+              <DropdownMenuItem disabled>
                 <FileText className="h-4 w-4" /> Generate renewal offer
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">Soon</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("s14 notice sending coming soon")}>
+              <DropdownMenuItem disabled>
                 <ShieldCheck className="h-4 w-4" /> Send s14 notice
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">Soon</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem render={<Link href={`/leases/${leaseId}/deposit`} />}>
