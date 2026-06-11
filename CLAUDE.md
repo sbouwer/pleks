@@ -777,7 +777,7 @@ wait). cPanel entry:
 The route declares `runtime="nodejs"` + `maxDuration=90` (Hobby caps at 60s regardless;
 honoured on Pro). Monthly jobs run INSIDE this orchestrator, gated by a day-of-month check.
 
-### cPanel high-frequency crons (yoroscoz hosting)
+### cPanel curl crons (yoroscoz hosting)
 | Job | Endpoint | Cadence | HTTP method |
 |-----|----------|---------|-------------|
 | mandatory-retry | `/api/cron/tenant-comms/mandatory-retry` | Every 1h | POST |
@@ -786,8 +786,13 @@ honoured on Pro). Monthly jobs run INSIDE this orchestrator, gated by a day-of-m
 | arrears-sequence | `/api/cron/arrears-sequence` | Every 4h | GET |
 | maintenance-delay-check | `/api/cron/maintenance-delay-check` | Every 4h | GET |
 | check-links | `/api/cron/check-links` | Every 4h | GET |
+| application-reminders | `/api/cron/application-reminders` | Daily 06:00 UTC | GET |
 
 All use the same `x-cron-secret` header auth.
+
+> **Note:** `application-reminders` is the one *daily* job triggered standalone here rather than from the daily
+> orchestrator (it predates it). It could be folded into `/api/cron/daily` later to gain failure-digest
+> coverage; until then its failures surface only in logs/Sentry (it does use the C-1 await+log belt).
 
 **When adding a new cron job**, decide:
 - Once daily is fine → add to `app/api/cron/daily/route.ts` orchestrator
