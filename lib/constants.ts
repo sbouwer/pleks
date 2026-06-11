@@ -9,6 +9,14 @@
 export const APP_NAME = "Pleks"
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 
+/**
+ * SA prime lending rate = SARB repo rate + this spread. Fixed at 3.50% by SARB/banking convention
+ * (the Reserve Bank sets the spread; it has been 3.5% since 2008). prime-rate-sync adds it to the repo
+ * rate from the rate feed. If SARB ever changes the spread, update it HERE (single source of truth) —
+ * it is load-bearing (drives arrears interest), so it must never be a magic number buried in a cron.
+ */
+export const SA_PRIME_REPO_SPREAD = 3.5
+
 export const TIER_ORDER = { owner: 0, steward: 1, growth: 2, portfolio: 3, firm: 4, bespoke: 5 } as const
 export type Tier = keyof typeof TIER_ORDER
 

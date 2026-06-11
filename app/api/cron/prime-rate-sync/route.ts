@@ -1,23 +1,20 @@
 /**
- * app/api/cron/prime-rate-sync/route.ts — FILL: one-line purpose
+ * app/api/cron/prime-rate-sync/route.ts — daily SA prime-rate sync from the rate feed
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/cron/prime-rate-sync
+ * Auth:   x-cron-secret header — runs inside the daily orchestrator
+ * Data:   API Ninjas interestrate endpoint → prime_rates (service client)
+ * Notes:  SA prime = SARB repo + SA_PRIME_REPO_SPREAD (lib/constants — documented, not a magic number).
+ *         Inserts a new prime_rates row ONLY when the rate changes (stable rates → no new row, by design),
+ *         so the row's effective_date is the last CHANGE, not the last sync. On API failure returns 502 —
+ *         and that failure is now surfaced by the daily cron digest (runJob → { failed } → ADMIN_EMAIL),
+ *         so a sustained outage can't let the prime (which drives arrears interest) go stale unnoticed.
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_PRIME_REPO_SPREAD } from "@/lib/constants"
 
-/**
- * Fetches the current SA prime lending rate from API Ninjas and upserts it
- * into the prime_rates table if it differs from the most recent stored rate.
- *
- * API Ninjas free tier: 3000 calls/month — runs once daily = ~31 calls/month.
- * Falls back silently if the API is unavailable.
- */
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -28,9 +25,8 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "API_NINJAS_KEY not set" }, { status: 500 })
   }
 
-  // Fetch current SA repo rate from API Ninjas (prime rates are premium-only;
-  // SA prime = SARB repo rate + 3.5% spread, fixed by convention)
-  const PRIME_SPREAD = 3.5
+  // Fetch the SA repo rate from API Ninjas (prime rates are premium-only). SA prime = repo + the documented
+  // SA_PRIME_REPO_SPREAD (lib/constants), not a magic number.
   let fetchedRate: number
   try {
     const res = await fetch(
@@ -49,8 +45,7 @@ export async function GET(req: NextRequest) {
     if (!saEntry) {
       return Response.json({ error: "South Africa not found in API response" }, { status: 502 })
     }
-    // Prime = repo + 3.5% (fixed SA convention)
-    fetchedRate = Math.round((saEntry.rate_pct + PRIME_SPREAD) * 100) / 100
+    fetchedRate = Math.round((saEntry.rate_pct + SA_PRIME_REPO_SPREAD) * 100) / 100
   } catch (e) {
     return Response.json({ error: `Fetch failed: ${String(e)}` }, { status: 502 })
   }
