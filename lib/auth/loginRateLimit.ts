@@ -39,8 +39,8 @@ export async function isLoginLocked(identifier: string): Promise<{ locked: boole
   return ms > 0 ? { locked: true, retryAfterSec: Math.ceil(ms / 1000) } : { locked: false, retryAfterSec: 0 }
 }
 
-/** Record a failed login; lock the identifier once MAX_FAILS consecutive failures are hit. */
-export async function recordLoginFailure(identifier: string): Promise<void> {
+/** Record a failed login; lock once MAX_FAILS consecutive failures hit. Returns the remaining attempts + lock. */
+export async function recordLoginFailure(identifier: string): Promise<{ attemptsLeft: number; locked: boolean }> {
   const db = await createServiceClient()
   const now = Date.now()
   const { data, error } = await db
@@ -65,6 +65,8 @@ export async function recordLoginFailure(identifier: string): Promise<void> {
     },
     { onConflict: "identifier" },
   )
+
+  return { attemptsLeft: Math.max(0, MAX_FAILS - consecutive), locked }
 }
 
 /** Clear the failure streak + lockout for an identifier on a successful sign-in (keeps the table self-cleaning). */

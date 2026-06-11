@@ -85,7 +85,9 @@ async function notifySecurityEvent(
   }
 }
 
-export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
+export async function logAuthEvent(
+  params: LogAuthEventParams,
+): Promise<{ eventId: string | null; deviceFingerprintId: string | null } | null> {
   try {
     let deviceFingerprintId = params.deviceFingerprintId ?? null
     let deviceLabel = params.deviceLabel ?? null
@@ -120,7 +122,7 @@ export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
     }
 
     const db = await createServiceClient()
-    await db.from("auth_events").insert({
+    const { data: ev, error: insErr } = await db.from("auth_events").insert({
       user_id:            params.userId,
       org_id:             params.orgId ?? null,
       event_type:         params.eventType,
@@ -137,14 +139,19 @@ export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
       session_id:         params.sessionId ?? null,
       failure_reason:     params.failureReason ?? null,
       metadata:           params.metadata ?? {},
-    })
+    }).select("id").single()
+    if (insErr) { console.error("[auth_events] insert failed:", insErr.message); return null }
 
     // Notify SECOND — strictly after the record-of-truth insert (condition: log first, notify second).
     if (params.success && SECURITY_NOTIFY.has(params.eventType)) {
       await notifySecurityEvent(db, params, deviceLabel, ipCity, ipCountry)
     }
+
+    // Return the ids so the caller can fire follow-ups that need them (e.g. maybeNotifyNewDevice).
+    return { eventId: (ev?.id as string | undefined) ?? null, deviceFingerprintId }
   } catch (err) {
     // Auth events are observability — never let a logging failure break the auth flow
     console.error("[auth_events] insert failed:", err)
+    return null
   }
 }
