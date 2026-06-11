@@ -1,13 +1,13 @@
 /**
- * GET /api/cron/application-reminders
- * Daily cron — sends reminder emails for stale applications.
- * Vercel Cron: schedule "0 8 * * *" (8am daily)
+ * app/api/cron/application-reminders/route.ts — daily application-reminder emails
  *
- * Reminders:
- * - Agent: applications unreviewed for 24h
- * - Applicant: shortlisted but Stage 2 not started after 3 days
- * - Applicant: Stage 2 invite expires in 2 days (day 5 of 7)
- * - Agent + applicant: Stage 2 invite expired (day 7+)
+ * Route:  GET /api/cron/application-reminders
+ * Auth:   x-cron-secret header (cPanel curl; Authorization Bearer fallback)
+ * Data:   applications, application_tokens, organisations, user_orgs (service client)
+ * Notes:  Daily. Triggered by a cPanel curl cron (Vercel Cron removed). Reminders:
+ *         - Agent: applications unreviewed for 24h
+ *         - Applicant: shortlisted but Stage 2 not started after 3 days (one nudge, reuses the live token)
+ *         Stage-2 expiry reminders (day-5 / day-7) are noted as future, not yet built.
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -27,9 +27,10 @@ function getServiceClient() {
 }
 
 export async function GET(req: NextRequest) {
-  // Verify cron secret
-  const authHeader = req.headers.get("authorization")
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Verify cron secret. Prefer x-cron-secret (the cPanel standard — survives the app-domain redirect that
+  // strips Authorization); keep Bearer as a fallback for backward compatibility.
+  const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
+  if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
