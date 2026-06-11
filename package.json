@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "check": "tsc --noEmit && eslint . --max-warnings 0 && node scripts/check-legal-localhost.mjs && node scripts/check-marketing-consistency.mjs && node scripts/architecture-audit.mjs && node scripts/schema-contract-scan.mjs && node scripts/check-audit-columns.mjs && node scripts/check-file-headers.mjs && vitest run",
+    "check": "tsc --noEmit && eslint . --max-warnings 0 && node scripts/check-legal-localhost.mjs && node scripts/check-marketing-consistency.mjs && node scripts/architecture-audit.mjs && node scripts/schema-contract-scan.mjs && node scripts/check-audit-columns.mjs && node scripts/check-file-headers.mjs && tsx scripts/security/check-pii-classification.mts && vitest run",
     "check:full": "npm run check && npm run security:db && node scripts/check-drift-if-sql-changed.mjs",
     "security:db": "node scripts/security/audit.mjs --ci && tsx scripts/security/cat14-behavioural.mts --ci",
     "security:behavioural": "tsx scripts/security/cat14-behavioural.mts",
