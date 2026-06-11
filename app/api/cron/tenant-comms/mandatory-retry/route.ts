@@ -3,16 +3,19 @@
  *
  * Route:  POST /api/cron/tenant-comms/mandatory-retry
  * Auth:   CRON_SECRET header
- * Data:   mandatory_comm_retries, communication_log, router (service client)
+ * Data:   mandatory_comm_retries, communication_log, router, platform_email_retries (service client)
  * Notes:  Ideal cadence is every 6h (Vercel Pro). On free tier add to daily cron instead.
  *         Cascade: T+1h → T+6h → T+24h → T+72h; after attempt 4 marks surrendered.
  *         Attempt count ≥ 3 inserts a delivery_fallback side-channel send before retry 4.
+ *         Also drains the platform_email_retries queue (C-1 buckle) on the same cadence — agency-admin
+ *         billing/lifecycle emails that can't use the tenant retry path (drainPlatformEmailRetries).
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { routeAndSend } from "@/lib/messaging/router"
 import { createDeliveryNoticeToken } from "@/lib/comms/delivery-notice-tokens"
+import { drainPlatformEmailRetries } from "@/lib/subscriptions/sendWithRetry"
 
 const CRON_SECRET = process.env.CRON_SECRET
 const MAX_ATTEMPTS = 4
@@ -177,5 +180,8 @@ export async function POST(req: NextRequest) {
     if (outcome === "surrendered") surrendered++
   }
 
-  return NextResponse.json({ processed, surrendered, total: retries.length })
+  // C-1 buckle: drain the platform (agency-admin) email retry queue on the same hourly cadence.
+  const platform = await drainPlatformEmailRetries()
+
+  return NextResponse.json({ processed, surrendered, total: retries.length, platform })
 }

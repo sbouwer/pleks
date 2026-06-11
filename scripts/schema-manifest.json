@@ -2533,6 +2533,23 @@
       "frozen",
       "updated_at"
     ],
+    "platform_email_retries": [
+      "id",
+      "org_id",
+      "template_key",
+      "communication_log_id",
+      "to_email",
+      "to_name",
+      "subject",
+      "body_html",
+      "attempt_count",
+      "next_attempt_at",
+      "last_error",
+      "surrendered_at",
+      "surrender_reason",
+      "created_at",
+      "updated_at"
+    ],
     "popia_exports": [
       "id",
       "org_id",

@@ -1239,6 +1239,41 @@ CREATE POLICY "org_mandatory_retries_read" ON mandatory_comm_retries
     SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
+-- ── Platform-email retry queue (ADDENDUM_CRON_RELIABILITY C-1 buckle) ─────────
+-- Subscription/billing lifecycle emails go to the AGENCY ADMIN, not a tenant, so they can't use the
+-- tenant-shaped mandatory_comm_retries (whose attempt-3 delivery-fallback assumes a tenant). This is the
+-- parallel queue: sendPlatformEmail enqueues on a transient send failure; the hourly mandatory-retry cron
+-- drains it (re-sends T+1h/6h/24h via the stored body_html), surrendering to the cron digest after.
+CREATE TABLE IF NOT EXISTS platform_email_retries (
+  id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id               uuid        NOT NULL REFERENCES organisations(id),
+  template_key         text        NOT NULL,
+  communication_log_id uuid,
+  to_email             text        NOT NULL,
+  to_name              text,
+  subject              text        NOT NULL,
+  body_html            text        NOT NULL,
+  attempt_count        integer     NOT NULL DEFAULT 1,
+  next_attempt_at      timestamptz NOT NULL,
+  last_error           text,
+  surrendered_at       timestamptz,
+  surrender_reason     text,
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_platform_email_retries_due
+  ON platform_email_retries(next_attempt_at)
+  WHERE surrendered_at IS NULL;
+
+ALTER TABLE platform_email_retries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_platform_email_retries_read" ON platform_email_retries;
+CREATE POLICY "org_platform_email_retries_read" ON platform_email_retries
+  FOR SELECT USING (org_id IN (
+    SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
+  ));
+
 -- ── WhatsApp Meta template variant catalog (platform-level, no org_id) ────
 CREATE TABLE IF NOT EXISTS whatsapp_template_variants (
   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),

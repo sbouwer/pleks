@@ -7,7 +7,7 @@
 
 import { EmailLayout, EmailButton, EmailSectionHeading } from "@/lib/comms/templates/layout"
 import type { OrgBranding } from "@/lib/comms/templates/layout"
-import { sendEmail } from "@/lib/comms/send-email"
+import { sendPlatformEmail } from "./sendWithRetry"
 import {
   PurgeWarning30dEmail,   PURGE_WARNING_30D_SUBJECT,
   PurgeWarningFinalEmail, PURGE_WARNING_FINAL_SUBJECT,
@@ -47,7 +47,7 @@ interface OrgContact {
 }
 
 export async function sendTrialExpired(org: OrgContact, prevTier: string) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.trial_expired",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -84,7 +84,7 @@ export async function sendTrialEndingSoon(org: OrgContact, trialEndsAt: string) 
     day: "numeric", month: "long", year: "numeric",
   })
 
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.trial_ending_soon",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -114,7 +114,7 @@ export async function sendFoundingExpiryWarning(org: OrgContact, expiresAt: stri
     day: "numeric", month: "long", year: "numeric",
   })
 
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.founding_expiry_warning",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -153,7 +153,7 @@ export async function sendSubscriptionActivated(
   }
   const cycleLabel = billingCycle === "annual" ? "annual" : "monthly"
 
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.activated",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -196,7 +196,7 @@ export async function sendPaymentFailed(
   })
   const amountLabel = formatZARCents(amountCents)
 
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.payment_failed",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -244,7 +244,7 @@ export async function sendPaymentReminder(
   )
   const amountLabel = formatZARCents(amountCents)
 
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.payment_reminder",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -279,7 +279,7 @@ export async function sendAccountFrozen(
 ) {
   const amountLabel = formatZARCents(amountCents)
 
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.account_frozen",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -316,7 +316,7 @@ export async function sendAccountFrozen(
 // ── Dunning step emails (ADDENDUM_57G §11.1) ─────────────────────────────────
 
 export async function sendPastDueFirst(org: OrgContact) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.past_due_first",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -346,7 +346,7 @@ export async function sendPastDueFirst(org: OrgContact) {
 }
 
 export async function sendPastDueDay7(org: OrgContact) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.past_due_day7",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -376,7 +376,7 @@ export async function sendPastDueDay7(org: OrgContact) {
 }
 
 export async function sendPausedAuto(org: OrgContact) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.paused_auto",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -414,7 +414,7 @@ export async function sendPausedAuto(org: OrgContact) {
 // ── Dormancy step emails (ADDENDUM_57G §11.2) ─────────────────────────────────
 
 export async function sendDormancyWarning(org: OrgContact, purgeDateStr: string) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "dormancy.warning",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -446,7 +446,7 @@ export async function sendDormancyWarning(org: OrgContact, purgeDateStr: string)
 }
 
 export async function sendDormancyFinal(org: OrgContact, purgeDateStr: string) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "dormancy.final",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -477,7 +477,7 @@ export async function sendDormancyFinal(org: OrgContact, purgeDateStr: string) {
 // ── Purge-warning step emails (ADDENDUM_57G §11.3) ────────────────────────────
 
 export async function sendPurgeWarning30d(org: OrgContact, data: PurgeWarningData) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.purge_warning_30d",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -498,7 +498,7 @@ export async function sendPurgeWarning30d(org: OrgContact, data: PurgeWarningDat
 }
 
 export async function sendPurgeWarningFinal(org: OrgContact, data: PurgeWarningData) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.purge_warning_final",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -522,7 +522,7 @@ export async function sendPurgedConfirm(
   org: OrgContact & { recipientEmail: string },
   data: { cancelledDate: string; purgedDate: string; finalInvoiceDate: string },
 ) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.purged_confirm",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -545,7 +545,7 @@ export async function sendPurgedConfirm(
 // ── Step 9 emails: org-initiated pause / resume / cancel ─────────────────────
 
 export async function sendPausedManual(org: OrgContact, reason: string) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.paused_manual",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -585,7 +585,7 @@ export async function sendPausedManual(org: OrgContact, reason: string) {
 }
 
 export async function sendResumed(org: OrgContact) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.resumed",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
@@ -616,7 +616,7 @@ export async function sendCancelledConfirm(
   org: OrgContact,
   data: { cancelledDate: string; exportUrl: string },
 ) {
-  return sendEmail({
+  return sendPlatformEmail({
     orgId: org.orgId,
     templateKey: "subscription.cancelled_confirm",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
