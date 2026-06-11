@@ -241,7 +241,9 @@ export default async function ContractorDetailPage({ params }: Props) {
     .from("subscriptions")
     .select("tier")
     .eq("org_id", membership.org_id)
-    .single()
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
   logErr("ContractorDetailPage subscriptions read failed", subError)
   const orgTier = sub?.tier ?? "steward"
 
