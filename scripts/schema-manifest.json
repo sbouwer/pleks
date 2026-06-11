@@ -3339,6 +3339,16 @@
       "created_at",
       "updated_at"
     ],
+    "unit_inspection_rooms": [
+      "id",
+      "org_id",
+      "unit_id",
+      "room_type",
+      "room_label",
+      "display_order",
+      "created_at",
+      "updated_at"
+    ],
     "unit_status_history": [
       "id",
       "unit_id",
@@ -3393,7 +3403,8 @@
       "hazmat_approved",
       "rail_siding",
       "business_use_permitted",
-      "assigned_team_id"
+      "assigned_team_id",
+      "default_lease_period_months"
     ],
     "user_capabilities": [
       "id",

@@ -668,3 +668,39 @@ BEGIN
       FOREIGN KEY (managing_scheme_id) REFERENCES contractors(id);
   END IF;
 END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12.4  BUILD_69 Phase 1: durable-vs-per-lease field model (the two net-new fields)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- BUILD_69 Component D classifies every property/lease field durable / per-lease / straddle. Most map to
+-- existing columns; these two were the verified net-new ones (CC grounding 2026-06-11):
+--   1. STRADDLE — a default lease period stored on the unit (advertised at listing, confirmed/overridden per
+--      lease). No durable default existed; leases carry only the per-lease period.
+--   2. DURABLE — a per-unit inspection room TEMPLATE. inspection_rooms are per-inspection-instance; this is the
+--      reusable layout that seeds an inspection's rooms on creation, so the ingoing-inspection setup (moment 5)
+--      is filled once and reused every future lease.
+
+ALTER TABLE units ADD COLUMN IF NOT EXISTS default_lease_period_months integer;
+
+CREATE TABLE IF NOT EXISTS unit_inspection_rooms (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL,
+  unit_id       uuid NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  room_type     text NOT NULL,
+  room_label    text NOT NULL,
+  display_order integer NOT NULL DEFAULT 0,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_unit_inspection_rooms_unit ON unit_inspection_rooms(org_id, unit_id);
+ALTER TABLE unit_inspection_rooms ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_unit_inspection_rooms" ON unit_inspection_rooms;
+CREATE POLICY "org_unit_inspection_rooms" ON unit_inspection_rooms
+  FOR ALL
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+DROP TRIGGER IF EXISTS trg_unit_inspection_rooms ON unit_inspection_rooms;
+CREATE TRIGGER trg_unit_inspection_rooms BEFORE UPDATE ON unit_inspection_rooms
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
