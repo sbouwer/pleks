@@ -3,7 +3,7 @@
  *
  * Auth:   Server-only — called from /api/health/deep (token-gated) and /api/status (ISR-cached)
  * Data:   prime_rates (DB probe), Resend domains API (email probe), storage.listBuckets,
- *         cron_runs (daily jobs: 48h threshold; monthly jobs: 35-day threshold)
+ *         cron_runs (per-job freshness thresholds in TRACKED_CRONS; every cron writes a row via withCronRun)
  * Notes:  Promise.all across all 4 checks; 5s per-component timeout; never throws.
  *         DB is the only critical dependency — email/storage/crons degrade, not down.
  *         Email check auto-skips when RESEND_API_KEY is absent (not yet configured).
@@ -107,62 +107,61 @@ async function checkStorage(supabase: SupabaseClient): Promise<HealthReport["com
   }
 }
 
-// Top-level scheduled crons only. Child jobs invoked INSIDE the daily orchestrator are
-// NOT tracked separately — a completed "daily" row means they ran. Tracking a child name
-// is at best redundant and, for names that never self-insert a cron_runs row, actively
-// harmful: it reads stale forever and permanently degrades health.
-//
-// Verified 2026-05-29 against the actual job_name values handlers write:
-//   - "daily" is written by this orchestrator.                                  → track
-//   - insurance-renewals / cost-snapshots / expire-info-requests DO write rows, but run
-//     inside daily → redundant, dropped.
-//   - popia-retention-purge and ALL former monthly names (trust-period-close, levy-generate,
-//     deposit-interest-statement, owner-statement-gen) write NO cron_runs row → they were
-//     permanently "stale" and are the real source of the chronic "crons: degraded". Dropped.
-// Monthly jobs run inside the daily orchestrator (day-of-month gated), so a completed
-// "daily" already implies they fired on their day. Add a name here ONLY if a handler
-// actually writes that job_name to cron_runs.
-const TRACKED_DAILY_JOBS: string[] = ["daily"]
-const TRACKED_MONTHLY_JOBS: string[] = []
-
-const DAILY_STALE_MS   = 48 * 60 * 60 * 1000
-const MONTHLY_STALE_MS = 35 * 24 * 60 * 60 * 1000
+// Tracked top-level scheduled crons → how long since the last SUCCESS before "stale". Thresholds are ~2–3× the
+// cadence so a single transient miss doesn't flap. Every external (cPanel-triggered) cron now writes a cron_runs
+// row via withCronRun (lib/cron/withCronRun.ts), so they're all observable here — this is what finally lets
+// checkCrons track more than "daily". The orchestrator's IN-PROCESS children are still covered by a fresh
+// "daily" row (don't add them — they don't self-insert), and monthly jobs run inside it (day-of-month gated).
+// Note: right after the withCronRun deploy the newly-tracked crons have no rows yet, so they read stale until
+// their first run (≤~4h for the 4-hourly ones, ≤~24h for the daily ones). That's a truthful, self-healing
+// "degraded" — not "down", since "daily" itself stays fresh — not a bug.
+const TRACKED_CRONS: Record<string, number> = {
+  daily:                   48 * 60 * 60 * 1000,  // daily 05:00 UTC (orchestrator)
+  screening_line_runner:    2 * 60 * 60 * 1000,  // every 15m
+  mandatory_retry:          3 * 60 * 60 * 1000,  // every 1h
+  bank_feed_sync:           9 * 60 * 60 * 1000,  // every 4h
+  arrears_sequence:         9 * 60 * 60 * 1000,  // every 4h
+  maintenance_delay_check:  9 * 60 * 60 * 1000,  // every 4h
+  check_links:              9 * 60 * 60 * 1000,  // every 4h
+  application_reminders:   30 * 60 * 60 * 1000,  // daily 06:00 UTC
+}
+const MAX_TRACKED_THRESHOLD_MS = Math.max(...Object.values(TRACKED_CRONS))
 
 async function checkCrons(supabase: SupabaseClient): Promise<HealthReport["components"]["crons"]> {
   try {
+    const trackedNames = Object.keys(TRACKED_CRONS)
+    // Bound the read to the largest threshold (+2h margin) and to tracked jobs only, so a 15-min cron's flood
+    // of rows can't push the once-daily "daily" row out of view (the old limit(200) bug waiting to happen).
+    const windowStart = new Date(Date.now() - MAX_TRACKED_THRESHOLD_MS - 2 * 60 * 60 * 1000).toISOString()
     const { data, error } = await withTimeout(
       supabase
         .from("cron_runs")
-        .select("job_name, finished_at, status")
+        .select("job_name, finished_at")
         .eq("status", "completed")
+        .in("job_name", trackedNames)
+        .gte("finished_at", windowStart)
         .order("finished_at", { ascending: false })
-        .limit(200),
+        .limit(1000),
       COMPONENT_TIMEOUT_MS
     )
     if (error) return { status: "degraded", stale_jobs: ["(query failed)"] }
 
-    const lastSuccess = new Map<string, Date>()
+    const lastSuccess = new Map<string, number>()
     for (const row of data ?? []) {
       if (!row.finished_at) continue
-      const ts = new Date(row.finished_at as string)
+      const ts = new Date(row.finished_at as string).getTime()
       const prev = lastSuccess.get(row.job_name as string)
-      if (!prev || ts > prev) lastSuccess.set(row.job_name as string, ts)
+      if (prev === undefined || ts > prev) lastSuccess.set(row.job_name as string, ts)
     }
 
     const now = Date.now()
-    const staleDaily = TRACKED_DAILY_JOBS.filter(name => {
+    const stale = trackedNames.filter(name => {
       const last = lastSuccess.get(name)
-      return !last || (now - last.getTime()) > DAILY_STALE_MS
+      return last === undefined || (now - last) > TRACKED_CRONS[name]
     })
-    const staleMonthly = TRACKED_MONTHLY_JOBS.filter(name => {
-      const last = lastSuccess.get(name)
-      return !last || (now - last.getTime()) > MONTHLY_STALE_MS
-    })
-    const stale = [...staleDaily, ...staleMonthly]
-    const totalTracked = TRACKED_DAILY_JOBS.length + TRACKED_MONTHLY_JOBS.length
 
     if (stale.length === 0) return { status: "ok" }
-    if (stale.length < totalTracked) return { status: "degraded", stale_jobs: stale }
+    if (stale.length < trackedNames.length) return { status: "degraded", stale_jobs: stale }
     return { status: "down", stale_jobs: stale }
   } catch (e) {
     return { status: "degraded", stale_jobs: [e instanceof Error ? e.message : "unknown"] }
