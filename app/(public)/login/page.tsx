@@ -58,7 +58,20 @@ function LoginContent() {
   const [checking, setChecking] = useState(true)
   const [passkeyAvailable, setPasskeyAvailable] = useState(false)
   const [emailNotFound, setEmailNotFound] = useState(false)
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null)
+  const [nowTick, setNowTick] = useState(() => Date.now())
   const { login: passkeyLogin, state: passkeyState, errorMsg: passkeyError, reset: passkeyReset } = usePasskeyLogin()
+
+  // Rate-limit lockout countdown: while locked, tick every second so the button stays disabled with a live
+  // timer and re-enables the moment the lock expires (no page refresh needed).
+  const lockedSecLeft = lockedUntil ? Math.max(0, Math.ceil((lockedUntil - nowTick) / 1000)) : 0
+  const isLocked = lockedSecLeft > 0
+  useEffect(() => {
+    if (!isLocked) return
+    const t = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [isLocked])
+  const lockedLabel = `${Math.floor(lockedSecLeft / 60)}:${String(lockedSecLeft % 60).padStart(2, "0")}`
 
   // Capability detection
   useEffect(() => {
@@ -155,6 +168,7 @@ function LoginContent() {
     const result = await signInWithPasswordAction(email, password)
 
     if (!result.ok) {
+      if (result.lockedSec) setLockedUntil(Date.now() + result.lockedSec * 1000)
       if (!emailExists) {
         setEmailNotFound(true)
       } else {
@@ -255,7 +269,7 @@ function LoginContent() {
                 type="email"
                 placeholder="you@example.com"
                 autoComplete="username webauthn"
-                disabled={loading}
+                disabled={loading || isLocked}
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setEmailNotFound(false) }}
                 required
@@ -278,7 +292,7 @@ function LoginContent() {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     autoComplete="current-password"
-                    disabled={loading}
+                    disabled={loading || isLocked}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pr-10"
@@ -300,9 +314,9 @@ function LoginContent() {
                 </div>
               </div>
             )}
-            <button id="pleks-login-submit" type="submit" className="fs-cta" disabled={loading}>
+            <button id="pleks-login-submit" type="submit" className="fs-cta" disabled={loading || isLocked}>
               <span className="fs-cta-bar" aria-hidden="true" />
-              <span className="fs-cta-label">{getButtonLabel(magicLinkMode, loading)}</span>
+              <span className="fs-cta-label">{isLocked ? `Locked — try again in ${lockedLabel}` : getButtonLabel(magicLinkMode, loading)}</span>
               <span className="fs-cta-arrow" aria-hidden="true">→</span>
             </button>
           </form>
