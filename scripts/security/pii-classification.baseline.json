@@ -9,7 +9,6 @@
   "hoa_unit_owners.id_number",
   "hoa_unit_owners.owner_email",
   "hoa_unit_owners.owner_phone",
-  "inspections.tenant_signature_url",
   "invites.email",
   "lease_amendments.requires_signature",
   "municipal_accounts.account_holder",

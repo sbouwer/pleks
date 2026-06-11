@@ -91,6 +91,8 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
     fields: { full_name: REDACTED, phone: null, email: null } },     // full_name NOT NULL
   { id: "B.tenant_bank_accounts", table: "tenant_bank_accounts", keyColumn: "tenant_id", keyFrom: "tenantId", appliesTo: ["tenant"],
     fields: { account_holder: REDACTED, account_number: REDACTED, account_number_enc: null, account_number_hash: null, bank_name: REDACTED, branch_code: null } },
+  { id: "B.inspections", table: "inspections", keyColumn: "tenant_id", keyFrom: "tenantId", appliesTo: ["tenant"],
+    fields: { tenant_signature_url: null } },                          // defensive — column is currently UNWRITTEN (e-sign feature not built), so no Storage blob to purge; covered if/when populated
 
   // ── §7 C — application-stage snapshots (the danger zone) ──────────────────────
   { id: "C.applications", table: "applications", keyColumn: "id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
