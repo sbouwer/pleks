@@ -3339,16 +3339,6 @@
       "created_at",
       "updated_at"
     ],
-    "unit_inspection_rooms": [
-      "id",
-      "org_id",
-      "unit_id",
-      "room_type",
-      "room_label",
-      "display_order",
-      "created_at",
-      "updated_at"
-    ],
     "unit_status_history": [
       "id",
       "unit_id",

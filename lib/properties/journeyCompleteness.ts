@@ -38,7 +38,7 @@ function valuePresent(v: unknown): boolean {
 
 function isFilled(field: JourneyField, ctx: JourneyContext): boolean {
   if (field.backing === "table") {
-    if (field.ref === "unit_inspection_rooms") return ctx.hasInspectionProfile === true
+    if (field.ref === "unit_inspection_profile_rooms") return ctx.hasInspectionProfile === true
     if (field.ref === "lease_clause_selections") return ctx.hasLeaseClauses === true
     return false
   }

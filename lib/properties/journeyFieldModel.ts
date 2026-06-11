@@ -7,8 +7,9 @@
  * default that's confirmed per lease. This is the single source the journey-completeness surface reads — so
  * "what's needed next" appears at each moment instead of dropping everything at signing.
  *
- * Columns are verified live (CC grounding 2026-06-11). Two were net-new for this build (§12.4 migration):
- *   • units.default_lease_period_months (straddle default) · unit_inspection_rooms (durable layout template).
+ * Columns are verified live (CC grounding 2026-06-11). Only ONE was net-new (§12.4 migration):
+ *   • units.default_lease_period_months (the straddle default). The durable inspection room template already
+ *     existed (unit_inspection_profiles + unit_inspection_profile_rooms, BUILD_57) — moment-5 reads it.
  * Divergence from the spec's Component-D table, flagged for CD: **clause/lease tailoring is PER-LEASE today**
  * (lease_clause_selections per lease_id) — there is no durable per-unit clause template. Making it durable would
  * be a further net-new (a per-unit clause set); until then it is correctly per-lease here.
@@ -58,7 +59,7 @@ export const JOURNEY_FIELDS: JourneyField[] = [
   { key: "period_confirm", label: "Confirm lease period",    fieldClass: "straddle",  moment: "signing",    required: true,  source: "lease",       ref: "start_date",                 backing: "column" },
 
   // ── Moment 5: ingoing ───────────────────────────────────────────────────────
-  { key: "inspection_profile", label: "Inspection room layout", fieldClass: "durable", moment: "ingoing",   required: true,  source: "unit",        ref: "unit_inspection_rooms",      backing: "table"  },
+  { key: "inspection_profile", label: "Inspection room layout", fieldClass: "durable", moment: "ingoing",   required: true,  source: "unit",        ref: "unit_inspection_profile_rooms", backing: "table"  },
 ]
 
 export function fieldsForMoment(moment: JourneyMoment): JourneyField[] {
