@@ -1,8 +1,4 @@
 [
-  "application_co_applicants.gross_monthly_income_cents",
-  "application_co_applicants.verified_monthly_income_cents",
-  "applications.gross_monthly_income_cents",
-  "applications.verified_monthly_income_cents",
   "bank_accounts.account_holder",
   "bank_accounts.account_number",
   "bank_accounts.branch_code",

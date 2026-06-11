@@ -101,9 +101,10 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
       employer_name: null, current_landlord_name: null,
       bank_statement_holder_name_extracted: null,                   // §7.1 add — extracted holder name
       fitscore_narrative: null, fitscore_material_flags: null,      // P-1 — derived AI PII (income/affordability/risk), JSONB
+      gross_monthly_income_cents: null, verified_monthly_income_cents: null, // applicant financial PII (PII ratchet)
     } },
   { id: "C.application_co_applicants", table: "application_co_applicants", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
-    fields: { first_name: null, last_name: null, id_number: null, id_number_hash: null, date_of_birth: null, employer_name: null, applicant_email: REDACTED, applicant_phone: null } },
+    fields: { first_name: null, last_name: null, id_number: null, id_number_hash: null, date_of_birth: null, employer_name: null, gross_monthly_income_cents: null, verified_monthly_income_cents: null, applicant_email: REDACTED, applicant_phone: null } },
   { id: "C.application_directors", table: "application_directors", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { first_name: REDACTED, last_name: REDACTED, id_number: null, id_number_hash: null, email: null, phone: null } },
   { id: "C.application_guarantors", table: "application_guarantors", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
