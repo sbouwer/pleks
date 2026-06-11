@@ -59,13 +59,16 @@ function dimensionsFromSnapshot(snap: ComponentSnapshot): DimensionScores {
   }
 }
 
+// Float-representation tolerance when comparing stored vs snapshot dimension scores.
+const DIMENSION_MATCH_EPSILON = 0.01
+
 /**
  * Checks that stored dimension scores (fitscore_components) match what the snapshot recorded.
- * Tolerates ±0.01 for floating-point representation differences.
+ * Tolerates ±DIMENSION_MATCH_EPSILON for floating-point representation differences.
  */
 function dimensionsMatch(stored: DimensionScores, fromSnapshot: DimensionScores): boolean {
   const keys = ['affordability', 'stability', 'creditBehaviour', 'verificationIntegrity'] as const
-  return keys.every(k => Math.abs((stored[k] ?? 0) - (fromSnapshot[k] ?? 0)) < 0.01)
+  return keys.every(k => Math.abs((stored[k] ?? 0) - (fromSnapshot[k] ?? 0)) < DIMENSION_MATCH_EPSILON)
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
