@@ -55,7 +55,7 @@ export const JOURNEY_FIELDS: JourneyField[] = [
   // ── Moment 4: signing ───────────────────────────────────────────────────────
   { key: "deposit",        label: "Deposit",                 fieldClass: "per_lease", moment: "signing",    required: true,  source: "lease",       ref: "deposit_amount_cents",       backing: "column" },
   { key: "lease_clauses",  label: "Lease clauses",           fieldClass: "per_lease", moment: "signing",    required: true,  source: "lease",       ref: "lease_clause_selections",    backing: "table"  },
-  { key: "period_confirm", label: "Confirm lease period",    fieldClass: "straddle",  moment: "signing",    required: true,  source: "lease",       ref: "start_date,end_date",        backing: "column" },
+  { key: "period_confirm", label: "Confirm lease period",    fieldClass: "straddle",  moment: "signing",    required: true,  source: "lease",       ref: "start_date",                 backing: "column" },
 
   // ── Moment 5: ingoing ───────────────────────────────────────────────────────
   { key: "inspection_profile", label: "Inspection room layout", fieldClass: "durable", moment: "ingoing",   required: true,  source: "unit",        ref: "unit_inspection_rooms",      backing: "table"  },
