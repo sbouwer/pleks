@@ -1376,7 +1376,8 @@ CREATE TRIGGER update_municipal_bills_updated_at
 -- #############################################################
 
 -- Convenience view: contractors with identity joined from contacts
-CREATE OR REPLACE VIEW contractor_view AS
+CREATE OR REPLACE VIEW contractor_view
+  WITH (security_invoker = true) AS
 SELECT
   co.id,
   co.org_id,
@@ -1574,7 +1575,8 @@ CREATE INDEX IF NOT EXISTS idx_contractors_active ON contractors(org_id)
   WHERE deleted_at IS NULL;
 
 -- Recreate contractor_view to exclude soft-deleted rows
-CREATE OR REPLACE VIEW contractor_view AS
+CREATE OR REPLACE VIEW contractor_view
+  WITH (security_invoker = true) AS
 SELECT
   co.id,
   co.org_id,
