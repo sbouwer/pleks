@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,6 +23,7 @@ import { PasskeyButton } from "@/components/auth/PasskeyButton"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { FocusShell } from "@/components/layout/FocusShell"
+import { signInWithPasswordAction } from "@/lib/actions/login"
 
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
 
@@ -40,7 +41,6 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const redirectParam = searchParams.get("redirect")
   const emailParam = searchParams.get("email")
@@ -150,35 +150,23 @@ function LoginContent() {
     }).catch(() => null)
     const emailExists = checkRes?.ok ? (await checkRes.json().catch(() => ({ exists: true }))).exists : true
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    // Server-side sign-in (keystone): rate-limiting + both-outcome logging + the new-device notice run inside the
+    // action, not the browser. The action establishes the session but makes NO routing decision (Single-Pass).
+    const result = await signInWithPasswordAction(email, password)
 
-    if (signInError) {
+    if (!result.ok) {
       if (!emailExists) {
         setEmailNotFound(true)
       } else {
-        setError("Incorrect email or password")
+        setError(result.error ?? "Incorrect email or password")
       }
       setLoading(false)
       return
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      globalThis.location.href = resolverUrl()
-      return
-    }
-
-    // MFA check — if elevation required, route through /login/mfa which re-fires resolver
-    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    if (aalData?.nextLevel === "aal2" && aalData?.currentLevel === "aal1") {
-      const dest = `/login/mfa?redirect=${encodeURIComponent(resolverUrl())}`
-      router.push(dest)
-      return
-    }
-
-    // AAL satisfied — resolver decides destination. Full-page nav (route handler).
+    // Session established server-side. Hand off to the resolver — it owns routing AND the AAL2 → /login/mfa step.
+    // Full-page nav so the resolver's server redirect is followed and the fresh session cookie is sent.
     globalThis.location.href = resolverUrl()
-    setLoading(false)
   }
 
   if (checking) {
