@@ -59,7 +59,7 @@ export async function POST(req: Request) {
   const supabase = await createServiceClient()
   const { data: lease, error } = await supabase
     .from("leases")
-    .select("id, org_id")
+    .select("id, org_id, status")
     .eq("docuseal_submission_id", submissionId)
     .maybeSingle()
   if (error) {
@@ -67,6 +67,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true }) // ack on our error so DocuSeal doesn't retry-storm
   }
   if (!lease) return NextResponse.json({ ok: true })
+  // Idempotency: DocuSeal delivers at-least-once + retries on timeout. If we've already activated this lease,
+  // ack and skip the redundant PDF re-fetch/upload + cascade. (activateLeaseCascade also self-guards atomically,
+  // which covers the concurrent first-delivery race; this is the fast path for sequential retries.)
+  if (lease.status === "active") return NextResponse.json({ ok: true })
 
   // Store the signed PDF — best-effort; never block lease activation on a storage hiccup.
   const documents = data?.documents as Array<Record<string, unknown>> | undefined

@@ -515,10 +515,30 @@ export async function activateLeaseCascade(
     ((org?.name as string) ?? ""),
   )
 
-  // Step 1: Activate lease — must succeed (throws on failure). Mint a STABLE per-lease payment
-  // reference for bank-statement matching (deterministic from the lease id; ADDENDUM_PHANTOM_COLUMN_TAIL D-1).
+  // Step 1: Activate lease — ATOMIC idempotency claim. DocuSeal (and every webhook provider) delivers
+  // at-least-once and retries on timeout, and markAsSigned can be double-clicked; without a guard a second run
+  // would double deposit_received into the trust ledger + double the unit/cascade. The conditional UPDATE
+  // (status <> 'active') means only the FIRST caller flips the lease — a duplicate matches 0 rows and we bail
+  // BEFORE any ledger/unit/comm writes. Race-safe via Postgres row-locking: concurrent runs serialise on the
+  // row, the loser re-evaluates the WHERE against the now-active row and updates nothing. (Ties to F-series trust
+  // integrity — the deposit insert must never run twice.) Mint a STABLE per-lease payment reference too.
   const paymentReference = "PL" + leaseId.replace(/-/g, "").slice(0, 8).toUpperCase()
-  await supabase.from("leases").update({ status: "active", signed_at: new Date().toISOString(), payment_reference: paymentReference }).eq("id", leaseId)
+  const { data: claimed, error: claimErr } = await supabase
+    .from("leases")
+    .update({ status: "active", signed_at: new Date().toISOString(), payment_reference: paymentReference })
+    .eq("id", leaseId)
+    .neq("status", "active")
+    .select("id")
+  if (claimErr) throw new Error(`Lease activation claim failed: ${claimErr.message}`)
+  if (!claimed || claimed.length === 0) {
+    // Already active — a prior delivery/click ran the cascade. Idempotent no-op; do NOT re-ledger.
+    return {
+      leaseId,
+      status: "active",
+      steps: [{ step: "Activate lease", status: "skipped", detail: "Already active — cascade skipped (idempotent)" }],
+      capabilities,
+    }
+  }
 
   const steps: CascadeStep[] = [
     { step: "Activate lease", status: "success" },
