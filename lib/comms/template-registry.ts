@@ -286,6 +286,10 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "reports.tenant_welcome_pack", channel: "email", category: "reports", is_mandatory: false,
     description: "Tenant welcome pack — payment details, maintenance contacts, key lease dates",
   },
+  "reports.scheduled": {
+    key: "reports.scheduled", channel: "email", category: "reports", is_mandatory: false,
+    description: "Firm-tier scheduled report delivered to recipients with a signed download link (cron)",
+  },
 
   // ── Application extras ────────────────────────────────────────────
   "application.co_applicant_invited": {

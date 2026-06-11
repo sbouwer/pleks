@@ -1,15 +1,20 @@
 /**
- * app/api/cron/scheduled-reports/route.ts — FILL: one-line purpose
+ * app/api/cron/scheduled-reports/route.ts — daily: build + deliver Firm-tier scheduled reports
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/cron/scheduled-reports — runs inside the daily orchestrator (09:00 check)
+ * Auth:   x-cron-secret header
+ * Data:   report_configs (due today, Firm tier) → report builders → "reports" Storage bucket → sendEmail
+ * Notes:  Builds the report HTML, stores it, and emails each recipient_emails address a signed 30-day download
+ *         link (O-1: this used to stop at "store + stamp last_sent_at" and deliver nothing). PDF conversion is
+ *         still deferred. last_sent_at is stamped once the report is built + stored; per-email outcomes are
+ *         surfaced via the belt ({ emails_sent, emails_failed }) → the daily cron digest.
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getReportBranding } from "@/lib/reports/reportBranding"
+import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { sendScheduledReportEmail } from "@/lib/reports/scheduledReportEmail"
+import { trackSend, settleSends } from "@/lib/cron/settleSends"
 import { resolvePeriod } from "@/lib/reports/periods"
 import { buildPortfolioSummary } from "@/lib/reports/portfolioSummary"
 import { buildRentRoll } from "@/lib/reports/rentRoll"
@@ -42,7 +47,8 @@ export async function GET(req: NextRequest) {
     .eq("schedule_day", dayOfMonth)
     logQueryError("GET report_configs", configsError)
 
-  let sent = 0
+  let reportsBuilt = 0
+  const sends: Promise<unknown>[] = []   // C-1 belt: collect + await + surface email failures before return
 
   for (const config of configs ?? []) {
     // Verify Firm tier
@@ -87,20 +93,41 @@ export async function GET(req: NextRequest) {
 
     // Store HTML report (PDF conversion can be done via Edge Function later)
     const filename = `reports/${config.org_id}/${config.report_type}-${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}.html`
-    await supabase.storage.from("reports").upload(filename, html, {
+    const { error: uploadErr } = await supabase.storage.from("reports").upload(filename, html, {
       contentType: "text/html",
       upsert: true,
     })
+    if (uploadErr) { console.error("scheduled-reports: upload failed for", config.id, uploadErr.message); continue }
 
-    // TODO: Send emails to config.recipient_emails with attached report
-    // For now, just update last_sent_at
+    // Deliver: a signed 30-day download link emailed to each configured recipient (O-1 — was a no-op stub).
+    const { data: signed, error: signErr } = await supabase.storage.from("reports").createSignedUrl(filename, 60 * 60 * 24 * 30)
+    if (signErr) console.error("scheduled-reports: signed URL failed for", config.id, signErr.message)
+    const downloadUrl = signed?.signedUrl
+    const branding = buildBranding(await fetchOrgSettings(config.org_id))
+    const periodLabel = `${from} – ${to}`
+
+    for (const email of (config.recipient_emails ?? []) as string[]) {
+      if (!email || !downloadUrl) continue
+      trackSend(sends, `scheduled-reports ${config.org_id}`, sendScheduledReportEmail({
+        orgId:         config.org_id,
+        configId:      config.id,
+        email,
+        recipientName: orgInfo.org_name ?? "Recipient",
+        reportType:    config.report_type,
+        periodLabel,
+        downloadUrl,
+        branding,
+      }))
+    }
+
     await supabase
       .from("report_configs")
       .update({ last_sent_at: today.toISOString() })
       .eq("id", config.id)
 
-    sent++
+    reportsBuilt++
   }
 
-  return Response.json({ ok: true, reports_sent: sent })
+  const { sent, failed } = await settleSends(sends)
+  return Response.json({ ok: true, reports_built: reportsBuilt, emails_sent: sent, emails_failed: failed })
 }
