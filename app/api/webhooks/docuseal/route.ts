@@ -2,27 +2,27 @@
  * app/api/webhooks/docuseal/route.ts — DocuSeal e-signing completion webhook
  *
  * Route:  POST /api/webhooks/docuseal
- * Auth:   HMAC (x-docuseal-signature) against DOCUSEAL_WEBHOOK_SECRET. INERT until that env is set — returns 503
- *         when unset, so while DocuSeal e-signing is go-live-gated no forged payload can write. Setting the secret
- *         at go-live activates it with NO code change. WEBHOOK_PREFIXES bypass proxy.ts gates — this validates
- *         its own signature.
+ * Auth:   shared-secret header (x-docuseal-secret) constant-time-compared to DOCUSEAL_WEBHOOK_SECRET — the same
+ *         idiom as the cron x-cron-secret (DocuSeal Console → Webhooks → Add Secret sends a configurable header).
+ *         INERT until that env is set — returns 503 when unset, so while DocuSeal e-signing is go-live-gated no
+ *         forged payload can write. Setting the secret at go-live activates it with NO code change.
+ *         WEBHOOK_PREFIXES bypass proxy.ts gates — this validates its own secret.
  * Data:   leases (docuseal_submission_id → docuseal_document_url) + lease-documents storage + activateLeaseCascade.
  * Notes:  Was a 503 stub with the impl parked in a comment (O-4). Now real, type-checked, env-gated code so it
  *         can't rot against activateLeaseCascade / the docuseal_* columns / the bucket.
  */
 import { NextResponse } from "next/server"
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { timingSafeEqual } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 import { activateLeaseCascade } from "@/lib/leases/activateLeaseCascade"
 
 export const runtime = "nodejs"
 
-function verifySignature(signature: string | null, rawBody: string, secret: string): boolean {
-  if (!signature) return false
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex")
+function secretMatches(provided: string | null, secret: string): boolean {
+  if (!provided) return false
   try {
-    const a = Buffer.from(signature)
-    const b = Buffer.from(expected)
+    const a = Buffer.from(provided)
+    const b = Buffer.from(secret)
     return a.length === b.length && timingSafeEqual(a, b)
   } catch {
     return false
@@ -36,14 +36,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not yet active" }, { status: 503 })
   }
 
-  const rawBody = await req.text()
-  if (!verifySignature(req.headers.get("x-docuseal-signature"), rawBody, secret)) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
+  if (!secretMatches(req.headers.get("x-docuseal-secret"), secret)) {
+    return NextResponse.json({ error: "Invalid secret" }, { status: 401 })
   }
 
   let body: Record<string, unknown>
   try {
-    body = JSON.parse(rawBody) as Record<string, unknown>
+    body = (await req.json()) as Record<string, unknown>
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
