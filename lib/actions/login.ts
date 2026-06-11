@@ -48,7 +48,7 @@ export async function signInWithPasswordAction(email: string, password: string):
   if (error || !data.user) {
     // 3. Record the failure on both limiters + log it (no user → userId null; hash the email — POPIA).
     await recordLoginFailure(ipId)
-    await recordLoginFailure(emailId)
+    const { attemptsLeft, locked } = await recordLoginFailure(emailId)
     await logAuthEvent({
       userId: null,
       eventType: "login_failure",
@@ -57,8 +57,12 @@ export async function signInWithPasswordAction(email: string, password: string):
       failureReason: error?.message ?? "no_user",
       metadata: { email_sha256: await hashString(cleanEmail.toLowerCase()), ip },
     })
-    // 5. Uniform response — never reveal whether the email exists.
-    return { ok: false, error: UNIFORM_ERROR }
+    // 5. Uniform response (no account-existence enumeration) — but surface the limiter so the wall isn't silent:
+    //    warn in the last couple of attempts, and name the lockout once it trips (Stéan's walk feedback).
+    let message = UNIFORM_ERROR
+    if (locked) message = "Too many attempts — try again in about 15 minutes."
+    else if (attemptsLeft <= 2) message = `${UNIFORM_ERROR} — ${attemptsLeft} attempt${attemptsLeft === 1 ? "" : "s"} left.`
+    return { ok: false, error: message, lockedSec: locked ? 15 * 60 : undefined }
   }
 
   // 4. Success — clear both limiters, log login_success, fire the new-device notice (O-2: its only caller).
