@@ -25,7 +25,7 @@ type AuthEventType =
 type AuthMethod = "password" | "magic_link" | "totp" | "passkey" | "recovery_code" | "oauth" | "admin"
 
 interface LogAuthEventParams {
-  userId: string
+  userId: string | null   // null for a failed login with no resolvable user (POPIA: hash the email in metadata)
   eventType: AuthEventType
   success: boolean
   orgId?: string | null
@@ -61,9 +61,11 @@ async function notifySecurityEvent(
   ipCity: string | null,
   ipCountry: string | null,
 ): Promise<void> {
+  if (!params.userId) return   // no user → no security email (e.g. a failed login with an unknown email)
   try {
+    const userId = params.userId
     const [{ data: u }, { data: profile }] = await Promise.all([
-      db.auth.admin.getUserById(params.userId),
+      db.auth.admin.getUserById(userId),
       db.from("user_profiles").select("full_name").eq("id", params.userId).maybeSingle(),
     ])
     const email = u.user?.email
@@ -94,7 +96,7 @@ export async function logAuthEvent(params: LogAuthEventParams): Promise<void> {
     // derive geo from Vercel's edge headers. This is the only writer of device_fingerprints + the
     // only geo source. Best-effort — never break event logging. (Edge geo headers are absent on
     // localhost, so Location stays empty in dev; populated in prod/preview.)
-    if (params.success && !deviceFingerprintId) {
+    if (params.success && params.userId && !deviceFingerprintId) {
       try {
         const h = await headers()
         const ua = h.get("user-agent") ?? ""

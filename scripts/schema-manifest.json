@@ -1964,6 +1964,14 @@
       "last_notified_at",
       "notification_count"
     ],
+    "login_rate_limits": [
+      "identifier",
+      "window_start",
+      "attempts_in_window",
+      "consecutive_failures",
+      "locked_until",
+      "updated_at"
+    ],
     "maintenance_cost_allocations": [
       "id",
       "org_id",

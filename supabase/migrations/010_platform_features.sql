@@ -1274,6 +1274,21 @@ CREATE POLICY "org_platform_email_retries_read" ON platform_email_retries
     SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
+-- ── Login rate-limit (ADDENDUM_AUTH_HARDENING — server-sign-in keystone) ──────
+-- Durable, DB-backed per-IP + per-email login throttle (the in-memory forgot-password limiter is leaky on
+-- Vercel multi-instance). identifier is "ip:<addr>" or "email:<sha256 hex>" (never plaintext email — POPIA).
+-- Service-role only (the login server action is the sole reader/writer); no client policy.
+CREATE TABLE IF NOT EXISTS login_rate_limits (
+  identifier           text        PRIMARY KEY,
+  window_start         timestamptz NOT NULL DEFAULT now(),
+  attempts_in_window   integer     NOT NULL DEFAULT 0,
+  consecutive_failures integer     NOT NULL DEFAULT 0,
+  locked_until         timestamptz,
+  updated_at           timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_login_rate_limits_locked ON login_rate_limits(locked_until) WHERE locked_until IS NOT NULL;
+ALTER TABLE login_rate_limits ENABLE ROW LEVEL SECURITY;
+
 -- ── WhatsApp Meta template variant catalog (platform-level, no org_id) ────
 CREATE TABLE IF NOT EXISTS whatsapp_template_variants (
   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
