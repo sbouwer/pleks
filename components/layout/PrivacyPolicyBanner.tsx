@@ -3,9 +3,11 @@
 /**
  * components/layout/PrivacyPolicyBanner.tsx — Non-blocking Privacy Policy update banner
  *
- * Notes:  Reads pleks_privacy_version cookie (non-httpOnly) and compares to LEGAL_VERSIONS.privacy.
- *         Shown when the accepted version is outdated. Dismissed by clicking "Got it" which
- *         sets the cookie to the current version (no DB write — banner is advisory only).
+ * Notes:  Fast path: if the pleks_privacy_version cookie already equals LEGAL_VERSIONS.privacy, stay hidden.
+ *         Otherwise the cookie is absent/stale (fresh login, new browser, cleared cookies) — so it falls back to
+ *         the DB (/api/legal/accepted-version, the source of truth) before nagging: if the user has in fact
+ *         accepted the current version it hydrates the cookie and stays hidden; only a genuinely-behind user
+ *         sees the advisory. Dismissed via "Got it" (cookie only — no DB write; banner is advisory).
  *         ToS updates are handled separately via the blocking proxy.ts checkTosGate.
  */
 import { useState, useEffect } from "react"
@@ -28,8 +30,19 @@ export function PrivacyPolicyBanner() {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    const accepted = getCookie("pleks_privacy_version")
-    setShow(accepted !== LEGAL_VERSIONS.privacy)
+    if (getCookie("pleks_privacy_version") === LEGAL_VERSIONS.privacy) return // cookie current — no nag, no fetch
+    // Cookie absent/stale — consult the DB (source of truth) before nagging. A user who accepted the current
+    // version on another browser shouldn't be nagged just because this browser lacks the cookie.
+    let cancelled = false
+    fetch("/api/legal/accepted-version")
+      .then((r) => (r.ok ? r.json() : { privacy: null }))
+      .then((d: { privacy: string | null }) => {
+        if (cancelled) return
+        if (d.privacy === LEGAL_VERSIONS.privacy) setCookie("pleks_privacy_version", LEGAL_VERSIONS.privacy)
+        else setShow(true)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [])
 
   function dismiss() {

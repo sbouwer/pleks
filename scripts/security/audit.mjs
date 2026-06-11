@@ -209,6 +209,7 @@ const AUTHENTICATED_API_ROUTES = [
   "/api/feedback/bug",
   "/api/auth/step-up/passkey",
   "/api/legal/accept-terms",
+  "/api/legal/accepted-version",
 ]
 
 const CRON_ROUTES = [
