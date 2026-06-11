@@ -2549,6 +2549,10 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS pleks_network_history_status t
   CHECK (pleks_network_history_status IS NULL OR pleks_network_history_status IN ('trusted','adverse','none'));
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS pleks_network_tenancy_count integer;
 
+-- O-1 (cron stub): application-reminders re-sends the shortlist invitation once to a stage-2-invited applicant
+-- who hasn't started after 3 days. This marks that the single nudge was sent (remind-once; no daily spam).
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage2_reminder_sent_at timestamptz;
+
 -- ─── §5.5b Per-applicant verification columns — co-applicants (on application_co_applicants) ──
 
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS income_evidence_tier integer

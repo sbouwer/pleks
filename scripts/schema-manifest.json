@@ -434,7 +434,8 @@
       "handled_by",
       "assigned_at",
       "picked_up_at",
-      "assigned_team_id"
+      "assigned_team_id",
+      "stage2_reminder_sent_at"
     ],
     "arrears_actions": [
       "id",
