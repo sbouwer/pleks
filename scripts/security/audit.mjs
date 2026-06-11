@@ -210,6 +210,7 @@ const AUTHENTICATED_API_ROUTES = [
   "/api/auth/step-up/passkey",
   "/api/legal/accept-terms",
   "/api/legal/accepted-version",
+  "/api/switch-role",
 ]
 
 const CRON_ROUTES = [
