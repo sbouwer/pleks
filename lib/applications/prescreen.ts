@@ -241,8 +241,10 @@ export function runPrescreen(input: PrescreenInput): PrescreenResult {
 }
 
 /**
- * Phase 1 backward-compat shim. Kept alive during the BUILD_14 v2 parallel-run
- * period (§11 of BUILD_14_SEARCHWORX_FITSCORE.md). Remove after cutover + 30 days.
+ * ACTIVE prescreen for the application-submit route. The original "remove after cutover + 30 days" note is stale
+ * — the v2 cutover (submit calling runPrescreen directly) never happened. This is a v1-SHAPED ADAPTER: it runs
+ * the v2 engine (runPrescreen) internally and maps the result back to the v1 0–45 shape the submit flow expects.
+ * Not removable until the submit route + its downstream are migrated to runPrescreen's v2 (0–55) scale.
  */
 export function calculatePrescreen(
   grossMonthlyIncomeCents: number | null,
@@ -275,17 +277,4 @@ export function calculatePrescreen(
   const total = Math.min(45, income + employment + references)
   const rent_to_income_pct = incomeCents && incomeCents > 0 ? (askingRentCents / incomeCents) * 100 : null
   return { income, employment, references, total, affordability_flag: result.flag !== 'green', rent_to_income_pct }
-}
-
-/**
- * v1-scale only — thresholds calibrated to 0-45. Do NOT pass v2 totalScore (0-55) here;
- * use flagFromScore (above) or a future getPrescreenLevelV2 for v2 results.
- * Kept for Phase 1 parallel-run callers. Remove after v2 cutover.
- */
-export function getPrescreenLevel(total: number): 'strong' | 'good' | 'borderline' | 'insufficient' | 'pending' {
-  if (total >= 38) return 'strong'
-  if (total >= 30) return 'good'
-  if (total >= 22) return 'borderline'
-  if (total > 0)   return 'insufficient'
-  return 'pending'
 }

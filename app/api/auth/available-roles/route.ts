@@ -1,11 +1,13 @@
 /**
- * app/api/auth/available-roles/route.ts — FILL: one-line purpose
+ * app/api/auth/available-roles/route.ts — list a user's switchable role memberships
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/auth/available-roles
+ * Auth:   Supabase session (auth.getUser); returns { roles: [] } when unauthenticated
+ * Data:   resolveUserRoles (lib/auth/roles) — enumerates agent/tenant/landlord memberships across bridge tables
+ * Notes:  Feeds RoleSwitcher. This is the LIST counterpart to resolveUserMembership (lib/auth/membership), which
+ *         resolves the single ACTIVE role for routing — there's no single-fn replacement for the enumeration, so
+ *         resolveUserRoles is live, not deprecated. (RoleSwitcher's POST target /api/switch-role is still missing
+ *         — tracked separately under the auth work, not here.)
  */
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
