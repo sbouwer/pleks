@@ -1378,7 +1378,8 @@
       "whatsapp_meta_rejection_reason",
       "meta_template_name",
       "comms_class",
-      "customised_from"
+      "customised_from",
+      "template_key"
     ],
     "external_links": [
       "key",

@@ -85,6 +85,7 @@ export async function customiseSystemTemplate(
       legal_flag: source.legal_flag,
       comms_class: source.comms_class,
       customised_from: source.id,
+      template_key: source.template_key, // inherit the auto-send link so the override picks up this copy
       is_deletable: true,
     })
     .select("id")

@@ -43,6 +43,9 @@ export interface RouteAndSendParams {
   subject: string
   emailElement?: ReactElement
   rawHtml?: string
+  /** BUILD_70 Phase 2b — opt-in {{token}} → value map; routes a non-statutory send through the org's
+   *  Customised correspondence template when one exists (else unchanged). */
+  mergeValues?: Record<string, string>
   smsBody?: string
   whatsappTemplate?: WhatsAppTemplate
   bodyPreview?: string
@@ -158,6 +161,7 @@ async function attemptEmail(
     subject: params.subject,
     emailElement: params.emailElement,
     rawHtml: params.rawHtml,
+    mergeValues: params.mergeValues,
     bodyPreview: params.bodyPreview,
     entityType: params.entityType,
     entityId: params.entityId,

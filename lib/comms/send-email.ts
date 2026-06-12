@@ -19,6 +19,7 @@
 import { createHash } from "node:crypto"
 import { Resend } from "resend"
 import { render } from "@react-email/components"
+import { resolveOrgCorrespondenceHtml } from "./orgTemplateOverride"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTemplate } from "./template-registry"
 import { canSend, ensurePreferences } from "./preferences"
@@ -47,6 +48,10 @@ export interface SendEmailParams {
   emailElement?: ReactElement
   /** Pre-rendered HTML string (for reports/documents). Mutually exclusive with emailElement. */
   rawHtml?: string
+  /** BUILD_70 Phase 2b — opt-in {{token}} → value map. When provided, a non-statutory send prefers the
+   *  org's Customised correspondence template (by templateKey) over the React-Email default; absent →
+   *  unchanged behaviour. */
+  mergeValues?: Record<string, string>
   /** Plain-text body preview (first ~200 chars shown in log) */
   bodyPreview?: string
   entityType?: string
@@ -196,6 +201,23 @@ function deriveFailedReasonCode(reason: string): string {
   return "provider_error"
 }
 
+/** BUILD_70 Phase 2b — choose the email HTML: the org's Customised correspondence body (opt-in via
+ *  mergeValues, non-statutory only) else the React-Email element / pre-rendered string. */
+async function resolveSendHtml(
+  params: SendEmailParams,
+  toneProfile: string | undefined,
+  orgSettings: Parameters<typeof buildBranding>[0],
+): Promise<string> {
+  if (params.mergeValues && toneProfile !== "legal") {
+    const overrideDb = await createServiceClient()
+    const override = await resolveOrgCorrespondenceHtml(
+      overrideDb, params.orgId, params.templateKey, params.mergeValues, buildBranding(orgSettings))
+    if (override) return override
+  }
+  if (!params.emailElement && !params.rawHtml) throw new Error("sendEmail: provide emailElement or rawHtml")
+  return params.rawHtml ?? await render(params.emailElement!)
+}
+
 export async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
   const template = getTemplate(params.templateKey)  // throws on unknown key
 
@@ -234,9 +256,9 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
 
   const replyTo = params.replyTo ?? orgSettings?.reply_to_email ?? orgSettings?.email ?? REPLY_TO_DEFAULT
 
-  // 3. Render HTML — either from a React Email element or a pre-rendered string
-  if (!params.emailElement && !params.rawHtml) throw new Error("sendEmail: provide emailElement or rawHtml")
-  const html = params.rawHtml ?? await render(params.emailElement!)
+  // 3. Render HTML — prefer the org's Customised correspondence body (opt-in via mergeValues, non-statutory
+  //    only), else the React Email element / pre-rendered string. Unchanged for every existing caller.
+  const html = await resolveSendHtml(params, template.tone_profile, orgSettings)
 
   // 4. Send via Resend
   const service = await createServiceClient()

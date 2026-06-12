@@ -963,3 +963,13 @@ UPDATE document_templates SET comms_class = CASE
   ELSE 'correspondence'
 END
 WHERE comms_class IS NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §19  BUILD_70 Phase 2b: template_key — link an editable template to an auto-send event
+--   A system master tagged with the TEMPLATE_REGISTRY key (e.g. 'rent.invoice_issued') becomes
+--   customisable; an org "Customise" copy inherits the key, and the email send prefers the org's
+--   body over the React-Email default for that key (non-statutory only). One custom per key per org.
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS template_key text;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_document_templates_org_key
+  ON document_templates(org_id, template_key) WHERE template_key IS NOT NULL;
