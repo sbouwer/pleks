@@ -939,3 +939,27 @@ CREATE INDEX IF NOT EXISTS idx_property_documents_org
   ON property_documents(org_id);
 CREATE INDEX IF NOT EXISTS idx_tenant_documents_org
   ON tenant_documents(org_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §18  BUILD_70 Phase 1: comms_class SSOT + "Customise" fork link
+--   comms_class is the single discriminator driving the Templates surface (editable
+--   correspondence vs view-only statutory) and System notices (service), and — later —
+--   the dispatch mode + floor. customised_from links an org "Customise" copy back to the
+--   system master so only ONE version shows (the master is hidden when a custom exists).
+--   Conservative seed: whatsapp = service; legal-flagged or arrears/notices = statutory
+--   (locked — Pleks-master, signing in Phase 3); everything else = correspondence.
+--   The exact statutory set is legal-gated (Phase 3) — this errs on the SAFE (locked) side.
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS comms_class text
+  CHECK (comms_class IS NULL OR comms_class IN ('service', 'correspondence', 'statutory'));
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS customised_from uuid
+  REFERENCES document_templates(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_document_templates_customised_from
+  ON document_templates(customised_from) WHERE customised_from IS NOT NULL;
+
+UPDATE document_templates SET comms_class = CASE
+  WHEN template_type = 'whatsapp' THEN 'service'
+  WHEN legal_flag IS NOT NULL OR category IN ('arrears_and_lod', 'notices') THEN 'statutory'
+  ELSE 'correspondence'
+END
+WHERE comms_class IS NULL;

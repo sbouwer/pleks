@@ -85,7 +85,7 @@ export const ROUTE_TIER_FLOORS = {
   "/calendar":             "portfolio",
   "/finance/trust-ledger": "steward",
   "/hoa":                  "firm",
-  "/settings/documents":      "steward",
+  "/settings/templates":      "steward",
   "/settings/lease-templates": "steward",
   "/settings/deposits":       "steward",
   "/settings/import":         "steward",

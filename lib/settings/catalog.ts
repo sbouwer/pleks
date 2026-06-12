@@ -26,7 +26,7 @@ export const SETTINGS_CATALOG: SettingsPage[] = [
   { href: "/settings/notifications", title: "Notifications", desc: "Email and in-app alerts", icon: Bell },
   { href: "/settings/details", title: "Organisation", desc: "Org profile, branding and hours", icon: Building2, prefixes: ["/settings/branding", "/settings/hours", "/settings/configuration"] },
   { href: "/settings/team", title: "Team & access", desc: "Members, roles and teams", icon: Users },
-  { href: "/settings/documents/templates", title: "Documents", desc: "Templates and lease documents", icon: FileText, prefixes: ["/settings/documents", "/settings/lease-templates"] },
+  { href: "/settings/templates", title: "Templates", desc: "Letters, emails, WhatsApp & notices — see what goes out", icon: FileText, prefixes: ["/settings/templates", "/settings/documents", "/settings/lease-templates"] },
   { href: "/settings/compliance", title: "Compliance", desc: "POPIA, FICA and legal", icon: ShieldCheck },
   { href: "/settings/subscription", title: "Billing & plan", desc: "Your plan, invoices and payment", icon: CreditCard },
   { href: "/settings/deposits", title: "Trust account", desc: "Deposit and trust banking", icon: Landmark },

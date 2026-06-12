@@ -82,6 +82,10 @@ const nextConfig: NextConfig = {
       { source: "/contractors/:path*", destination: "/suppliers/:path*",   permanent: true },
 
       { source: "/settings/finance",   destination: "/settings/deposits",  permanent: true },
+
+      // Documents settings renamed to Templates (ADDENDUM template-manager Phase 1)
+      { source: "/settings/documents/templates", destination: "/settings/templates", permanent: true },
+      { source: "/settings/documents",           destination: "/settings/templates", permanent: true },
       { source: "/settings/billing",   destination: "/settings/subscription", permanent: true },
       { source: "/settings/communication/templates", destination: "/settings/documents/templates", permanent: true },
       { source: "/settings/communication/:path*",    destination: "/settings/documents/:path*",    permanent: true },

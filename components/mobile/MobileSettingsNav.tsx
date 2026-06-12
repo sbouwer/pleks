@@ -59,10 +59,10 @@ export function MobileSettingsNav() {
       ],
     },
     {
-      title: "Documents",
+      title: "Templates",
       items: [
-        { href: "/settings/documents/templates", label: "Templates" },
-        { href: "/settings/lease-templates", label: "Lease templates" },
+        { href: "/settings/templates", label: "Templates" },
+        { href: "/settings/templates?tab=leases", label: "Lease templates" },
       ],
     },
     ...((caps === null || caps.hasCompliance) ? [{

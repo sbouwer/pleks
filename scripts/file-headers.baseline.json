@@ -82,7 +82,6 @@
   "app/(dashboard)/reports/tabs/useReportData.ts",
   "app/(dashboard)/settings/deposits/page.tsx",
   "app/(dashboard)/settings/details/loading.tsx",
-  "app/(dashboard)/settings/documents/templates/page.tsx",
   "app/(dashboard)/settings/import/_components/WizardStepBar.tsx",
   "app/(dashboard)/settings/import/page.tsx",
   "app/(dashboard)/settings/profile/loading.tsx",

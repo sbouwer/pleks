@@ -1376,7 +1376,9 @@
       "whatsapp_meta_submitted_at",
       "whatsapp_meta_approved_at",
       "whatsapp_meta_rejection_reason",
-      "meta_template_name"
+      "meta_template_name",
+      "comms_class",
+      "customised_from"
     ],
     "external_links": [
       "key",

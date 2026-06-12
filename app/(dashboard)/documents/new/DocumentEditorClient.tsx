@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Send, FileDown, Save, AlertTriangle } from "lucide-react"
 import { RichTextEditor, type RichTextEditorHandle } from "@/components/ui/RichTextEditor"
-import type { DocumentTemplate } from "@/app/(dashboard)/settings/documents/templates/page"
+import type { DocumentTemplate } from "@/app/(dashboard)/settings/templates/types"
 import {
   sendDocument,
   generateDocumentPdf,
