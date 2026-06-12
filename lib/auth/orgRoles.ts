@@ -36,11 +36,11 @@ interface OrgRoleRow {
   enabled: boolean
 }
 
-/** Merged role list for the current org: built-ins (with per-org overrides) + custom roles. */
-export async function getOrgRoles(): Promise<OrgRole[]> {
-  const gw = await gateway()
-  if (!gw) return []
-  const { db, orgId } = gw
+type GatewayDb = NonNullable<Awaited<ReturnType<typeof gateway>>>["db"]
+
+/** Core merge — built-ins (with per-org overrides) + custom roles. Takes a resolved db+orgId so callers that
+ *  already hold a gateway (e.g. listAssignableRoles) don't pay a second gateway() round-trip. */
+async function buildOrgRoles(db: GatewayDb, orgId: string): Promise<OrgRole[]> {
   const { data, error } = await db
     .from("org_roles").select("slug, label, role_group, is_system, capabilities, enabled").eq("org_id", orgId)
   if (error) console.error("getOrgRoles:", error.message)
@@ -73,14 +73,25 @@ export async function getOrgRoles(): Promise<OrgRole[]> {
   return result
 }
 
+/** Merged role list for the current org: built-ins (with per-org overrides) + custom roles. */
+export async function getOrgRoles(): Promise<OrgRole[]> {
+  const gw = await gateway()
+  if (!gw) return []
+  return buildOrgRoles(gw.db, gw.orgId)
+}
+
 /** Roles a member may be invited/assigned as in the current org — enabled + tier-allowed (excludes owner).
  *  Drives the invite + member-edit pickers. */
 export async function listAssignableRoles(): Promise<{ slug: string; label: string; group: string | null }[]> {
   const gw = await gateway()
   if (!gw) return []
-  const tier = await getOrgTierCanonical(gw.orgId)
+  // tier + roles are independent — run them concurrently, and reuse this gateway's db for the roles
+  // (getOrgRoles() would resolve a second gateway()). Was 4 sequential round-trips, now 1 + parallel(2).
+  const [tier, roles] = await Promise.all([
+    getOrgTierCanonical(gw.orgId),
+    buildOrgRoles(gw.db, gw.orgId),
+  ])
   const allowed = allowedRoleSlugs(tier)
-  const roles = await getOrgRoles()
   return roles
     .filter((r) => r.enabled)
     .filter((r) => !r.isSystem || allowed === "all" || allowed.has(r.slug))
