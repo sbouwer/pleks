@@ -80,8 +80,6 @@ export function ConfigurationForm({ initialSettings }: Readonly<Props>) {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="font-heading text-3xl mb-6">Configuration</h1>
-
       <form ref={formRef} onSubmit={handleSave} className="space-y-4">
         {/* Communication collapsible section */}
         <div className="border border-border rounded-lg overflow-hidden">

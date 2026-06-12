@@ -43,10 +43,11 @@ const SETTINGS_INDEX: SettingsDest[] = [
 
   // ── Workspace ──────────────────────────────────────────────────────────────
   { label: "Organisation", subtitle: "Workspace", section: "workspace", href: "/settings/details", kw: "company business details registered entity" },
-  { label: "Company details", subtitle: "Organisation", section: "workspace", href: "/settings/details", kw: "name vat registration ppra ffc" },
-  { label: "Branding", subtitle: "Organisation", section: "workspace", href: "/settings/branding", kw: "logo colours statement tenant portal" },
-  { label: "Opening hours", subtitle: "Organisation", section: "workspace", href: "/settings/hours", kw: "office after-hours emergency contact" },
-  { label: "Configuration", subtitle: "Organisation", section: "workspace", href: "/settings/configuration", kw: "regional currency date timezone defaults" },
+  { label: "Company details", subtitle: "Organisation", section: "workspace", href: "/settings/details?tab=details", kw: "name vat registration ppra ffc" },
+  { label: "Branding", subtitle: "Organisation", section: "workspace", href: "/settings/details?tab=branding", kw: "logo colours statement tenant portal font document layout" },
+  { label: "Opening hours", subtitle: "Organisation", section: "workspace", href: "/settings/details?tab=hours", kw: "office hours open close weekday" },
+  { label: "Emergency contact", subtitle: "Organisation", section: "workspace", href: "/settings/details?tab=emergency", kw: "after-hours emergency phone contact" },
+  { label: "Configuration", subtitle: "Organisation", section: "workspace", href: "/settings/details?tab=configuration", kw: "regional currency date timezone defaults tone communication sms" },
   { label: "Team & access", subtitle: "Workspace", section: "workspace", href: "/settings/team", kw: "members invite users seats" },
   { label: "Roles & permissions", subtitle: "Team & access", section: "workspace", href: "/settings/team", kw: "roles permissions access" },
   { label: "Documents", subtitle: "Workspace", section: "workspace", href: "/settings/documents/templates", kw: "templates statements receipts notices" },

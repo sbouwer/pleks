@@ -1,11 +1,13 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/details/DetailsForm.tsx — Organisation/personal details form (name, contact, address, operating hours)
+ * app/(dashboard)/settings/details/DetailsForm.tsx — Organisation/personal details panel (Organisation → Details tab)
  *
- * Route:  /settings/details
+ * Route:  /settings/details?tab=details
  * Auth:   gateway (dashboard layout)
  * Data:   initialData (OrgDetails) passed as props; PATCH /api/org/details
+ * Notes:  Identity / business / address only — hours, emergency contact and branding are their own tabs.
+ *         Header is provided by the Organisation DetailPageLayout (no in-panel <h1>).
  */
 
 import { useState } from "react"
@@ -16,7 +18,7 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { Info, Plus, X, Phone } from "lucide-react"
+import { Info, Plus, X } from "lucide-react"
 
 const TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof", "Adv", "Rev"]
 const PROVINCES = [
@@ -58,15 +60,6 @@ export interface OrgDetails {
   addr2_province: string | null
   addr2_postal_code: string | null
   primary_contact_is_user: boolean
-  // ADDENDUM_00B
-  office_hours_weekday: string | null
-  office_hours_saturday: string | null
-  office_hours_sunday: string | null
-  office_hours_public_holidays: string | null
-  emergency_phone: string | null
-  emergency_contact_name: string | null
-  emergency_instructions: string | null
-  emergency_email: string | null
 }
 
 type FormState = Omit<OrgDetails, "id" | "type" | "primary_contact_is_user">
@@ -255,156 +248,6 @@ function AddressesSection({ form, set, showSecond, onAddSecond, onRemoveSecond }
   )
 }
 
-// ── Operating hours & emergency contact ──────────────────────────────────────
-
-/** Parse stored "HH:MM–HH:MM" string into time parts. Returns closed=true when null/empty. */
-function parseDayHours(value: string | null): { start: string; end: string; closed: boolean } {
-  if (!value) return { start: "08:00", end: "17:00", closed: true }
-  const match = value.match(/^(\d{2}:\d{2})[–-](\d{2}:\d{2})$/)
-  if (match) return { start: match[1], end: match[2], closed: false }
-  return { start: "08:00", end: "17:00", closed: true }
-}
-
-/** Format time parts back to stored string, or null when closed. */
-function formatDayHours(start: string, end: string, closed: boolean): string {
-  if (closed) return ""
-  return `${start}–${end}`
-}
-
-interface DayRowProps {
-  label: string
-  value: string | null
-  defaultStart?: string
-  defaultEnd?: string
-  onChange: (v: string) => void
-}
-
-function DayHoursRow({ label, value, defaultStart = "08:00", defaultEnd = "17:00", onChange }: Readonly<DayRowProps>) {
-  const parsed = parseDayHours(value)
-  // If closed but we have a default open state (weekday), treat null as open with defaults
-  const isClosed = parsed.closed
-  const start = isClosed ? defaultStart : parsed.start
-  const end = isClosed ? defaultEnd : parsed.end
-
-  function handleClosed(checked: boolean) {
-    onChange(formatDayHours(start, end, checked))
-  }
-  function handleStart(v: string) {
-    onChange(formatDayHours(v, end, isClosed))
-  }
-  function handleEnd(v: string) {
-    onChange(formatDayHours(start, v, isClosed))
-  }
-
-  return (
-    <div className="grid grid-cols-[100px_1fr_1fr_auto] items-center gap-x-3 gap-y-0">
-      <span className="text-sm">{label}</span>
-      <Input
-        type="time"
-        value={start}
-        disabled={isClosed}
-        onChange={(e) => handleStart(e.target.value)}
-        className="h-8 text-sm disabled:opacity-40"
-      />
-      <Input
-        type="time"
-        value={end}
-        disabled={isClosed}
-        onChange={(e) => handleEnd(e.target.value)}
-        className="h-8 text-sm disabled:opacity-40"
-      />
-      <label className="flex items-center gap-1.5 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={isClosed}
-          onChange={(e) => handleClosed(e.target.checked)}
-          className="h-3.5 w-3.5 accent-brand cursor-pointer"
-        />
-        <span className="text-xs text-muted-foreground">Closed</span>
-      </label>
-    </div>
-  )
-}
-
-function OperatingHoursCard({ form, set }: Readonly<{ form: FormState; set: (f: keyof FormState, v: string) => void }>) {
-  return (
-    <Card className="mb-4">
-      <CardHeader><CardTitle className="text-base">Operating Hours &amp; Emergency Contact</CardTitle></CardHeader>
-      <CardContent className="space-y-5">
-        <div className="space-y-2">
-          <SecHeading>Office Hours</SecHeading>
-          {/* Column headers */}
-          <div className="grid grid-cols-[100px_1fr_1fr_auto] items-center gap-x-3 mb-1">
-            <span />
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Open</span>
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Close</span>
-            <span />
-          </div>
-          <DayHoursRow
-            label="Weekdays"
-            value={form.office_hours_weekday}
-            defaultStart="08:00"
-            defaultEnd="17:00"
-            onChange={(v) => set("office_hours_weekday", v)}
-          />
-          <DayHoursRow
-            label="Saturdays"
-            value={form.office_hours_saturday}
-            defaultStart="08:00"
-            defaultEnd="13:00"
-            onChange={(v) => set("office_hours_saturday", v)}
-          />
-          <DayHoursRow
-            label="Sundays"
-            value={form.office_hours_sunday}
-            defaultStart="08:00"
-            defaultEnd="13:00"
-            onChange={(v) => set("office_hours_sunday", v)}
-          />
-          <DayHoursRow
-            label="Public holidays"
-            value={form.office_hours_public_holidays}
-            defaultStart="08:00"
-            defaultEnd="13:00"
-            onChange={(v) => set("office_hours_public_holidays", v)}
-          />
-        </div>
-        <div className="border-t border-border/40 pt-4 space-y-3">
-          <SecHeading>After-Hours Emergency</SecHeading>
-          <div className="grid grid-cols-2 gap-3">
-            <F label="Emergency phone" id="emergency_phone">
-              <Input id="emergency_phone" type="tel" value={form.emergency_phone ?? ""}
-                onChange={(e) => set("emergency_phone", e.target.value)} placeholder="082 999 8888" />
-            </F>
-            <F label="Contact name" id="emergency_contact_name" help="Person or service name">
-              <Input id="emergency_contact_name" value={form.emergency_contact_name ?? ""}
-                onChange={(e) => set("emergency_contact_name", e.target.value)} placeholder="Cape Emergency Services" />
-            </F>
-          </div>
-          <F label="Emergency email" id="emergency_email">
-            <Input id="emergency_email" type="email" value={form.emergency_email ?? ""}
-              onChange={(e) => set("emergency_email", e.target.value)} placeholder="emergency@agency.co.za" />
-          </F>
-          <F label="Emergency instructions" id="emergency_instructions" help="Shown to tenants — keep brief">
-            <textarea
-              id="emergency_instructions"
-              value={form.emergency_instructions ?? ""}
-              onChange={(e) => set("emergency_instructions", e.target.value)}
-              placeholder="For burst pipes, close the main stopcock before calling."
-              rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </F>
-          <div className="flex items-start gap-2 text-xs text-muted-foreground rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
-            <Phone className="size-3.5 shrink-0 mt-0.5" />
-            <span>If no emergency phone is set, your office number will be used as the emergency contact.</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 // ── Main form ─────────────────────────────────────────────────────────────────
 
 export function DetailsForm({ initialData }: Readonly<{ initialData: OrgDetails }>) {
@@ -433,16 +276,6 @@ export function DetailsForm({ initialData }: Readonly<{ initialData: OrgDetails 
     setSaving(true)
     try {
       const payload = { ...form }
-      if (type !== "landlord") {
-        delete (payload as Partial<typeof form>).office_hours_weekday
-        delete (payload as Partial<typeof form>).office_hours_saturday
-        delete (payload as Partial<typeof form>).office_hours_sunday
-        delete (payload as Partial<typeof form>).office_hours_public_holidays
-        delete (payload as Partial<typeof form>).emergency_phone
-        delete (payload as Partial<typeof form>).emergency_contact_name
-        delete (payload as Partial<typeof form>).emergency_instructions
-        delete (payload as Partial<typeof form>).emergency_email
-      }
       const res = await fetch("/api/org/details", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -517,7 +350,6 @@ export function DetailsForm({ initialData }: Readonly<{ initialData: OrgDetails 
   if (type === "landlord") {
     return (
       <div>
-        <h1 className="font-heading text-3xl mb-1">Your details</h1>
         <p className="text-sm text-muted-foreground mb-6">
           Your personal information appears on leases and tenant communications.
         </p>
@@ -538,7 +370,6 @@ export function DetailsForm({ initialData }: Readonly<{ initialData: OrgDetails 
             </CardContent>
           </Card>
         </div>
-        <OperatingHoursCard form={form} set={set} />
         {saveBtn}
       </div>
     )
@@ -547,7 +378,6 @@ export function DetailsForm({ initialData }: Readonly<{ initialData: OrgDetails 
   if (type === "sole_prop") {
     return (
       <div>
-        <h1 className="font-heading text-3xl mb-1">Business details</h1>
         <p className="text-sm text-muted-foreground mb-6">
           Your business information appears on leases, invoices, and communications.
         </p>
@@ -599,7 +429,6 @@ export function DetailsForm({ initialData }: Readonly<{ initialData: OrgDetails 
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-1">Organisation details</h1>
       <p className="text-sm text-muted-foreground mb-6">
         Your company information appears on all documents, invoices, and communications.
       </p>

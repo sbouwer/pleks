@@ -93,7 +93,7 @@ export async function getSettingsOverview(db: Db, orgId: string): Promise<Settin
   if (org && !org.brand_logo_url) {
     setup.push({
       id: "branding", icon: "branding", title: "Add your branding",
-      desc: "Put your logo and colours on statements, leases and the tenant portal.", href: "/settings/branding",
+      desc: "Put your logo and colours on statements, leases and the tenant portal.", href: "/settings/details?tab=branding",
     })
   }
 
