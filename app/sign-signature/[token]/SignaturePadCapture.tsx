@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(public)/sign-signature/[token]/SignaturePadCapture.tsx — FILL: one-line purpose
+ * app/sign-signature/[token]/SignaturePadCapture.tsx — the phone signature pad (draw → save → done)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /sign-signature/[token]
+ * Auth:   token-authenticated (passed from the page); no login
+ * Data:   saveSignatureFromMobile (validates the one-time token, uploads, marks consumed, kind from token)
+ * Notes:  Minimal single-purpose capture — draw, Clear/Save, then a "captured" confirmation. Nothing else.
  */
 import { useRef, useState, useTransition, useEffect } from "react"
 import { Button } from "@/components/ui/button"

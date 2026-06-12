@@ -2423,7 +2423,11 @@
       "ppra_ffc_expiry_date",
       "fitscore_narrative_enabled",
       "onboarding_dismissed_at",
-      "default_lease_document_source"
+      "default_lease_document_source",
+      "linkedin_url",
+      "facebook_url",
+      "instagram_url",
+      "x_url"
     ],
     "owner_statements": [
       "id",
@@ -2968,7 +2972,8 @@
       "org_id",
       "expires_at",
       "consumed_at",
-      "created_at"
+      "created_at",
+      "kind"
     ],
     "site_content": [
       "key",
@@ -3393,7 +3398,8 @@
       "hazmat_approved",
       "rail_siding",
       "business_use_permitted",
-      "assigned_team_id"
+      "assigned_team_id",
+      "default_lease_period_months"
     ],
     "user_capabilities": [
       "id",
@@ -3475,7 +3481,8 @@
       "source",
       "is_active",
       "created_at",
-      "created_ip"
+      "created_ip",
+      "kind"
     ],
     "user_template_favourites": [
       "user_id",

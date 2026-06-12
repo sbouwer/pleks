@@ -10,9 +10,8 @@
  *         the Organisation DetailPageLayout — this panel renders the office-hours card + save only.
  */
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ActionButton } from "@/components/ui/actions"
-import { Input } from "@/components/ui/input"
+import { Save } from "lucide-react"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { toast } from "sonner"
 
 /** Parse stored "HH:MM–HH:MM" string into time parts. Returns closed=true when null/empty. */
@@ -53,29 +52,19 @@ function DayHoursRow({ label, value, defaultStart = "08:00", defaultEnd = "17:00
     onChange(formatDayHours(start, v, isClosed))
   }
 
+  const timeCls = "h-9 rounded-[var(--r-button)] border border-input bg-transparent px-2 text-sm tabular-nums transition-colors focus:border-primary focus:outline-none disabled:opacity-40 [color-scheme:dark]"
   return (
-    <div className="grid grid-cols-[100px_1fr_1fr_auto] items-center gap-x-3 gap-y-0">
-      <span className="text-sm">{label}</span>
-      <Input
-        type="time"
-        value={start}
-        disabled={isClosed}
-        onChange={(e) => handleStart(e.target.value)}
-        className="h-8 text-sm disabled:opacity-40"
-      />
-      <Input
-        type="time"
-        value={end}
-        disabled={isClosed}
-        onChange={(e) => handleEnd(e.target.value)}
-        className="h-8 text-sm disabled:opacity-40"
-      />
-      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+    <div className="flex items-center gap-2.5">
+      <span className="w-24 shrink-0 text-sm">{label}</span>
+      <input type="time" value={start} disabled={isClosed} onChange={(e) => handleStart(e.target.value)} className={timeCls} />
+      <span className="text-muted-foreground">–</span>
+      <input type="time" value={end} disabled={isClosed} onChange={(e) => handleEnd(e.target.value)} className={timeCls} />
+      <label className="ml-auto flex cursor-pointer select-none items-center gap-1.5">
         <input
           type="checkbox"
           checked={isClosed}
           onChange={(e) => handleClosed(e.target.checked)}
-          className="h-3.5 w-3.5 accent-brand cursor-pointer"
+          className="h-3.5 w-3.5 accent-primary cursor-pointer"
         />
         <span className="text-xs text-muted-foreground">Closed</span>
       </label>
@@ -123,31 +112,25 @@ export function HoursForm({ initialData }: Readonly<{ initialData: HoursData }>)
   }
 
   return (
-    <div>
-      <Card className="mb-4">
-        <CardHeader><CardTitle className="text-base">Office Hours</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          {/* Column headers */}
-          <div className="grid grid-cols-[100px_1fr_1fr_auto] items-center gap-x-3 mb-1">
-            <span />
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Open</span>
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Close</span>
-            <span />
-          </div>
-          <DayHoursRow label="Monday"    value={form.office_hours_monday}    defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_monday", v)} />
-          <DayHoursRow label="Tuesday"   value={form.office_hours_tuesday}   defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_tuesday", v)} />
-          <DayHoursRow label="Wednesday" value={form.office_hours_wednesday} defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_wednesday", v)} />
-          <DayHoursRow label="Thursday"  value={form.office_hours_thursday}  defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_thursday", v)} />
-          <DayHoursRow label="Friday"    value={form.office_hours_friday}    defaultStart="08:00" defaultEnd="15:00" onChange={(v) => set("office_hours_friday", v)} />
-          <DayHoursRow label="Saturday"  value={form.office_hours_saturday}  defaultStart="08:00" defaultEnd="13:00" onChange={(v) => set("office_hours_saturday", v)} />
-          <DayHoursRow label="Sunday"    value={form.office_hours_sunday}    defaultStart="08:00" defaultEnd="13:00" onChange={(v) => set("office_hours_sunday", v)} />
-          <DayHoursRow label="Public holidays" value={form.office_hours_public_holidays} defaultStart="08:00" defaultEnd="13:00" onChange={(v) => set("office_hours_public_holidays", v)} />
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end pt-2">
-        <ActionButton tone="primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</ActionButton>
+    <DetailCard
+      title="Office hours"
+      headerAction={
+        <button type="button" aria-label={saving ? "Saving…" : "Save hours"} title={saving ? "Saving…" : "Save hours"}
+          onClick={handleSave} disabled={saving} className="pa-edit">
+          <Save className="size-3.5" />
+        </button>
+      }
+    >
+      <div className="space-y-3">
+        <DayHoursRow label="Monday"    value={form.office_hours_monday}    defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_monday", v)} />
+        <DayHoursRow label="Tuesday"   value={form.office_hours_tuesday}   defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_tuesday", v)} />
+        <DayHoursRow label="Wednesday" value={form.office_hours_wednesday} defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_wednesday", v)} />
+        <DayHoursRow label="Thursday"  value={form.office_hours_thursday}  defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_thursday", v)} />
+        <DayHoursRow label="Friday"    value={form.office_hours_friday}    defaultStart="08:00" defaultEnd="15:00" onChange={(v) => set("office_hours_friday", v)} />
+        <DayHoursRow label="Saturday"  value={form.office_hours_saturday}  defaultStart="08:00" defaultEnd="13:00" onChange={(v) => set("office_hours_saturday", v)} />
+        <DayHoursRow label="Sunday"    value={form.office_hours_sunday}    defaultStart="08:00" defaultEnd="13:00" onChange={(v) => set("office_hours_sunday", v)} />
+        <DayHoursRow label="Public holidays" value={form.office_hours_public_holidays} defaultStart="08:00" defaultEnd="13:00" onChange={(v) => set("office_hours_public_holidays", v)} />
       </div>
-    </div>
+    </DetailCard>
   )
 }

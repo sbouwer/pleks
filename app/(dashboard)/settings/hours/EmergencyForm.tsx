@@ -1,35 +1,19 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/hours/EmergencyForm.tsx — After-hours emergency contact panel (Organisation → Emergency tab)
+ * app/(dashboard)/settings/hours/EmergencyForm.tsx — After-hours emergency contact card (Organisation → Availability)
  *
- * Route:  /settings/details?tab=emergency
+ * Route:  /settings/details?tab=hours (right column, beside Office hours)
  * Auth:   gateway (dashboard layout)
  * Data:   initialData passed as props; PATCH /api/org/details
- * Notes:  Split out of the old Hours form so opening hours and after-hours contact are distinct tabs.
- *         Header is provided by the Organisation DetailPageLayout — this panel renders the card + save only.
+ * Notes:  Iconic DetailCard with a header disk-save, matching the Office hours card. Header + subtext are
+ *         owned by the Organisation DetailPageLayout.
  */
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ActionButton } from "@/components/ui/actions"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Phone, Save } from "lucide-react"
+import { TextField, TextareaField } from "@/components/forms/fields"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { toast } from "sonner"
-import { Phone } from "lucide-react"
-
-function F({ label, id, required, help, children }: Readonly<{
-  label: string; id?: string; required?: boolean; help?: string; children: React.ReactNode
-}>) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>
-        {label}{required && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
-      {children}
-      {help && <p className="text-xs text-muted-foreground">{help}</p>}
-    </div>
-  )
-}
 
 export interface EmergencyData {
   emergency_phone: string | null
@@ -54,11 +38,8 @@ export function EmergencyForm({ initialData }: Readonly<{ initialData: Emergency
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       })
-      if (res.ok) {
-        toast.success("Emergency contact saved")
-      } else {
-        toast.error("Failed to save")
-      }
+      if (res.ok) toast.success("Emergency contact saved")
+      else toast.error("Failed to save")
     } catch {
       toast.error("Failed to save")
     } finally {
@@ -67,44 +48,26 @@ export function EmergencyForm({ initialData }: Readonly<{ initialData: Emergency
   }
 
   return (
-    <div>
-      <Card className="mb-4">
-        <CardHeader><CardTitle className="text-base">After-Hours Emergency</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <F label="Emergency phone" id="emergency_phone">
-              <Input id="emergency_phone" type="tel" value={form.emergency_phone ?? ""}
-                onChange={(e) => set("emergency_phone", e.target.value)} placeholder="082 999 8888" />
-            </F>
-            <F label="Contact name" id="emergency_contact_name" help="Person or service name">
-              <Input id="emergency_contact_name" value={form.emergency_contact_name ?? ""}
-                onChange={(e) => set("emergency_contact_name", e.target.value)} placeholder="Cape Emergency Services" />
-            </F>
-          </div>
-          <F label="Emergency email" id="emergency_email">
-            <Input id="emergency_email" type="email" value={form.emergency_email ?? ""}
-              onChange={(e) => set("emergency_email", e.target.value)} placeholder="emergency@agency.co.za" />
-          </F>
-          <F label="Emergency instructions" id="emergency_instructions" help="Shown to tenants — keep brief">
-            <textarea
-              id="emergency_instructions"
-              value={form.emergency_instructions ?? ""}
-              onChange={(e) => set("emergency_instructions", e.target.value)}
-              placeholder="For burst pipes, close the main stopcock before calling."
-              rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </F>
-          <div className="flex items-start gap-2 text-xs text-muted-foreground rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
-            <Phone className="size-3.5 shrink-0 mt-0.5" />
-            <span>If no emergency phone is set, your office number will be used as the emergency contact.</span>
-          </div>
-        </CardContent>
-      </Card>
+    <DetailCard
+      title="After-hours emergency"
+      headerAction={
+        <button type="button" aria-label={saving ? "Saving…" : "Save emergency contact"} title={saving ? "Saving…" : "Save emergency contact"}
+          onClick={handleSave} disabled={saving} className="pa-edit">
+          <Save className="size-3.5" />
+        </button>
+      }
+    >
+      <div className="space-y-4">
+        <TextField label="Emergency phone" value={form.emergency_phone} onChange={(v) => set("emergency_phone", v)} type="tel" placeholder="082 999 8888" />
+        <TextField label="Contact name" value={form.emergency_contact_name} onChange={(v) => set("emergency_contact_name", v)} placeholder="Cape Emergency Services" />
+        <TextField label="Emergency email" value={form.emergency_email} onChange={(v) => set("emergency_email", v)} type="email" placeholder="emergency@agency.co.za" />
+        <TextareaField label="Emergency instructions" value={form.emergency_instructions} onChange={(v) => set("emergency_instructions", v)} placeholder="Shown to tenants — e.g. for burst pipes, close the main stopcock before calling." />
 
-      <div className="flex justify-end pt-2">
-        <ActionButton tone="primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</ActionButton>
+        <div className="flex items-start gap-2 rounded-[var(--r-button)] border border-border/50 bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+          <Phone className="size-3.5 shrink-0 mt-0.5" />
+          <span>If no emergency phone is set, your office number will be used as the emergency contact.</span>
+        </div>
       </div>
-    </div>
+    </DetailCard>
   )
 }

@@ -1,11 +1,11 @@
 /**
- * app/(public)/sign-signature/[token]/page.tsx — FILL: one-line purpose
+ * app/sign-signature/[token]/page.tsx — minimal public phone page to capture a signature/initial
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /sign-signature/[token] (token-gated; ROUTE_MANIFEST auth:false)
+ * Auth:   none — the one-time token IS the auth (validated here: not-found / consumed / expired)
+ * Data:   signature_sign_tokens (service client); SignaturePadCapture → saveSignatureFromMobile
+ * Notes:  Deliberately OUTSIDE the (public) marketing layout — inherits only the root shell, so the phone
+ *         sees just the pad + save (no nav/footer/login). The token carries the kind (signature vs initial).
  */
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"

@@ -501,6 +501,22 @@ table.ledger tr.paid td:first-child::before {
    popups — set it on the controls directly so the OS draws the dropdown list dark, not white. */
 .pleks-portal[data-theme="dark"] select { color-scheme: dark; }
 
+/* ── Signature capture / preview surfaces ──────────────────────────────────
+   Stored marks are always black ink on transparent (correct for documents).
+   For DISPLAY only: white paper + dark ink in light theme; reversed to a dark
+   panel + white ink in dark theme (invert the black-ink asset/canvas/text).
+   QR blocks are NOT given .sig-surface — they must stay black-on-white to scan. */
+.sig-surface { background: #ffffff; }
+.sig-ink { color: #111111; }
+/* Distinct near-black inset well (clearly darker than the card) so a white mark pops. */
+.pleks-portal[data-theme="dark"] .sig-surface { background: oklch(0.10 0.012 260); border-color: var(--rule-strong); }
+.pleks-portal[data-theme="dark"] .sig-ink { color: #ffffff; }
+/* True colour inversion — flips the ink AND any baked-in background: a black mark on a
+   white (non-transparent) box becomes a white mark on black (which blends into the dark
+   well); a dark mark on transparent becomes a light mark. brightness(0)+invert is NOT used
+   here because it would paint a white-background upload into a solid white blob. */
+.pleks-portal[data-theme="dark"] .sig-ink-invert { filter: invert(1); }
+
 .pleks-portal[data-theme="dark"] {
   color-scheme: dark;
   /* Paper & ink — dark navy */

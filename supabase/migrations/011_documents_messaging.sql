@@ -903,3 +903,23 @@ CREATE INDEX IF NOT EXISTS idx_delivery_notice_tokens_log
 
 ALTER TABLE delivery_notice_tokens ENABLE ROW LEVEL SECURITY;
 -- All access via service-role client (route handlers); no user-facing policy needed.
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §16  Signature kind — full signature vs initial (leases need an initial per page)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- A user keeps one active full signature AND one active initial. The active-uniqueness index moves from
+-- (user_id) to (user_id, kind) so both can be active at once. Existing rows default to 'signature'.
+
+ALTER TABLE user_signatures
+  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'signature'
+  CHECK (kind IN ('signature', 'initial'));
+
+DROP INDEX IF EXISTS idx_user_signatures_active;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_signatures_active
+  ON user_signatures(user_id, kind) WHERE is_active = true;
+
+-- QR phone-capture tokens carry the kind so the mobile save lands on signature vs initial.
+ALTER TABLE signature_sign_tokens
+  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'signature'
+  CHECK (kind IN ('signature', 'initial'));

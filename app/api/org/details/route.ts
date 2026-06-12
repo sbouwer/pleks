@@ -1,11 +1,11 @@
 /**
- * app/api/org/details/route.ts — FILL: one-line purpose
+ * app/api/org/details/route.ts — read/update the organisation's own details (Organisation › Details)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET/PATCH /api/org/details
+ * Auth:   getUser (auth) + getMembership; PATCH additionally requires org admin (isAdmin)
+ * Data:   organisations (column allowlist ALL_FIELDS). PATCH validates each field is string|null;
+ *         primary_contact_is_user is the one boolean. Banking lives in bank_accounts, not here.
+ * Notes:  Allowlist is the write boundary — only listed columns can be patched.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
@@ -14,6 +14,8 @@ import { getMembership } from "@/lib/supabase/getMembership"
 const ALL_FIELDS = [
   "name", "trading_as", "reg_number", "eaab_number", "vat_number",
   "email", "phone", "address", "website",
+  // social links (Organisation › Details → Contact)
+  "linkedin_url", "facebook_url", "instagram_url", "x_url",
   // personal / owner fields
   "title", "first_name", "last_name", "initials", "gender",
   "date_of_birth", "id_number", "mobile",

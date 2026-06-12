@@ -12,10 +12,9 @@ import type { DetailTab } from "@/lib/detail/types"
 export const ORG_TABS: DetailTab[] = [
   { id: "details", label: "Details" },
   { id: "branding", label: "Branding" },
-  { id: "hours", label: "Hours" },
-  { id: "emergency", label: "Emergency" },
+  { id: "hours", label: "Availability" },
   { id: "configuration", label: "Configuration" },
 ]
 
 /** Tab ids only available when the org has the opening-hours capability. */
-export const HOURS_GATED_TABS = ["hours", "emergency"]
+export const HOURS_GATED_TABS = ["hours"]

@@ -845,3 +845,15 @@ ALTER TABLE organisations
 COMMENT ON COLUMN organisations.default_lease_document_source IS
   'ADDENDUM_LEASE_CREATION_MODAL Phase 3 / D-7: org default for the lease document-source fork. '
   '''pleks'' = Generate with Pleks, ''external'' = Upload signed leases, NULL = undecided (show fork).';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §7  Organisation social links (Organisation › Details → Contact)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Optional public social/profile URLs, edited in the Contact step of the org details
+-- modal and rendered as icons on the org Contact card. Plain text URLs (like website);
+-- nullable, no backfill.
+
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS linkedin_url text;
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS facebook_url text;
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS instagram_url text;
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS x_url text;

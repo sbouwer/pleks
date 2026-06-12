@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react"
 import { getOrgDisplayName } from "@/lib/org/displayName"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Modal } from "@/components/ui/actions"
 import { ClassicCover } from "@/components/branding/templates/ClassicCover"
 import { ModernCover } from "@/components/branding/templates/ModernCover"
 import { BoldCover } from "@/components/branding/templates/BoldCover"
@@ -18,17 +18,17 @@ interface DocumentPreviewProps {
   accentColor: string
   layout: Template
   font?: Font
+  /** brand-font CSS-var classNames (from brandFonts) so the previews render in their real typefaces. */
+  fontVars?: string
 }
 
+// Self-hosted brand fonts (CSP-safe) — vars supplied by the caller via `fontVars`.
 const FONT_STACKS: Record<Font, string> = {
-  inter: "Inter, system-ui, sans-serif",
-  merriweather: "Merriweather, Georgia, serif",
-  lato: "Lato, system-ui, sans-serif",
-  playfair: '"Playfair Display", Georgia, serif',
+  inter: "var(--font-brand-inter), system-ui, sans-serif",
+  merriweather: "var(--font-brand-merriweather), Georgia, serif",
+  lato: "var(--font-brand-lato), system-ui, sans-serif",
+  playfair: "var(--font-brand-playfair), Georgia, serif",
 }
-
-const GOOGLE_FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,400;0,700;1,400&family=Lato:wght@400;700&family=Playfair+Display:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
 
@@ -40,14 +40,6 @@ function Paper({ children, fontStack }: Readonly<{ children: React.ReactNode; fo
     >
       {children}
     </div>
-  )
-}
-
-function MockupNote({ type }: Readonly<{ type: string }>) {
-  return (
-    <p className="text-center text-xs text-muted-foreground mt-3">
-      This is a preview. {type} will use your branding when available.
-    </p>
   )
 }
 
@@ -249,7 +241,7 @@ function InvoiceBold({ identity, branding }: Readonly<{ identity: CoverIdentity;
       <div className="px-10 py-5" style={{ background: a }}>
         <div className="flex items-center justify-between">
           {branding.logoUrl
-            ? <img src={branding.logoUrl} alt="" className="max-w-[80px] max-h-[30px] object-contain brightness-0 invert" />
+            ? <span className="inline-flex items-center rounded bg-white px-1.5 py-1"><img src={branding.logoUrl} alt="" className="h-5 w-auto object-contain" /></span>
             : <span className="font-bold text-white" style={{ fontSize: "11px" }}>{n}</span>
           }
           <p className="font-bold text-white" style={{ fontSize: "11px" }}>TAX INVOICE</p>
@@ -369,7 +361,7 @@ function EmailBold({ identity, branding }: Readonly<{ identity: CoverIdentity; b
     <div className="h-full flex flex-col bg-white" style={{ color: "#333", fontSize: "9px" }}>
       <div className="px-10 py-6 text-center" style={{ background: a }}>
         {branding.logoUrl
-          ? <img src={branding.logoUrl} alt="" className="max-w-[90px] max-h-[36px] object-contain mx-auto brightness-0 invert" />
+          ? <span className="mx-auto inline-flex items-center rounded bg-white px-1.5 py-1"><img src={branding.logoUrl} alt="" className="h-5 w-auto object-contain" /></span>
           : <p className="font-bold text-white" style={{ fontSize: "11px" }}>{n}</p>
         }
       </div>
@@ -488,7 +480,7 @@ function LetterBold({ identity, branding }: Readonly<{ identity: CoverIdentity; 
       <div className="px-10 py-5" style={{ background: a }}>
         <div className="flex items-center justify-between">
           {branding.logoUrl
-            ? <img src={branding.logoUrl} alt="" className="max-w-[80px] max-h-[28px] object-contain brightness-0 invert" />
+            ? <span className="inline-flex items-center rounded bg-white px-1.5 py-1"><img src={branding.logoUrl} alt="" className="h-5 w-auto object-contain" /></span>
             : <span className="font-bold text-white" style={{ fontSize: "11px" }}>{n}</span>
           }
           <div className="text-right text-white" style={{ opacity: 0.85 }}>
@@ -575,11 +567,15 @@ const COVER_COMPONENTS: Record<Template, (p: Readonly<{ identity: CoverIdentity;
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DocumentPreview({ logoUrl, accentColor, layout, font = "inter" }: Readonly<DocumentPreviewProps>) {
+const PAGE_W = 480
+const THUMB_W = 150
+
+export function DocumentPreview({ logoUrl, accentColor, layout, font = "inter", fontVars = "" }: Readonly<DocumentPreviewProps>) {
   const [identity, setIdentity] = useState<CoverIdentity>({
     name: "", tradingAs: null, registration: null, eaab: null,
     address: "", phone: "", email: "", website: null,
   })
+  const [openDoc, setOpenDoc] = useState<string | null>(null)
 
   useEffect(() => {
     fetch("/api/org/details")
@@ -612,60 +608,41 @@ export function DocumentPreview({ logoUrl, accentColor, layout, font = "inter" }
   const branding: CoverBranding = { logoUrl, accentColor }
   const fontStack = FONT_STACKS[font]
 
-  const CoverComp = COVER_COMPONENTS[layout]
-  const LeaseComp = LEASE_VARIANTS[layout]
-  const InvoiceComp = INVOICE_VARIANTS[layout]
-  const EmailComp = EMAIL_VARIANTS[layout]
-  const LetterComp = LETTER_VARIANTS[layout]
+  const DOCS: ReadonlyArray<{ key: string; label: string; Comp: (p: Readonly<DocProps>) => React.ReactElement }> = [
+    { key: "cover", label: "Cover page", Comp: COVER_COMPONENTS[layout] },
+    { key: "lease", label: "Lease page", Comp: LEASE_VARIANTS[layout] },
+    { key: "invoice", label: "Invoice", Comp: INVOICE_VARIANTS[layout] },
+    { key: "email", label: "Email", Comp: EMAIL_VARIANTS[layout] },
+    { key: "letter", label: "Letter", Comp: LETTER_VARIANTS[layout] },
+  ]
+  const active = DOCS.find((d) => d.key === openDoc)
 
   return (
-    <>
-      {/* Load Google Fonts */}
-      <link rel="stylesheet" href={GOOGLE_FONTS_URL} />
+    <div className={fontVars}>
+      <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5">
+        {DOCS.map((d) => (
+          <button key={d.key} type="button" onClick={() => setOpenDoc(d.key)}
+            className="group flex flex-col items-center gap-2 outline-none">
+            <div
+              className="overflow-hidden rounded border border-border shadow-sm transition-all group-hover:border-primary group-hover:shadow-md"
+              style={{ width: THUMB_W, height: THUMB_W * 1.414 }}
+            >
+              <div style={{ width: PAGE_W, transform: `scale(${THUMB_W / PAGE_W})`, transformOrigin: "top left" }}>
+                <Paper fontStack={fontStack}><d.Comp identity={identity} branding={branding} /></Paper>
+              </div>
+            </div>
+            <span className="text-xs font-medium text-muted-foreground transition-colors group-hover:text-foreground">{d.label}</span>
+          </button>
+        ))}
+      </div>
 
-      <Tabs defaultValue="cover">
-        <TabsList className="mb-4">
-          <TabsTrigger value="cover">Cover page</TabsTrigger>
-          <TabsTrigger value="lease">Lease page</TabsTrigger>
-          <TabsTrigger value="invoice">Invoice</TabsTrigger>
-          <TabsTrigger value="email">Email</TabsTrigger>
-          <TabsTrigger value="letter">Letter</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="cover">
-          <Paper fontStack={fontStack}>
-            <CoverComp identity={identity} branding={branding} />
-          </Paper>
-        </TabsContent>
-
-        <TabsContent value="lease">
-          <Paper fontStack={fontStack}>
-            <LeaseComp identity={identity} branding={branding} />
-          </Paper>
-          <MockupNote type="Lease documents" />
-        </TabsContent>
-
-        <TabsContent value="invoice">
-          <Paper fontStack={fontStack}>
-            <InvoiceComp identity={identity} branding={branding} />
-          </Paper>
-          <MockupNote type="Invoices" />
-        </TabsContent>
-
-        <TabsContent value="email">
-          <Paper fontStack={fontStack}>
-            <EmailComp identity={identity} branding={branding} />
-          </Paper>
-          <MockupNote type="Emails" />
-        </TabsContent>
-
-        <TabsContent value="letter">
-          <Paper fontStack={fontStack}>
-            <LetterComp identity={identity} branding={branding} />
-          </Paper>
-          <MockupNote type="Letters" />
-        </TabsContent>
-      </Tabs>
-    </>
+      <Modal open={!!active} onClose={() => setOpenDoc(null)} title={active?.label ?? "Preview"}>
+        {active && (
+          <div className={fontVars} style={{ width: PAGE_W, maxWidth: "100%" }}>
+            <Paper fontStack={fontStack}><active.Comp identity={identity} branding={branding} /></Paper>
+          </div>
+        )}
+      </Modal>
+    </div>
   )
 }

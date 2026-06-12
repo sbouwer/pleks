@@ -12,9 +12,13 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { randomUUID } from "node:crypto"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
+/** A user keeps one active full signature AND one active initial (kind). Defaults to the full signature. */
+export type SignatureKind = "signature" | "initial"
+
 export async function saveSignatureDataUrl(
   dataUrl: string,
   source: "mouse_desktop" | "typed_name",
+  kind: SignatureKind = "signature",
 ): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("save_signature")
   const { db, userId, orgId } = gw
@@ -35,11 +39,12 @@ export async function saveSignatureDataUrl(
     return { error: "Could not upload signature" }
   }
 
-  // Deactivate existing active signatures
+  // Deactivate existing active signatures of this kind
   const { error: deactivateError } = await db
     .from("user_signatures")
     .update({ is_active: false })
     .eq("user_id", userId)
+    .eq("kind", kind)
     .eq("is_active", true)
 
   if (deactivateError) {
@@ -53,6 +58,7 @@ export async function saveSignatureDataUrl(
     org_id: orgId,
     storage_path: storagePath,
     source,
+    kind,
     is_active: true,
   })
 
@@ -64,7 +70,7 @@ export async function saveSignatureDataUrl(
   return {}
 }
 
-export async function saveSignatureFile(formData: FormData): Promise<{ error?: string }> {
+export async function saveSignatureFile(formData: FormData, kind: SignatureKind = "signature"): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("save_signature")
   const { db, userId, orgId } = gw
 
@@ -86,11 +92,12 @@ export async function saveSignatureFile(formData: FormData): Promise<{ error?: s
     return { error: "Could not upload signature" }
   }
 
-  // Deactivate existing active signatures
+  // Deactivate existing active signatures of this kind
   const { error: deactivateError } = await db
     .from("user_signatures")
     .update({ is_active: false })
     .eq("user_id", userId)
+    .eq("kind", kind)
     .eq("is_active", true)
 
   if (deactivateError) {
@@ -104,6 +111,7 @@ export async function saveSignatureFile(formData: FormData): Promise<{ error?: s
     org_id: orgId,
     storage_path: storagePath,
     source: "uploaded_file",
+    kind,
     is_active: true,
   })
 
@@ -115,7 +123,7 @@ export async function saveSignatureFile(formData: FormData): Promise<{ error?: s
   return {}
 }
 
-export async function removeSignature(): Promise<{ error?: string }> {
+export async function removeSignature(kind: SignatureKind = "signature"): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("save_signature")
   const { db, userId } = gw
 
@@ -123,6 +131,7 @@ export async function removeSignature(): Promise<{ error?: string }> {
     .from("user_signatures")
     .update({ is_active: false })
     .eq("user_id", userId)
+    .eq("kind", kind)
     .eq("is_active", true)
 
   if (error) {
@@ -138,7 +147,7 @@ export async function removeSignature(): Promise<{ error?: string }> {
  * Token expires in 10 minutes. The mobile page at /sign-signature/[token]
  * validates this token before showing the signature pad.
  */
-export async function createSignatureToken(): Promise<{ error?: string; token?: string }> {
+export async function createSignatureToken(kind: SignatureKind = "signature"): Promise<{ error?: string; token?: string }> {
   const gw = await requireAgentWriteAccess("save_signature")
   const { db, userId, orgId } = gw
 
@@ -150,6 +159,7 @@ export async function createSignatureToken(): Promise<{ error?: string; token?: 
     user_id: userId,
     org_id: orgId,
     expires_at: expiresAt,
+    kind,
   })
 
   if (error) {
@@ -201,7 +211,7 @@ export async function saveSignatureFromMobile(
   // Validate token
   const { data: tokenRow, error: tokenError } = await db
     .from("signature_sign_tokens")
-    .select("token, user_id, org_id, expires_at, consumed_at")
+    .select("token, user_id, org_id, expires_at, consumed_at, kind")
     .eq("token", token)
     .eq("user_id", userId)
     .eq("org_id", orgId)
@@ -210,6 +220,7 @@ export async function saveSignatureFromMobile(
   if (tokenError || !tokenRow) return { error: "Invalid token" }
   if (tokenRow.consumed_at) return { error: "Token already used" }
   if (new Date(tokenRow.expires_at) < new Date()) return { error: "Token expired" }
+  const kind: SignatureKind = tokenRow.kind === "initial" ? "initial" : "signature"
 
   // Upload signature — detect jpeg vs png from data URL
   const mimeMatch = /^data:(image\/\w+);base64,/.exec(dataUrl)
@@ -229,11 +240,12 @@ export async function saveSignatureFromMobile(
     return { error: "Could not upload signature" }
   }
 
-  // Deactivate existing active signatures
+  // Deactivate existing active signatures of this kind
   await db
     .from("user_signatures")
     .update({ is_active: false })
     .eq("user_id", userId)
+    .eq("kind", kind)
     .eq("is_active", true)
 
   // Insert new active signature
@@ -242,6 +254,7 @@ export async function saveSignatureFromMobile(
     org_id: orgId,
     storage_path: storagePath,
     source: "qr_phone",
+    kind,
     is_active: true,
   })
 

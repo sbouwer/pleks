@@ -52,8 +52,7 @@ export function MobileSettingsNav() {
         { href: "/settings/details?tab=details", label: "Details" },
         ...((caps === null || caps.hasTeam) ? [{ href: "/settings/team", label: "Team" }] : []),
         ...((caps === null || caps.hasOpeningHours) ? [
-          { href: "/settings/details?tab=hours", label: "Opening hours" },
-          { href: "/settings/details?tab=emergency", label: "Emergency contact" },
+          { href: "/settings/details?tab=hours", label: "Availability" },
         ] : []),
         { href: "/settings/details?tab=branding", label: "Branding" },
         { href: "/settings/details?tab=configuration", label: "Configuration" },
