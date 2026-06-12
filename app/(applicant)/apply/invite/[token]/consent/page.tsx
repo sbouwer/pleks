@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { ShieldCheck } from "lucide-react"
 import { ConsentCodeEntry } from "@/components/consent/ConsentCodeEntry"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { createClient } from "@/lib/supabase/client"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -38,6 +39,7 @@ export default function Stage2ConsentPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [verifData, setVerifData] = useState<{ verificationId: string; targetMasked: string; expiresAt: string } | null>(null)
+  const [confirmDecline, setConfirmDecline] = useState(false)
 
   async function sendCode(): Promise<SendCodeResponse> {
     const res = await fetch("/api/consent/send-code", {
@@ -90,9 +92,8 @@ export default function Stage2ConsentPage() {
     }
   }
 
-  async function handleDecline() {
-    if (!confirm("Are you sure you want to withdraw your application?")) return
-
+  async function doDecline() {
+    setConfirmDecline(false)
     const supabase = createClient()
     const { data: tokenData, error: tokenDataError } = await supabase
       .from("application_tokens")
@@ -110,8 +111,21 @@ export default function Stage2ConsentPage() {
     router.push(`/apply/invite/${token}`)
   }
 
+  const declineDialog = (
+    <ConfirmDialog
+      open={confirmDecline}
+      onOpenChange={(o) => { if (!o) setConfirmDecline(false) }}
+      title="Withdraw application?"
+      description="Are you sure you want to withdraw your application?"
+      variant="destructive"
+      confirmLabel="Withdraw"
+      onConfirm={doDecline}
+    />
+  )
+
   if (step === "verify" && verifData) {
     return (
+      <>
       <div className="space-y-6">
         <div>
           <h1 className="text-xl font-semibold">Verify your consent</h1>
@@ -131,17 +145,20 @@ export default function Stage2ConsentPage() {
         <div className="flex justify-center">
           <button
             type="button"
-            onClick={handleDecline}
+            onClick={() => setConfirmDecline(true)}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Decline — withdraw my application
           </button>
         </div>
       </div>
+      {declineDialog}
+      </>
     )
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Credit check consent</h1>
@@ -230,11 +247,13 @@ export default function Stage2ConsentPage() {
         <ActionButton
           tone="secondary"
           className="w-full"
-          onClick={() => void handleDecline()}
+          onClick={() => setConfirmDecline(true)}
         >
           Decline — withdraw my application
         </ActionButton>
       </div>
     </div>
+    {declineDialog}
+    </>
   )
 }

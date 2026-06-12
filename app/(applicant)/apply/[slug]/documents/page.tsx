@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { Upload, FileText, CheckCircle2, Loader2, AlertCircle } from "lucide-react"
+import { toast } from "sonner"
 
 interface DocSlot {
   key: string
@@ -149,7 +150,7 @@ export default function DocumentsPage() {
 
       router.push(`/apply/${slug}/review?token=${token}`)
     } catch {
-      alert("Something went wrong. Please try again.")
+      toast.error("Something went wrong. Please try again.")
       setSubmitting(false)
     }
   }

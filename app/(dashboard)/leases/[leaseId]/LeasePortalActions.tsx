@@ -14,6 +14,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { Link2, ShieldOff, Copy, Check, Loader2, MessageCircle, Send, ChevronDown } from "lucide-react"
 import { generateTenantPortalLink, revokeTenantPortalAccess } from "@/lib/portal/inviteTenant"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { emailLeaseToTenant } from "./actions"
 import type { TenantContactInfo } from "./ContactsTab"
 
@@ -32,6 +33,7 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
   const [copied, setCopied] = useState(false)
   const [emailing, setEmailing] = useState(false)
   const [whatsappOpen, setWhatsappOpen] = useState(false)
+  const [confirmRevoke, setConfirmRevoke] = useState(false)
   const whatsappRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -70,11 +72,11 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
     setTimeout(() => setCopied(false), 2000)
   }
 
-  async function handleRevoke() {
-    if (!confirm("This will revoke all portal access for this tenant. Continue?")) return
+  async function doRevoke() {
     setRevoking(true)
     const result = await revokeTenantPortalAccess(tenantId)
     setRevoking(false)
+    setConfirmRevoke(false)
     if (result.error) toast.error(result.error)
     else toast.success("Portal access revoked")
   }
@@ -139,13 +141,24 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
           <ActionButton
             tone="destructive"
             icon={revoking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />}
-            onClick={handleRevoke}
+            onClick={() => setConfirmRevoke(true)}
             disabled={revoking}
           >
             Revoke access
           </ActionButton>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmRevoke}
+        onOpenChange={(o) => { if (!o) setConfirmRevoke(false) }}
+        title="Revoke portal access?"
+        description="This will revoke all portal access for this tenant."
+        variant="destructive"
+        confirmLabel="Revoke access"
+        onConfirm={doRevoke}
+        loading={revoking}
+      />
 
       {portalInviteSentAt && (
         <p className="text-xs text-muted-foreground">

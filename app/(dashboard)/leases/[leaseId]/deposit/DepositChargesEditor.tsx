@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { Badge } from "@/components/ui/badge"
 import { formatZAR } from "@/lib/constants"
 import {
@@ -101,6 +102,7 @@ export function DepositChargesEditor({
   const router = useRouter()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   const isLocked = reconStatus === "refunded"
@@ -159,14 +161,17 @@ export function DepositChargesEditor({
     else { toast.success("Charge confirmed"); router.refresh() }
   }
 
-  async function handleDelete(chargeId: string) {
-    if (!confirm("Remove this charge?")) return
+  async function doDelete() {
+    const chargeId = confirmDeleteId
+    if (!chargeId) return
+    setConfirmDeleteId(null)
     const result = await deleteDepositCharge(chargeId, leaseId)
     if ("error" in result) toast.error(result.error)
     else { toast.success("Charge removed"); router.refresh() }
   }
 
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
@@ -343,7 +348,7 @@ export function DepositChargesEditor({
                         )}
                         {!charge.agent_confirmed && (
                           <button
-                            onClick={() => handleDelete(charge.id)}
+                            onClick={() => setConfirmDeleteId(charge.id)}
                             className="text-xs text-red-600 hover:underline ml-2"
                           >
                             Remove
@@ -368,5 +373,15 @@ export function DepositChargesEditor({
         )}
       </CardContent>
     </Card>
+    <ConfirmDialog
+      open={!!confirmDeleteId}
+      onOpenChange={(o) => { if (!o) setConfirmDeleteId(null) }}
+      title="Remove charge?"
+      description="This non-damage charge will be removed from the deposit reconciliation."
+      variant="destructive"
+      confirmLabel="Remove"
+      onConfirm={doDelete}
+    />
+    </>
   )
 }

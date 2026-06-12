@@ -17,6 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { saveManagingScheme, createManagingScheme, unlinkManagingScheme } from "@/lib/actions/schemes"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
 
 const SCHEME_TYPES = [
@@ -55,6 +56,7 @@ export function SchemeEditForm({ propertyId, defaults }: Readonly<SchemeEditForm
   const [schemeType, setSchemeType] = useState(defaults.schemeType ?? "body_corporate")
   const [levyCycle, setLevyCycle] = useState(defaults.levyCycle ?? "")
   const [unlinking, setUnlinking] = useState(false)
+  const [confirmUnlink, setConfirmUnlink] = useState(false)
 
   const isEditing = !!defaults.schemeId
 
@@ -75,13 +77,13 @@ export function SchemeEditForm({ propertyId, defaults }: Readonly<SchemeEditForm
     null,
   )
 
-  async function handleUnlink() {
-    if (!confirm("Remove this managing scheme from the property? The scheme record will remain.")) return
+  async function doUnlink() {
     setUnlinking(true)
     const result = await unlinkManagingScheme(propertyId)
     if (result?.error) {
       toast.error(result.error)
       setUnlinking(false)
+      setConfirmUnlink(false)
     } else {
       toast.success("Managing scheme removed")
       router.push(`/properties/${propertyId}?tab=overview`)
@@ -89,6 +91,7 @@ export function SchemeEditForm({ propertyId, defaults }: Readonly<SchemeEditForm
   }
 
   return (
+    <>
     <form action={formAction} className="space-y-6">
       {state?.error && (
         <p className="text-sm text-danger">{state.error}</p>
@@ -177,7 +180,7 @@ export function SchemeEditForm({ propertyId, defaults }: Readonly<SchemeEditForm
           <ActionButton
             type="button"
             tone="destructive"
-            onClick={handleUnlink}
+            onClick={() => setConfirmUnlink(true)}
             disabled={unlinking}
           >
             {unlinking ? "Removing…" : "Remove from property"}
@@ -188,5 +191,16 @@ export function SchemeEditForm({ propertyId, defaults }: Readonly<SchemeEditForm
         </div>
       )}
     </form>
+    <ConfirmDialog
+      open={confirmUnlink}
+      onOpenChange={(o) => { if (!o) setConfirmUnlink(false) }}
+      title="Remove managing scheme?"
+      description="Remove this managing scheme from the property? The scheme record will remain."
+      variant="destructive"
+      confirmLabel="Remove"
+      onConfirm={doUnlink}
+      loading={unlinking}
+    />
+    </>
   )
 }

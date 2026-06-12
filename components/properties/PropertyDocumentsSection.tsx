@@ -15,6 +15,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { Upload, Trash2, FileText, Loader2, ExternalLink } from "lucide-react"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
 
 const DOCUMENT_TYPES = [
@@ -72,6 +73,7 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
   const [uploading, startUpload] = useTransition()
   const [deleting, startDelete] = useTransition()
   const [openingId, setOpeningId] = useState<string | null>(null)
+  const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<PropertyDocument | null>(null)
   const [expiryDate, setExpiryDate] = useState("")
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -102,8 +104,10 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
     }
   }
 
-  function handleDelete(doc: PropertyDocument) {
-    if (!confirm("Delete " + doc.name + "?")) return
+  function doDelete() {
+    const doc = confirmDeleteDoc
+    if (!doc) return
+    setConfirmDeleteDoc(null)
     startDelete(async () => {
       const result = await deletePropertyDocument(doc.id, propertyId)
       if (result.error) {
@@ -116,6 +120,7 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
   }
 
   return (
+    <>
     <div className="rounded-xl border bg-card">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <h3 className="text-sm font-semibold">Documents</h3>
@@ -212,7 +217,7 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
                 {openingId === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
               </button>
               <button
-                onClick={() => handleDelete(doc)}
+                onClick={() => setConfirmDeleteDoc(doc)}
                 disabled={deleting}
                 className="p-1.5 text-muted-foreground hover:text-danger transition-colors"
                 title="Delete document"
@@ -224,5 +229,16 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
         ))}
       </div>
     </div>
+    <ConfirmDialog
+      open={!!confirmDeleteDoc}
+      onOpenChange={(o) => { if (!o) setConfirmDeleteDoc(null) }}
+      title="Delete document?"
+      description={confirmDeleteDoc ? `Delete "${confirmDeleteDoc.name}"? This can't be undone.` : ""}
+      variant="destructive"
+      confirmLabel="Delete"
+      onConfirm={doDelete}
+      loading={deleting}
+    />
+    </>
   )
 }

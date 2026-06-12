@@ -17,6 +17,7 @@ import { disburseDeposit } from "@/lib/deposits/disburse"
 import { calculateDepositReturn } from "@/lib/deposits/calculateReturn"
 import { sendDepositSchedule } from "@/lib/actions/deposits"
 import { useUser } from "@/hooks/useUser"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
 
 interface DepositActionsProps {
@@ -31,6 +32,8 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems, hasU
   const { user } = useUser()
   const router = useRouter()
   const [processing, setProcessing] = useState(false)
+  const [confirmSend, setConfirmSend] = useState(false)
+  const [confirmDisburse, setConfirmDisburse] = useState(false)
 
   const blockDisburse = hasUnconfirmedItems || hasUnconfirmedCharges
 
@@ -43,31 +46,34 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems, hasU
     router.refresh()
   }
 
-  async function handleSendToTenant() {
-    if (!confirm("This will email the deduction schedule to the tenant. Continue?")) return
+  async function doSendToTenant() {
     setProcessing(true)
     const result = await sendDepositSchedule(leaseId)
     if ("error" in result) toast.error(result.error)
     else toast.success("Deduction schedule sent to tenant")
     setProcessing(false)
+    setConfirmSend(false)
     router.refresh()
   }
 
-  async function handleDisburse() {
+  function handleDisburse() {
     if (!user) return
     if (blockDisburse) {
       if (hasUnconfirmedItems) toast.error("All deduction items must be confirmed before disbursement")
       else toast.error("All non-damage charges must be confirmed before disbursement")
       return
     }
-    if (timerOverdue && !confirm("This deposit return is PAST its statutory deadline (RHA 14/21-day). Disbursing now is late — the tenant may have a Tribunal claim. Continue anyway?")) return
-    if (!confirm("This will disburse the deposit and settle all charges. Continue?")) return
+    setConfirmDisburse(true)
+  }
 
+  async function doDisburse() {
+    if (!user) return
     setProcessing(true)
     const result = await disburseDeposit(leaseId, user.id)
     if ("error" in result) toast.error(result.error)
     else toast.success("Deposit disbursed successfully")
     setProcessing(false)
+    setConfirmDisburse(false)
     router.refresh()
   }
 
@@ -94,7 +100,7 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems, hasU
       {reconStatus !== "sent_to_tenant" && reconStatus !== "refunded" && (
         <ActionButton
           tone="secondary"
-          onClick={handleSendToTenant}
+          onClick={() => setConfirmSend(true)}
           disabled={processing || blockDisburse}
         >
           {processing ? "Sending..." : "Send to Tenant"}
@@ -109,6 +115,28 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems, hasU
           {processing ? "Processing..." : "Disburse Deposit"}
         </ActionButton>
       )}
+
+      <ConfirmDialog
+        open={confirmSend}
+        onOpenChange={(o) => { if (!o) setConfirmSend(false) }}
+        title="Send to tenant?"
+        description="This will email the deduction schedule to the tenant."
+        confirmLabel="Send"
+        onConfirm={doSendToTenant}
+        loading={processing}
+      />
+      <ConfirmDialog
+        open={confirmDisburse}
+        onOpenChange={(o) => { if (!o) setConfirmDisburse(false) }}
+        title="Disburse deposit?"
+        description={timerOverdue
+          ? "This deposit return is PAST its statutory deadline (RHA 14/21-day). Disbursing now is late — the tenant may have a Tribunal claim. This will disburse the deposit and settle all charges."
+          : "This will disburse the deposit and settle all charges."}
+        variant="destructive"
+        confirmLabel="Disburse"
+        onConfirm={doDisburse}
+        loading={processing}
+      />
     </div>
   )
 }
