@@ -167,10 +167,17 @@ async function appFetch(path, opts = {}) {
 
 // ─── All tables to test ──────────────────────────────────────
 // Tables that intentionally have USING (true) for SELECT — read-only reference/seed data
+// NOTE: allowlisting only suppresses the finding for a SELECT-only USING(true) policy
+// (see the `pol.cmd === "SELECT"` guard below) — a future FOR ALL / write USING(true)
+// on any of these STILL fails. Each entry below was verified: RLS enabled, writes locked
+// (no public write policy), content-only / no PII. Re-verify before adding any new table.
 const READ_ONLY_PUBLIC_TABLES = new Set([
-  "lease_clause_library",  // Shared clause seed data — no org_id
-  "prime_rates",           // SARB prime rate history — public reference
-  "rule_templates",        // Shared property rule templates — no org_id
+  "lease_clause_library",     // Shared clause seed data — no org_id
+  "prime_rates",              // SARB prime rate history — public reference
+  "rule_templates",           // Shared property rule templates — no org_id
+  "external_links",           // Public link registry (footer/health-checked) — SELECT-only, writes RLS-blocked
+  "site_content",             // Public marketing/site copy — SELECT-only, writes RLS-blocked
+  "privacy_policy_versions",  // Published privacy-policy text (meant to be public) — SELECT-only; writes gated to platform_admin
 ])
 
 const SENSITIVE_TABLES = [
