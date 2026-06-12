@@ -550,10 +550,15 @@ export function MembersTab() {
     if (!orgId) return
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user?.id ?? null))
-    loadMembers(supabase).finally(() => setLoading(false))
+    // Hold the skeleton until BOTH the rows and the emails are ready so they render together —
+    // emails come from a separate server action (auth.users), and a late setEmails made the email
+    // column pop in after the rest of the row.
+    Promise.all([
+      loadMembers(supabase),
+      getMemberEmails().then(setEmails).catch(() => {}),
+    ]).finally(() => setLoading(false))
     loadRoles()
     reloadPending()
-    getMemberEmails().then(setEmails).catch(() => {})
     const onInvited = () => { reloadPending() }
     window.addEventListener("pleks:team-invited", onInvited)
     return () => window.removeEventListener("pleks:team-invited", onInvited)
