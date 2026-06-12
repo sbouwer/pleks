@@ -2784,3 +2784,35 @@ COMMENT ON COLUMN applications.assigned_user_id IS
 -- (D-8 / BUILD_72 token hygiene). Also removed from the CREATE TABLE above so a fresh replay never adds it; this
 -- DROP IF EXISTS cleans any DB created before that removal. Idempotent: re-run is a clean no-op.
 ALTER TABLE contractors DROP COLUMN IF EXISTS access_token;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §33  PRE-SCALE PERFORMANCE INDEXES (maintenance_requests / applications)
+--   Calendar date-range scan (scheduled_date had no index), hot list ORDER, and the
+--   join/cascade FKs the advisor flagged. Additive + idempotent. See 004 / 011 / 012.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Maintenance calendar: WHERE org_id AND scheduled_date BETWEEN … (no date index existed)
+CREATE INDEX IF NOT EXISTS idx_maintenance_org_scheduled
+  ON maintenance_requests(org_id, scheduled_date) WHERE scheduled_date IS NOT NULL;
+
+-- Maintenance list / attention / activity: WHERE org_id ORDER BY created_at DESC
+CREATE INDEX IF NOT EXISTS idx_maintenance_org_created
+  ON maintenance_requests(org_id, created_at DESC);
+
+-- Maintenance join/cascade FKs (board filters, property roll-up, contractor join)
+CREATE INDEX IF NOT EXISTS idx_maintenance_lease
+  ON maintenance_requests(lease_id) WHERE lease_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_maintenance_tenant
+  ON maintenance_requests(tenant_id) WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_maintenance_property
+  ON maintenance_requests(property_id) WHERE property_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_maintenance_contractor
+  ON maintenance_requests(contractor_id) WHERE contractor_id IS NOT NULL;
+
+-- Applications list: WHERE org_id ORDER BY created_at DESC (LIMIT 100); + join FKs
+CREATE INDEX IF NOT EXISTS idx_applications_org_created
+  ON applications(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_applications_tenant
+  ON applications(tenant_id) WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_applications_unit
+  ON applications(unit_id) WHERE unit_id IS NOT NULL;

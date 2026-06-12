@@ -923,3 +923,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_user_signatures_active
 ALTER TABLE signature_sign_tokens
   ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'signature'
   CHECK (kind IN ('signature', 'initial'));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §17  PRE-SCALE PERFORMANCE INDEXES (communication_log / documents)
+--   Entity-timeline ordering, and org_id on the document tables (neither had one).
+--   Additive + idempotent. See 004 / 005 / 012.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Comm timeline for an entity: WHERE entity_type, entity_id ORDER BY created_at DESC
+CREATE INDEX IF NOT EXISTS idx_comm_log_entity_created
+  ON communication_log(entity_type, entity_id, created_at DESC);
+
+-- Document tables: org-scoped reads had NO org_id index
+CREATE INDEX IF NOT EXISTS idx_property_documents_org
+  ON property_documents(org_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_documents_org
+  ON tenant_documents(org_id);
