@@ -12,7 +12,12 @@
  *
  *         NOT here (by design): the F protect-set (consent_log / data_subject_requests / popia_exports
  *         / tos_acceptances / audit_log — retained to prove the erasure was lawful, POPIA s17); the G
- *         likely-dead organisations.* columns (drop in D-8, never anonymise); supplier-subject tables
+ *         organisations.* principal/sole-prop PII (id_number, date_of_birth, gender, mobile, emergency_*,
+ *         addr2_*, lease_* — VERIFIED 2026-06-12 to be the LIVE "Organisation Details" settings feature
+ *         (settings/details form + api/org/details ALL_FIELDS allowlist + reportBranding), NOT dead legacy.
+ *         They are account-holder PII, not data-subject PII — outside erasure scope, so never anonymised
+ *         and NEVER dropped (dropping 42703-breaks the org-details save); carried in the PII baseline);
+ *         supplier-subject tables
  *         (deferred from v1 per §7.2 — supplier erasure routes to manual admin, D-14); free-text /
  *         incidental PII (D-16 manual carve-out review, not auto-stripped).
  */
