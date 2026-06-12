@@ -45,14 +45,18 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
   const { data: rawTemplates, error: rawTemplatesError } = await db
     .from("document_templates")
     .select(
-      "id, scope, template_type, name, description, category, body_html, subject, whatsapp_body, body_variants, legal_flag, merge_fields, usage_count, last_used_at, is_deletable, created_at"
+      "id, scope, template_type, name, description, category, body_html, subject, whatsapp_body, body_variants, legal_flag, merge_fields, usage_count, last_used_at, is_deletable, created_at, comms_class, customised_from"
     )
     .or(`scope.eq.system,org_id.eq.${orgId}`)
     .in("template_type", ["letter", "email"])
     .order("name", { ascending: true })
   if (rawTemplatesError) console.error("NewDocumentPage document_templates read failed:", rawTemplatesError.message)
 
-  const allTemplates: DocumentTemplate[] = (rawTemplates ?? []) as DocumentTemplate[]
+  // One visible version (BUILD_70): when the org has "Customised" a system master, the composer uses
+  // their copy and hides the master — so a manual send picks up the agency's wording, not the stale default.
+  const loaded = (rawTemplates ?? []) as DocumentTemplate[]
+  const customisedFrom = new Set(loaded.map((t) => t.customised_from).filter(Boolean) as string[])
+  const allTemplates: DocumentTemplate[] = loaded.filter((t) => !(t.scope === "system" && customisedFrom.has(t.id)))
 
   // Load selected template if provided
   let selectedTemplate: DocumentTemplate | null = null
