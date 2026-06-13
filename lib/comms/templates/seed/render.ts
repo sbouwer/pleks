@@ -32,14 +32,10 @@ function blockToReview(b: TemplateBlock, seed: TemplateSeed): string {
       return "———"
     case "signatureSlot":
       return "[Agent signature — injected from user_signatures]"
-    case "legalFooterSlot": {
-      const lines = [
-        seed.issuedUnder,
-        seed.popiaLine ? popiaProcessingLine("{{branding.orgName}}") : undefined,
-        ECTA_FOOTER_TEXT,
-      ].filter(Boolean)
-      return lines.join("\n\n")
-    }
+    case "legalFooterSlot":
+      return [seed.issuedUnder, ECTA_FOOTER_TEXT].filter(Boolean).join("\n\n")
+    case "popiaSlot":
+      return popiaProcessingLine("{{branding.orgName}}")
     case "cpaConditional":
       return `‹if CPA applies›  ${b.ifCpa}\n‹if CPA does not apply›  ${b.otherwise}`
     default: {

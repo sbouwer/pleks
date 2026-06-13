@@ -36,8 +36,6 @@ export interface TemplateSeed {
    * The substantive in-body citation lives in a cpaConditional/paragraph block; this is the footer line.
    */
   issuedUnder?: string
-  /** POPIA processing line for external-PII recipients (70F §3) — set the org-name token to enable. */
-  popiaLine?: boolean
   /** Single body — statutory + unflavoured templates (statutory is NEVER flavoured, 70F §4). */
   body?: TemplateBlock[]
   /** Flavour-keyed bodies — service/correspondence (70E D4). */

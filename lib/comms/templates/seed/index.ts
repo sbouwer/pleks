@@ -11,9 +11,15 @@
 
 import type { TemplateSeed } from "./types"
 import { STATUTORY_SEEDS } from "./statutory"
+import { CORRESPONDENCE_SEEDS } from "./correspondence"
+import { INFO_REQUEST_SEEDS } from "./info-requests"
+import { SERVICE_SEEDS } from "./service"
 
 export const SYSTEM_TEMPLATE_SEEDS: TemplateSeed[] = [
   ...STATUTORY_SEEDS,
+  ...CORRESPONDENCE_SEEDS,
+  ...INFO_REQUEST_SEEDS,
+  ...SERVICE_SEEDS,
 ]
 
 export type { TemplateSeed }

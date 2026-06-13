@@ -111,3 +111,663 @@ SELECT 'system', 'email', 'Lease Renewal Notice (CPA s14)', 'Impending-expiry re
 WHERE NOT EXISTS (
   SELECT 1 FROM document_templates WHERE scope='system' AND template_key='lease.renewal_notice' AND template_type='email'
 );
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Lease Created (Ready to Sign)', 'Notifies the tenant that their lease is prepared and ready for signature.', 'leases', 'correspondence', 'lease.created',
+  NULL, ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{leaseStartDate}}', '{{rentDisplay}}', '{{signingUrl}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §2.1', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your lease is ready to sign"},{"type":"paragraph","text":"Your lease agreement for **{{propertyLabel}}** has been prepared and is ready for your signature. Please review and sign at your earliest convenience."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyLabel}}"},{"label":"Commencement","value":"{{leaseStartDate}}"},{"label":"Monthly rent","value":"{{rentDisplay}}"}]},{"type":"cta","label":"Review & Sign Lease","href":"{{signingUrl}}"},{"type":"paragraph","text":"If you have any questions, please contact {{branding.orgEmail}} or {{senderName}} to arrange signing of your lease agreement."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='lease.created' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Lease Sign Reminder', 'Reminds the tenant that their lease is still awaiting signature.', 'leases', 'correspondence', 'lease.sign_reminder',
+  NULL, ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{daysUnsigned}}', '{{signingUrl}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §2.2', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Friendly reminder — lease awaiting signature"},{"type":"paragraph","text":"Your lease agreement for **{{propertyLabel}}** was sent {{daysUnsigned}} day(s) ago and is still waiting for your signature. Please sign at your earliest convenience so we can get everything in order before your move-in date."},{"type":"cta","label":"Sign Lease Now","href":"{{signingUrl}}"},{"type":"paragraph","text":"If you have any questions or need assistance signing your lease, please contact {{branding.orgEmail}} or {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='lease.sign_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Lease Signed', 'Confirms to the tenant that the lease has been signed by all parties.', 'leases', 'correspondence', 'lease.signed',
+  NULL, ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §2.3', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Lease signed — all good"},{"type":"paragraph","text":"Great news — your lease agreement for **{{propertyLabel}}** has been signed by all parties. We will be in touch shortly with your activation confirmation and move-in details."},{"type":"paragraph","text":"Please keep a copy of your signed lease for your records. If you have any questions in the meantime, contact {{branding.orgEmail}} or {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='lease.signed' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Lease Activated', 'Welcomes the tenant and confirms the lease is now active.', 'leases', 'correspondence', 'lease.activated',
+  NULL, ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{leaseStartDate}}', '{{leaseEndDate}}', '{{rentDisplay}}', '{{portalUrl}}', '{{senderName}}', '{{branding.orgName}}'], 1, 'ADDENDUM_70C §2.4', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your lease is now active"},{"type":"paragraph","text":"Welcome to **{{propertyLabel}}**! Your lease agreement has been signed and is now active. We are pleased to have you as a tenant and look forward to a great tenancy."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyLabel}}"},{"label":"Commencement","value":"{{leaseStartDate}}"},{"label":"End date","value":"{{leaseEndDate}}"},{"label":"Monthly rent","value":"{{rentDisplay}}"}]},{"type":"paragraph","text":"You can access your tenant portal to view your lease, invoices, and maintenance requests at any time."},{"type":"cta","label":"Access Tenant Portal","href":"{{portalUrl}}"},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='lease.activated' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Lease Amended (Charge Change)', 'Notifies the tenant of a charge added to or removed from their lease.', 'leases', 'correspondence', 'lease.amended',
+  NULL, ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{chargeDescription}}', '{{chargeAmountDisplay}}', '{{effectiveDate}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §2.5', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Lease update — charge change"},{"type":"paragraph","text":"A change has been made to your lease for **{{propertyLabel}}**. Please review the details below."},{"type":"dataBox","rows":[{"label":"Charge","value":"{{chargeDescription}}"},{"label":"Amount","value":"{{chargeAmountDisplay}} per month"},{"label":"Effective from","value":"{{effectiveDate}}"}]},{"type":"paragraph","text":"This change will be reflected on your monthly invoice from the effective date above. If you have any questions, please contact {{branding.orgEmail}} or {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='lease.amended' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Lease Escalation Notice', 'Advance notice of an upcoming contractual rent escalation.', 'leases', 'correspondence', 'lease.escalation_notice',
+  NULL, ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{currentRentDisplay}}', '{{newRentDisplay}}', '{{escalationPercent}}', '{{effectiveDate}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §2.6', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Upcoming rent escalation"},{"type":"paragraph","text":"This letter serves as advance notice that the monthly rental for **{{propertyLabel}}** will be adjusted in accordance with your lease agreement."},{"type":"dataBox","rows":[{"label":"Current monthly rent","value":"{{currentRentDisplay}}"},{"label":"New monthly rent","value":"{{newRentDisplay}}"},{"label":"Increase","value":"{{escalationPercent}}%"},{"label":"Effective from","value":"{{effectiveDate}}"}]},{"type":"paragraph","text":"Your invoice from {{effectiveDate}} onwards will reflect the new rental amount. If you have any questions regarding this adjustment, please do not hesitate to contact {{branding.orgEmail}} or {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='lease.escalation_notice' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Notice to Vacate — Acknowledged', 'Formal acknowledgement of a tenant-initiated notice to vacate.', 'leases', 'correspondence', 'lease.notice_acknowledged',
+  NULL, ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{noticeDate}}', '{{vacateDate}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §2.8', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Notice to vacate received"},{"type":"paragraph","text":"We confirm receipt of your notice to vacate **{{propertyLabel}}**. This letter serves as formal acknowledgement of your notice."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyLabel}}"},{"label":"Notice date","value":"{{noticeDate}}"},{"label":"Vacate date","value":"{{vacateDate}}"}]},{"type":"paragraph","text":"Please ensure the property is vacated and all keys returned by {{vacateDate}}. We will be in contact to arrange the final move-out inspection and deposit reconciliation."},{"type":"paragraph","text":"If you have any questions, please contact {{branding.orgEmail}} or {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='lease.notice_acknowledged' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Deposit Received', 'Confirmation that the security deposit has been received into trust.', 'deposits', 'correspondence', 'deposit.received',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{propertyLabel}}', '{{depositAmountDisplay}}', '{{leaseStartDate}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §3.1', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Deposit received — thank you"},{"type":"paragraph","text":"We confirm that your security deposit of **{{depositAmountDisplay}}** has been received and is held in our trust account in accordance with the Rental Housing Act."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyLabel}}"},{"label":"Deposit amount","value":"{{depositAmountDisplay}}"},{"label":"Lease commencement","value":"{{leaseStartDate}}"},{"label":"Held by","value":"{{senderName}} (trust account)"}]},{"type":"paragraph","text":"Your deposit earns interest at the prescribed rate for the duration of your tenancy. An annual interest statement will be issued to you each year, and a full interest accounting will be provided when your deposit is returned at the end of the lease."},{"type":"paragraph","text":"Please retain this confirmation for your records. If you have any questions, contact us at {{branding.orgEmail}}."},{"type":"paragraph","text":"This deposit is protected under the Rental Housing Act 50 of 1999. Any deductions at move-out will be itemised and communicated to you in writing before disbursement."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='deposit.received' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Pre-Move-Out Inspection Reminder', 'Invitation to schedule a pre-move-out inspection ahead of lease end.', 'deposits', 'correspondence', 'deposit.pre_moveout_inspection',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{propertyLabel}}', '{{leaseEndDate}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §3.2', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your lease is ending soon"},{"type":"paragraph","text":"Your lease for **{{propertyLabel}}** ends on **{{leaseEndDate}}**."},{"type":"paragraph","text":"We would like to schedule a pre-move-out inspection at a time that suits you. This inspection gives you the opportunity to identify and address any items before the final move-out inspection, which helps ensure the best possible outcome for your deposit return."},{"type":"heading","text":"What to expect"},{"type":"list","items":["A walk-through with our agent before your move-out date","Any fixable items identified so you can address them","No deductions applied for items you repair before move-out","Your deposit return processed within the statutory period"]},{"type":"paragraph","text":"Please reply to this email or contact {{branding.orgEmail}} to confirm a convenient time. We recommend scheduling the pre-move-out inspection well ahead of your final move-out date."},{"type":"paragraph","text":"The final move-out inspection will take place on or after **{{leaseEndDate}}**. Your deposit return schedule will be issued to you within the timeframe required by the Rental Housing Act after the final inspection is complete."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='deposit.pre_moveout_inspection' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Inspection Scheduled', 'Notification that an inspection has been scheduled at the property.', 'inspections', 'correspondence', 'inspection.scheduled',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{propertyLabel}}', '{{inspectionTypeLabel}}', '{{scheduledDate}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §4.1', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"{{inspectionTypeLabel}} scheduled"},{"type":"paragraph","text":"We wish to advise you that a {{inspectionTypeLabel}} has been scheduled at your property. Please find the details below."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyLabel}}"},{"label":"Type","value":"{{inspectionTypeLabel}}"},{"label":"Scheduled for","value":"{{scheduledDate}}"}]},{"type":"paragraph","text":"Please ensure the property is accessible on the scheduled date. If this date is inconvenient, please contact us as soon as possible so we can make alternative arrangements."},{"type":"paragraph","text":"Should you have any questions, please reply to this email or contact your property manager directly."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='inspection.scheduled' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Inspection Reminder', 'Day-before reminder of a scheduled inspection.', 'inspections', 'correspondence', 'inspection.reminder',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{propertyLabel}}', '{{inspectionTypeLabel}}', '{{scheduledDate}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §4.2', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Inspection reminder — tomorrow"},{"type":"paragraph","text":"This is a friendly reminder that your {{inspectionTypeLabel}} at **{{propertyLabel}}** is scheduled for tomorrow, **{{scheduledDate}}**."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyLabel}}"},{"label":"Type","value":"{{inspectionTypeLabel}}"},{"label":"Date","value":"{{scheduledDate}}"}]},{"type":"paragraph","text":"Please ensure the property is accessible at the time of the inspection. If you have any concerns or need to reschedule, please contact us immediately."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='inspection.reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Inspection Rescheduled', 'Notification that a scheduled inspection has been moved to a new date.', 'inspections', 'correspondence', 'inspection.rescheduled',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{propertyLabel}}', '{{inspectionTypeLabel}}', '{{originalDate}}', '{{newDate}}', '{{rescheduleReason}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §4.3', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"{{inspectionTypeLabel}} rescheduled"},{"type":"paragraph","text":"We wish to advise you that your {{inspectionTypeLabel}} at **{{propertyLabel}}** has been rescheduled. Please note the updated date below."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyLabel}}"},{"label":"Type","value":"{{inspectionTypeLabel}}"},{"label":"Previous date","value":"{{originalDate}}"},{"label":"New date","value":"{{newDate}}"},{"label":"Reason","value":"{{rescheduleReason}}"}]},{"type":"paragraph","text":"Please ensure the property is accessible on the new scheduled date. If this date is inconvenient, please contact us as soon as possible."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='inspection.rescheduled' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Inspection Report Available', 'Notification that a completed inspection report is available in the portal.', 'inspections', 'correspondence', 'inspection.report_ready',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{propertyLabel}}', '{{inspectionTypeLabel}}', '{{conductedDate}}', '{{overallCondition}}', '{{portalUrl}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §4.5', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"{{inspectionTypeLabel}} report available"},{"type":"paragraph","text":"The {{inspectionTypeLabel}} conducted at **{{propertyLabel}}** on {{conductedDate}} has been completed. Your inspection report is now available."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyLabel}}"},{"label":"Type","value":"{{inspectionTypeLabel}}"},{"label":"Conducted on","value":"{{conductedDate}}"},{"label":"Overall condition","value":"{{overallCondition}}"}]},{"type":"paragraph","text":"Please log in to your tenant portal to view the full inspection report. If you have any questions or concerns about the findings, please contact your property manager."},{"type":"cta","label":"View inspection report","href":"{{portalUrl}}"},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='inspection.report_ready' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Tenant Portal Invitation', 'Invitation to set up the tenant portal account after lease activation.', 'portal', 'correspondence', 'portal.tenant_invite',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{portalUrl}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §7.1', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your tenant portal is ready"},{"type":"paragraph","text":"Your lease is now active. We have set up a secure online portal where you can view your lease documents, track payment history, and log maintenance requests — all in one place."},{"type":"paragraph","text":"Click the button below to set up your account. The link will expire after a few days."},{"type":"cta","label":"Set up my account","href":"{{portalUrl}}"},{"type":"paragraph","text":"If you did not expect this invitation, you can safely ignore this email. If you have any questions, contact {{branding.orgEmail}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='portal.tenant_invite' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Insurance Coverage Verification Brief', 'Broker-facing request to confirm the items on the insurance verification checklist.', 'insurance', 'correspondence', 'insurance.checklist_brief',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{propertyName}}', '{{agentName}}', '{{agentPhone}}', '{{agentEmail}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §7.2', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Please find attached an insurance coverage verification request for **{{propertyName}}**."},{"type":"paragraph","text":"The attached file lists the items we need confirmed. Please review and reply to this email confirming each item. A copy of the current policy schedule would be appreciated."},{"type":"paragraph","text":"Thank you for your assistance."},{"type":"signoff","text":"{{agentName}}\n{{branding.orgName}}\n{{agentPhone}}\n{{agentEmail}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='insurance.checklist_brief' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Insurance Renewal Reminder', 'Single broker-facing reminder that a policy renewed with checklist items outstanding.', 'insurance', 'correspondence', 'insurance.renewal_reminder',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{propertyDisplay}}', '{{renewalDateFormatted}}', '{{unknownCount}}', '{{checklistUrl}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §7.3', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Policy renewed — checklist items outstanding"},{"type":"paragraph","text":"The insurance policy for **{{propertyDisplay}}** renewed on **{{renewalDateFormatted}}**."},{"type":"paragraph","text":"{{unknownCount}} verification item(s) is/are still outstanding. Most policies are unchanged renewals of last year''s terms — but if anything has shifted (replacement value, security warranties, broker), the checklist is the place to update."},{"type":"cta","label":"Open the checklist","href":"{{checklistUrl}}"},{"type":"paragraph","text":"This is a single reminder. The banner on the property page stays until the items are verified or you dismiss it. We won''t email you again about this renewal."},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='insurance.renewal_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Maintenance Request Received', 'Confirms a tenant''s maintenance request has been logged and is under review.', 'maintenance', 'correspondence', 'maintenance.logged_tenant',
+  'Maintenance request received — ref {{workOrderNumber}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{requestTitle}}', '{{workOrderNumber}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.1', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Maintenance request received"},{"type":"paragraph","text":"We have received a maintenance request for **{{propertyLabel}}** and it is now under review. Our team will be in touch to arrange the next steps."},{"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"},{"label":"Reference","value":"{{workOrderNumber}}"}]},{"type":"paragraph","text":"Please keep this reference number for your records. Quote it in any correspondence about this request."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.logged_tenant' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Contractor Assigned', 'Notifies the tenant a contractor has been assigned and will arrange access.', 'maintenance', 'correspondence', 'maintenance.assigned',
+  'A contractor has been assigned to your maintenance request at {{propertyLabel}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{requestTitle}}', '{{contractorName}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.2', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Contractor assigned"},{"type":"paragraph","text":"We have assigned a contractor to your maintenance request at **{{propertyLabel}}**. They will contact you to arrange access and confirm an appointment time."},{"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"},{"label":"Contractor","value":"{{contractorName}}"}]},{"type":"paragraph","text":"If you have not heard from the contractor within 48 hours, please contact {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.assigned' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Maintenance Appointment Confirmed', 'Confirms the scheduled maintenance appointment and access requirements.', 'maintenance', 'correspondence', 'maintenance.scheduled',
+  'Maintenance appointment confirmed for {{scheduledDate}} at {{propertyLabel}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{requestTitle}}', '{{scheduledDate}}', '{{scheduledTimeFrom}}', '{{scheduledTimeTo}}', '{{contractorName}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.3', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Maintenance appointment confirmed"},{"type":"paragraph","text":"Your maintenance appointment at **{{propertyLabel}}** has been scheduled. Please ensure access to the property at the confirmed time."},{"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"},{"label":"Date","value":"{{scheduledDate}}"},{"label":"Time","value":"{{scheduledTimeFrom}} – {{scheduledTimeTo}}"},{"label":"Contractor","value":"{{contractorName}}"}]},{"type":"paragraph","text":"If you need to reschedule or cannot provide access, please contact {{senderName}} as soon as possible to avoid a callout fee."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.scheduled' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Maintenance Work Completed', 'Notifies the tenant maintenance work has been completed and signed off.', 'maintenance', 'correspondence', 'maintenance.completed',
+  'Maintenance work completed at {{propertyLabel}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{requestTitle}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.4', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Maintenance work completed"},{"type":"paragraph","text":"The maintenance work at **{{propertyLabel}}** has been completed and signed off."},{"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"}]},{"type":"paragraph","text":"If you have any concerns about the work carried out or notice any follow-up issues, please contact {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.completed' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Work Order Dispatch', 'Contractor-facing work order assignment with job details and acceptance link.', 'maintenance', 'correspondence', 'maintenance.work_order',
+  'Work order {{workOrderNumber}} — {{jobTitle}} — {{propertyLabel}}', ARRAY['{{recipient.salutation}}', '{{contractorName}}', '{{workOrderNumber}}', '{{jobTitle}}', '{{propertyLabel}}', '{{unitLabel}}', '{{urgencyLabel}}', '{{woUrl}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.7', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Work Order: {{workOrderNumber}}"},{"type":"paragraph","text":"You have been assigned the following maintenance job. Please review the details and confirm acceptance via the link below."},{"type":"dataBox","rows":[{"label":"Work order","value":"{{workOrderNumber}}"},{"label":"Job","value":"{{jobTitle}}"},{"label":"Property","value":"{{propertyLabel}}"},{"label":"Unit","value":"{{unitLabel}}"},{"label":"Priority","value":"{{urgencyLabel}}"}]},{"type":"cta","label":"View Work Order","href":"{{woUrl}}"},{"type":"paragraph","text":"The link above gives you access to the full job details, access instructions, and lets you submit your quote or update the job status as work progresses."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.work_order' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Work Order Cancelled', 'Contractor-facing notice that a work order has been cancelled.', 'maintenance', 'correspondence', 'maintenance.cancelled',
+  'Work order {{workOrderNumber}} has been cancelled', ARRAY['{{recipient.salutation}}', '{{contractorName}}', '{{workOrderNumber}}', '{{requestTitle}}', '{{propertyLabel}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.8', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Please note that work order **{{workOrderNumber}}** has been cancelled."},{"type":"dataBox","rows":[{"label":"Work order","value":"{{workOrderNumber}}"},{"label":"Job","value":"{{requestTitle}}"},{"label":"Property","value":"{{propertyLabel}}"}]},{"type":"paragraph","text":"Your work order portal link for this job is no longer active. No further action is required on your end."},{"type":"paragraph","text":"If you have already carried out any work or incurred expenses, please contact us directly."},{"type":"signoff","text":"Thank you,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.cancelled' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Maintenance Request Closed', 'Notifies the tenant their maintenance request has been closed.', 'maintenance', 'correspondence', 'maintenance.cancelled_tenant',
+  'Your maintenance request has been closed', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{requestTitle}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.9', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"We are writing to let you know that the following maintenance request has been closed."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyLabel}}"},{"label":"Request","value":"{{requestTitle}}"}]},{"type":"paragraph","text":"If you believe this was closed in error or the issue remains unresolved, please contact us and we will assist you further."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.cancelled_tenant' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Work Order Reassigned', 'Contractor-facing notice that a work order has been reassigned to another contractor.', 'maintenance', 'correspondence', 'maintenance.contractor_changed',
+  'Work order {{workOrderNumber}} has been reassigned', ARRAY['{{recipient.salutation}}', '{{contractorName}}', '{{workOrderNumber}}', '{{requestTitle}}', '{{propertyLabel}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.10', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Please note that work order **{{workOrderNumber}}** has been reassigned to another contractor."},{"type":"dataBox","rows":[{"label":"Work order","value":"{{workOrderNumber}}"},{"label":"Job","value":"{{requestTitle}}"},{"label":"Property","value":"{{propertyLabel}}"}]},{"type":"paragraph","text":"Your work order portal link for this job is no longer active and no further action is required from you."},{"type":"paragraph","text":"If you have already incurred any costs or carried out preparatory work, please contact us so we can discuss next steps."},{"type":"signoff","text":"Thank you,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.contractor_changed' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Maintenance Memo — Landlord Notified', 'Shares an agent''s maintenance memo with the landlord (not visible to the tenant).', 'maintenance', 'correspondence', 'maintenance.memo_landlord_notified',
+  'Maintenance update from {{agentName}} — {{workOrderNumber}}', ARRAY['{{recipient.salutation}}', '{{landlordName}}', '{{agentName}}', '{{workOrderNumber}}', '{{propertyLabel}}', '{{requestTitle}}', '{{memoText}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.11', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"{{agentName}} has added a note to the following maintenance request and chosen to share it with you."},{"type":"dataBox","rows":[{"label":"Work order","value":"{{workOrderNumber}}"},{"label":"Property","value":"{{propertyLabel}}"},{"label":"Request","value":"{{requestTitle}}"}]},{"type":"heading","text":"Memo from {{agentName}}"},{"type":"paragraph","text":"{{memoText}}"},{"type":"paragraph","text":"This note is visible to agents and was shared with you by {{agentName}}. Your tenant cannot see this memo."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.memo_landlord_notified' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Critical Incident Notification — Broker', 'Notifies the insurance broker of a critical incident at an insured property.', 'maintenance', 'correspondence', 'incident.critical_broker',
+  'Critical incident reported: {{incidentTitle}} — {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{agencyName}}', '{{propertyName}}', '{{propertyAddress}}', '{{unitLabel}}', '{{incidentTitle}}', '{{incidentDate}}', '{{incidentDescription}}', '{{reportedByName}}', '{{appUrl}}', '{{maintenanceRequestId}}'], 1, 'ADDENDUM_70C §5.12', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Critical incident notification"},{"type":"paragraph","text":"{{agencyName}} is reporting a critical incident at one of your insured properties that may require your attention."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyName}} / {{propertyAddress}}"},{"label":"Unit / area affected","value":"{{unitLabel}}"},{"label":"Incident","value":"{{incidentTitle}}"},{"label":"Date reported","value":"{{incidentDate}}"},{"label":"Description","value":"{{incidentDescription}}"}]},{"type":"paragraph","text":"This notification was sent on behalf of {{agencyName}} by {{reportedByName}}. The agency has logged the incident and is managing the repair process. Please contact them directly if you require additional information or wish to open a claim."},{"type":"paragraph","text":"Reference: {{appUrl}}/maintenance/{{maintenanceRequestId}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='incident.critical_broker' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Critical Incident Notification — Owner', 'Informs the property owner of a critical incident and provides a written record.', 'maintenance', 'correspondence', 'incident.critical_owner',
+  'Incident update for {{propertyName}}: {{incidentTitle}}', ARRAY['{{recipient.salutation}}', '{{ownerName}}', '{{propertyName}}', '{{propertyAddress}}', '{{unitLabel}}', '{{incidentTitle}}', '{{incidentDate}}', '{{incidentDescription}}', '{{brokerName}}', '{{agencyName}}', '{{agentName}}', '{{appUrl}}', '{{maintenanceRequestId}}'], 1, 'ADDENDUM_70C §5.13', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Incident report — {{propertyName}}"},{"type":"paragraph","text":"We are writing to inform you of a critical incident at your property that was reported on {{incidentDate}}. We are managing the situation and wanted to ensure you have a written record."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyName}} / {{propertyAddress}}"},{"label":"Unit / area affected","value":"{{unitLabel}}"},{"label":"Incident","value":"{{incidentTitle}}"},{"label":"Date reported","value":"{{incidentDate}}"},{"label":"Description","value":"{{incidentDescription}}"}]},{"type":"paragraph","text":"We have notified your insurance broker ({{brokerName}}) of this incident on your behalf. Please follow up with them directly if you wish to open a claim."},{"type":"paragraph","text":"Your property is being managed by {{agencyName}}. If you have any questions, please contact {{agentName}} directly."},{"type":"paragraph","text":"Reference: {{appUrl}}/maintenance/{{maintenanceRequestId}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='incident.critical_owner' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Critical Incident Notification — Scheme', 'Notifies the managing scheme of a critical incident affecting shared infrastructure.', 'maintenance', 'correspondence', 'incident.critical_scheme',
+  'Critical incident at {{propertyName}} — {{incidentTitle}}', ARRAY['{{recipient.salutation}}', '{{schemeName}}', '{{agencyName}}', '{{propertyName}}', '{{propertyAddress}}', '{{unitLabel}}', '{{incidentTitle}}', '{{incidentDate}}', '{{incidentDescription}}', '{{agentName}}', '{{agentPhone}}', '{{appUrl}}', '{{maintenanceRequestId}}'], 1, 'ADDENDUM_70C §5.14', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Critical incident — {{schemeName}}"},{"type":"paragraph","text":"{{agencyName}} is notifying {{schemeName}} of a critical incident at a property within the scheme. This notification is provided for your records and to allow the managing agent to take any necessary action regarding shared infrastructure or common areas."},{"type":"dataBox","rows":[{"label":"Property","value":"{{propertyName}} / {{propertyAddress}}"},{"label":"Unit / area affected","value":"{{unitLabel}}"},{"label":"Incident","value":"{{incidentTitle}}"},{"label":"Date reported","value":"{{incidentDate}}"},{"label":"Description","value":"{{incidentDescription}}"}]},{"type":"paragraph","text":"The agency is managing the repair. If any common-property infrastructure is affected — including shared electrical, plumbing, or structural elements — please contact {{agentName}} on {{agentPhone}} at {{agencyName}} to coordinate access and repair scope."},{"type":"paragraph","text":"Reference: {{appUrl}}/maintenance/{{maintenanceRequestId}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='incident.critical_scheme' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Maintenance Update — Delay', 'Notifies the tenant of a delay to their maintenance request (tone-flavoured opener).', 'maintenance', 'correspondence', 'maintenance.delay',
+  'Update on your maintenance request at {{propertyLabel}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{delayReason}}', '{{requestTitle}}', '{{revisedDate}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.5', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Maintenance update — delay"},{"type":"paragraph","text":"We are writing to update you on your maintenance request at **{{propertyLabel}}**."},{"type":"paragraph","text":"Unfortunately there has been a delay: {{delayReason}}."},{"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"},{"label":"Revised date","value":"{{revisedDate}}"}]},{"type":"paragraph","text":"We apologise for the inconvenience. If you have any questions, please contact {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]'::jsonb, '{"friendly":[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Maintenance update — delay"},{"type":"paragraph","text":"We wanted to give you a quick update on your maintenance request at **{{propertyLabel}}**."},{"type":"paragraph","text":"Unfortunately there has been a delay: {{delayReason}}."},{"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"},{"label":"Revised date","value":"{{revisedDate}}"}]},{"type":"paragraph","text":"We apologise for the inconvenience. If you have any questions, please contact {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}],"professional":[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Maintenance update — delay"},{"type":"paragraph","text":"We are writing to update you on your maintenance request at **{{propertyLabel}}**."},{"type":"paragraph","text":"Unfortunately there has been a delay: {{delayReason}}."},{"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"},{"label":"Revised date","value":"{{revisedDate}}"}]},{"type":"paragraph","text":"We apologise for the inconvenience. If you have any questions, please contact {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}],"firm":[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Maintenance update — delay"},{"type":"paragraph","text":"Please be advised of the following update regarding your maintenance request at **{{propertyLabel}}**."},{"type":"paragraph","text":"Unfortunately there has been a delay: {{delayReason}}."},{"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"},{"label":"Revised date","value":"{{revisedDate}}"}]},{"type":"paragraph","text":"We apologise for the inconvenience. If you have any questions, please contact {{senderName}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"popiaSlot"}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.delay' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Landlord / Owner Details', 'Request to the owner to confirm owner details during property setup.', 'info_requests', 'correspondence', 'info_request.landlord',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.1', false,
+  '[{"type":"heading","text":"Confirm the owner details"},{"type":"paragraph","text":"{{branding.orgName}} is setting up {{propertyLabel}} in their property management platform, and needs to confirm a few owner details before the setup can be finalised."},{"type":"paragraph","text":"This should take about two minutes:"},{"type":"cta","label":"Open the form","href":"{{formUrl}}"},{"type":"list","items":["Your full name, or company name if the property is held by an entity","Preferred contact email and phone","Postal address, if different from the property"]},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.landlord' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Insurance Details', 'Request to confirm the current insurance on the property during setup.', 'info_requests', 'correspondence', 'info_request.insurance',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.2', false,
+  '[{"type":"heading","text":"Confirm insurance details"},{"type":"paragraph","text":"{{branding.orgName}} is setting up {{propertyLabel}} on their property management platform, and needs to confirm the current insurance on the property."},{"type":"paragraph","text":"Having this on record helps with claims, broker notifications when incidents happen, and annual renewal reminders. It should take about two minutes:"},{"type":"cta","label":"Open the form","href":"{{formUrl}}"},{"type":"list","items":["Insurer name","Policy number","Annual renewal date","Replacement value on the current policy","Broker name and contact, if you use one"]},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.insurance' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Broker Coverage Confirmation', 'Request to the broker to confirm current coverage on file.', 'info_requests', 'correspondence', 'info_request.broker',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{ownerName}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.3', false,
+  '[{"type":"heading","text":"Coverage confirmation requested"},{"type":"paragraph","text":"{{branding.orgName}} manages {{propertyLabel}} on behalf of {{ownerName}}, and is setting up the property on a property management platform."},{"type":"paragraph","text":"To route incident notifications to the right inbox and keep renewal dates aligned, we''d appreciate your confirmation of the current coverage on file:"},{"type":"cta","label":"Confirm coverage details","href":"{{formUrl}}"},{"type":"list","items":["Insurer name and policy number","Replacement value and annual renewal date","Preferred broker contact name and email for incident notifications","Direct phone line for after-hours claims, if available"]},{"type":"paragraph","text":"Authorisation to disclose these details should be on record with your client; if you''d prefer to confirm with them first, please do reach out directly."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.broker' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Scheme Contact Details', 'Request to confirm the right scheme contacts on file.', 'info_requests', 'correspondence', 'info_request.scheme',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{schemeName}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.4', false,
+  '[{"type":"heading","text":"Scheme contact details"},{"type":"paragraph","text":"{{branding.orgName}} manages a unit at {{propertyLabel}} under {{schemeName}}, and is setting the property up on a property management platform."},{"type":"paragraph","text":"To keep levies, rules, and scheme communication lined up correctly, we''d appreciate confirmation of the right scheme contacts on file:"},{"type":"cta","label":"Confirm scheme details","href":"{{formUrl}}"},{"type":"list","items":["Managing agent name and email","Trustee chair or primary contact, if different","After-hours contact for common-area emergencies","Any change-of-tenancy notification process we should follow"]},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.scheme' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Banking Details', 'Request to capture owner banking details via the secure form for owner statement payouts.', 'info_requests', 'correspondence', 'info_request.banking',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.5', false,
+  '[{"type":"heading","text":"Confirm banking details"},{"type":"paragraph","text":"{{branding.orgName}} is setting up {{propertyLabel}} on their property management platform. To pay rental income through to you correctly, we need the banking details for your owner statements."},{"type":"paragraph","text":"Please enter your banking details using the secure form — the account number is encrypted on submission and stored securely:"},{"type":"cta","label":"Enter banking details securely","href":"{{formUrl}}"},{"type":"list","items":["Bank name","Account holder name (as it appears on your bank statement)","Account number","Branch code","Account type (cheque, savings, transmission)"]},{"type":"paragraph","text":"These details are used only to pay your owner statement amounts and will not be shared outside of {{branding.orgName}} and its payment processor."},{"type":"paragraph","text":"Please do not reply to this email with your banking details. The secure form above is the only safe channel."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.banking' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Property Documents', 'Request for property documents to be uploaded during setup.', 'info_requests', 'correspondence', 'info_request.documents',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.6', false,
+  '[{"type":"heading","text":"A few property documents"},{"type":"paragraph","text":"{{branding.orgName}} is setting up {{propertyLabel}} on their property management platform, and would appreciate a few documents on file. You only need to upload what you have — anything missing can be added later."},{"type":"cta","label":"Upload documents","href":"{{formUrl}}"},{"type":"list","items":["Title deed or proof of ownership","Latest municipal rates account","Insurance certificate or schedule","Electrical compliance certificate (CoC), if available","Gas, beetle, plumbing, or other CoCs that apply","Scheme rules or conduct rules, if the property is in a scheme"]},{"type":"paragraph","text":"The form accepts PDFs, JPGs, and PNGs, up to 20 MB per file."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.documents' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Compliance Certificate Details', 'Request to capture compliance certificates on record so renewal reminders can be set.', 'info_requests', 'correspondence', 'info_request.compliance',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.7', false,
+  '[{"type":"heading","text":"Compliance certificate details"},{"type":"paragraph","text":"{{branding.orgName}} is setting up {{propertyLabel}} on their property management platform, and needs to capture the compliance certificates on record so renewal reminders can be set correctly."},{"type":"cta","label":"Confirm compliance details","href":"{{formUrl}}"},{"type":"list","items":["Electrical compliance certificate (CoC) — issue date and expiry","Gas CoC, if the property has a gas installation","Beetle or borer certificate, if one was issued at sale","Pool compliance, where a pool is on the property","Lift inspection certificate, where applicable","Any other municipal or safety certificate the property carries"]},{"type":"paragraph","text":"For each item you have, the form lets you upload the certificate and capture the issuer and expiry date. Anything you don''t have can be marked as \"not applicable\" or left for later."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.compliance' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Other / Free-form', 'Free-form information request with agent-supplied prompt during setup.', 'info_requests', 'correspondence', 'info_request.other',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{prompt}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.8', false,
+  '[{"type":"heading","text":"A quick request for some information"},{"type":"paragraph","text":"{{branding.orgName}} is setting up {{propertyLabel}} on their property management platform, and has a few specific questions about the property they''d appreciate your help with."},{"type":"paragraph","text":"\"{{prompt}}\""},{"type":"paragraph","text":"The secure form below has space to answer or upload anything relevant:"},{"type":"cta","label":"Open the form","href":"{{formUrl}}"},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.other' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request Reminder — Landlord / Owner Details', 'Firm follow-up reminder for outstanding owner details.', 'info_requests', 'correspondence', 'info_request.landlord_reminder',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.9', false,
+  '[{"type":"heading","text":"We still need the owner details"},{"type":"paragraph","text":"{{branding.orgName}} still needs the owner details for {{propertyLabel}} before the property setup can be finalised."},{"type":"paragraph","text":"Please take a few minutes to complete the form:"},{"type":"cta","label":"Open the form","href":"{{formUrl}}"},{"type":"paragraph","text":"If you''ve already replied or there''s been a mix-up, just let us know by replying to this email."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.landlord_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request Reminder — Insurance Details', 'Firm follow-up reminder for outstanding insurance details.', 'info_requests', 'correspondence', 'info_request.insurance_reminder',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.9', false,
+  '[{"type":"heading","text":"Insurance details still outstanding"},{"type":"paragraph","text":"{{branding.orgName}} is still waiting on the insurance details for {{propertyLabel}}. Without them on record, claims, broker notifications, and renewal reminders can''t be set up correctly."},{"type":"paragraph","text":"Please take a few minutes to complete the form:"},{"type":"cta","label":"Open the form","href":"{{formUrl}}"},{"type":"paragraph","text":"If you''ve already replied or there''s been a mix-up, just let us know by replying to this email."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.insurance_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request Reminder — Broker Coverage Confirmation', 'Firm follow-up reminder for outstanding broker coverage confirmation.', 'info_requests', 'correspondence', 'info_request.broker_reminder',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{ownerName}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.9', false,
+  '[{"type":"heading","text":"Coverage confirmation still outstanding"},{"type":"paragraph","text":"{{branding.orgName}} is still waiting on confirmation of the current coverage for {{propertyLabel}}, managed on behalf of {{ownerName}}. Without it, incident notifications and renewal dates can''t be routed correctly."},{"type":"paragraph","text":"Please take a few minutes to complete the form:"},{"type":"cta","label":"Open the form","href":"{{formUrl}}"},{"type":"paragraph","text":"Authorisation to disclose these details should be on record with your client; if you''d prefer to confirm with them first, please do reach out directly."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.broker_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request Reminder — Scheme Contact Details', 'Firm follow-up reminder for outstanding scheme contact details.', 'info_requests', 'correspondence', 'info_request.scheme_reminder',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{schemeName}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.9', false,
+  '[{"type":"heading","text":"Scheme contacts still outstanding"},{"type":"paragraph","text":"{{branding.orgName}} is still waiting on the scheme contacts for {{propertyLabel}} under {{schemeName}}. Without them, levies, rules, and scheme communication can''t be lined up correctly."},{"type":"paragraph","text":"Please take a few minutes to complete the form:"},{"type":"cta","label":"Open the form","href":"{{formUrl}}"},{"type":"paragraph","text":"If you''ve already replied or there''s been a mix-up, just let us know by replying to this email."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.scheme_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request Reminder — Banking Details', 'Firm follow-up reminder for outstanding owner banking details.', 'info_requests', 'correspondence', 'info_request.banking_reminder',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.9', false,
+  '[{"type":"heading","text":"Banking details still needed"},{"type":"paragraph","text":"{{branding.orgName}} is holding up owner statements for {{propertyLabel}} until the banking details are captured. Rental income received on your behalf can''t be released to you without them."},{"type":"paragraph","text":"Please take a few minutes to complete the form:"},{"type":"cta","label":"Enter banking details securely","href":"{{formUrl}}"},{"type":"paragraph","text":"Please do not reply to this email with your banking details. The secure form above is the only safe channel."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.banking_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request Reminder — Property Documents', 'Firm follow-up reminder for outstanding property documents.', 'info_requests', 'correspondence', 'info_request.documents_reminder',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.9', false,
+  '[{"type":"heading","text":"Property documents still outstanding"},{"type":"paragraph","text":"{{branding.orgName}} is still waiting on the property documents for {{propertyLabel}}. The setup can''t be finalised until what''s on hand is on file."},{"type":"paragraph","text":"Please take a few minutes to complete the form:"},{"type":"cta","label":"Upload documents","href":"{{formUrl}}"},{"type":"paragraph","text":"You only need to upload what you have — anything missing can be added later. If you''ve already replied or there''s been a mix-up, just let us know by replying to this email."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.documents_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request Reminder — Compliance Certificate Details', 'Firm follow-up reminder for outstanding compliance certificate details.', 'info_requests', 'correspondence', 'info_request.compliance_reminder',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.9', false,
+  '[{"type":"heading","text":"Compliance details still outstanding"},{"type":"paragraph","text":"{{branding.orgName}} is still waiting on the compliance certificate details for {{propertyLabel}}. Without expiry dates on file, the platform can''t warn you when renewals fall due."},{"type":"paragraph","text":"Please take a few minutes to complete the form:"},{"type":"cta","label":"Confirm compliance details","href":"{{formUrl}}"},{"type":"paragraph","text":"If you''ve already replied or there''s been a mix-up, just let us know by replying to this email."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.compliance_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request Reminder — Other / Free-form', 'Firm follow-up reminder for an outstanding free-form information request.', 'info_requests', 'correspondence', 'info_request.other_reminder',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{prompt}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.9', false,
+  '[{"type":"heading","text":"Still waiting on your reply"},{"type":"paragraph","text":"{{branding.orgName}} is still waiting on the information requested for {{propertyLabel}}. The setup can''t be completed until it''s on file."},{"type":"paragraph","text":"\"{{prompt}}\""},{"type":"paragraph","text":"Please take a few minutes to complete the form:"},{"type":"cta","label":"Open the form","href":"{{formUrl}}"},{"type":"paragraph","text":"If you''ve already replied or there''s been a mix-up, just let us know by replying to this email."},{"type":"paragraph","text":"This is a secure link, valid for 14 days. If you''d prefer to send the details by email, just reply to this message."},{"type":"popiaSlot"},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.other_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'POPIA Request Received', 'Acknowledgement of a POPIA data-subject request with SLA deadline.', 'popia', 'correspondence', 'popia.request_received',
+  NULL, ARRAY['{{recipient.salutation}}', '{{requestType}}', '{{agencyName}}', '{{requestId}}', '{{slaDeadline}}', '{{requestUrl}}'], 1, 'ADDENDUM_70C §10.1', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your POPIA request has been received"},{"type":"paragraph","text":"Your {{requestType}} request to {{agencyName}} was received successfully. We are required by POPIA to respond within 30 calendar days."},{"type":"dataBox","rows":[{"label":"Request ID","value":"{{requestId}}"},{"label":"Response deadline","value":"{{slaDeadline}}"}]},{"type":"cta","label":"View your request","href":"{{requestUrl}}"},{"type":"paragraph","text":"If you do not receive a response by {{slaDeadline}}, you have the right to complain to the Information Regulator of South Africa at complaints.IR@justice.gov.za or +27 10 023 5207."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='popia.request_received' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'POPIA Request Under Review', 'Identity verified; POPIA request now under review.', 'popia', 'correspondence', 'popia.request_under_review',
+  NULL, ARRAY['{{recipient.salutation}}', '{{requestType}}', '{{agencyName}}', '{{slaDeadline}}', '{{requestUrl}}'], 1, 'ADDENDUM_70C §10.2', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your request is under review"},{"type":"paragraph","text":"Your identity has been verified. Your {{requestType}} request to {{agencyName}} is now under review. We will notify you when a decision has been made."},{"type":"dataBox","rows":[{"label":"Response deadline","value":"{{slaDeadline}}"}]},{"type":"cta","label":"View request status","href":"{{requestUrl}}"},{"type":"paragraph","text":"Questions? Reply to this email or contact {{agencyName}} directly."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='popia.request_under_review' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'POPIA Request Completed', 'POPIA data-subject request completed.', 'popia', 'correspondence', 'popia.request_approved',
+  NULL, ARRAY['{{recipient.salutation}}', '{{requestType}}', '{{agencyName}}', '{{resolutionNotes}}', '{{requestUrl}}'], 1, 'ADDENDUM_70C §10.3', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your request has been completed"},{"type":"paragraph","text":"{{agencyName}} has completed your {{requestType}} request."},{"type":"paragraph","text":"{{resolutionNotes}}"},{"type":"cta","label":"View full details","href":"{{requestUrl}}"},{"type":"paragraph","text":"If you are not satisfied with this response, you may complain to the Information Regulator at complaints.IR@justice.gov.za or +27 10 023 5207."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='popia.request_approved' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'POPIA Request Rejected', 'POPIA request could not be fulfilled, with legal basis + escalation rights.', 'popia', 'correspondence', 'popia.request_rejected',
+  NULL, ARRAY['{{recipient.salutation}}', '{{requestType}}', '{{agencyName}}', '{{resolutionNotes}}', '{{legalBasis}}', '{{requestUrl}}'], 1, 'ADDENDUM_70C §10.4', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your request could not be fulfilled"},{"type":"paragraph","text":"{{agencyName}} has reviewed your {{requestType}} request and is unable to fulfil it at this time."},{"type":"heading","text":"Reason"},{"type":"paragraph","text":"{{resolutionNotes}}"},{"type":"heading","text":"Legal basis"},{"type":"paragraph","text":"{{legalBasis}}"},{"type":"cta","label":"View your request","href":"{{requestUrl}}"},{"type":"heading","text":"Your right to escalate"},{"type":"paragraph","text":"If you believe this decision is incorrect, you have the unconditional right to complain to the Information Regulator of South Africa. The regulator operates independently of Pleks and {{agencyName}}."},{"type":"dataBox","rows":[{"label":"Email","value":"complaints.IR@justice.gov.za"},{"label":"Phone","value":"+27 10 023 5207"},{"label":"Address","value":"JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001"},{"label":"Web","value":"www.justice.gov.za/inforeg"}]}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='popia.request_rejected' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'POPIA Data Export Ready', 'Data-subject export bundle ready, with tamper-evidence hash.', 'popia', 'correspondence', 'popia.export_ready',
+  NULL, ARRAY['{{recipient.salutation}}', '{{requestType}}', '{{agencyName}}', '{{expiresAt}}', '{{manifestHash}}', '{{exportUrl}}', '{{requestUrl}}'], 1, 'ADDENDUM_70C §10.5', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your data export is ready"},{"type":"paragraph","text":"{{agencyName}} has prepared your {{requestType}} data export. The bundle includes a PDF summary, a machine-readable JSON file, and where applicable, supporting documents."},{"type":"cta","label":"Download your data export","href":"{{exportUrl}}"},{"type":"paragraph","text":"This link expires on {{expiresAt}}. After that, contact {{agencyName}} to request a new link."},{"type":"heading","text":"Tamper evidence"},{"type":"dataBox","rows":[{"label":"Manifest hash","value":"{{manifestHash}}"}]},{"type":"paragraph","text":"This SHA-256 manifest hash uniquely identifies your export bundle. If you ever need to verify that the export has not been altered since it was issued, provide this hash to the Information Regulator."},{"type":"cta","label":"View request record","href":"{{requestUrl}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='popia.export_ready' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'POPIA Full Erasure Completed', 'Confirmation of completed full-erasure request with retention summary.', 'popia', 'correspondence', 'popia.nuke_confirmation',
+  NULL, ARRAY['{{recipient.salutation}}', '{{agencyName}}', '{{resolvedAt}}', '{{summary.deleted}}', '{{summary.anonymised}}', '{{summary.retained}}', '{{requestUrl}}'], 1, 'ADDENDUM_70C §10.6', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Full erasure completed"},{"type":"paragraph","text":"{{agencyName}} has completed your full erasure request on {{resolvedAt}}. Here is a summary of what was done."},{"type":"heading","text":"What happened"},{"type":"dataBox","rows":[{"label":"Records deleted","value":"{{summary.deleted}}"},{"label":"Records anonymised (identifying fields replaced)","value":"{{summary.anonymised}}"},{"label":"Records retained (legal requirement)","value":"{{summary.retained}}"}]},{"type":"heading","text":"Retained as disclosed"},{"type":"paragraph","text":"The following categories were retained as you acknowledged before submitting:"},{"type":"callout","tone":"info","text":"The retained categories — each shown as category — reason — render here per request."},{"type":"cta","label":"View request record","href":"{{requestUrl}}"},{"type":"paragraph","text":"This confirmation is your record. The consent log entry for this erasure is retained permanently per POPIA accountability requirements and was not deleted."},{"type":"paragraph","text":"If you have questions, contact {{agencyName}} directly. To escalate to the Information Regulator: complaints.IR@justice.gov.za · +27 10 023 5207."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='popia.nuke_confirmation' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Privacy Notice Updated', 'Notice of an updated Pleks Privacy Notice version.', 'popia', 'correspondence', 'popia.policy_update',
+  NULL, ARRAY['{{recipient.salutation}}', '{{newVersion}}', '{{effectiveFrom}}', '{{changeSummary}}', '{{oldVersion}}', '{{policyUrl}}'], 1, 'ADDENDUM_70C §10.7', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Pleks Privacy Notice updated"},{"type":"paragraph","text":"We have updated the Pleks Privacy Notice. The new version ({{newVersion}}) is effective from {{effectiveFrom}}."},{"type":"heading","text":"What changed"},{"type":"paragraph","text":"{{changeSummary}}"},{"type":"cta","label":"Read the updated policy","href":"{{policyUrl}}"},{"type":"paragraph","text":"The previous version ({{oldVersion}}) remains available at pleks.co.za/privacy/versions/{{oldVersion}} for your reference."},{"type":"paragraph","text":"If you have questions about these changes, contact privacy@pleks.co.za or the Information Regulator at complaints.IR@justice.gov.za."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='popia.policy_update' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Urgent: Critical Maintenance Issue', 'Urgent habitability notice of a critical maintenance issue requiring immediate attention.', 'maintenance', 'service', 'maintenance.emergency',
+  'URGENT: Critical maintenance issue at {{propertyLabel}} — immediate attention required', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{requestTitle}}', '{{urgencyReason}}', '{{contactName}}', '{{contactPhone}}', '{{senderName}}'], 1, 'ADDENDUM_70C §5.6', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Urgent: critical maintenance issue"},{"type":"callout","tone":"warn","text":"A critical maintenance issue has been identified at **{{propertyLabel}}** that requires immediate attention. Our team is actively working to resolve this."},{"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"},{"label":"Reason","value":"{{urgencyReason}}"}]},{"type":"paragraph","text":"If you have any safety concerns or need to vacate the affected area, please contact {{contactName}} on {{contactPhone}} immediately. Do not use any affected areas until further notice."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='maintenance.emergency' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Monthly Rent Invoice', 'Monthly rent invoice issued to the tenant.', 'rent', 'service', 'rent.invoice_issued',
+  'Rent invoice {{invoiceNumber}} — {{totalAmountDisplay}} due {{dueDate}} — {{propertyLabel}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{invoiceNumber}}', '{{invoiceDate}}', '{{periodFrom}}', '{{periodTo}}', '{{dueDate}}', '{{totalAmountDisplay}}', '{{paymentReference}}'], 1, 'ADDENDUM_70C §6.1', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Monthly Rent Invoice"},{"type":"paragraph","text":"Your rent invoice for **{{propertyLabel}}** has been issued. Please ensure payment is made before **{{dueDate}}**."},{"type":"dataBox","rows":[{"label":"Invoice","value":"{{invoiceNumber}}"},{"label":"Invoice date","value":"{{invoiceDate}}"},{"label":"Period","value":"{{periodFrom}} – {{periodTo}}"},{"label":"Due date","value":"{{dueDate}}"}]},{"type":"callout","tone":"info","text":"The itemised line items for this invoice — rent plus any additional charges — render here per invoice."},{"type":"dataBox","rows":[{"label":"Total due","value":"{{totalAmountDisplay}}"},{"label":"Payment reference","value":"{{paymentReference}}"}]},{"type":"paragraph","text":"Use this reference for all EFT payments to ensure your payment is allocated correctly. If you have any questions about this invoice, please contact your managing agent."},{"type":"paragraph","text":"This invoice was generated automatically. Use your payment reference when making an EFT payment. Do not reply directly to this email."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='rent.invoice_issued' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Monthly Account Statement', 'Monthly account statement (invoices, payments, closing balance).', 'rent', 'service', 'rent.monthly_statement',
+  'Account statement — {{statementMonth}} — {{propertyLabel}} — Balance: {{closingBalanceDisplay}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{statementMonth}}', '{{closingBalanceDisplay}}', '{{senderName}}'], 1, 'ADDENDUM_70C §6.2', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Monthly Account Statement"},{"type":"paragraph","text":"Please find your account statement for **{{statementMonth}}** for the property at {{propertyLabel}}."},{"type":"callout","tone":"info","text":"Invoices for the period (invoice number · period — total · balance · status) and payments received (date — amount, method · receipt reference) render here per statement."},{"type":"dataBox","rows":[{"label":"Closing balance","value":"{{closingBalanceDisplay}}"}]},{"type":"paragraph","text":"If you have any queries about this statement, please contact {{senderName}}."},{"type":"paragraph","text":"This statement is issued for informational purposes. Please retain a copy for your records."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='rent.monthly_statement' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Payment Received', 'Payment receipt + remaining balance confirmation.', 'rent', 'service', 'rent.payment_received',
+  'Payment confirmed — {{amountDisplay}} received for {{propertyLabel}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{receiptNumber}}', '{{paymentDate}}', '{{paymentMethod}}', '{{invoiceNumber}}', '{{amountDisplay}}', '{{outstandingBalanceDisplay}}'], 1, 'ADDENDUM_70C §6.3', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Payment Received"},{"type":"paragraph","text":"Thank you — your payment for **{{propertyLabel}}** has been received and recorded."},{"type":"dataBox","rows":[{"label":"Receipt","value":"{{receiptNumber}}"},{"label":"Date","value":"{{paymentDate}}"},{"label":"Method","value":"{{paymentMethod}}"},{"label":"Invoice","value":"{{invoiceNumber}}"},{"label":"Amount received","value":"{{amountDisplay}}"},{"label":"Outstanding balance","value":"{{outstandingBalanceDisplay}}"}]},{"type":"paragraph","text":"If your account is up to date, your balance is settled — thank you. If a balance of {{outstandingBalanceDisplay}} remains on your account, please arrange payment at your earliest convenience."},{"type":"paragraph","text":"This is an automated receipt. If you believe there is an error, please contact your managing agent directly."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='rent.payment_received' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Reply Received (Agent Notification)', 'Internal notification to the agent that an info-request response was submitted.', 'info_requests', 'service', 'info_request.completion_notify',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{submitterDisplay}}', '{{topicLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.10', false,
+  '[{"type":"heading","text":"Reply received"},{"type":"paragraph","text":"{{submitterDisplay}} has submitted their response to the {{topicLabel}} request on {{propertyLabel}}."},{"type":"paragraph","text":"The details have been captured against the property. Head to the property page to review what came in:"},{"type":"cta","label":"Review the response","href":"{{formUrl}}"},{"type":"paragraph","text":"No further action is needed from you unless the response triggers a downstream task (e.g. setting up debit orders once banking is confirmed)."},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.completion_notify' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Info Request — Self-Track Nudge (Agent Notification)', 'Internal nudge to the agent about an item they flagged to follow up on themselves.', 'info_requests', 'service', 'info_request.self_track_nudge',
+  NULL, ARRAY['{{branding.orgName}}', '{{propertyLabel}}', '{{daysElapsed}}', '{{topicLabel}}', '{{formUrl}}'], 1, 'ADDENDUM_70C §9.11', false,
+  '[{"type":"heading","text":"Outstanding on your list"},{"type":"paragraph","text":"About {{daysElapsed}} days ago you flagged that you''d follow up on the {{topicLabel}} for {{propertyLabel}} yourself."},{"type":"paragraph","text":"If that''s still on your list, the property page has the completeness widget ready to either log the details directly or forward a request to the owner:"},{"type":"cta","label":"Open the property","href":"{{formUrl}}"},{"type":"paragraph","text":"If this isn''t relevant anymore, dismiss it from the widget and we won''t nudge again."},{"type":"signoff","text":"Thanks,\n{{branding.orgName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='info_request.self_track_nudge' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Feedback Reply', 'Notification that the team replied to submitted feedback.', 'feedback', 'service', 'feedback.reply',
+  NULL, ARRAY['{{subject}}', '{{replyBody}}', '{{threadUrl}}'], 1, 'ADDENDUM_70C §11.1', false,
+  '[{"type":"heading","text":"We''ve replied to your feedback"},{"type":"paragraph","text":"You submitted feedback: **{{subject}}**"},{"type":"paragraph","text":"{{replyBody}}"},{"type":"cta","label":"View feedback thread","href":"{{threadUrl}}"},{"type":"paragraph","text":"You can view and continue the conversation from your account."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='feedback.reply' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Feedback Daily Digest', 'Daily roll-up of submitted feedback for the team inbox.', 'feedback', 'service', 'feedback.daily_digest',
+  NULL, ARRAY['{{date}}', '{{summary}}', '{{inboxUrl}}'], 1, 'ADDENDUM_70C §11.2', false,
+  '[{"type":"heading","text":"Feedback digest — {{date}}"},{"type":"paragraph","text":"{{summary}}"},{"type":"callout","tone":"info","text":"Each feedback item — subject, then role · category · rating/5 ★ — renders here per digest."},{"type":"cta","label":"Open feedback inbox","href":"{{inboxUrl}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='feedback.daily_digest' AND template_type='email'
+);

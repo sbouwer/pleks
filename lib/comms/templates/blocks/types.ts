@@ -37,6 +37,8 @@ export interface SignoffBlock { type: "signoff"; text: string }
 export interface SignatureSlotBlock { type: "signatureSlot" }
 /** Slot where the shared LegalFooter (ECTA + citations) is injected (statutory only). */
 export interface LegalFooterSlotBlock { type: "legalFooterSlot" }
+/** Slot where the POPIA data-rights line is injected (correspondence + data-collection + lifecycle; 70F §3‡ — never statutory). */
+export interface PopiaSlotBlock { type: "popiaSlot" }
 /**
  * A citation/sentence that branches on lease CPA applicability at render time
  * (the runtime branch BUILD_70/F-1 requires — final-notice, expiry-reminder).
@@ -55,6 +57,7 @@ export type TemplateBlock =
   | SignoffBlock
   | SignatureSlotBlock
   | LegalFooterSlotBlock
+  | PopiaSlotBlock
   | CpaConditionalBlock
 
 /** Flavour-keyed bodies. Absent for statutory (legally-fixed wording is never flavoured). */

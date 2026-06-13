@@ -12,6 +12,7 @@
 import * as React from "react"
 import { Text, Hr } from "@react-email/components"
 import { EmailLayout, EmailButton, type OrgBranding } from "../layout"
+import { popiaProcessingLine } from "../legalCitations"
 import type { TemplateBlock, RenderContext } from "./types"
 
 // Bounded merge-token matcher — same shape as orgTemplateOverride (avoids slow-regex on unbounded {{…}}).
@@ -120,6 +121,8 @@ function renderEmailBlock(
       return opts.signatureNode ? <React.Fragment key={key}>{opts.signatureNode}</React.Fragment> : null
     case "legalFooterSlot":
       return opts.legalFooterNode ? <React.Fragment key={key}>{opts.legalFooterNode}</React.Fragment> : null
+    case "popiaSlot":
+      return <Text key={key} style={S.legalLine}>{fillTokens(popiaProcessingLine("{{branding.orgName}}"), ctx)}</Text>
     case "cpaConditional":
       return <Text key={key} style={S.legalLine}>{renderInline(cpaText(block.ifCpa, block.otherwise, ctx), ctx, key)}</Text>
     default: {
@@ -179,6 +182,8 @@ export function blocksToPlainText(blocks: TemplateBlock[], ctx: RenderContext): 
         lines.push(`${clean(b.label)}: ${fillTokens(b.href, ctx)}`); break
       case "cpaConditional":
         lines.push(clean(cpaText(b.ifCpa, b.otherwise, ctx))); break
+      case "popiaSlot":
+        lines.push(clean(popiaProcessingLine("{{branding.orgName}}"))); break
       case "divider":
       case "signatureSlot":
       case "legalFooterSlot":
