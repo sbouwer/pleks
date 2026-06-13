@@ -15,6 +15,19 @@
  *     duty (s18) + privacy policy are met at the data-collection points, not on every operational email.
  *   • statutory → never a POPIA footer (adversarial; would offer a right declined under litigation-hold).
  *
+ * ── DOCTRINE: neutral-decline (application declines — discrimination-exposure mitigation) ──
+ *   application.declined_stage1 / declined_stage2 and the blocked-screening path are NEUTRAL
+ *   "application update" notices — they state NO reason in the subject or body; the dashboard is
+ *   canonical for any detail. This is the FitScore-shows-all-applicants mitigation. A fold or copy
+ *   edit must NEVER flatten a decline into a reason-stating email.
+ *
+ * ── DOCTRINE: FitScore-dynamic emails are CODE-RENDERED, not seed-folded (14H §10.7 parity) ──
+ *   application.screening_complete (3-way blocked/limited-data/standard branch + band-dependent
+ *   subject + observedStrengths/observedConcerns/limitedVisibility arrays) and
+ *   application.credit_report_delivered (NCA / POPIA special-info) stay registered + code-rendered.
+ *   The seed block model (one binary cpaConditional + 3 flavours) cannot express their logic without
+ *   flattening it — they are FitScore surfaces governed by the 14H web/PDF parity doctrine. Do NOT fold.
+ *
  * ── CANONICAL MERGE VOCABULARY (the seeding gate — prove against merge context OR keep normalised) ──
  *   Org name (ALL channels): {{branding.orgName}} (+ {{branding.orgPhone}} / {{branding.orgEmail}}).
  *     {{agencyName}} / {{orgName}} are RETIRED — normalised to {{branding.orgName}}.
