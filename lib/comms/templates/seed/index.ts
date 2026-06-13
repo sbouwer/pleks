@@ -47,6 +47,7 @@ import { INFO_REQUEST_SEEDS } from "./info-requests"
 import { SERVICE_SEEDS } from "./service"
 import { SUBSCRIPTION_SEEDS } from "./subscriptions"
 import { CHANNEL_SEEDS } from "./channels"
+import { ARREARS_LADDER_SEEDS } from "./arrears-ladder"
 
 export const SYSTEM_TEMPLATE_SEEDS: TemplateSeed[] = [
   ...STATUTORY_SEEDS,
@@ -55,6 +56,7 @@ export const SYSTEM_TEMPLATE_SEEDS: TemplateSeed[] = [
   ...SERVICE_SEEDS,
   ...SUBSCRIPTION_SEEDS,
   ...CHANNEL_SEEDS,
+  ...ARREARS_LADDER_SEEDS,
 ]
 
 export type { TemplateSeed }
