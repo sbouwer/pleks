@@ -771,3 +771,366 @@ SELECT 'system', 'email', 'Feedback Daily Digest', 'Daily roll-up of submitted f
 WHERE NOT EXISTS (
   SELECT 1 FROM document_templates WHERE scope='system' AND template_key='feedback.daily_digest' AND template_type='email'
 );
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Payment Failed (Day 0)', 'First past-due notice — payment didn''t process; PayFast will auto-retry, no action required.', 'subscriptions', 'service', 'subscription.payment_failed',
+  'Payment for {{orgName}} didn''t go through', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{updatePaymentUrl}}'], 1, 'ADDENDUM_70C §8.1', false,
+  '[{"type":"heading","text":"We couldn''t process your payment"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"The latest payment for **{{orgName}}** didn''t go through on PayFast. No action is required right now — PayFast will automatically retry over the next few days."},{"type":"paragraph","text":"In the meantime, everything in your Pleks workspace is running as normal. Your properties, leases, tenants and all scheduled communications are completely unaffected."},{"type":"paragraph","text":"If you''d like to update your card details or check your payment method, you can do that at any time in Settings → Subscription."},{"type":"cta","label":"Update payment details","href":"{{updatePaymentUrl}}"},{"type":"paragraph","text":"If payment succeeds in the next few days, you won''t hear from us again."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.payment_failed' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Payment Reminder (Day 7)', 'Second past-due reminder — payment still pending one week on; auto-pause warning at 14 days.', 'subscriptions', 'service', 'subscription.payment_reminder',
+  'Second reminder: payment for {{orgName}} still pending', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{daysOverdue}}', '{{updatePaymentUrl}}'], 1, 'ADDENDUM_70C §8.2', false,
+  '[{"type":"heading","text":"Payment still pending — one week on"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"It''s been {{daysOverdue}} days since the payment for **{{orgName}}** first failed, and PayFast has retried but the payment still hasn''t cleared."},{"type":"paragraph","text":"Your workspace is still fully active — all reads, reports and scheduled tenant communications are running normally, and nothing has been disrupted for your landlords or tenants."},{"type":"callout","tone":"warn","text":"**Important:** if payment doesn''t clear in the next 7 days, your account will be paused automatically. Updating your payment details or contacting your bank now will prevent this."},{"type":"cta","label":"Settle payment now","href":"{{updatePaymentUrl}}"},{"type":"paragraph","text":"Need help? Reply to this email and we''ll sort it out with you."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.payment_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Subscription Paused (Automatic)', 'Account auto-paused after two weeks of failed payment retries; reads/exports/notifications remain available.', 'subscriptions', 'service', 'subscription.paused_auto',
+  'Your Pleks subscription has been paused', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{pausedDate}}', '{{resumeUrl}}'], 1, 'ADDENDUM_70C §8.3', false,
+  '[{"type":"heading","text":"Your subscription has been paused"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"After two weeks of unsuccessful payment retries, the **{{orgName}}** subscription was automatically paused on {{pausedDate}}."},{"type":"heading","text":"Still available"},{"type":"list","items":["All existing property, lease and tenant data","Financial reports and exports","Scheduled tenant and landlord notifications"]},{"type":"heading","text":"Paused until payment is settled"},{"type":"list","items":["Creating new leases","Onboarding new properties","Processing new rental applications"]},{"type":"paragraph","text":"Settling the overdue payment will restore full access instantly — no further steps needed."},{"type":"cta","label":"Resume subscription","href":"{{resumeUrl}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.paused_auto' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Subscription Paused (Manual)', 'Confirmation that the agent manually paused their subscription; data safe, resume anytime.', 'subscriptions', 'service', 'subscription.paused_manual',
+  'Your subscription is now paused', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{pausedDate}}', '{{resumeUrl}}'], 1, 'ADDENDUM_70C §8.4', false,
+  '[{"type":"heading","text":"You''ve paused your subscription"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"You''ve paused the **{{orgName}}** subscription on {{pausedDate}}. Everything you''ve built in Pleks is safe and waiting for you."},{"type":"heading","text":"Still available while paused"},{"type":"list","items":["All existing property, lease and tenant data","Financial reports and exports","Scheduled tenant and landlord notifications"]},{"type":"heading","text":"Available again when you resume"},{"type":"list","items":["Creating new leases","Onboarding new properties","Processing new rental applications"]},{"type":"paragraph","text":"You can resume your subscription at any time from Settings — it only takes a moment and everything will pick up exactly where you left off."},{"type":"cta","label":"Resume subscription","href":"{{resumeUrl}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.paused_manual' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Subscription Resumed', 'Payment cleared and subscription fully reactivated; full access restored, no data lost.', 'subscriptions', 'service', 'subscription.resumed',
+  'You''re back — subscription reactivated', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{dashboardUrl}}'], 1, 'ADDENDUM_70C §8.5', false,
+  '[{"type":"heading","text":"All systems go — you''re fully active again"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Payment went through and your **{{orgName}}** subscription is fully active again. Full access has been restored — new leases, properties, applications, everything."},{"type":"paragraph","text":"All your data is exactly as you left it. Nothing has changed, nothing was lost."},{"type":"cta","label":"Go to dashboard","href":"{{dashboardUrl}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.resumed' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Dormancy Warning', 'Inactive Owner-tier account check-in; 30 days to scheduled auto-close, logging in resets the clock.', 'subscriptions', 'service', 'subscription.dormancy_warning',
+  'Your Pleks account hasn''t been used — a quick check-in', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{daysInactive}}', '{{scheduledCloseDate}}', '{{loginUrl}}'], 1, 'ADDENDUM_70C §8.6', false,
+  '[{"type":"heading","text":"Checking in on your account"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Your **{{orgName}}** Pleks account hasn''t been active for {{daysInactive}} days. That''s completely fine — everything is still here. Your properties, leases and contacts are all safe and waiting for you."},{"type":"paragraph","text":"Owner-free accounts that remain completely inactive are automatically closed after a period of inactivity, but you have 30 days before that happens. The scheduled close date is {{scheduledCloseDate}}."},{"type":"paragraph","text":"Simply logging in resets the clock — no forms, no payments, nothing else required."},{"type":"cta","label":"Log in to keep your account","href":"{{loginUrl}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.dormancy_warning' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Dormancy Final Notice', 'Last notice before dormant Owner-tier account auto-closes tomorrow; logging in cancels closure.', 'subscriptions', 'service', 'subscription.dormancy_final',
+  'Last notice: your Pleks account closes tomorrow', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{scheduledCloseDate}}', '{{loginUrl}}'], 1, 'ADDENDUM_70C §8.7', false,
+  '[{"type":"heading","text":"Account closes tomorrow"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"callout","tone":"warn","text":"Tomorrow — {{scheduledCloseDate}} — your **{{orgName}}** Pleks account will be automatically closed and all data deleted due to extended inactivity."},{"type":"paragraph","text":"Logging in today will stop this completely. No form to fill in, no payment required — you''re on the free Owner tier. Just log in and the scheduled closure is cancelled immediately."},{"type":"cta","label":"Log in now to keep your account","href":"{{loginUrl}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.dormancy_final' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Cancellation Confirmation (T1)', 'Confirms subscription cancellation and opens the 12-month read-only retention lifecycle; verbatim retention citations.', 'subscriptions', 'correspondence', 'subscription.cancellation_confirm',
+  'Your Pleks subscription has been cancelled', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{cancelledDate}}', '{{cancellationMethod}}', '{{purgeEligibleAt}}', '{{daysUntilPurge}}', '{{exportUrl}}', '{{reactivateUrl}}'], 1, 'ADDENDUM_70C §8.8', false,
+  '[{"type":"heading","text":"Subscription cancelled — your data is available until {{purgeEligibleAt}}"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Your **{{orgName}}** subscription was cancelled on {{cancelledDate}}. We confirmed this cancellation via {{cancellationMethod}}."},{"type":"paragraph","text":"By confirming cancellation, you instructed Pleks to begin the account closure and data-retention lifecycle described in Section 04 of our Terms of Service in force at the time of your cancellation. The 12-month read-only access period begins now."},{"type":"heading","text":"What happens to your data"},{"type":"paragraph","text":"**Operational data** — properties, leases, communications, tenant profiles, and historical records of day-to-day platform use — remains fully readable and exportable until {{purgeEligibleAt}}. That''s 12 months from {{cancelledDate}} ({{daysUntilPurge}} days). After that date, Operational data is deleted from production systems and excluded from backup retention thereafter."},{"type":"paragraph","text":"**Compliance Records** — a small set of records we are legally required to retain — will not be deleted on {{purgeEligibleAt}}. These include:"},{"type":"list","items":["Tax and billing records (5 years, Tax Administration Act s29)","Trust account records (5 years from end of financial year, Property Practitioners Act Regulation 33)","FICA verification records (5 years, Financial Intelligence Centre Act s23)","Audit and consent logs (7–10 years, POPIA s17 documentation)","Accounting records (7 years, Companies Act s24)","Records subject to any active legal hold or dispute"]},{"type":"paragraph","text":"These Compliance Records remain in a restricted-access archive for the periods specified above. The full retention schedule is published in our Privacy Policy."},{"type":"paragraph","text":"Where retention is required by law, regulatory request, or active dispute, the deletion of Operational data may also be deferred — we will notify you separately if this applies."},{"type":"heading","text":"What you should do"},{"type":"paragraph","text":"As the Responsible Party for your tenants'' personal information under POPIA, your obligations to those tenants continue after this cancellation. Trust account records carry a 5-year statutory retention requirement under the Property Practitioners Act. Please export and securely store all records you may need for these obligations before {{purgeEligibleAt}}."},{"type":"cta","label":"Export all data","href":"{{exportUrl}}"},{"type":"cta","label":"Reactivate","href":"{{reactivateUrl}}"},{"type":"paragraph","text":"Exports are provided as a downloadable archive at the time of request. You are responsible for verifying that exported records are complete before the deletion date. Pleks does not warrant the long-term integrity of exported files held outside the platform."},{"type":"heading","text":"Reactivation"},{"type":"paragraph","text":"You can reactivate your account at any time before {{purgeEligibleAt}} and your Operational data will be restored in place — leases, tenants, documents and history. The Terms of Service and pricing in force at the time of reactivation will apply."},{"type":"paragraph","text":"All deletion lifecycle dates are calculated in South Africa Standard Time (SAST, UTC+2). Scheduled purge jobs may execute within a 24-hour window of the deletion date."},{"type":"paragraph","text":"You may request deletion or destruction of personal information under POPIA s24–s25, subject to applicable legal retention obligations. You may also request a copy of your data under s23, or lodge a complaint with the Information Regulator (South Africa) under POPIA s74 — see our Privacy Policy."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.cancellation_confirm' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Cancellation 90-Day Warning (T2)', '90-day reminder before cancelled account''s Operational data is deleted from production; verbatim retention citations.', 'subscriptions', 'correspondence', 'subscription.cancellation_warn_90',
+  '90 days until your Pleks data is scheduled for deletion', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{cancelledDate}}', '{{purgeEligibleAt}}', '{{exportUrl}}', '{{reactivateUrl}}'], 1, 'ADDENDUM_70C §8.8', false,
+  '[{"type":"heading","text":"90 days until production deletion"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"This is a reminder that the **{{orgName}}** account was cancelled on {{cancelledDate}}."},{"type":"paragraph","text":"Your Operational data — properties, leases, communications, tenant profiles, and historical records — is scheduled for deletion from production systems on {{purgeEligibleAt}}, 90 days from today. After that date, Operational data will be excluded from backup retention."},{"type":"heading","text":"What you should do"},{"type":"paragraph","text":"If you want to keep any Operational records, export them now. You are responsible for verifying that exported records are complete before the deletion date."},{"type":"cta","label":"Export all data now","href":"{{exportUrl}}"},{"type":"cta","label":"Reactivate account","href":"{{reactivateUrl}}"},{"type":"paragraph","text":"If you''d like to continue using Pleks, you can reactivate before {{purgeEligibleAt}} — the Terms of Service and pricing in force at the time of reactivation will apply."},{"type":"paragraph","text":"As the Responsible Party for your tenants'' personal information under POPIA, your obligations to those tenants continue after the deletion. If you require historical lease, payment, or trust records to meet those obligations, export them before {{purgeEligibleAt}}."},{"type":"paragraph","text":"A small set of Compliance Records — tax, trust, FICA, audit, and accounting records — are retained in a restricted-access archive for between 5 and 10 years depending on the record type, as set out in our Privacy Policy."},{"type":"paragraph","text":"Deletion dates are calculated in South Africa Standard Time (SAST). Cancellation lifecycle: see Section 04 of our Terms of Service."},{"type":"paragraph","text":"You may request deletion or destruction of personal information under POPIA s24–s25, subject to applicable legal retention obligations. You may also request a copy of your data under s23, or lodge a complaint with the Information Regulator (South Africa) under POPIA s74 — see our Privacy Policy."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.cancellation_warn_90' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Cancellation 30-Day Warning (T3)', 'Final-month reminder — 30 days until cancelled account''s Operational data is deleted; verbatim retention citations.', 'subscriptions', 'correspondence', 'subscription.cancellation_warn_30',
+  '30 days until your Pleks data is scheduled for deletion', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{cancelledDate}}', '{{purgeEligibleAt}}', '{{exportUrl}}', '{{reactivateUrl}}'], 1, 'ADDENDUM_70C §8.8', false,
+  '[{"type":"heading","text":"Final month — 30 days to deletion"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"The **{{orgName}}** account was cancelled on {{cancelledDate}}, and your Operational data is now scheduled for deletion in 30 days — on {{purgeEligibleAt}}."},{"type":"paragraph","text":"After that date, your Operational records — properties, leases, communications, tenant profiles, and historical activity — will be deleted from production systems and excluded from backup retention."},{"type":"heading","text":"Last month for export or reactivation"},{"type":"cta","label":"Export all data now","href":"{{exportUrl}}"},{"type":"cta","label":"Reactivate account","href":"{{reactivateUrl}}"},{"type":"paragraph","text":"You are responsible for verifying that exported records are complete before the deletion date."},{"type":"paragraph","text":"If you''d like to continue using Pleks, reactivate before {{purgeEligibleAt}} — the Terms of Service and pricing in force at the time of reactivation will apply."},{"type":"paragraph","text":"If you have continuing POPIA, RHA, or PPA obligations to your tenants — including the 5-year trust-record retention — export the records you need before deletion."},{"type":"paragraph","text":"A small set of Compliance Records — tax, trust, FICA, audit, and accounting records — are retained in a restricted-access archive for between 5 and 10 years depending on the record type, as set out in our Privacy Policy."},{"type":"paragraph","text":"All deletion lifecycle dates are calculated in South Africa Standard Time (SAST). Cancellation lifecycle: see Section 04 of our Terms of Service."},{"type":"paragraph","text":"You may request deletion or destruction of personal information under POPIA s24–s25, subject to applicable legal retention obligations. You may also request a copy of your data under s23, or lodge a complaint with the Information Regulator (South Africa) under POPIA s74 — see our Privacy Policy."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.cancellation_warn_30' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Cancellation 7-Day Warning (T4)', 'Final-week reminder — 7 days until cancelled account''s Operational data is deleted; verbatim retention citations.', 'subscriptions', 'correspondence', 'subscription.cancellation_warn_7',
+  '7 days until your Pleks data is deleted', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{purgeEligibleAt}}', '{{exportUrl}}', '{{reactivateUrl}}'], 1, 'ADDENDUM_70C §8.8', false,
+  '[{"type":"callout","tone":"warn","text":"⚠ One week to data deletion"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"This is a final-week reminder. The **{{orgName}}** account is scheduled for Operational data deletion on {{purgeEligibleAt}} — 7 days from today."},{"type":"paragraph","text":"All properties, leases, communications, tenant profiles, and historical records will be deleted from production systems and excluded from backup retention."},{"type":"heading","text":"Last chance to export or reactivate"},{"type":"cta","label":"Export all data now","href":"{{exportUrl}}"},{"type":"cta","label":"Reactivate account","href":"{{reactivateUrl}}"},{"type":"paragraph","text":"You are responsible for verifying that exported records are complete before the deletion date. If anything is missing or unreadable, contact support@pleks.co.za this week — after {{purgeEligibleAt}}, Operational records will no longer be recoverable through Pleks production systems once the backup-retention window expires."},{"type":"paragraph","text":"If you''d like to continue using Pleks, reactivate before {{purgeEligibleAt}} — the Terms of Service and pricing in force at the time of reactivation will apply."},{"type":"paragraph","text":"A small set of Compliance Records — tax, trust, FICA, audit, and accounting records — are retained in a restricted-access archive for between 5 and 10 years depending on the record type, as set out in our Privacy Policy."},{"type":"paragraph","text":"Deletion lifecycle calculated in South Africa Standard Time (SAST)."},{"type":"paragraph","text":"You may request deletion or destruction of personal information under POPIA s24–s25, subject to applicable legal retention obligations. You may also request a copy of your data under s23, or lodge a complaint with the Information Regulator (South Africa) under POPIA s74 — see our Privacy Policy."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.cancellation_warn_7' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Cancellation Final 24-Hour Warning (T5)', 'Final 24-hour notice before cancelled account''s Operational data is deleted tomorrow; verbatim retention citations.', 'subscriptions', 'correspondence', 'subscription.cancellation_warn_24h',
+  'Final notice: your Pleks data is deleted tomorrow', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{purgeEligibleAt}}', '{{exportUrl}}', '{{reactivateUrl}}'], 1, 'ADDENDUM_70C §8.8', false,
+  '[{"type":"callout","tone":"warn","text":"⚠ Operational data deletion is tomorrow"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Tomorrow — {{purgeEligibleAt}} — is the scheduled production-deletion date for **{{orgName}}**. After this date, Operational data will no longer be recoverable through Pleks production systems once the backup-retention window expires."},{"type":"paragraph","text":"All properties, leases, communications, tenant profiles, and historical records will be deleted from production systems and excluded from backup retention."},{"type":"cta","label":"Export all data now","href":"{{exportUrl}}"},{"type":"cta","label":"Reactivate account","href":"{{reactivateUrl}}"},{"type":"paragraph","text":"You are responsible for verifying that exported records are complete before deletion. The deletion job runs in South Africa Standard Time and may execute within a 24-hour window of {{purgeEligibleAt}}."},{"type":"paragraph","text":"If you''d like to keep your account, reactivate before 23:59 SAST tonight — the Terms of Service and pricing in force at the time of reactivation will apply."},{"type":"paragraph","text":"A small set of Compliance Records — tax, trust, FICA, audit, and accounting records — are retained in a restricted-access archive for between 5 and 10 years depending on the record type, as set out in our Privacy Policy."},{"type":"paragraph","text":"All deletion lifecycle dates are calculated in South Africa Standard Time (SAST, UTC+2). Cancellation lifecycle: Section 04 of our Terms of Service in force at the time of your cancellation."},{"type":"paragraph","text":"You may request deletion or destruction of personal information under POPIA s24–s25, subject to applicable legal retention obligations. You may also request a copy of your data under s23, or lodge a complaint with the Information Regulator (South Africa) under POPIA s74 — see our Privacy Policy."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.cancellation_warn_24h' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Account Closed (T6)', 'Post-deletion confirmation — Operational data deleted, Compliance Records retained; verbatim retention citations + final billing.', 'subscriptions', 'correspondence', 'subscription.account_closed',
+  'Your Pleks account has been closed', ARRAY['{{recipient.salutation}}', '{{orgName}}', '{{recipientEmail}}', '{{cancelledDate}}', '{{purgedDate}}', '{{finalInvoiceDate}}'], 1, 'ADDENDUM_70C §8.8', false,
+  '[{"type":"heading","text":"Account closed"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"The **{{orgName}}** account ({{recipientEmail}}), cancelled on {{cancelledDate}}, was closed on {{purgedDate}}."},{"type":"heading","text":"What was deleted"},{"type":"paragraph","text":"Operational data — properties, leases, communications, tenant profiles, and historical records of day-to-day platform use — has been deleted from production systems and excluded from backup retention thereafter."},{"type":"heading","text":"What is retained"},{"type":"paragraph","text":"The following Compliance Records remain in a restricted-access archive for the periods specified, as set out in our Privacy Policy:"},{"type":"list","items":["Tax and billing records (5 years, Tax Administration Act s29)","Trust account records (5 years from end of financial year, Property Practitioners Act Regulation 33)","FICA verification records (5 years, Financial Intelligence Centre Act s23)","Audit and consent logs (7–10 years, POPIA s17 documentation)","Accounting records (7 years, Companies Act s24)","Records subject to any active legal hold or dispute"]},{"type":"paragraph","text":"These records are accessed only for the legal obligation that requires their retention, and are deleted at the end of the applicable retention window."},{"type":"heading","text":"Final billing"},{"type":"paragraph","text":"The final invoice for **{{orgName}}** was issued on {{finalInvoiceDate}}. No further charges will be made to your payment method."},{"type":"heading","text":"If you believe this is in error"},{"type":"paragraph","text":"If you believe this account closure was made in error, or if you need to access your retained Compliance Records, contact us at support@pleks.co.za. Pleks retains a documented record of all cancellation and deletion events for accountability purposes under POPIA s17."},{"type":"paragraph","text":"Deletion lifecycle dates are calculated in South Africa Standard Time (SAST, UTC+2)."},{"type":"paragraph","text":"This account no longer exists as an active production account. Compliance Records are retained per the schedule above and our Privacy Policy. You may at any time lodge a complaint about data handling with the Information Regulator (South Africa) under POPIA s74."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.account_closed' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Rent Due Reminder (WhatsApp)', 'WhatsApp reminder that monthly rent is due on the 1st.', 'statements', 'service', 'whatsapp.rent_due_reminder',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{lease.rent_amount}}', '{{unit.number}}'], 1, 'ADDENDUM_70D §A.1', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, this is a reminder that rent of {{lease.rent_amount}} is due on the 1st for {{unit.number}}."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, just a reminder that rent of {{lease.rent_amount}} is due on the 1st for {{unit.number}}. Thanks!"}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, this is a reminder that rent of {{lease.rent_amount}} is due on the 1st for {{unit.number}}."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, rent of {{lease.rent_amount}} is due on the 1st for {{unit.number}}. Please ensure timely payment."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.rent_due_reminder' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Payment Received (WhatsApp)', 'WhatsApp confirmation that a rent payment was received and the account is up to date.', 'statements', 'service', 'whatsapp.payment_received',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{lease.rent_amount}}', '{{unit.number}}'], 1, 'ADDENDUM_70D §A.2', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your payment of {{lease.rent_amount}} for {{unit.number}} has been received. Your account is up to date."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, great news — your payment of {{lease.rent_amount}} for {{unit.number}} is in. Your account is all clear! 👍"}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your payment of {{lease.rent_amount}} for {{unit.number}} has been received. Your account is up to date."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, payment of {{lease.rent_amount}} for {{unit.number}} received. Account up to date."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.payment_received' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Arrears Reminder Level 1 (WhatsApp)', 'First-level WhatsApp arrears reminder (no statutory threat). ⚠ friendly body >145 chars — SMS-fallback truncation risk (70D Part D / R4).', 'arrears_and_lod', 'service', 'whatsapp.arrears_reminder_l1',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{unit.number}}', '{{arrears.total}}'], 1, 'ADDENDUM_70D §A.3', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your rental account for {{unit.number}} has an outstanding balance of {{arrears.total}}. Please make payment as soon as possible."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, just a gentle reminder that your rental for {{unit.number}} has an outstanding balance of {{arrears.total}}. Please pay when you can, or contact us if you need help."}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your rental account for {{unit.number}} has an outstanding balance of {{arrears.total}}. Please make payment as soon as possible."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, arrears of {{arrears.total}} are outstanding for {{unit.number}}. Immediate payment is required."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.arrears_reminder_l1' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Arrears Reminder Level 2 (WhatsApp)', 'Second-level WhatsApp arrears reminder. ⚠ >145-char bodies (SMS-fallback truncation); 🟡 firm sets a hard 48h deadline (70D §A.4).', 'arrears_and_lod', 'service', 'whatsapp.arrears_reminder_l2',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{unit.number}}', '{{arrears.total}}'], 1, 'ADDENDUM_70D §A.4', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your rental arrears for {{unit.number}} of {{arrears.total}} remain unpaid. Please make payment urgently or contact us to arrange a payment plan."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, this is a follow-up on your rental arrears of {{arrears.total}} for {{unit.number}}. Please pay urgently or reach out to us to work something out."}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your rental arrears for {{unit.number}} of {{arrears.total}} remain unpaid. Please make payment urgently or contact us to arrange a payment plan."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, second notice: arrears of {{arrears.total}} for {{unit.number}} are overdue. Payment or a payment arrangement is required within 48 hours."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.arrears_reminder_l2' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Arrears Final Notice (WhatsApp)', 'Final WhatsApp arrears notice. 🔴 firm threatens ''Legal proceedings commence in 5 business days'' (70D §A.5 — most-important flag; recommend aligning to the professional ''formal demand letter'' framing).', 'arrears_and_lod', 'service', 'whatsapp.arrears_final_notice',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{unit.number}}', '{{arrears.total}}'], 1, 'ADDENDUM_70D §A.5', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, this is your final notice regarding arrears of {{arrears.total}} for {{unit.number}}. A formal demand letter will follow if payment is not received within 5 business days."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, this is an urgent message — arrears of {{arrears.total}} for {{unit.number}} need your immediate attention. Please contact us today before formal action is taken."}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, this is your final notice regarding arrears of {{arrears.total}} for {{unit.number}}. A formal demand letter will follow if payment is not received within 5 business days."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, FINAL NOTICE: arrears of {{arrears.total}} for {{unit.number}}. Legal proceedings commence in 5 business days if payment is not received."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.arrears_final_notice' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Inspection Scheduled (WhatsApp)', 'WhatsApp notice that a property inspection has been scheduled.', 'inspections', 'service', 'whatsapp.inspection_scheduled',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{unit.number}}'], 1, 'ADDENDUM_70D §A.6', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, a property inspection is scheduled for {{unit.number}}. Please ensure the property is accessible at the agreed time. Contact us if you need to reschedule."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, heads up — we have a property inspection coming up for {{unit.number}}. Please make sure access is available. Let us know if you need to reschedule!"}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, a property inspection is scheduled for {{unit.number}}. Please ensure the property is accessible at the agreed time. Contact us if you need to reschedule."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, inspection notice: {{unit.number}}. You are required to provide access at the scheduled time per your lease agreement."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.inspection_scheduled' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Inspection Reminder (WhatsApp)', 'WhatsApp reminder that an inspection is scheduled for tomorrow.', 'inspections', 'service', 'whatsapp.inspection_reminder',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{unit.number}}'], 1, 'ADDENDUM_70D §A.7', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, reminder: property inspection at {{unit.number}} is scheduled for tomorrow. Please ensure access is available."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, just a reminder — your property inspection at {{unit.number}} is tomorrow! Please make sure access is available. See you then 👋"}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, reminder: property inspection at {{unit.number}} is scheduled for tomorrow. Please ensure access is available."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, reminder: inspection at {{unit.number}} is tomorrow. Access must be provided."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.inspection_reminder' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Maintenance Request Acknowledged (WhatsApp)', 'WhatsApp acknowledgement that a maintenance request was received.', 'maintenance', 'service', 'whatsapp.maintenance_ack',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{unit.number}}'], 1, 'ADDENDUM_70D §A.8', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, we have received your maintenance request for {{unit.number}} and will be in touch shortly regarding the next steps."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, got your maintenance request for {{unit.number}} — we''re on it and will be in touch soon! 🔧"}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, we have received your maintenance request for {{unit.number}} and will be in touch shortly regarding the next steps."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, maintenance request for {{unit.number}} received. You will be contacted shortly."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.maintenance_ack' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Lease Renewal Reminder (WhatsApp)', 'Informal WhatsApp renewal nudge — distinct from the formal CPA s14 notice; does not satisfy the s14 timing obligation.', 'notices', 'service', 'whatsapp.lease_renewal_reminder',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{unit.number}}', '{{lease.end_date}}'], 1, 'ADDENDUM_70D §A.9', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your lease for {{unit.number}} expires on {{lease.end_date}}. Please contact us if you would like to discuss renewal terms."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, your lease at {{unit.number}} expires on {{lease.end_date}}. We''d love to have you stay — please reach out if you want to renew!"}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your lease for {{unit.number}} expires on {{lease.end_date}}. Please contact us if you would like to discuss renewal terms."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, lease expiry notice: {{unit.number}} lease expires {{lease.end_date}}. Contact us immediately if you intend to renew."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.lease_renewal_reminder' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'CPA s14 Notice Companion (WhatsApp)', 'WhatsApp companion pointing to the formal emailed CPA s14 notice — must only ever fire alongside the actual s14 email, never standalone (70D §A.10).', 'compliance', 'service', 'whatsapp.cpa_s14_companion',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{unit.number}}', '{{lease.end_date}}'], 1, 'ADDENDUM_70D §A.10', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your lease at {{unit.number}} expires on {{lease.end_date}}. A formal CPA s14 notice has been emailed to you. Please review it at your earliest convenience."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, we''ve sent you a formal CPA s14 notice about your lease at {{unit.number}} expiring on {{lease.end_date}}. Please check your email and let us know if you have questions!"}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, your lease at {{unit.number}} expires on {{lease.end_date}}. A formal CPA s14 notice has been emailed to you. Please review it at your earliest convenience."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, CPA s14 notice for {{unit.number}} (expiry: {{lease.end_date}}) has been sent by email. Please review immediately and respond within the required period."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.cpa_s14_companion' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'whatsapp', 'Welcome Message (WhatsApp)', 'WhatsApp welcome message on lease activation.', 'welcome_and_onboarding', 'service', 'whatsapp.welcome',
+  NULL, ARRAY['{{tenant.primary_contact_name}}', '{{unit.number}}', '{{property.name}}', '{{lease.start_date}}', '{{lease.rent_amount}}', '{{agent.name}}'], 1, 'ADDENDUM_70D §A.11', false,
+  '[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, welcome to {{unit.number}}, {{property.name}}. Your lease commences on {{lease.start_date}}. Please don''t hesitate to contact us with any queries."}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{tenant.primary_contact_name}}, welcome to {{unit.number}}, {{property.name}}! 🏠 We''re so glad to have you. Your lease starts {{lease.start_date}} — reach out anytime if you need anything!"}],"professional":[{"type":"paragraph","text":"Dear {{tenant.primary_contact_name}}, welcome to {{unit.number}}, {{property.name}}. Your lease commences on {{lease.start_date}}. Please don''t hesitate to contact us with any queries."}],"firm":[{"type":"paragraph","text":"{{tenant.primary_contact_name}}, lease activated: {{unit.number}}, {{property.name}}. Commencement: {{lease.start_date}}. Rental: {{lease.rent_amount}}/month. Contact {{agent.name}} for administration."}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='whatsapp.welcome' AND template_type='whatsapp'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'sms', 'Arrears SMS — Step 1', 'First arrears reminder SMS (flavoured) sent by the arrears-sequence cron.', 'arrears_and_lod', 'service', 'sms.arrears_step1',
+  NULL, ARRAY['{{name}}', '{{amountDisplay}}', '{{sender}}'], 1, 'ADDENDUM_70D §C.1', false,
+  '[{"type":"paragraph","text":"Hi {{name}}, your rent account has an overdue balance of {{amountDisplay}}. Please arrange payment urgently. - {{sender}}"}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{name}}, just a reminder - your rent ({{amountDisplay}}) is overdue. Please pay or contact us soon. - {{sender}}"}],"professional":[{"type":"paragraph","text":"Hi {{name}}, your rent account has an overdue balance of {{amountDisplay}}. Please arrange payment urgently. - {{sender}}"}],"firm":[{"type":"paragraph","text":"{{name}}: Rent of {{amountDisplay}} is overdue. Pay immediately or contact us to avoid escalation. - {{sender}}"}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='sms.arrears_step1' AND template_type='sms'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'sms', 'Arrears SMS — Step 2', 'Second arrears reminder SMS (flavoured). 🔴 professional (''avoid a letter of demand'') + firm (''Formal proceedings will follow'') threaten statutory steps (70D §C.1) — confirm consistency with the signed LOD/final-notice flow.', 'arrears_and_lod', 'service', 'sms.arrears_step2',
+  NULL, ARRAY['{{name}}', '{{amountDisplay}}', '{{sender}}'], 1, 'ADDENDUM_70D §C.1', false,
+  '[{"type":"paragraph","text":"REMINDER {{name}}: Rent arrears of {{amountDisplay}} unpaid. Act immediately to avoid a letter of demand. - {{sender}}"}]'::jsonb, '{"friendly":[{"type":"paragraph","text":"Hi {{name}}, your rent ({{amountDisplay}}) is still outstanding. Please pay urgently before formal action is taken. - {{sender}}"}],"professional":[{"type":"paragraph","text":"REMINDER {{name}}: Rent arrears of {{amountDisplay}} unpaid. Act immediately to avoid a letter of demand. - {{sender}}"}],"firm":[{"type":"paragraph","text":"{{name}}: {{amountDisplay}} in rent arrears remains unpaid. Formal proceedings will follow without immediate payment. - {{sender}}"}]}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='sms.arrears_step2' AND template_type='sms'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'sms', 'Inspection Reminder SMS', 'SMS reminder that an inspection is scheduled for tomorrow.', 'inspections', 'service', 'sms.inspection_reminder',
+  NULL, ARRAY['{{senderName}}', '{{inspectionTypeLabel}}', '{{propertyLabel}}', '{{scheduledDate}}'], 1, 'ADDENDUM_70D §C.2', false,
+  '[{"type":"paragraph","text":"{{senderName}}: Reminder - your {{inspectionTypeLabel}} at {{propertyLabel}} is scheduled for tomorrow, {{scheduledDate}}. Please ensure the property is accessible."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='sms.inspection_reminder' AND template_type='sms'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'sms', 'Pre-Move-Out SMS', 'SMS prompting the tenant to schedule a pre-move-out inspection.', 'deposits', 'service', 'sms.pre_moveout',
+  NULL, ARRAY['{{tenantFirstName}}', '{{propertyLabel}}', '{{leaseEndDate}}', '{{senderName}}'], 1, 'ADDENDUM_70D §C.3', false,
+  '[{"type":"paragraph","text":"Hi {{tenantFirstName}}, your lease at {{propertyLabel}} ends {{leaseEndDate}}. Contact us to schedule a pre-moveout inspection. - {{senderName}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='sms.pre_moveout' AND template_type='sms'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'sms', 'Mandatory Notice Retry SMS', 'Fallback SMS when a mandatory/statutory notice failed primary delivery — points to the notice, does not restate it.', 'notices', 'service', 'sms.mandatory_retry',
+  NULL, ARRAY['{{noticeUrl}}'], 1, 'ADDENDUM_70D §C.4', false,
+  '[{"type":"paragraph","text":"Pleks: We tried to deliver an important notice to you. View it here: {{noticeUrl}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='sms.mandatory_retry' AND template_type='sms'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'sms', 'Critical Maintenance Incident SMS', 'URGENT operational-emergency SMS for a critical maintenance issue.', 'maintenance', 'service', 'sms.maintenance_emergency',
+  NULL, ARRAY['{{propertyLabel}}', '{{title}}', '{{contactPhone}}'], 1, 'ADDENDUM_70D §C.5', false,
+  '[{"type":"paragraph","text":"URGENT: Critical maintenance issue at {{propertyLabel}}: {{title}}. Contact {{contactPhone}} immediately."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='sms.maintenance_emergency' AND template_type='sms'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'sms', 'Bulk Rent Reminder SMS', 'Friendly bulk rent-outstanding reminder SMS. ⚪ signs off ''- Pleks'' not the agency org name (70D §C.6 branding flag).', 'statements', 'service', 'sms.bulk_rent_reminder',
+  NULL, ARRAY['{{firstName}}'], 1, 'ADDENDUM_70D §C.6', false,
+  '[{"type":"paragraph","text":"Hi {{firstName}}, this is a friendly reminder that your rent payment is outstanding. Please make payment or contact your agent. - Pleks"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='sms.bulk_rent_reminder' AND template_type='sms'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'sms', 'Screening Consent Code SMS', 'POPIA screening-consent verification OTP (ADDENDUM_14F) — bypasses the Steward+ tier gate.', 'consent', 'service', 'consent.verification_standard',
+  NULL, ARRAY['{{code}}'], 1, 'ADDENDUM_70D §C.7', false,
+  '[{"type":"paragraph","text":"Pleks: Your screening consent code is {{code}}. Valid 5 min. Do not share. If you did not request this, ignore."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='consent.verification_standard' AND template_type='sms'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'sms', 'Special-Information Consent Code SMS', 'POPIA special-information-consent verification OTP (ADDENDUM_14F) — bypasses the Steward+ tier gate.', 'consent', 'service', 'consent.verification_special_info',
+  NULL, ARRAY['{{code}}'], 1, 'ADDENDUM_70D §C.7', false,
+  '[{"type":"paragraph","text":"Pleks: Your special-information consent code is {{code}}. Valid 5 min. Do not share. If you did not request this, ignore."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='consent.verification_special_info' AND template_type='sms'
+);

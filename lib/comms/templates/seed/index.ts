@@ -14,12 +14,16 @@ import { STATUTORY_SEEDS } from "./statutory"
 import { CORRESPONDENCE_SEEDS } from "./correspondence"
 import { INFO_REQUEST_SEEDS } from "./info-requests"
 import { SERVICE_SEEDS } from "./service"
+import { SUBSCRIPTION_SEEDS } from "./subscriptions"
+import { CHANNEL_SEEDS } from "./channels"
 
 export const SYSTEM_TEMPLATE_SEEDS: TemplateSeed[] = [
   ...STATUTORY_SEEDS,
   ...CORRESPONDENCE_SEEDS,
   ...INFO_REQUEST_SEEDS,
   ...SERVICE_SEEDS,
+  ...SUBSCRIPTION_SEEDS,
+  ...CHANNEL_SEEDS,
 ]
 
 export type { TemplateSeed }
