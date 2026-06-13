@@ -973,3 +973,62 @@ WHERE comms_class IS NULL;
 ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS template_key text;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_document_templates_org_key
   ON document_templates(org_id, template_key) WHERE template_key IS NOT NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §20  ADDENDUM_70E: central template content model (single-source comms store)
+--   Bodies move OUT of the React-Email components INTO structured blocks stored here, so
+--   every external comm has ONE maintainable home (system masters + org custom forks),
+--   flavours are one JSONB edit, and the legal-review pack regenerates from the DB.
+--   Additive + idempotent (no behaviour change): new nullable columns + a widened
+--   template_type to admit 'sms' as a first-class channel (row-per-(key,channel), D5).
+--   body_blocks  = the structured body (TemplateBlock[] — lib/comms/templates/blocks/types.ts)
+--   body_variants already exists (§4) and now carries flavour-keyed block arrays for non-statutory.
+--   version / legal_reviewed_at / legal_review_ref / content_hash drive "changed since review"
+--   (D6 instant re-review); legal_citations carries the F-1 statutory citation data (D7).
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS body_blocks       jsonb;
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS version           int NOT NULL DEFAULT 1;
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS legal_reviewed_at timestamptz;
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS legal_review_ref  text;
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS content_hash      text;
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS legal_citations   jsonb;
+
+-- Widen the channel enum to admit 'sms' (additive — only broadens the allowed set).
+ALTER TABLE document_templates DROP CONSTRAINT IF EXISTS document_templates_template_type_check;
+ALTER TABLE document_templates ADD  CONSTRAINT document_templates_template_type_check
+  CHECK (template_type IN ('letter', 'email', 'whatsapp', 'sms'));
+
+-- One system master per (template_key, channel); resolution index for the resolver.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_tmpl_system_key_channel
+  ON document_templates(template_key, template_type)
+  WHERE scope = 'system' AND template_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_doc_tmpl_key_channel
+  ON document_templates(template_key, template_type) WHERE template_key IS NOT NULL;
+
+-- ── Pilot seed (ADDENDUM_70E end-to-end): maintenance.logged_tenant, email channel ──
+-- First body in the central store, transcribed verbatim from
+-- lib/comms/templates/tenant/maintenance/maintenance-logged.tsx (ADDENDUM_70C §5.1).
+-- Proves blocks → resolver → renderer → EmailLayout reproduces the legacy component.
+INSERT INTO document_templates (
+  scope, template_type, name, description, category,
+  comms_class, template_key, version, legal_review_ref, merge_fields, is_deletable, body_blocks
+)
+SELECT
+  'system', 'email', 'Maintenance Request Received',
+  'Tenant acknowledgement when a maintenance request is logged (central-store pilot).',
+  'maintenance', 'correspondence', 'maintenance.logged_tenant', 1, 'ADDENDUM_70C §5.1 (2026-06-13)',
+  ARRAY['{{tenantName}}','{{propertyLabel}}','{{requestTitle}}','{{workOrderNumber}}','{{senderName}}'],
+  false,
+  '[
+    {"type":"salutation","text":"Dear {{tenantName}},"},
+    {"type":"heading","text":"Maintenance request received"},
+    {"type":"paragraph","text":"We have received a maintenance request for **{{propertyLabel}}** and it is now under review. Our team will be in touch to arrange the next steps."},
+    {"type":"dataBox","rows":[{"label":"Request","value":"{{requestTitle}}"},{"label":"Reference","value":"{{workOrderNumber}}"}]},
+    {"type":"paragraph","text":"Please keep this reference number for your records. Quote it in any correspondence about this request."},
+    {"type":"divider"},
+    {"type":"signoff","text":"Kind regards,\n{{senderName}}"}
+  ]'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates
+  WHERE scope = 'system' AND template_key = 'maintenance.logged_tenant' AND template_type = 'email'
+);

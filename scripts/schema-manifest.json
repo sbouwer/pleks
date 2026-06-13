@@ -1379,7 +1379,13 @@
       "meta_template_name",
       "comms_class",
       "customised_from",
-      "template_key"
+      "template_key",
+      "body_blocks",
+      "version",
+      "legal_reviewed_at",
+      "legal_review_ref",
+      "content_hash",
+      "legal_citations"
     ],
     "external_links": [
       "key",
