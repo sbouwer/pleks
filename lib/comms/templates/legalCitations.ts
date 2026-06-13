@@ -63,3 +63,11 @@ export const DEPOSIT_INTEREST_BASIS =
 /** F-1 #9 — inspection dispute window: s5(3)(c) grounds the inspection; the 7-day window is contractual. */
 export const INSPECTION_BASIS =
   "Section 5(3)(c) of the Rental Housing Act 50 of 1999"
+
+/** POPIA processing line for external-PII recipients (70F §3). orgName is a token in seed review. */
+export function popiaProcessingLine(orgName: string): string {
+  return (
+    `Your information is processed by ${orgName} under the Protection of Personal Information Act ` +
+    `(POPIA). You may request access to, correction of, or deletion of this information at any time.`
+  )
+}
