@@ -22,7 +22,12 @@ import { LegalFooter } from "./LegalFooter"
 import { FinalNoticeEmail } from "./tenant/arrears/final-notice"
 import { LetterOfDemandEmail } from "./tenant/arrears/letter-of-demand"
 import { DepositInterestStatementEmail } from "./tenant/deposits/deposit-interest-statement"
+import { DepositReturnScheduleEmail } from "./tenant/deposits/deposit-return-schedule"
+import { DepositReturnedEmail } from "./tenant/deposits/deposit-returned"
+import { InspectionDisputeWindowEmail } from "./tenant/inspections/inspection-dispute-window"
+import { InspectionMoveInReportEmail } from "./tenant/inspections/inspection-move-in-report"
 import { LeaseExpiryReminderEmail } from "./tenant/leases/lease-expiry-reminder"
+import { LeaseTerminatedEmail } from "./tenant/leases/lease-terminated"
 import type { OrgBranding } from "./layout"
 
 const branding: OrgBranding = { orgName: "Acme Lettings", orgPhone: "021 000 0000", orgEmail: "h@acme.test" }
@@ -120,5 +125,26 @@ describe("corrected statutory templates — wrong citations gone, right present,
     }))
     expect(html).toContain("Electronic Communications and Transactions Act 25 of 2002")
     expect(html).toContain("the terms of your Lease Agreement")
+  })
+})
+
+// 70F §8 invariant #1 — every statutory email COMPONENT renders the shared LegalFooter (ECTA stack).
+// (The lease.renewal_notice is a send-action in lib/leases/emails.tsx, not a pure component — it also
+//  carries LegalFooter; asserted by code review, not rendered here to avoid mocking the send path.)
+describe("70F §8 #1 — every statutory email component carries the canonical ECTA footer", () => {
+  const ECTA_MARK = "Electronic Communications and Transactions Act 25 of 2002"
+  const cases = [
+    { name: "letter-of-demand", el: LetterOfDemandEmail({ branding, tenantName: "J", propertyLabel: "U", leaseStartDate: "1 Jan 2024", amountOwedDisplay: "R 1", monthsInArrears: 1, oldestOutstandingDate: "1 Mar 2026", paymentDeadlineDays: 7, referenceNumber: "R" }) },
+    { name: "final-notice", el: FinalNoticeEmail({ branding, tenantName: "J", propertyLabel: "U", leaseStartDate: "1 Jan 2024", amountOwedDisplay: "R 1", monthsInArrears: 1, oldestOutstandingDate: "1 Mar 2026", cancellationNoticeDays: 20, referenceNumber: "R" }) },
+    { name: "deposit-return-schedule", el: DepositReturnScheduleEmail({ branding, tenantName: "J", propertyLabel: "U", leaseStartDate: "1 Jan 2024", leaseEndDate: "1 Jan 2026", depositHeldDisplay: "R 1", interestAccruedDisplay: "R 0", totalAvailableDisplay: "R 1", totalDeductionsDisplay: "R 0", refundToTenantDisplay: "R 1", deductionItems: [], chargeItems: [], deadlineDate: "1 Feb 2026", returnDays: 7, referenceNumber: "R" }) },
+    { name: "deposit-returned", el: DepositReturnedEmail({ branding, tenantName: "J", propertyLabel: "U", refundAmountDisplay: "R 1", referenceNumber: "R", disbursedDate: "1 Feb 2026", senderName: "Acme" }) },
+    { name: "deposit-interest-statement", el: DepositInterestStatementEmail({ branding, tenantName: "J", propertyLabel: "U", periodFrom: "1 Jun 2025", periodTo: "31 May 2026", depositHeldDisplay: "R 1", interestThisPeriodDisplay: "R 0", cumulativeInterestDisplay: "R 0", effectiveRateDisplay: "7.5%", senderName: "Acme" }) },
+    { name: "inspection-move-in-report", el: InspectionMoveInReportEmail({ branding, tenantName: "J", propertyLabel: "U", conductedDate: "1 Jan 2024", referenceNumber: "R" }) },
+    { name: "inspection-dispute-window", el: InspectionDisputeWindowEmail({ branding, tenantName: "J", propertyLabel: "U", conductedDate: "1 Jan 2026", disputeWindowClosesAt: "8 Jan 2026", referenceNumber: "R" }) },
+    { name: "lease-expiry-reminder", el: LeaseExpiryReminderEmail({ branding, tenantName: "J", propertyLabel: "U", leaseEndDate: "1 Jun 2026", daysRemaining: 30, senderName: "Acme" }) },
+    { name: "lease-terminated", el: LeaseTerminatedEmail({ branding, tenantName: "J", propertyLabel: "U", leaseEndDate: "1 Jun 2026", senderName: "Acme" }) },
+  ]
+  it.each(cases)("$name carries the ECTA footer", async ({ el }) => {
+    expect(await render(el)).toContain(ECTA_MARK)
   })
 })
