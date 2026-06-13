@@ -1156,3 +1156,102 @@ SELECT 'system', 'email', 'Arrears Reminder — Step 2', 'Second soft arrears re
 WHERE NOT EXISTS (
   SELECT 1 FROM document_templates WHERE scope='system' AND template_key='arrears.reminder_step2' AND template_type='email'
 );
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Application Received', 'Applicant confirmation that their rental application was received.', 'applications', 'correspondence', 'application.received',
+  'Application received — {{unitLabel}}, {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{unitLabel}}', '{{propertyName}}', '{{applicationRef}}', '{{firstName}}', '{{lastName}}', '{{rentDisplay}}', '{{statusUrl}}', '{{branding.orgName}}'], 1, 'ADDENDUM_70H A1 (live: emails.tsx:71)', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Thank you for applying for **{{unitLabel}}** at {{propertyName}}. Your application reference is {{applicationRef}}."},{"type":"heading","text":"What you applied for"},{"type":"dataBox","rows":[{"label":"Property","value":"{{unitLabel}} — {{propertyName}}"},{"label":"Rent","value":"{{rentDisplay}}/month"}]},{"type":"heading","text":"What happens next"},{"type":"paragraph","text":"Your application will be reviewed within 48 hours. You''ll receive an email when a decision has been made."},{"type":"cta","label":"Check your application status","href":"{{statusUrl}}"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.received' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'New Application (Agent Notification)', 'Internal notification to the agent of a new application (service-class digest).', 'applications', 'service', 'application.agent_notify',
+  'New application — {{firstName}} {{lastName}} for {{unitLabel}}, {{propertyName}}', ARRAY['{{firstName}}', '{{lastName}}', '{{unitLabel}}', '{{propertyName}}', '{{applicantEmail}}', '{{reviewUrl}}', '{{applicationsCount}}'], 1, 'ADDENDUM_70H A2 (live: emails.tsx:117)', false,
+  '[{"type":"paragraph","text":"New application received for **{{unitLabel}}** at {{propertyName}}."},{"type":"dataBox","rows":[{"label":"Name","value":"{{firstName}} {{lastName}}"},{"label":"Email","value":"{{applicantEmail}}"}]},{"type":"callout","tone":"info","text":"The full applicant detail — employment, income, pre-screen score, rent-to-income, documents, and any bank-statement highlights — renders here per application."},{"type":"cta","label":"Review application","href":"{{reviewUrl}}"},{"type":"paragraph","text":"You now have {{applicationsCount}} application(s) for this listing."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.agent_notify' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Application Review Reminder', 'Cron reminder to the agent of applications awaiting review (service-class digest).', 'applications', 'service', 'application.review_reminder',
+  'Reminder: {{pendingCount}} application(s) awaiting review', ARRAY['{{pendingCount}}', '{{applicationsUrl}}'], 1, 'ADDENDUM_70H A3 (live: emails.tsx:163)', false,
+  '[{"type":"paragraph","text":"You have {{pendingCount}} application(s) awaiting your review:"},{"type":"callout","tone":"info","text":"Each pending application — name · listing · score/45 · applied date — renders here per reminder."},{"type":"cta","label":"Review applications","href":"{{applicationsUrl}}"},{"type":"paragraph","text":"Timely reviews help you secure the best tenants."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.review_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Application Shortlisted', 'Applicant shortlisted — next step is screening consent + fee. Screening-consent chain (F4, verbatim).', 'applications', 'correspondence', 'application.shortlisted',
+  'Great news — you''ve been shortlisted for {{unitLabel}}, {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{unitLabel}}', '{{propertyName}}', '{{branding.orgName}}', '{{inviteUrl}}', '{{orgPhone}}', '{{orgEmail}}'], 1, 'ADDENDUM_70H A4 (live: emails.tsx:192) — F4 consent chain', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Great news — your application for **{{unitLabel}}** at {{propertyName}} has been shortlisted."},{"type":"heading","text":"Next step: Tenant screening"},{"type":"paragraph","text":"To complete your application we need to run a credit and background check. This requires:"},{"type":"list","ordered":true,"items":["Your consent (POPIA requirement)","A screening fee of R399"]},{"type":"paragraph","text":"The screening is conducted by Searchworx, an independent credit bureau. Results are shared with {{branding.orgName}} only."},{"type":"cta","label":"Continue to screening","href":"{{inviteUrl}}"},{"type":"paragraph","text":"This link expires in 7 days."},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.shortlisted' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Application Update — Stage 1 Decline', 'Neutral Stage-1 decline. NEUTRAL-DECLINE doctrine: no reason in subject or body (F1 — {{reason}} dropped).', 'applications', 'correspondence', 'application.declined_stage1',
+  'Application update — {{unitLabel}}, {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{unitLabel}}', '{{propertyName}}', '{{branding.orgName}}', '{{orgEmail}}'], 1, 'ADDENDUM_70H A5 (live: emails.tsx:226) — F1 reason dropped · ⚠ F3 retention', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Thank you for your application for **{{unitLabel}}** at {{propertyName}}."},{"type":"paragraph","text":"After careful consideration, we have decided not to proceed with your application at this time."},{"type":"paragraph","text":"This decision does not reflect on you personally — the agent received multiple applications and had to make a selection. If you have any questions, please contact {{branding.orgName}}."},{"type":"heading","text":"Your data"},{"type":"paragraph","text":"Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}."},{"type":"paragraph","text":"We wish you well in finding your next home."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.declined_stage1' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Screening Payment Received', 'Applicant confirmation that the screening fee was received and screening is in progress.', 'applications', 'service', 'application.payment_received',
+  'Payment received — screening in progress', ARRAY['{{recipient.salutation}}', '{{amountDisplay}}', '{{paymentRef}}', '{{paidDate}}', '{{statusUrl}}'], 1, 'ADDENDUM_70H A6 (live: emails.tsx:258)', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Your payment of {{amountDisplay}} has been received. Your tenant screening is now in progress."},{"type":"dataBox","rows":[{"label":"Reference","value":"{{paymentRef}}"},{"label":"Amount","value":"{{amountDisplay}}"},{"label":"Date","value":"{{paidDate}}"}]},{"type":"heading","text":"What happens next"},{"type":"paragraph","text":"The screening typically takes 1–2 business days. You''ll receive an email when results are available."},{"type":"cta","label":"Check your application status","href":"{{statusUrl}}"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.payment_received' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Application Approved', 'Applicant approved — next steps to lease signing.', 'applications', 'correspondence', 'application.approved',
+  'Congratulations — your application has been approved!', ARRAY['{{recipient.salutation}}', '{{unitLabel}}', '{{propertyName}}', '{{branding.orgName}}', '{{orgPhone}}', '{{orgEmail}}'], 1, 'ADDENDUM_70H A7 (live: emails.tsx:406)', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Congratulations! Your application for **{{unitLabel}}** at {{propertyName}} has been approved."},{"type":"heading","text":"Next steps"},{"type":"paragraph","text":"{{branding.orgName}} will contact you to arrange:"},{"type":"list","items":["Lease signing","Deposit payment","Move-in date and key collection"]},{"type":"paragraph","text":"We look forward to welcoming you as a tenant."},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.approved' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Co-Applicant Invited', 'Co-applicant invited to complete their portion of a joint application (consent + credit check).', 'applications', 'correspondence', 'application.co_applicant_invited',
+  'You''ve been invited to a joint rental application — {{unitLabel}}, {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{primaryApplicantName}}', '{{unitLabel}}', '{{propertyName}}', '{{inviteUrl}}', '{{branding.orgName}}', '{{orgPhone}}'], 1, 'ADDENDUM_70H A8 (live: emails.tsx:437)', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"{{primaryApplicantName}} has included you as a co-applicant on their rental application for **{{unitLabel}}** at {{propertyName}}."},{"type":"heading","text":"What you need to do"},{"type":"paragraph","text":"Click the button below to complete your portion of the joint application. This includes your personal details, income, and consent to a credit check."},{"type":"cta","label":"Complete your co-applicant details","href":"{{inviteUrl}}"},{"type":"paragraph","text":"This link is personal to you — do not share it."},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.co_applicant_invited' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Application Update — Stage 2 Decline', 'Neutral post-screening decline. NEUTRAL-DECLINE doctrine: no reason in subject or body (F1 — {{reason}} dropped; higher NCA/POPIA stakes post-screening).', 'applications', 'correspondence', 'application.declined_stage2',
+  'Application update — {{unitLabel}}, {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{unitLabel}}', '{{propertyName}}', '{{branding.orgName}}', '{{orgEmail}}'], 1, 'ADDENDUM_70H A9 (live: emails.tsx:526) — F1 reason dropped · ⚠ F3 retention', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Thank you for your application for **{{unitLabel}}** at {{propertyName}}."},{"type":"paragraph","text":"After completing the full screening evaluation, we have decided not to proceed with your application. If you have any questions, please contact {{branding.orgName}}."},{"type":"paragraph","text":"The screening fee of R399 is non-refundable as communicated at the time of payment."},{"type":"heading","text":"Your data"},{"type":"paragraph","text":"Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}."},{"type":"paragraph","text":"We wish you well in finding your next home."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.declined_stage2' AND template_type='email'
+);

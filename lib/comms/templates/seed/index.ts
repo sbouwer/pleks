@@ -20,6 +20,10 @@
  *   "application update" notices — they state NO reason in the subject or body; the dashboard is
  *   canonical for any detail. This is the FitScore-shows-all-applicants mitigation. A fold or copy
  *   edit must NEVER flatten a decline into a reason-stating email.
+ *   • EXTENSION (70H F1, legal pass): declines carry NO unstructured/free-text reason in the body.
+ *     The live {{reason}} agent free-text is DROPPED on fold — a decline cannot let an agent type a
+ *     discriminatory or NCA-adverse-action ground into an applicant-facing notice; the applicant is
+ *     directed to the agency. Free-text reasons can't be made safe by an R3 gate on a decline.
  *
  * ── DOCTRINE: FitScore-dynamic emails are CODE-RENDERED, not seed-folded (14H §10.7 parity) ──
  *   application.screening_complete (3-way blocked/limited-data/standard branch + band-dependent
@@ -48,6 +52,7 @@ import { SERVICE_SEEDS } from "./service"
 import { SUBSCRIPTION_SEEDS } from "./subscriptions"
 import { CHANNEL_SEEDS } from "./channels"
 import { ARREARS_LADDER_SEEDS } from "./arrears-ladder"
+import { APPLICATION_SEEDS } from "./applications"
 
 export const SYSTEM_TEMPLATE_SEEDS: TemplateSeed[] = [
   ...STATUTORY_SEEDS,
@@ -57,6 +62,7 @@ export const SYSTEM_TEMPLATE_SEEDS: TemplateSeed[] = [
   ...SUBSCRIPTION_SEEDS,
   ...CHANNEL_SEEDS,
   ...ARREARS_LADDER_SEEDS,
+  ...APPLICATION_SEEDS,
 ]
 
 export type { TemplateSeed }
