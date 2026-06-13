@@ -3,13 +3,15 @@
  *
  * Data:   tenant name, property, amount, overdue period, payment deadline, org details
  * Notes:  Mandatory template — single formal voice, no tone variants.
- *         South African RHA + CPA s65 compliant notice.
- *         body_full stored verbatim for Tribunal evidence (BUILD_63 §8).
+ *         Contractual / common-law letter of demand for arrear rental (ADDENDUM_70B F-1 #3/#4 —
+ *         NOT RHA s5(4), NOT CPA s65/s14). body_full stored verbatim for Tribunal evidence (BUILD_63 §8).
  */
 
 import * as React from "react"
 import { Section, Text, Hr } from "@react-email/components"
 import { EmailLayout, EmailDetail, type OrgBranding } from "../../layout"
+import { LegalFooter } from "../../LegalFooter"
+import { lodCancellationBasis } from "../../legalCitations"
 
 export interface LetterOfDemandEmailProps {
   branding: OrgBranding
@@ -96,7 +98,7 @@ export function LetterOfDemandEmail({
 
       <Section style={{ padding: "0 0 0 24px" }}>
         <Text style={bullet}>
-          • Cancel the lease agreement in accordance with section 5(4) of the Rental Housing Act 50 of 1999;
+          • Cancel the lease agreement in accordance with {lodCancellationBasis()};
         </Text>
         <Text style={bullet}>
           • Apply to the Rental Housing Tribunal for an order against you;
@@ -126,12 +128,7 @@ export function LetterOfDemandEmail({
         </Text>
       )}
 
-      <Hr style={divider} />
-      <Text style={legalNote}>
-        This notice is issued pursuant to the Rental Housing Act 50 of 1999, the Consumer Protection
-        Act 68 of 2008, and the Electronic Communications and Transactions Act 25 of 2002.
-        Receipt of this electronic notice constitutes valid service in terms of section 23 of the ECT Act.
-      </Text>
+      <LegalFooter />
     </EmailLayout>
   )
 }
@@ -148,4 +145,3 @@ const demandHeading:  React.CSSProperties = { fontSize: 14, fontWeight: 700, col
 const bullet:         React.CSSProperties = { fontSize: 13, color: "#3f3f46", lineHeight: "1.6", margin: "4px 0" }
 const signoff:        React.CSSProperties = { fontSize: 14, color: "#18181b", margin: "4px 0" }
 const contact:        React.CSSProperties = { fontSize: 12, color: "#52525b", margin: "4px 0" }
-const legalNote:      React.CSSProperties = { fontSize: 11, color: "#71717a", lineHeight: "1.5", margin: 0 }
