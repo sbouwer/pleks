@@ -136,7 +136,7 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
       ] },
       { type: "paragraph", text: "These details are used only to pay your owner statement amounts and will not be shared outside of {{branding.orgName}} and its payment processor." },
       { type: "paragraph", text: "Please do not reply to this email with your banking details. The secure form above is the only safe channel." },
-      { type: "paragraph", text: "This is a secure link, valid for 14 days. If you'd prefer to send the details by email, just reply to this message." },
+      { type: "paragraph", text: "This is a secure link, valid for 14 days. To submit your details, please use the secure form above — do not reply by email." },
       { type: "popiaSlot" },
       { type: "signoff", text: "Thanks,\n{{branding.orgName}}" },
     ],
@@ -204,6 +204,7 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
     category: "info_requests",
     mergeFields: ["{{branding.orgName}}", "{{propertyLabel}}", "{{prompt}}", "{{formUrl}}"],
     legalReviewRef: "ADDENDUM_70C §9.8",
+    validateFields: ["{{prompt}}"],
     body: [
       { type: "heading", text: "A quick request for some information" },
       { type: "paragraph", text: "{{branding.orgName}} is setting up {{propertyLabel}} on their property management platform, and has a few specific questions about the property they'd appreciate your help with." },
@@ -312,7 +313,7 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
       { type: "paragraph", text: "Please take a few minutes to complete the form:" },
       { type: "cta", label: "Enter banking details securely", href: "{{formUrl}}" },
       { type: "paragraph", text: "Please do not reply to this email with your banking details. The secure form above is the only safe channel." },
-      { type: "paragraph", text: "This is a secure link, valid for 14 days. If you'd prefer to send the details by email, just reply to this message." },
+      { type: "paragraph", text: "This is a secure link, valid for 14 days. To submit your details, please use the secure form above — do not reply by email." },
       { type: "popiaSlot" },
       { type: "signoff", text: "Thanks,\n{{branding.orgName}}" },
     ],
@@ -366,6 +367,7 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
     category: "info_requests",
     mergeFields: ["{{branding.orgName}}", "{{propertyLabel}}", "{{prompt}}", "{{formUrl}}"],
     legalReviewRef: "ADDENDUM_70C §9.9",
+    validateFields: ["{{prompt}}"],
     body: [
       { type: "heading", text: "Still waiting on your reply" },
       { type: "paragraph", text: "{{branding.orgName}} is still waiting on the information requested for {{propertyLabel}}. The setup can't be completed until it's on file." },
@@ -387,6 +389,7 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
     name: "POPIA Request Received",
     description: "Acknowledgement of a POPIA data-subject request with SLA deadline.",
     category: "popia",
+    locked: true,
     mergeFields: ["{{recipient.salutation}}", "{{requestType}}", "{{agencyName}}", "{{requestId}}", "{{slaDeadline}}", "{{requestUrl}}"],
     legalReviewRef: "ADDENDUM_70C §10.1",
     body: [
@@ -408,6 +411,7 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
     name: "POPIA Request Under Review",
     description: "Identity verified; POPIA request now under review.",
     category: "popia",
+    locked: true,
     mergeFields: ["{{recipient.salutation}}", "{{requestType}}", "{{agencyName}}", "{{slaDeadline}}", "{{requestUrl}}"],
     legalReviewRef: "ADDENDUM_70C §10.2",
     body: [
@@ -428,8 +432,10 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
     name: "POPIA Request Completed",
     description: "POPIA data-subject request completed.",
     category: "popia",
+    locked: true,
     mergeFields: ["{{recipient.salutation}}", "{{requestType}}", "{{agencyName}}", "{{resolutionNotes}}", "{{requestUrl}}"],
     legalReviewRef: "ADDENDUM_70C §10.3",
+    validateFields: ["{{resolutionNotes}}"],
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "heading", text: "Your request has been completed" },
@@ -446,8 +452,10 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
     name: "POPIA Request Rejected",
     description: "POPIA request could not be fulfilled, with legal basis + escalation rights.",
     category: "popia",
+    locked: true,
     mergeFields: ["{{recipient.salutation}}", "{{requestType}}", "{{agencyName}}", "{{resolutionNotes}}", "{{legalBasis}}", "{{requestUrl}}"],
     legalReviewRef: "ADDENDUM_70C §10.4",
+    validateFields: ["{{legalBasis}}", "{{resolutionNotes}}"],
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "heading", text: "Your request could not be fulfilled" },
@@ -474,6 +482,7 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
     name: "POPIA Data Export Ready",
     description: "Data-subject export bundle ready, with tamper-evidence hash.",
     category: "popia",
+    locked: true,
     mergeFields: ["{{recipient.salutation}}", "{{requestType}}", "{{agencyName}}", "{{expiresAt}}", "{{manifestHash}}", "{{exportUrl}}", "{{requestUrl}}"],
     legalReviewRef: "ADDENDUM_70C §10.5",
     body: [
@@ -497,6 +506,7 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
     name: "POPIA Full Erasure Completed",
     description: "Confirmation of completed full-erasure request with retention summary.",
     category: "popia",
+    locked: true,
     mergeFields: ["{{recipient.salutation}}", "{{agencyName}}", "{{resolvedAt}}", "{{summary.deleted}}", "{{summary.anonymised}}", "{{summary.retained}}", "{{requestUrl}}"],
     legalReviewRef: "ADDENDUM_70C §10.6",
     body: [
@@ -524,6 +534,7 @@ export const INFO_REQUEST_SEEDS: TemplateSeed[] = [
     name: "Privacy Notice Updated",
     description: "Notice of an updated Pleks Privacy Notice version.",
     category: "popia",
+    locked: true,
     mergeFields: ["{{recipient.salutation}}", "{{newVersion}}", "{{effectiveFrom}}", "{{changeSummary}}", "{{oldVersion}}", "{{policyUrl}}"],
     legalReviewRef: "ADDENDUM_70C §10.7",
     body: [

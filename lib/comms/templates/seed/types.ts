@@ -36,6 +36,12 @@ export interface TemplateSeed {
    * The substantive in-body citation lives in a cpaConditional/paragraph block; this is the footer line.
    */
   issuedUnder?: string
+  /** Merge fields carrying agent free-text that MUST be validated/structured before render — never
+   *  rendered raw into a legal determination (R3 / O-16): e.g. {{legalBasis}}, {{memoText}}, {{prompt}}. */
+  validateFields?: string[]
+  /** Non-editable + non-flavoured (statutory-grade governance) even though commsClass is correspondence —
+   *  POPIA-lifecycle legal-process notices (IR escalation / SLA): locked like statutory, not customisable. */
+  locked?: boolean
   /** Single body — statutory + unflavoured templates (statutory is NEVER flavoured, 70F §4). */
   body?: TemplateBlock[]
   /** Flavour-keyed bodies — service/correspondence (70E D4). */

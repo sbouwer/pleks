@@ -54,8 +54,10 @@ export function renderSeedReview(seed: TemplateSeed): string {
   const head = [
     `### ${seed.name} — \`${seed.key}\` (${seed.channel})`,
     `**class:** ${seed.commsClass}` +
+      (seed.locked ? " 🔒 locked (non-editable/non-flavoured)" : "") +
       (seed.subject ? `  ·  **subject:** "${seed.subject}"` : "  ·  **subject:** set at call-site") +
-      (seed.legalReviewRef ? `  ·  **from:** ${seed.legalReviewRef}` : ""),
+      (seed.legalReviewRef ? `  ·  **from:** ${seed.legalReviewRef}` : "") +
+      (seed.validateFields?.length ? `\n**⚠ validate before render (R3/O-16):** ${seed.validateFields.join(", ")}` : ""),
   ].join("\n")
 
   let bodySection: string
