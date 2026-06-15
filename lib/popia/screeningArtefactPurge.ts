@@ -7,7 +7,9 @@
  *         — column strip of ALL declined PII (identity + financial + derived), DERIVED from the erasure plan
  *         (DECLINED_APPLICANT_STRIP_GROUPS) so it can't drift; plus application_screening_lines,
  *         application_bank_statement_classifications, application_prescreens, screening_artifacts — whole-row
- *         deletes + their Storage objects (screening-reports, bank-statements, identity-docs).
+ *         deletes + their Storage objects (screening-reports, bank-statements, identity-docs, application-docs).
+ *         NB: consent_verifications is HELD out of the AUTO purge pending counsel (AUTO_PURGE_EXCLUDED_TABLES);
+ *         the DSAR erasure path still strips it.
  * Notes:  SINGLE 90-day retention tier (ADDENDUM_70H F3 — reworked from a two-tier draft, and folding in
  *         the retired lib/rules/application/rejected-applicant-purge.ts). A declined / not_shortlisted /
  *         withdrawn application's PII purges in FULL at 90 days — identity (id_number, employer_name…),
@@ -178,9 +180,10 @@ async function removeStorageObjects(
  * depth — never trust the caller's filter). Returns true iff it purged (false = guard rejected / no-op).
  *
  * Order: (1) re-assert guard, (2) delete Storage files referenced by each delete-table, (3) whole-row delete
- * those tables, (4) remove the raw bank statement + identity-docs Storage, (5) strip ALL declined PII columns
- * across the application + its identity/contact child tables (plan-derived strip groups, shared stripGroup
- * engine), (6) stamp pii_purged_at (only after the strip provably ran), (7) one audit row.
+ * those tables, (4) remove the raw bank statement + identity-docs Storage, (4b) remove guarantor-agreement
+ * files (application-docs), (5) strip ALL declined PII columns across the application + its identity/contact
+ * child tables (plan-derived strip groups, shared stripGroup engine; ANY group erroring aborts before the
+ * latch — V4), (6) stamp pii_purged_at (only after the strip provably ran), (7) one audit row.
  */
 export async function purgeApplicationScreeningArtefacts(
   db: SupabaseClient,
@@ -201,7 +204,7 @@ export async function purgeApplicationScreeningArtefacts(
         .eq("org_id", orgId)
       logQueryError(`purgeApplicationScreeningArtefacts select ${t.table}`, pathErr)
       const paths = ((pathRows ?? []) as unknown as Array<Record<string, unknown>>)
-        .map((r) => (typeof r[pathColumn] === "string" ? (r[pathColumn] as string) : null))
+        .map((r) => { const v = r[pathColumn]; return typeof v === "string" ? v : null })
       await removeStorageObjects(db, t.storageBucket, paths)
     }
     const { error: delErr } = await db
@@ -225,6 +228,20 @@ export async function purgeApplicationScreeningArtefacts(
   await removeStorageObjects(db, "bank-statements", [bankStatementPath])
   await removeStorageObjects(db, "identity-docs", [`${orgId}/${applicationId}`])
 
+  // (4b) the declined application's guarantor-agreement PDF(s) (identity + signature) → application-docs
+  // bucket (the application-document bucket, app/api/applications/[id]/documents/upload). The column is
+  // currently UNWRITTEN — the guarantor-agreement upload feature isn't built — so this is a defensive
+  // no-op today; it covers the file the moment that feature lands. CD F3 ruling: no retention basis once declined.
+  const { data: guarantorRows, error: guarantorErr } = await db
+    .from("application_guarantors")
+    .select("guarantor_agreement_path")
+    .eq("application_id", applicationId)
+    .eq("org_id", orgId)
+  logQueryError("purgeApplicationScreeningArtefacts application_guarantors guarantor_agreement_path", guarantorErr)
+  const guarantorPaths = ((guarantorRows ?? []) as unknown as Array<Record<string, unknown>>)
+    .map((r) => { const v = r.guarantor_agreement_path; return typeof v === "string" ? v : null })
+  await removeStorageObjects(db, "application-docs", guarantorPaths)
+
   // (5) strip ALL declined PII columns across the application AND its identity/contact child tables.
   // Replays the SAME stripGroup engine the DSAR erasure uses over DECLINED_APPLICANT_STRIP_GROUPS (derived
   // from the erasure plan — can't drift). single = applicationId resolves every group's key (applications.id,
@@ -233,12 +250,19 @@ export async function purgeApplicationScreeningArtefacts(
   let applicationStripped = false
   for (const group of DECLINED_APPLICANT_STRIP_GROUPS) {
     const affected = await stripGroup(db, group, applicationId, [])
+    if (affected < 0) {
+      // V4: a non-self-healed strip error on ANY group (incl. a child identity table where 0-rows is
+      // normal and would otherwise hide the error) must abort BEFORE the one-way pii_purged_at latch —
+      // never stamp/audit "purged in full" with that subject's id_number still alive. Thrown → recorded in
+      // the orchestrator's result.errors; the candidate is re-evaluated next run (deletes are idempotent).
+      throw new Error(`strip failed for group ${group.id} (${group.table}) on application ${applicationId} — pii_purged_at NOT stamped`)
+    }
     if (group.table === "applications") applicationStripped = affected > 0
   }
-  // The applications row provably exists (it IS the candidate) — a 0 there means the strip errored. Do NOT
-  // stamp the one-way pii_purged_at latch on a failed strip; that would assert a "purged" the row isn't.
+  // The applications row provably exists (it IS the candidate) — a 0 there (vs the -1 error above) is an
+  // anomaly, not a DB error. Do NOT stamp the one-way latch; that would assert a "purged" the row isn't.
   if (!applicationStripped) {
-    console.error(`[screeningArtefactPurge] applications strip failed for ${applicationId} — not stamping pii_purged_at`)
+    console.error(`[screeningArtefactPurge] applications strip matched no row for ${applicationId} — not stamping pii_purged_at`)
     return false
   }
 
@@ -266,7 +290,7 @@ export async function purgeApplicationScreeningArtefacts(
       tier: "declined_90d",
       deleted_tables: DECLINED_APPLICANT_DELETE_TABLES.map((t) => t.table),
       stripped_groups: DECLINED_APPLICANT_STRIP_GROUPS.map((g) => ({ table: g.table, fields: Object.keys(g.fields) })),
-      storage_buckets: ["screening-reports", "bank-statements", "identity-docs"],
+      storage_buckets: ["screening-reports", "bank-statements", "identity-docs", "application-docs"],
     },
   })
 

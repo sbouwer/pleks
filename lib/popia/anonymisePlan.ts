@@ -211,19 +211,33 @@ export const DECLINED_APPLICANT_DELETE_TABLES: DeclinedApplicantDeleteTable[] = 
 const DECLINED_DELETE_TABLE_NAMES = new Set(DECLINED_APPLICANT_DELETE_TABLES.map((t) => t.table))
 
 /**
- * The column-strip groups the single 90-day declined-applicant purge replays — DERIVED from ANONYMISE_PLAN
- * by construction, so the column/table set can NEVER drift from the erasure SSOT (the defect the 70H F3
- * verification caught). = every application_id-keyed group that applies to the `applicant` subject, EXCEPT
- * the artefact tables the purge deletes whole-row (screening_lines / bank_statement_classifications). The
- * per-table field maps (REDACT for NOT-NULL columns, null otherwise) come straight from the plan. The
- * executor replays these through the SAME `stripGroup` engine the DSAR erasure uses — a scoped replay, never
- * a hand-coded parallel purge (locked decision #2). Resolves to: applications, application_co_applicants,
- * application_directors, application_guarantors (identity), application_tokens (applicant_email),
- * application_screening_payments (paid_by_email), consent_verifications (target_email/phone).
+ * Tables excluded from the AUTOMATIC declined purge ONLY — the DSAR erasure path (planForSubject) is
+ * untouched; a subject who requests erasure still gets these stripped.
+ *
+ * `consent_verifications` (target_email / target_phone_e164): the automatic purge would have the org
+ * unilaterally destroying its OWN proof that it held valid credit-check consent, with no subject request —
+ * weakening its NCA/POPIA-complaint defence. That is NOT equivalent to the DSAR case (there the subject
+ * asked for deletion). HOLD pending counsel — bundled with the FitScore/identity discrimination-defence
+ * retention question (ADDENDUM_70H F3). Remove from this set once counsel rules.
+ */
+const AUTO_PURGE_EXCLUDED_TABLES = new Set(["consent_verifications"])
+
+/**
+ * The column-strip groups the single 90-day declined-applicant AUTOMATIC purge replays — DERIVED from
+ * ANONYMISE_PLAN by construction, so the column/table set can NEVER drift from the erasure SSOT (the defect
+ * the 70H F3 verification caught). = every application_id-keyed group that applies to the `applicant`
+ * subject, EXCEPT (a) the artefact tables the purge deletes whole-row (screening_lines /
+ * bank_statement_classifications) and (b) AUTO_PURGE_EXCLUDED_TABLES (counsel-pending). The per-table field
+ * maps (REDACT for NOT-NULL columns, null otherwise) come straight from the plan. The executor replays these
+ * through the SAME `stripGroup` engine the DSAR erasure uses — a scoped replay, never a hand-coded parallel
+ * purge (locked decision #2). Resolves to: applications, application_co_applicants, application_directors,
+ * application_guarantors (identity), application_tokens (applicant_email), application_screening_payments
+ * (paid_by_email only — the transaction record stays). consent_verifications is HELD (see above).
  */
 export const DECLINED_APPLICANT_STRIP_GROUPS: AnonymiseGroup[] = ANONYMISE_PLAN.filter(
   (g) =>
     g.keyFrom === "applicationId" &&
     g.appliesTo.includes("applicant") &&
-    !DECLINED_DELETE_TABLE_NAMES.has(g.table),
+    !DECLINED_DELETE_TABLE_NAMES.has(g.table) &&
+    !AUTO_PURGE_EXCLUDED_TABLES.has(g.table),
 )

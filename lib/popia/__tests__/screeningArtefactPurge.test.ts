@@ -1,9 +1,38 @@
-import { describe, it, expect } from "vitest"
-import { isScreeningArtefactPurgeable } from "../screeningArtefactPurge"
+import { describe, it, expect, vi } from "vitest"
+
+// V4 test mocks the shared strip engine so we can force a child-group error deterministically.
+vi.mock("../anonymiseIdentity", () => ({ stripGroup: vi.fn() }))
+
+import { isScreeningArtefactPurgeable, purgeApplicationScreeningArtefacts } from "../screeningArtefactPurge"
+import { stripGroup } from "../anonymiseIdentity"
 import {
   DECLINED_APPLICANT_DELETE_TABLES,
   DECLINED_APPLICANT_STRIP_GROUPS,
 } from "../anonymisePlan"
+
+type PurgeDb = Parameters<typeof purgeApplicationScreeningArtefacts>[0]
+
+/** Minimal chainable Supabase mock: every builder method returns the same thenable chain (resolves to an
+ *  empty result); `update` is spied so a test can assert the pii_purged_at latch was / wasn't stamped. */
+function makeDb() {
+  const updateSpy = vi.fn()
+  // Awaiting a plain (non-thenable) object yields the object itself → destructuring { data, error } off it
+  // returns these props. No `then` needed (and we avoid making the mock a thenable).
+  const makeChain = () => {
+    const c: Record<string, unknown> = { data: [], error: null }
+    const self = () => c
+    c.select = vi.fn(self); c.delete = vi.fn(self); c.eq = vi.fn(self)
+    c.in = vi.fn(self); c.is = vi.fn(self); c.or = vi.fn(self); c.insert = vi.fn(self)
+    c.update = vi.fn((vals: Record<string, unknown>) => { updateSpy(vals); return c })
+    c.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }))
+    return c
+  }
+  return {
+    from: vi.fn(() => makeChain()),
+    storage: { from: vi.fn(() => ({ remove: vi.fn(() => Promise.resolve({ error: null })) })) },
+    updateSpy,
+  }
+}
 
 /** Helpers: find a strip group by table, and assert it strips a given field. */
 const groupFor = (table: string) => DECLINED_APPLICANT_STRIP_GROUPS.find((g) => g.table === table)
@@ -125,15 +154,58 @@ describe("declined-applicant purge SSOT (single 90-day tier — P-1 closure + fo
     }
   })
 
-  it("also redacts the contact-PII surfaces the flat list missed (tokens / payments / consent)", () => {
+  it("redacts the contact-PII surfaces the flat list missed (tokens / payments)", () => {
     expect(fieldsOf("application_tokens")).toContain("applicant_email")
     expect(fieldsOf("application_screening_payments")).toContain("paid_by_email")
-    expect(fieldsOf("consent_verifications")).toContain("target_email")
+  })
+
+  it("screening_payments strips ONLY paid_by_email — the transaction record stays (CD F3 ruling)", () => {
+    expect(fieldsOf("application_screening_payments")).toEqual(["paid_by_email"])
+  })
+
+  it("(b) HOLDS consent_verifications out of the AUTO purge pending counsel", () => {
+    // It stays in ANONYMISE_PLAN (DSAR path strips it) but must NOT be in the automatic declined strip.
+    expect(groupFor("consent_verifications")).toBeUndefined()
   })
 
   it("every delete-table with a storage path declares its bucket", () => {
     for (const t of DECLINED_APPLICANT_DELETE_TABLES) {
       if (t.storagePathColumn) expect(t.storageBucket, t.id).toBeTruthy()
     }
+  })
+})
+
+describe("V4 — a non-self-healed strip error aborts BEFORE the one-way pii_purged_at latch", () => {
+  // The swallow-then-mark-done trap that hid both 42703 plan-bugs: a child-identity strip can error while
+  // its 0-row case looks normal. stripGroup now returns -1 on a real error and the executor must abort.
+  it("throws and does NOT stamp pii_purged_at when a child identity-table strip errors", async () => {
+    vi.mocked(stripGroup).mockImplementation(async (_db, group) => {
+      if (group.table === "application_directors") return -1   // simulate a non-self-healed DB error
+      if (group.table === "applications") return 1             // applications row stripped fine
+      return 0                                                  // child tables with no rows — legitimately normal
+    })
+    const db = makeDb()
+    const candidate = row({ stage2_status: "declined", reviewed_at: longAgo })
+
+    await expect(
+      purgeApplicationScreeningArtefacts(db as unknown as PurgeDb, candidate, NOW),
+    ).rejects.toThrow(/application_directors/)
+
+    // the one-way latch must never be stamped on a failed strip (else a later fix can't re-purge the row)
+    expect(db.updateSpy).not.toHaveBeenCalled()
+  })
+
+  it("stamps pii_purged_at when every group strips cleanly (0-rows on child tables is fine)", async () => {
+    vi.mocked(stripGroup).mockImplementation(async (_db, group) =>
+      group.table === "applications" ? 1 : 0,   // applications stripped; child tables no-row (normal)
+    )
+    const db = makeDb()
+    const candidate = row({ stage2_status: "declined", reviewed_at: longAgo })
+
+    const did = await purgeApplicationScreeningArtefacts(db as unknown as PurgeDb, candidate, NOW)
+    expect(did).toBe(true)
+    // the marker update fired exactly once, carrying pii_purged_at
+    const stampCalls = db.updateSpy.mock.calls.filter((c) => "pii_purged_at" in (c[0] as object))
+    expect(stampCalls).toHaveLength(1)
   })
 })
