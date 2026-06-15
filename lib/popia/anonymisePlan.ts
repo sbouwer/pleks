@@ -156,3 +156,67 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
 export function planForSubject(subjectType: SubjectType): AnonymiseGroup[] {
   return ANONYMISE_PLAN.filter((g) => g.appliesTo.includes(subjectType))
 }
+
+// ─── F-3 DECLINED-APPLICANT PURGE (single 90-day tier) ─────────────────────────
+//
+// SINGLE retention tier (ADDENDUM_70H F3 — reworked from the earlier two-tier draft): a
+// declined / not_shortlisted / withdrawn application's PII purges in full at 90 days. There is NO
+// separate 12-month identity tier — identity, screening artefacts, and financial PII all purge together,
+// matching the public PAIA Manual + credit-check-policy 90-day commitment and the live behaviour the old
+// `rejected-applicant-purge.ts` rule already shipped (now retired and folded into this set).
+//
+// This set is the SSOT for "what the declined-applicant purge nulls/deletes". The executor
+// (screeningArtefactPurge.ts) reuses the SAME Storage-delete helper the erasure cascade uses — a SCOPED
+// replay of the plan, never a hand-coded parallel purge (locked decision #2).
+//
+// `screening_artifacts` (immutable-by-RLS, no DELETE policy → only the service client can remove it) is a
+// WHOLE-ROW delete, not a column strip: it has no non-PII residue worth keeping once the 90-day window
+// passes, and it cannot be column-redacted (its RLS blocks UPDATE). The erasure cascade still routes it to
+// MANUAL_REVIEW_TARGETS for the DSAR path; the routine 90-day purge deletes it under service role.
+
+/** The applications-row columns the single 90-day declined-applicant purge nulls. UNION of the retired
+ *  `rejected-applicant-purge.ts` identity/financial columns (id_number, id_number_hash, employer_name,
+ *  bank_statement_path, searchworx_extracted_data, gross_monthly_income_cents) AND the screening-artefact
+ *  derived-PII columns (fitscore_*, bank_statement_extracted, *_extracted, verified income) — deduped. */
+export const DECLINED_APPLICANT_PURGE_COLUMNS: Record<string, string | null> = {
+  // identity / contact snapshot (from the retired rule)
+  id_number: null,
+  id_number_hash: null,                      // hash is still personal data (D-5)
+  employer_name: null,
+  // raw + extracted bank-statement evidence
+  bank_statement_path: null,                 // raw Stage-1 bank statement (bank-statements bucket)
+  bank_statement_extracted: null,            // extracted transaction JSON
+  bank_statement_holder_name_extracted: null,
+  // bureau payload (from the retired rule)
+  searchworx_extracted_data: null,           // raw bureau payload (JSONB)
+  // FitScore / AI derived PII
+  fitscore_narrative: null,                  // AI narrative — income/affordability/risk (JSONB)
+  fitscore_material_flags: null,             // categorical risk signals (JSONB)
+  fitscore_components: null,                 // per-component score breakdown (JSONB)
+  fitscore_component_snapshot: null,         // frozen component snapshot (JSONB)
+  // financial PII
+  gross_monthly_income_cents: null,          // applicant-declared income (from the retired rule)
+  verified_monthly_income_cents: null,       // screening-verified income
+}
+
+/** A whole-table delete (not a column strip) keyed by application_id, with its Storage bucket + path column. */
+export interface DeclinedApplicantDeleteTable {
+  id: string
+  table: string
+  /** column on the row that holds a Storage object path to remove first (null = no file). */
+  storagePathColumn: string | null
+  /** the bucket the storagePathColumn references (only meaningful when storagePathColumn is set). */
+  storageBucket: string | null
+}
+
+/** Tables whose ROWS are fully deleted at the 90-day mark (with their Storage files), keyed by application_id. */
+export const DECLINED_APPLICANT_DELETE_TABLES: DeclinedApplicantDeleteTable[] = [
+  // immutable-by-RLS bureau PDFs — service-role whole-row delete + remove the popia/screening PDF.
+  { id: "F3.screening_artifacts", table: "screening_artifacts", storagePathColumn: "storage_path", storageBucket: "screening-reports" },
+  // per-subject screening result lines — whole row; raw vendor PDF in screening-reports.
+  { id: "F3.application_screening_lines", table: "application_screening_lines", storagePathColumn: "pdf_storage_path", storageBucket: "screening-reports" },
+  // bank-statement classifications — whole row; the source statement lives in bank-statements.
+  { id: "F3.bank_statement_classifications", table: "application_bank_statement_classifications", storagePathColumn: "bank_statement_doc_path", storageBucket: "bank-statements" },
+  // iterative prescreen history — narrative + input_snapshot carry derived financial PII; whole row, no file.
+  { id: "F3.application_prescreens", table: "application_prescreens", storagePathColumn: null, storageBucket: null },
+]

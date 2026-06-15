@@ -39,6 +39,10 @@ export type RetentionDecision =
 
 export type RetentionPolicy = {
   retention_months: number
+  /** Day-exact override. When set, this WINS over retention_months for the eligible-date math.
+   *  The month model (addMonths) drifts 89–92d; rejected_applications is a day-exact 90-day public
+   *  commitment (PAIA Manual + credit-check-policy), so it carries retention_days: 90. */
+  retention_days?: number
   legal_basis: string
   regulatory_source: string
   erasable_during_retention: boolean
@@ -91,9 +95,14 @@ const PLATFORM_DEFAULTS: Record<DataCategory, RetentionPolicy> = {
     erasable_during_retention: false,
   },
   rejected_applications: {
-    retention_months: 12,
+    // SINGLE 90-day declined-applicant tier (ADDENDUM_70H F3). Day-exact, not the month model — the
+    // public PAIA Manual + credit-check-policy commit to "90 days after rejection... including identity
+    // documents, bank statements, and income records", and the live purge enforces it day-exact. All
+    // declined PII (identity + screening artefacts) purges here; there is no separate 12-month tier.
+    retention_months: 3,
+    retention_days: 90,
     legal_basis: "legitimate_interest",
-    regulatory_source: "POPIA s14 minimisation principle",
+    regulatory_source: "POPIA s14 minimisation principle + PAIA Manual 90-day public commitment",
     erasable_during_retention: false,
   },
   credit_checks: {
@@ -198,7 +207,7 @@ export async function isErasableNow(
     }
   }
 
-  const eligibleAt = addMonths(anchor, policy.retention_months)
+  const eligibleAt = eligibleDate(anchor, policy)
 
   if (new Date() >= eligibleAt) {
     return { erasable: true }
@@ -216,9 +225,24 @@ export async function isErasableNow(
   return {
     erasable: false,
     retained_until: eligibleAt,
-    reason: `${category} retained ${policy.retention_months} months per ${policy.regulatory_source}`,
+    reason: `${category} retained ${retentionWindowLabel(policy)} per ${policy.regulatory_source}`,
     legal_basis: policy.legal_basis,
   }
+}
+
+/** Human window label for a policy — prefers the day-exact figure when set, else the month figure. */
+function retentionWindowLabel(policy: RetentionPolicy): string {
+  if (typeof policy.retention_days === "number") return `${policy.retention_days} days`
+  return `${policy.retention_months} months`
+}
+
+/**
+ * Public display helper — the ONE source emails/UI derive a category's retention window from.
+ * Prefers the day-exact figure. Returns e.g. "90 days" for rejected_applications, "12 months" for
+ * credit_checks. PLATFORM_DEFAULTS stays un-exported (this is the sanctioned read surface).
+ */
+export function retentionDisplay(category: DataCategory): string {
+  return retentionWindowLabel(PLATFORM_DEFAULTS[category])
 }
 
 export async function getRetentionPolicies(orgId: string): Promise<RetentionPoliciesSnapshot> {
@@ -317,7 +341,7 @@ export async function getErasureEligibleDate(
   const anchor = resolveAnchorDate(category, context)
   if (!anchor) return null
 
-  return addMonths(anchor, policy.retention_months)
+  return eligibleDate(anchor, policy)
 }
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
@@ -362,6 +386,15 @@ function resolveAnchorDate(
     case "consent_log":
       return null  // never erasable — handled before this is called
   }
+}
+
+/** Eligible-erasure date for an anchor + policy. Day-exact when retention_days is set (the public
+ *  commitment is exactly 90 days, not "3 calendar months" which drifts 89–92d); month model otherwise. */
+function eligibleDate(anchor: Date, policy: RetentionPolicy): Date {
+  if (typeof policy.retention_days === "number") {
+    return new Date(anchor.getTime() + policy.retention_days * 86_400_000)
+  }
+  return addMonths(anchor, policy.retention_months)
 }
 
 function addMonths(date: Date, months: number): Date {

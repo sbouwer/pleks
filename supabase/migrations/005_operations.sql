@@ -1546,8 +1546,10 @@ ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_name text;
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §BUILD_67  Rules engine: PAIA 90-day PII purge marker on applications
 -- ═══════════════════════════════════════════════════════════════════════════════
--- Set by the rejected-applicant-purge rule when PII is removed.
--- Prevents the rule from re-processing the same application on subsequent runs.
+-- Set by the single 90-day declined-applicant purge (lib/popia/screeningArtefactPurge.ts, run from the
+-- daily cron) when an application's PII is removed. The idempotency marker: the purge skips any row where
+-- pii_purged_at IS NOT NULL, so re-runs are no-ops. (Originally written by the BUILD_67
+-- rejected-applicant-purge OrgRule, retired + folded into the comprehensive purge — ADDENDUM_70H F3.)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS pii_purged_at timestamptz;
 CREATE INDEX IF NOT EXISTS idx_applications_pii_purged ON applications(pii_purged_at) WHERE pii_purged_at IS NULL;
 

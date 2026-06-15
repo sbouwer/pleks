@@ -42,6 +42,7 @@ import { GET as subscriptionPurgeWarnings } from "../subscription-purge-warnings
 import { GET as screeningPortalReminders } from "../screening-portal-reminders/route"
 import { GET as consentCleanup } from "../consent-cleanup/route"
 import { GET as popiaRetentionPurge } from "../popia-retention-purge/route"
+import { GET as screeningArtefactPurge } from "../screening-artefact-purge/route"
 import { runLegalArchiveStep } from "@/lib/legal/archive"
 import { runRulesEngine, type EngineRuleSummary } from "@/lib/rules/engine"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -125,6 +126,7 @@ export async function GET(req: NextRequest) {
   await runJob("screening_portal_reminders", screeningPortalReminders, cronReq, results, detail)
   await runJob("consent_cleanup", consentCleanup, cronReq, results, detail)
   await runJob("popia_retention_purge", popiaRetentionPurge, cronReq, results, detail)
+  await runJob("screening_artefact_purge", screeningArtefactPurge, cronReq, results, detail)
 
   // Legal archive — called directly (not via runJob) so structured result goes into cron_runs.metadata
   let legalArchive: import("@/lib/legal/archive").LegalArchiveResult = {}

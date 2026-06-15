@@ -247,6 +247,17 @@ async function purgeSubjectScreeningStorage(
   logQueryError("purgeSubjectScreeningStorage application_screening_lines", linesErr)
   await remove("screening-reports", "application_screening_lines",
     (lines ?? []).map((r) => r.pdf_storage_path as string | null))
+
+  // P-1 closure: screening_artifacts (immutable-by-RLS bureau PDFs). The plan can't column-strip them
+  // (RLS blocks UPDATE) and the DSAR path routes the ROW to MANUAL_REVIEW_TARGETS, but the out-of-band
+  // PDFs must still be removed here so the subject's bureau report doesn't survive in Storage.
+  const { data: artefacts, error: artErr } = await db
+    .from("screening_artifacts")
+    .select("storage_path")
+    .in("application_id", resolved.applicationIds)
+  logQueryError("purgeSubjectScreeningStorage screening_artifacts", artErr)
+  await remove("screening-reports", "screening_artifacts",
+    (artefacts ?? []).map((r) => r.storage_path as string | null))
 }
 
 async function logAudit(

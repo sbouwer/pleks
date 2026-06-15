@@ -10,11 +10,12 @@
  *           F5 — canonical tokens ({{recipient.salutation}}, {{branding.orgName}}); no "via Pleks".
  *           F6 — agent_notify + review_reminder = service (no popiaSlot); review_reminder pending
  *             list → callout placeholder.
- *         F3 (premise inverted — RESOLVED for copy): "12 months" in the declines is CORRECT — it is
- *           the bare-record retention (matches the SSOT + the live purge job). The separate 90-DAY tier
- *           is for SCREENING ARTEFACTS anchored to the decline date, honoured by a NEW purge build (it's
- *           the public credit-check page's "90 days" that was unbacked, not the email). The 12-month
- *           bare-record figure stays in the body; no copy change. Counsel gate before any retention-token seed.
+ *         F3 (RESOLVED — single 90-day tier, ADDENDUM_70H): declined-applicant PII retains for ONE
+ *           90-day window (identity + screening artefacts purge together), matching the public PAIA Manual
+ *           + credit-check-policy and the live purge (lib/popia/screeningArtefactPurge.ts). The declines
+ *           carry a {{declinedDataPurge}} token → "90 days" at send (derived from retentionDisplay in
+ *           lib/popia/retention.ts — the SSOT), never a hardcoded figure. The earlier "12 months" copy was
+ *           the outlier and is gone.
  *         DIRECTOR templates (6 keys → 4 rows): folded — F2 brand-normalise signed off + the live
  *           refactor shipped (commercial-emails.tsx onto EmailLayout). director_reminder = ONE row
  *           (CD: not three) with the t3/t7-vs-t10 + paidByPrimary differences shown as labelled
@@ -125,16 +126,15 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
     description: "Neutral Stage-1 decline. NEUTRAL-DECLINE doctrine: no reason in subject or body (F1 — {{reason}} dropped).",
     category: "applications",
     subject: "Application update — {{unitLabel}}, {{propertyName}}",
-    mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}", "{{orgEmail}}"],
-    legalReviewRef: "ADDENDUM_70H A5 (live: emails.tsx:226) — F1 reason dropped · F3 12mo-correct",
+    mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}", "{{orgEmail}}", "{{declinedDataPurge}}"],
+    legalReviewRef: "ADDENDUM_70H A5 (live: emails.tsx:226) — F1 reason dropped · F3 single 90-day tier",
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "Thank you for your application for **{{unitLabel}}** at {{propertyName}}." },
       { type: "paragraph", text: "After careful consideration, we have decided not to proceed with your application at this time." },
       { type: "paragraph", text: "This decision does not reflect on you personally — the agent received multiple applications and had to make a selection. If you have any questions, please contact {{branding.orgName}}." },
       { type: "heading", text: "Your data" },
-      // F3 (premise inverted): "12 months" is the CORRECT bare-record retention (SSOT + live purge job). The 90-day screening-artefact purge is a separate tier being built. Body figure stays.
-      { type: "paragraph", text: "Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}." },
+      { type: "paragraph", text: "Your personal information will be retained for {{declinedDataPurge}} in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}." },
       { type: "paragraph", text: "We wish you well in finding your next home." },
     ],
   },
@@ -214,16 +214,15 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
     description: "Neutral post-screening decline. NEUTRAL-DECLINE doctrine: no reason in subject or body (F1 — {{reason}} dropped; higher NCA/POPIA stakes post-screening).",
     category: "applications",
     subject: "Application update — {{unitLabel}}, {{propertyName}}",
-    mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}", "{{orgEmail}}"],
-    legalReviewRef: "ADDENDUM_70H A9 (live: emails.tsx:526) — F1 reason dropped · F3 12mo-correct",
+    mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}", "{{orgEmail}}", "{{declinedDataPurge}}"],
+    legalReviewRef: "ADDENDUM_70H A9 (live: emails.tsx:526) — F1 reason dropped · F3 single 90-day tier",
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "Thank you for your application for **{{unitLabel}}** at {{propertyName}}." },
       { type: "paragraph", text: "After completing the full screening evaluation, we have decided not to proceed with your application. If you have any questions, please contact {{branding.orgName}}." },
       { type: "paragraph", text: "The screening fee of R399 is non-refundable as communicated at the time of payment." },
       { type: "heading", text: "Your data" },
-      // F3 (premise inverted): "12 months" is the CORRECT bare-record retention (SSOT + live purge job). The 90-day screening-artefact purge is a separate tier being built. Body figure stays.
-      { type: "paragraph", text: "Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}." },
+      { type: "paragraph", text: "Your personal information will be retained for {{declinedDataPurge}} in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}." },
       { type: "paragraph", text: "We wish you well in finding your next home." },
     ],
   },
