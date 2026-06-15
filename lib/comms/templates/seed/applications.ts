@@ -10,9 +10,11 @@
  *           F5 — canonical tokens ({{recipient.salutation}}, {{branding.orgName}}); no "via Pleks".
  *           F6 — agent_notify + review_reminder = service (no popiaSlot); review_reminder pending
  *             list → callout placeholder.
- *         ⚠ F3 (must reconcile before seed): declines state "12 months" applicant-data retention —
- *           this contradicts the 90-day rejected-applicant purge intent + hardcodes a figure.
- *           Tokenise ({{applicantRetentionPeriod}}) or confirm vs the POPIA register before seeding.
+ *         F3 (premise inverted — RESOLVED for copy): "12 months" in the declines is CORRECT — it is
+ *           the bare-record retention (matches the SSOT + the live purge job). The separate 90-DAY tier
+ *           is for SCREENING ARTEFACTS anchored to the decline date, honoured by a NEW purge build (it's
+ *           the public credit-check page's "90 days" that was unbacked, not the email). The 12-month
+ *           bare-record figure stays in the body; no copy change. Counsel gate before any retention-token seed.
  *         HELD (NOT folded here): the 6 director templates (70H F2 — folding normalises them onto
  *           EmailLayout = a visible brand change to surety directors; pending Stéan's sign-off).
  *         NOT folded (code-rendered, 14H §10.7): screening_complete, credit_report_delivered.
@@ -119,14 +121,14 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
     category: "applications",
     subject: "Application update — {{unitLabel}}, {{propertyName}}",
     mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}", "{{orgEmail}}"],
-    legalReviewRef: "ADDENDUM_70H A5 (live: emails.tsx:226) — F1 reason dropped · ⚠ F3 retention",
+    legalReviewRef: "ADDENDUM_70H A5 (live: emails.tsx:226) — F1 reason dropped · F3 12mo-correct",
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "Thank you for your application for **{{unitLabel}}** at {{propertyName}}." },
       { type: "paragraph", text: "After careful consideration, we have decided not to proceed with your application at this time." },
       { type: "paragraph", text: "This decision does not reflect on you personally — the agent received multiple applications and had to make a selection. If you have any questions, please contact {{branding.orgName}}." },
       { type: "heading", text: "Your data" },
-      // ⚠ F3: "12 months" is a hardcoded retention figure that contradicts the 90-day rejected-applicant purge intent. Reconcile vs the POPIA register (tokenise) BEFORE seeding.
+      // F3 (premise inverted): "12 months" is the CORRECT bare-record retention (SSOT + live purge job). The 90-day screening-artefact purge is a separate tier being built. Body figure stays.
       { type: "paragraph", text: "Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}." },
       { type: "paragraph", text: "We wish you well in finding your next home." },
     ],
@@ -208,14 +210,14 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
     category: "applications",
     subject: "Application update — {{unitLabel}}, {{propertyName}}",
     mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}", "{{orgEmail}}"],
-    legalReviewRef: "ADDENDUM_70H A9 (live: emails.tsx:526) — F1 reason dropped · ⚠ F3 retention",
+    legalReviewRef: "ADDENDUM_70H A9 (live: emails.tsx:526) — F1 reason dropped · F3 12mo-correct",
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "Thank you for your application for **{{unitLabel}}** at {{propertyName}}." },
       { type: "paragraph", text: "After completing the full screening evaluation, we have decided not to proceed with your application. If you have any questions, please contact {{branding.orgName}}." },
       { type: "paragraph", text: "The screening fee of R399 is non-refundable as communicated at the time of payment." },
       { type: "heading", text: "Your data" },
-      // ⚠ F3: "12 months" hardcoded — contradicts the 90-day rejected-applicant purge intent. Reconcile vs the POPIA register (tokenise) BEFORE seeding.
+      // F3 (premise inverted): "12 months" is the CORRECT bare-record retention (SSOT + live purge job). The 90-day screening-artefact purge is a separate tier being built. Body figure stays.
       { type: "paragraph", text: "Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}." },
       { type: "paragraph", text: "We wish you well in finding your next home." },
     ],
