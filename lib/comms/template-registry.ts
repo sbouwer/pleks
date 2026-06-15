@@ -229,18 +229,25 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "subscription.founding_expiry_warning", channel: "email", category: "subscriptions", is_mandatory: false,
     description: "Founding agent pricing expires in 35 days — upgrade CTA (cron)",
   },
-  "subscription.payment_failed": {
-    key: "subscription.payment_failed", channel: "email", category: "subscriptions", is_mandatory: true,
+  // Dunning ladder (ADDENDUM_57H D-57H-04 — canonical keys; cadence day 0 / 7 / 14).
+  "subscription.past_due_first": {
+    key: "subscription.past_due_first", channel: "email", category: "subscriptions", is_mandatory: true,
     tone_profile: "transactional", allowed_channels: ["email"],
-    description: "Payment could not be collected — 14-day grace period starts (billing cascade day 0)",
+    description: "Payment didn't go through — PayFast will auto-retry; no action required yet (dunning day 0)",
   },
-  "subscription.payment_reminder": {
-    key: "subscription.payment_reminder", channel: "email", category: "subscriptions", is_mandatory: true,
+  "subscription.past_due_day7": {
+    key: "subscription.past_due_day7", channel: "email", category: "subscriptions", is_mandatory: true,
     tone_profile: "transactional", allowed_channels: ["email"],
-    description: "Payment still overdue — reminder sent ~day 4 of grace period (billing cascade)",
+    description: "Payment still pending one week on — auto-pause warning at day 14 (dunning day 7)",
   },
-  // subscription.account_frozen — RETIRED (ADDENDUM_57H): non-payment converges on `paused`, never an
-  // auto `past_due → cancelled`. There is no "frozen" state; sendAccountFrozen + this key are deleted.
+  "subscription.paused_auto": {
+    key: "subscription.paused_auto", channel: "email", category: "subscriptions", is_mandatory: true,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Account auto-paused after 14 days of failed payment — reads/exports/notifications stay on (dunning day 14, terminal)",
+  },
+  // RETIRED (ADDENDUM_57H): subscription.payment_failed + payment_reminder (re-homed to past_due_first /
+  // past_due_day7 above, D-57H-04) and subscription.account_frozen (non-payment converges on `paused`,
+  // never an auto `past_due → cancelled`; there is no "frozen" state).
 
   // ── Portal ────────────────────────────────────────────────────────
   "portal.tenant_invite": {

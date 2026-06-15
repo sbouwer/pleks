@@ -787,22 +787,22 @@ INSERT INTO document_templates (
   scope, template_type, name, description, category, comms_class, template_key,
   subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
 )
-SELECT 'system', 'email', 'Payment Failed (Day 0)', 'First past-due notice — payment didn''t process; PayFast will auto-retry, no action required.', 'subscriptions', 'service', 'subscription.payment_failed',
+SELECT 'system', 'email', 'Past Due — First Notice (Day 0)', 'First past-due notice — payment didn''t process; PayFast will auto-retry, no action required.', 'subscriptions', 'service', 'subscription.past_due_first',
   'Payment for {{branding.orgName}} didn''t go through', ARRAY['{{recipient.salutation}}', '{{branding.orgName}}', '{{updatePaymentUrl}}'], 1, 'ADDENDUM_70C §8.1', false,
   '[{"type":"heading","text":"We couldn''t process your payment"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"The latest payment for **{{branding.orgName}}** didn''t go through on PayFast. No action is required right now — PayFast will automatically retry over the next few days."},{"type":"paragraph","text":"In the meantime, everything in your Pleks workspace is running as normal. Your properties, leases, tenants and all scheduled communications are completely unaffected."},{"type":"paragraph","text":"If you''d like to update your card details or check your payment method, you can do that at any time in Settings → Subscription."},{"type":"cta","label":"Update payment details","href":"{{updatePaymentUrl}}"},{"type":"paragraph","text":"If payment succeeds in the next few days, you won''t hear from us again."}]'::jsonb, NULL
 WHERE NOT EXISTS (
-  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.payment_failed' AND template_type='email'
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.past_due_first' AND template_type='email'
 );
 
 INSERT INTO document_templates (
   scope, template_type, name, description, category, comms_class, template_key,
   subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
 )
-SELECT 'system', 'email', 'Payment Reminder (Day 7)', 'Second past-due reminder — payment still pending one week on; auto-pause warning at 14 days.', 'subscriptions', 'service', 'subscription.payment_reminder',
+SELECT 'system', 'email', 'Past Due — Day 7 Reminder', 'Second past-due reminder — payment still pending one week on; auto-pause warning at 14 days.', 'subscriptions', 'service', 'subscription.past_due_day7',
   'Second reminder: payment for {{branding.orgName}} still pending', ARRAY['{{recipient.salutation}}', '{{branding.orgName}}', '{{daysOverdue}}', '{{updatePaymentUrl}}'], 1, 'ADDENDUM_70C §8.2', false,
   '[{"type":"heading","text":"Payment still pending — one week on"},{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"It''s been {{daysOverdue}} days since the payment for **{{branding.orgName}}** first failed, and PayFast has retried but the payment still hasn''t cleared."},{"type":"paragraph","text":"Your workspace is still fully active — all reads, reports and scheduled tenant communications are running normally, and nothing has been disrupted for your landlords or tenants."},{"type":"callout","tone":"warn","text":"**Important:** if payment doesn''t clear in the next 7 days, your account will be paused automatically. Updating your payment details or contacting your bank now will prevent this."},{"type":"cta","label":"Settle payment now","href":"{{updatePaymentUrl}}"},{"type":"paragraph","text":"Need help? Reply to this email and we''ll sort it out with you."}]'::jsonb, NULL
 WHERE NOT EXISTS (
-  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.payment_reminder' AND template_type='email'
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='subscription.past_due_day7' AND template_type='email'
 );
 
 INSERT INTO document_templates (

@@ -12,10 +12,11 @@ import type { TemplateSeed } from "./types"
 
 export const SUBSCRIPTION_SEEDS: TemplateSeed[] = [
   {
-    key: "subscription.payment_failed",
+    // 57H D-57H-04: re-homed from the retired subscription.payment_failed key onto the live dunning key.
+    key: "subscription.past_due_first",
     channel: "email",
     commsClass: "service",
-    name: "Payment Failed (Day 0)",
+    name: "Past Due — First Notice (Day 0)",
     description: "First past-due notice — payment didn't process; PayFast will auto-retry, no action required.",
     category: "subscriptions",
     subject: "Payment for {{branding.orgName}} didn't go through",
@@ -32,10 +33,11 @@ export const SUBSCRIPTION_SEEDS: TemplateSeed[] = [
     ],
   },
   {
-    key: "subscription.payment_reminder",
+    // 57H D-57H-04: re-homed from the retired subscription.payment_reminder key onto the live dunning key.
+    key: "subscription.past_due_day7",
     channel: "email",
     commsClass: "service",
-    name: "Payment Reminder (Day 7)",
+    name: "Past Due — Day 7 Reminder",
     description: "Second past-due reminder — payment still pending one week on; auto-pause warning at 14 days.",
     category: "subscriptions",
     subject: "Second reminder: payment for {{branding.orgName}} still pending",
