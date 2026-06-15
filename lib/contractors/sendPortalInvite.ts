@@ -1,17 +1,19 @@
 "use server"
 
 /**
- * lib/contractors/sendPortalInvite.ts — FILL: one-line purpose
+ * lib/contractors/sendPortalInvite.ts — invite a contractor/supplier to the supplier portal
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   agent server action (caller passes agentId); service client for the privileged auth invite
+ * Data:   contractor_view (read), contractors (portal_access_enabled/portal_invite_sent_at), Supabase auth
+ *         admin invite, audit_log
+ * Notes:  Sends via Supabase auth.admin.inviteUserByEmail → Supabase's GENERIC (unbranded) invite email.
+ *         A branded custom-token send (mirroring the team-invite /invite/[token] flow) is a pending build
+ *         (ADDENDUM_70 portal-invite item) — an auth-provisioning change, not a copy fold. Audit goes
+ *         through recordAudit (canonical columns, no PII in values — the email lives on the contractor row).
  */
 
-import { createClient } from "@/lib/supabase/server"
-import { createServiceClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function sendPortalInvite(
@@ -56,14 +58,14 @@ export async function sendPortalInvite(
     portal_invite_sent_at: new Date().toISOString(),
   }).eq("id", contractorId)
 
-  // Audit log
-  await supabase.from("audit_log").insert({
-    org_id: contractor.org_id,
-    table_name: "contractors",
-    record_id: contractorId,
+  // Audit the access-control grant (no PII in values — the email lives on the contractor row).
+  await recordAudit(adminClient, {
+    orgId: contractor.org_id,
+    actorId: agentId,
     action: "UPDATE",
-    changed_by: agentId,
-    new_values: { action: "portal_invite_sent", sent_to: contractor.email },
+    table: "contractors",
+    recordId: contractorId,
+    after: { action: "portal_invite_sent" },
   })
 
   return { success: true }

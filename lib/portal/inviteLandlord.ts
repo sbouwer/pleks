@@ -1,16 +1,17 @@
 "use server"
 
 /**
- * lib/portal/inviteLandlord.ts — FILL: one-line purpose
+ * lib/portal/inviteLandlord.ts — invite a landlord to the owner portal
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   agent server action (caller passes agentId); service client for the privileged writes
+ * Data:   landlord_view (read), landlords (portal_status/portal_invited_at), Supabase auth admin invite, audit_log
+ * Notes:  Sends via Supabase auth.admin.inviteUserByEmail → Supabase's GENERIC (unbranded) invite email.
+ *         A branded custom-token send (mirroring the team-invite /invite/[token] flow) is a pending build
+ *         (ADDENDUM_70 portal-invite item) — it's an auth-provisioning change, not a copy fold. Audit goes
+ *         through recordAudit (canonical columns, no PII in values — the email lives on the landlord row).
  */
-import { createClient } from "@/lib/supabase/server"
-import { createServiceClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function inviteLandlord(landlordId: string, agentId: string) {
@@ -54,13 +55,13 @@ export async function inviteLandlord(landlordId: string, agentId: string) {
     portal_invited_at: new Date().toISOString(),
   }).eq("id", landlordId)
 
-  await supabase.from("audit_log").insert({
-    org_id: landlord.org_id,
-    table_name: "landlords",
-    record_id: landlordId,
+  await recordAudit(service, {
+    orgId: landlord.org_id,
+    actorId: agentId,
     action: "UPDATE",
-    changed_by: agentId,
-    new_values: { action: "portal_invite_sent", sent_to: landlord.email },
+    table: "landlords",
+    recordId: landlordId,
+    after: { action: "portal_invite_sent" },   // no PII in values — the email lives on the landlord row
   })
 
   return { success: true }
