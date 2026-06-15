@@ -3,13 +3,18 @@
  *
  * Data:   the soft arrears reminder emails that sit directly below the locked LOD/final-notice,
  *         transcribed from the LIVE reminder.tsx (copy.*.1 / copy.*.2).
- * Notes:  ONLY reminder_step1/step2 have a real production email body. The other registry "ladder"
- *         keys (arrears.payment_reminder / payment_received / arrangement_confirm / resolved) have NO
- *         production email template — SMS/WhatsApp-first or bare-subject sends — so they are NOT folded
- *         (folding them would be net-new authoring, not transcription; pending a product decision).
+ * Notes:  reminder_step1/step2 are transcribed from the live production email body. arrears.resolved is
+ *         AUTHORED (70H remainder, group A) — the live send (app/api/cron/arrears-sequence/route.ts) passed
+ *         only a subject + bodyPreview, no body. The other registry "ladder" keys (arrears.payment_reminder
+ *         / payment_received / arrangement_confirm) still have NO production email template (SMS/WhatsApp-
+ *         first or bare-subject) — NOT folded (net-new authoring, pending a product decision).
  *         commsClass:"service" (transactional dunning, flavoured). §16: soft rungs carry no Tribunal;
  *         relative deadlines → {{deadlineDate}}. ⚠ §16 tone flags on the firm rungs preserved inline
  *         (live copy names the LOD step) for the ship-now legal pass. NOT seeded.
+ *         ⚠ DOCTRINE FLAG (arrears.resolved): CD directed "service class, POPIA line stays (positive
+ *         close)" — but the service-class doctrine (seed/index.ts ‡; service.ts header) is NO popiaSlot.
+ *         Drafted per CD's literal instruction (service + popiaSlot) pending CD's review decision: keep as
+ *         a service exception, OR reclass to "correspondence" (the class that canonically carries POPIA).
  */
 
 import type { TemplateSeed } from "./types"
@@ -121,5 +126,29 @@ export const ARREARS_LADDER_SEEDS: TemplateSeed[] = [
         { type: "signoff", text: "Kind regards,\n{{senderName}}" },
       ],
     },
+  },
+  // ── Positive close: arrears case resolved ────────────────────────────────────────────────────
+  // 70H remainder fold (group A) — AUTHORED, not transcribed: the live send had only subject +
+  // bodyPreview. NOT flavoured (a positive close needs no friendly/professional/firm split). POPIA line
+  // retained per CD (see DOCTRINE FLAG in the header). Subject preserved verbatim from the live send.
+  {
+    key: "arrears.resolved",
+    channel: "email",
+    commsClass: "service",
+    name: "Arrears Resolved — Account Up To Date",
+    description: "Positive close: the arrears balance is settled and the account is in good standing. Authored (no prior production body — live send had subject + bodyPreview only).",
+    category: "arrears",
+    subject: "Your rental account is now up to date",
+    mergeFields: ["{{recipient.salutation}}", "{{propertyLabel}}", "{{senderName}}", "{{branding.orgEmail}}"],
+    legalReviewRef: "live send: app/api/cron/arrears-sequence/route.ts (subject + bodyPreview only — body authored)",
+    body: [
+      { type: "salutation", text: "{{recipient.salutation}}" },
+      { type: "heading", text: "Your account is up to date" },
+      { type: "paragraph", text: "Thank you — the outstanding balance on your rental account for **{{propertyLabel}}** has been settled in full. Your account is now up to date and in good standing." },
+      { type: "paragraph", text: "No further action is required. If you have any questions about your account, contact us at {{branding.orgEmail}}. We appreciate you resolving this and value your tenancy." },
+      { type: "signoff", text: "Kind regards,\n{{senderName}}" },
+      // ⚠ service-class + popiaSlot: deliberate, per CD's "POPIA line stays (positive close)" — see header DOCTRINE FLAG.
+      { type: "popiaSlot" },
+    ],
   },
 ]

@@ -186,4 +186,29 @@ export const SERVICE_SEEDS: TemplateSeed[] = [
       { type: "cta", label: "Open feedback inbox", href: "{{inboxUrl}}" },
     ],
   },
+
+  // ── Team / portal access ─────────────────────────────────────────────────────────────────────
+  // 70H remainder fold (group A): replaces the bare rawHtml in app/api/team/invite/route.ts — moves it
+  // onto EmailLayout (agency branding + branded footer/CTA) with canonical tokens. Service class →
+  // NO popiaSlot (a colleague accepting a workspace role is not a data-subject collection event). The
+  // hardcoded 7-day expiry becomes {{inviteExpiryDays}} (no hardcoded values). Agency-branded:
+  // {{branding.orgName}} is the inviting agency; "on Pleks" names the platform.
+  {
+    key: "team.member_invite",
+    channel: "email",
+    commsClass: "service",
+    name: "Team Member Invitation",
+    description: "Invite a colleague to join the agency as a team member — accept link to /invite/[token].",
+    category: "portal",
+    subject: "You've been invited to join {{branding.orgName}} on Pleks",
+    mergeFields: ["{{branding.orgName}}", "{{roleLabel}}", "{{acceptUrl}}", "{{inviteExpiryDays}}"],
+    legalReviewRef: "live: app/api/team/invite/route.ts (bare rawHtml — authored onto EmailLayout)",
+    body: [
+      { type: "heading", text: "You've been invited" },
+      { type: "paragraph", text: "You've been invited to join **{{branding.orgName}}** on Pleks as **{{roleLabel}}**." },
+      { type: "cta", label: "Accept invitation", href: "{{acceptUrl}}" },
+      { type: "paragraph", text: "Or paste this link into your browser: {{acceptUrl}}" },
+      { type: "paragraph", text: "This invitation expires in {{inviteExpiryDays}} days." },
+    ],
+  },
 ]
