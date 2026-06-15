@@ -15,8 +15,13 @@
  *           is for SCREENING ARTEFACTS anchored to the decline date, honoured by a NEW purge build (it's
  *           the public credit-check page's "90 days" that was unbacked, not the email). The 12-month
  *           bare-record figure stays in the body; no copy change. Counsel gate before any retention-token seed.
- *         HELD (NOT folded here): the 6 director templates (70H F2 — folding normalises them onto
- *           EmailLayout = a visible brand change to surety directors; pending Stéan's sign-off).
+ *         DIRECTOR templates (6 keys → 4 rows): folded — F2 brand-normalise signed off + the live
+ *           refactor shipped (commercial-emails.tsx onto EmailLayout). director_reminder = ONE row
+ *           (CD: not three) with the t3/t7-vs-t10 + paidByPrimary differences shown as labelled
+ *           callouts; the 3 live keys (director_reminder_t3/_t7/_t10) resolve to it via a stage param
+ *           at send-wiring (E2). director_expired_refund + primary_contact_director_pending are still
+ *           rawHtml live (out of F2 scope) — seed represents the centralised target; F4 surety/POPIA
+ *           consent chain (invite) preserved verbatim.
  *         NOT folded (code-rendered, 14H §10.7): screening_complete, credit_report_delivered.
  *         NOT seeded.
  */
@@ -220,6 +225,92 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
       // F3 (premise inverted): "12 months" is the CORRECT bare-record retention (SSOT + live purge job). The 90-day screening-artefact purge is a separate tier being built. Body figure stays.
       { type: "paragraph", text: "Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}." },
       { type: "paragraph", text: "We wish you well in finding your next home." },
+    ],
+  },
+
+  // ── DIRECTOR / surety (6 keys → 4 rows; F2 brand-normalised, live refactor shipped) ──────────
+  {
+    key: "application.director_invited",
+    channel: "email",
+    commsClass: "correspondence",
+    name: "Director Invited (Surety)",
+    description: "Surety director invited to complete their portion — payment, consent, documents. F4 surety + POPIA-consent chain (verbatim).",
+    category: "applications",
+    subject: "{{primaryContactName}}'s application — your portion to complete",
+    mergeFields: ["{{recipient.salutation}}", "{{primaryContactName}}", "{{propertyLabel}}", "{{portalUrl}}", "{{branding.orgName}}"],
+    legalReviewRef: "ADDENDUM_70H B1 (live: commercial-emails.tsx — F4 surety/consent verbatim)",
+    body: [
+      { type: "salutation", text: "{{recipient.salutation}}" },
+      { type: "paragraph", text: "{{primaryContactName}} has submitted an application on behalf of their business to lease **{{propertyLabel}}**." },
+      { type: "paragraph", text: "You are listed as a director signing personal surety for this lease. Before the application can proceed, you need to complete your own portion — payment, consent, and document upload." },
+      { type: "paragraph", text: "This takes about 10 minutes. Your private link:" },
+      { type: "cta", label: "Complete my portion", href: "{{portalUrl}}" },
+      { type: "paragraph", text: "This link expires in 14 days." },
+      { type: "heading", text: "A few things to know" },
+      { type: "list", items: [
+        "You will pay a screening fee for your portion (covers credit check, ID verification, income verification, and rental history)",
+        "You will need to upload a recent bank statement (3 months) and your ID document",
+        "The results will be shared with the leasing agent. You also get your own copy by email when complete.",
+        "You are consenting to processing of your personal information under POPIA. Full details on the link page.",
+      ] },
+      { type: "paragraph", text: "If you do not want to sign personal surety for this lease, you can decline on the link page and we will let {{primaryContactName}} know to find a replacement." },
+      { type: "popiaSlot" },
+    ],
+  },
+  {
+    key: "application.director_reminder",
+    channel: "email",
+    commsClass: "correspondence",
+    name: "Director Reminder (Surety Portion Outstanding)",
+    description: "Reminder that a surety director's portion is outstanding. ONE template (CD: not three) — the 3 live keys director_reminder_t3/_t7/_t10 resolve here via a stage param at send-wiring; the t10 final-warning + paidByPrimary differences are the labelled callouts.",
+    category: "applications",
+    subject: "Reminder: your portion is still outstanding — {{propertyLabel}}",
+    mergeFields: ["{{recipient.salutation}}", "{{propertyLabel}}", "{{daysRemaining}}", "{{primaryContactName}}", "{{portalUrl}}"],
+    legalReviewRef: "ADDENDUM_70H B2–B4 (live: commercial-emails.tsx buildDirectorReminderElement, stage param)",
+    body: [
+      { type: "salutation", text: "{{recipient.salutation}}" },
+      { type: "paragraph", text: "This is a reminder that your portion of the application for **{{propertyLabel}}** is still outstanding." },
+      { type: "paragraph", text: "The application is waiting on your portion. You have {{daysRemaining}} days remaining." },
+      { type: "callout", tone: "warn", text: "(Final reminder — stage t10 only) Your portion expires in {{daysRemaining}} days. After this, the application will be cancelled and any fees paid will need to be refunded." },
+      { type: "callout", tone: "info", text: "(If the primary applicant paid for your portion) {{primaryContactName}} has already paid for your portion. You only need to give consent and upload your documents." },
+      { type: "cta", label: "Complete my portion", href: "{{portalUrl}}" },
+      { type: "paragraph", text: "This link was sent to you by {{primaryContactName}}." },
+      { type: "popiaSlot" },
+    ],
+  },
+  {
+    key: "application.director_expired_refund",
+    channel: "email",
+    commsClass: "correspondence",
+    name: "Director Portion Expired",
+    description: "Notifies a director their portion expired (14-day window). paid branch = refund note (agency-side, contact-them-directly — D-14B-05). Live still rawHtml; seed is the centralised target.",
+    category: "applications",
+    subject: "Your application portion has expired — {{propertyLabel}}",
+    mergeFields: ["{{recipient.salutation}}", "{{propertyLabel}}", "{{primaryContactName}}"],
+    legalReviewRef: "ADDENDUM_70H B5 (live: screening-portal-reminders cron, rawHtml — pending its own refactor)",
+    body: [
+      { type: "salutation", text: "{{recipient.salutation}}" },
+      { type: "paragraph", text: "Your portion of the application for **{{propertyLabel}}** has expired as the 14-day window has passed without completion." },
+      { type: "callout", tone: "info", text: "(If you had paid) You had paid your screening fee. The agency will process your refund — please contact them directly if you have not received it within 5 business days." },
+      { type: "paragraph", text: "The application has been notified to {{primaryContactName}}. If you still want to participate, please ask them to add you again." },
+    ],
+  },
+  {
+    key: "application.primary_contact_director_pending",
+    channel: "email",
+    commsClass: "correspondence",
+    name: "Director Portion Pending (Primary Applicant)",
+    description: "Notifies the primary applicant a director hasn't completed their portion. t10 stage prepends a final-reminder note. Live still rawHtml; seed is the centralised target.",
+    category: "applications",
+    subject: "Action needed: {{directorName}} has not completed their portion",
+    mergeFields: ["{{recipient.salutation}}", "{{directorName}}", "{{propertyLabel}}"],
+    legalReviewRef: "ADDENDUM_70H B6 (live: screening-portal-reminders cron, rawHtml — pending its own refactor)",
+    body: [
+      { type: "salutation", text: "{{recipient.salutation}}" },
+      { type: "paragraph", text: "{{directorName}} has not yet completed their portion of the application for **{{propertyLabel}}**." },
+      { type: "callout", tone: "warn", text: "(Final reminder — stage t10 only) This is the final reminder before the application is affected." },
+      { type: "paragraph", text: "The application cannot proceed until all directors have completed payment and consent." },
+      { type: "paragraph", text: "If {{directorName}} is unable to proceed, you can replace them from your application portal." },
     ],
   },
 ]

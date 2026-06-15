@@ -1206,7 +1206,7 @@ INSERT INTO document_templates (
   subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
 )
 SELECT 'system', 'email', 'Application Update — Stage 1 Decline', 'Neutral Stage-1 decline. NEUTRAL-DECLINE doctrine: no reason in subject or body (F1 — {{reason}} dropped).', 'applications', 'correspondence', 'application.declined_stage1',
-  'Application update — {{unitLabel}}, {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{unitLabel}}', '{{propertyName}}', '{{branding.orgName}}', '{{orgEmail}}'], 1, 'ADDENDUM_70H A5 (live: emails.tsx:226) — F1 reason dropped · ⚠ F3 retention', false,
+  'Application update — {{unitLabel}}, {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{unitLabel}}', '{{propertyName}}', '{{branding.orgName}}', '{{orgEmail}}'], 1, 'ADDENDUM_70H A5 (live: emails.tsx:226) — F1 reason dropped · F3 12mo-correct', false,
   '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Thank you for your application for **{{unitLabel}}** at {{propertyName}}."},{"type":"paragraph","text":"After careful consideration, we have decided not to proceed with your application at this time."},{"type":"paragraph","text":"This decision does not reflect on you personally — the agent received multiple applications and had to make a selection. If you have any questions, please contact {{branding.orgName}}."},{"type":"heading","text":"Your data"},{"type":"paragraph","text":"Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}."},{"type":"paragraph","text":"We wish you well in finding your next home."}]'::jsonb, NULL
 WHERE NOT EXISTS (
   SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.declined_stage1' AND template_type='email'
@@ -1250,8 +1250,52 @@ INSERT INTO document_templates (
   subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
 )
 SELECT 'system', 'email', 'Application Update — Stage 2 Decline', 'Neutral post-screening decline. NEUTRAL-DECLINE doctrine: no reason in subject or body (F1 — {{reason}} dropped; higher NCA/POPIA stakes post-screening).', 'applications', 'correspondence', 'application.declined_stage2',
-  'Application update — {{unitLabel}}, {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{unitLabel}}', '{{propertyName}}', '{{branding.orgName}}', '{{orgEmail}}'], 1, 'ADDENDUM_70H A9 (live: emails.tsx:526) — F1 reason dropped · ⚠ F3 retention', false,
+  'Application update — {{unitLabel}}, {{propertyName}}', ARRAY['{{recipient.salutation}}', '{{unitLabel}}', '{{propertyName}}', '{{branding.orgName}}', '{{orgEmail}}'], 1, 'ADDENDUM_70H A9 (live: emails.tsx:526) — F1 reason dropped · F3 12mo-correct', false,
   '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Thank you for your application for **{{unitLabel}}** at {{propertyName}}."},{"type":"paragraph","text":"After completing the full screening evaluation, we have decided not to proceed with your application. If you have any questions, please contact {{branding.orgName}}."},{"type":"paragraph","text":"The screening fee of R399 is non-refundable as communicated at the time of payment."},{"type":"heading","text":"Your data"},{"type":"paragraph","text":"Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}."},{"type":"paragraph","text":"We wish you well in finding your next home."}]'::jsonb, NULL
 WHERE NOT EXISTS (
   SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.declined_stage2' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Director Invited (Surety)', 'Surety director invited to complete their portion — payment, consent, documents. F4 surety + POPIA-consent chain (verbatim).', 'applications', 'correspondence', 'application.director_invited',
+  '{{primaryContactName}}''s application — your portion to complete', ARRAY['{{recipient.salutation}}', '{{primaryContactName}}', '{{propertyLabel}}', '{{portalUrl}}', '{{branding.orgName}}'], 1, 'ADDENDUM_70H B1 (live: commercial-emails.tsx — F4 surety/consent verbatim)', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"{{primaryContactName}} has submitted an application on behalf of their business to lease **{{propertyLabel}}**."},{"type":"paragraph","text":"You are listed as a director signing personal surety for this lease. Before the application can proceed, you need to complete your own portion — payment, consent, and document upload."},{"type":"paragraph","text":"This takes about 10 minutes. Your private link:"},{"type":"cta","label":"Complete my portion","href":"{{portalUrl}}"},{"type":"paragraph","text":"This link expires in 14 days."},{"type":"heading","text":"A few things to know"},{"type":"list","items":["You will pay a screening fee for your portion (covers credit check, ID verification, income verification, and rental history)","You will need to upload a recent bank statement (3 months) and your ID document","The results will be shared with the leasing agent. You also get your own copy by email when complete.","You are consenting to processing of your personal information under POPIA. Full details on the link page."]},{"type":"paragraph","text":"If you do not want to sign personal surety for this lease, you can decline on the link page and we will let {{primaryContactName}} know to find a replacement."},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.director_invited' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Director Reminder (Surety Portion Outstanding)', 'Reminder that a surety director''s portion is outstanding. ONE template (CD: not three) — the 3 live keys director_reminder_t3/_t7/_t10 resolve here via a stage param at send-wiring; the t10 final-warning + paidByPrimary differences are the labelled callouts.', 'applications', 'correspondence', 'application.director_reminder',
+  'Reminder: your portion is still outstanding — {{propertyLabel}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{daysRemaining}}', '{{primaryContactName}}', '{{portalUrl}}'], 1, 'ADDENDUM_70H B2–B4 (live: commercial-emails.tsx buildDirectorReminderElement, stage param)', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"This is a reminder that your portion of the application for **{{propertyLabel}}** is still outstanding."},{"type":"paragraph","text":"The application is waiting on your portion. You have {{daysRemaining}} days remaining."},{"type":"callout","tone":"warn","text":"(Final reminder — stage t10 only) Your portion expires in {{daysRemaining}} days. After this, the application will be cancelled and any fees paid will need to be refunded."},{"type":"callout","tone":"info","text":"(If the primary applicant paid for your portion) {{primaryContactName}} has already paid for your portion. You only need to give consent and upload your documents."},{"type":"cta","label":"Complete my portion","href":"{{portalUrl}}"},{"type":"paragraph","text":"This link was sent to you by {{primaryContactName}}."},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.director_reminder' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Director Portion Expired', 'Notifies a director their portion expired (14-day window). paid branch = refund note (agency-side, contact-them-directly — D-14B-05). Live still rawHtml; seed is the centralised target.', 'applications', 'correspondence', 'application.director_expired_refund',
+  'Your application portion has expired — {{propertyLabel}}', ARRAY['{{recipient.salutation}}', '{{propertyLabel}}', '{{primaryContactName}}'], 1, 'ADDENDUM_70H B5 (live: screening-portal-reminders cron, rawHtml — pending its own refactor)', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Your portion of the application for **{{propertyLabel}}** has expired as the 14-day window has passed without completion."},{"type":"callout","tone":"info","text":"(If you had paid) You had paid your screening fee. The agency will process your refund — please contact them directly if you have not received it within 5 business days."},{"type":"paragraph","text":"The application has been notified to {{primaryContactName}}. If you still want to participate, please ask them to add you again."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.director_expired_refund' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Director Portion Pending (Primary Applicant)', 'Notifies the primary applicant a director hasn''t completed their portion. t10 stage prepends a final-reminder note. Live still rawHtml; seed is the centralised target.', 'applications', 'correspondence', 'application.primary_contact_director_pending',
+  'Action needed: {{directorName}} has not completed their portion', ARRAY['{{recipient.salutation}}', '{{directorName}}', '{{propertyLabel}}'], 1, 'ADDENDUM_70H B6 (live: screening-portal-reminders cron, rawHtml — pending its own refactor)', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"{{directorName}} has not yet completed their portion of the application for **{{propertyLabel}}**."},{"type":"callout","tone":"warn","text":"(Final reminder — stage t10 only) This is the final reminder before the application is affected."},{"type":"paragraph","text":"The application cannot proceed until all directors have completed payment and consent."},{"type":"paragraph","text":"If {{directorName}} is unable to proceed, you can replace them from your application portal."}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='application.primary_contact_director_pending' AND template_type='email'
 );
