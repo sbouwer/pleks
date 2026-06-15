@@ -161,7 +161,6 @@
   "app/api/consent/lease-disclaimer/route.ts",
   "app/api/cron/arrears-interest/route.ts",
   "app/api/cron/deposit-interest/route.ts",
-  "app/api/cron/owner-statement-gen/route.ts",
   "app/api/cron/purge-import-data/route.ts",
   "app/api/deposit-interest-config/route.ts",
   "app/api/hoa/[hoaId]/agm/[agmId]/resolutions/route.ts",
