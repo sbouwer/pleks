@@ -2,10 +2,12 @@
  * lib/popia/screeningArtefactPurge.ts — F-3: the single 90-day declined-applicant PII purge
  *
  * Auth:   service-role only (called from the daily cron — fires regardless of subscription state)
- * Data:   applications (read terminal state + pii_purged_at; null ALL declined PII columns —
- *         identity + financial + screening artefacts), application_screening_lines,
- *         application_bank_statement_classifications, application_prescreens, screening_artifacts
- *         — whole-row deletes + their Storage objects (screening-reports, bank-statements, identity-docs).
+ * Data:   applications + its identity/contact child tables (application_co_applicants, application_directors,
+ *         application_guarantors, application_tokens, application_screening_payments, consent_verifications)
+ *         — column strip of ALL declined PII (identity + financial + derived), DERIVED from the erasure plan
+ *         (DECLINED_APPLICANT_STRIP_GROUPS) so it can't drift; plus application_screening_lines,
+ *         application_bank_statement_classifications, application_prescreens, screening_artifacts — whole-row
+ *         deletes + their Storage objects (screening-reports, bank-statements, identity-docs).
  * Notes:  SINGLE 90-day retention tier (ADDENDUM_70H F3 — reworked from a two-tier draft, and folding in
  *         the retired lib/rules/application/rejected-applicant-purge.ts). A declined / not_shortlisted /
  *         withdrawn application's PII purges in FULL at 90 days — identity (id_number, employer_name…),
@@ -38,9 +40,10 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import {
-  DECLINED_APPLICANT_PURGE_COLUMNS,
+  DECLINED_APPLICANT_STRIP_GROUPS,
   DECLINED_APPLICANT_DELETE_TABLES,
 } from "./anonymisePlan"
+import { stripGroup } from "./anonymiseIdentity"
 
 const NINETY_DAYS_MS = 90 * 86_400_000
 
@@ -175,8 +178,9 @@ async function removeStorageObjects(
  * depth — never trust the caller's filter). Returns true iff it purged (false = guard rejected / no-op).
  *
  * Order: (1) re-assert guard, (2) delete Storage files referenced by each delete-table, (3) whole-row delete
- * those tables, (4) remove the raw bank statement + identity-docs Storage, (5) null ALL declined PII columns
- * + stamp pii_purged_at, (6) one audit row.
+ * those tables, (4) remove the raw bank statement + identity-docs Storage, (5) strip ALL declined PII columns
+ * across the application + its identity/contact child tables (plan-derived strip groups, shared stripGroup
+ * engine), (6) stamp pii_purged_at (only after the strip provably ran), (7) one audit row.
  */
 export async function purgeApplicationScreeningArtefacts(
   db: SupabaseClient,
@@ -221,29 +225,48 @@ export async function purgeApplicationScreeningArtefacts(
   await removeStorageObjects(db, "bank-statements", [bankStatementPath])
   await removeStorageObjects(db, "identity-docs", [`${orgId}/${applicationId}`])
 
-  // (5) null ALL declined PII columns (identity + financial + screening artefacts) + stamp the marker.
-  const { error: stripErr } = await db
-    .from("applications")
-    .update({ ...DECLINED_APPLICANT_PURGE_COLUMNS, pii_purged_at: now.toISOString() })
-    .eq("id", applicationId)
-    .eq("org_id", orgId)
-  if (stripErr) {
-    console.error(`[screeningArtefactPurge] strip failed for ${applicationId}:`, stripErr.message)
+  // (5) strip ALL declined PII columns across the application AND its identity/contact child tables.
+  // Replays the SAME stripGroup engine the DSAR erasure uses over DECLINED_APPLICANT_STRIP_GROUPS (derived
+  // from the erasure plan — can't drift). single = applicationId resolves every group's key (applications.id,
+  // co_applicants.primary_application_id, *.application_id all equal it). stripGroup self-heals 23502 and
+  // returns the rows it touched.
+  let applicationStripped = false
+  for (const group of DECLINED_APPLICANT_STRIP_GROUPS) {
+    const affected = await stripGroup(db, group, applicationId, [])
+    if (group.table === "applications") applicationStripped = affected > 0
+  }
+  // The applications row provably exists (it IS the candidate) — a 0 there means the strip errored. Do NOT
+  // stamp the one-way pii_purged_at latch on a failed strip; that would assert a "purged" the row isn't.
+  if (!applicationStripped) {
+    console.error(`[screeningArtefactPurge] applications strip failed for ${applicationId} — not stamping pii_purged_at`)
     return false
   }
 
-  // (6) one audit row per purged application — IRREVERSIBLE action, fully attributed (system actor).
+  // (6) stamp the idempotency marker — only after the identity strip provably ran.
+  const { error: markErr } = await db
+    .from("applications")
+    .update({ pii_purged_at: now.toISOString() })
+    .eq("id", applicationId)
+    .eq("org_id", orgId)
+  if (markErr) {
+    console.error(`[screeningArtefactPurge] marker stamp failed for ${applicationId}:`, markErr.message)
+    return false
+  }
+
+  // (7) one audit row per purged application — UPDATE (the row is stripped, child artefacts deleted),
+  // fully attributed (system actor). The payload asserts the REAL strip set so "purged in full" is true.
   await recordAudit(db, {
     orgId,
     actorId: null,
-    action: "DELETE",
+    action: "UPDATE",
     table: "applications",
     recordId: applicationId,
     after: {
       action: "declined_applicant_purge",
       tier: "declined_90d",
-      tables: DECLINED_APPLICANT_DELETE_TABLES.map((t) => t.table),
-      application_columns_stripped: Object.keys(DECLINED_APPLICANT_PURGE_COLUMNS),
+      deleted_tables: DECLINED_APPLICANT_DELETE_TABLES.map((t) => t.table),
+      stripped_groups: DECLINED_APPLICANT_STRIP_GROUPS.map((g) => ({ table: g.table, fields: Object.keys(g.fields) })),
+      storage_buckets: ["screening-reports", "bank-statements", "identity-docs"],
     },
   })
 

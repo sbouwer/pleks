@@ -221,7 +221,7 @@ export async function executeIdentityAnonymise(
  * column to REDACTED and retry, so drift can't wall the cascade into a permanent partial erasure (the
  * principal R-3 cause). preview can't catch this (it only counts) — the guard has to be at execute.
  */
-async function stripGroup(db: Db, group: AnonymiseGroup, single: string | null, list: string[]): Promise<number> {
+export async function stripGroup(db: Db, group: AnonymiseGroup, single: string | null, list: string[]): Promise<number> {
   let fields: Record<string, string | null> = group.fields
   for (let attempt = 0; attempt < 16; attempt++) {
     const base = db.from(group.table).update(fields)
