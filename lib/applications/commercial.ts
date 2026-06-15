@@ -14,6 +14,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { buildDirectorInviteElement } from "@/lib/applications/commercial-emails"
 
 const DIRECTOR_TOKEN_TTL_DAYS = 14
 
@@ -165,22 +166,20 @@ async function sendDirectorInvite(ctx: InviteContext): Promise<void> {
   const orgSettings = await fetchOrgSettings(ctx.orgId)
   const branding = buildBranding(orgSettings)
 
-  const html = buildDirectorInviteHtml({
-    directorFirstName: ctx.directorFirstName,
-    primaryContactName,
-    propertyLabel,
-    propertyAddress,
-    portalUrl,
-    ttlDays: DIRECTOR_TOKEN_TTL_DAYS,
-    orgName: branding.orgName,
-  })
-
   await sendEmail({
     orgId: ctx.orgId,
     templateKey: "application.director_invited",
     to: { email: ctx.directorEmail, name: ctx.directorFirstName },
     subject: `${primaryContactName}'s application — your portion to complete`,
-    rawHtml: html,
+    emailElement: buildDirectorInviteElement({
+      directorFirstName: ctx.directorFirstName,
+      primaryContactName,
+      propertyLabel,
+      propertyAddress,
+      portalUrl,
+      ttlDays: DIRECTOR_TOKEN_TTL_DAYS,
+      branding,
+    }),
     entityType: "application_co_applicant",
     entityId: ctx.coApplicantId,
     triggerEventType: "director_invite",
@@ -348,43 +347,5 @@ export async function replaceDirector(
   return { ok: true, newCoApplicantId: newCoApp.id }
 }
 
-// ── HTML email builders ───────────────────────────────────────────────────────
-
-interface DirectorInviteHtmlParams {
-  directorFirstName: string
-  primaryContactName: string
-  propertyLabel: string
-  propertyAddress: string
-  portalUrl: string
-  ttlDays: number
-  orgName: string
-}
-
-function buildDirectorInviteHtml(p: DirectorInviteHtmlParams): string {
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-body { font-family: -apple-system, sans-serif; color: #111; background: #fff; max-width: 600px; margin: 0 auto; padding: 24px; }
-.btn { display: inline-block; background: #111; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 16px 0; }
-.notice { background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0; font-size: 14px; }
-p { line-height: 1.6; }
-</style></head><body>
-<p>Hi ${p.directorFirstName},</p>
-<p>${p.primaryContactName} has submitted an application on behalf of their business to lease <strong>${p.propertyLabel}</strong>${p.propertyAddress ? ` (${p.propertyAddress})` : ""}.</p>
-<p>You are listed as a director signing personal surety for this lease. Before the application can proceed, you need to complete your own portion — payment, consent, and document upload.</p>
-<p>This takes about 10 minutes. Your private link:</p>
-<a class="btn" href="${p.portalUrl}">Complete my portion →</a>
-<p>This link expires in ${p.ttlDays} days.</p>
-<div class="notice">
-<strong>A few things to know:</strong><br>
-• You will pay a screening fee for your portion (covers credit check, ID verification, income verification, and rental history)<br>
-• You will need to upload a recent bank statement (3 months) and your ID document<br>
-• The results will be shared with the leasing agent. You also get your own copy by email when complete.<br>
-• You are consenting to processing of your personal information under POPIA. Full details on the link page.
-</div>
-<p>If you do not want to sign personal surety for this lease, you can decline on the link page and we will let ${p.primaryContactName} know to find a replacement.</p>
-<p style="color:#666;font-size:13px;">— ${p.orgName} via Pleks</p>
-</body></html>`
-}
-
-// buildDirectorReminderHtml lives in commercial-html.ts — plain sync functions
+// Email element builders live in commercial-emails.tsx — plain sync functions
 // cannot be exported from a "use server" file (Turbopack requires all exports to be async).

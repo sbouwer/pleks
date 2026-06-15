@@ -13,8 +13,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
-import { sendEmail } from "@/lib/comms/send-email"
-import { buildDirectorReminderHtml } from "@/lib/applications/commercial-html"
+import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { buildDirectorReminderElement } from "@/lib/applications/commercial-emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(req: NextRequest) {
@@ -199,16 +199,19 @@ async function sendMilestoneReminder(
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
   const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug || line.application_id}/director-portal/${coApp.access_token}`
 
+  const branding = buildBranding(await fetchOrgSettings(line.org_id))
+
   await sendEmail({
     orgId: line.org_id,
     templateKey: `application.director_reminder_${stage}`,
     to: { email: coApp.applicant_email, name: coApp.first_name ?? "Director" },
     subject: `Reminder: your portion is still outstanding — ${propertyLabel}`,
-    rawHtml: buildDirectorReminderHtml({
+    emailElement: buildDirectorReminderElement({
       directorFirstName: coApp.first_name ?? "Director",
       primaryContactName, propertyLabel, portalUrl,
       daysRemaining: Math.max(0, 14 - daysElapsed),
       stage, paidByPrimary: !!line.paid_at,
+      branding,
     }),
     entityType: "application_co_applicant", entityId: line.subject_id,
     triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id,
