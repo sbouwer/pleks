@@ -11,10 +11,8 @@
  *         commsClass:"service" (transactional dunning, flavoured). §16: soft rungs carry no Tribunal;
  *         relative deadlines → {{deadlineDate}}. ⚠ §16 tone flags on the firm rungs preserved inline
  *         (live copy names the LOD step) for the ship-now legal pass. NOT seeded.
- *         ⚠ DOCTRINE FLAG (arrears.resolved): CD directed "service class, POPIA line stays (positive
- *         close)" — but the service-class doctrine (seed/index.ts ‡; service.ts header) is NO popiaSlot.
- *         Drafted per CD's literal instruction (service + popiaSlot) pending CD's review decision: keep as
- *         a service exception, OR reclass to "correspondence" (the class that canonically carries POPIA).
+ *         arrears.resolved: service class, NO popiaSlot (CD review ruling 2026-06-15 — the service-class
+ *         doctrine holds; the earlier "POPIA line stays" was corrected). Positive close, not flavoured.
  */
 
 import type { TemplateSeed } from "./types"
@@ -129,8 +127,8 @@ export const ARREARS_LADDER_SEEDS: TemplateSeed[] = [
   },
   // ── Positive close: arrears case resolved ────────────────────────────────────────────────────
   // 70H remainder fold (group A) — AUTHORED, not transcribed: the live send had only subject +
-  // bodyPreview. NOT flavoured (a positive close needs no friendly/professional/firm split). POPIA line
-  // retained per CD (see DOCTRINE FLAG in the header). Subject preserved verbatim from the live send.
+  // bodyPreview. NOT flavoured (a positive close needs no friendly/professional/firm split). Service class,
+  // NO popiaSlot (CD review ruling). Subject preserved verbatim from the live send.
   {
     key: "arrears.resolved",
     channel: "email",
@@ -147,8 +145,6 @@ export const ARREARS_LADDER_SEEDS: TemplateSeed[] = [
       { type: "paragraph", text: "Thank you — the outstanding balance on your rental account for **{{propertyLabel}}** has been settled in full. Your account is now up to date and in good standing." },
       { type: "paragraph", text: "No further action is required. If you have any questions about your account, contact us at {{branding.orgEmail}}. We appreciate you resolving this and value your tenancy." },
       { type: "signoff", text: "Kind regards,\n{{senderName}}" },
-      // ⚠ service-class + popiaSlot: deliberate, per CD's "POPIA line stays (positive close)" — see header DOCTRINE FLAG.
-      { type: "popiaSlot" },
     ],
   },
 ]

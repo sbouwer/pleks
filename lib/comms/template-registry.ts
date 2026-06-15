@@ -239,11 +239,8 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     tone_profile: "transactional", allowed_channels: ["email"],
     description: "Payment still overdue — reminder sent ~day 4 of grace period (billing cascade)",
   },
-  "subscription.account_frozen": {
-    key: "subscription.account_frozen", channel: "email", category: "subscriptions", is_mandatory: true,
-    tone_profile: "legal", allowed_channels: ["email"],
-    description: "Grace period elapsed — account frozen, premium features suspended (billing cascade day 14)",
-  },
+  // subscription.account_frozen — RETIRED (ADDENDUM_57H): non-payment converges on `paused`, never an
+  // auto `past_due → cancelled`. There is no "frozen" state; sendAccountFrozen + this key are deleted.
 
   // ── Portal ────────────────────────────────────────────────────────
   "portal.tenant_invite": {
