@@ -19,8 +19,10 @@ import { cn } from "@/lib/utils"
 import { useOrg } from "@/hooks/useOrg"
 import { createLease, createUploadedLease } from "@/lib/actions/leases"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
+import { MomentFloorChecklist } from "@/components/properties/MomentFloorChecklist"
 import { writeBackUnitRuleSet } from "@/lib/actions/units"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
+import { momentCompleteness } from "@/lib/properties/journeyCompleteness"
 import { useLeaseWizard } from "../LeaseWizardContext"
 import type { WizardData } from "../wizardData"
 import type { StepHandle } from "../stepHandle"
@@ -141,6 +143,13 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
     lease: { isFranchiseAgreement: data.isFranchiseAgreement },
   })
   const cpaApplies = cpaDetermination.applies === "yes"
+
+  // Signing-moment floor from the live wizard data — surfaces deposit / clauses / confirmed period before create.
+  const depositRands = data.deposit ? Number.parseFloat(data.deposit) : 0
+  const signingFloor = momentCompleteness("signing", {
+    lease: { deposit_amount_cents: depositRands > 0 ? depositRands : null, start_date: data.startDate },
+    hasLeaseClauses: Object.values(data.clauseSelections).some(Boolean),
+  })
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null
@@ -267,6 +276,8 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
+
+      <MomentFloorChecklist completeness={signingFloor} heading="Before you sign" />
 
       <p className="text-xs text-muted-foreground">
         Both paths create a <span className="font-medium">draft</span> lease that drives invoicing, arrears, deposits, and
