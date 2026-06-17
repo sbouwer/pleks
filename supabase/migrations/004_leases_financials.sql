@@ -1764,3 +1764,37 @@ ALTER TABLE trust_transactions ADD COLUMN IF NOT EXISTS source text
   CHECK (source IS NULL OR source IN ('agency_bank', 'tenant_initiated', 'pleks_controlled_account'));
 ALTER TABLE trust_transactions ADD COLUMN IF NOT EXISTS initiated_by text
   CHECK (initiated_by IS NULL OR initiated_by IN ('agent', 'tenant', 'pleks_system'));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  PRE-SCALE PERFORMANCE INDEXES (leases / rent_invoices / payments / deposits / trust)
+--   Hot list ORDER, calendar/CPA range scans, arrears scans, and join/cascade FKs
+--   (deposit_transactions had NO org_id index). Additive + idempotent. See 005 / 011 / 012.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Leases list: WHERE org_id AND deleted_at IS NULL ORDER BY created_at DESC
+CREATE INDEX IF NOT EXISTS idx_leases_org_created_active
+  ON leases(org_id, created_at DESC) WHERE deleted_at IS NULL;
+
+-- Calendar / CPA notices: WHERE org_id AND status IN (…) AND end_date <range>
+CREATE INDEX IF NOT EXISTS idx_leases_org_status_end
+  ON leases(org_id, status, end_date);
+
+-- Arrears scans: WHERE org_id AND due_date <= today (properties collection + arrears cron)
+CREATE INDEX IF NOT EXISTS idx_rent_invoices_org_due
+  ON rent_invoices(org_id, due_date);
+
+-- Payment → invoice join + activity feed (WHERE org_id AND payment_date >= …)
+CREATE INDEX IF NOT EXISTS idx_payments_invoice
+  ON payments(invoice_id) WHERE invoice_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payments_org_date
+  ON payments(org_id, payment_date DESC);
+
+-- Deposit transactions: org-scoped reads had NO org_id index; + tenant join/cascade
+CREATE INDEX IF NOT EXISTS idx_deposit_txns_org
+  ON deposit_transactions(org_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_txns_tenant
+  ON deposit_transactions(tenant_id) WHERE tenant_id IS NOT NULL;
+
+-- Trust ledger by lease (lease ledger view + FK cascade)
+CREATE INDEX IF NOT EXISTS idx_trust_tx_lease
+  ON trust_transactions(lease_id) WHERE lease_id IS NOT NULL;

@@ -30,7 +30,7 @@ export const ROUTE_CAPABILITY: Record<string, string> = {
   "/settings/configuration":  "org",
   "/settings/hours":          "org",
   "/settings/team":           "team",
-  "/settings/documents":      "documents",
+  "/settings/templates":      "documents",
   "/settings/lease-templates": "documents",
   "/settings/compliance":     "org",
   "/settings/subscription":   "billing",

@@ -501,6 +501,36 @@ table.ledger tr.paid td:first-child::before {
    popups — set it on the controls directly so the OS draws the dropdown list dark, not white. */
 .pleks-portal[data-theme="dark"] select { color-scheme: dark; }
 
+/* ── Template-preview merge-field chips (injected into the branded preview HTML) ───────────
+   The preview "paper" is always a light document regardless of app theme, so these are fixed
+   light-surface colours. .tpl-mf = the {{token}} chip; .tpl-mf-filled = the sample fill value. */
+.tpl-mf { background: oklch(0.95 0.035 75); color: oklch(0.42 0.09 65); border-radius: 3px; padding: 0 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; font-weight: 500; }
+.tpl-mf-filled { font-weight: 600; color: #16110a; }
+/* The A4 "paper" + the agent-authored body HTML rendered inside it (always a light document). */
+.tpl-paper { background: #fff; color: #16110a; padding: 30px 34px; border-radius: 2px; box-shadow: 0 10px 30px oklch(0 0 0 / 0.14); }
+.tpl-body p { margin: 0 0 10px; }
+.tpl-body strong { color: #16110a; }
+.tpl-body ul, .tpl-body ol { margin: 0 0 10px; padding-left: 18px; }
+.tpl-body table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 11px; }
+.tpl-body th, .tpl-body td { padding: 5px 0; border-bottom: 1px solid #ece7dc; text-align: left; }
+.tpl-body th:last-child, .tpl-body td:last-child { text-align: right; }
+
+/* ── Signature capture / preview surfaces ──────────────────────────────────
+   Stored marks are always black ink on transparent (correct for documents).
+   For DISPLAY only: white paper + dark ink in light theme; reversed to a dark
+   panel + white ink in dark theme (invert the black-ink asset/canvas/text).
+   QR blocks are NOT given .sig-surface — they must stay black-on-white to scan. */
+.sig-surface { background: #ffffff; }
+.sig-ink { color: #111111; }
+/* Distinct near-black inset well (clearly darker than the card) so a white mark pops. */
+.pleks-portal[data-theme="dark"] .sig-surface { background: oklch(0.10 0.012 260); border-color: var(--rule-strong); }
+.pleks-portal[data-theme="dark"] .sig-ink { color: #ffffff; }
+/* True colour inversion — flips the ink AND any baked-in background: a black mark on a
+   white (non-transparent) box becomes a white mark on black (which blends into the dark
+   well); a dark mark on transparent becomes a light mark. brightness(0)+invert is NOT used
+   here because it would paint a white-background upload into a solid white blob. */
+.pleks-portal[data-theme="dark"] .sig-ink-invert { filter: invert(1); }
+
 .pleks-portal[data-theme="dark"] {
   color-scheme: dark;
   /* Paper & ink — dark navy */

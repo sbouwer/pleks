@@ -11,6 +11,7 @@
  */
 import { useState, useRef, useCallback } from "react"
 import { ActionButton } from "@/components/ui/actions"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
@@ -92,6 +93,7 @@ export function ClauseEditor({
   const [showEditor, setShowEditor] = useState(!isRequired)
   const [saving, setSaving] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
 
   const currentBody = customBody ?? bodyTemplate
@@ -123,15 +125,15 @@ export function ClauseEditor({
   }, [clauseKey, title, bodyTemplate, requiredTokens, onSave, onCancel])
 
   const handleCancel = useCallback(() => {
-    if (isDirty) {
-      if (confirm("You have unsaved changes. Discard them?")) {
-        toast.info("Changes discarded")
-        onCancel()
-      }
-    } else {
-      onCancel()
-    }
+    if (isDirty) setConfirmDiscard(true)
+    else onCancel()
   }, [isDirty, onCancel])
+
+  function doDiscard() {
+    setConfirmDiscard(false)
+    toast.info("Changes discarded")
+    onCancel()
+  }
 
   const handleReset = useCallback(async () => {
     setSaving(true)
@@ -141,6 +143,7 @@ export function ClauseEditor({
   }, [clauseKey, title, onReset])
 
   return (
+    <>
     <div className="mt-3 border border-border/50 rounded-lg p-4 bg-surface/50">
       {isRequired && !showEditor && (
         <div className="space-y-3">
@@ -228,5 +231,15 @@ export function ClauseEditor({
         </div>
       )}
     </div>
+    <ConfirmDialog
+      open={confirmDiscard}
+      onOpenChange={(o) => { if (!o) setConfirmDiscard(false) }}
+      title="Discard changes?"
+      description="You have unsaved changes. Discard them?"
+      variant="destructive"
+      confirmLabel="Discard"
+      onConfirm={doDiscard}
+    />
+    </>
   )
 }

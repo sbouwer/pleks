@@ -1,11 +1,12 @@
 /**
- * app/api/org/brand/logo/route.ts — FILL: one-line purpose
+ * app/api/org/brand/logo/route.ts — upload the organisation's document logo (Organisation › Branding)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/org/brand/logo (multipart file)
+ * Auth:   getUser + user_orgs membership
+ * Data:   uploads to the private org-assets bucket (org-<id>/branding/logo.<ext>), stores the path on
+ *         organisations.brand_logo_path, returns a fresh signed URL for immediate preview.
+ * Notes:  Upload AND signing both use the service client — the cookie client can't sign on the private
+ *         bucket, which silently returned a null logoUrl ("success" toast, no preview).
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
@@ -60,10 +61,10 @@ export async function POST(req: NextRequest) {
     .update({ brand_logo_path: storagePath } as unknown as Record<string, unknown>)
     .eq("id", membership.org_id)
 
-  const { data: signed, error: signedError } = await supabase.storage
+  const { data: signed, error: signedError } = await serviceClient.storage
     .from("org-assets")
     .createSignedUrl(storagePath, 3600)
     logQueryError("POST org-assets", signedError)
 
-  return NextResponse.json({ logoUrl: signed?.signedUrl ?? null })
+  return NextResponse.json({ logoUrl: signed?.signedUrl ?? null, logoPath: storagePath })
 }

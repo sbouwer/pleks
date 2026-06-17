@@ -231,3 +231,69 @@ $$;
 -- Grant execution to service role only (audit uses service key)
 REVOKE ALL ON FUNCTION count_distinct_orgs(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION count_distinct_orgs(text) TO service_role;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- PART D: Portal RLS — consolidate multiple PERMISSIVE policies
+-- ═══════════════════════════════════════════════════════════════
+-- ADDENDUM_RLS_PERMISSIVE_CONSOLIDATION. The portal surface (tenant / landlord /
+-- contractor) is the one place RLS IS the data boundary — agents read via the
+-- service client (gateway) which bypasses RLS. Multiple PERMISSIVE policies on the
+-- same (table, command) OR together; merging each audience set into ONE OR-ed policy
+-- is logically identical (no boundary moves) and makes the lower-trust boundary
+-- easier to audit. Only same-command audience policies are merged; the broad org
+-- `FOR ALL` policies (org_leases / org_maintenance) and other-command policies are
+-- left intact. auth.uid() stays wrapped as (SELECT auth.uid()) — init-plan optimal.
+-- Roles unchanged (all PUBLIC). See brief/build/_ADDENDUM for the principal-set proof.
+
+-- §A  communication_log SELECT: org (×2 — comm_log_org_select ≡ org_comms_read, a
+--     genuine duplicate) + tenant → one policy. 3 → 1.
+DROP POLICY IF EXISTS comm_log_org_select ON communication_log;
+DROP POLICY IF EXISTS org_comms_read      ON communication_log;
+DROP POLICY IF EXISTS tenant_comms_read   ON communication_log;
+CREATE POLICY comm_log_read ON communication_log FOR SELECT USING (
+  org_id IN (SELECT org_id FROM user_orgs
+             WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+  OR tenant_id IN (SELECT id FROM tenants
+             WHERE auth_user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+);
+
+-- §B  maintenance_requests SELECT: contractor + landlord + tenant portal reads → one.
+--     org_maintenance (FOR ALL) stays; SELECT 4 → 2.
+DROP POLICY IF EXISTS contractor_assigned_jobs    ON maintenance_requests;
+DROP POLICY IF EXISTS landlord_portal_maintenance ON maintenance_requests;
+DROP POLICY IF EXISTS tenant_own_requests         ON maintenance_requests;
+CREATE POLICY maintenance_portal_read ON maintenance_requests FOR SELECT USING (
+  contractor_id IN (SELECT id FROM contractors WHERE auth_user_id = (SELECT auth.uid()))
+  OR property_id IN (SELECT id FROM properties
+       WHERE landlord_id IN (SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())))
+  OR tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = (SELECT auth.uid()))
+);
+
+-- §C  leases SELECT: landlord + tenant portal reads → one. org_leases (FOR ALL)
+--     stays; SELECT 3 → 2. Tenant read keeps its status gate verbatim.
+DROP POLICY IF EXISTS landlord_portal_leases ON leases;
+DROP POLICY IF EXISTS tenant_own_lease       ON leases;
+CREATE POLICY leases_portal_read ON leases FOR SELECT USING (
+  property_id IN (SELECT id FROM properties
+       WHERE landlord_id IN (SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())))
+  OR (tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = (SELECT auth.uid()))
+      AND status = ANY (ARRAY['active','notice','month_to_month']))
+);
+
+-- §D  maintenance_quotes ALL: contractor + org → one. Both originals were FOR ALL,
+--     USING-only (USING doubled as the write check), so WITH CHECK == USING OR,
+--     verbatim, to preserve write semantics exactly. 2 → 1.
+DROP POLICY IF EXISTS contractor_own_quotes ON maintenance_quotes;
+DROP POLICY IF EXISTS org_quotes            ON maintenance_quotes;
+CREATE POLICY maintenance_quotes_access ON maintenance_quotes FOR ALL
+USING (
+  contractor_id IN (SELECT id FROM contractors WHERE auth_user_id = (SELECT auth.uid()))
+  OR org_id IN (SELECT org_id FROM user_orgs
+                WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+)
+WITH CHECK (
+  contractor_id IN (SELECT id FROM contractors WHERE auth_user_id = (SELECT auth.uid()))
+  OR org_id IN (SELECT org_id FROM user_orgs
+                WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+);

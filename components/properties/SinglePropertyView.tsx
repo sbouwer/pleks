@@ -288,7 +288,7 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
     { icon: "A", iconBg: "bg-amber-500", label: "Create listing", sub: "Advertise your unit", href: activeUnit ? `/properties/${property.id}/units/${activeUnit.id}` : `/properties/${property.id}` },
     // "Set asking rent" rendered separately as AskingRentCard below
     { icon: "M", iconBg: "bg-amber-400", label: "Log maintenance", sub: "Report a problem", href: `/maintenance/new?unit=${activeUnit?.id ?? ""}` },
-    { icon: "B", iconBg: "bg-green-500", label: "Update branding", sub: "Logo and document style", href: "/settings/branding" },
+    { icon: "B", iconBg: "bg-green-500", label: "Update branding", sub: "Logo and document style", href: "/settings/details?tab=branding" },
     { icon: "E", iconBg: "bg-green-400", label: "Edit property", sub: "Details and address", href: `/properties/${property.id}/edit` },
   ]
   const quickActions = isOccupied ? occupiedActions : vacantActions

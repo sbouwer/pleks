@@ -12,7 +12,12 @@
  *
  *         NOT here (by design): the F protect-set (consent_log / data_subject_requests / popia_exports
  *         / tos_acceptances / audit_log — retained to prove the erasure was lawful, POPIA s17); the G
- *         likely-dead organisations.* columns (drop in D-8, never anonymise); supplier-subject tables
+ *         organisations.* principal/sole-prop PII (id_number, date_of_birth, gender, mobile, emergency_*,
+ *         addr2_*, lease_* — VERIFIED 2026-06-12 to be the LIVE "Organisation Details" settings feature
+ *         (settings/details form + api/org/details ALL_FIELDS allowlist + reportBranding), NOT dead legacy.
+ *         They are account-holder PII, not data-subject PII — outside erasure scope, so never anonymised
+ *         and NEVER dropped (dropping 42703-breaks the org-details save); carried in the PII baseline);
+ *         supplier-subject tables
  *         (deferred from v1 per §7.2 — supplier erasure routes to manual admin, D-14); free-text /
  *         incidental PII (D-16 manual carve-out review, not auto-stripped).
  */
@@ -91,6 +96,8 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
     fields: { full_name: REDACTED, phone: null, email: null } },     // full_name NOT NULL
   { id: "B.tenant_bank_accounts", table: "tenant_bank_accounts", keyColumn: "tenant_id", keyFrom: "tenantId", appliesTo: ["tenant"],
     fields: { account_holder: REDACTED, account_number: REDACTED, account_number_enc: null, account_number_hash: null, bank_name: REDACTED, branch_code: null } },
+  { id: "B.inspections", table: "inspections", keyColumn: "tenant_id", keyFrom: "tenantId", appliesTo: ["tenant"],
+    fields: { tenant_signature_url: null } },                          // defensive — column is currently UNWRITTEN (e-sign feature not built), so no Storage blob to purge; covered if/when populated
 
   // ── §7 C — application-stage snapshots (the danger zone) ──────────────────────
   { id: "C.applications", table: "applications", keyColumn: "id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
@@ -99,15 +106,23 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
       date_of_birth: null, nationality: null, passport_number: null, passport_expiry_date: null, permit_number: null,
       applicant_email: REDACTED, applicant_phone: null,             // applicant_email NOT NULL
       employer_name: null, current_landlord_name: null,
+      bank_statement_path: null, bank_statement_extracted: null,    // 70H F3 add — raw Stage-1 statement file path (Storage purged file-then-redact) + extracted txn JSON
       bank_statement_holder_name_extracted: null,                   // §7.1 add — extracted holder name
+      searchworx_extracted_data: null,                              // 70H F3 add — raw bureau payload (JSONB)
       fitscore_narrative: null, fitscore_material_flags: null,      // P-1 — derived AI PII (income/affordability/risk), JSONB
+      fitscore_components: null, fitscore_component_snapshot: null, // 70H F3 add — per-component score breakdown + frozen snapshot (JSONB)
+      gross_monthly_income_cents: null, verified_monthly_income_cents: null, // applicant financial PII (PII ratchet)
     } },
-  { id: "C.application_co_applicants", table: "application_co_applicants", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
-    fields: { first_name: null, last_name: null, id_number: null, id_number_hash: null, date_of_birth: null, employer_name: null, applicant_email: REDACTED, applicant_phone: null } },
+  // keyColumn is primary_application_id (NOT application_id — that column does not exist on this table; the
+  // prior plan value 42703'd → co-applicant PII silently survived erasure. Caught by the 70H F3 review.)
+  { id: "C.application_co_applicants", table: "application_co_applicants", keyColumn: "primary_application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
+    fields: { first_name: null, last_name: null, id_number: null, id_number_hash: null, id_type: null, date_of_birth: null,
+      employer_name: null, gross_monthly_income_cents: null, verified_monthly_income_cents: null, applicant_email: REDACTED, applicant_phone: null,
+      bank_statement_path: null, bank_statement_extracted: null, searchworx_extracted_data: null } }, // 70H F3 add — co-applicants carry their own statement + bureau payload
   { id: "C.application_directors", table: "application_directors", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { first_name: REDACTED, last_name: REDACTED, id_number: null, id_number_hash: null, email: null, phone: null } },
   { id: "C.application_guarantors", table: "application_guarantors", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
-    fields: { first_name: REDACTED, last_name: REDACTED, id_number: null, nationality: null, email: null, phone: null } },
+    fields: { first_name: REDACTED, last_name: REDACTED, id_number: null, id_type: null, nationality: null, email: null, phone: null, searchworx_extracted_data: null } }, // 70H F3 add — id_type + bureau payload
   { id: "C.application_tokens", table: "application_tokens", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { applicant_email: REDACTED } },                        // NOT NULL
   { id: "C.application_screening_payments", table: "application_screening_payments", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
@@ -148,3 +163,134 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
 export function planForSubject(subjectType: SubjectType): AnonymiseGroup[] {
   return ANONYMISE_PLAN.filter((g) => g.appliesTo.includes(subjectType))
 }
+
+// ─── F-3 DECLINED-APPLICANT PURGE (single 90-day tier) ─────────────────────────
+//
+// SINGLE retention tier (ADDENDUM_70H F3 — reworked from the earlier two-tier draft): a
+// declined / not_shortlisted / withdrawn application's PII purges in full at 90 days. There is NO
+// separate 12-month identity tier — identity, screening artefacts, and financial PII all purge together,
+// matching the public PAIA Manual + credit-check-policy 90-day commitment and the live behaviour the old
+// `rejected-applicant-purge.ts` rule already shipped (now retired and folded into this set).
+//
+// The executor (screeningArtefactPurge.ts) reuses the SAME stripGroup engine + Storage-delete approach the
+// erasure cascade uses — a SCOPED replay of the plan, never a hand-coded parallel purge (locked decision #2).
+// The column-strip set is DERIVED from ANONYMISE_PLAN below (DECLINED_APPLICANT_STRIP_GROUPS) so it cannot
+// drift from the erasure SSOT — the 70H F3 review caught exactly that drift: an earlier hand-maintained
+// subset silently dropped first_name/DOB/passport/applicant_email and the whole director/co-applicant/
+// guarantor identity tables, leaving PII behind while stamping the row "purged in full".
+//
+// `screening_artifacts` (immutable-by-RLS, no DELETE policy → only the service client can remove it) is a
+// WHOLE-ROW delete, not a column strip: it has no non-PII residue worth keeping once the 90-day window
+// passes, and it cannot be column-redacted (its RLS blocks UPDATE). The erasure cascade still routes it to
+// MANUAL_REVIEW_TARGETS for the DSAR path; the routine 90-day purge deletes it under service role.
+
+/** A whole-table delete (not a column strip) keyed by application_id, with its Storage bucket + path column. */
+export interface DeclinedApplicantDeleteTable {
+  id: string
+  table: string
+  /** column on the row that holds a Storage object path to remove first (null = no file). */
+  storagePathColumn: string | null
+  /** the bucket the storagePathColumn references (only meaningful when storagePathColumn is set). */
+  storageBucket: string | null
+}
+
+/** Tables whose ROWS are fully deleted at the 90-day mark (with their Storage files), keyed by application_id. */
+export const DECLINED_APPLICANT_DELETE_TABLES: DeclinedApplicantDeleteTable[] = [
+  // immutable-by-RLS bureau PDFs — service-role whole-row delete + remove the popia/screening PDF.
+  { id: "F3.screening_artifacts", table: "screening_artifacts", storagePathColumn: "storage_path", storageBucket: "screening-reports" },
+  // per-subject screening result lines — whole row; raw vendor PDF in screening-reports.
+  { id: "F3.application_screening_lines", table: "application_screening_lines", storagePathColumn: "pdf_storage_path", storageBucket: "screening-reports" },
+  // bank-statement classifications — whole row; the source statement lives in bank-statements.
+  { id: "F3.bank_statement_classifications", table: "application_bank_statement_classifications", storagePathColumn: "bank_statement_doc_path", storageBucket: "bank-statements" },
+  // iterative prescreen history — narrative + input_snapshot carry derived financial PII; whole row, no file.
+  { id: "F3.application_prescreens", table: "application_prescreens", storagePathColumn: null, storageBucket: null },
+]
+
+/** Names of the tables the declined purge deletes whole-row — excluded from the column-strip replay below
+ *  (no point stripping columns on a row that is about to be deleted entirely). */
+const DECLINED_DELETE_TABLE_NAMES = new Set(DECLINED_APPLICANT_DELETE_TABLES.map((t) => t.table))
+
+/**
+ * Tables excluded from the AUTOMATIC declined purge ONLY — the DSAR erasure path (planForSubject) is
+ * untouched; a subject who requests erasure still gets these stripped.
+ *
+ * `consent_verifications` (target_email / target_phone_e164): the automatic purge would have the org
+ * unilaterally destroying its OWN proof that it held valid credit-check consent, with no subject request —
+ * weakening its NCA/POPIA-complaint defence. That is NOT equivalent to the DSAR case (there the subject
+ * asked for deletion). HOLD pending counsel — bundled with the FitScore/identity discrimination-defence
+ * retention question (ADDENDUM_70H F3). Remove from this set once counsel rules.
+ */
+const AUTO_PURGE_EXCLUDED_TABLES = new Set(["consent_verifications"])
+
+/**
+ * The column-strip groups the single 90-day declined-applicant AUTOMATIC purge replays — DERIVED from
+ * ANONYMISE_PLAN by construction, so the column/table set can NEVER drift from the erasure SSOT (the defect
+ * the 70H F3 verification caught). = every application_id-keyed group that applies to the `applicant`
+ * subject, EXCEPT (a) the artefact tables the purge deletes whole-row (screening_lines /
+ * bank_statement_classifications) and (b) AUTO_PURGE_EXCLUDED_TABLES (counsel-pending). The per-table field
+ * maps (REDACT for NOT-NULL columns, null otherwise) come straight from the plan. The executor replays these
+ * through the SAME `stripGroup` engine the DSAR erasure uses — a scoped replay, never a hand-coded parallel
+ * purge (locked decision #2). Resolves to: applications, application_co_applicants, application_directors,
+ * application_guarantors (identity), application_tokens (applicant_email), application_screening_payments
+ * (paid_by_email only — the transaction record stays). consent_verifications is HELD (see above).
+ */
+/**
+ * F3 Q1(b-lite) Tier 2 — columns RETAINED past the 90-day raw purge as the 5-year decision-accountability
+ * record (F3_SPEC_AMENDMENT §2/§3). They are EXCLUDED from the 90-day strip below and stripped later by the
+ * complianceRecordsSweep at the 5-year mark (or earlier on subject DSAR erasure — a different code path).
+ *
+ * Most entries are declarative/future-proofing (not currently in the strip plan, or not-yet-migrated columns
+ * — decided_at, decided_by, decision_stage, deciding_agent_capacity, audit_log_decision_entry_id land with
+ * the §2.3 migration + §2.4 trigger). The only OPERATIVE exclusion against today's plan is `fitscore_components` (the numeric
+ * per-dimension breakdown — retained), while fitscore_narrative / fitscore_material_flags /
+ * fitscore_component_snapshot stay in the 90-day strip (Tier 1). The set is the SSOT: if the retained list
+ * changes, the strip re-derives — no hand-coded parallel surface.
+ */
+export const F3_TIER_2_RETAINED_COLUMNS: Record<string, Set<string>> = {
+  applications: new Set([
+    // FitScore structural + cryptographic-anchor set (counsel pass 2)
+    "fitscore", "fitscore_band", "fitscore_components", "fitscore_inputs_hash",
+    "fitscore_engine_version", "fitscore_interpretation_version", "fitscore_narrative_prompt_version",
+    // categorical codes (counsel-signed enum)
+    "decline_reason_code", "adverse_factor_codes", "not_shortlisted_reason_code", "withdrawn_reason_code",
+    "decline_reason_text",  // agent-discretion free-text exception (kept exception)
+    // decision/accountability metadata (counsel pass 3)
+    "status", "decided_at", "decided_by", "decision_stage",
+    "deciding_agent_capacity", "audit_log_decision_entry_id",
+    // derived ratios (counsel pass 4)
+    "rent_to_income_ratio_at_decision", "dti_ratio_at_decision",
+    "affordability_threshold_at_decision", "income_verification_status_at_decision",
+    // policy linkage (counsel pass 4/6)
+    "criminal_screening_policy_id", "criminal_screening_policy_version",
+    "screening_policy_id", "screening_policy_version",
+  ]),
+  application_co_applicants: new Set([
+    "fitscore", "fitscore_band", "fitscore_components",
+    "fitscore_engine_version", "fitscore_interpretation_version", "fitscore_narrative_prompt_version",
+    "decline_reason_code", "adverse_factor_codes",
+    "status", "decided_at", "decided_by", "decision_stage",
+  ]),
+}
+
+/** Columns the 5-year complianceRecordsSweep NULLs on a declined application (the Tier-2 accountability
+ *  record), once its 5y window passes. = the retained set minus `status` (the bare terminal outcome stays
+ *  on the shell row — it is not PII). Every entry is a real, nullable column (verified vs 010 §45). */
+export const F3_TIER_2_FINAL_STRIP_COLUMNS: string[] = [...F3_TIER_2_RETAINED_COLUMNS.applications].filter(
+  (c) => c !== "status",
+)
+
+export const DECLINED_APPLICANT_STRIP_GROUPS: AnonymiseGroup[] = ANONYMISE_PLAN
+  .filter(
+    (g) =>
+      g.keyFrom === "applicationId" &&
+      g.appliesTo.includes("applicant") &&
+      !DECLINED_DELETE_TABLE_NAMES.has(g.table) &&
+      !AUTO_PURGE_EXCLUDED_TABLES.has(g.table),
+  )
+  .map((g) => {
+    // Tier 2: exclude the retained columns from the 90-day strip map (they purge at 5y, not 90d).
+    const retained = F3_TIER_2_RETAINED_COLUMNS[g.table]
+    if (!retained) return g
+    const fields = Object.fromEntries(Object.entries(g.fields).filter(([col]) => !retained.has(col)))
+    return { ...g, fields }
+  })

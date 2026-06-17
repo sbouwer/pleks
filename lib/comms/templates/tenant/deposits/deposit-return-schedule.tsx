@@ -11,6 +11,8 @@
 import * as React from "react"
 import { Section, Text, Hr } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../../layout"
+import { LegalFooter } from "../../LegalFooter"
+import { DEPOSIT_RETURN_SCHEDULE_BASIS } from "../../legalCitations"
 import { DepositDamageSection } from "./DepositDamageSection"
 import { DepositChargesSection } from "./DepositChargesSection"
 
@@ -139,16 +141,17 @@ export function DepositReturnScheduleEmail({
         The refund of <strong>{refundToTenantDisplay}</strong> will be processed within{" "}
         {returnDays} days of the date of this notice, subject to no valid dispute being received.
         If a dispute is lodged, the disputed portion will be held pending resolution in accordance
-        with RHA s5(9).
+        with {DEPOSIT_RETURN_SCHEDULE_BASIS}.
       </Text>
 
-      <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
-      <Text style={small}>
-        This notice is issued pursuant to section 5(7) of the Rental Housing Act 50 of 1999.
-        Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
-        If you believe this schedule is incorrect, you may also refer the matter to the Rental
-        Housing Tribunal in your province.
-      </Text>
+      <LegalFooter issuedUnder={
+        <>
+          This notice is issued pursuant to section 5(7) of the Rental Housing Act 50 of 1999.
+          Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
+          If you believe this schedule is incorrect, you may also refer the matter to the Rental
+          Housing Tribunal in your province.
+        </>
+      } />
     </EmailLayout>
   )
 }
@@ -160,4 +163,3 @@ const para:        React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineH
 const box:         React.CSSProperties = { background: "#f4f4f5", borderRadius: 6, padding: "12px 16px", margin: "0 0 16px" }
 const sectionHead: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 8px" }
 const boxRow:      React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "2px 0" }
-const small:       React.CSSProperties = { fontSize: 12, color: "#71717a", margin: 0 }

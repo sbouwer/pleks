@@ -622,7 +622,8 @@ CREATE POLICY "own_tenant_link" ON user_orgs_tenants
 -- DROP-first so the WHOLE FILE re-runs cleanly: §12 redefines tenant_view with extra (CPA) columns,
 -- and CREATE OR REPLACE VIEW cannot change a view's column set (42P16). Nothing depends on the view.
 DROP VIEW IF EXISTS tenant_view;
-CREATE OR REPLACE VIEW tenant_view AS
+CREATE OR REPLACE VIEW tenant_view
+  WITH (security_invoker = true) AS
 SELECT
   t.id,
   t.org_id,
@@ -663,7 +664,8 @@ JOIN contacts c ON c.id = t.contact_id;
 -- CREATE OR REPLACE cannot drop view columns. Banking now lives in contact_bank_accounts (read by
 -- contact_id). tax_number + payment_method stay on landlords (not account data).
 DROP VIEW IF EXISTS landlord_view;
-CREATE VIEW landlord_view AS
+CREATE VIEW landlord_view
+  WITH (security_invoker = true) AS
 SELECT
   l.id,
   l.org_id,
@@ -741,7 +743,8 @@ COMMENT ON COLUMN contacts.size_bands_captured_at IS
 -- Rebuild tenant_view to expose the new CPA classification fields. DROP-first for re-runnability —
 -- the §10 definition has fewer columns, so CREATE OR REPLACE alone 42P16's on the live view.
 DROP VIEW IF EXISTS tenant_view;
-CREATE OR REPLACE VIEW tenant_view AS
+CREATE OR REPLACE VIEW tenant_view
+  WITH (security_invoker = true) AS
 SELECT
   t.id,
   t.org_id,

@@ -78,8 +78,12 @@ async function handler(_req: NextRequest): Promise<Response> {
     await alertFailures(alertable)
   }
 
+  // Run-outcome respects the SAME debounce as the alert: a transient/self-healing blip (below the
+  // consecutive-failure threshold) is recorded in metadata.failures for observability but does NOT mark
+  // the cron_runs row failed — otherwise the daily failure-digest nags on every bot-block flap even though
+  // no link is actually broken. Only a persistent (alertable) failure fails the run. (C-2 follow-on.)
   return Response.json({
-    ok:       failures.length === 0,
+    ok:       alertable.length === 0,
     checked:  results.length,
     failures: failures.length,
     alerted:  alertable.length,

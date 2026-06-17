@@ -63,12 +63,9 @@ function sanitise(values: Record<string, unknown> | null | undefined): Record<st
   return out
 }
 
-/**
- * Write one audit_log row. Never throws — a failed audit is logged loudly (logQueryError) but does not
- * abort the surrounding mutation. Callers that need audit-or-bust should check the live row in a test.
- */
-export async function recordAudit(db: SupabaseClient, input: RecordAuditInput): Promise<void> {
-  const { error } = await db.from("audit_log").insert({
+/** The flat audit_log row shape, built once and shared by both writers below. */
+function buildAuditRow(input: RecordAuditInput): Record<string, unknown> {
+  return {
     org_id: input.orgId,
     table_name: input.table,
     record_id: input.recordId,
@@ -79,8 +76,28 @@ export async function recordAudit(db: SupabaseClient, input: RecordAuditInput): 
     new_values: sanitise(input.after),
     ip_address: input.context?.ipAddress ?? null,
     user_agent: input.context?.userAgent ?? null,
-  })
+  }
+}
+
+/**
+ * Write one audit_log row. Never throws — a failed audit is logged loudly (logQueryError) but does not
+ * abort the surrounding mutation. Callers that need audit-or-bust should check the live row in a test.
+ */
+export async function recordAudit(db: SupabaseClient, input: RecordAuditInput): Promise<void> {
+  const { error } = await db.from("audit_log").insert(buildAuditRow(input))
   logQueryError("recordAudit", error)
+}
+
+/**
+ * Like recordAudit, but returns the inserted `audit_log.id` (or null on failure). Use ONLY where the id
+ * must be captured back — e.g. the F3 decision-write path stamps it into
+ * `applications.audit_log_decision_entry_id` (decision-accountability anchor, §2.3). A null return means
+ * the audit row was not written; the caller treats the backlink as best-effort (the mutation still stands).
+ */
+export async function recordAuditReturningId(db: SupabaseClient, input: RecordAuditInput): Promise<string | null> {
+  const { data, error } = await db.from("audit_log").insert(buildAuditRow(input)).select("id").single()
+  logQueryError("recordAuditReturningId", error)
+  return (data?.id as string | undefined) ?? null
 }
 
 /** Exposed for unit-testing the sanitiser against the NEVER_LOG / MASK_LAST4 sets. */

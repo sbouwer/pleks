@@ -1,13 +1,14 @@
 /**
- * lib/dashboard/attentionItems.ts — FILL: one-line purpose
+ * lib/dashboard/attentionItems.ts — the dashboard "needs attention" queue (cross-domain signal roll-up)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /dashboard (rendered by AttentionQueue)
+ * Auth:   service client, org-scoped by explicit .eq("org_id", orgId)
+ * Data:   arrears_cases, maintenance_requests, leases (CPA), inspections, applications, deposit_timers,
+ *         bank_feed_connections, bank_statement_lines, + agent-discretion decline rate (discretionDeclineRate)
+ * Notes:  Top 8 by priority then date. Priority 1=urgent/red, 2=needs-action/amber, 3=informational/blue.
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
+import { getDiscretionDeclineFlags } from "./discretionDeclineRate"
 
 export interface AttentionItem {
   id: string
@@ -336,6 +337,21 @@ export async function getAttentionItems(orgId: string): Promise<AttentionItem[]>
       href: "/billing/reconciliation",
       badge: { text: "Review", variant: "amber" },
       dotColor: "#EF9F27",
+      sortDate: now,
+    })
+  }
+
+  // Agent-discretion decline overuse (F3 control #4 → visibility metric, not a blocking gate)
+  for (const f of await getDiscretionDeclineFlags(orgId)) {
+    items.push({
+      id: `discretion-${f.agentId}`,
+      type: "compliance",
+      priority: 3,
+      title: `Discretionary declines — ${f.agentName}`,
+      subtitle: `${f.discretionCount} of ${f.totalDeclines} declines this month used agent discretion`,
+      href: "/applications",
+      badge: { text: `${f.ratePct}%`, variant: "blue" },
+      dotColor: "#3B82F6",
       sortDate: now,
     })
   }

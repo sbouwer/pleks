@@ -42,13 +42,58 @@ export async function createDocumentTemplate(
       body_html: bodyHtml || null,
       subject,
       description,
+      comms_class: "correspondence", // agency-authored templates are always editable correspondence (BUILD_70)
     })
     .select("id")
     .single()
 
   if (error) return { error: error.message }
 
-  revalidatePath("/settings/documents/templates")
+  revalidatePath("/settings/templates")
+  return { id: data.id }
+}
+
+/** "Customise" a system template → an org-owned editable copy linked back to the master (BUILD_70).
+ *  Same name (no "(copy)") + same comms_class; the loader hides the master once a customisation exists,
+ *  so the agent only ever sees one version. Statutory masters are NOT customisable here (Phase 3 / legal). */
+export async function customiseSystemTemplate(
+  templateId: string
+): Promise<{ error?: string; id?: string }> {
+  const gw = await requireAgentWriteAccess("send_manual_comm")
+  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
+  const { db, orgId } = gw
+
+  const { data: source, error: fetchError } = await db
+    .from("document_templates").select("*").eq("id", templateId).eq("scope", "system").single()
+  if (fetchError || !source) return { error: "Template not found" }
+  if (source.comms_class === "statutory") return { error: "Statutory templates can't be customised yet" }
+
+  const { data, error } = await db
+    .from("document_templates")
+    .insert({
+      org_id: orgId,
+      scope: "organisation",
+      template_type: source.template_type,
+      name: source.name,
+      category: source.category,
+      body_html: source.body_html,
+      subject: source.subject,
+      description: source.description,
+      whatsapp_body: source.whatsapp_body,
+      body_variants: source.body_variants,
+      merge_fields: source.merge_fields,
+      legal_flag: source.legal_flag,
+      comms_class: source.comms_class,
+      customised_from: source.id,
+      template_key: source.template_key, // inherit the auto-send link so the override picks up this copy
+      is_deletable: true,
+    })
+    .select("id")
+    .single()
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/settings/templates")
   return { id: data.id }
 }
 
@@ -75,7 +120,7 @@ export async function updateDocumentTemplate(
 
   if (error) return { error: error.message }
 
-  revalidatePath("/settings/documents/templates")
+  revalidatePath("/settings/templates")
   return {}
 }
 
@@ -97,7 +142,7 @@ export async function deleteDocumentTemplate(
 
   if (error) return { error: error.message }
 
-  revalidatePath("/settings/documents/templates")
+  revalidatePath("/settings/templates")
   return {}
 }
 
@@ -138,7 +183,7 @@ export async function duplicateTemplateToOrg(
 
   if (error) return { error: error.message }
 
-  revalidatePath("/settings/documents/templates")
+  revalidatePath("/settings/templates")
   return { id: data.id }
 }
 
@@ -258,6 +303,6 @@ export async function uploadCustomLease(
 
   if (updateError) return { error: updateError.message }
 
-  revalidatePath("/settings/documents/templates")
+  revalidatePath("/settings/templates")
   return {}
 }

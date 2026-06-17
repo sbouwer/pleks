@@ -670,7 +670,30 @@ BEGIN
 END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- §12.4  BUILD_69 Phase 1: durable-vs-per-lease field model (the ONE genuinely net-new field)
+-- §12.4  PRE-SCALE PERFORMANCE INDEXES (properties / units / inspections)
+--   Gap-fill ahead of scale (target ~160k properties): hot list ORDER, calendar
+--   date-range scans (scheduled_date had no index), and join/cascade FKs flagged by
+--   the Supabase performance advisor. Additive + idempotent. See also 004 / 005 / 011.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Properties list: WHERE org_id AND deleted_at IS NULL ORDER BY created_at DESC
+CREATE INDEX IF NOT EXISTS idx_properties_org_created_active
+  ON properties(org_id, created_at DESC) WHERE deleted_at IS NULL;
+
+-- Units in a building (building detail + FK cascade)
+CREATE INDEX IF NOT EXISTS idx_units_building
+  ON units(building_id) WHERE building_id IS NOT NULL;
+
+-- Inspections calendar: WHERE org_id AND scheduled_date BETWEEN … (no date index existed)
+CREATE INDEX IF NOT EXISTS idx_inspections_org_scheduled
+  ON inspections(org_id, scheduled_date);
+
+-- Inspections by property (property detail + FK cascade)
+CREATE INDEX IF NOT EXISTS idx_inspections_property
+  ON inspections(property_id) WHERE property_id IS NOT NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12.5  BUILD_69 Phase 1: durable-vs-per-lease field model (the ONE genuinely net-new field)
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- BUILD_69 Component D classifies every property/lease field durable / per-lease / straddle. CC grounding
 -- (2026-06-11) found all but one already have a live column — including the durable inspection ROOM TEMPLATE,
@@ -678,5 +701,5 @@ END $$;
 -- what moment-5 (ingoing) reads. The single net-new field:
 --   STRADDLE — a default lease period stored on the unit (advertised at listing, confirmed/overridden per
 --   lease). No durable default existed; leases carry only the per-lease start_date/end_date.
-
+-- (The column also existed live ad-hoc; this records it so a fresh replay matches prod — drift → zero.)
 ALTER TABLE units ADD COLUMN IF NOT EXISTS default_lease_period_months integer;

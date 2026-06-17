@@ -9,8 +9,10 @@
  */
 
 import * as React from "react"
-import { Section, Text, Hr } from "@react-email/components"
+import { Section, Text } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../../layout"
+import { LegalFooter } from "../../LegalFooter"
+import { INSPECTION_BASIS } from "../../legalCitations"
 
 export interface InspectionDisputeWindowEmailProps {
   branding: OrgBranding
@@ -39,10 +41,10 @@ export function InspectionDisputeWindowEmail({
       <Text style={refLine}>Ref: {referenceNumber} · Property: {propertyLabel}</Text>
 
       <Text style={para}>
-        Following the joint move-out inspection of the above property conducted pursuant to
-        section 5(3)(c) of the Rental Housing Act 50 of 1999, you are advised that you have{" "}
-        <strong>7 days</strong> from the date of this notice to dispute the inspection findings
-        before the formal deposit return schedule is issued.
+        Following the joint move-out inspection of the above property conducted pursuant to{" "}
+        {INSPECTION_BASIS} read with the applicable clause of your Lease Agreement, you are advised
+        that you have <strong>7 days</strong> from the date of this notice to dispute the inspection
+        findings before the formal deposit return schedule is issued.
       </Text>
 
       <Section style={box}>
@@ -68,13 +70,14 @@ export function InspectionDisputeWindowEmail({
         with the deposit return schedule, which will be issued separately.
       </Text>
 
-      <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
-      <Text style={small}>
-        This notice follows the joint move-out inspection conducted pursuant to section 5(3)(c)
-        of the Rental Housing Act 50 of 1999. Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
-        If you believe this notice is incorrect, you may refer the matter to the Rental Housing
-        Tribunal in your province.
-      </Text>
+      <LegalFooter issuedUnder={
+        <>
+          This notice follows the joint move-out inspection conducted pursuant to section 5(3)(c)
+          of the Rental Housing Act 50 of 1999. Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
+          If you believe this notice is incorrect, you may refer the matter to the Rental Housing
+          Tribunal in your province.
+        </>
+      } />
     </EmailLayout>
   )
 }
@@ -86,4 +89,3 @@ const para:        React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineH
 const box:         React.CSSProperties = { background: "#f4f4f5", borderRadius: 6, padding: "12px 16px", margin: "0 0 16px" }
 const sectionHead: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 8px" }
 const boxRow:      React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "2px 0" }
-const small:       React.CSSProperties = { fontSize: 12, color: "#71717a", margin: 0 }

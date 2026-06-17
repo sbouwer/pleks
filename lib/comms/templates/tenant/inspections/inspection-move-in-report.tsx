@@ -8,8 +8,9 @@
  */
 
 import * as React from "react"
-import { Section, Text, Hr } from "@react-email/components"
+import { Section, Text } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../../layout"
+import { LegalFooter } from "../../LegalFooter"
 
 export interface InspectionMoveInReportEmailProps {
   branding: OrgBranding
@@ -71,13 +72,14 @@ export function InspectionMoveInReportEmail({
         </Text>
       </Section>
 
-      <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
-      <Text style={small}>
-        This report documents the joint inspection conducted pursuant to section 5(3)(c) of the
-        Rental Housing Act 50 of 1999. Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
-        This document is maintained as Tribunal evidence. If you believe the report is inaccurate,
-        you may refer the matter to the Rental Housing Tribunal in your province.
-      </Text>
+      <LegalFooter issuedUnder={
+        <>
+          This report documents the joint inspection conducted pursuant to section 5(3)(c) of the
+          Rental Housing Act 50 of 1999. Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
+          This document is maintained as Tribunal evidence. If you believe the report is inaccurate,
+          you may refer the matter to the Rental Housing Tribunal in your province.
+        </>
+      } />
     </EmailLayout>
   )
 }
@@ -89,4 +91,3 @@ const para:        React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineH
 const box:         React.CSSProperties = { background: "#f4f4f5", borderRadius: 6, padding: "12px 16px", margin: "0 0 16px" }
 const sectionHead: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 8px" }
 const boxRow:      React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "2px 0" }
-const small:       React.CSSProperties = { fontSize: 12, color: "#71717a", margin: 0 }

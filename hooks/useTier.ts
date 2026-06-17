@@ -38,6 +38,12 @@ export function useTier() {
     refetchInterval: 5 * 60 * 1000,
   })
 
+  // The tier is only KNOWN once the query has actually resolved for a real org. While orgId is still
+  // resolving the query is disabled (isLoading === false) yet data is undefined — without this guard the
+  // default "owner" tier leaks through and flashes the upgrade box for a paid org. `data === null` is a
+  // real resolved state (an org with no active subscription = genuine owner), so only `undefined` is unknown.
+  const tierResolved = !!orgId && data !== undefined
+  const loading = isLoading || !tierResolved
   const tier: Tier = data ? getEffectiveTier(data) : "owner"
   const isTrialing = data?.status === "trialing" && !data?.trial_converted
   const trialEndsAt = isTrialing ? data?.trial_ends_at : null
@@ -47,7 +53,7 @@ export function useTier() {
 
   return {
     tier,
-    loading: isLoading,
+    loading,
     isOwner: tier === "owner",
     isSteward: tier === "steward",
     isGrowth: tier === "growth",

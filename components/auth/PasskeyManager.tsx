@@ -15,6 +15,7 @@ import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { useEnrolPasskey } from "@/lib/auth/passkeys/useEnrolPasskey"
 import { ActionButton, RemoveButton } from "@/components/ui/actions"
 import { useStepUpSubmit } from "@/components/auth/useStepUpSubmit"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 
 interface Passkey {
   id: string
@@ -29,6 +30,7 @@ export function PasskeyManager() {
   const [loading, setLoading] = useState(true)
   const [capable, setCapable] = useState(false)
   const [revoking, setRevoking] = useState<string | null>(null)
+  const [confirmPk, setConfirmPk] = useState<string | null>(null)
   const { enrol, state: enrolState, errorMsg: enrolError, reset } = useEnrolPasskey()
   const { submit, stepUpModal } = useStepUpSubmit("remove a passkey")  // revoke is re-auth-gated (Finding 1.3)
 
@@ -51,8 +53,10 @@ export function PasskeyManager() {
       .finally(() => setLoading(false))
   }, [])
 
-  async function handleRevoke(id: string) {
-    if (!confirm("Remove this passkey?")) return
+  async function doRevoke() {
+    const id = confirmPk
+    if (!id) return
+    setConfirmPk(null)
     setRevoking(id)
     await submit(
       (stepUpToken) => fetch("/api/auth/passkeys/revoke", {
@@ -109,7 +113,7 @@ export function PasskeyManager() {
         <RemoveButton
           mode="label"
           label={revoking === pk.id ? "Removing…" : "Remove"}
-          onClick={() => handleRevoke(pk.id)}
+          onClick={() => setConfirmPk(pk.id)}
           disabled={revoking === pk.id}
         />
       </div>
@@ -146,6 +150,15 @@ export function PasskeyManager() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={!!confirmPk}
+        onOpenChange={(o) => { if (!o) setConfirmPk(null) }}
+        title="Remove passkey?"
+        description="This passkey will no longer be able to sign in to your account."
+        variant="destructive"
+        confirmLabel="Remove"
+        onConfirm={doRevoke}
+      />
       {stepUpModal}
     </section>
   )

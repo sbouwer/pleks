@@ -137,7 +137,7 @@ export async function generateOwnerStatement(
       status: "generated",
       generated_at: new Date().toISOString(),
     })
-    .select("id")
+    .select("id, portal_token")
     .single()
     logQueryError("generateOwnerStatement owner_statements", statementError)
 

@@ -16,9 +16,10 @@ import { getIdentityForkState, getServerUser } from "@/lib/auth/server"
 import { IdentityForkBanner } from "@/components/identity/IdentityForkBanner"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import { CategoryTabs } from "@/components/settings/CategoryTabs"
-import { MyProfileForm } from "./MyProfileForm"
+import { MyProfileCards } from "./MyProfileCards"
 import { PROFILE_TABS } from "./tabs"
-import { getUserSignature } from "./getSignature"
+import { getUserSignatures } from "./getSignature"
+import { SIGNATURE_FONTS, signatureFontVars } from "./signature/signatureFonts"
 import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
 import { fetchAgentContactParty } from "@/lib/actions/parties"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
@@ -33,9 +34,10 @@ export default async function ProfilePage({ searchParams }: Readonly<{ searchPar
   const forkState = await getIdentityForkState()
   const { tab } = await searchParams
   const active = PROFILE_TABS.some((t) => t.id === tab) ? tab! : "personal"
-  const needsContact = active === "personal" || active === "address"
+  // Signature tab also loads the agent contact — its name pre-fills the typed signature/initial.
+  const needsContact = active === "personal" || active === "signature"
 
-  const signature = active === "signature" ? await getUserSignature(gw.db, gw.userId) : null
+  const signatures = active === "signature" ? await getUserSignatures(gw.db, gw.userId) : { signature: null, initial: null }
 
   // Resolve (or backfill-create) the agent contact, then load it as a party form for the active tab.
   let contactId: string | null = null
@@ -54,6 +56,11 @@ export default async function ProfilePage({ searchParams }: Readonly<{ searchPar
     }
   }
 
+  const agentName = profileForm ? `${profileForm.firstName ?? ""} ${profileForm.lastName ?? ""}`.trim() : ""
+  const agentInitials = profileForm
+    ? `${(profileForm.firstName ?? "").charAt(0)}${(profileForm.lastName ?? "").charAt(0)}`.toUpperCase()
+    : ""
+
   return (
     <div>
       {forkState?.forked && !forkState.dismissedAgent && (
@@ -68,14 +75,14 @@ export default async function ProfilePage({ searchParams }: Readonly<{ searchPar
         facts={[]}
         tabs={<CategoryTabs tabs={PROFILE_TABS} current={active} />}
       >
-        <DetailFullWidth>
-          {active === "signature" && <SignatureSettings currentSignature={signature} />}
-          {needsContact && (
-            contactId && profileForm
-              ? <MyProfileForm contactId={contactId} initialForm={profileForm} tab={active as "personal" | "address"} />
-              : <div className="rounded-[var(--r-button)] border border-dashed border-border bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">Couldn&apos;t load your profile.</div>
-          )}
-        </DetailFullWidth>
+        {active === "personal" && (
+          contactId && profileForm
+            ? <MyProfileCards contactId={contactId} initialForm={profileForm} />
+            : <DetailFullWidth><div className="rounded-[var(--r-button)] border border-dashed border-border bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">Couldn&apos;t load your profile.</div></DetailFullWidth>
+        )}
+        {active === "signature" && (
+          <DetailFullWidth><SignatureSettings signature={signatures.signature} initial={signatures.initial} fonts={SIGNATURE_FONTS} fontVars={signatureFontVars} agentName={agentName} agentInitials={agentInitials} /></DetailFullWidth>
+        )}
       </DetailPageLayout>
     </div>
   )

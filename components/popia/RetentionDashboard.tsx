@@ -31,6 +31,8 @@ const CATEGORY_LABELS: Record<DataCategory, string> = {
   platform_account: "Platform account data",
   fica_identity: "Identity & FICA verification",
   property_documents: "Property documents",
+  declined_decision_record: "Declined-application decision record",
+  consent_proof: "Consent verification (proof of consent)",
 }
 
 interface RetentionDashboardProps {

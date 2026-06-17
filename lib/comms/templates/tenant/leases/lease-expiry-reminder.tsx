@@ -8,8 +8,10 @@
  */
 
 import * as React from "react"
-import { Section, Text, Hr } from "@react-email/components"
+import { Section, Text } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../../layout"
+import { LegalFooter } from "../../LegalFooter"
+import { leaseExpiryBasis } from "../../legalCitations"
 
 export interface LeaseExpiryReminderEmailProps {
   branding: OrgBranding
@@ -18,6 +20,9 @@ export interface LeaseExpiryReminderEmailProps {
   leaseEndDate: string
   daysRemaining: number
   senderName: string
+  /** Lease CPA-applicability snapshot (cpa_applies_at_signing) — selects the notice basis (F-1 #10).
+   *  Undefined → "the terms of your Lease Agreement" (the safe non-statutory basis). */
+  cpaApplies?: boolean
 }
 
 export function LeaseExpiryReminderEmail({
@@ -27,6 +32,7 @@ export function LeaseExpiryReminderEmail({
   leaseEndDate,
   daysRemaining,
   senderName,
+  cpaApplies,
 }: Readonly<LeaseExpiryReminderEmailProps>) {
   const preview = `Your lease at ${propertyLabel} expires in ${daysRemaining} days — action required`
 
@@ -62,12 +68,13 @@ export function LeaseExpiryReminderEmail({
         intentions so we can plan accordingly.
       </Text>
 
-      <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
-      <Text style={small}>
-        This notice is issued in accordance with the Rental Housing Act 50 of 1999. Your lease
-        will automatically convert to a month-to-month tenancy on expiry unless either party
-        gives notice of non-renewal.
-      </Text>
+      <LegalFooter issuedUnder={
+        <>
+          This notice is issued in accordance with {leaseExpiryBasis(cpaApplies)}. Your lease
+          will automatically convert to a month-to-month tenancy on expiry unless either party
+          gives notice of non-renewal.
+        </>
+      } />
     </EmailLayout>
   )
 }
@@ -78,4 +85,3 @@ const para:  React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineHeight:
 const box:   React.CSSProperties = { background: "#f4f4f5", borderRadius: 6, padding: "12px 16px", margin: "0 0 16px" }
 const sectionHead: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 8px" }
 const boxRow: React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "6px 0" }
-const small:  React.CSSProperties = { fontSize: 12, color: "#71717a", margin: 0 }

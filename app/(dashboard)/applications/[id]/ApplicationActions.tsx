@@ -8,10 +8,12 @@
  * Data:   applicationActions server actions; createTenantFromApplication; sendShortlistInvitation; Supabase client for immigration confirmation
  * Notes:  Foreign national applications require immigration compliance confirmed before shortlisting
  */
+import { useState } from "react"
 import { ActionButton } from "@/components/ui/actions"
 import { sendShortlistInvitation } from "@/lib/screening/sendShortlistInvitation"
 import { declineStage1Action, approveAction, declineStage2Action } from "@/lib/applications/applicationActions"
 import { createTenantFromApplication } from "@/lib/applications/createTenantFromApplication"
+import { DeclineDecisionModal, type DeclineSubmission } from "./DeclineDecisionModal"
 import { useUser } from "@/hooks/useUser"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -36,6 +38,7 @@ export function ApplicationActions({
 }: ApplicationActionsProps) {
   const { user } = useUser()
   const router = useRouter()
+  const [declineModalOpen, setDeclineModalOpen] = useState(false)
 
   async function handleShortlist() {
     if (isForeignNational && !immigrationConfirmed) {
@@ -75,10 +78,12 @@ export function ApplicationActions({
     router.push(`/tenants/${result.tenantId}`)
   }
 
-  async function handleDeclineStage2() {
-    const result = await declineStage2Action(applicationId)
-    if (result?.error) toast.error(result.error)
-    else { toast.success("Application declined"); router.refresh() }
+  async function handleDeclineStage2(decision: DeclineSubmission) {
+    const result = await declineStage2Action(applicationId, decision)
+    if (result?.error) { toast.error(result.error); return }
+    toast.success("Application declined")
+    setDeclineModalOpen(false)
+    router.refresh()
   }
 
   async function handleConfirmImmigration() {
@@ -120,9 +125,14 @@ export function ApplicationActions({
       {stage2Status === "screening_complete" && (
         <>
           <ActionButton tone="primary" onClick={handleApprove}>Approve</ActionButton>
-          <ActionButton tone="destructive" onClick={handleDeclineStage2}>Decline</ActionButton>
+          <ActionButton tone="destructive" onClick={() => setDeclineModalOpen(true)}>Decline</ActionButton>
         </>
       )}
+      <DeclineDecisionModal
+        open={declineModalOpen}
+        onClose={() => setDeclineModalOpen(false)}
+        onSubmit={handleDeclineStage2}
+      />
     </div>
   )
 }

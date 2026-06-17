@@ -3242,3 +3242,410 @@ CREATE POLICY "org_roles_org" ON org_roles
 DROP TRIGGER IF EXISTS trg_org_roles_updated ON org_roles;
 CREATE TRIGGER trg_org_roles_updated BEFORE UPDATE ON org_roles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §44  BUILD_F3_LEGAL_HOLD: polymorphic litigation-hold mechanism
+--      (SPEC_LEGAL_HOLD_POLYMORPHIC.md — supersedes the org-only RUNBOOK_LEGAL_HOLD snippet)
+--      Immutable append-only events + SHA-256 instrument-hash chain (per scope). Active holds
+--      (hold_placed not matched by hold_lifted) fail-close the F3 declined-applicant purge gate.
+--      Writes route through placeLegalHold/liftLegalHold (service-role); direct INSERT is RLS-blocked.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- digest()/encode() for the hash chain (gen_random_uuid is core in PG13+, but pgcrypto is required for digest).
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS legal_hold_events (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                uuid NOT NULL REFERENCES organisations(id) ON DELETE RESTRICT,
+  scope_type            text NOT NULL,
+  scope_id              uuid NOT NULL,
+  event_type            text NOT NULL,
+  trigger_category      text NOT NULL,
+  placed_by             uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  placed_by_capacity    text NOT NULL,
+  reason_text           text,
+  external_reference    text,
+  lift_event_id         uuid REFERENCES legal_hold_events(id) ON DELETE RESTRICT,
+  instrument_hash       text NOT NULL,
+  prev_instrument_hash  text NOT NULL,
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT legal_hold_events_scope_type_check CHECK (
+    scope_type IN ('org', 'application', 'subject', 'lease')
+  ),
+  CONSTRAINT legal_hold_events_event_type_check CHECK (
+    event_type IN ('hold_placed', 'hold_lifted', 'hold_suppressed')
+  ),
+  CONSTRAINT legal_hold_events_trigger_category_check CHECK (
+    trigger_category IN (
+      'customer_dispute',
+      'attorney_correspondence',
+      'regulator_inquiry',
+      'legal_demand',
+      'dsar_contested',
+      'tribunal_matter',
+      'manual_information_officer',
+      'pleks_platform_directive'
+    )
+  ),
+  CONSTRAINT legal_hold_events_capacity_check CHECK (
+    placed_by_capacity IN (
+      'agency_io',
+      'pleks_io',
+      'pleks_platform_admin',
+      'system'
+    )
+  ),
+  CONSTRAINT legal_hold_events_lift_consistency CHECK (
+    (event_type = 'hold_lifted' AND lift_event_id IS NOT NULL) OR
+    (event_type != 'hold_lifted' AND lift_event_id IS NULL)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_legal_hold_events_scope
+  ON legal_hold_events(scope_type, scope_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_hold_events_org
+  ON legal_hold_events(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_hold_events_category
+  ON legal_hold_events(trigger_category, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_hold_events_hash_chain
+  ON legal_hold_events(scope_type, scope_id, created_at ASC, id ASC);
+
+COMMENT ON TABLE legal_hold_events IS
+  'Polymorphic litigation-hold registry. Immutable append-only with SHA-256 instrument-hash chain. '
+  'Active holds (hold_placed not followed by matching hold_lifted) block purge gates. '
+  'POPIA s14(1)(b) lawful-purpose retention; accountability under s17.';
+COMMENT ON COLUMN legal_hold_events.scope_type IS
+  'Polymorphic scope: org | application | subject | lease. scope_id is resolved against the named table.';
+COMMENT ON COLUMN legal_hold_events.instrument_hash IS
+  'SHA-256 of (prev_instrument_hash || canonical row content). Computed by BEFORE INSERT trigger. '
+  'Chain is per-scope; first row in any chain uses prev = 64 zeros.';
+
+-- Append-only enforcement: UPDATE and DELETE both raise. Service role obeys the trigger (no bypass).
+CREATE OR REPLACE FUNCTION prevent_legal_hold_event_mutation()
+RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'legal_hold_events is append-only; UPDATE/DELETE not permitted (event_id=%)',
+    COALESCE(OLD.id::text, 'unknown')
+    USING ERRCODE = 'P0001';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS trg_legal_hold_events_no_update ON legal_hold_events;
+CREATE TRIGGER trg_legal_hold_events_no_update
+  BEFORE UPDATE ON legal_hold_events
+  FOR EACH ROW EXECUTE FUNCTION prevent_legal_hold_event_mutation();
+
+DROP TRIGGER IF EXISTS trg_legal_hold_events_no_delete ON legal_hold_events;
+CREATE TRIGGER trg_legal_hold_events_no_delete
+  BEFORE DELETE ON legal_hold_events
+  FOR EACH ROW EXECUTE FUNCTION prevent_legal_hold_event_mutation();
+
+-- Instrument-hash chain (per scope). Canonical-content field order is load-bearing — verify fn (below)
+-- walks the identical order. Any change here requires a coordinated change in verify_legal_hold_chain.
+CREATE OR REPLACE FUNCTION compute_legal_hold_instrument_hash()
+RETURNS trigger AS $$
+DECLARE
+  last_hash text;
+  canonical_content text;
+BEGIN
+  SELECT instrument_hash INTO last_hash
+  FROM legal_hold_events
+  WHERE scope_type = NEW.scope_type AND scope_id = NEW.scope_id
+  ORDER BY created_at DESC, id DESC
+  LIMIT 1;
+
+  IF last_hash IS NULL THEN
+    last_hash := repeat('0', 64);
+  END IF;
+
+  NEW.prev_instrument_hash := last_hash;
+
+  canonical_content := concat_ws('|',
+    NEW.scope_type,
+    NEW.scope_id::text,
+    NEW.event_type,
+    NEW.trigger_category,
+    COALESCE(NEW.placed_by::text, ''),
+    NEW.placed_by_capacity,
+    COALESCE(NEW.reason_text, ''),
+    COALESCE(NEW.external_reference, ''),
+    COALESCE(NEW.lift_event_id::text, ''),
+    NEW.created_at::text
+  );
+
+  NEW.instrument_hash := encode(
+    digest(NEW.prev_instrument_hash || canonical_content, 'sha256'),
+    'hex'
+  );
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions;  -- pgcrypto (digest) lives in the extensions schema on Supabase
+
+DROP TRIGGER IF EXISTS trg_legal_hold_events_hash ON legal_hold_events;
+CREATE TRIGGER trg_legal_hold_events_hash
+  BEFORE INSERT ON legal_hold_events
+  FOR EACH ROW EXECUTE FUNCTION compute_legal_hold_instrument_hash();
+
+ALTER TABLE legal_hold_events ENABLE ROW LEVEL SECURITY;
+
+-- Org members can read holds against their own org.
+DROP POLICY IF EXISTS "legal_hold_events_read_org" ON legal_hold_events;
+CREATE POLICY "legal_hold_events_read_org" ON legal_hold_events
+  FOR SELECT
+  USING (
+    org_id IN (
+      SELECT user_orgs.org_id FROM user_orgs
+      WHERE user_orgs.user_id = (SELECT auth.uid())
+    )
+  );
+
+-- Direct INSERT forbidden — all writes go through placeLegalHold/liftLegalHold under service-role
+-- (which bypasses RLS). An append-only bad row can never be rolled back, so the helpers are the only entry.
+DROP POLICY IF EXISTS "legal_hold_events_insert_blocked" ON legal_hold_events;
+CREATE POLICY "legal_hold_events_insert_blocked" ON legal_hold_events
+  FOR INSERT
+  WITH CHECK (false);
+
+-- Tamper-evidence: walk the per-scope chain and recompute each hash. ok=false points at the broken row.
+CREATE OR REPLACE FUNCTION verify_legal_hold_chain(
+  p_scope_type text,
+  p_scope_id uuid
+)
+RETURNS TABLE (
+  ok boolean,
+  broken_at_event_id uuid,
+  expected_hash text,
+  actual_hash text
+) AS $$
+DECLARE
+  r RECORD;
+  expected text;
+  canonical text;
+  computed text;
+BEGIN
+  expected := repeat('0', 64);
+
+  FOR r IN
+    SELECT * FROM legal_hold_events
+    WHERE scope_type = p_scope_type AND scope_id = p_scope_id
+    ORDER BY created_at ASC, id ASC
+  LOOP
+    IF r.prev_instrument_hash != expected THEN
+      RETURN QUERY SELECT false, r.id, expected, r.prev_instrument_hash;
+      RETURN;
+    END IF;
+
+    canonical := concat_ws('|',
+      r.scope_type,
+      r.scope_id::text,
+      r.event_type,
+      r.trigger_category,
+      COALESCE(r.placed_by::text, ''),
+      r.placed_by_capacity,
+      COALESCE(r.reason_text, ''),
+      COALESCE(r.external_reference, ''),
+      COALESCE(r.lift_event_id::text, ''),
+      r.created_at::text
+    );
+
+    computed := encode(digest(expected || canonical, 'sha256'), 'hex');
+
+    IF r.instrument_hash != computed THEN
+      RETURN QUERY SELECT false, r.id, computed, r.instrument_hash;
+      RETURN;
+    END IF;
+
+    expected := computed;
+  END LOOP;
+
+  RETURN QUERY SELECT true, NULL::uuid, NULL::text, NULL::text;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions;  -- pgcrypto (digest) lives in the extensions schema on Supabase
+
+REVOKE EXECUTE ON FUNCTION verify_legal_hold_chain(text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION verify_legal_hold_chain(text, uuid) TO service_role;
+
+-- Trigger functions fire as the table owner regardless of EXECUTE grants; revoke their RPC exposure so
+-- anon/authenticated can't call them directly via PostgREST (security advisor 0028/0029).
+REVOKE EXECUTE ON FUNCTION compute_legal_hold_instrument_hash() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION prevent_legal_hold_event_mutation()  FROM PUBLIC, anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §45  BUILD_F3: two-tier declined-applicant retention — decision-reason enums (counsel-signed),
+--      decision-accountability columns, immutable per-org policy-snapshot tables, hybrid criminal
+--      enforcement, decided_* sync trigger, + the legal_hold_events threatened-litigation category.
+--      (F3_SPEC_AMENDMENT + COUNSEL_BRIEF_F3_DISPOSITION pass 6 — signed. Decision-reason CHECK bodies
+--      are generated from lib/screening/decisionReasons.ts via scripts/codegen/decision-reason-enums.mts.)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS decline_reason_code text,
+  ADD COLUMN IF NOT EXISTS adverse_factor_codes text[],
+  ADD COLUMN IF NOT EXISTS not_shortlisted_reason_code text,
+  ADD COLUMN IF NOT EXISTS withdrawn_reason_code text;
+ALTER TABLE application_co_applicants
+  ADD COLUMN IF NOT EXISTS decline_reason_code text,
+  ADD COLUMN IF NOT EXISTS adverse_factor_codes text[];
+
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_decline_reason_code_check;
+ALTER TABLE applications ADD CONSTRAINT applications_decline_reason_code_check CHECK (
+  decline_reason_code IS NULL OR decline_reason_code IN (
+    'decline_credit_judgment','decline_credit_default','decline_credit_admin_order','decline_credit_arrears_current','decline_credit_score_low',
+    'decline_affordability_income_low','decline_affordability_dti_high','decline_income_unverifiable','decline_employment_tenure_below_threshold','decline_employment_verification_incomplete','decline_employment_denied_by_employer',
+    'decline_identity_verification_failed','decline_documentation_incomplete','decline_documentation_invalid','decline_right_to_occupy_unverifiable',
+    'decline_reference_landlord_negative','decline_reference_landlord_unverifiable','decline_reference_employer_negative','decline_reference_employer_unverifiable',
+    'decline_rental_history_arrears','decline_rental_history_eviction','decline_fitscore_hard_flag','decline_fitscore_ldp_insufficient',
+    'decline_criminal_record_relevant','decline_director_disqualified','decline_commercial_composite_below_threshold','decline_property_no_longer_available','decline_agent_discretion_documented'));
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_not_shortlisted_reason_code_check;
+ALTER TABLE applications ADD CONSTRAINT applications_not_shortlisted_reason_code_check CHECK (
+  not_shortlisted_reason_code IS NULL OR not_shortlisted_reason_code IN (
+    'not_shortlisted_other_applicant_selected','not_shortlisted_no_decision_provided','not_shortlisted_property_withdrawn','not_shortlisted_property_changed','not_shortlisted_expired_unactioned'));
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_withdrawn_reason_code_check;
+ALTER TABLE applications ADD CONSTRAINT applications_withdrawn_reason_code_check CHECK (
+  withdrawn_reason_code IS NULL OR withdrawn_reason_code IN ('withdrawn_applicant_initiated','withdrawn_applicant_unreachable','withdrawn_alternate_property'));
+
+CREATE OR REPLACE FUNCTION is_valid_adverse_factor_code(p_code text)
+RETURNS boolean AS $$
+BEGIN
+  RETURN p_code IN (
+    'adverse_judgment_civil','adverse_judgment_default','adverse_admin_order','adverse_sequestration','adverse_arrears_current','adverse_arrears_historical','adverse_score_low_bureau','adverse_inquiry_velocity_high','adverse_utilization_high',
+    'adverse_income_below_threshold','adverse_income_unverifiable','adverse_dti_above_threshold','adverse_disposable_income_low','adverse_bank_statement_irregular','adverse_bank_statement_missing',
+    'adverse_employment_short_tenure','adverse_employment_unverifiable','adverse_employment_denied','adverse_self_employed_thin_documentation',
+    'adverse_id_number_mismatch','adverse_id_document_invalid','adverse_permit_expired','adverse_permit_short_term','adverse_permit_unauthorised_for_residence',
+    'adverse_landlord_reference_negative','adverse_landlord_reference_unverifiable','adverse_employer_reference_negative','adverse_employer_reference_unverifiable',
+    'adverse_rental_arrears_recorded','adverse_rental_eviction_recorded','adverse_lease_break_pattern',
+    'adverse_fitscore_band_adverse','adverse_fitscore_band_limited','adverse_fitscore_hard_flag_critical','adverse_fitscore_hard_flag_trust_network','adverse_fitscore_hard_flag_capping','adverse_fitscore_ldp_insufficient_dimensions','adverse_composite_risk_assessment',
+    'adverse_criminal_record_relevant','adverse_documentation_incomplete','adverse_documentation_invalid','adverse_director_disqualified_cipc','adverse_entity_credit_low','adverse_director_individual_fitscore_low');
+END;
+$$ LANGUAGE plpgsql IMMUTABLE SET search_path = public;
+-- A CHECK cannot contain a subquery, so per-element array validation lives in this wrapper fn.
+CREATE OR REPLACE FUNCTION is_valid_adverse_factor_array(p_codes text[])
+RETURNS boolean AS $$
+BEGIN
+  RETURN p_codes IS NULL OR (SELECT bool_and(is_valid_adverse_factor_code(c)) FROM unnest(p_codes) AS c);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE SET search_path = public;
+REVOKE EXECUTE ON FUNCTION is_valid_adverse_factor_code(text)  FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION is_valid_adverse_factor_array(text[]) FROM PUBLIC, anon, authenticated;
+
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_adverse_factor_codes_check;
+ALTER TABLE applications ADD CONSTRAINT applications_adverse_factor_codes_check CHECK (is_valid_adverse_factor_array(adverse_factor_codes));
+ALTER TABLE application_co_applicants DROP CONSTRAINT IF EXISTS application_co_applicants_decline_reason_code_check;
+ALTER TABLE application_co_applicants ADD CONSTRAINT application_co_applicants_decline_reason_code_check CHECK (
+  decline_reason_code IS NULL OR decline_reason_code IN (
+    'decline_credit_judgment','decline_credit_default','decline_credit_admin_order','decline_credit_arrears_current','decline_credit_score_low',
+    'decline_affordability_income_low','decline_affordability_dti_high','decline_income_unverifiable','decline_employment_tenure_below_threshold','decline_employment_verification_incomplete','decline_employment_denied_by_employer',
+    'decline_identity_verification_failed','decline_documentation_incomplete','decline_documentation_invalid','decline_right_to_occupy_unverifiable',
+    'decline_reference_landlord_negative','decline_reference_landlord_unverifiable','decline_reference_employer_negative','decline_reference_employer_unverifiable',
+    'decline_rental_history_arrears','decline_rental_history_eviction','decline_fitscore_hard_flag','decline_fitscore_ldp_insufficient',
+    'decline_criminal_record_relevant','decline_director_disqualified','decline_commercial_composite_below_threshold','decline_property_no_longer_available','decline_agent_discretion_documented'));
+ALTER TABLE application_co_applicants DROP CONSTRAINT IF EXISTS application_co_applicants_adverse_factor_codes_check;
+ALTER TABLE application_co_applicants ADD CONSTRAINT application_co_applicants_adverse_factor_codes_check CHECK (is_valid_adverse_factor_array(adverse_factor_codes));
+
+-- Tier-2 decision-accountability columns (counsel passes 3/4/6)
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS decided_at timestamptz,
+  ADD COLUMN IF NOT EXISTS decided_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS decision_stage text,
+  ADD COLUMN IF NOT EXISTS deciding_agent_capacity text,
+  ADD COLUMN IF NOT EXISTS audit_log_decision_entry_id uuid,
+  ADD COLUMN IF NOT EXISTS rent_to_income_ratio_at_decision numeric,
+  ADD COLUMN IF NOT EXISTS dti_ratio_at_decision numeric,
+  ADD COLUMN IF NOT EXISTS affordability_threshold_at_decision numeric,
+  ADD COLUMN IF NOT EXISTS income_verification_status_at_decision text,
+  ADD COLUMN IF NOT EXISTS criminal_screening_policy_id uuid,
+  ADD COLUMN IF NOT EXISTS criminal_screening_policy_version text,
+  ADD COLUMN IF NOT EXISTS screening_policy_id uuid,
+  ADD COLUMN IF NOT EXISTS screening_policy_version text,
+  ADD COLUMN IF NOT EXISTS decline_reason_text text;
+ALTER TABLE application_co_applicants
+  ADD COLUMN IF NOT EXISTS decided_at timestamptz,
+  ADD COLUMN IF NOT EXISTS decided_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS decision_stage text;
+
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_decision_stage_check;
+ALTER TABLE applications ADD CONSTRAINT applications_decision_stage_check CHECK (decision_stage IS NULL OR decision_stage IN ('prescreened','reviewed'));
+ALTER TABLE application_co_applicants DROP CONSTRAINT IF EXISTS application_co_applicants_decision_stage_check;
+ALTER TABLE application_co_applicants ADD CONSTRAINT application_co_applicants_decision_stage_check CHECK (decision_stage IS NULL OR decision_stage IN ('prescreened','reviewed'));
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_deciding_agent_capacity_check;
+ALTER TABLE applications ADD CONSTRAINT applications_deciding_agent_capacity_check CHECK (deciding_agent_capacity IS NULL OR deciding_agent_capacity IN ('agent_under_mandate','landlord_direct','pleks_platform_admin'));
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_income_verification_status_check;
+ALTER TABLE applications ADD CONSTRAINT applications_income_verification_status_check CHECK (income_verification_status_at_decision IS NULL OR income_verification_status_at_decision IN ('verified','partially_verified','unverifiable'));
+
+-- Per-org, versioned, immutable policy-snapshot tables (policy edits create new version rows)
+CREATE TABLE IF NOT EXISTS screening_policies (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), org_id uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  version text NOT NULL, policy jsonb NOT NULL DEFAULT '{}'::jsonb, created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(), UNIQUE (org_id, version));
+CREATE TABLE IF NOT EXISTS criminal_screening_policies (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), org_id uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  version text NOT NULL, policy jsonb NOT NULL DEFAULT '{}'::jsonb, created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(), UNIQUE (org_id, version));
+CREATE INDEX IF NOT EXISTS idx_screening_policies_org ON screening_policies(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_criminal_screening_policies_org ON criminal_screening_policies(org_id, created_at DESC);
+
+CREATE OR REPLACE FUNCTION prevent_policy_snapshot_mutation()
+RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'policy snapshots are immutable; create a new version row instead (table=%)', TG_TABLE_NAME USING ERRCODE = 'P0001';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+REVOKE EXECUTE ON FUNCTION prevent_policy_snapshot_mutation() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS trg_screening_policies_immutable_u ON screening_policies;
+CREATE TRIGGER trg_screening_policies_immutable_u BEFORE UPDATE ON screening_policies FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+DROP TRIGGER IF EXISTS trg_screening_policies_immutable_d ON screening_policies;
+CREATE TRIGGER trg_screening_policies_immutable_d BEFORE DELETE ON screening_policies FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+DROP TRIGGER IF EXISTS trg_criminal_screening_policies_immutable_u ON criminal_screening_policies;
+CREATE TRIGGER trg_criminal_screening_policies_immutable_u BEFORE UPDATE ON criminal_screening_policies FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+DROP TRIGGER IF EXISTS trg_criminal_screening_policies_immutable_d ON criminal_screening_policies;
+CREATE TRIGGER trg_criminal_screening_policies_immutable_d BEFORE DELETE ON criminal_screening_policies FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+
+ALTER TABLE screening_policies ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "screening_policies_read_org" ON screening_policies;
+CREATE POLICY "screening_policies_read_org" ON screening_policies FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
+DROP POLICY IF EXISTS "screening_policies_insert_blocked" ON screening_policies;
+CREATE POLICY "screening_policies_insert_blocked" ON screening_policies FOR INSERT WITH CHECK (false);
+ALTER TABLE criminal_screening_policies ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "criminal_screening_policies_read_org" ON criminal_screening_policies;
+CREATE POLICY "criminal_screening_policies_read_org" ON criminal_screening_policies FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
+DROP POLICY IF EXISTS "criminal_screening_policies_insert_blocked" ON criminal_screening_policies;
+CREATE POLICY "criminal_screening_policies_insert_blocked" ON criminal_screening_policies FOR INSERT WITH CHECK (false);
+
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_criminal_screening_policy_fk;
+ALTER TABLE applications ADD CONSTRAINT applications_criminal_screening_policy_fk FOREIGN KEY (criminal_screening_policy_id) REFERENCES criminal_screening_policies(id) ON DELETE RESTRICT;
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_screening_policy_fk;
+ALTER TABLE applications ADD CONSTRAINT applications_screening_policy_fk FOREIGN KEY (screening_policy_id) REFERENCES screening_policies(id) ON DELETE RESTRICT;
+
+-- Hybrid criminal-record enforcement (counsel pass 6): DB-layer backstop alongside app-layer validation
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_criminal_policy_required_check;
+ALTER TABLE applications ADD CONSTRAINT applications_criminal_policy_required_check CHECK (
+  (decline_reason_code IS DISTINCT FROM 'decline_criminal_record_relevant'
+   AND NOT (COALESCE(adverse_factor_codes, ARRAY[]::text[]) @> ARRAY['adverse_criminal_record_relevant']))
+  OR (criminal_screening_policy_id IS NOT NULL AND criminal_screening_policy_version IS NOT NULL));
+
+-- §2.4 sync trigger: mirror prescreened_*/reviewed_* into unified decided_* (review overrides prescreen)
+CREATE OR REPLACE FUNCTION sync_decision_columns_on_stage_write()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.prescreened_at IS DISTINCT FROM OLD.prescreened_at AND NEW.prescreened_at IS NOT NULL THEN
+    NEW.decided_at := NEW.prescreened_at; NEW.decided_by := NEW.prescreened_by; NEW.decision_stage := 'prescreened';
+  END IF;
+  IF NEW.reviewed_at IS DISTINCT FROM OLD.reviewed_at AND NEW.reviewed_at IS NOT NULL THEN
+    NEW.decided_at := NEW.reviewed_at; NEW.decided_by := NEW.reviewed_by; NEW.decision_stage := 'reviewed';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+REVOKE EXECUTE ON FUNCTION sync_decision_columns_on_stage_write() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS trg_applications_sync_decision_columns ON applications;
+CREATE TRIGGER trg_applications_sync_decision_columns BEFORE UPDATE OF prescreened_at, reviewed_at ON applications FOR EACH ROW EXECUTE FUNCTION sync_decision_columns_on_stage_write();
+
+UPDATE applications SET decided_at = COALESCE(reviewed_at, prescreened_at), decided_by = COALESCE(reviewed_by, prescreened_by),
+  decision_stage = CASE WHEN reviewed_at IS NOT NULL THEN 'reviewed' WHEN prescreened_at IS NOT NULL THEN 'prescreened' ELSE NULL END
+WHERE decided_at IS NULL AND (reviewed_at IS NOT NULL OR prescreened_at IS NOT NULL);
+
+-- legal_hold_events: additive trigger_category (counsel pass 1) — threatened_litigation_anticipated
+ALTER TABLE legal_hold_events DROP CONSTRAINT IF EXISTS legal_hold_events_trigger_category_check;
+ALTER TABLE legal_hold_events ADD CONSTRAINT legal_hold_events_trigger_category_check CHECK (
+  trigger_category IN ('customer_dispute','attorney_correspondence','threatened_litigation_anticipated','regulator_inquiry','legal_demand','dsar_contested','tribunal_matter','manual_information_officer','pleks_platform_directive'));

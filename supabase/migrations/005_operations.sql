@@ -1376,7 +1376,8 @@ CREATE TRIGGER update_municipal_bills_updated_at
 -- #############################################################
 
 -- Convenience view: contractors with identity joined from contacts
-CREATE OR REPLACE VIEW contractor_view AS
+CREATE OR REPLACE VIEW contractor_view
+  WITH (security_invoker = true) AS
 SELECT
   co.id,
   co.org_id,
@@ -1545,8 +1546,10 @@ ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_name text;
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §BUILD_67  Rules engine: PAIA 90-day PII purge marker on applications
 -- ═══════════════════════════════════════════════════════════════════════════════
--- Set by the rejected-applicant-purge rule when PII is removed.
--- Prevents the rule from re-processing the same application on subsequent runs.
+-- Set by the single 90-day declined-applicant purge (lib/popia/screeningArtefactPurge.ts, run from the
+-- daily cron) when an application's PII is removed. The idempotency marker: the purge skips any row where
+-- pii_purged_at IS NOT NULL, so re-runs are no-ops. (Originally written by the BUILD_67
+-- rejected-applicant-purge OrgRule, retired + folded into the comprehensive purge — ADDENDUM_70H F3.)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS pii_purged_at timestamptz;
 CREATE INDEX IF NOT EXISTS idx_applications_pii_purged ON applications(pii_purged_at) WHERE pii_purged_at IS NULL;
 
@@ -1574,7 +1577,8 @@ CREATE INDEX IF NOT EXISTS idx_contractors_active ON contractors(org_id)
   WHERE deleted_at IS NULL;
 
 -- Recreate contractor_view to exclude soft-deleted rows
-CREATE OR REPLACE VIEW contractor_view AS
+CREATE OR REPLACE VIEW contractor_view
+  WITH (security_invoker = true) AS
 SELECT
   co.id,
   co.org_id,
@@ -2782,3 +2786,35 @@ COMMENT ON COLUMN applications.assigned_user_id IS
 -- (D-8 / BUILD_72 token hygiene). Also removed from the CREATE TABLE above so a fresh replay never adds it; this
 -- DROP IF EXISTS cleans any DB created before that removal. Idempotent: re-run is a clean no-op.
 ALTER TABLE contractors DROP COLUMN IF EXISTS access_token;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §33  PRE-SCALE PERFORMANCE INDEXES (maintenance_requests / applications)
+--   Calendar date-range scan (scheduled_date had no index), hot list ORDER, and the
+--   join/cascade FKs the advisor flagged. Additive + idempotent. See 004 / 011 / 012.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Maintenance calendar: WHERE org_id AND scheduled_date BETWEEN … (no date index existed)
+CREATE INDEX IF NOT EXISTS idx_maintenance_org_scheduled
+  ON maintenance_requests(org_id, scheduled_date) WHERE scheduled_date IS NOT NULL;
+
+-- Maintenance list / attention / activity: WHERE org_id ORDER BY created_at DESC
+CREATE INDEX IF NOT EXISTS idx_maintenance_org_created
+  ON maintenance_requests(org_id, created_at DESC);
+
+-- Maintenance join/cascade FKs (board filters, property roll-up, contractor join)
+CREATE INDEX IF NOT EXISTS idx_maintenance_lease
+  ON maintenance_requests(lease_id) WHERE lease_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_maintenance_tenant
+  ON maintenance_requests(tenant_id) WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_maintenance_property
+  ON maintenance_requests(property_id) WHERE property_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_maintenance_contractor
+  ON maintenance_requests(contractor_id) WHERE contractor_id IS NOT NULL;
+
+-- Applications list: WHERE org_id ORDER BY created_at DESC (LIMIT 100); + join FKs
+CREATE INDEX IF NOT EXISTS idx_applications_org_created
+  ON applications(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_applications_tenant
+  ON applications(tenant_id) WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_applications_unit
+  ON applications(unit_id) WHERE unit_id IS NOT NULL;

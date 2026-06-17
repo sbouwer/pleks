@@ -11,9 +11,11 @@ import { InlineLink } from "@/components/ui/actions"
 import { cn } from "@/lib/utils"
 
 export function DetailCard({
-  title, count, action, headerAction, flush, children,
+  title, titleSlot, count, action, headerAction, flush, children,
 }: Readonly<{
-  title: string
+  title?: string
+  /** custom header-left node (e.g. a toggle) rendered in place of the amber-tick title. */
+  titleSlot?: ReactNode
   count?: number
   action?: { label: string; href: string }
   /** interactive header control (e.g. an Add button) rendered on the header right. */
@@ -24,13 +26,15 @@ export function DetailCard({
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card">
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
-        <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
-          <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
-          {title}
-          {count !== undefined && (
-            <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{count}</span>
-          )}
-        </h2>
+        {titleSlot ?? (
+          <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
+            <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
+            {title}
+            {count !== undefined && (
+              <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{count}</span>
+            )}
+          </h2>
+        )}
         {action && <InlineLink href={action.href} withArrow>{action.label}</InlineLink>}
         {headerAction}
       </div>

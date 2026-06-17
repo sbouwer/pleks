@@ -49,18 +49,20 @@ export function MobileSettingsNav() {
     {
       title: "Organisation",
       items: [
-        { href: "/settings/details", label: "Details" },
+        { href: "/settings/details?tab=details", label: "Details" },
         ...((caps === null || caps.hasTeam) ? [{ href: "/settings/team", label: "Team" }] : []),
-        ...((caps === null || caps.hasOpeningHours) ? [{ href: "/settings/hours", label: "Opening hours" }] : []),
-        { href: "/settings/branding", label: "Branding" },
-        { href: "/settings/configuration", label: "Configuration" },
+        ...((caps === null || caps.hasOpeningHours) ? [
+          { href: "/settings/details?tab=hours", label: "Availability" },
+        ] : []),
+        { href: "/settings/details?tab=branding", label: "Branding" },
+        { href: "/settings/details?tab=configuration", label: "Configuration" },
       ],
     },
     {
-      title: "Documents",
+      title: "Templates",
       items: [
-        { href: "/settings/documents/templates", label: "Templates" },
-        { href: "/settings/lease-templates", label: "Lease templates" },
+        { href: "/settings/templates", label: "Templates" },
+        { href: "/settings/templates?tab=leases", label: "Lease templates" },
       ],
     },
     ...((caps === null || caps.hasCompliance) ? [{

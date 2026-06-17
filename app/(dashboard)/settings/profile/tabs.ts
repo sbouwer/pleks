@@ -9,7 +9,6 @@
 import type { DetailTab } from "@/lib/detail/types"
 
 export const PROFILE_TABS: DetailTab[] = [
-  { id: "personal", label: "Personal information" },
-  { id: "address", label: "Address" },
+  { id: "personal", label: "Personal" },
   { id: "signature", label: "Signature" },
 ]

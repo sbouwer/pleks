@@ -52,6 +52,11 @@ const nextConfig: NextConfig = {
   // Tree-shake large packages at the module graph level (saves bundle + compile time)
   // Note: @react-pdf/renderer is intentionally absent — see serverExternalPackages above.
   experimental: {
+    // Client Router Cache: Next 15/16 default dynamic pages to 0s (re-fetch the RSC on every
+    // back/forward + re-visit). Against the throttled DB that makes tab-switching feel sluggish.
+    // Keep a visited dynamic page's RSC for 30s and prefetched/static shells for 3 min so revisiting
+    // a recently-seen nav category is instant. Mutations still call router.refresh() to bust it.
+    staleTimes: { dynamic: 30, static: 180 },
     optimizePackageImports: [
       "lucide-react",
       "@react-email/components",
@@ -77,6 +82,10 @@ const nextConfig: NextConfig = {
       { source: "/contractors/:path*", destination: "/suppliers/:path*",   permanent: true },
 
       { source: "/settings/finance",   destination: "/settings/deposits",  permanent: true },
+
+      // Documents settings renamed to Templates (ADDENDUM template-manager Phase 1)
+      { source: "/settings/documents/templates", destination: "/settings/templates", permanent: true },
+      { source: "/settings/documents",           destination: "/settings/templates", permanent: true },
       { source: "/settings/billing",   destination: "/settings/subscription", permanent: true },
       { source: "/settings/communication/templates", destination: "/settings/documents/templates", permanent: true },
       { source: "/settings/communication/:path*",    destination: "/settings/documents/:path*",    permanent: true },

@@ -1,57 +1,13 @@
 /**
- * app/(dashboard)/settings/hours/page.tsx — Opening hours settings (server); redirects landlord-type orgs
+ * app/(dashboard)/settings/hours/page.tsx — legacy route → Organisation › Hours tab
  *
- * Route:  /settings/hours
- * Auth:   Dashboard layout gateway; org-type guard redirects landlord orgs to /settings/details
- * Data:   organisations table via Supabase server client; getServerOrgMembership for org_id
+ * Route:  /settings/hours (redirects to /settings/details?tab=hours)
+ * Notes:  Opening hours folded into the Organisation category page (HoursForm panel). The hours tab is
+ *         capability-gated there (caps.hasOpeningHours) and falls back to Details when unavailable, so a
+ *         plain redirect is safe. Kept so existing bookmarks/deep-links still resolve.
  */
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import { getServerOrgMembership, getCurrentOrgCapabilities } from "@/lib/auth/server"
-import { HoursForm } from "./HoursForm"
-import { logQueryError } from "@/lib/supabase/logQueryError"
 
-const SELECT_FIELDS = [
-  "office_hours_monday", "office_hours_tuesday", "office_hours_wednesday", "office_hours_thursday", "office_hours_friday",
-  "office_hours_saturday", "office_hours_sunday", "office_hours_public_holidays",
-  "emergency_phone", "emergency_contact_name", "emergency_instructions", "emergency_email",
-].join(", ")
-
-export default async function HoursPage() {
-  const membership = await getServerOrgMembership()
-  if (!membership) redirect("/login")
-
-  const caps = await getCurrentOrgCapabilities()
-  if (!caps?.hasOpeningHours) redirect("/settings/details")
-
-  const supabase = await createClient()
-  const { data: org, error: orgError } = await supabase
-    .from("organisations")
-    .select(SELECT_FIELDS)
-    .eq("id", membership.org_id)
-    .single()
-    logQueryError("HoursPage organisations", orgError)
-
-  if (!org) redirect("/login")
-
-  const d = org as unknown as Record<string, unknown>
-
-  return (
-    <HoursForm
-      initialData={{
-        office_hours_monday: (d.office_hours_monday as string) ?? null,
-        office_hours_tuesday: (d.office_hours_tuesday as string) ?? null,
-        office_hours_wednesday: (d.office_hours_wednesday as string) ?? null,
-        office_hours_thursday: (d.office_hours_thursday as string) ?? null,
-        office_hours_friday: (d.office_hours_friday as string) ?? null,
-        office_hours_saturday: (d.office_hours_saturday as string) ?? null,
-        office_hours_sunday: (d.office_hours_sunday as string) ?? null,
-        office_hours_public_holidays: (d.office_hours_public_holidays as string) ?? null,
-        emergency_phone: (d.emergency_phone as string) ?? null,
-        emergency_contact_name: (d.emergency_contact_name as string) ?? null,
-        emergency_instructions: (d.emergency_instructions as string) ?? null,
-        emergency_email: (d.emergency_email as string) ?? null,
-      }}
-    />
-  )
+export default function HoursRedirect() {
+  redirect("/settings/details?tab=hours")
 }

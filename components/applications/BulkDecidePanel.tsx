@@ -9,13 +9,16 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ActionButton } from "@/components/ui/actions"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { SelectField } from "@/components/forms/fields"
 import { sendShortlistInvitation } from "@/lib/screening/sendShortlistInvitation"
 import { declineStage1Action } from "@/lib/applications/applicationActions"
+import { NOT_SHORTLISTED_REASON_CODES, type NotShortlistedReasonCode } from "@/lib/screening/decisionReasons"
+import { NOT_SHORTLISTED_REASON_LABELS } from "@/lib/screening/decisionReasonLabels"
 import { toast } from "sonner"
 import { CheckCircle, XCircle, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+const NOT_SHORTLISTED_OPTIONS = NOT_SHORTLISTED_REASON_CODES.map((c) => ({ value: c, label: NOT_SHORTLISTED_REASON_LABELS[c] }))
 
 type Decision = "shortlist" | "decline" | null
 
@@ -34,7 +37,7 @@ interface Props {
 export function BulkDecidePanel({ applicants, agentId, onDone }: Props) {
   const router = useRouter()
   const [decisions, setDecisions] = useState<Record<string, Decision>>({})
-  const [declineReason, setDeclineReason] = useState("")
+  const [reasonCode, setReasonCode] = useState<NotShortlistedReasonCode>("not_shortlisted_other_applicant_selected")
   const [applying, setApplying] = useState(false)
 
   const decided = Object.values(decisions).filter(Boolean).length
@@ -58,7 +61,7 @@ export function BulkDecidePanel({ applicants, agentId, onDone }: Props) {
             const res = await sendShortlistInvitation(appId, agentId)
             if (res?.error) throw new Error(res.error)
           } else {
-            const res = await declineStage1Action(appId)
+            const res = await declineStage1Action(appId, reasonCode)
             if (res?.error) throw new Error(res.error)
           }
         })
@@ -123,16 +126,13 @@ export function BulkDecidePanel({ applicants, agentId, onDone }: Props) {
       </div>
 
       {declineCount > 0 && (
-        <div className="space-y-1.5">
-          <Label htmlFor="decline-reason" className="text-xs">Decline reason (optional — sent to all declined)</Label>
-          <Input
-            id="decline-reason"
-            placeholder="e.g. Income does not meet minimum requirement"
-            value={declineReason}
-            onChange={(e) => setDeclineReason(e.target.value)}
-            className="text-sm h-9"
-          />
-        </div>
+        <SelectField
+          label="Reason (recorded for all declined — applicants are not told the reason)"
+          value={reasonCode}
+          onChange={(v) => setReasonCode(v as NotShortlistedReasonCode)}
+          options={NOT_SHORTLISTED_OPTIONS}
+          span
+        />
       )}
 
       {hasAnyDecision && (

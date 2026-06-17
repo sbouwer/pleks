@@ -10,6 +10,7 @@
  */
 import { useActionState, useState, useRef } from "react"
 import { ActionButton } from "@/components/ui/actions"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -205,6 +206,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
 
   const [activeTab, setActiveTab] = useState<TabId>("details")
   const [unitType, setUnitType] = useState<string>(defaultValues?.unit_type ?? "")
+  const [pendingType, setPendingType] = useState<string | null>(null)
   const [bedroomsVal, setBedroomsVal] = useState<number | null>(defaultValues?.bedrooms ?? null)
   const [bathroomsVal, setBathroomsVal] = useState<number | null>(defaultValues?.bathrooms ?? null)
   const [rooms, setRooms] = useState<RoomEntry[]>(() => {
@@ -305,14 +307,16 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
 
   // ── Room list handlers ────────────────────────────────────────────────────
 
-  function handleUnitTypeChange(newType: string) {
-    const hasRooms = rooms.some((r) => r.included)
-    if (hasRooms && newType !== unitType) {
-      if (!window.confirm("Changing unit type will reset the room list. Continue?")) return
-    }
+  function applyUnitTypeChange(newType: string) {
     setUnitType(newType)
     setRooms(generateRooms(newType, bedroomsVal ?? 0, bathroomsVal ?? 0, selectedFeatures))
     markDirty()
+  }
+
+  function handleUnitTypeChange(newType: string) {
+    const hasRooms = rooms.some((r) => r.included)
+    if (hasRooms && newType !== unitType) { setPendingType(newType); return }
+    applyUnitTypeChange(newType)
   }
 
   function handleBedroomsChange(val: string) {
@@ -436,6 +440,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <form action={formAction} className="w-full" onChange={markDirty}>
       {state?.error && (
         <p className="text-sm text-danger mb-4 p-3 bg-danger/10 rounded-md">{state.error}</p>
@@ -810,5 +815,18 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
         </div>
       )}
     </form>
+    <ConfirmDialog
+      open={!!pendingType}
+      onOpenChange={(o) => { if (!o) setPendingType(null) }}
+      title="Reset room list?"
+      description="Changing the unit type will reset the room list to the new type's default rooms."
+      variant="destructive"
+      confirmLabel="Change type"
+      onConfirm={() => {
+        if (pendingType) applyUnitTypeChange(pendingType)
+        setPendingType(null)
+      }}
+    />
+    </>
   )
 }
