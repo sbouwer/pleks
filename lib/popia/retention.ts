@@ -31,6 +31,8 @@ export type DataCategory =
   | "platform_account"        // 30 days post account closure
   | "fica_identity"           // 5yr post-relationship (FIC Act s23/s24) — the natural-person ID/verification clock
   | "property_documents"      // 5yr from upload (PPRA/RHA doc retention) — soft-deleted docs purged by the cron
+  | "declined_decision_record" // 5yr from terminal decision (F3 Q1(b-lite) — structurally-typed accountability record)
+  | "consent_proof"           // 5yr from consent_verifications.created_at (F3 Q2(a) — proof of lawful consent)
 
 export type RetentionDecision =
   | { erasable: true }
@@ -151,6 +153,24 @@ const PLATFORM_DEFAULTS: Record<DataCategory, RetentionPolicy> = {
     retention_months: 60,
     legal_basis: "legal_obligation",
     regulatory_source: "PPRA / Rental Housing Act property-document retention practice",
+    erasable_during_retention: false,
+  },
+  declined_decision_record: {
+    // F3 Q1(b-lite) Tier 2: the structurally-typed decision-accountability record (FitScore composite +
+    // band + version stamps + decision-reason/adverse-factor codes + decided_*/capacity + audit anchor)
+    // survives the 90-day raw purge (rejected_applications) and strips at 5yr via complianceRecordsSweep.
+    // Active legal hold suspends. Counsel-signed (F3 disposition pass 6, item 31 proportionality).
+    retention_months: 60,
+    legal_basis: "legitimate_interest",
+    regulatory_source: "POPIA s14(1)(b) — accountability + establishment/exercise/defence of legal rights (PEPUDA / RHA / NCA)",
+    erasable_during_retention: false,
+  },
+  consent_proof: {
+    // F3 Q2(a): consent_verifications.target_email / target_phone_e164 retained as proof of lawful consent,
+    // stripped at 5yr (the consent event row itself persists). Hold-gated via the application chain.
+    retention_months: 60,
+    legal_basis: "legitimate_interest",
+    regulatory_source: "POPIA s14(1)(b) — proof of lawful consent to conduct credit and screening checks",
     erasable_during_retention: false,
   },
 }
@@ -376,6 +396,8 @@ function resolveAnchorDate(
     case "maintenance_records":
     case "rejected_applications":
     case "property_documents":
+    case "declined_decision_record":  // anchored to decided_at (passed in via created_at by the sweep)
+    case "consent_proof":             // anchored to consent_verifications.created_at
       // Anchored to when the record was created/transacted/uploaded
       return context.created_at
 

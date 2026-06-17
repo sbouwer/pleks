@@ -248,11 +248,21 @@ const AUTO_PURGE_EXCLUDED_TABLES = new Set(["consent_verifications"])
  */
 export const F3_TIER_2_RETAINED_COLUMNS: Record<string, Set<string>> = {
   applications: new Set([
-    "fitscore", "fitscore_band", "fitscore_components",
+    // FitScore structural + cryptographic-anchor set (counsel pass 2)
+    "fitscore", "fitscore_band", "fitscore_components", "fitscore_inputs_hash",
     "fitscore_engine_version", "fitscore_interpretation_version", "fitscore_narrative_prompt_version",
+    // categorical codes (counsel-signed enum)
     "decline_reason_code", "adverse_factor_codes", "not_shortlisted_reason_code", "withdrawn_reason_code",
+    "decline_reason_text",  // agent-discretion free-text exception (kept exception)
+    // decision/accountability metadata (counsel pass 3)
     "status", "decided_at", "decided_by", "decision_stage",
     "deciding_agent_capacity", "audit_log_decision_entry_id",
+    // derived ratios (counsel pass 4)
+    "rent_to_income_ratio_at_decision", "dti_ratio_at_decision",
+    "affordability_threshold_at_decision", "income_verification_status_at_decision",
+    // policy linkage (counsel pass 4/6)
+    "criminal_screening_policy_id", "criminal_screening_policy_version",
+    "screening_policy_id", "screening_policy_version",
   ]),
   application_co_applicants: new Set([
     "fitscore", "fitscore_band", "fitscore_components",
@@ -261,6 +271,13 @@ export const F3_TIER_2_RETAINED_COLUMNS: Record<string, Set<string>> = {
     "status", "decided_at", "decided_by", "decision_stage",
   ]),
 }
+
+/** Columns the 5-year complianceRecordsSweep NULLs on a declined application (the Tier-2 accountability
+ *  record), once its 5y window passes. = the retained set minus `status` (the bare terminal outcome stays
+ *  on the shell row — it is not PII). Every entry is a real, nullable column (verified vs 010 §45). */
+export const F3_TIER_2_FINAL_STRIP_COLUMNS: string[] = [...F3_TIER_2_RETAINED_COLUMNS.applications].filter(
+  (c) => c !== "status",
+)
 
 export const DECLINED_APPLICANT_STRIP_GROUPS: AnonymiseGroup[] = ANONYMISE_PLAN
   .filter(
