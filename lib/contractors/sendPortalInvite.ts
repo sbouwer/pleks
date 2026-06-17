@@ -6,14 +6,18 @@
  * Auth:   agent server action (caller passes agentId); service client for the privileged auth invite
  * Data:   contractor_view (read), contractors (portal_access_enabled/portal_invite_sent_at), Supabase auth
  *         admin invite, audit_log
- * Notes:  Sends via Supabase auth.admin.inviteUserByEmail → Supabase's GENERIC (unbranded) invite email.
- *         A branded custom-token send (mirroring the team-invite /invite/[token] flow) is a pending build
- *         (ADDENDUM_70 portal-invite item) — an auth-provisioning change, not a copy fold. Audit goes
- *         through recordAudit (canonical columns, no PII in values — the email lives on the contractor row).
+ * Notes:  Provisions the user via Supabase auth.admin.generateLink({type:"invite"}) — identical to
+ *         inviteUserByEmail — then sends the action link wrapped in a branded, agency-branded EmailLayout
+ *         (ADDENDUM_70I), rather than letting Supabase send its generic email. No acceptance route / no
+ *         session-model change (mirrors stepSendPortalInvite). Audit via recordAudit (no PII in values).
+ *         NB: provisioning metadata kept as role:"contractor" + redirectTo /supplier/setup (the live values).
  */
 
+import * as React from "react"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { PortalSupplierInviteEmail } from "@/lib/comms/templates/portal/role-invites"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function sendPortalInvite(
@@ -36,10 +40,11 @@ export async function sendPortalInvite(
 
   const displayName = contractor.company_name || `${contractor.first_name} ${contractor.last_name}`.trim()
 
-  // Create Supabase auth invite
-  const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
-    contractor.email,
-    {
+  // Provision the user (same as inviteUserByEmail) but get the action link to send branded ourselves.
+  const { data: linkData, error: inviteError } = await adminClient.auth.admin.generateLink({
+    type: "invite",
+    email: contractor.email,
+    options: {
       data: {
         role: "contractor",
         contractor_id: contractorId,
@@ -47,10 +52,30 @@ export async function sendPortalInvite(
         full_name: displayName,
       },
       redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/supplier/setup`,
-    }
-  )
+    },
+  })
 
   if (inviteError) return { error: inviteError.message }
+
+  // Branded agency invite email (replaces Supabase's generic invite email).
+  const branding = buildBranding(await fetchOrgSettings(contractor.org_id))
+  try {
+    await sendEmail({
+      orgId: contractor.org_id,
+      templateKey: "portal.supplier_invite",
+      to: { email: contractor.email, name: displayName },
+      subject: `Set up your supplier portal — ${branding.orgName}`,
+      emailElement: React.createElement(PortalSupplierInviteEmail, {
+        branding,
+        recipientName: displayName,
+        portalUrl: linkData.properties.action_link,
+        senderName: branding.orgName,
+      }),
+    })
+  } catch (e) {
+    // Soft failure — the user is provisioned; the invite link can be re-sent. Never throw past the action.
+    console.error("[sendPortalInvite] branded invite email failed:", e)
+  }
 
   // Update contractor record
   await supabase.from("contractors").update({

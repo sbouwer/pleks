@@ -255,6 +255,16 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     tone_profile: "relational", allowed_channels: ["email"],
     description: "Magic-link email inviting tenant to activate their portal account — auto-fires on lease activation (P1)",
   },
+  "portal.landlord_invite": {
+    key: "portal.landlord_invite", channel: "email", category: "portal", is_mandatory: false,
+    tone_profile: "relational", allowed_channels: ["email"],
+    description: "Branded email inviting a landlord to activate their owner portal (ADDENDUM_70I — generateLink action link)",
+  },
+  "portal.supplier_invite": {
+    key: "portal.supplier_invite", channel: "email", category: "portal", is_mandatory: false,
+    tone_profile: "relational", allowed_channels: ["email"],
+    description: "Branded email inviting a supplier/contractor to activate their supplier portal (ADDENDUM_70I — generateLink action link)",
+  },
   "team.member_invite": {
     key: "team.member_invite", channel: "email", category: "portal", is_mandatory: false,
     tone_profile: "relational", allowed_channels: ["email"],

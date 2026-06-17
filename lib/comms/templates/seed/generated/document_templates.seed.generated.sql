@@ -270,6 +270,28 @@ INSERT INTO document_templates (
   scope, template_type, name, description, category, comms_class, template_key,
   subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
 )
+SELECT 'system', 'email', 'Owner Portal Invitation', 'Invitation to set up the owner (landlord) portal — view statements, income/expenses, tenancies.', 'portal', 'correspondence', 'portal.landlord_invite',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{portalUrl}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70I', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your owner portal is ready"},{"type":"paragraph","text":"We''ve set up a secure online portal where you can view your monthly statements, track income and expenses across your properties, and follow what''s happening with your tenancies — all in one place."},{"type":"paragraph","text":"Click the button below to set up your account. The link will expire after a few days."},{"type":"cta","label":"Set up my account","href":"{{portalUrl}}"},{"type":"paragraph","text":"If you did not expect this invitation, you can safely ignore this email. If you have any questions, contact {{branding.orgEmail}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='portal.landlord_invite' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
+SELECT 'system', 'email', 'Supplier Portal Invitation', 'Invitation to set up the supplier portal — view assigned jobs, submit quotes and invoices.', 'portal', 'correspondence', 'portal.supplier_invite',
+  NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{portalUrl}}', '{{senderName}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70I', false,
+  '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"heading","text":"Your supplier portal is ready"},{"type":"paragraph","text":"We''ve set up a secure online portal where you can view the jobs assigned to you, submit quotes and invoices, and track the status of your work — all in one place."},{"type":"paragraph","text":"Click the button below to set up your account. The link will expire after a few days."},{"type":"cta","label":"Set up my account","href":"{{portalUrl}}"},{"type":"paragraph","text":"If you did not expect this invitation, you can safely ignore this email. If you have any questions, contact {{branding.orgEmail}}."},{"type":"signoff","text":"Kind regards,\n{{senderName}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates WHERE scope='system' AND template_key='portal.supplier_invite' AND template_type='email'
+);
+
+INSERT INTO document_templates (
+  scope, template_type, name, description, category, comms_class, template_key,
+  subject, merge_fields, version, legal_review_ref, is_deletable, body_blocks, body_variants
+)
 SELECT 'system', 'email', 'Insurance Coverage Verification Brief', 'Broker-facing request to confirm the items on the insurance verification checklist.', 'insurance', 'correspondence', 'insurance.checklist_brief',
   NULL, ARRAY['{{recipient.salutation}}', '{{recipient.legal_name}}', '{{recipient.address}}', '{{propertyName}}', '{{agentName}}', '{{agentPhone}}', '{{agentEmail}}', '{{branding.orgName}}', '{{branding.orgPhone}}', '{{branding.orgEmail}}'], 1, 'ADDENDUM_70C §7.2', false,
   '[{"type":"salutation","text":"{{recipient.salutation}}"},{"type":"paragraph","text":"Please find attached an insurance coverage verification request for **{{propertyName}}**."},{"type":"paragraph","text":"The attached file lists the items we need confirmed. Please review and reply to this email confirming each item. A copy of the current policy schedule would be appreciated."},{"type":"paragraph","text":"Thank you for your assistance."},{"type":"signoff","text":"{{agentName}}\n{{branding.orgName}}\n{{agentPhone}}\n{{agentEmail}}"},{"type":"signatureSlot"},{"type":"popiaSlot"}]'::jsonb, NULL
