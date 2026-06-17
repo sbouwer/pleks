@@ -61,6 +61,8 @@ interface Props {
   isResidential: boolean
   tenantIsJuristic: boolean
   cpaDetermination: CpaDetermination
+  /** durable default carried from the unit (BUILD_69); drives the auto end-date instead of a hardcoded year. */
+  defaultLeasePeriodMonths?: number | null
 }
 
 function cpaStatusLabel(cpa: CpaDetermination): string {
@@ -109,7 +111,7 @@ function CpaChip({ cpa }: Readonly<{ cpa: CpaDetermination }>) {
   )
 }
 
-export function TermsSection({ value, onChange, isResidential, cpaDetermination }: Readonly<Props>) {
+export function TermsSection({ value, onChange, isResidential, cpaDetermination, defaultLeasePeriodMonths }: Readonly<Props>) {
   function set<K extends keyof TermsState>(key: K, v: TermsState[K]) {
     onChange({ ...value, [key]: v })
   }
@@ -119,8 +121,10 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination 
   function handleStartDateChange(next: string) {
     const patch: Partial<TermsState> = { startDate: next }
     if (next && !value.endDate) {
+      // Durable default from the unit (BUILD_69) drives the term; fall back to a 12-month year.
+      const months = defaultLeasePeriodMonths && defaultLeasePeriodMonths > 0 ? defaultLeasePeriodMonths : 12
       const d = new Date(next)
-      d.setFullYear(d.getFullYear() + 1)
+      d.setMonth(d.getMonth() + months)
       d.setDate(d.getDate() - 1)
       patch.endDate = d.toISOString().slice(0, 10)
     }

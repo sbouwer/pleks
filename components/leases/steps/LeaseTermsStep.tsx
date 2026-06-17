@@ -101,6 +101,7 @@ export function LeaseTermsStep({ register }: Readonly<Props>) {
         isResidential={isResidential}
         tenantIsJuristic={data.tenantIsJuristic}
         cpaDetermination={cpaDetermination}
+        defaultLeasePeriodMonths={data.defaultLeasePeriodMonths}
       />
       {error && <p className="text-sm text-danger">{error}</p>}
     </div>

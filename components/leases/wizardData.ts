@@ -59,6 +59,8 @@ export interface WizardData {
   unitLabel: string
   leaseType: "residential" | "commercial"
   askingRentCents: number | null
+  /** durable straddle default carried from the unit (BUILD_69) — seeds the lease end date on a 2nd+ lease. */
+  defaultLeasePeriodMonths: number | null
   bcLevyCents: number | null
   // Step 2 — Tenant(s)
   tenantId: string
@@ -129,6 +131,7 @@ export function buildInitialWizardData(prefill: WizardPrefill): WizardData {
     unitLabel: prefill.unitLabel ?? "",
     leaseType: "residential",
     askingRentCents: null,
+    defaultLeasePeriodMonths: null,
     bcLevyCents: null,
     tenantId: prefill.tenantId ?? "",
     tenantName: prefill.tenantName ?? "",
