@@ -3242,3 +3242,231 @@ CREATE POLICY "org_roles_org" ON org_roles
 DROP TRIGGER IF EXISTS trg_org_roles_updated ON org_roles;
 CREATE TRIGGER trg_org_roles_updated BEFORE UPDATE ON org_roles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §44  BUILD_F3_LEGAL_HOLD: polymorphic litigation-hold mechanism
+--      (SPEC_LEGAL_HOLD_POLYMORPHIC.md — supersedes the org-only RUNBOOK_LEGAL_HOLD snippet)
+--      Immutable append-only events + SHA-256 instrument-hash chain (per scope). Active holds
+--      (hold_placed not matched by hold_lifted) fail-close the F3 declined-applicant purge gate.
+--      Writes route through placeLegalHold/liftLegalHold (service-role); direct INSERT is RLS-blocked.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- digest()/encode() for the hash chain (gen_random_uuid is core in PG13+, but pgcrypto is required for digest).
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS legal_hold_events (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                uuid NOT NULL REFERENCES organisations(id) ON DELETE RESTRICT,
+  scope_type            text NOT NULL,
+  scope_id              uuid NOT NULL,
+  event_type            text NOT NULL,
+  trigger_category      text NOT NULL,
+  placed_by             uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  placed_by_capacity    text NOT NULL,
+  reason_text           text,
+  external_reference    text,
+  lift_event_id         uuid REFERENCES legal_hold_events(id) ON DELETE RESTRICT,
+  instrument_hash       text NOT NULL,
+  prev_instrument_hash  text NOT NULL,
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT legal_hold_events_scope_type_check CHECK (
+    scope_type IN ('org', 'application', 'subject', 'lease')
+  ),
+  CONSTRAINT legal_hold_events_event_type_check CHECK (
+    event_type IN ('hold_placed', 'hold_lifted', 'hold_suppressed')
+  ),
+  CONSTRAINT legal_hold_events_trigger_category_check CHECK (
+    trigger_category IN (
+      'customer_dispute',
+      'attorney_correspondence',
+      'regulator_inquiry',
+      'legal_demand',
+      'dsar_contested',
+      'tribunal_matter',
+      'manual_information_officer',
+      'pleks_platform_directive'
+    )
+  ),
+  CONSTRAINT legal_hold_events_capacity_check CHECK (
+    placed_by_capacity IN (
+      'agency_io',
+      'pleks_io',
+      'pleks_platform_admin',
+      'system'
+    )
+  ),
+  CONSTRAINT legal_hold_events_lift_consistency CHECK (
+    (event_type = 'hold_lifted' AND lift_event_id IS NOT NULL) OR
+    (event_type != 'hold_lifted' AND lift_event_id IS NULL)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_legal_hold_events_scope
+  ON legal_hold_events(scope_type, scope_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_hold_events_org
+  ON legal_hold_events(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_hold_events_category
+  ON legal_hold_events(trigger_category, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_legal_hold_events_hash_chain
+  ON legal_hold_events(scope_type, scope_id, created_at ASC, id ASC);
+
+COMMENT ON TABLE legal_hold_events IS
+  'Polymorphic litigation-hold registry. Immutable append-only with SHA-256 instrument-hash chain. '
+  'Active holds (hold_placed not followed by matching hold_lifted) block purge gates. '
+  'POPIA s14(1)(b) lawful-purpose retention; accountability under s17.';
+COMMENT ON COLUMN legal_hold_events.scope_type IS
+  'Polymorphic scope: org | application | subject | lease. scope_id is resolved against the named table.';
+COMMENT ON COLUMN legal_hold_events.instrument_hash IS
+  'SHA-256 of (prev_instrument_hash || canonical row content). Computed by BEFORE INSERT trigger. '
+  'Chain is per-scope; first row in any chain uses prev = 64 zeros.';
+
+-- Append-only enforcement: UPDATE and DELETE both raise. Service role obeys the trigger (no bypass).
+CREATE OR REPLACE FUNCTION prevent_legal_hold_event_mutation()
+RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'legal_hold_events is append-only; UPDATE/DELETE not permitted (event_id=%)',
+    COALESCE(OLD.id::text, 'unknown')
+    USING ERRCODE = 'P0001';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS trg_legal_hold_events_no_update ON legal_hold_events;
+CREATE TRIGGER trg_legal_hold_events_no_update
+  BEFORE UPDATE ON legal_hold_events
+  FOR EACH ROW EXECUTE FUNCTION prevent_legal_hold_event_mutation();
+
+DROP TRIGGER IF EXISTS trg_legal_hold_events_no_delete ON legal_hold_events;
+CREATE TRIGGER trg_legal_hold_events_no_delete
+  BEFORE DELETE ON legal_hold_events
+  FOR EACH ROW EXECUTE FUNCTION prevent_legal_hold_event_mutation();
+
+-- Instrument-hash chain (per scope). Canonical-content field order is load-bearing — verify fn (below)
+-- walks the identical order. Any change here requires a coordinated change in verify_legal_hold_chain.
+CREATE OR REPLACE FUNCTION compute_legal_hold_instrument_hash()
+RETURNS trigger AS $$
+DECLARE
+  last_hash text;
+  canonical_content text;
+BEGIN
+  SELECT instrument_hash INTO last_hash
+  FROM legal_hold_events
+  WHERE scope_type = NEW.scope_type AND scope_id = NEW.scope_id
+  ORDER BY created_at DESC, id DESC
+  LIMIT 1;
+
+  IF last_hash IS NULL THEN
+    last_hash := repeat('0', 64);
+  END IF;
+
+  NEW.prev_instrument_hash := last_hash;
+
+  canonical_content := concat_ws('|',
+    NEW.scope_type,
+    NEW.scope_id::text,
+    NEW.event_type,
+    NEW.trigger_category,
+    COALESCE(NEW.placed_by::text, ''),
+    NEW.placed_by_capacity,
+    COALESCE(NEW.reason_text, ''),
+    COALESCE(NEW.external_reference, ''),
+    COALESCE(NEW.lift_event_id::text, ''),
+    NEW.created_at::text
+  );
+
+  NEW.instrument_hash := encode(
+    digest(NEW.prev_instrument_hash || canonical_content, 'sha256'),
+    'hex'
+  );
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions;  -- pgcrypto (digest) lives in the extensions schema on Supabase
+
+DROP TRIGGER IF EXISTS trg_legal_hold_events_hash ON legal_hold_events;
+CREATE TRIGGER trg_legal_hold_events_hash
+  BEFORE INSERT ON legal_hold_events
+  FOR EACH ROW EXECUTE FUNCTION compute_legal_hold_instrument_hash();
+
+ALTER TABLE legal_hold_events ENABLE ROW LEVEL SECURITY;
+
+-- Org members can read holds against their own org.
+DROP POLICY IF EXISTS "legal_hold_events_read_org" ON legal_hold_events;
+CREATE POLICY "legal_hold_events_read_org" ON legal_hold_events
+  FOR SELECT
+  USING (
+    org_id IN (
+      SELECT user_orgs.org_id FROM user_orgs
+      WHERE user_orgs.user_id = (SELECT auth.uid())
+    )
+  );
+
+-- Direct INSERT forbidden — all writes go through placeLegalHold/liftLegalHold under service-role
+-- (which bypasses RLS). An append-only bad row can never be rolled back, so the helpers are the only entry.
+DROP POLICY IF EXISTS "legal_hold_events_insert_blocked" ON legal_hold_events;
+CREATE POLICY "legal_hold_events_insert_blocked" ON legal_hold_events
+  FOR INSERT
+  WITH CHECK (false);
+
+-- Tamper-evidence: walk the per-scope chain and recompute each hash. ok=false points at the broken row.
+CREATE OR REPLACE FUNCTION verify_legal_hold_chain(
+  p_scope_type text,
+  p_scope_id uuid
+)
+RETURNS TABLE (
+  ok boolean,
+  broken_at_event_id uuid,
+  expected_hash text,
+  actual_hash text
+) AS $$
+DECLARE
+  r RECORD;
+  expected text;
+  canonical text;
+  computed text;
+BEGIN
+  expected := repeat('0', 64);
+
+  FOR r IN
+    SELECT * FROM legal_hold_events
+    WHERE scope_type = p_scope_type AND scope_id = p_scope_id
+    ORDER BY created_at ASC, id ASC
+  LOOP
+    IF r.prev_instrument_hash != expected THEN
+      RETURN QUERY SELECT false, r.id, expected, r.prev_instrument_hash;
+      RETURN;
+    END IF;
+
+    canonical := concat_ws('|',
+      r.scope_type,
+      r.scope_id::text,
+      r.event_type,
+      r.trigger_category,
+      COALESCE(r.placed_by::text, ''),
+      r.placed_by_capacity,
+      COALESCE(r.reason_text, ''),
+      COALESCE(r.external_reference, ''),
+      COALESCE(r.lift_event_id::text, ''),
+      r.created_at::text
+    );
+
+    computed := encode(digest(expected || canonical, 'sha256'), 'hex');
+
+    IF r.instrument_hash != computed THEN
+      RETURN QUERY SELECT false, r.id, computed, r.instrument_hash;
+      RETURN;
+    END IF;
+
+    expected := computed;
+  END LOOP;
+
+  RETURN QUERY SELECT true, NULL::uuid, NULL::text, NULL::text;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions;  -- pgcrypto (digest) lives in the extensions schema on Supabase
+
+REVOKE EXECUTE ON FUNCTION verify_legal_hold_chain(text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION verify_legal_hold_chain(text, uuid) TO service_role;
+
+-- Trigger functions fire as the table owner regardless of EXECUTE grants; revoke their RPC exposure so
+-- anon/authenticated can't call them directly via PostgREST (security advisor 0028/0029).
+REVOKE EXECUTE ON FUNCTION compute_legal_hold_instrument_hash() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION prevent_legal_hold_event_mutation()  FROM PUBLIC, anon, authenticated;

@@ -1876,6 +1876,22 @@
       "escalation_notice_sent_at",
       "payment_reference"
     ],
+    "legal_hold_events": [
+      "id",
+      "org_id",
+      "scope_type",
+      "scope_id",
+      "event_type",
+      "trigger_category",
+      "placed_by",
+      "placed_by_capacity",
+      "reason_text",
+      "external_reference",
+      "lift_event_id",
+      "instrument_hash",
+      "prev_instrument_hash",
+      "created_at"
+    ],
     "levy_invoices": [
       "id",
       "org_id",
@@ -3615,6 +3631,7 @@
       "p_org_id"
     ],
     "compute_contact_dedup_hash": [],
+    "compute_legal_hold_instrument_hash": [],
     "count_active_memberships_for_user": [
       "p_user_id",
       "p_excluded_table",
@@ -3671,6 +3688,7 @@
       "row_data"
     ],
     "org_has_trust_account": [],
+    "prevent_legal_hold_event_mutation": [],
     "prevent_tos_acceptance_mutation": [],
     "purge_old_ai_usage": [],
     "purge_old_auth_events": [],
@@ -3695,6 +3713,10 @@
       "p_old_owner"
     ],
     "trigger_seed_retention_policies": [],
-    "update_updated_at_column": []
+    "update_updated_at_column": [],
+    "verify_legal_hold_chain": [
+      "p_scope_type",
+      "p_scope_id"
+    ]
   }
 }
