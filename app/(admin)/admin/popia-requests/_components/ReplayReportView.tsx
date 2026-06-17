@@ -8,6 +8,7 @@
  */
 
 import type { ReplayReport } from '@/lib/screening/fitScoreReplay'
+import { DIMENSION_MATCH_EPSILON } from '@/lib/screening/fitScoreReplay'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Props {
@@ -126,7 +127,7 @@ export function ReplayReportView({ report }: Readonly<Props>) {
                 {((['affordability', 'stability', 'creditBehaviour', 'verificationIntegrity'] as const)).map(key => {
                   const stored = report.dimensionComparison!.stored[key]
                   const fromSnap = report.dimensionComparison!.fromSnapshot[key]
-                  const matches = Math.abs(stored - fromSnap) < 0.01
+                  const matches = Math.abs(stored - fromSnap) < DIMENSION_MATCH_EPSILON
                   return (
                     <tr key={key}>
                       <td className="py-1.5 text-muted-foreground">{DIMENSION_LABELS[key]}</td>

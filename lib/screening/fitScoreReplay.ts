@@ -60,7 +60,9 @@ function dimensionsFromSnapshot(snap: ComponentSnapshot): DimensionScores {
 }
 
 // Float-representation tolerance when comparing stored vs snapshot dimension scores.
-const DIMENSION_MATCH_EPSILON = 0.01
+// Exported so the admin replay view shares the engine's authoritative tolerance instead of
+// hardcoding its own (Phase G.2(b)) — if the engine tightens it, the view follows.
+export const DIMENSION_MATCH_EPSILON = 0.01
 
 /**
  * Checks that stored dimension scores (fitscore_components) match what the snapshot recorded.
