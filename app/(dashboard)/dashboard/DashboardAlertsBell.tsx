@@ -33,11 +33,32 @@ function Section({ label, children }: Readonly<{ label: string; children: ReactN
   )
 }
 
+/** Operations roll-up: N deposit refunds past their RHA return deadline (F-4). Renders nothing at zero. */
+function OverdueTimersAlert({ count, onNavigate }: Readonly<{ count: number; onNavigate: () => void }>) {
+  if (count <= 0) return null
+  return (
+    <Link
+      href="/finance/deposits"
+      onClick={onNavigate}
+      className="flex items-start gap-2.5 rounded-[var(--r-button)] border border-red-500/40 bg-red-500/10 p-3 hover:bg-red-500/15"
+    >
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold text-foreground">
+          {count} deposit {count === 1 ? "refund is" : "refunds are"} past the return deadline
+        </p>
+        <p className="text-xs text-muted-foreground">Return the deposit or record a deduction schedule — legal exposure under RHA s5.</p>
+      </div>
+    </Link>
+  )
+}
+
 export function DashboardAlertsBell({
-  surrendered, showDepositSetup, tier, leaseCount, emailVerify,
+  surrendered, showDepositSetup, tier, leaseCount, emailVerify, overdueDepositTimers = 0,
 }: Readonly<{
   surrendered: SurrenderedCommRow[]; showDepositSetup: boolean; tier: Tier; leaseCount: number
   emailVerify: { pending: boolean; overdue: boolean }
+  overdueDepositTimers?: number
 }>) {
   const [open, setOpen] = useState(false)
   const [sendingVerify, setSendingVerify] = useState(false)
@@ -48,7 +69,7 @@ export function DashboardAlertsBell({
   const atLimit = cap != null && leaseCount >= cap
 
   const groupKeys = new Set(surrendered.map((s) => `${s.template_key}|${s.recipient_email ?? s.recipient_name ?? "—"}`))
-  const count = (showDepositSetup ? 1 : 0) + (emailVerify.pending ? 1 : 0) + (nearLimit ? 1 : 0) + groupKeys.size
+  const count = (showDepositSetup ? 1 : 0) + (emailVerify.pending ? 1 : 0) + (nearLimit ? 1 : 0) + groupKeys.size + Number(overdueDepositTimers > 0)
   if (count === 0) return null
 
   async function handleSendVerify() {
@@ -125,9 +146,10 @@ export function DashboardAlertsBell({
               </Section>
             )}
 
-            {surrendered.length > 0 && (
+            {(surrendered.length > 0 || overdueDepositTimers > 0) && (
               <Section label="Operations">
-                <SurrenderedCommsWidget items={surrendered} />
+                <OverdueTimersAlert count={overdueDepositTimers} onNavigate={() => setOpen(false)} />
+                {surrendered.length > 0 && <SurrenderedCommsWidget items={surrendered} />}
               </Section>
             )}
           </div>
