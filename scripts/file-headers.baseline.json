@@ -344,7 +344,6 @@
   "lib/crypto/encryption.ts",
   "lib/crypto/idNumber.ts",
   "lib/dashboard/activityFeed.ts",
-  "lib/dashboard/attentionItems.ts",
   "lib/dashboard/feesDue.ts",
   "lib/dashboard/leaseExpiry.ts",
   "lib/dashboard/trustBalance.ts",
