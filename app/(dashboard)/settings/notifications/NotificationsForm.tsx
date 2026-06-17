@@ -196,16 +196,11 @@ function EmailSetup({ settings, set }: SectionProps) {
           tenant/landlord replies land. Both fall back to your organisation defaults when blank.
         </p>
       </DetailCard>
-
-      <DetailCard title="Send from your own domain">
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <p>
-            Want email to come straight from <span className="font-mono text-foreground">notices@youragency.co.za</span>
-            {" "}instead of &ldquo;via Pleks&rdquo;? We verify your domain (DKIM/SPF/DMARC) so it sends as your own.
-          </p>
-          <p className="text-xs">Coming soon — being scoped now. You&apos;ll add a few DNS records, we verify, and your From address switches over.</p>
-        </div>
-      </DetailCard>
+      {/* O-8: the "send from your own domain" card was a coming-soon teaser for the per-domain DKIM/SPF
+          white-label feature, which the project has explicitly deferred to the (not-yet-live) bespoke tier.
+          Advertising it to every tier as "being scoped now" overstated the roadmap, so it's removed until
+          the real bespoke white-label surface ships (it belongs behind the bespoke tier, not in the
+          general notifications settings). */}
     </>
   )
 }
