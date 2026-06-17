@@ -2,13 +2,15 @@
  * lib/comms/templates/tenant/deposits/deposit-interest-statement.tsx — annual interest statement
  *
  * Data:   tenant name, interest accrued, cumulative total, property, period, org branding
- * Notes:  Transactional — single voice. NCA requirement. Fired annually on lease
+ * Notes:  Transactional — single voice. RHA s5(3)(d) interest obligation (NCA struck per ADDENDUM_70B F-1 #7). Fired annually on lease
  *         anniversary and at move-out (BUILD_63 Phase 3 — deposit-interest-statement cron).
  */
 
 import * as React from "react"
 import { Section, Text, Hr } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../../layout"
+import { LegalFooter } from "../../LegalFooter"
+import { DEPOSIT_INTEREST_BASIS } from "../../legalCitations"
 
 export interface DepositInterestStatementEmailProps {
   branding: OrgBranding
@@ -70,13 +72,13 @@ export function DepositInterestStatementEmail({
         {branding.orgEmail ?? senderName}.
       </Text>
 
-      <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
-      <Text style={small}>
-        Interest is calculated at the prescribed rate determined by the South African Reserve Bank
-        (SARB) repo rate plus a margin, or such rate as agreed in your lease agreement. This
-        statement is issued in accordance with the Rental Housing Act 50 of 1999 and the National
-        Credit Act 34 of 2005.
-      </Text>
+      <LegalFooter issuedUnder={
+        <>
+          Interest is calculated at the prescribed rate determined by the South African Reserve Bank
+          (SARB) repo rate plus a margin, or such rate as agreed in your lease agreement. This
+          statement is issued in accordance with {DEPOSIT_INTEREST_BASIS}.
+        </>
+      } />
     </EmailLayout>
   )
 }
@@ -87,4 +89,3 @@ const para:        React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineH
 const box:         React.CSSProperties = { background: "#f4f4f5", borderRadius: 6, padding: "12px 16px", margin: "0 0 16px" }
 const sectionHead: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 8px" }
 const boxRow:      React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "2px 0" }
-const small:       React.CSSProperties = { fontSize: 12, color: "#71717a", margin: 0 }

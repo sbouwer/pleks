@@ -7,6 +7,7 @@ import { EmailLayout, EmailButton, EmailSectionHeading, EmailDetail } from "@/li
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { sendEmail } from "@/lib/comms/send-email"
 import { formatZAR } from "@/lib/constants"
+import { retentionDisplay } from "@/lib/popia/retention"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 
@@ -243,7 +244,7 @@ export async function sendDeclinedStage1(
           : "After careful consideration, we have decided not to proceed with your application at this time."}</p>
         <p style={S.body}>This decision does not reflect on you personally — the agent received multiple applications and had to make a selection.</p>
         <EmailSectionHeading>Your data</EmailSectionHeading>
-        <p style={S.body}>Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {org.orgName}{org.orgEmail ? ` at ${org.orgEmail}` : ""}.</p>
+        <p style={S.body}>Your personal information will be retained for {retentionDisplay("rejected_applications")} in accordance with POPIA. To request earlier deletion, contact {org.orgName}{org.orgEmail ? ` at ${org.orgEmail}` : ""}.</p>
         <p style={S.body}>We wish you well in finding your next home.</p>
       </EmailLayout>
     ),
@@ -543,7 +544,7 @@ export async function sendDeclinedStage2(
           : "After completing the full screening evaluation, we have decided not to proceed with your application."}</p>
         <p style={S.body}>The screening fee of R399 is non-refundable as communicated at the time of payment.</p>
         <EmailSectionHeading>Your data</EmailSectionHeading>
-        <p style={S.body}>Your personal information will be retained for 12 months in accordance with POPIA. To request earlier deletion, contact {org.orgName}{org.orgEmail ? ` at ${org.orgEmail}` : ""}.</p>
+        <p style={S.body}>Your personal information will be retained for {retentionDisplay("rejected_applications")} in accordance with POPIA. To request earlier deletion, contact {org.orgName}{org.orgEmail ? ` at ${org.orgEmail}` : ""}.</p>
         <p style={S.body}>We wish you well in finding your next home.</p>
       </EmailLayout>
     ),

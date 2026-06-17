@@ -192,17 +192,24 @@ export async function previewIdentityAnonymise(
  * drift failure (R-4), and (c) the caller records the completed `groups` on the request
  * (erasure_records_affected.identity_groups), so a stuck group is visible and the whole op is safely
  * re-runnable to completion. If a future requirement needs true rollback, wrap this in one SQL RPC.
+ *
+ * V4: a group whose strip returns -1 (non-self-healed error) is collected and THROWN at the end — the
+ * caller must NOT mark the request 'completed' with PII surviving (this is exactly what let plan-bug A,
+ * the co_applicants phantom keyColumn, hide). Successful groups are already audited (durable partial
+ * progress) and every strip is idempotent, so re-running after the fix safely converges.
  */
 export async function executeIdentityAnonymise(
   db: Db, resolved: ResolvedSubject, subjectType: SubjectType, requestId: string, actorId: string,
 ): Promise<{ groups: GroupOutcome[]; total: number }> {
   const groups: GroupOutcome[] = []
+  const failedGroups: string[] = []
   let total = 0
   for (const g of planForSubject(subjectType)) {
     const { single, list } = idsForGroup(resolved, g.keyFrom)
     if (single === null && list.length === 0) continue
 
     const affected = await stripGroup(db, g, single, list)
+    if (affected < 0) { failedGroups.push(g.id); continue }   // V4: non-self-healed strip error — surface, don't complete
     if (affected > 0) {
       await recordAudit(db, {
         orgId: resolved.orgId, actorId, action: "UPDATE", table: g.table, recordId: single ?? list[0],
@@ -212,6 +219,10 @@ export async function executeIdentityAnonymise(
       total += affected
     }
   }
+  if (failedGroups.length > 0) {
+    // V4: never let the erasure be marked complete with a swallowed strip error. Idempotent → safe to re-run.
+    throw new Error(`[popia/anonymise] identity strip failed for groups [${failedGroups.join(", ")}] — erasure NOT complete (safe to re-run; idempotent).`)
+  }
   return { groups, total }
 }
 
@@ -220,8 +231,14 @@ export async function executeIdentityAnonymise(
  * (23502) — schema drift that flipped a plan `null` against a now-NOT-NULL column — coerce that one
  * column to REDACTED and retry, so drift can't wall the cascade into a permanent partial erasure (the
  * principal R-3 cause). preview can't catch this (it only counts) — the guard has to be at execute.
+ *
+ * RETURN CONTRACT (70H F3 V4): ≥0 is a genuine rowcount (0 = matched no rows, which is legitimately
+ * normal — e.g. a solo applicant has no co-applicant rows). **-1 is a non-self-healed error** (any code
+ * other than a coercible 23502, or self-heal exhausted) — DISTINCT from "0 rows" so a caller can abort
+ * BEFORE marking a one-way `pii_purged_at`/erasure-complete latch. A `0` must never be read as "errored"
+ * (the swallow-then-mark-done trap that hid both 42703 plan-bugs); a `-1` must never be swallowed.
  */
-async function stripGroup(db: Db, group: AnonymiseGroup, single: string | null, list: string[]): Promise<number> {
+export async function stripGroup(db: Db, group: AnonymiseGroup, single: string | null, list: string[]): Promise<number> {
   let fields: Record<string, string | null> = group.fields
   for (let attempt = 0; attempt < 16; attempt++) {
     const base = db.from(group.table).update(fields)
@@ -231,7 +248,7 @@ async function stripGroup(db: Db, group: AnonymiseGroup, single: string | null, 
     const col = error.code === "23502" ? /column "([^"]+)"/.exec(error.message ?? "")?.[1] : undefined
     if (col && fields[col] === null) { fields = { ...fields, [col]: REDACTED }; continue }  // coerce + retry
     logQueryError(`executeIdentityAnonymise ${group.table}`, error)
-    return 0
+    return -1   // V4: non-self-healed error — signal distinctly so the caller aborts before the latch
   }
-  return 0
+  return -1     // V4: self-heal exhausted — also a failure, never a silent "0 rows"
 }

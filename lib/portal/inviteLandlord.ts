@@ -1,16 +1,20 @@
 "use server"
 
 /**
- * lib/portal/inviteLandlord.ts — FILL: one-line purpose
+ * lib/portal/inviteLandlord.ts — invite a landlord to the owner portal
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   agent server action (caller passes agentId); service client for the privileged writes
+ * Data:   landlord_view (read), landlords (portal_status/portal_invited_at), Supabase auth admin invite, audit_log
+ * Notes:  Provisions the user via Supabase auth.admin.generateLink({type:"invite"}) — identical to
+ *         inviteUserByEmail — then sends the action link wrapped in a branded, agency-branded EmailLayout
+ *         (ADDENDUM_70I), rather than letting Supabase send its generic email. No acceptance route / no
+ *         session-model change (mirrors stepSendPortalInvite). Audit via recordAudit (no PII in values).
  */
-import { createClient } from "@/lib/supabase/server"
-import { createServiceClient } from "@/lib/supabase/server"
+import * as React from "react"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
+import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { PortalLandlordInviteEmail } from "@/lib/comms/templates/portal/role-invites"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function inviteLandlord(landlordId: string, agentId: string) {
@@ -34,9 +38,11 @@ export async function inviteLandlord(landlordId: string, agentId: string) {
 
   const displayName = (landlord.company_name || `${landlord.first_name ?? ""} ${landlord.last_name ?? ""}`.trim()) || "Landlord"
 
-  const { error: inviteError } = await service.auth.admin.inviteUserByEmail(
-    landlord.email,
-    {
+  // Provision the user (same as inviteUserByEmail) but get the action link to send branded ourselves.
+  const { data: linkData, error: inviteError } = await service.auth.admin.generateLink({
+    type: "invite",
+    email: landlord.email,
+    options: {
       data: {
         role: "landlord",
         landlord_id: landlordId,
@@ -44,23 +50,43 @@ export async function inviteLandlord(landlordId: string, agentId: string) {
         full_name: displayName,
       },
       redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/landlord/dashboard`,
-    }
-  )
+    },
+  })
 
   if (inviteError) return { error: inviteError.message }
+
+  // Branded agency invite email (replaces Supabase's generic invite email).
+  const branding = buildBranding(await fetchOrgSettings(landlord.org_id))
+  try {
+    await sendEmail({
+      orgId: landlord.org_id,
+      templateKey: "portal.landlord_invite",
+      to: { email: landlord.email, name: displayName },
+      subject: `Set up your owner portal — ${branding.orgName}`,
+      emailElement: React.createElement(PortalLandlordInviteEmail, {
+        branding,
+        recipientName: displayName,
+        portalUrl: linkData.properties.action_link,
+        senderName: branding.orgName,
+      }),
+    })
+  } catch (e) {
+    // Soft failure — the user is provisioned; the invite link can be re-sent. Never throw past the action.
+    console.error("[inviteLandlord] branded invite email failed:", e)
+  }
 
   await service.from("landlords").update({
     portal_status: "invited",
     portal_invited_at: new Date().toISOString(),
   }).eq("id", landlordId)
 
-  await supabase.from("audit_log").insert({
-    org_id: landlord.org_id,
-    table_name: "landlords",
-    record_id: landlordId,
+  await recordAudit(service, {
+    orgId: landlord.org_id,
+    actorId: agentId,
     action: "UPDATE",
-    changed_by: agentId,
-    new_values: { action: "portal_invite_sent", sent_to: landlord.email },
+    table: "landlords",
+    recordId: landlordId,
+    after: { action: "portal_invite_sent" },   // no PII in values — the email lives on the landlord row
   })
 
   return { success: true }

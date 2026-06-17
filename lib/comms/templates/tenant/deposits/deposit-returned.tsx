@@ -7,8 +7,10 @@
  */
 
 import * as React from "react"
-import { Section, Text, Hr } from "@react-email/components"
+import { Section, Text } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../../layout"
+import { LegalFooter } from "../../LegalFooter"
+import { DEPOSIT_RETURNED_BASIS } from "../../legalCitations"
 
 export interface DepositReturnedEmailProps {
   branding: OrgBranding
@@ -64,11 +66,12 @@ export function DepositReturnedEmail({
         about the settlement, please contact us at {branding.orgEmail ?? senderName}.
       </Text>
 
-      <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
-      <Text style={small}>
-        This notice is issued pursuant to section 5(3)(g) of the Rental Housing Act 50 of 1999.
-        Reference: {referenceNumber}. Issued by: {branding.orgName}.
-      </Text>
+      <LegalFooter issuedUnder={
+        <>
+          This notice is issued pursuant to {DEPOSIT_RETURNED_BASIS}.
+          Reference: {referenceNumber}. Issued by: {branding.orgName}.
+        </>
+      } />
     </EmailLayout>
   )
 }
@@ -78,4 +81,3 @@ const h1:     React.CSSProperties = { fontSize: 18, fontWeight: 700, color: "#18
 const para:   React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineHeight: "1.6", margin: "0 0 16px" }
 const box:    React.CSSProperties = { background: "#f4f4f5", borderRadius: 6, padding: "12px 16px", margin: "0 0 16px" }
 const boxRow: React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "2px 0" }
-const small:  React.CSSProperties = { fontSize: 12, color: "#71717a", margin: 0 }

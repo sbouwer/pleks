@@ -166,7 +166,12 @@
       "bank_account_ownership_status",
       "verification_integrity_grade",
       "pleks_network_history_status",
-      "pleks_network_tenancy_count"
+      "pleks_network_tenancy_count",
+      "decline_reason_code",
+      "adverse_factor_codes",
+      "decided_at",
+      "decided_by",
+      "decision_stage"
     ],
     "application_directors": [
       "id",
@@ -435,7 +440,25 @@
       "assigned_at",
       "picked_up_at",
       "assigned_team_id",
-      "stage2_reminder_sent_at"
+      "stage2_reminder_sent_at",
+      "decline_reason_code",
+      "adverse_factor_codes",
+      "not_shortlisted_reason_code",
+      "withdrawn_reason_code",
+      "decided_at",
+      "decided_by",
+      "decision_stage",
+      "deciding_agent_capacity",
+      "audit_log_decision_entry_id",
+      "rent_to_income_ratio_at_decision",
+      "dti_ratio_at_decision",
+      "affordability_threshold_at_decision",
+      "income_verification_status_at_decision",
+      "criminal_screening_policy_id",
+      "criminal_screening_policy_version",
+      "screening_policy_id",
+      "screening_policy_version",
+      "decline_reason_text"
     ],
     "arrears_actions": [
       "id",
@@ -1095,6 +1118,14 @@
       "portal_status",
       "deleted_at"
     ],
+    "criminal_screening_policies": [
+      "id",
+      "org_id",
+      "version",
+      "policy",
+      "created_by",
+      "created_at"
+    ],
     "cron_runs": [
       "id",
       "job_name",
@@ -1379,7 +1410,13 @@
       "meta_template_name",
       "comms_class",
       "customised_from",
-      "template_key"
+      "template_key",
+      "body_blocks",
+      "version",
+      "legal_reviewed_at",
+      "legal_review_ref",
+      "content_hash",
+      "legal_citations"
     ],
     "external_links": [
       "key",
@@ -1869,6 +1906,22 @@
       "expiry_reminder_sent_at",
       "escalation_notice_sent_at",
       "payment_reference"
+    ],
+    "legal_hold_events": [
+      "id",
+      "org_id",
+      "scope_type",
+      "scope_id",
+      "event_type",
+      "trigger_category",
+      "placed_by",
+      "placed_by_capacity",
+      "reason_text",
+      "external_reference",
+      "lift_event_id",
+      "instrument_hash",
+      "prev_instrument_hash",
+      "created_at"
     ],
     "levy_invoices": [
       "id",
@@ -2962,6 +3015,14 @@
       "regeneration_reason",
       "created_at"
     ],
+    "screening_policies": [
+      "id",
+      "org_id",
+      "version",
+      "policy",
+      "created_by",
+      "created_at"
+    ],
     "settings_ui_state": [
       "user_id",
       "org_id",
@@ -3609,6 +3670,7 @@
       "p_org_id"
     ],
     "compute_contact_dedup_hash": [],
+    "compute_legal_hold_instrument_hash": [],
     "count_active_memberships_for_user": [
       "p_user_id",
       "p_excluded_table",
@@ -3664,7 +3726,15 @@
     "is_user_org_active": [
       "row_data"
     ],
+    "is_valid_adverse_factor_array": [
+      "p_codes"
+    ],
+    "is_valid_adverse_factor_code": [
+      "p_code"
+    ],
     "org_has_trust_account": [],
+    "prevent_legal_hold_event_mutation": [],
+    "prevent_policy_snapshot_mutation": [],
     "prevent_tos_acceptance_mutation": [],
     "purge_old_ai_usage": [],
     "purge_old_auth_events": [],
@@ -3680,6 +3750,7 @@
     "seed_default_retention_policies": [
       "org_uuid"
     ],
+    "sync_decision_columns_on_stage_write": [],
     "sync_profile_from_self_landlord": [],
     "sync_property_has_managing_scheme": [],
     "sync_self_landlord_from_profile": [],
@@ -3689,6 +3760,10 @@
       "p_old_owner"
     ],
     "trigger_seed_retention_policies": [],
-    "update_updated_at_column": []
+    "update_updated_at_column": [],
+    "verify_legal_hold_chain": [
+      "p_scope_type",
+      "p_scope_id"
+    ]
   }
 }

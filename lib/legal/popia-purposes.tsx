@@ -196,7 +196,7 @@ export const POPIA_PURPOSES: readonly PopiaProcessingPurpose[] = [
     lawfulBasis: "s11(1)(a) — consent (applicant submits the form and consents to processing for the specific application) + s11(1)(b) — pre-contractual steps at the data subject’s request",
     data: "Full name, ID number, DOB, contact phone/email, employment details, salary, dependent details, previous rental history, landlord/employer/character references, supporting documents",
     recipients: "database and storage provider, the payment gateway (application fee — B9), the credit bureau aggregator (credit check — B4), the AI model provider (income extraction — B22), e-signature provider (if application leads to lease signing)",
-    retention: "Rejected/withdrawn applications: 90 days from rejection (automatic purge — all associated records including documents) · Approved applications: absorbed into lease retention (5 years post-termination)",
+    retention: "Declined/withdrawn applications — raw screening data (identity documents, bank statements, income records, the credit bureau report, contact details, and the AI-generated narrative): 90 days from the terminal decision (automatic purge) · decision-accountability record (FitScore composite/band/per-dimension components, inputs hash, engine and interpretation versions, categorical decision-reason and adverse-factor codes, decision date/stage/deciding-agent identity, screening- and criminal-screening-policy versions, and the audit-log reference): up to 5 years from the terminal decision (POPIA s14(1)(b) — accountability and defence of legal rights); active legal holds suspend purge · Approved applications: absorbed into lease retention (5 years post-termination)",
     crossBorder: "Yes — SCCs (s72(1)(a)) for AI and hosting",
   },
   {
@@ -211,7 +211,7 @@ export const POPIA_PURPOSES: readonly PopiaProcessingPurpose[] = [
     lawfulBasis: "s11(1)(a) — explicit consent (applicant consents to the specific purpose of a credit check before it is run; consent may be withdrawn for future checks but not to unwind a check already performed)",
     data: "Applicant ID number, full name, DOB, residential addresses (current and historical), employment history, credit history, default records, civil judgments, credit score, affordability result",
     recipients: "credit bureau aggregator — SA-domiciled, domestic processing (see §C); underlying bureaus via credit bureau aggregator; Huru (Estate bundle only — sub-operator via Searchworx, SA-domiciled); database and storage provider; AI model provider (FitScore generation — B5)",
-    retention: "Declined / withdrawn applicants: 90 days from pull date (automatic purge — matches B3 application retention) · Approved applicants: 5 years post-lease-termination · consent log entry retained 10 years (POPIA s17 — Documentation)",
+    retention: "Declined / withdrawn applicants — raw bureau report: 90 days from pull date (automatic purge — matches the B3 raw-screening tier) · derived scoring outputs surviving in the B3/B5 decision-accountability record: up to 5 years (POPIA s14(1)(b)); active legal holds suspend purge · Approved applicants: 5 years post-lease-termination · consent log entry retained 10 years (POPIA s17 — Documentation)",
     crossBorder: "No for the credit check itself (credit bureau aggregator and SA credit bureaus are domestic) · Yes for derivative AI processing (FitScore via the AI model provider — SCCs)",
   },
   {
@@ -226,7 +226,7 @@ export const POPIA_PURPOSES: readonly PopiaProcessingPurpose[] = [
     lawfulBasis: "Follows Purpose B4 — s11(1)(a) explicit consent (applicant consented to the credit check knowing results would inform a suitability assessment)",
     data: "Derivative of B4 (credit result) + declared income, verified income, rental history, employment information",
     recipients: "The AI model provider (FitScore rationale narrative generation — B22), database and storage provider",
-    retention: "Follows Purpose B4 — declined applicants: 90 days from pull date · approved applicants: 5 years post-lease-termination",
+    retention: "Two-tier for declined/withdrawn applicants — the FitScore inputs and source documents are purged with the raw screening data at 90 days; the structural FitScore outputs (composite, band, per-dimension components, inputs hash, and engine/interpretation/narrative-prompt versions) survive in the decision-accountability record for up to 5 years (POPIA s14(1)(b)); active legal holds suspend purge · Approved applicants: 5 years post-lease-termination",
     crossBorder: "Yes — AI processing via the AI model provider (SCCs + s72(1)(b) consent basis)",
   },
   {
@@ -470,7 +470,7 @@ export const POPIA_PURPOSES: readonly PopiaProcessingPurpose[] = [
     lawfulBasis: "s27(1)(a) — necessary for the establishment, exercise, or defence of a right or obligation in law (agency duty of care to existing tenants and household members)",
     data: "Applicant full name, ID number, DOB; criminal record extract (convictions, pending cases, result classification); consent log entry",
     recipients: "credit bureau aggregator (Searchworx — criminal check submission, SA-domiciled); database and storage provider (restricted storage — agent-read-only RLS, no tenant or applicant self-service access); AI model provider (result summarisation — B22 sub-purpose)",
-    retention: "7 days from date of check if applicant withdraws or application is rejected (automatic purge) · 30 days post-lease-activation if applicant is accepted · consent log entry retained 10 years (POPIA s17)",
+    retention: "7 days from date of check if applicant withdraws or application is rejected (automatic purge of the raw criminal-record extract — the special information itself) · 30 days post-lease-activation if applicant is accepted · the categorical screening-outcome code (not the underlying record) may persist as an adverse-factor code in the B3/B5 decision-accountability record for up to 5 years where it informed a decline, alongside the criminal-screening-policy version (POPIA s14(1)(b)) · consent log entry retained 10 years (POPIA s17)",
     crossBorder: "No for the criminal check itself (Searchworx and underlying sources are SA-domiciled, domestic processing) · Yes for AI result summarisation (AI model provider — SCCs under s72(1)(a))",
     dpia: "Completed — conducted in accordance with POPIA s17 accountability obligations and Information Regulator Guidance Note 4 (2024). Available on request to the Information Officer via the data-subject request pathway.",
   },

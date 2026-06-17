@@ -59,7 +59,7 @@ export default function PAIAManualPage() {
           <li><span className="b" /><span>Many records — including our Privacy Policy, Terms of Service, Cookie Policy, Credit Check Policy, and this manual — are freely available on our website without any request.</span></li>
           <li><span className="b" /><span>Formal PAIA access requests must use Form 2 (available from the Information Regulator). The regulated request fee is R140. We respond within 30 days.</span></li>
           <li><span className="b" /><span>Data subjects have additional rights under POPIA — most can be exercised directly in Settings &rarr; Data &amp; Privacy within the platform, or by contacting our Information Officer.</span></li>
-          <li><span className="b" /><span>Rejected applicant data is automatically purged 90 days after rejection — this manual is a public commitment to that window.</span></li>
+          <li><span className="b" /><span>Raw rejected-applicant data (identity documents, bank statements, the credit report, contact details) is automatically purged 90 days after a declined or withdrawn application. A limited decision-accountability record — scoring outputs, categorised decision reasons, version information and audit references — is retained for up to 5 years for legal-compliance, accountability and dispute-resolution purposes; active legal holds suspend purge. This manual is a public commitment to that two-tier window.</span></li>
         </ul>
       </div>
 
@@ -237,9 +237,9 @@ export default function PAIAManualPage() {
                 Contact details, employment information, income documentation, identity documents, bank statements, credit bureau reports (where explicit consent was obtained), FitScore assessment, application status.
                 <br /><br />
                 <strong>Successful applicants:</strong>{" "}retained as tenant records.{" "}
-                <strong>Unsuccessful applicants:</strong>{" "}90 days after rejection, then purged automatically — including identity documents, bank statements, and income records in storage, not only database rows. This manual constitutes a public commitment to that window.
+                <strong>Unsuccessful applicants:</strong>{" "}raw screening data — identity documents, bank statements, income records, the credit bureau report, contact details, and the AI-generated narrative — is purged 90 days after the terminal decision, in storage and not only database rows. A limited decision-accountability record (FitScore scoring outputs, the categorical decision-reason and adverse-factor codes, the decision date and stage, the deciding-agent identity and capacity, the screening- and criminal-screening-policy versions, and the audit-log entry reference) is retained for up to 5 years for legal-compliance, accountability and dispute-resolution purposes. Active legal holds suspend purge until resolution. This manual constitutes a public commitment to that two-tier window.
               </td>
-              <td>Successful: 5 years.<br />Unsuccessful: 90 days.</td>
+              <td>Successful: 5 years.<br />Unsuccessful raw screening data: 90 days; decision-accountability record: up to 5 years.</td>
             </tr>
             <tr>
               <td className="who">
@@ -512,7 +512,7 @@ export default function PAIAManualPage() {
           <li>TLS 1.3 encryption in transit for all communications</li>
           <li>Immutable audit log of all state changes, retained for 7 years</li>
           <li>Client-side compression of inspection photographs, with GPS coordinates and timestamps extracted and stored separately as tamper-evident metadata</li>
-          <li>Automatic purge of rejected applicant data after 90 days</li>
+          <li>Two-tier automatic purge of rejected-applicant data: raw screening data destroyed 90 days after a declined or withdrawn application; a limited decision-accountability record retained up to 5 years; active legal holds suspend purge</li>
           <li>Consent log recording timestamp, IP address, consent version, and purpose for every POPIA consent event</li>
         </ul>
         <p><strong>9.1 Data breach notification</strong></p>
@@ -556,7 +556,7 @@ export default function PAIAManualPage() {
               <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>declined / withdrawn applications</span>
             </span>
             <span className="basis">POPIA · s14 · Credit Bureau Code</span>
-            <span className="span">90 days</span>
+            <span className="span">Raw report: 90 days · scoring outputs: up to 5 years</span>
           </div>
           <div className="ret-row">
             <span className="what">
@@ -585,10 +585,10 @@ export default function PAIAManualPage() {
           <div className="ret-row">
             <span className="what">
               Rejected applicant data
-              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>automatic purge — all associated records</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>raw screening data purged; decision-accountability record retained</span>
             </span>
-            <span className="basis">POPIA · s14</span>
-            <span className="span">90 days</span>
+            <span className="basis">POPIA · s14 / s14(1)(b)</span>
+            <span className="span">Raw: 90 days · accountability record: up to 5 years</span>
           </div>
         </div>
       </section>

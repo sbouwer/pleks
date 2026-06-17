@@ -5,6 +5,7 @@
 
 import { EmailLayout, EmailSectionHeading, EmailDetail } from "@/lib/comms/templates/layout"
 import type { OrgBranding } from "@/lib/comms/templates/layout"
+import { LegalFooter } from "@/lib/comms/templates/LegalFooter"
 import { sendEmail } from "@/lib/comms/send-email"
 
 const S = {
@@ -72,6 +73,7 @@ export async function sendLeaseRenewalNotice(
           {org.orgPhone ? ` · ${org.orgPhone}` : ""}
           {org.orgEmail ? ` · ${org.orgEmail}` : ""}
         </p>
+        <LegalFooter />
       </EmailLayout>
     ),
     bodyPreview: `Your lease at ${lease.propertyName} expires ${endDate}. CPA s14 renewal notice — action may be required.`,

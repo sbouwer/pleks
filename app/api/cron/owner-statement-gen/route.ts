@@ -1,17 +1,24 @@
 /**
- * app/api/cron/owner-statement-gen/route.ts — FILL: one-line purpose
+ * app/api/cron/owner-statement-gen/route.ts — generate last month's owner statements + notify owners
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/cron/owner-statement-gen
+ * Auth:   x-cron-secret header — runs from the daily orchestrator on the 2nd of each month
+ * Data:   properties, owner_statements via service client; generateOwnerStatement; sendEmail (statement.ready)
+ * Notes:  One statement per property-with-owner_email per month (idempotent — skips if already generated).
+ *         On a NEW statement, emails the owner a statement.ready notice linking to the tokenised
+ *         /owner/statement/[token] view (owners need no portal account; portal_token + 90-day expiry are
+ *         DB defaults). Notification only — the financials stay behind the secure link. Sends are
+ *         best-effort: a failed email never blocks generation (settled + counted, not thrown).
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { generateOwnerStatement } from "@/lib/statements/generateOwnerStatement"
-import { startOfMonth, endOfMonth, subMonths } from "date-fns"
+import { buildStatementReadyElement } from "@/lib/statements/statementReadyEmail"
+import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { startOfMonth, endOfMonth, subMonths, format } from "date-fns"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 
 export async function GET(req: Request) {
   const cronSecret = req.headers.get("x-cron-secret") || new URL(req.url).searchParams.get("secret")
@@ -24,31 +31,64 @@ export async function GET(req: Request) {
   const periodFrom = startOfMonth(lastMonth)
   const periodTo = endOfMonth(lastMonth)
   const periodFromStr = periodFrom.toISOString().split("T")[0]
+  const statementMonth = format(periodFrom, "MMMM yyyy")
   let generated = 0
+  const sends: Promise<unknown>[] = []   // best-effort owner notices — collected + settled, never thrown
 
-  // Get all properties with owner_email
+  // All properties with an owner email on file.
   const { data: properties, error: propertiesError } = await supabase
     .from("properties")
-    .select("id")
+    .select("id, name, org_id, owner_email, owner_name")
     .not("owner_email", "is", null)
     .is("deleted_at", null)
-    logQueryError("GET properties", propertiesError)
+  logQueryError("owner-statement-gen properties", propertiesError)
 
   for (const property of properties || []) {
-    // Skip if already generated
+    // Skip if this property's statement for the period already exists (idempotent).
     const { data: existing, error: existingError } = await supabase
       .from("owner_statements")
       .select("id")
       .eq("property_id", property.id)
       .eq("period_month", periodFromStr)
       .limit(1)
-    logQueryError("GET owner_statements", existingError)
+    logQueryError("owner-statement-gen owner_statements", existingError)
 
     if (existing && existing.length > 0) continue
 
-    await generateOwnerStatement(property.id, periodFrom, periodTo)
+    const statement = await generateOwnerStatement(property.id, periodFrom, periodTo)
+    if (!statement) continue
     generated++
+
+    // Notify the owner that their statement is ready (statement.ready) — tokenised, no portal account needed.
+    const ownerEmail = property.owner_email as string | null
+    const portalToken = statement.portal_token as string | null
+    if (ownerEmail && portalToken) {
+      const branding = buildBranding(await fetchOrgSettings(property.org_id as string))
+      const propertyLabel = (property.name as string) || "your property"
+      sends.push(
+        sendEmail({
+          orgId: property.org_id as string,
+          templateKey: "statement.ready",
+          to: { email: ownerEmail, name: (property.owner_name as string) ?? ownerEmail },
+          subject: `Your ${statementMonth} statement for ${propertyLabel} is ready`,
+          emailElement: buildStatementReadyElement({
+            branding,
+            ownerName: (property.owner_name as string) ?? "there",
+            propertyLabel,
+            statementMonth,
+            statementUrl: `${APP_URL}/owner/statement/${portalToken}`,
+          }),
+        }),
+      )
+    }
   }
 
-  return NextResponse.json({ ok: true, generated })
+  const settled = await Promise.allSettled(sends)
+  const notified = settled.filter((s) => s.status === "fulfilled").length
+  const failed = settled.length - notified
+  for (const s of settled) {
+    if (s.status === "rejected") console.error("owner-statement-gen notify failed:", s.reason)
+  }
+
+  return NextResponse.json({ ok: true, generated, notified, failed })
 }

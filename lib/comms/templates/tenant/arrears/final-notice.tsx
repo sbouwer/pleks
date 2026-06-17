@@ -3,13 +3,15 @@
  *
  * Data:   tenant name, property, amount, days overdue, org details, reference
  * Notes:  Mandatory template — single formal legal voice.
- *         South African RHA s5(4) compliant pre-cancellation notice.
- *         body_full stored verbatim for Tribunal evidence (BUILD_63 §8).
+ *         CPA s14 / lex commissoria pre-cancellation notice (citation per ADDENDUM_70B F-1 #1/#2;
+ *         NOT RHA s5(4)). body_full stored verbatim for Tribunal evidence (BUILD_63 §8).
  */
 
 import * as React from "react"
 import { Section, Text, Hr } from "@react-email/components"
 import { EmailLayout, EmailDetail, type OrgBranding } from "../../layout"
+import { LegalFooter } from "../../LegalFooter"
+import { finalNoticeCancellationBasis } from "../../legalCitations"
 
 export interface FinalNoticeEmailProps {
   branding: OrgBranding
@@ -20,8 +22,11 @@ export interface FinalNoticeEmailProps {
   amountOwedDisplay: string
   monthsInArrears: number
   oldestOutstandingDate: string
-  cancellationNoticeDays: number  // typically 20 business days per RHA
+  cancellationNoticeDays: number  // typically 20 business days (CPA s14(2)(b)(ii) where CPA applies)
   referenceNumber: string
+  /** Lease CPA-applicability snapshot (cpa_applies_at_signing) — selects the cure citation (F-1 #1).
+   *  Undefined → the safe contractual + common-law basis renders. */
+  cpaApplies?: boolean
 }
 
 export function FinalNoticeEmail({
@@ -35,6 +40,7 @@ export function FinalNoticeEmail({
   oldestOutstandingDate,
   cancellationNoticeDays,
   referenceNumber,
+  cpaApplies,
 }: FinalNoticeEmailProps) {
   const today = new Date().toLocaleDateString("en-ZA", {
     day: "numeric", month: "long", year: "numeric",
@@ -83,7 +89,7 @@ export function FinalNoticeEmail({
       <Text style={demandHeading}>NOTICE OF INTENDED CANCELLATION</Text>
 
       <Text style={para}>
-        Pursuant to <strong>section 5(4) of the Rental Housing Act 50 of 1999</strong>, this
+        Pursuant to <strong>{finalNoticeCancellationBasis(cpaApplies)}</strong>, this
         constitutes formal notice of the landlord&apos;s intention to cancel the lease agreement
         should the arrears of <strong>{amountOwedDisplay}</strong> not be paid in full, or a
         written payment arrangement not be agreed with us, within{" "}
@@ -134,12 +140,7 @@ export function FinalNoticeEmail({
         </Text>
       )}
 
-      <Hr style={divider} />
-      <Text style={legalNote}>
-        This notice is issued in terms of the Rental Housing Act 50 of 1999 and the Electronic
-        Communications and Transactions Act 25 of 2002. Electronic service of this notice is valid
-        in terms of section 23 of the ECT Act. Receipt at the address on file constitutes valid service.
-      </Text>
+      <LegalFooter />
     </EmailLayout>
   )
 }
@@ -157,4 +158,3 @@ const demandHeading: React.CSSProperties = { fontSize: 14, fontWeight: 700, colo
 const bullet:        React.CSSProperties = { fontSize: 13, color: "#3f3f46", lineHeight: "1.6", margin: "4px 0" }
 const signoff:       React.CSSProperties = { fontSize: 14, color: "#18181b", margin: "4px 0" }
 const contact:       React.CSSProperties = { fontSize: 12, color: "#52525b", margin: "4px 0" }
-const legalNote:     React.CSSProperties = { fontSize: 11, color: "#71717a", lineHeight: "1.5", margin: 0 }
