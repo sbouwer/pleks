@@ -10,7 +10,27 @@
  *         True atomicity (hold-check inside the UPDATE txn) is a flagged follow-up, not this build.
  */
 import { isOnHold } from "@/lib/legal/holds"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 import type { SupabaseClient } from "@supabase/supabase-js"
+
+/**
+ * Resolve the subject's auth_user_id from the application's tenant_id (applicant ≡ tenant, CLAUDE.md).
+ * Null when the applicant never linked a user account — the gate treats that as subject_missing (a
+ * row-skip), never a purge-allow. Takes tenant_id directly (the purge candidate row already carries it).
+ */
+export async function resolveSubjectAuthUserId(
+  db: SupabaseClient,
+  tenantId: string | null,
+): Promise<string | null> {
+  if (!tenantId) return null
+  const { data, error } = await db
+    .from("tenants")
+    .select("auth_user_id")
+    .eq("id", tenantId)
+    .maybeSingle()
+  logQueryError("resolveSubjectAuthUserId tenants", error)
+  return (data?.auth_user_id as string | null) ?? null
+}
 
 export type ApplicantPurgeGateResult =
   | { ok: true; claimedAt: string }

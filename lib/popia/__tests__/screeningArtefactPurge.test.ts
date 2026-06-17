@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest"
 // V4 test mocks the shared strip engine so we can force a child-group error deterministically.
 vi.mock("../anonymiseIdentity", () => ({ stripGroup: vi.fn() }))
 
-import { isScreeningArtefactPurgeable, purgeApplicationScreeningArtefacts } from "../screeningArtefactPurge"
+import { isScreeningArtefactPurgeable, purgeApplicationScreeningArtefacts, purgeScreeningArtefactsForOrg } from "../screeningArtefactPurge"
 import { stripGroup } from "../anonymiseIdentity"
 import {
   DECLINED_APPLICANT_DELETE_TABLES,
@@ -207,5 +207,42 @@ describe("V4 — a non-self-healed strip error aborts BEFORE the one-way pii_pur
     // the marker update fired exactly once, carrying pii_purged_at
     const stampCalls = db.updateSpy.mock.calls.filter((c) => "pii_purged_at" in (c[0] as object))
     expect(stampCalls).toHaveLength(1)
+  })
+})
+
+/** Table-aware org db for the orchestrator: applications→[candidate], legal_hold_events→holdRows,
+ *  tenants.maybeSingle→{auth_user_id}, audit_log/insert→ok. Awaiting any chain yields {data,error}. */
+function makeOrgDb(opts: { candidate: Row; authUserId: string | null; holdRows: unknown[] }): PurgeDb {
+  const dataFor = (t: string): unknown[] => {
+    if (t === "applications") return [opts.candidate]
+    if (t === "legal_hold_events") return opts.holdRows
+    return []
+  }
+  const chain = (table: string) => {
+    const c: Record<string, unknown> = { data: dataFor(table), error: null }
+    for (const m of ["select", "eq", "is", "or", "order", "insert", "update", "delete"]) c[m] = () => c
+    c.maybeSingle = () => Promise.resolve({ data: table === "tenants" ? { auth_user_id: opts.authUserId } : null, error: null })
+    return c
+  }
+  return { from: (t: string) => chain(t) } as unknown as PurgeDb
+}
+
+describe("purge orchestrator — litigation-hold gate (F3 amendment §4, fail-closed)", () => {
+  const candidate = () => row({ id: "app-1", org_id: "org-1", stage2_status: "declined", reviewed_at: longAgo, tenant_id: "t-1" })
+  const placedHold = [{ id: "h1", event_type: "hold_placed", lift_event_id: null, scope_type: "application", scope_id: "app-1" }]
+
+  it("defers an eligible candidate that is on hold (skipped_on_hold, not purged)", async () => {
+    const db = makeOrgDb({ candidate: candidate(), authUserId: "sub-1", holdRows: placedHold })
+    const r = await purgeScreeningArtefactsForOrg(db, "org-1", NOW)
+    expect(r.evaluated).toBe(1)
+    expect(r.skipped_on_hold).toBe(1)
+    expect(r.purged).toBe(0)
+  })
+
+  it("defers an eligible candidate whose subject can't be resolved (subject_missing)", async () => {
+    const db = makeOrgDb({ candidate: candidate(), authUserId: null, holdRows: [] })
+    const r = await purgeScreeningArtefactsForOrg(db, "org-1", NOW)
+    expect(r.skipped_on_hold).toBe(1)
+    expect(r.purged).toBe(0)
   })
 })

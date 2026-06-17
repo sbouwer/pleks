@@ -37,6 +37,12 @@
  *
  *         SCOPE NOTE: declined + not_shortlisted are the published PAIA "rejected" commitment. withdrawn is
  *         extra hygiene (applicant-initiated, no retention basis) — NOT part of the published commitment.
+ *
+ *         LITIGATION-HOLD GATE (F3 amendment §4): before any strip, the sweep resolves the subject's
+ *         auth_user_id and calls claimApplicantPurgeSlot — an active hold on the application/subject, or an
+ *         unresolvable subject, defers the row (skipped_on_hold) and records a structured skip audit. This
+ *         is the fail-closed deploy gate; it does NOT yet implement the Q1(b-lite) two-tier retained-record
+ *         split (that wiring waits on the F3-amendment reconciliation — decided_* columns + compliance sweep).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { recordAudit } from "@/lib/audit/recordAudit"
@@ -46,6 +52,7 @@ import {
   DECLINED_APPLICANT_DELETE_TABLES,
 } from "./anonymisePlan"
 import { stripGroup } from "./anonymiseIdentity"
+import { claimApplicantPurgeSlot, resolveSubjectAuthUserId } from "./applicantPurgeGate"
 
 const NINETY_DAYS_MS = 90 * 86_400_000
 
@@ -75,6 +82,9 @@ export interface ScreeningArtefactPurgeResult {
   purged: number
   skipped_not_eligible: number
   skipped_already_purged: number
+  /** Fail-closed litigation-hold gate (ADDENDUM_F3 §4): active hold on the application/subject, or the
+   *  subject's auth_user_id can't be resolved (subject_missing) — the row is left for the next sweep. */
+  skipped_on_hold: number
   errors: string[]
 }
 
@@ -308,7 +318,7 @@ export async function purgeScreeningArtefactsForOrg(
   options: { dryRun?: boolean } = {},
 ): Promise<ScreeningArtefactPurgeResult> {
   const result: ScreeningArtefactPurgeResult = {
-    evaluated: 0, purged: 0, skipped_not_eligible: 0, skipped_already_purged: 0, errors: [],
+    evaluated: 0, purged: 0, skipped_not_eligible: 0, skipped_already_purged: 0, skipped_on_hold: 0, errors: [],
   }
 
   const { rows, error } = await fetchPurgeCandidates(db, orgId, now)
@@ -325,6 +335,27 @@ export async function purgeScreeningArtefactsForOrg(
   return result
 }
 
+/**
+ * Record a litigation-hold purge-skip as a structured audit event (no PII — application_id + reason only),
+ * so an Information Officer can review which declined rows the sweep deferred and why.
+ * NB: emitted each sweep a row remains held; de-duping repeat skips is a flagged follow-up.
+ */
+async function recordPurgeSkip(
+  db: SupabaseClient,
+  orgId: string,
+  applicationId: string,
+  reason: "hold_active_application" | "hold_active_subject" | "subject_missing",
+): Promise<void> {
+  await recordAudit(db, {
+    orgId,
+    actorId: null,
+    action: "UPDATE",
+    table: "applications",
+    recordId: applicationId,
+    after: { action: "declined_purge_skipped", reason },
+  })
+}
+
 /** Classify + (unless dry-run) purge a single candidate, folding the outcome into the running result. */
 async function purgeOneIntoResult(
   db: SupabaseClient,
@@ -335,6 +366,17 @@ async function purgeOneIntoResult(
 ): Promise<void> {
   if (appRow.pii_purged_at !== null) { result.skipped_already_purged++; return }
   if (!isScreeningArtefactPurgeable(appRow, now)) { result.skipped_not_eligible++; return }
+
+  // Litigation-hold gate (fail-closed) — BEFORE the would-purge count so a held row never counts as
+  // purgeable. An active hold on the application OR the subject, or an unresolvable subject, defers the row.
+  const subjectAuthUserId = await resolveSubjectAuthUserId(db, appRow.tenant_id)
+  const slot = await claimApplicantPurgeSlot(db, { applicationId: appRow.id, subjectAuthUserId })
+  if (!slot.ok) {
+    result.skipped_on_hold++
+    if (!dryRun) await recordPurgeSkip(db, appRow.org_id, appRow.id, slot.reason)
+    return
+  }
+
   if (dryRun) { result.purged++; return }   // would-purge count, no deletion
   try {
     const did = await purgeApplicationScreeningArtefacts(db, appRow, now)
