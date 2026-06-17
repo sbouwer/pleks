@@ -78,7 +78,8 @@
     "zustand": "^5.0.14"
   },
   "overrides": {
-    "fast-uri": "3.1.2"
+    "fast-uri": "3.1.2",
+    "esbuild": "0.28.1"
   },
   "devDependencies": {
     "@semantic-release/commit-analyzer": "^13.0.1",
