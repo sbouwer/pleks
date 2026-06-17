@@ -8,6 +8,7 @@ import { stripGroup } from "../anonymiseIdentity"
 import {
   DECLINED_APPLICANT_DELETE_TABLES,
   DECLINED_APPLICANT_STRIP_GROUPS,
+  F3_TIER_2_RETAINED_COLUMNS,
 } from "../anonymisePlan"
 
 type PurgeDb = Parameters<typeof purgeApplicationScreeningArtefacts>[0]
@@ -104,12 +105,22 @@ describe("declined-applicant purge SSOT (single 90-day tier — P-1 closure + fo
     expect(tables.has("application_prescreens")).toBe(true)
   })
 
-  it("strips the fitscore_* derived-PII columns from applications (P-1)", () => {
+  it("strips the fitscore_* derived-PII columns from applications (P-1) — except the Tier-2 retained breakdown", () => {
     const f = fieldsOf("applications")
-    expect(f).toContain("fitscore_narrative")
-    expect(f).toContain("fitscore_material_flags")
-    expect(f).toContain("fitscore_components")
-    expect(f).toContain("fitscore_component_snapshot")
+    expect(f).toContain("fitscore_narrative")          // Tier 1 — AI free text, purged at 90d
+    expect(f).toContain("fitscore_material_flags")     // Tier 1
+    expect(f).toContain("fitscore_component_snapshot") // Tier 1
+    // Q1(b-lite) Tier 2: the numeric per-dimension breakdown is RETAINED (5y), so it's NOT in the 90d strip.
+    expect(f).not.toContain("fitscore_components")
+  })
+
+  it("Q1(b-lite): Tier-2 retained columns are excluded from the 90-day strip (decision-accountability record)", () => {
+    const f = fieldsOf("applications")
+    for (const col of F3_TIER_2_RETAINED_COLUMNS.applications) {
+      expect(f, `${col} must survive the 90d strip`).not.toContain(col)
+    }
+    // fitscore_components is the one that WAS in the plan and is now retained
+    expect(F3_TIER_2_RETAINED_COLUMNS.applications.has("fitscore_components")).toBe(true)
   })
 
   it("folds in the retired rule's identity + financial columns (merged set)", () => {

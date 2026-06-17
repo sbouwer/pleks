@@ -234,10 +234,46 @@ const AUTO_PURGE_EXCLUDED_TABLES = new Set(["consent_verifications"])
  * application_guarantors (identity), application_tokens (applicant_email), application_screening_payments
  * (paid_by_email only — the transaction record stays). consent_verifications is HELD (see above).
  */
-export const DECLINED_APPLICANT_STRIP_GROUPS: AnonymiseGroup[] = ANONYMISE_PLAN.filter(
-  (g) =>
-    g.keyFrom === "applicationId" &&
-    g.appliesTo.includes("applicant") &&
-    !DECLINED_DELETE_TABLE_NAMES.has(g.table) &&
-    !AUTO_PURGE_EXCLUDED_TABLES.has(g.table),
-)
+/**
+ * F3 Q1(b-lite) Tier 2 — columns RETAINED past the 90-day raw purge as the 5-year decision-accountability
+ * record (F3_SPEC_AMENDMENT §2/§3). They are EXCLUDED from the 90-day strip below and stripped later by the
+ * complianceRecordsSweep at the 5-year mark (or earlier on subject DSAR erasure — a different code path).
+ *
+ * Most entries are declarative/future-proofing (not currently in the strip plan, or not-yet-migrated columns
+ * — decided_at, decided_by, decision_stage, deciding_agent_capacity, audit_log_decision_entry_id land with
+ * the §2.3 migration + §2.4 trigger). The only OPERATIVE exclusion against today's plan is `fitscore_components` (the numeric
+ * per-dimension breakdown — retained), while fitscore_narrative / fitscore_material_flags /
+ * fitscore_component_snapshot stay in the 90-day strip (Tier 1). The set is the SSOT: if the retained list
+ * changes, the strip re-derives — no hand-coded parallel surface.
+ */
+export const F3_TIER_2_RETAINED_COLUMNS: Record<string, Set<string>> = {
+  applications: new Set([
+    "fitscore", "fitscore_band", "fitscore_components",
+    "fitscore_engine_version", "fitscore_interpretation_version", "fitscore_narrative_prompt_version",
+    "decline_reason_code", "adverse_factor_codes", "not_shortlisted_reason_code", "withdrawn_reason_code",
+    "status", "decided_at", "decided_by", "decision_stage",
+    "deciding_agent_capacity", "audit_log_decision_entry_id",
+  ]),
+  application_co_applicants: new Set([
+    "fitscore", "fitscore_band", "fitscore_components",
+    "fitscore_engine_version", "fitscore_interpretation_version", "fitscore_narrative_prompt_version",
+    "decline_reason_code", "adverse_factor_codes",
+    "status", "decided_at", "decided_by", "decision_stage",
+  ]),
+}
+
+export const DECLINED_APPLICANT_STRIP_GROUPS: AnonymiseGroup[] = ANONYMISE_PLAN
+  .filter(
+    (g) =>
+      g.keyFrom === "applicationId" &&
+      g.appliesTo.includes("applicant") &&
+      !DECLINED_DELETE_TABLE_NAMES.has(g.table) &&
+      !AUTO_PURGE_EXCLUDED_TABLES.has(g.table),
+  )
+  .map((g) => {
+    // Tier 2: exclude the retained columns from the 90-day strip map (they purge at 5y, not 90d).
+    const retained = F3_TIER_2_RETAINED_COLUMNS[g.table]
+    if (!retained) return g
+    const fields = Object.fromEntries(Object.entries(g.fields).filter(([col]) => !retained.has(col)))
+    return { ...g, fields }
+  })
