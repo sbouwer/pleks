@@ -10,6 +10,7 @@ import {
   shouldFireScheduledNotifications,
   getAgentEmailFooter,
   canPerformAgentAction,
+  resolveDunningLadderStep,
   SubscriptionLockdownError,
   type SubscriptionState,
 } from "./state"
@@ -134,5 +135,39 @@ describe("SubscriptionLockdownError", () => {
     const err = new SubscriptionLockdownError("locked_paused", "create_lease")
     expect(err.message).toContain("create_lease")
     expect(err.message).toContain("paused")
+  })
+})
+
+// ── resolveDunningLadderStep — the non-payment transition ladder (ADDENDUM_57G Step 11) ──────────────
+describe("resolveDunningLadderStep", () => {
+  it("day 0 → first notice", () => {
+    expect(resolveDunningLadderStep(0)).toBe("first_notice")
+  })
+
+  it("day 7 → the reminder (exact day, by design)", () => {
+    expect(resolveDunningLadderStep(7)).toBe("day7_reminder")
+  })
+
+  it("day ≥14 → auto-pause (the catch-all floor: 14, 15, 30, … all pause)", () => {
+    for (const d of [14, 15, 21, 30, 90]) expect(resolveDunningLadderStep(d)).toBe("auto_pause")
+  })
+
+  it("in-between days do nothing — the day-7/day-0 notices are exact-day", () => {
+    for (const d of [1, 3, 6, 8, 13]) expect(resolveDunningLadderStep(d)).toBe("none")
+  })
+
+  it("NEVER returns a cancel step — non-payment converges on paused, cancellation is user-initiated (57H)", () => {
+    const steps = Array.from({ length: 60 }, (_, d) => resolveDunningLadderStep(d))
+    expect(steps).not.toContain("cancelled")
+    expect(steps.filter((s) => s === "auto_pause").length).toBeGreaterThan(0)
+  })
+
+  it("the full lifecycle for one past-due subscription: silence → first → silence → day7 → silence → pause", () => {
+    // The transition path a single org walks as days-past-due advances (cron runs daily).
+    expect(resolveDunningLadderStep(0)).toBe("first_notice")
+    expect(resolveDunningLadderStep(3)).toBe("none")
+    expect(resolveDunningLadderStep(7)).toBe("day7_reminder")
+    expect(resolveDunningLadderStep(10)).toBe("none")
+    expect(resolveDunningLadderStep(14)).toBe("auto_pause")
   })
 })
