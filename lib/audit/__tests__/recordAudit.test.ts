@@ -6,7 +6,21 @@
  * account/card/IBAN numbers are masked to last-4 — and a raw account number can never survive.
  */
 import { describe, it, expect } from "vitest"
-import { __sanitiseForTest as sanitise } from "../recordAudit"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { __sanitiseForTest as sanitise, recordAuditReturningId } from "../recordAudit"
+
+/** Minimal insert→select→single mock that records the inserted payload and returns a row or an error. */
+function makeAuditDb(result: { id?: string; error?: boolean }): { db: SupabaseClient; inserted: Record<string, unknown>[] } {
+  const inserted: Record<string, unknown>[] = []
+  const single = () => Promise.resolve(
+    result.error ? { data: null, error: { message: "fail" } } : { data: { id: result.id }, error: null },
+  )
+  const insert = (payload: Record<string, unknown>) => {
+    inserted.push(payload)
+    return { select: () => ({ single }) }
+  }
+  return { db: { from: () => ({ insert }) } as unknown as SupabaseClient, inserted }
+}
 
 describe("recordAudit sanitiser", () => {
   it("masks account_number to last-4 and never emits the raw value", () => {
@@ -45,5 +59,19 @@ describe("recordAudit sanitiser", () => {
   it("passes through ordinary non-sensitive fields unchanged", () => {
     const out = sanitise({ action: "tenant_archived", deleted_at: "2026-06-04T00:00:00Z", bank_name: "Absa", label: "Trust" })
     expect(out).toEqual({ action: "tenant_archived", deleted_at: "2026-06-04T00:00:00Z", bank_name: "Absa", label: "Trust" })
+  })
+})
+
+describe("recordAuditReturningId (F3 decision-accountability backlink)", () => {
+  it("returns the inserted audit_log id so a decision write can capture it", async () => {
+    const { db } = makeAuditDb({ id: "audit-123" })
+    const id = await recordAuditReturningId(db, { orgId: "o1", actorId: "u1", action: "UPDATE", table: "applications", recordId: "a1", after: { action: "x" } })
+    expect(id).toBe("audit-123")
+  })
+
+  it("returns null (best-effort backlink) when the audit write fails", async () => {
+    const { db } = makeAuditDb({ error: true })
+    const id = await recordAuditReturningId(db, { orgId: "o1", actorId: "u1", action: "UPDATE", table: "applications", recordId: "a1" })
+    expect(id).toBeNull()
   })
 })
