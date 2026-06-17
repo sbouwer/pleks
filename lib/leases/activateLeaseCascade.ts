@@ -19,6 +19,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { resolveOrgTone } from "@/lib/comms/resolveOrgTone"
 import { DepositReceivedEmail } from "@/lib/comms/templates/tenant/deposits/deposit-received"
+import { generatePortalInviteLink } from "@/lib/leases/portalInviteLink"
 import { LeaseActivatedEmail } from "@/lib/comms/templates/tenant/leases/lease-activated"
 import { LeaseSignedEmail } from "@/lib/comms/templates/tenant/leases/lease-signed"
 import { PortalTenantInviteEmail } from "@/lib/comms/templates/tenant/portal/tenant-invite"
@@ -405,17 +406,25 @@ async function stepSendPortalInvite(
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
     const toneVariant = resolveOrgTone(orgRow.data?.settings)
 
-    // Generate a branded invite link rather than letting Supabase send its generic email
+    // Generate a branded hand-off link rather than letting Supabase send its generic email. invite for a
+    // net-new tenant; magic-link upgrade if the applicant already has a login (BUILD_69 P2 — `invite` errors
+    // on an already-registered email, which used to fail this step silently).
     const service = await createServiceClient()
-    const { data: linkData, error: linkErr } = await service.auth.admin.generateLink({
-      type: "invite",
-      email: tenant.email as string,
-      options: {
+    // Adapter: normalise Supabase's generateLink response (data.properties can be null on error) to the
+    // helper's narrower shape, so the routing logic stays cleanly unit-testable.
+    const link = await generatePortalInviteLink(
+      async (args) => {
+        const r = await service.auth.admin.generateLink(args)
+        const actionLink = r.data?.properties?.action_link
+        return { data: actionLink ? { properties: { action_link: actionLink } } : null, error: r.error }
+      },
+      {
+        email: tenant.email as string,
         data: { role: "tenant", tenant_id: lease.tenant_id, org_id: orgId, full_name: tenantName },
         redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/tenant`,
       },
-    })
-    if (linkErr) return { step: "Portal auto-invite (P1)", status: "failed", detail: linkErr.message }
+    )
+    if ("error" in link) return { step: "Portal auto-invite (P1)", status: "failed", detail: link.error }
 
     await routeAndSend({
       orgId,
@@ -426,7 +435,7 @@ async function stepSendPortalInvite(
       emailElement: React.createElement(PortalTenantInviteEmail, {
         branding: buildBranding(orgSettings),
         tenantName,
-        portalUrl: linkData.properties.action_link,
+        portalUrl: link.actionLink,
         senderName: capabilities.copy.tenantWelcomeSender,
         signatureAttribution: capabilities.copy.signatureAttribution,
       }),
