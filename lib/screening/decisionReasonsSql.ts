@@ -70,10 +70,18 @@ ${inList(ADVERSE_FACTOR_CODES)}
 END;
 $$ LANGUAGE plpgsql IMMUTABLE SET search_path = public;
 
+-- Array wrapper: a CHECK constraint cannot contain a subquery, so the per-element validation lives in
+-- this function (subqueries ARE allowed inside a function body) and the CHECK calls it scalar-wise.
+CREATE OR REPLACE FUNCTION is_valid_adverse_factor_array(p_codes text[])
+RETURNS boolean AS $$
+BEGIN
+  RETURN p_codes IS NULL OR (SELECT bool_and(is_valid_adverse_factor_code(c)) FROM unnest(p_codes) AS c);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE SET search_path = public;
+
 ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_adverse_factor_codes_check;
 ALTER TABLE applications ADD CONSTRAINT applications_adverse_factor_codes_check CHECK (
-  adverse_factor_codes IS NULL OR
-  (SELECT bool_and(is_valid_adverse_factor_code(c)) FROM unnest(adverse_factor_codes) AS c)
+  is_valid_adverse_factor_array(adverse_factor_codes)
 );
 
 ALTER TABLE application_co_applicants DROP CONSTRAINT IF EXISTS application_co_applicants_decline_reason_code_check;
@@ -85,8 +93,7 @@ ${inList(DECLINE_REASON_CODES)}
 
 ALTER TABLE application_co_applicants DROP CONSTRAINT IF EXISTS application_co_applicants_adverse_factor_codes_check;
 ALTER TABLE application_co_applicants ADD CONSTRAINT application_co_applicants_adverse_factor_codes_check CHECK (
-  adverse_factor_codes IS NULL OR
-  (SELECT bool_and(is_valid_adverse_factor_code(c)) FROM unnest(adverse_factor_codes) AS c)
+  is_valid_adverse_factor_array(adverse_factor_codes)
 );
 
 COMMENT ON COLUMN applications.decline_reason_code IS
