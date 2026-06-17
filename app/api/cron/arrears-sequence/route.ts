@@ -160,14 +160,20 @@ async function fetchPropertyLabel(supabase: SupabaseClient, unitId: string): Pro
   return parts.length > 0 ? parts.join(", ") : undefined
 }
 
-async function fetchLeaseStartDate(supabase: SupabaseClient, leaseId: string): Promise<string | undefined> {
+async function fetchLeaseFacts(
+  supabase: SupabaseClient, leaseId: string,
+): Promise<{ startDate?: string; cpaApplies?: boolean }> {
   const { data, error } = await supabase
     .from("leases")
-    .select("start_date")
+    .select("start_date, cpa_applies_at_signing")
     .eq("id", leaseId)
     .maybeSingle()
-  if (error) console.error("fetchLeaseStartDate leases read failed:", error.message)
-  return data?.start_date ? formatDate(data.start_date as string) : undefined
+  if (error) console.error("fetchLeaseFacts leases read failed:", error.message)
+  return {
+    startDate: data?.start_date ? formatDate(data.start_date as string) : undefined,
+    // The final notice's cancellation-cure citation branches on this (F-1 #1); undefined → safe contractual default.
+    cpaApplies: (data?.cpa_applies_at_signing as boolean | null) ?? undefined,
+  }
 }
 
 function resolveSubject(templateKey: string, amountDisplay: string, ref: string): string {
@@ -189,6 +195,7 @@ interface EmailElementParams {
   monthsInArrears: number
   propertyLabel?:  string   // full address from unit+property join; falls back to "See reference XXXX"
   leaseStartDate?: string   // actual lease start date; falls back to oldestDate if unavailable
+  cpaApplies?:     boolean   // lease cpa_applies_at_signing snapshot — selects the final-notice cure citation (F-1 #1)
 }
 
 function buildEmailElement(
@@ -235,6 +242,7 @@ function buildEmailElement(
       oldestOutstandingDate:  p.oldestDate,
       cancellationNoticeDays: 20,
       referenceNumber:        ref,
+      cpaApplies:             p.cpaApplies,
     })
   }
   return undefined
@@ -379,14 +387,14 @@ async function advanceSequenceStep(
   const propertyLabel = arrearsCase.unit_id
     ? await fetchPropertyLabel(supabase, arrearsCase.unit_id)
     : undefined
-  const leaseStartDate = arrearsCase.lease_id
-    ? await fetchLeaseStartDate(supabase, arrearsCase.lease_id)
-    : undefined
+  const leaseFacts = arrearsCase.lease_id
+    ? await fetchLeaseFacts(supabase, arrearsCase.lease_id)
+    : {}
 
   const emailElement = buildEmailElement(templateKey, {
     branding, tenantName, amountDisplay, daysOverdue, nextStep, toneVariant, oldestDate, sender,
     caseId: arrearsCase.id, monthsInArrears: arrearsCase.months_in_arrears,
-    propertyLabel, leaseStartDate,
+    propertyLabel, leaseStartDate: leaseFacts.startDate, cpaApplies: leaseFacts.cpaApplies,
   })
 
   const ref     = arrearsCase.id.slice(0, 8).toUpperCase()
