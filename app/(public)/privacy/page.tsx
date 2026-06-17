@@ -59,7 +59,7 @@ export default function PrivacyPolicyPage() {
           <li><span className="b" /><span>Pleks processes personal information in two roles: as Responsible Party for platform operations (your account, billing, security) and as Operator on behalf of agencies for rental data (tenants, leases, applications).</span></li>
           <li><span className="b" /><span>We never sell personal information. Credit checks require explicit written consent before any bureau is queried. AI is used only as an assistive tool; humans make all decisions about tenants and applicants.</span></li>
           <li><span className="b" /><span>Most of your data stays in South Africa; some processing happens with US, EU, or Kenya operators under Standard Contractual Clauses as required by <span className="act-pill">POPIA · S72</span>.</span></li>
-          <li><span className="b" /><span>Rejected applicant data is automatically purged 90 days after rejection — all records including identity documents, bank statements, and credit reports.</span></li>
+          <li><span className="b" /><span>Raw screening data for declined applicants — identity documents, bank statements, and credit reports — is automatically purged 90 days after the decision. A limited decision-accountability record (scoring outputs, categorised decision reasons, version and audit references — no source documents) is retained for up to 5 years for legal-compliance and dispute-defence purposes; legal holds suspend purge.</span></li>
           <li><span className="b" /><span>You have the full set of POPIA rights — including the right to complain to the Information Regulator independently of our response. See §07 and §13.</span></li>
         </ul>
       </div>

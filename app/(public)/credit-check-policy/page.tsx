@@ -53,7 +53,7 @@ export default function CreditCheckPolicyPage() {
           <li><span className="b" /><span>The application fee is paid by you (the applicant) — the agency using Pleks does not pay for your check.</span></li>
           <li><span className="b" /><span>Checks are run by a registered credit bureau intermediary (identified in section 02). Pleks initiates the check on behalf of the agency, stores the result, and generates a derivative FitScore — it acts as an Operator under the agency&rsquo;s instruction.</span></li>
           <li><span className="b" /><span>You have the right to receive a free copy of the credit report generated for your application, to correct inaccuracies, and to lodge a complaint with the Information Regulator.</span></li>
-          <li><span className="b" /><span>Declined application results are automatically purged after 90 days — all associated records including identity documents and bank statements. Credit check results tied to an active lease are retained for 5 years post-termination.</span></li>
+          <li><span className="b" /><span>Raw declined-application records — the credit bureau report, identity documents, bank statements, contact details, and the AI-generated narrative — are automatically purged 90 days after the terminal decision. A limited decision-accountability record (scoring outputs, categorised decision reasons, version information and audit references) is retained for up to 5 years for legal-compliance, accountability and dispute-resolution purposes; active legal holds suspend purge. Credit check results tied to an active lease are retained for 5 years post-termination.</span></li>
           <li><span className="b" /><span>Credit checks are not performed on minors. If your application includes household members under 18, no bureau query is run for them.</span></li>
           <li><span className="b" /><span>If you do not consent to the credit check, your application cannot proceed to Stage 2. You retain the right to apply through another channel that does not require a credit check.</span></li>
         </ul>
@@ -247,10 +247,18 @@ export default function CreditCheckPolicyPage() {
           <div className="ret-row">
             <span className="what">
               Credit check results
-              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>declined or withdrawn applications</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>declined or withdrawn — raw bureau report</span>
             </span>
             <span className="basis">POPIA · s14</span>
             <span className="span">90 days</span>
+          </div>
+          <div className="ret-row">
+            <span className="what">
+              Scoring outputs
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>declined or withdrawn — decision-accountability record</span>
+            </span>
+            <span className="basis">POPIA · s14(1)(b)</span>
+            <span className="span">Up to 5 years</span>
           </div>
           <div className="ret-row">
             <span className="what">
