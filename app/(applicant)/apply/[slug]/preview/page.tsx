@@ -6,21 +6,23 @@
  *
  * Route:  /apply/[slug]/preview
  * Auth:   public (token-gated prefix) — preview only
- * Notes:  Layout pass built to match the REAL login surface (see brief/design/DESIGN_LANGUAGE.md):
- *         .pleks-public warm theme + FocusBackdrop, the <Wordmark> brand mark, square door-style cards
- *         and the .fs-panel door panel with .fs-knob + .stoep tabs. Full-height responsive layout — left
- *         and right columns stretch to equal height; the unit card grows to fill the left column. Step 1
- *         (Personal details) uses the shared forms field grammar (= the add-tenant capture; applicant ≡
- *         tenant). Sample data; real-data wiring + remaining step bodies + the Stage-1 FitScore score step
- *         are later passes. Does NOT touch the live /apply flow.
+ * Notes:  Built to the REAL app style (see brief/design/DESIGN_LANGUAGE.md): .pleks-public warm theme +
+ *         FocusBackdrop, the <Wordmark> brand mark, and the iconic branded cards from the supplier detail
+ *         page — DetailCard (amber-dash header + amber baseline) + DetailStatGrid (edge-to-edge fact grid).
+ *         The unit card clearly shows what's included (furnished / pets / parking / facts). Right working
+ *         panel is the .fs-panel door + .stoep tabs. Full-height responsive layout (columns stretch equal;
+ *         unit card grows to fill the left column). Step 1 uses the shared forms field grammar (= the
+ *         add-tenant capture; applicant ≡ tenant). Sample data; real-data wiring + remaining step bodies +
+ *         the Stage-1 FitScore score step are later passes. Does NOT touch the live /apply flow.
  */
 
 import { useState } from "react"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/components/layout/focus-shell.css"
+import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
-import { Bed, Bath, Maximize, MapPin, Phone, Mail, ShieldCheck, ImageIcon } from "lucide-react"
+import { MapPin, Phone, Mail, ShieldCheck, ImageIcon } from "lucide-react"
 
 const STEPS = [
   { label: "Personal details", detail: "Residential lease" },
@@ -50,65 +52,58 @@ function Eyebrow({ children }: Readonly<{ children: React.ReactNode }>) {
   return <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">{children}</span>
 }
 
-/** Square door-style card (dashboard grammar: --r-button radius, --rule hairline, --paper-raised). */
-function DoorCard({ children, className = "" }: Readonly<{ children: React.ReactNode; className?: string }>) {
-  return <div className={`rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 ${className}`}>{children}</div>
-}
-
-/** Unit card — grows to fill the left column; the listing photo expands into the extra space. */
+/** Unit card — DetailCard + a small photo + an edge-to-edge fact grid that clearly shows inclusions. */
 function UnitCard() {
   return (
-    <DoorCard className="flex flex-col gap-3 lg:flex-1">
-      <div className="flex min-h-[120px] flex-1 items-center justify-center rounded-[var(--r-button)] bg-[var(--paper-sunk)] text-[var(--ink-faint)]">
-        <ImageIcon className="size-7" aria-hidden />
-      </div>
-      <div>
-        <p className="text-sm font-medium text-[var(--ink)]">2 Bedroom Apartment</p>
-        <p className="flex items-center gap-1 truncate text-xs text-[var(--ink-soft)]">
-          <MapPin className="size-3 shrink-0" /> The Equinox · Sea Point
+    <DetailCard title="2 Bedroom Apartment">
+      <div className="flex h-full flex-col gap-3">
+        <div className="flex h-24 shrink-0 items-center justify-center rounded-[var(--r-button)] bg-muted text-muted-foreground">
+          <ImageIcon className="size-7" aria-hidden />
+        </div>
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <MapPin className="size-3 shrink-0" /> The Equinox · 12 Marine Rd, Sea Point
         </p>
-      </div>
-      <div className="flex items-end justify-between border-t border-[var(--rule)] pt-3">
-        <div>
-          <p className="text-base font-medium text-[var(--ink)]">R 14 500<span className="text-xs text-[var(--ink-mute)]"> /mo</span></p>
-          <p className="text-[11px] text-[var(--ink-mute)]">Deposit R 14 500 · avail. 1 Aug</p>
+        <div className="-mx-5 -mb-5 flex-1 border-t border-border">
+          <DetailStatGrid
+            stats={[
+              { label: "Rent / month", value: "R 14 500" },
+              { label: "Deposit", value: "R 14 500" },
+              { label: "Available", value: "1 Aug 2026" },
+              { label: "Lease term", value: "12 months" },
+              { label: "Furnished", value: "Semi-furnished" },
+              { label: "Pets", value: "Allowed", tone: "ok" },
+              { label: "Parking", value: "1 bay" },
+              { label: "Size", value: "2 bed · 1 bath · 68m²" },
+            ]}
+          />
         </div>
-        <div className="flex items-center gap-2.5 text-[11px] text-[var(--ink-soft)]">
-          <span className="flex items-center gap-1"><Bed className="size-3.5" />2</span>
-          <span className="flex items-center gap-1"><Bath className="size-3.5" />1</span>
-          <span className="flex items-center gap-1"><Maximize className="size-3" />68m²</span>
-        </div>
       </div>
-    </DoorCard>
+    </DetailCard>
   )
 }
 
 function AgentCard() {
   return (
-    <DoorCard>
+    <DetailCard title="Your agent">
       <div className="flex items-start gap-3">
         <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--amber-wash)] text-sm font-semibold text-[var(--amber-ink)]">AP</div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-[var(--ink)]">Annelise Pretorius</p>
-          <p className="truncate text-xs text-[var(--ink-soft)]">Rox &amp; Co Property Management</p>
+          <p className="truncate text-sm font-medium">Annelise Pretorius</p>
+          <p className="truncate text-xs text-muted-foreground">Rox &amp; Co Property Management</p>
         </div>
         <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.08em] text-[var(--amber-ink)]">FFC 2025-0041</span>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--rule)] pt-3 text-[11px] text-[var(--ink-soft)]">
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-[11px] text-muted-foreground">
         <span className="flex items-center gap-1.5"><Phone className="size-3" /> 082 551 0934</span>
         <span className="flex items-center gap-1.5 truncate"><Mail className="size-3" /> annelise@roxco.co.za</span>
       </div>
-    </DoorCard>
+    </DetailCard>
   )
 }
 
 function ProgressList({ step }: Readonly<{ step: number }>) {
   return (
-    <DoorCard>
-      <div className="mb-3 flex items-center justify-between">
-        <Eyebrow>Your application</Eyebrow>
-        <Eyebrow>saved · {step + 1}/4</Eyebrow>
-      </div>
+    <DetailCard title="Your application" count={step + 1}>
       <ol className="space-y-2.5">
         {STEPS.map((s, i) => {
           const done = i < step
@@ -124,7 +119,7 @@ function ProgressList({ step }: Readonly<{ step: number }>) {
           )
         })}
       </ol>
-    </DoorCard>
+    </DetailCard>
   )
 }
 
@@ -247,9 +242,11 @@ export default function ApplyPreviewPage() {
 
         {/* Content row — fills to viewport bottom; columns stretch to equal height */}
         <div className="mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-6 px-6 py-6 lg:flex-row lg:items-stretch">
-          {/* Left rail */}
-          <aside className="flex w-full flex-col gap-4 lg:w-[340px]">
-            <UnitCard />
+          {/* Left rail — unit card grows to fill */}
+          <aside className="flex w-full flex-col gap-4 lg:w-[360px]">
+            <div className="flex flex-col lg:flex-1">
+              <UnitCard />
+            </div>
             <AgentCard />
             <ProgressList step={step} />
           </aside>
