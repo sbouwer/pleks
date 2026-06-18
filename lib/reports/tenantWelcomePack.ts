@@ -137,6 +137,8 @@ export async function buildTenantWelcomePackData(
     is_fixed_term: boolean
     rent_amount_cents: number
     deposit_amount_cents: number | null
+    deposit_account_id: string | null
+    trust_account_id: string | null
     payment_due_day: string | null
     escalation_percent: number | null
     escalation_review_date: string | null
@@ -180,7 +182,7 @@ export async function buildTenantWelcomePackData(
   const [leaseRes, tenantRes, coTenantsRes, bankRes, inspectionRes, clausesRes] =
     await Promise.all([
       db.from("leases")
-        .select("id, unit_id, property_id, start_date, end_date, lease_type, is_fixed_term, rent_amount_cents, deposit_amount_cents, payment_due_day, escalation_percent, escalation_review_date, arrears_interest_enabled, arrears_interest_margin_percent, notice_period_days, units(unit_number, properties(name, address_line1, suburb, city))")
+        .select("id, unit_id, property_id, start_date, end_date, lease_type, is_fixed_term, rent_amount_cents, deposit_amount_cents, deposit_account_id, trust_account_id, payment_due_day, escalation_percent, escalation_review_date, arrears_interest_enabled, arrears_interest_margin_percent, notice_period_days, units(unit_number, properties(name, address_line1, suburb, city))")
         .eq("id", leaseId)
         .eq("org_id", orgId)
         .single(),
@@ -262,6 +264,7 @@ export async function buildTenantWelcomePackData(
     lease.property_id ?? null,
     lease.unit_id ?? null,
     today,
+    lease.deposit_account_id ?? lease.trust_account_id ?? null,
   )
   const depositRateDescription = depositConfig ? describeRate(depositConfig) : null
 

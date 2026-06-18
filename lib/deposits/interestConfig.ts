@@ -1,11 +1,12 @@
 /**
- * lib/deposits/interestConfig.ts — FILL: one-line purpose
+ * lib/deposits/interestConfig.ts — deposit-interest config + prime-rate resolution (the variable-rate engine)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   server-only (service client); org-scoped.
+ * Data:   deposit_interest_config (effective-dated rate rows), prime_rates (for prime/repo-linked rates).
+ * Notes:  resolveDepositInterestConfig picks the most-specific effective-dated config for a date by the
+ *         hierarchy account → unit → property → org (ADDENDUM_69A added the account scope). The accrual
+ *         engine (lib/finance/depositInterest.ts) resolves the rate PER period through this — never a
+ *         frozen snapshot — so a variable (prime/repo-linked) rate stays correct across rate changes.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { DepositInterestConfig } from "./rateUtils"
@@ -14,26 +15,47 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 export type { DepositInterestConfig } from "./rateUtils"
 export { describeRate } from "./rateUtils"
 
+export interface ScopeCandidate {
+  bank_account_id: string | null
+  property_id: string | null
+  unit_id: string | null
+}
+
+/**
+ * Ordered deposit-interest-config scope candidates, most specific → least:
+ * account → unit → property → org default (ADDENDUM_69A added the account scope).
+ * Pure (no DB) so the hierarchy is unit-testable independently of the query.
+ */
+export function buildScopeCandidates(
+  bankAccountId: string | null,
+  propertyId: string | null,
+  unitId: string | null,
+): ScopeCandidate[] {
+  const candidates: ScopeCandidate[] = []
+  if (bankAccountId) candidates.push({ bank_account_id: bankAccountId, property_id: null, unit_id: null })
+  if (unitId)        candidates.push({ bank_account_id: null, property_id: propertyId, unit_id: unitId })
+  if (propertyId)    candidates.push({ bank_account_id: null, property_id: propertyId, unit_id: null })
+  candidates.push({ bank_account_id: null, property_id: null, unit_id: null })
+  return candidates
+}
+
 /**
  * Resolve the deposit interest config for a given lease context.
- * Hierarchy: unit → property → org default
- * Returns null if no config found (interest should not be auto-accrued).
+ * Hierarchy (most specific → least): deposit account → unit → property → org default.
+ * The account scope (ADDENDUM_69A) ties the rate to the deposit-holding account the money sits in
+ * (RHA s5(3)(c)); the non-account candidates filter bank_account_id IS NULL so an account-scoped row
+ * is never mistaken for an org/unit/property default. Returns null if no config (no auto-accrual).
  */
 export async function resolveDepositInterestConfig(
   orgId: string,
   propertyId: string | null,
   unitId: string | null,
-  asOfDate: string
+  asOfDate: string,
+  bankAccountId: string | null = null,
 ): Promise<DepositInterestConfig | null> {
   const supabase = await createServiceClient()
 
-  // Build scope candidates from most specific to least specific
-  const candidates: { property_id: string | null; unit_id: string | null }[] = []
-  if (unitId) candidates.push({ property_id: propertyId, unit_id: unitId })
-  if (propertyId) candidates.push({ property_id: propertyId, unit_id: null })
-  candidates.push({ property_id: null, unit_id: null })
-
-  for (const scope of candidates) {
+  for (const scope of buildScopeCandidates(bankAccountId, propertyId, unitId)) {
     let query = supabase
       .from("deposit_interest_config")
       .select("*")
@@ -41,17 +63,9 @@ export async function resolveDepositInterestConfig(
       .lte("effective_from", asOfDate)
       .or(`effective_to.is.null,effective_to.gte.${asOfDate}`)
 
-    if (scope.unit_id) {
-      query = query.eq("unit_id", scope.unit_id)
-    } else {
-      query = query.is("unit_id", null)
-    }
-
-    if (scope.property_id) {
-      query = query.eq("property_id", scope.property_id)
-    } else {
-      query = query.is("property_id", null)
-    }
+    query = scope.bank_account_id ? query.eq("bank_account_id", scope.bank_account_id) : query.is("bank_account_id", null)
+    query = scope.unit_id        ? query.eq("unit_id", scope.unit_id)                  : query.is("unit_id", null)
+    query = scope.property_id    ? query.eq("property_id", scope.property_id)          : query.is("property_id", null)
 
     const { data } = await query.order("effective_from", { ascending: false }).limit(1).maybeSingle()
 

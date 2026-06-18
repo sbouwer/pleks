@@ -36,7 +36,8 @@ ON CONFLICT DO NOTHING;
 -- LEASE CLAUSE LIBRARY SEED
 -- ═══════════════════════════════════════════════════════════════
 
--- 032_lease_clauses_seed.sql
+-- Canonical lease clause library (formerly mirrored in supabase/seed/032_lease_clauses_seed.sql,
+-- which was unused and has been removed — THIS is the applied source).
 -- Pleks standard lease clause library — sourced from SA residential lease template
 -- Anonymised: all entity-specific names replaced with {{var:}} tokens
 -- Cross-references replaced with {{ref:}} and {{self:N}} tokens per cross-reference map
@@ -479,6 +480,9 @@ $$The lessee hereby warrants that it shall at all times comply with all applicab
 'Covers regulatory and legal compliance obligations specific to commercial tenants.',
 'Include regulatory compliance clause')
 ON CONFLICT (clause_key) DO NOTHING;
+-- NOTE: BUILD_69A's §7.2 deposit-interest-beneficiary tokenisation of this clause is applied in
+-- 011_documents_messaging.sql (a single block covering the clauses seeded here AND in 007), because
+-- it must run after ALL clause INSERTs and 006/007 are frozen for in-place edits.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- ADDENDUM_60A: Insurance checklist catalogue (13 items)

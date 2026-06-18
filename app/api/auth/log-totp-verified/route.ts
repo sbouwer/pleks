@@ -1,11 +1,11 @@
 /**
- * app/api/auth/log-totp-verified/route.ts — FILL: one-line purpose
+ * app/api/auth/log-totp-verified/route.ts — audit-log a successful TOTP verification (AAL2) for the user
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/auth/log-totp-verified
+ * Auth:   Supabase session (auth.getUser); 401 when unauthenticated — the event is logged for user.id
+ * Data:   logAuthEvent (auth_events) — totp_verified, aal2
+ * Notes:  Fire-and-forget from the MFA verify step. Returns 401 (not 200) without a session so the log
+ *         action is never silently accepted unauthenticated (Cat-8 audit correctness).
  */
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
@@ -15,7 +15,7 @@ export async function POST(): Promise<NextResponse> {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ ok: false })
+    if (!user) return NextResponse.json({ ok: false }, { status: 401 })
 
     await logAuthEvent({
       userId: user.id,

@@ -288,3 +288,15 @@ END $$;
 -- units: prospective_co_tenant_id (singular) — FK mirror of prospective_co_tenant_ids array
 ALTER TABLE units
   ADD COLUMN IF NOT EXISTS prospective_co_tenant_id uuid REFERENCES tenants(id) ON DELETE SET NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  BUILD_69A: account-scope for deposit-interest config (ADDENDUM_69A)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- deposit_interest_config (created above in this file) gains an account scope so the deposit-interest
+-- rate can be tied to the specific deposit-holding bank account the money sits in (RHA s5(3)(c)). This
+-- extends the effective-dated hierarchy to account → unit → property → org (most-specific wins;
+-- resolution checks account first). Lives here — not in the 004 leases-domain BUILD_69A section —
+-- because the table is defined in this file and a migration replays 001→012 in order (an ALTER in 004
+-- would run before this CREATE and fail / drift).
+ALTER TABLE deposit_interest_config ADD COLUMN IF NOT EXISTS bank_account_id uuid REFERENCES bank_accounts(id);
+CREATE INDEX IF NOT EXISTS idx_dic_bank_account ON deposit_interest_config(bank_account_id) WHERE bank_account_id IS NOT NULL;

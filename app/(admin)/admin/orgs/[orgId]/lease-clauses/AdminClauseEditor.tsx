@@ -116,7 +116,7 @@ export function AdminClauseEditor({ orgId, clauses }: Readonly<AdminClauseEditor
                     className="w-full min-h-[200px] rounded-md border border-border/50 bg-background p-3 text-sm font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-brand/40"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Available tokens: {`{{var:lessor_name}}`}, {`{{ref:rental_deposit}}`}, {`{{self:5}}`} etc.
+                    Available tokens: {`{{var:lessor_name}}`}, {`{{ref:rental}}`}, {`{{self:5}}`} etc.
                     Do not remove tokens that exist in the standard wording.
                   </p>
                   <div className="flex items-center gap-2">
