@@ -1262,7 +1262,8 @@
       "effective_from",
       "effective_to",
       "created_by",
-      "created_at"
+      "created_at",
+      "bank_account_id"
     ],
     "deposit_interest_config_audit": [
       "id",
@@ -1905,7 +1906,9 @@
       "sign_reminder_sent_at",
       "expiry_reminder_sent_at",
       "escalation_notice_sent_at",
-      "payment_reference"
+      "payment_reference",
+      "deposit_account_id",
+      "trust_account_id"
     ],
     "legal_hold_events": [
       "id",
@@ -3463,7 +3466,8 @@
       "rail_siding",
       "business_use_permitted",
       "assigned_team_id",
-      "default_lease_period_months"
+      "default_lease_period_months",
+      "default_deposit_cents"
     ],
     "user_capabilities": [
       "id",
