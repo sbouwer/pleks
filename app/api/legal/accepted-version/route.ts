@@ -2,7 +2,7 @@
  * app/api/legal/accepted-version/route.ts — the signed-in user's latest accepted legal versions
  *
  * Route:  GET /api/legal/accepted-version
- * Auth:   Supabase session (auth.getUser); returns nulls when unauthenticated (no data leak)
+ * Auth:   Supabase session (auth.getUser); 401 with nulls when unauthenticated (PrivacyPolicyBanner falls back to null)
  * Data:   tos_acceptances (latest by accepted_at) — service read, scoped to the user
  * Notes:  Lets the advisory PrivacyPolicyBanner check the DB (source of truth) instead of trusting ONLY the
  *         per-browser pleks_privacy_version cookie — which is absent after a fresh login / new browser / cleared
@@ -14,7 +14,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ privacy: null, terms: null })
+  if (!user) return NextResponse.json({ privacy: null, terms: null }, { status: 401 })
 
   const service = await createServiceClient()
   const { data, error } = await service

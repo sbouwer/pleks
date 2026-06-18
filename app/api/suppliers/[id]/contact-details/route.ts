@@ -25,13 +25,18 @@ async function getMembership(service: Awaited<ReturnType<typeof createServiceCli
   return data
 }
 
-async function verifyContractorOwnership(
-  service: Awaited<ReturnType<typeof createServiceClient>>, contractorId: string, contactId: string, orgId: string,
-): Promise<boolean> {
+/**
+ * Resolve the contractor's contact_id authoritatively from the owned contractor row — never trust a
+ * client-sent contactId (ContactEditForm doesn't send one → empty-UUID 404 on phone/email edits;
+ * deriving it server-side also stops a caller targeting another contractor's contact).
+ */
+async function resolveContactId(
+  service: Awaited<ReturnType<typeof createServiceClient>>, contractorId: string, orgId: string,
+): Promise<string | null> {
   const { data, error: queryError } = await service
-    .from("contractors").select("id").eq("id", contractorId).eq("contact_id", contactId).eq("org_id", orgId).single()
-    logQueryError("verifyContractorOwnership contractors", queryError)
-  return !!data
+    .from("contractors").select("contact_id").eq("id", contractorId).eq("org_id", orgId).single()
+    logQueryError("resolveContactId contractors", queryError)
+  return data?.contact_id ?? null
 }
 
 type Resolved =
@@ -48,10 +53,10 @@ async function resolve(req: NextRequest, contractorId: string): Promise<Resolved
   if (!membership) return { error: NextResponse.json({ error: "No org" }, { status: 403 }) }
 
   const body = await req.json() as SubRecordBody
-  const valid = await verifyContractorOwnership(service, contractorId, body.contactId ?? "", membership.org_id)
-  if (!valid) return { error: NextResponse.json({ error: "Supplier not found" }, { status: 404 }) }
+  const contactId = await resolveContactId(service, contractorId, membership.org_id)
+  if (!contactId) return { error: NextResponse.json({ error: "Supplier not found" }, { status: 404 }) }
 
-  return { service, orgId: membership.org_id, userId: user.id, contactId: body.contactId ?? "", body }
+  return { service, orgId: membership.org_id, userId: user.id, contactId, body }
 }
 
 const respond = (r: SubRecordResult) =>

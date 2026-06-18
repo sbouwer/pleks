@@ -245,6 +245,39 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     tone_profile: "transactional", allowed_channels: ["email"],
     description: "Account auto-paused after 14 days of failed payment — reads/exports/notifications stay on (dunning day 14, terminal)",
   },
+  // Resume + data-purge lifecycle (ADDENDUM_57G §11.3 / 70C §8.5). These are sent by lib/subscriptions/emails.tsx
+  // but were missing here, so getTemplate() threw "Unknown template key" — breaking subscription resume and the
+  // cancellation-purge sends. Purge notices are mandatory (legally-required data-retention/erasure events).
+  "subscription.resumed": {
+    key: "subscription.resumed", channel: "email", category: "subscriptions", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Payment cleared and subscription fully reactivated — full access restored, no data lost",
+  },
+  "subscription.purge_warning_30d": {
+    key: "subscription.purge_warning_30d", channel: "email", category: "subscriptions", is_mandatory: true,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Cancelled account — Operational data scheduled for deletion in ~30 days (data-retention notice)",
+  },
+  "subscription.purge_warning_final": {
+    key: "subscription.purge_warning_final", channel: "email", category: "subscriptions", is_mandatory: true,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Final notice — Operational data deletion is tomorrow (data-retention notice)",
+  },
+  "subscription.purged_confirm": {
+    key: "subscription.purged_confirm", channel: "email", category: "subscriptions", is_mandatory: true,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Operational data purged after cancellation — confirmation + retained-records summary",
+  },
+  "subscription.paused_manual": {
+    key: "subscription.paused_manual", channel: "email", category: "subscriptions", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Subscription paused at the agent's request — reads/exports/notifications stay on; resume anytime",
+  },
+  "subscription.cancelled_confirm": {
+    key: "subscription.cancelled_confirm", channel: "email", category: "subscriptions", is_mandatory: true,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Subscription cancellation confirmed — data accessible up to 12 months, then purged (retention notice)",
+  },
   // RETIRED (ADDENDUM_57H): subscription.payment_failed + payment_reminder (re-homed to past_due_first /
   // past_due_day7 above, D-57H-04) and subscription.account_frozen (non-payment converges on `paused`,
   // never an auto `past_due → cancelled`; there is no "frozen" state).
