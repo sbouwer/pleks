@@ -61,6 +61,8 @@ export interface WizardData {
   askingRentCents: number | null
   /** durable straddle default carried from the unit (BUILD_69) — seeds the lease end date on a 2nd+ lease. */
   defaultLeasePeriodMonths: number | null
+  /** live SA prime rate (prime_rates table) resolved server-side — drives the arrears-interest preview, never hardcoded. */
+  currentPrimePercent: number | null
   bcLevyCents: number | null
   // Step 2 — Tenant(s)
   tenantId: string
@@ -118,6 +120,8 @@ export interface WizardPrefill {
   /** Durable unit fields carried so the rent/term seed even when the unit-select step is skipped (BUILD_69). */
   askingRentCents?: number | null
   defaultLeasePeriodMonths?: number | null
+  /** live SA prime (prime_rates) resolved server-side for the arrears-interest preview. */
+  currentPrimePercent?: number | null
   tenantId?: string | null
   tenantName?: string | null
   coTenants?: CoTenant[]
@@ -135,6 +139,7 @@ export function buildInitialWizardData(prefill: WizardPrefill): WizardData {
     leaseType: "residential",
     askingRentCents: prefill.askingRentCents ?? null,
     defaultLeasePeriodMonths: prefill.defaultLeasePeriodMonths ?? null,
+    currentPrimePercent: prefill.currentPrimePercent ?? null,
     bcLevyCents: null,
     tenantId: prefill.tenantId ?? "",
     tenantName: prefill.tenantName ?? "",

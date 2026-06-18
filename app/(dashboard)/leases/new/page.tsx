@@ -16,6 +16,7 @@ import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 import { contactDisplayName } from "@/lib/contacts/displayName"
 import { NewLeaseRoute } from "./NewLeaseRoute"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { getPrimeRateOn } from "@/lib/deposits/interestConfig"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -178,6 +179,9 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
     ? resolvedCoTenants
     : coTenantResults.map((r) => ({ id: r.id, name: displayName(r.data) ?? r.id }))
 
+  // Live SA prime (prime_rates) for the arrears-interest preview — derived, never hardcoded.
+  const currentPrimePercent = await getPrimeRateOn(new Date().toISOString().slice(0, 10))
+
   return (
     <NewLeaseRoute
       prefill={{
@@ -187,6 +191,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
         unitLabel: buildUnitLabel(unitData),
         askingRentCents: unitData?.asking_rent_cents ?? null,
         defaultLeasePeriodMonths: unitData?.default_lease_period_months ?? null,
+        currentPrimePercent,
         tenantId,
         tenantName: resolvedTenantName ?? displayName(tenantRes.data as TenantRow),
         coTenants: finalCoTenants,

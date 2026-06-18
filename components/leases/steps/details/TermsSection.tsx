@@ -53,8 +53,6 @@ const DEPOSIT_INTEREST_OPTIONS = [
   { value: "landlord", label: "Landlord" },
 ]
 
-const CURRENT_PRIME = 11.25
-
 interface Props {
   value: TermsState
   onChange: (next: TermsState) => void
@@ -63,6 +61,8 @@ interface Props {
   cpaDetermination: CpaDetermination
   /** durable default carried from the unit (BUILD_69); drives the auto end-date instead of a hardcoded year. */
   defaultLeasePeriodMonths?: number | null
+  /** live SA prime (prime_rates) resolved server-side; drives the arrears-interest preview. Null → degrade. */
+  currentPrimePercent?: number | null
 }
 
 function cpaStatusLabel(cpa: CpaDetermination): string {
@@ -111,7 +111,7 @@ function CpaChip({ cpa }: Readonly<{ cpa: CpaDetermination }>) {
   )
 }
 
-export function TermsSection({ value, onChange, isResidential, cpaDetermination, defaultLeasePeriodMonths }: Readonly<Props>) {
+export function TermsSection({ value, onChange, isResidential, cpaDetermination, defaultLeasePeriodMonths, currentPrimePercent }: Readonly<Props>) {
   function set<K extends keyof TermsState>(key: K, v: TermsState[K]) {
     onChange({ ...value, [key]: v })
   }
@@ -140,7 +140,8 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
     onChange({ ...value, ...patch })
   }
 
-  const effectiveArrearsRate = CURRENT_PRIME + Number(value.arrearsMargin || 0)
+  const margin = Number(value.arrearsMargin || 0)
+  const effectiveArrearsRate = currentPrimePercent != null ? currentPrimePercent + margin : null
 
   return (
     <div className="space-y-4">
@@ -212,7 +213,9 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
           <div className="flex items-center gap-2 pl-6 text-sm">
             <span>Prime +</span>
             <input type="number" min="0" max="10" step="0.5" value={value.arrearsMargin} onChange={(e) => set("arrearsMargin", e.target.value)} className="w-16 border-0 border-b border-input bg-transparent px-0 py-1 text-sm focus:border-primary focus:outline-none" />
-            <span>% = {effectiveArrearsRate.toFixed(2)}% p.a. at current prime ({CURRENT_PRIME}%)</span>
+            <span>{effectiveArrearsRate != null
+              ? `% = ${effectiveArrearsRate.toFixed(2)}% p.a. at current prime (${currentPrimePercent}%)`
+              : "% above the prevailing prime rate"}</span>
           </div>
         )}
       </div>
