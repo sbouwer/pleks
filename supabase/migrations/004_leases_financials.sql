@@ -1812,12 +1812,7 @@ ALTER TABLE leases ADD COLUMN IF NOT EXISTS trust_account_id   uuid REFERENCES b
 CREATE INDEX IF NOT EXISTS idx_leases_deposit_account ON leases(deposit_account_id) WHERE deposit_account_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_leases_trust_account   ON leases(trust_account_id)   WHERE trust_account_id   IS NOT NULL;
 
--- §7.2 written-agreement election (PPRA Practice Directive 2023): trust interest splits 50:50 agency:PPRA
--- by default, EXCEPT where the lease agrees in writing to whom it's paid. For a residential deposit, RHA
--- s5(3)(c) entitles the tenant — so the lease records, in writing, that deposit interest goes to the tenant
--- (default), invoking the §7.2 exception. This written term is the legally load-bearing artifact (not the
--- account type); it's surfaced verbatim in the lease document/Annexure.
-ALTER TABLE leases ADD COLUMN IF NOT EXISTS deposit_interest_beneficiary text NOT NULL DEFAULT 'tenant';
-ALTER TABLE leases DROP CONSTRAINT IF EXISTS leases_deposit_interest_beneficiary_check;
-ALTER TABLE leases ADD CONSTRAINT leases_deposit_interest_beneficiary_check
-  CHECK (deposit_interest_beneficiary IN ('tenant', 'split_50_50'));
+-- NOTE: an earlier 69A draft added leases.deposit_interest_beneficiary (a §7.2 election). REMOVED by the
+-- 2026-06-18 ownership correction: residential deposit interest is statutory (always the tenant, RHA
+-- s5(3)(d)), not a contractual election — so there is no beneficiary field and the deposit clause states
+-- the lessee literally. The column was dropped from live in the same change.

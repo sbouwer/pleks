@@ -78,8 +78,6 @@ export interface WizardData {
   /** the per-lease selected trust (rent) + deposit (deposit-holding) accounts. */
   trustAccountId: string
   depositAccountId: string
-  /** §7.2 written-agreement election (PPRA Directive) — who deposit interest is paid to. Default 'tenant'. */
-  depositInterestBeneficiary: string
   bcLevyCents: number | null
   // Step 2 — Tenant(s)
   tenantId: string
@@ -164,7 +162,6 @@ export function buildInitialWizardData(prefill: WizardPrefill): WizardData {
     availableAccounts: prefill.availableAccounts ?? [],
     trustAccountId: prefill.trustAccountId ?? "",
     depositAccountId: prefill.depositAccountId ?? "",
-    depositInterestBeneficiary: "tenant",
     bcLevyCents: null,
     tenantId: prefill.tenantId ?? "",
     tenantName: prefill.tenantName ?? "",

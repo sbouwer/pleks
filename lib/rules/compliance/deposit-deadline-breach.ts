@@ -6,6 +6,13 @@
  *         Entity-level dedup: one breach flag per deposit_reconciliation.id.
  *         Status 'overdue' is NOT excluded from condition — this rule may run before
  *         the status is explicitly set to overdue.
+ *
+ *         ⚠ COMMENCEMENT WATCH (RHA): the 7/14/21-day windows are governed by the Rental Housing Act
+ *         50 of 1999 §5(3)(g)/(7) — the principal Act, because the Rental Housing Amendment Act 35 of
+ *         2014 is NOT yet in force (no presidential proclamation as of 2026-06-18). If it is ever
+ *         proclaimed, these windows + their citations migrate §5 → §4A/4B (with substantive deltas)
+ *         and must be re-cited together with the deposit clause (011) and the F-1 citation matrix
+ *         (lib/comms/templates/legalCitations.ts). Until then, §5 stands.
  */
 import type { OrgRule } from "../types"
 import { hasBeenActionedFor } from "../engine"

@@ -60,10 +60,8 @@ export function AnnexuresStep({ register }: Readonly<Props>) {
         availableAccounts={data.availableAccounts}
         trustAccountId={data.trustAccountId}
         depositAccountId={data.depositAccountId}
-        depositInterestBeneficiary={data.depositInterestBeneficiary}
         onSelectTrust={(id) => patch({ trustAccountId: id })}
         onSelectDeposit={(id) => patch({ depositAccountId: id })}
-        onSelectBeneficiary={(v) => patch({ depositInterestBeneficiary: v })}
         onChangeRules={handleRules}
         onChangeSpecialTerms={handleSpecialTerms}
       />

@@ -52,7 +52,6 @@ function sampleVariables(leaseType: string): LeaseVariables {
     arrears_interest_margin: "2",
     arrears_interest_margin_words: "two",
     deposit_interest_rate: "5",
-    deposit_interest_beneficiary: "the lessee",
     lessor_bank_name: "Sample Bank",
     lessor_account_holder: "Sample Trust Account",
     lessor_account_number: "000 000 0000",

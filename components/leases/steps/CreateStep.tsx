@@ -62,7 +62,6 @@ function appendCommonFields(formData: FormData, data: WizardData, cpaApplies: bo
   if (data.deposit) formData.set("deposit_amount", data.deposit)
   if (data.trustAccountId) formData.set("trust_account_id", data.trustAccountId)
   if (data.depositAccountId) formData.set("deposit_account_id", data.depositAccountId)
-  formData.set("deposit_interest_beneficiary", data.depositInterestBeneficiary || "tenant")
   if (data.coTenants.length > 0) formData.set("co_tenants_json", JSON.stringify(data.coTenants.map((c) => ({ tenant_id: c.id, is_signatory: !!c.isSignatory }))))
 }
 

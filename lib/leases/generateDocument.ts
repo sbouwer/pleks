@@ -54,7 +54,6 @@ export interface LeaseVariables {
   arrears_interest_margin: string
   arrears_interest_margin_words: string
   deposit_interest_rate: string
-  deposit_interest_beneficiary: string
   lessor_bank_name: string
   lessor_account_holder: string
   lessor_account_number: string
@@ -220,12 +219,6 @@ export async function generateLeaseDocument(
     arrears_interest_margin: String(lease.arrears_interest_margin_percent ?? 2),
     arrears_interest_margin_words: numberToWords(lease.arrears_interest_margin_percent ?? 2),
     deposit_interest_rate: String(depositRateAsAtSigning ?? 5),
-    // §7.2 written-agreement election rendered into the deposit clause. 'tenant' renders "the lessee" so the
-    // DEFAULT clause text is byte-identical to the pre-69A wording (no legal-wording change); only the rare
-    // split election reads differently.
-    deposit_interest_beneficiary: lease.deposit_interest_beneficiary === "split_50_50"
-      ? "the Agency and the PPRA in equal shares"
-      : "the lessee",
     lessor_bank_name: bankDetails.bankName,
     lessor_account_holder: bankDetails.accountHolder,
     lessor_account_number: bankDetails.accountNumber,

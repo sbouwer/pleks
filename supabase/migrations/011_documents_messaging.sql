@@ -1034,24 +1034,72 @@ WHERE NOT EXISTS (
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- §N  BUILD_69A: §7.2 deposit-interest-beneficiary tokenisation of the clause library
+-- §N  BUILD_69A clause restructure (counsel-approved 2026-06-18): split rental_deposit → rental + deposit
 -- ═══════════════════════════════════════════════════════════════════════════════
--- The PPRA Practice Directive §7.2 election (leases.deposit_interest_beneficiary, default 'tenant')
--- must render into every clause that names who the deposit interest accrues to. Those clauses are
--- seeded with a hardcoded "for the benefit of the lessee" in 006 (rental_deposit) and 007 (pets, the
--- pet-deposit allocation). 006/007 are frozen for in-place edits, so we tokenise here — after ALL
--- clause INSERTs — via idempotent UPDATEs. Each LIKE guard makes the statement a no-op once applied
--- (and a no-op on the seed's own already-tokenised future state). The 'tenant' election renders as
--- "the lessee", so default leases keep byte-identical wording; only a 'split_50_50' election differs.
+-- rental_deposit doubled as the rental anchor ({{ref:rental_deposit}}, used by payment + parking) AND the
+-- deposit clause. Counsel split it into two single-purpose clauses. 006/007 are frozen, so the whole split
+-- is expressed here (the established 011 post-INSERT pattern): INSERT the two new clauses, repoint the refs,
+-- then retire rental_deposit (verified 2026-06-18: zero lease_clause_selections rows and zero custom bodies
+-- reference it). Residential deposit interest is statutory (tenant) — NO beneficiary token (see below).
+--
+-- Bodies are stored single-line (one prose paragraph) — the same convention the retired rental_deposit used.
+-- parseClauseBody auto-numbers every line of a MULTI-line body (X.1, X.2 …), which would inject numbers the
+-- counsel wording does not have and double-label the (a)–(d) refund list; single-line renders the exact
+-- counsel text as one justified paragraph (byte-for-byte).
+--
+-- Citations: Rental Housing Act 50 of 1999 §5 — the Rental Housing Amendment Act 35 of 2014 is NOT in force
+-- (no presidential proclamation as of 2026-06-18, web-verified); deposit interest = §5(3)(d) (per the
+-- counsel-signed F-1 matrix). ⚠ COMMENCEMENT WATCH: if the 2014 Amendment is ever proclaimed, ALL deposit
+-- citations migrate §5 → §4A/4B together — here, in the F-1 matrix, and in lib/leases/deposit-deadline-breach.ts
+-- (with the s21 6-month transition). Until then, §5 stands.
 
--- rental_deposit: "... for the benefit of the lessee." (sentence end)
-UPDATE lease_clause_library
-SET body_template = replace(body_template, 'for the benefit of the lessee.', 'for the benefit of {{var:deposit_interest_beneficiary}}.')
-WHERE clause_key = 'rental_deposit'
-  AND body_template LIKE '%for the benefit of the lessee.%';
+-- New 'rental' clause — the extracted rental anchor (required; takes rental_deposit's sort slot 500).
+INSERT INTO lease_clause_library
+  (clause_key, title, body_template, lease_type, is_required, is_enabled_by_default, sort_order, depends_on, description, toggle_label)
+VALUES (
+  'rental', 'Rental',
+  $$The basic monthly rental payable by the lessee to the lessor in respect of the hire of the leased premises, during the initial period, is set out in Annexure A: Rental Calculation per month for the initial period.$$,
+  'both', true, true, 500, '{}',
+  'States the basic monthly rental and points to Annexure A for the calculation. The rental anchor referenced by the payment and parking clauses.',
+  NULL
+)
+ON CONFLICT (clause_key) DO UPDATE
+  SET title = EXCLUDED.title, body_template = EXCLUDED.body_template, lease_type = EXCLUDED.lease_type,
+      is_required = EXCLUDED.is_required, is_enabled_by_default = EXCLUDED.is_enabled_by_default,
+      sort_order = EXCLUDED.sort_order, description = EXCLUDED.description;
 
--- pets: "... interest for the benefit of the lessee in accordance with the Rental Housing Act ..."
+-- New 'deposit' clause — deposit-only, counsel-approved (RHA §5). Seeded with the verbatim counsel wording;
+-- the interest accrues to the lessee as a statutory fact (s5(3)(d)) — literal, not tokenised/electable.
+INSERT INTO lease_clause_library
+  (clause_key, title, body_template, lease_type, is_required, is_enabled_by_default, sort_order, depends_on, description, toggle_label)
+VALUES (
+  'deposit', 'Deposit',
+  $$As security for the lessee's obligations under this agreement, the lessee shall pay to the lessor a deposit in the amount stipulated in Annexure A: Rental Calculation, on or before the date stipulated in Annexure A, but in any event prior to occupation. The lessor shall invest the deposit in an interest-bearing account with a registered financial institution, as required by section 5(3) of the Rental Housing Act, 1999. The interest earned on the deposit shall accrue for the benefit of the lessee in accordance with section 5(3)(d) of the Rental Housing Act. The lessee may, before, during or after the period of the lease, on written request, require the lessor to provide written proof of the interest accrued, as contemplated in section 5(3)(d). Where the deposit is received and administered by the lessor's managing agent, it shall be held, invested and accounted for in accordance with the Property Practitioners Act, 2019, the rules of the Property Practitioners Regulatory Authority and any successor legislation applicable to the management of trust monies, and shall be accounted for separately from the managing agent's own funds. The deposit shall be retained as security for the lessee's obligations under this agreement and may be applied by the lessor against any amount lawfully due and payable by the lessee under this agreement — including unpaid rental, utility charges, municipal charges and any other charges recoverable from the lessee under this agreement, replacement costs, repairs and maintenance for which the lessee is liable, and damage to the leased premises beyond fair wear and tear. Should any portion of the deposit lawfully be utilised or appropriated towards a debt or liability of the lessee arising under this agreement, the lessee shall, on demand, restore it to its original amount. The lessee shall not, under any circumstances, be entitled to set off any amount payable by it to the lessor against the deposit. The lessor shall be entitled to deduct from the deposit only those amounts lawfully recoverable from the lessee under this agreement and applicable law. The parties shall inspect the leased premises jointly before the lessee takes occupation, for the purpose of recording any existing defects or damage. On termination of this agreement, the lessor shall, following reasonable written notice to the lessee, inspect the leased premises jointly with the lessee at a mutually convenient time, in accordance with section 5(3) of the Rental Housing Act, to determine any amounts that may be deducted from the deposit. On termination of this agreement, and subject always to the Rental Housing Act and to any lawful deductions arising from an early cancellation of this agreement, the deposit, together with interest, less any amounts lawfully deducted by the lessor (each deduction to be itemised in writing and supported by the outgoing inspection), shall be refunded to the lessee in accordance with section 5 of the Rental Housing Act, namely: (a) where no amount is owing by the lessee and a joint outgoing inspection has been conducted — within 7 (seven) days of expiration of the lease; (b) where the lessor fails to inspect the leased premises in the presence of the lessee — in full, without deduction, within 14 (fourteen) days of expiration of the lease; (c) where the lessor has applied any amount toward repairing damage for which the lessee is liable — the balance, together with interest, within 14 (fourteen) days after completion of the repairs, and the lessor shall, on request, provide the lessee with reasonable documentary proof of the costs incurred; and (d) where the lessee fails to respond to the lessor's reasonable written notice to arrange a joint outgoing inspection — within 21 (twenty-one) days of expiration of the lease. To the extent of any conflict between the periods stated above and the Rental Housing Act, the Rental Housing Act prevails.$$,
+  'both', true, true, 510, '{}',
+  'Deposit security, interest accruing to the lessee (RHA s5(3)(d)), PPRA trust handling, joint inspections, and the s5 refund timeline.',
+  NULL
+)
+ON CONFLICT (clause_key) DO UPDATE
+  SET title = EXCLUDED.title, body_template = EXCLUDED.body_template, lease_type = EXCLUDED.lease_type,
+      is_required = EXCLUDED.is_required, is_enabled_by_default = EXCLUDED.is_enabled_by_default,
+      sort_order = EXCLUDED.sort_order, description = EXCLUDED.description;
+
+-- Repoint the cross-refs from the retired rental_deposit id. payment + parking reference the RENTAL anchor
+-- ("the basic monthly rental referred to in …") → {{ref:rental}}; pets references the DEPOSIT twice
+-- ("the deposit referred to in …") → {{ref:deposit}} (verified against the live bodies 2026-06-18).
 UPDATE lease_clause_library
-SET body_template = replace(body_template, 'for the benefit of the lessee in accordance', 'for the benefit of {{var:deposit_interest_beneficiary}} in accordance')
-WHERE clause_key = 'pets'
-  AND body_template LIKE '%for the benefit of the lessee in accordance%';
+SET body_template = replace(body_template, '{{ref:rental_deposit}}', '{{ref:rental}}')
+WHERE clause_key IN ('payment', 'parking') AND body_template LIKE '%{{ref:rental_deposit}}%';
+
+UPDATE lease_clause_library
+SET body_template = replace(body_template, '{{ref:rental_deposit}}', '{{ref:deposit}}')
+WHERE clause_key = 'pets' AND body_template LIKE '%{{ref:rental_deposit}}%';
+
+-- NO beneficiary tokenisation: residential deposit interest is STATUTORY (always the tenant, RHA s5(3)(d)) —
+-- it is NOT a contractual election (the §7.2 50:50 split/written-election is a trust-pooling concept that
+-- does not override the residential statutory entitlement; ownership correction 2026-06-18). So the deposit
+-- and pets clauses keep the literal "for the benefit of the lessee" — there is no {{var:deposit_interest_beneficiary}}
+-- token and no leases.deposit_interest_beneficiary field.
+
+-- Retire the rental_deposit id now that rental + deposit replace it and all refs are repointed.
+DELETE FROM lease_clause_library WHERE clause_key = 'rental_deposit';

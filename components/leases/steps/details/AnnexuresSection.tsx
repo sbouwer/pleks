@@ -82,10 +82,8 @@ interface Props {
   availableAccounts: SelectableAccount[]
   trustAccountId: string
   depositAccountId: string
-  depositInterestBeneficiary: string
   onSelectTrust: (id: string) => void
   onSelectDeposit: (id: string) => void
-  onSelectBeneficiary: (v: string) => void
   onChangeRules: (next: AnnexureCRules) => void
   onChangeSpecialTerms: (next: SpecialTerm[]) => void
 }
@@ -93,8 +91,8 @@ interface Props {
 export function AnnexuresSection({
   rent, deposit, paymentDueDay, escalationPercent, escalationType,
   charges, onceOffCharges, rules, specialTerms,
-  availableAccounts, trustAccountId, depositAccountId, depositInterestBeneficiary,
-  onSelectTrust, onSelectDeposit, onSelectBeneficiary,
+  availableAccounts, trustAccountId, depositAccountId,
+  onSelectTrust, onSelectDeposit,
   onChangeRules, onChangeSpecialTerms,
 }: Readonly<Props>) {
   const rentCents = Math.round(Number.parseFloat(rent || "0") * 100)
@@ -177,22 +175,7 @@ export function AnnexuresSection({
           </p>
         )}
 
-        {/* §7.2 written-agreement election — the legally load-bearing term (default tenant, RHA s5(3)(c)). */}
-        <div className="mt-4 max-w-md">
-          <Field label="Deposit interest is paid to" required>
-            <UnderlineSelect
-              value={depositInterestBeneficiary}
-              onChange={onSelectBeneficiary}
-              options={[
-                { value: "tenant", label: "The tenant (RHA s5(3)(c))" },
-                { value: "split_50_50", label: "Split 50:50 — agency : PPRA" },
-              ]}
-            />
-          </Field>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Recorded as a written term in the lease (PPRA Practice Directive §7.2). Without it, trust interest defaults to a 50:50 agency/PPRA split — for a residential deposit it must go to the tenant.
-          </p>
-        </div>
+        {/* Deposit interest accrues to the tenant by statute (RHA s5(3)(d)) — not an election, so no selector. */}
       </AnnexureSection>
 
       {/* Annexure C — Property Rules */}
