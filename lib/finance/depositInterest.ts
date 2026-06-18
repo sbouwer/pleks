@@ -51,6 +51,7 @@ export async function accrueDepositInterest(
     .from("leases")
     .select(`
       id, org_id, tenant_id, unit_id, property_id,
+      deposit_account_id, trust_account_id,
       deposit_amount_cents,
       deposit_interest_rate_percent,
       deposit_interest_last_accrued_date,
@@ -80,7 +81,9 @@ export async function accrueDepositInterest(
     lease.org_id,
     lease.property_id ?? null,
     lease.unit_id ?? null,
-    asOfDate
+    asOfDate,
+    // Effective deposit account: a dedicated deposit account if set, else the trust account it falls back to.
+    lease.deposit_account_id ?? lease.trust_account_id ?? null,
   )
 
   let ratePercent: number
