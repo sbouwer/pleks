@@ -81,6 +81,11 @@ const nextConfig: NextConfig = {
       { source: "/contractors",        destination: "/suppliers",          permanent: true },
       { source: "/contractors/:path*", destination: "/suppliers/:path*",   permanent: true },
 
+      // Applications page → Listings (each listing has applicants). The list + compare redirect here;
+      // /applications/[id] is NOT wildcarded — a server shim resolves it to /listings/[slug]/applications/[id].
+      { source: "/applications",         destination: "/listings", permanent: true },
+      { source: "/applications/compare", destination: "/listings", permanent: true },
+
       { source: "/settings/finance",   destination: "/settings/deposits",  permanent: true },
 
       // Documents settings renamed to Templates (ADDENDUM template-manager Phase 1)

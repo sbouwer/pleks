@@ -180,7 +180,7 @@ export async function sendReviewReminder(
             <p key={i} style={{ ...S.body, margin: "4px 0" }}>• {a.name} — {a.listing} — {a.score}/45 — applied {a.appliedAt}</p>
           ))}
         </div>
-        <EmailButton href={`${APP_URL}/applications`} accentColor={org.branding.accentColor}>Review applications →</EmailButton>
+        <EmailButton href={`${APP_URL}/listings`} accentColor={org.branding.accentColor}>Review listings →</EmailButton>
         <p style={S.footer}>Timely reviews help you secure the best tenants.</p>
       </EmailLayout>
     ),

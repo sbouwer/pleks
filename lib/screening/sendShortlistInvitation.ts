@@ -86,6 +86,6 @@ export async function sendShortlistInvitation(
     new_values: { stage1_status: "shortlisted", stage2_status: "invited" },
   })
 
-  revalidatePath("/applications")
+  revalidatePath("/listings")
   return { success: true }
 }

@@ -17,6 +17,7 @@ export const ROUTE_CAPABILITY: Record<string, string> = {
   "/tenants":      "tenants",
   "/suppliers":    "maintenance",
   "/leases":       "leases",
+  "/listings":     "applications",
   "/applications": "applications",
   "/maintenance":  "maintenance",
   "/inspections":  "inspections",

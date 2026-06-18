@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { FitScoreReportData } from "@/lib/reports/screening/_primitives/theme"
 import { toDocAnchorId } from "@/lib/reports/screening/_primitives/anchors"
 import { SectionNav } from "@/lib/reports/screening/_web/SectionNav"
-import { PopiaResponseAction } from "@/app/(dashboard)/applications/[id]/_components/PopiaResponseAction"
+import { PopiaResponseAction } from "@/app/(dashboard)/listings/[slug]/applications/[id]/_components/PopiaResponseAction"
 
 import { EditorialHeadline }       from "./primitives/EditorialHeadline"
 import { MetaStrip }               from "./primitives/MetaStrip"

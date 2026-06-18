@@ -1,9 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/applications/ApplicationsPageClient.tsx — Application list grouped by listing with bulk-decide panel
+ * app/(dashboard)/listings/ListingsPageClient.tsx — Listings list (each listing grouped with its applicants) + bulk-decide panel
  *
- * Route:  /applications
+ * Route:  /listings
  * Auth:   gateway (dashboard layout)
  * Data:   fetchApplicationsAction + server-side listings prop via React Query
  * Notes:  shared <ListToolbar> drives search (applicant name/email) + a multi-select Stage filter; the four
@@ -138,6 +138,14 @@ function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount:
   )
 }
 
+/** The application detail URL — nested under its listing's slug; falls back to the /applications/[id] shim
+ *  (which resolves the slug server-side) only when the slug is somehow absent. */
+function appHref(app: { id: string; listings?: unknown }): string {
+  const raw = (app as { listings?: unknown }).listings
+  const listing = (Array.isArray(raw) ? raw[0] : raw) as ListingShape | null | undefined
+  return listing?.public_slug ? `/listings/${listing.public_slug}/applications/${app.id}` : `/applications/${app.id}`
+}
+
 /** Resolve the (possibly array-wrapped) listing on an application row to its unit/property label. */
 function appListingLabel(app: { listings?: unknown }): string | null {
   const raw = (app as { listings?: unknown }).listings
@@ -218,7 +226,7 @@ function buildMergedGroups<A extends { listings?: unknown }>(
   return { mergedList, noListing }
 }
 
-export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
+export function ListingsPageClient({ orgId, listings }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { user } = useUser()
@@ -272,8 +280,8 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
     <div className="flex h-full min-h-0 flex-col">
       <ResourcePageHeader
         eyebrow="Operations"
-        title="Applications"
-        headline="Rental applications"
+        title="Listings"
+        headline="Rental listings"
         sub={
           (list.length > 0 || dataUpdatedAt > 0) ? (
             <div className="space-y-0.5">
@@ -362,7 +370,7 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
                 {apps.map((app) => {
                   const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
                   return (
-                    <Link key={app.id} href={`/applications/${app.id}`}>
+                    <Link key={app.id} href={appHref(app)}>
                       <Card className="hover:border-brand/50 transition-colors cursor-pointer">
                         <CardContent className="flex items-center justify-between pt-4">
                           <div>
@@ -406,7 +414,7 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
                 {noListing.map((app) => {
                   const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
                   return (
-                    <Link key={app.id} href={`/applications/${app.id}`}>
+                    <Link key={app.id} href={appHref(app)}>
                       <Card className="hover:border-brand/50 transition-colors cursor-pointer">
                         <CardContent className="flex items-center justify-between pt-4">
                           <div>
@@ -440,7 +448,7 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
               <ApplicantCard
                 key={app.id}
                 app={app}
-                onOpen={() => router.push(`/applications/${app.id}`)}
+                onOpen={() => router.push(appHref(app))}
               />
             ))}
           </div>
