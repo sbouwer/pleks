@@ -315,6 +315,40 @@ export async function resolveStatementLine(
   return { success: true }
 }
 
+/**
+ * F-5: confirm or reject a fuzzy (±R50) suggested match. Confirm promotes it to a verified manual match
+ * (keeping the suggested invoice); reject clears the suggestion back to unmatched for re-resolution. Either
+ * way the line leaves the matched_fuzzy state that blocks sign-off. Audited via resolved_by/at.
+ */
+export async function resolveFuzzyMatch(lineId: string, decision: "confirm" | "reject") {
+  const gw = await requireAgentWriteAccess("sign_off_recon")
+  const { db, userId } = gw
+
+  const updates: Record<string, unknown> = { resolved_by: userId, resolved_at: new Date().toISOString() }
+  if (decision === "confirm") {
+    updates.match_status = "matched_manual"
+    updates.match_confidence = 1
+  } else {
+    updates.match_status = "unmatched"
+    updates.match_confidence = null
+    updates.matched_invoice_id = null
+    updates.matched_supplier_inv_id = null
+  }
+
+  const { data: updated, error } = await db
+    .from("bank_statement_lines")
+    .update(updates)
+    .eq("id", lineId)
+    .eq("match_status", "matched_fuzzy")   // only act on an un-confirmed fuzzy suggestion (idempotent)
+    .select("import_id")
+    .maybeSingle()
+  if (error) return { error: error.message }
+
+  if (updated?.import_id) await recomputeDiscrepancy(db, updated.import_id as string)
+  revalidatePath("/billing/reconciliation")
+  return { success: true }
+}
+
 export async function runAutoMatch(importId: string): Promise<{ matched: number } | { error: string }> {
   const gw = await requireAgentWriteAccess("sign_off_recon")
   const { db, orgId } = gw
@@ -338,6 +372,20 @@ export async function signOffReconciliation(importId: string, acceptVariance?: {
 
   if (unmatched && unmatched.length > 0) {
     return { error: "All transactions must be matched or ignored before sign-off" }
+  }
+
+  // F-5: a fuzzy (±R50) auto-match is a SUGGESTION, not a confirmed match — block sign-off until an agent
+  // confirms or rejects each one, so a reconciliation can't close on amounts nobody verified.
+  const { data: fuzzy, error: fuzzyError } = await db
+    .from("bank_statement_lines")
+    .select("id")
+    .eq("import_id", importId)
+    .eq("match_status", "matched_fuzzy")
+    .limit(1)
+    logQueryError("signOffReconciliation fuzzy check", fuzzyError)
+
+  if (fuzzy && fuzzy.length > 0) {
+    return { error: "Confirm or reject every fuzzy (±R50) suggested match before sign-off" }
   }
 
   // F-5 part 2: don't let a reconciliation close with an unexplained discrepancy. Require it to net to zero, or

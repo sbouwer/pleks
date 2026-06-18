@@ -13,6 +13,7 @@ import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendPastDueFirst, sendPastDueDay7, sendPausedAuto } from "@/lib/subscriptions/emails"
+import { resolveDunningLadderStep } from "@/lib/subscriptions/state"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { trackSend, settleSends } from "@/lib/cron/settleSends"
@@ -43,6 +44,8 @@ export async function GET(req: NextRequest) {
   for (const sub of pastDueSubs ?? []) {
     const since = new Date(sub.past_due_since!)
     const daysElapsed = Math.floor((now.getTime() - since.getTime()) / (1000 * 60 * 60 * 24))
+    const ladderStep = resolveDunningLadderStep(daysElapsed)
+    if (ladderStep === "none") continue
 
     const [{ data: org }, { data: adminRow }] = await Promise.all([
       supabase
@@ -73,7 +76,7 @@ export async function GET(req: NextRequest) {
       branding: buildBranding(await fetchOrgSettings(sub.org_id)),
     }
 
-    if (daysElapsed >= 14) {
+    if (ladderStep === "auto_pause") {
       // Auto-pause
       const { error: pauseErr } = await supabase
         .from("subscriptions")
@@ -92,7 +95,7 @@ export async function GET(req: NextRequest) {
       })
       trackSend(sends, `subscription-dunning paused ${sub.org_id}`, sendPausedAuto(contact))
       autoPaused++
-    } else if (daysElapsed === 7) {
+    } else if (ladderStep === "day7_reminder") {
       // Check idempotency via comm log
       const { data: prior, error: priorError } = await supabase
         .from("communication_log")
@@ -104,7 +107,7 @@ export async function GET(req: NextRequest) {
       if (prior && prior.length > 0) continue
       trackSend(sends, `subscription-dunning day7 ${sub.org_id}`, sendPastDueDay7(contact))
       pastDueDay7++
-    } else if (daysElapsed === 0) {
+    } else if (ladderStep === "first_notice") {
       // First notice — check idempotency
       const { data: prior, error: priorError2 } = await supabase
         .from("communication_log")

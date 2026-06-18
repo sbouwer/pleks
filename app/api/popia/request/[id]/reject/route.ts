@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { transitionRequestStatus } from "@/lib/popia/requests"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { isSubstantiveText, MIN_SUBSTANTIVE_TEXT_LENGTH } from "@/lib/text/substantive"
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -24,9 +25,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     legal_basis: string
   }
 
-  if (!body.notes || !body.legal_basis) {
+  // Substantive, not just present (O-16 R3): both render raw into the subject-facing rejection + IR-escalation
+  // notice, so a blank or token legal basis is a defective POPIA s24 notice — reject it at the source.
+  if (!isSubstantiveText(body.notes) || !isSubstantiveText(body.legal_basis)) {
     return NextResponse.json(
-      { error: "notes and legal_basis are required for rejection (POPIA s24)" },
+      { error: `notes and legal_basis must each be a substantive explanation (at least ${MIN_SUBSTANTIVE_TEXT_LENGTH} characters) for a rejection (POPIA s24)` },
       { status: 400 },
     )
   }

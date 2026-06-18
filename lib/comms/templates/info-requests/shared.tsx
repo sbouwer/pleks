@@ -110,12 +110,16 @@ export function RequestList({ items }: { items: string[] }) {
   )
 }
 
-/** Expiry + reply-fallback line shown above the POPIA footer on every external email */
-export function ExpiryLine({ days = 14 }: { days?: number }) {
+/**
+ * Expiry line above the POPIA footer. The "reply by email" fallback is offered by default, but MUST be
+ * suppressed for banking requests (replyFallback={false}) — inviting account numbers into a plain email
+ * contradicts the secure-form-only rule those templates state and is a security risk (O-16 R5).
+ */
+export function ExpiryLine({ days = 14, replyFallback = true }: Readonly<{ days?: number; replyFallback?: boolean }>) {
   return (
     <Text style={styles.expiry}>
-      This is a secure link, valid for {days} days. If you&apos;d prefer to
-      send the details by email, just reply to this message.
+      This is a secure link, valid for {days} days.
+      {replyFallback && " If you'd prefer to send the details by email, just reply to this message."}
     </Text>
   )
 }

@@ -47,4 +47,11 @@ describe("ADDENDUM_57H — non-payment converges on paused (57G canon)", () => {
   it("the subscription.account_frozen registry key is removed", () => {
     expect(registry).not.toContain('"subscription.account_frozen"')
   })
+
+  it("the dunning cron drives the ladder through the canonical resolveDunningLadderStep (not inline day-math)", () => {
+    const dunning = read("app/api/cron/subscription-dunning/route.ts")
+    expect(dunning).toContain("resolveDunningLadderStep")
+    // the auto-pause branch keys off the resolved step, not a raw day comparison
+    expect(dunning).toContain('ladderStep === "auto_pause"')
+  })
 })

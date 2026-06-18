@@ -325,9 +325,7 @@ function AddAccountForm({
           {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
           Save account
         </ActionButton>
-        <DialogClose>
-          <ActionButton tone="secondary" type="button">Cancel</ActionButton>
-        </DialogClose>
+        <DialogClose render={<ActionButton tone="secondary" type="button">Cancel</ActionButton>} />
       </DialogFooter>
     </div>
   )

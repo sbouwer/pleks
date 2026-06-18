@@ -2366,6 +2366,11 @@ ALTER TABLE organisations
 -- can_view_sensitive_identity_data. Org-scoped: a user can hold a capability in
 -- one org but not another. Only owner / property_manager roles are eligible grantees.
 -- Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §8.7.
+-- NOTE (Phase G.2(a), kept-not-dropped): can_run_fitscore_replay is intentionally not yet
+-- wired — the only replay surface today is the admin route /admin/popia-requests/[applicationId],
+-- which gates on requireAdminAuth() (admin routes can't call agent-side gateway()). The capability
+-- is RESERVED for a future agency-side surface: a per-org Information Officer running a replay from
+-- the dashboard. Retain the enum value; do not treat "no callers" as dead.
 
 CREATE TABLE IF NOT EXISTS user_capabilities (
   id              uuid        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
