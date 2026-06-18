@@ -40,13 +40,13 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 ]
 
 const STATUS_STYLES: Record<string, string> = {
-  active:          "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  month_to_month:  "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  notice:          "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-  draft:           "bg-muted text-muted-foreground",
-  pending_signing: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  expired:         "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-  cancelled:       "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  active:          "bg-emerald-600 text-white",
+  month_to_month:  "bg-emerald-600 text-white",
+  notice:          "bg-purple-600 text-white",
+  draft:           "bg-slate-700 text-white",
+  pending_signing: "bg-amber-500 text-white",
+  expired:         "bg-red-600 text-white",
+  cancelled:       "bg-red-600 text-white",
 }
 const STATUS_LABELS: Record<string, string> = {
   active: "Active", month_to_month: "MTM", notice: "Notice",
@@ -177,7 +177,7 @@ interface LeaseListTabsProps {
 }
 
 export function LeaseListTabs({ leases }: LeaseListTabsProps) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"list" | "cards">("list")
 
