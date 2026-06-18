@@ -23,6 +23,7 @@ import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@
 import { useMyPortfolio } from "@/hooks/useMyPortfolio"
 import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { LeaseRow, type SerializedLease } from "./LeaseRow"
+import { StatusBadge } from "@/components/shared/StatusBadge"
 import { LeaseListFooter } from "./LeaseListFooter"
 import { isExpiringSoon, getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
@@ -38,20 +39,6 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "draft",    label: "Draft" },
   { value: "all",      label: "All" },
 ]
-
-const STATUS_STYLES: Record<string, string> = {
-  active:          "bg-emerald-600 text-white",
-  month_to_month:  "bg-emerald-600 text-white",
-  notice:          "bg-purple-600 text-white",
-  draft:           "bg-slate-700 text-white",
-  pending_signing: "bg-amber-500 text-white",
-  expired:         "bg-red-600 text-white",
-  cancelled:       "bg-red-600 text-white",
-}
-const STATUS_LABELS: Record<string, string> = {
-  active: "Active", month_to_month: "MTM", notice: "Notice",
-  draft: "Draft", pending_signing: "Pending", expired: "Expired", cancelled: "Cancelled",
-}
 
 function filterByStatus(leases: SerializedLease[], tab: StatusFilter): SerializedLease[] {
   switch (tab) {
@@ -149,9 +136,7 @@ function LeaseCard({ lease }: Readonly<{ lease: SerializedLease }>) {
             {lease.hasArrears ? " · Arrears" : ""}
           </p>
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium ${STATUS_STYLES[lease.status] ?? STATUS_STYLES.draft}`}>
-          {STATUS_LABELS[lease.status] ?? lease.status}
-        </span>
+        <StatusBadge status={lease.status} className="shrink-0" />
       </div>
 
       <p className="truncate text-xs text-muted-foreground">{propertyLabel}</p>

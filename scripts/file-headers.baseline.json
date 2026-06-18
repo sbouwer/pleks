@@ -289,7 +289,6 @@
   "components/shared/EmptyState.tsx",
   "components/shared/InlineCombobox.tsx",
   "components/shared/LoadingSkeleton.tsx",
-  "components/shared/StatusBadge.tsx",
   "components/shared/UpgradeCta.tsx",
   "components/ui/BackLink.tsx",
   "components/ui/FormSelect.tsx",

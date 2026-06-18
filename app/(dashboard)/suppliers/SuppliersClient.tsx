@@ -12,6 +12,7 @@ import { useState } from "react"
 import { EditButton, DeleteButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/shared/StatusBadge"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -76,11 +77,7 @@ function SupplierCard({
             <p className="text-[11px] text-muted-foreground">{c.entity_type === "organisation" ? "Company" : "Individual"}</p>
           )}
         </div>
-        {c.is_active ? (
-          <Badge variant="secondary" className="shrink-0 text-[10px] bg-green-500/10 text-green-600 dark:text-green-400">Active</Badge>
-        ) : (
-          <Badge variant="secondary" className="shrink-0 text-[10px] bg-surface-elevated">Inactive</Badge>
-        )}
+        <StatusBadge status={c.is_active ? "active" : "inactive"} className="shrink-0" />
       </div>
 
       {specs.length > 0 && (
@@ -383,11 +380,7 @@ export function SuppliersClient({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {c.is_active ? (
-                        <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400">Active</Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-[10px] bg-surface-elevated">Inactive</Badge>
-                      )}
+                      <StatusBadge status={c.is_active ? "active" : "inactive"} />
                     </td>
                     <td
                       className="px-4 py-3 text-right"

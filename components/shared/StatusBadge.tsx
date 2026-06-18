@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * components/shared/StatusBadge.tsx — FILL: one-line purpose
+ * components/shared/StatusBadge.tsx — the global status pill (solid, readable in light + dark)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  ONE status pill for the whole app — map a domain status string to a colour variant here and
+ *         render <StatusBadge status={...} />. Solid saturated bg + white text (was soft tint-on-tint,
+ *         which washed out in light mode). Used across billing, arrears, invoices, inspections,
+ *         applications, leases, suppliers, etc. — add new statuses to the union + statusConfig, not
+ *         per-page maps. Unknown status → renders nothing (caller should pass a mapped status).
  */
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -30,6 +30,11 @@ type Status =
   | "expiring"
   | "draft"
   | "cancelled"
+  | "inactive"
+  // lease-specific
+  | "month_to_month"
+  | "pending_signing"
+  | "expired"
 
 const statusConfig: Record<Status, { label: string; variant: "green" | "amber" | "red" | "blue" | "purple" | "gray" }> = {
   active: { label: "Active", variant: "green" },
@@ -49,19 +54,25 @@ const statusConfig: Record<Status, { label: string; variant: "green" | "amber" |
   expiring: { label: "Expiring", variant: "purple" },
   draft: { label: "Draft", variant: "gray" },
   cancelled: { label: "Cancelled", variant: "gray" },
+  inactive: { label: "Inactive", variant: "gray" },
+  month_to_month: { label: "MTM", variant: "green" },
+  pending_signing: { label: "Pending", variant: "amber" },
+  expired: { label: "Expired", variant: "red" },
 }
 
+// Solid saturated bg + white text — readable in light AND dark (the soft tint-on-tint variants washed
+// out in light mode). Border-transparent so the Badge `outline` base border doesn't show.
 const variantStyles = {
-  green: "bg-success-bg text-success border-success/20",
-  amber: "bg-warning-bg text-warning border-warning/20",
-  red: "bg-danger-bg text-danger border-danger/20",
-  blue: "bg-info-bg text-info border-info/20",
-  purple: "bg-purple-950 text-purple-400 border-purple-400/20",
-  gray: "bg-muted text-muted-foreground border-border",
+  green: "bg-emerald-600 text-white border-transparent",
+  amber: "bg-amber-500 text-white border-transparent",
+  red: "bg-red-600 text-white border-transparent",
+  blue: "bg-blue-600 text-white border-transparent",
+  purple: "bg-purple-600 text-white border-transparent",
+  gray: "bg-slate-600 text-white border-transparent",
 }
 
-export function StatusBadge({ status, className }: { status: Status; className?: string }) {
-  const config = statusConfig[status]
+export function StatusBadge({ status, className }: Readonly<{ status: string; className?: string }>) {
+  const config = statusConfig[status as Status]
   if (!config) return null
 
   return (
