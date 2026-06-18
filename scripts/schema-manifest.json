@@ -3537,7 +3537,8 @@
       "fork_banner_dismissed_landlord",
       "forked_landlord_id",
       "agent_contact_id",
-      "email_verified_at"
+      "email_verified_at",
+      "ppra_ffc_number"
     ],
     "user_signatures": [
       "id",
