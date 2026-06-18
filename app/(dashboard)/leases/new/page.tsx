@@ -17,6 +17,7 @@ import { contactDisplayName } from "@/lib/contacts/displayName"
 import { NewLeaseRoute } from "./NewLeaseRoute"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getPrimeRateOn } from "@/lib/deposits/interestConfig"
+import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -182,6 +183,18 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   // Live SA prime (prime_rates) for the arrears-interest preview — derived, never hardcoded.
   const currentPrimePercent = await getPrimeRateOn(new Date().toISOString().slice(0, 10))
 
+  // Trust account that the lease doc's banking annexure renders (Annexure B). Account number masked to
+  // last 4 for the wizard preview — the full number only appears on the server-generated document.
+  const bank = await getLessorBankDetails(orgId)
+  const lessorBanking = bank.configured
+    ? {
+        bankName: bank.bankName,
+        accountHolder: bank.accountHolder,
+        accountNumberMasked: bank.accountNumber.length > 4 ? `•••• ${bank.accountNumber.slice(-4)}` : bank.accountNumber,
+        branchCode: bank.branchCode,
+      }
+    : null
+
   return (
     <NewLeaseRoute
       prefill={{
@@ -192,6 +205,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
         askingRentCents: unitData?.asking_rent_cents ?? null,
         defaultLeasePeriodMonths: unitData?.default_lease_period_months ?? null,
         currentPrimePercent,
+        lessorBanking,
         tenantId,
         tenantName: resolvedTenantName ?? displayName(tenantRes.data as TenantRow),
         coTenants: finalCoTenants,

@@ -12,7 +12,7 @@ import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-for
 import { AddInline } from "@/components/ui/actions"
 import { ChevronDown, ChevronUp, X } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
-import type { LocalCharge, LocalOnceOffCharge, AnnexureCRules, SpecialTerm } from "../../wizardData"
+import type { LocalCharge, LocalOnceOffCharge, AnnexureCRules, SpecialTerm, LessorBanking } from "../../wizardData"
 
 const SPECIAL_TERM_TYPES = [
   { value: "pet_permission", label: "Pet Permission", defaultDetail: "Tenant is permitted to keep [describe pet] on the premises subject to the property rules." },
@@ -79,13 +79,14 @@ interface Props {
   onceOffCharges: LocalOnceOffCharge[]
   rules: AnnexureCRules
   specialTerms: SpecialTerm[]
+  lessorBanking: LessorBanking | null
   onChangeRules: (next: AnnexureCRules) => void
   onChangeSpecialTerms: (next: SpecialTerm[]) => void
 }
 
 export function AnnexuresSection({
   rent, deposit, paymentDueDay, escalationPercent, escalationType,
-  charges, onceOffCharges, rules, specialTerms, onChangeRules, onChangeSpecialTerms,
+  charges, onceOffCharges, rules, specialTerms, lessorBanking, onChangeRules, onChangeSpecialTerms,
 }: Readonly<Props>) {
   const rentCents = Math.round(Number.parseFloat(rent || "0") * 100)
   const depositCents = Math.round(Number.parseFloat(deposit || "0") * 100)
@@ -129,12 +130,25 @@ export function AnnexuresSection({
         <p className="text-xs text-muted-foreground mt-3">This annexure is auto-populated from the lease terms and cannot be edited here.</p>
       </AnnexureSection>
 
-      {/* Annexure B — Banking Details */}
-      <AnnexureSection letter="B" title="Banking Details" subtitle="Landlord payment account — captured in property settings" open={openLetter === "B"} onToggle={() => toggle("B")}>
-        <p className="text-sm text-muted-foreground">
-          Banking details are pulled from your property settings at the time the lease document is generated.
-          To update them, go to <strong>Settings → Banking</strong>.
-        </p>
+      {/* Annexure B — Banking Details (the org trust account the tenant pays into) */}
+      <AnnexureSection letter="B" title="Banking Details" subtitle="Trust account — where the tenant pays rent" open={openLetter === "B"} onToggle={() => toggle("B")}>
+        {lessorBanking ? (
+          <>
+            <div className="space-y-1">
+              <ReadOnlyRow label="Bank" value={lessorBanking.bankName} />
+              <ReadOnlyRow label="Account holder" value={lessorBanking.accountHolder} />
+              <ReadOnlyRow label="Account number" value={lessorBanking.accountNumberMasked} />
+              <ReadOnlyRow label="Branch code" value={lessorBanking.branchCode} />
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Your trust account, configured in <strong>Settings → Compliance</strong>. The full number is printed on the generated lease.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No trust account is configured. Set one up in <strong>Settings → Compliance</strong> — it then appears here and on the generated lease.
+          </p>
+        )}
       </AnnexureSection>
 
       {/* Annexure C — Property Rules */}
