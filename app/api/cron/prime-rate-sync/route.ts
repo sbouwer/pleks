@@ -1,24 +1,29 @@
 /**
- * app/api/cron/prime-rate-sync/route.ts — daily SA prime-rate sync from the rate feed
+ * app/api/cron/prime-rate-sync/route.ts — daily SA prime-rate sync
  *
  * Route:  GET /api/cron/prime-rate-sync
  * Auth:   x-cron-secret header — runs inside the daily orchestrator
- * Data:   API Ninjas interestrate endpoint → prime_rates (service client)
- * Notes:  SA prime = SARB repo + SA_PRIME_REPO_SPREAD (lib/constants — documented, not a magic number).
- *         Inserts a new prime_rates row ONLY when the rate changes (stable rates → no new row, by design),
- *         so the row's effective_date is the last CHANGE, not the last sync. On API failure returns 502 —
- *         and that failure is now surfaced by the daily cron digest (runJob → { failed } → ADMIN_EMAIL),
- *         so a sustained outage can't let the prime (which drives arrears interest) go stale unnoticed.
+ * Data:   SARB Web API (primary) → API Ninjas (fallback) → prime_rates (service client)
+ * Notes:  SARB is the source of truth and publishes the prime lending rate DIRECTLY (no repo+spread
+ *         assumption) with no API key and no aggregator lag — so a daily sync detects an MPC change
+ *         same-day. API Ninjas (repo + SA_PRIME_REPO_SPREAD) is only the fallback if SARB is unreachable.
+ *         Inserts a new prime_rates row ONLY when the rate changes (stable rates → no new row), dating it
+ *         to the source's published date (falls back to today if absent). For the exact MPC effective
+ *         date, the manual admin override (/api/admin/prime-rate) remains authoritative. On total source
+ *         failure returns 502 — surfaced by the daily cron digest so a stale prime can't go unnoticed.
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_PRIME_REPO_SPREAD } from "@/lib/constants"
 
-/**
- * Parse the feed's last_updated (the actual rate-CHANGE date) into YYYY-MM-DD.
- * Returns null when absent/unparseable so the caller falls back to today.
- */
+interface PrimeFetch {
+  rate: number
+  /** the source's published date (YYYY-MM-DD), or null if absent/unparseable */
+  changeDate: string | null
+}
+
+/** Parse a source date into YYYY-MM-DD; null when absent/unparseable (caller falls back to today). */
 function parseSourceDate(raw: string | undefined | null): string | null {
   if (!raw) return null
   const d = new Date(raw)
@@ -26,48 +31,70 @@ function parseSourceDate(raw: string | undefined | null): string | null {
   return d.toISOString().slice(0, 10)
 }
 
+/** Primary: SARB Web API — central bank, free, no key, publishes the prime lending rate directly. */
+async function fetchSarbPrime(): Promise<PrimeFetch | null> {
+  try {
+    const res = await fetch(
+      "https://custom.resbank.co.za/SarbWebApi/WebIndicators/HomePageRates",
+      { next: { revalidate: 0 } },
+    )
+    if (!res.ok) return null
+    const json = await res.json() as { Name?: string; Value?: number; Date?: string }[]
+    const prime = (Array.isArray(json) ? json : []).find(
+      (r) => typeof r.Name === "string" && /prime lending rate/i.test(r.Name),
+    )
+    if (!prime || typeof prime.Value !== "number") return null
+    return { rate: Math.round(prime.Value * 100) / 100, changeDate: parseSourceDate(prime.Date) }
+  } catch {
+    return null
+  }
+}
+
+/** Fallback: API Ninjas interestrate — SA repo rate + the documented SA_PRIME_REPO_SPREAD. */
+async function fetchApiNinjasPrime(apiKey: string): Promise<PrimeFetch | null> {
+  try {
+    const res = await fetch(
+      "https://api.api-ninjas.com/v1/interestrate",
+      { headers: { "X-Api-Key": apiKey }, next: { revalidate: 0 } },
+    )
+    if (!res.ok) return null
+    const json = await res.json() as {
+      central_bank_rates?: { country: string; rate_pct: number; last_updated: string }[]
+    }
+    const sa = (json.central_bank_rates ?? []).find((r) => r.country === "South_Africa")
+    if (!sa || typeof sa.rate_pct !== "number") return null
+    return {
+      rate: Math.round((sa.rate_pct + SA_PRIME_REPO_SPREAD) * 100) / 100,
+      changeDate: parseSourceDate(sa.last_updated),
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const apiKey = process.env.API_NINJAS_KEY
-  if (!apiKey) {
-    return Response.json({ error: "API_NINJAS_KEY not set" }, { status: 500 })
+  // SARB primary (no key); API Ninjas only if SARB is unreachable.
+  let result = await fetchSarbPrime()
+  let source = "SARB"
+  if (!result) {
+    const apiKey = process.env.API_NINJAS_KEY
+    if (apiKey) {
+      result = await fetchApiNinjasPrime(apiKey)
+      source = "API Ninjas (SARB fallback)"
+    }
   }
-
-  // Fetch the SA repo rate from API Ninjas (prime rates are premium-only). SA prime = repo + the documented
-  // SA_PRIME_REPO_SPREAD (lib/constants), not a magic number.
-  let fetchedRate: number
-  let sourceChangeDate: string | null = null
-  try {
-    const res = await fetch(
-      "https://api.api-ninjas.com/v1/interestrate",
-      { headers: { "X-Api-Key": apiKey }, next: { revalidate: 0 } }
-    )
-    if (!res.ok) {
-      return Response.json({ error: `API Ninjas responded ${res.status}` }, { status: 502 })
-    }
-    const json = await res.json() as {
-      central_bank_rates?: { country: string; rate_pct: number; last_updated: string }[]
-    }
-    const saEntry = (json.central_bank_rates ?? []).find(
-      (r) => r.country === "South_Africa"
-    )
-    if (!saEntry) {
-      return Response.json({ error: "South Africa not found in API response" }, { status: 502 })
-    }
-    fetchedRate = Math.round((saEntry.rate_pct + SA_PRIME_REPO_SPREAD) * 100) / 100
-    sourceChangeDate = parseSourceDate(saEntry.last_updated)
-  } catch (e) {
-    return Response.json({ error: `Fetch failed: ${String(e)}` }, { status: 502 })
+  if (!result) {
+    return Response.json({ error: "Prime rate unavailable from SARB and API Ninjas" }, { status: 502 })
   }
 
   const supabase = await createServiceClient()
   const today = new Date().toISOString().slice(0, 10)
-  // Date the row to the actual rate-CHANGE date from the feed, not the day we happened to detect it.
-  // Falls back to today only if the feed omits/garbles last_updated.
-  const effectiveDate = sourceChangeDate ?? today
+  // Date the row to the source's published date; fall back to today only if it's missing/garbled.
+  const effectiveDate = result.changeDate ?? today
 
   // Check most recent stored rate
   const { data: latest, error: latestError } = await supabase
@@ -78,15 +105,16 @@ export async function GET(req: NextRequest) {
     .maybeSingle()
     logQueryError("GET prime_rates", latestError)
 
-  if (latest && Number(latest.rate_percent) === fetchedRate) {
-    return Response.json({ status: "unchanged", rate: fetchedRate, since: latest.effective_date })
+  if (latest && Number(latest.rate_percent) === result.rate) {
+    return Response.json({ status: "unchanged", rate: result.rate, since: latest.effective_date, source })
   }
 
   // Rate has changed (or no data yet) — insert new row
+  const dateNote = result.changeDate ? "" : " (effective date defaulted to sync day)"
   const { error } = await supabase.from("prime_rates").insert({
     effective_date: effectiveDate,
-    rate_percent: fetchedRate,
-    notes: sourceChangeDate ? "API Ninjas daily sync" : "API Ninjas daily sync (effective date defaulted to sync day)",
+    rate_percent: result.rate,
+    notes: `${source} daily sync${dateNote}`,
   })
 
   if (error) {
@@ -95,8 +123,9 @@ export async function GET(req: NextRequest) {
 
   return Response.json({
     status: "updated",
-    rate: fetchedRate,
+    rate: result.rate,
     previous: latest?.rate_percent ?? null,
     effective_date: effectiveDate,
+    source,
   })
 }
