@@ -1,11 +1,13 @@
 /**
- * app/api/deposit-interest-config/route.ts — FILL: one-line purpose
+ * app/api/deposit-interest-config/route.ts — CRUD for effective-dated deposit-interest config rows
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /api/deposit-interest-config
+ * Auth:   auth.getUser + user_orgs membership; org-scoped
+ * Data:   deposit_interest_config (+ _audit). Scope is account → unit → property → org (ADDENDUM_69A added
+ *         the bank_account_id account scope). Writing a new config ends the prior active row for the SAME
+ *         scope at effectiveFrom-1d and inserts the new one; both transitions are audited.
+ * Notes:  Non-account scopes filter bank_account_id IS NULL so an account-scoped row is never read/ended as
+ *         a unit/property/org default. The accrual engine resolves per-period via resolveDepositInterestConfig.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
@@ -37,6 +39,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const propertyId = url.searchParams.get("propertyId") ?? null
   const unitId = url.searchParams.get("unitId") ?? null
+  const bankAccountId = url.searchParams.get("bankAccountId") ?? null
   const includeHistory = url.searchParams.get("includeHistory") === "true"
 
   const service = await createServiceClient()
@@ -46,12 +49,15 @@ export async function GET(req: NextRequest) {
     .eq("org_id", auth.orgId)
     .order("effective_from", { ascending: false })
 
-  if (unitId) {
-    query = query.eq("unit_id", unitId)
+  // Scope filter — account → unit → property → org. Non-account scopes exclude account-scoped rows.
+  if (bankAccountId) {
+    query = query.eq("bank_account_id", bankAccountId)
+  } else if (unitId) {
+    query = query.eq("unit_id", unitId).is("bank_account_id", null)
   } else if (propertyId) {
-    query = query.eq("property_id", propertyId).is("unit_id", null)
+    query = query.eq("property_id", propertyId).is("unit_id", null).is("bank_account_id", null)
   } else {
-    query = query.is("property_id", null).is("unit_id", null)
+    query = query.is("property_id", null).is("unit_id", null).is("bank_account_id", null)
   }
 
   if (!includeHistory) {
@@ -66,6 +72,7 @@ export async function GET(req: NextRequest) {
 interface ConfigPayload {
   propertyId?: string | null
   unitId?: string | null
+  bankAccountId?: string | null
   rateType: "fixed" | "prime_linked" | "repo_linked" | "manual"
   fixedRatePercent?: number | null
   primeOffsetPercent?: number | null
@@ -84,7 +91,7 @@ export async function POST(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await req.json() as ConfigPayload
-  const { propertyId = null, unitId = null, rateType, effectiveFrom, changeReason } = body
+  const { propertyId = null, unitId = null, bankAccountId = null, rateType, effectiveFrom, changeReason } = body
 
   if (!rateType || !effectiveFrom) {
     return NextResponse.json({ error: "rateType and effectiveFrom required" }, { status: 400 })
@@ -99,6 +106,8 @@ export async function POST(req: NextRequest) {
     .eq("org_id", auth.orgId)
     .is("effective_to", null)
 
+  // Scope must match exactly so we end the right active config (account → unit → property → org).
+  existingQuery = bankAccountId ? existingQuery.eq("bank_account_id", bankAccountId) : existingQuery.is("bank_account_id", null)
   if (unitId) {
     existingQuery = existingQuery.eq("unit_id", unitId)
   } else {
@@ -158,6 +167,7 @@ export async function POST(req: NextRequest) {
       org_id: auth.orgId,
       property_id: propertyId,
       unit_id: unitId,
+      bank_account_id: bankAccountId,
       rate_type: rateType,
       fixed_rate_percent: body.fixedRatePercent ?? null,
       prime_offset_percent: body.primeOffsetPercent ?? null,

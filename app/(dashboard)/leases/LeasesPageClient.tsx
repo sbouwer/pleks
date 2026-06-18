@@ -39,11 +39,34 @@ const LEASE_STATUS_LABELS: Record<string, string> = {
   draft: "Draft", pending_signing: "Pending", expired: "Expired", cancelled: "Cancelled",
 }
 
-interface Props { orgId: string }
+interface Props {
+  orgId: string
+  /** Lease-creation gate (trust/deposit banking). When closed, the Create button is disabled or routed to setup. */
+  gate: { allowed: boolean; ownerName: string | null }
+  /** Is the viewer the org owner/admin (can configure the trust account themselves)? */
+  isOwner: boolean
+}
 
-export function LeasesPageClient({ orgId }: Props) {
+export function LeasesPageClient({ orgId, gate, isOwner }: Props) {
   const router = useRouter()
   const [showExpiring, setShowExpiring] = useState(false)
+
+  // Role-aware Create-lease action: open the wizard when allowed; for a blocked owner route to trust setup;
+  // for a blocked non-owner disable it with a "ask the owner" tooltip.
+  function createLeaseAction(label: string, variant: "default" | "hero" = "default", showPlus = true) {
+    if (gate.allowed) {
+      return <AddButton label={label} variant={variant} showPlus={showPlus} onClick={() => router.push("/leases/new")} />
+    }
+    if (isOwner) {
+      return <AddButton label="Set up trust account" variant={variant} showPlus={showPlus} onClick={() => router.push("/settings/compliance")} />
+    }
+    return (
+      <AddButton
+        label={label} variant={variant} showPlus={showPlus} disabled onClick={() => {}}
+        disabledReason={`Ask ${gate.ownerName ?? "your account owner"} to add the trust and deposit account details before lease creation is enabled.`}
+      />
+    )
+  }
   const { data: rawLeases = [], isLoading } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.leases(orgId),
     queryFn: () => fetchLeasesAction(orgId),
@@ -109,8 +132,8 @@ export function LeasesPageClient({ orgId }: Props) {
         emptyTitle="No leases here yet"
         emptySub="Create your first lease once a tenant is ready to be placed on a unit."
         icon={<FileText className="h-6 w-6" />}
-        headerAction={<AddButton label="Create lease" onClick={() => router.push("/leases/new")} />}
-        heroAction={<AddButton label="Create your first lease" variant="hero" showPlus={false} onClick={() => router.push("/leases/new")} />}
+        headerAction={createLeaseAction("Create lease")}
+        heroAction={createLeaseAction("Create your first lease", "hero", false)}
       />
     )
   }
@@ -133,7 +156,7 @@ export function LeasesPageClient({ orgId }: Props) {
               label={`${expiringItems.length} lease${expiringItems.length === 1 ? "" : "s"} expiring soon`}
               onClick={() => setShowExpiring(true)}
             />
-            <AddButton label="Create lease" onClick={() => router.push("/leases/new")} />
+            {createLeaseAction("Create lease")}
           </div>
         }
       />

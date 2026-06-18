@@ -17,6 +17,7 @@ import { UnitAgentPicker } from "./UnitAgentPicker"
 import { UnitClauseProfile } from "@/components/leases/UnitClauseProfile"
 import { InspectionProfileCard } from "./InspectionProfileCard"
 import { ListingSection } from "./ListingSection"
+import { momentCompleteness } from "@/lib/properties/journeyCompleteness"
 import { DepositInterestConfig } from "@/components/deposits/DepositInterestConfig"
 import { BackLink } from "@/components/ui/BackLink"
 import { UnitForm } from "../UnitForm"
@@ -245,6 +246,7 @@ export default async function UnitDetailPage({
           property={{ id, name: property.name, city: (unit.properties as unknown as { city?: string | null })?.city }}
           orgId={orgId}
           activeListing={activeListing ?? null}
+          listingFloor={momentCompleteness("listing", { unit: unit as Record<string, unknown> })}
         />
       </div>
 
