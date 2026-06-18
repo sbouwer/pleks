@@ -9,10 +9,12 @@
  *         same-day. API Ninjas (repo + SA_PRIME_REPO_SPREAD) is only the fallback if SARB is unreachable.
  *         Inserts a new prime_rates row ONLY when the rate changes (stable rates → no new row), dating it
  *         to the source's published date (falls back to today if absent). For the exact MPC effective
- *         date, the manual admin override (/api/admin/prime-rate) remains authoritative. On total source
- *         failure returns 502 — surfaced by the daily cron digest so a stale prime can't go unnoticed.
+ *         date, the manual admin override (/api/admin/prime-rate) remains authoritative. If BOTH sources
+ *         fail it raises an immediate Sentry alert (not just a daily-digest line) + returns 502, because a
+ *         silently-stale prime would otherwise only surface when an agent queries their arrears interest.
  */
 import { NextRequest } from "next/server"
+import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_PRIME_REPO_SPREAD } from "@/lib/constants"
@@ -88,6 +90,14 @@ export async function GET(req: NextRequest) {
     }
   }
   if (!result) {
+    // BOTH sources down. The prime drives arrears interest (a financial/legal figure), so raise an
+    // immediate Sentry alert — don't let it sit silently until the daily digest, or worse, until an
+    // agent notices a stale rate. A single-source outage is fine (the fallback covers it); only a
+    // total failure is loud.
+    Sentry.captureException(
+      new Error("prime-rate-sync: prime rate unavailable from BOTH SARB and API Ninjas — rate may be going stale"),
+      { level: "error", tags: { cron: "prime-rate-sync", severity: "both_sources_failed" } },
+    )
     return Response.json({ error: "Prime rate unavailable from SARB and API Ninjas" }, { status: 502 })
   }
 
