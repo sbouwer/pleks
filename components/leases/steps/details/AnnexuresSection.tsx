@@ -32,12 +32,11 @@ const RULE_LABELS: Record<keyof AnnexureCRules, string> = {
 }
 
 function AnnexureSection({
-  letter, title, subtitle, defaultOpen = false, children,
-}: Readonly<{ letter: string; title: string; subtitle: string; defaultOpen?: boolean; children: React.ReactNode }>) {
-  const [open, setOpen] = useState(defaultOpen)
+  letter, title, subtitle, open, onToggle, children,
+}: Readonly<{ letter: string; title: string; subtitle: string; open: boolean; onToggle: () => void; children: React.ReactNode }>) {
   return (
     <div className="rounded-[var(--r-button)] border border-border">
-      <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setOpen((v) => !v)}>
+      <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={onToggle}>
         <div className="flex items-center gap-3">
           <span className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-bold">{letter}</span>
           <div>
@@ -92,6 +91,10 @@ export function AnnexuresSection({
   const depositCents = Math.round(Number.parseFloat(deposit || "0") * 100)
   const totalRecurring = charges.reduce((s, c) => s + c.amount_cents, 0)
 
+  // Accordion: only one annexure open at a time (defaults to A). Clicking the open one closes it.
+  const [openLetter, setOpenLetter] = useState<string | null>("A")
+  const toggle = (l: string) => setOpenLetter((cur) => (cur === l ? null : l))
+
   function updateRule(key: keyof AnnexureCRules, value: string) {
     onChangeRules({ ...rules, [key]: value })
   }
@@ -108,7 +111,7 @@ export function AnnexuresSection({
   return (
     <div className="space-y-4">
       {/* Annexure A — Rental Calculation */}
-      <AnnexureSection letter="A" title="Rental Calculation" subtitle="Summary of all amounts payable" defaultOpen>
+      <AnnexureSection letter="A" title="Rental Calculation" subtitle="Summary of all amounts payable" open={openLetter === "A"} onToggle={() => toggle("A")}>
         <div className="space-y-1">
           <ReadOnlyRow label="Monthly rent" value={rentCents > 0 ? formatZAR(rentCents) : "—"} />
           {charges.map((c) => <ReadOnlyRow key={c.id} label={c.description} value={`${formatZAR(c.amount_cents)}/mo`} />)}
@@ -127,7 +130,7 @@ export function AnnexuresSection({
       </AnnexureSection>
 
       {/* Annexure B — Banking Details */}
-      <AnnexureSection letter="B" title="Banking Details" subtitle="Landlord payment account — captured in property settings">
+      <AnnexureSection letter="B" title="Banking Details" subtitle="Landlord payment account — captured in property settings" open={openLetter === "B"} onToggle={() => toggle("B")}>
         <p className="text-sm text-muted-foreground">
           Banking details are pulled from your property settings at the time the lease document is generated.
           To update them, go to <strong>Settings → Banking</strong>.
@@ -135,7 +138,7 @@ export function AnnexuresSection({
       </AnnexureSection>
 
       {/* Annexure C — Property Rules */}
-      <AnnexureSection letter="C" title="Property Rules" subtitle="Amend as needed for this specific unit">
+      <AnnexureSection letter="C" title="Property Rules" subtitle="Amend as needed for this specific unit" open={openLetter === "C"} onToggle={() => toggle("C")}>
         <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
           {(Object.entries(rules) as [keyof AnnexureCRules, string][]).map(([key, value]) => (
             <Field key={key} label={RULE_LABELS[key]}>
@@ -146,7 +149,7 @@ export function AnnexuresSection({
       </AnnexureSection>
 
       {/* Annexure D — Special Agreements */}
-      <AnnexureSection letter="D" title="Special Agreements" subtitle="Pet permission, parking arrangements, custom terms, etc.">
+      <AnnexureSection letter="D" title="Special Agreements" subtitle="Pet permission, parking arrangements, custom terms, etc." open={openLetter === "D"} onToggle={() => toggle("D")}>
         <div className="space-y-3">
           {specialTerms.map((term, i) => (
             <div key={`term-${i}`} className="flex items-center gap-2">
