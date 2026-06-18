@@ -11,7 +11,7 @@
  *         start/end/rent and persists the cpaApplies derivation + the residential depositInterestTo default so
  *         the CreateStep payload stays byte-for-byte equivalent to the old merged step.
  */
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
 import { useLeaseWizard } from "../LeaseWizardContext"
 import type { StepHandle } from "../stepHandle"
@@ -26,15 +26,19 @@ export function LeaseTermsStep({ register }: Readonly<Props>) {
   const isResidential = data.leaseType === "residential"
   const [error, setError] = useState("")
 
-  // Seed the rent fallback (asking rent) into context once so the section + downstream steps read the same value.
-  const seededRent = data.rent || (data.askingRentCents ? (data.askingRentCents / 100).toFixed(2) : "")
+  // Seed the asking rent into context ONCE on mount (when empty). After that, respect the agent's value —
+  // including clearing it — so deleting the rent no longer auto-repopulates; the step blocks instead.
+  useEffect(() => {
+    if (!data.rent && data.askingRentCents) patch({ rent: (data.askingRentCents / 100).toFixed(2) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const value: TermsState = {
     startDate: data.startDate,
     endDate: data.endDate,
     isFixedTerm: data.isFixedTerm,
     noticePeriod: data.noticePeriod,
-    rent: seededRent,
+    rent: data.rent,
     deposit: data.deposit,
     paymentDueDay: data.paymentDueDay,
     escalationPercent: data.escalationPercent,
@@ -86,7 +90,6 @@ export function LeaseTermsStep({ register }: Readonly<Props>) {
       endDate: value.isFixedTerm ? value.endDate : "",
       depositInterestTo: isResidential ? "tenant" : value.depositInterestTo,
       cpaApplies,
-      rent: seededRent,
     })
     return true
   }
