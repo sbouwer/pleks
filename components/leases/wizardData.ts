@@ -115,6 +115,9 @@ export interface WizardPrefill {
   propertyName?: string | null
   unitId?: string | null
   unitLabel?: string | null
+  /** Durable unit fields carried so the rent/term seed even when the unit-select step is skipped (BUILD_69). */
+  askingRentCents?: number | null
+  defaultLeasePeriodMonths?: number | null
   tenantId?: string | null
   tenantName?: string | null
   coTenants?: CoTenant[]
@@ -130,8 +133,8 @@ export function buildInitialWizardData(prefill: WizardPrefill): WizardData {
     unitId: prefill.unitId ?? "",
     unitLabel: prefill.unitLabel ?? "",
     leaseType: "residential",
-    askingRentCents: null,
-    defaultLeasePeriodMonths: null,
+    askingRentCents: prefill.askingRentCents ?? null,
+    defaultLeasePeriodMonths: prefill.defaultLeasePeriodMonths ?? null,
     bcLevyCents: null,
     tenantId: prefill.tenantId ?? "",
     tenantName: prefill.tenantName ?? "",

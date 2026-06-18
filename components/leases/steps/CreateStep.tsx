@@ -147,7 +147,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
   // Signing-moment floor from the live wizard data — surfaces deposit / clauses / confirmed period before create.
   const depositRands = data.deposit ? Number.parseFloat(data.deposit) : 0
   const signingFloor = momentCompleteness("signing", {
-    lease: { deposit_amount_cents: depositRands > 0 ? depositRands : null, start_date: data.startDate },
+    lease: { deposit_amount_cents: depositRands > 0 ? Math.round(depositRands * 100) : null, start_date: data.startDate },
     hasLeaseClauses: Object.values(data.clauseSelections).some(Boolean),
   })
 
