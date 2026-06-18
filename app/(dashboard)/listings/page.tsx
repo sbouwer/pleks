@@ -1,19 +1,19 @@
 /**
- * app/(dashboard)/applications/page.tsx — server entry for the rental applications list (prefetch + hydrate)
+ * app/(dashboard)/listings/page.tsx — server entry for the rental listings list (prefetch + hydrate)
  *
- * Route:  /applications
+ * Route:  /listings
  * Auth:   getServerOrgMembership (dashboard gateway) — redirects to /login if no membership
  * Data:   prefetches fetchApplications into React Query + loads active/paused listings via service client
- * Notes:  applicant identity is a tenant (no applicants table); list is grouped by listing client-side
+ * Notes:  each listing groups its applicants client-side (applicant identity is a tenant; no applicants table)
  */
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchApplications } from "@/lib/queries/portfolio"
-import { ApplicationsPageClient } from "./ApplicationsPageClient"
+import { ListingsPageClient } from "./ListingsPageClient"
 
-export default async function ApplicationsPage() {
+export default async function ListingsPage() {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
 
@@ -42,7 +42,7 @@ export default async function ApplicationsPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <ApplicationsPageClient orgId={orgId} listings={listings ?? []} />
+      <ListingsPageClient orgId={orgId} listings={listings ?? []} />
     </HydrationBoundary>
   )
 }

@@ -26,7 +26,7 @@ import {
   Wrench,
   CreditCard,
   BarChart3,
-  UserCheck,
+  DoorOpen,
   Landmark,
   Settings,
   Wallet,
@@ -58,7 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Operations",
     items: [
-      { href: "/applications", label: "Applications", icon: UserCheck },
+      { href: "/listings", label: "Listings", icon: DoorOpen },
       { href: "/maintenance", label: "Maintenance", icon: Wrench },
       { href: "/inspections", label: "Inspections", icon: ClipboardCheck },
       { href: "/calendar", label: "Calendar", icon: CalendarDays },
@@ -101,7 +101,7 @@ export function Sidebar() {
   }
 
   const BADGE_COUNTS: Record<string, number> = {
-    "/applications": badges.applications,
+    "/listings": badges.applications,
     "/maintenance": badges.maintenance,
   }
 

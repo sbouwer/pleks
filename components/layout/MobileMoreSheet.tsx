@@ -29,7 +29,7 @@ const SECTIONS = [
   {
     label: "Operations",
     items: [
-      { href: "/applications", label: "Applications" },
+      { href: "/listings", label: "Listings" },
       { href: "/maintenance", label: "Maintenance" },
       { href: "/inspections", label: "Inspections" },
       { href: "/calendar", label: "Calendar" },

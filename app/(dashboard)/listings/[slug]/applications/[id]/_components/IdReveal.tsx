@@ -1,5 +1,5 @@
 /**
- * app/(dashboard)/applications/[id]/_components/IdReveal.tsx — ID number reveal with audit log
+ * app/(dashboard)/listings/[slug]/listings/[slug]/applications/[id]/_components/IdReveal.tsx — ID number reveal with audit log
  *
  * Auth:   agent workspace (client component — server action enforces capability gate)
  * Data:   revealIdNumber server action (decrypts + logs)
