@@ -16,6 +16,7 @@ import { decrypt }                                from "@/lib/crypto/encryption"
 import { runCombinedConsumerCreditReport, COMBINED_PRODUCT_KEY, COMBINED_COST_CENTS } from "@/lib/searchworx/products/combinedConsumerCreditReport"
 import { runVccbIncomeEstimator, VCCB_PRODUCT_KEY, VCCB_COST_CENTS, VCCB_RESULT_SUMMARIES } from "@/lib/searchworx/products/vccbIncomeEstimator"
 import { extractBureauScores } from "@/lib/screening/searchworxBureauAdapter"
+import { assertScreeningConsent, screeningSubjectFor } from "@/lib/screening/consentGuard"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,10 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
   const { applicationId, subjectType, subjectId, orgId } = args
   const screeningRunId = args.screeningRunId ?? randomUUID()
   const service        = await createServiceClient()
+
+  // POPIA s11 / BUILD_69 P3: no Searchworx run without recorded consent. Belt over the ready_to_run
+  // view-gate — this entrypoint re-asserts so any future non-cron caller can't bypass it.
+  await assertScreeningConsent(service, screeningSubjectFor(subjectType, subjectId))
 
   // ── Fetch subject data ──────────────────────────────────────────────────────
   const { idNumberEncrypted, idType } = await fetchSubjectCredentials(service, subjectType, subjectId)
