@@ -39,7 +39,7 @@ export function MetricCard({
   dotColor,
 }: Readonly<MetricCardProps>) {
   const inner = (
-    <div className="flex h-full flex-col gap-2.5 p-5 transition-colors hover:bg-muted/20">
+    <div className="flex h-full flex-col gap-2.5 bg-card p-5 transition-colors hover:bg-muted/20">
       <div className="flex items-center gap-2">
         <span
           className="h-1.5 w-1.5 shrink-0 rounded-full"

@@ -23,6 +23,7 @@ import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@
 import { useMyPortfolio } from "@/hooks/useMyPortfolio"
 import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { LeaseRow, type SerializedLease } from "./LeaseRow"
+import { StatusBadge } from "@/components/shared/StatusBadge"
 import { LeaseListFooter } from "./LeaseListFooter"
 import { isExpiringSoon, getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
@@ -38,20 +39,6 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "draft",    label: "Draft" },
   { value: "all",      label: "All" },
 ]
-
-const STATUS_STYLES: Record<string, string> = {
-  active:          "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  month_to_month:  "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  notice:          "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-  draft:           "bg-muted text-muted-foreground",
-  pending_signing: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  expired:         "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-  cancelled:       "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-}
-const STATUS_LABELS: Record<string, string> = {
-  active: "Active", month_to_month: "MTM", notice: "Notice",
-  draft: "Draft", pending_signing: "Pending", expired: "Expired", cancelled: "Cancelled",
-}
 
 function filterByStatus(leases: SerializedLease[], tab: StatusFilter): SerializedLease[] {
   switch (tab) {
@@ -149,9 +136,7 @@ function LeaseCard({ lease }: Readonly<{ lease: SerializedLease }>) {
             {lease.hasArrears ? " · Arrears" : ""}
           </p>
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium ${STATUS_STYLES[lease.status] ?? STATUS_STYLES.draft}`}>
-          {STATUS_LABELS[lease.status] ?? lease.status}
-        </span>
+        <StatusBadge status={lease.status} className="shrink-0" />
       </div>
 
       <p className="truncate text-xs text-muted-foreground">{propertyLabel}</p>
@@ -177,7 +162,7 @@ interface LeaseListTabsProps {
 }
 
 export function LeaseListTabs({ leases }: LeaseListTabsProps) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"list" | "cards">("list")
 

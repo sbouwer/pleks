@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation"
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
 import { getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
 import { formatZAR } from "@/lib/constants"
+import { StatusBadge } from "@/components/shared/StatusBadge"
 
 export interface SerializedLease {
   id: string
@@ -56,26 +57,6 @@ export interface SerializedLease {
     } | null
   }>
   hasArrears?: boolean
-}
-
-const STATUS_STYLES: Record<string, string> = {
-  active:          "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  month_to_month:  "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  notice:          "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-  draft:           "bg-muted text-muted-foreground",
-  pending_signing: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  expired:         "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-  cancelled:       "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  active:          "Active",
-  month_to_month:  "MTM",
-  notice:          "Notice",
-  draft:           "Draft",
-  pending_signing: "Pending",
-  expired:         "Expired",
-  cancelled:       "Cancelled",
 }
 
 function Avatar({ initials, size = 28 }: { initials: string; size?: number }) {
@@ -208,9 +189,7 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
 
       {/* Status */}
       <td className="px-3 py-3 align-top">
-        <span className={`inline-block rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_STYLES[lease.status] ?? STATUS_STYLES.draft}`}>
-          {STATUS_LABELS[lease.status] ?? lease.status}
-        </span>
+        <StatusBadge status={lease.status} />
       </td>
     </tr>
   )
