@@ -1,20 +1,18 @@
 "use client"
 
 /**
- * app/(public)/register/confirm/page.tsx — FILL: one-line purpose
+ * app/(public)/register/confirm/page.tsx — "check your email" confirmation shown after sign-up
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /register/confirm?email=<email>
+ * Auth:   public
+ * Notes:  Static confirmation screen; reads ?email to tell the user where the activation link was sent.
  */
 import { Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import Image from "next/image"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { Mail } from "lucide-react"
 
 function ConfirmContent() {
@@ -26,7 +24,7 @@ function ConfirmContent() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>
-            <Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-8 w-auto mx-auto" />
+            <Wordmark style={{ fontSize: 22 }} />
           </CardTitle>
           <CardDescription>Check your email</CardDescription>
         </CardHeader>

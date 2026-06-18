@@ -1,13 +1,11 @@
 /**
- * app/(applicant)/layout.tsx — FILL: one-line purpose
+ * app/(applicant)/layout.tsx — shell for the public applicant surface (Wordmark header + centred content)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /apply/* (applicant-facing)
+ * Auth:   public (token-gated listing slugs)
+ * Notes:  Minimal branded chrome — a Wordmark header over a max-w-xl centred content column.
  */
-import Image from "next/image"
+import { Wordmark } from "@/components/ui/Wordmark"
 
 export default function ApplicantLayout({
   children,
@@ -19,7 +17,7 @@ export default function ApplicantLayout({
       {/* Header */}
       <div className="border-b border-border">
         <div className="max-w-xl mx-auto px-4 py-5 flex justify-center">
-          <Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-8 w-auto" />
+          <Wordmark style={{ fontSize: 22 }} />
         </div>
       </div>
 
