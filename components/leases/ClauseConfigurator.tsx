@@ -9,7 +9,7 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Lock, ChevronDown, ChevronUp, Pencil } from "lucide-react"
@@ -135,13 +135,17 @@ export function ClauseConfigurator({
     load()
   }, [leaseType, unitId])
 
-  const notifyParent = useCallback((sels: Record<string, boolean>) => {
-    onSelectionsChange(sels)
-  }, [onSelectionsChange])
+  // Notify the parent of selection changes WITHOUT looping on callback identity.
+  // The parent's onSelectionsChange is recreated each render (it calls the wizard
+  // patch → re-render), so keying the effect on it caused "Maximum update depth
+  // exceeded". Hold the latest callback in a ref and fire only when selections/
+  // loading actually change.
+  const onChangeRef = useRef(onSelectionsChange)
+  useEffect(() => { onChangeRef.current = onSelectionsChange }, [onSelectionsChange])
 
   useEffect(() => {
-    if (!loading) notifyParent(selections)
-  }, [selections, loading, notifyParent])
+    if (!loading) onChangeRef.current(selections)
+  }, [selections, loading])
 
   async function toggleClause(key: string, enabled: boolean) {
     const updated = { ...selections, [key]: enabled }
