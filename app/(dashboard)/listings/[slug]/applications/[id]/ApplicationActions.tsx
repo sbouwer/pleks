@@ -1,9 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/applications/[id]/ApplicationActions.tsx — Approve, decline, and shortlist actions for a rental application
+ * app/(dashboard)/listings/[slug]/listings/[slug]/applications/[id]/ApplicationActions.tsx — Approve, decline, and shortlist actions for a rental application
  *
- * Route:  /applications/[id]
+ * Route:  /listings/[slug]/applications/[id]
  * Auth:   gateway (dashboard layout)
  * Data:   applicationActions server actions; createTenantFromApplication; sendShortlistInvitation; Supabase client for immigration confirmation
  * Notes:  Foreign national applications require immigration compliance confirmed before shortlisting

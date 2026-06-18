@@ -349,7 +349,7 @@ export async function getAttentionItems(orgId: string): Promise<AttentionItem[]>
       priority: 3,
       title: `Discretionary declines — ${f.agentName}`,
       subtitle: `${f.discretionCount} of ${f.totalDeclines} declines this month used agent discretion`,
-      href: "/applications",
+      href: "/listings",
       badge: { text: `${f.ratePct}%`, variant: "blue" },
       dotColor: "#3B82F6",
       sortDate: now,

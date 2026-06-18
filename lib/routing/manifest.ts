@@ -122,6 +122,7 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/tenants":               { auth: true, roles: AGENT_ROLES, requiresAal2: true },
   "/landlords":             { auth: true, roles: AGENT_ROLES, requiresAal2: true },
   "/leases":                { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/listings":              { auth: true, roles: AGENT_ROLES, requiresAal2: true },
   "/applications":          { auth: true, roles: AGENT_ROLES, requiresAal2: true },
   "/billing":               { auth: true, roles: AGENT_ROLES, requiresAal2: true },
   "/finance":               { auth: true, roles: AGENT_ROLES, requiresAal2: true },

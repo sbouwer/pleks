@@ -1,5 +1,5 @@
 /**
- * app/(dashboard)/applications/[id]/_actions.ts — Server actions for the application detail page
+ * app/(dashboard)/listings/[slug]/listings/[slug]/applications/[id]/_actions.ts — Server actions for the application detail page
  *
  * Auth:   gateway (agent workspace)
  * Data:   reads + decrypts applications.id_number; writes to audit_log

@@ -3,7 +3,7 @@
  *
  * Used by:
  *   - app/api/screening/[id]/fitscore-pdf/route.ts  (PDF download)
- *   - app/(dashboard)/applications/[id]/page.tsx    (dashboard surface)
+ *   - app/(dashboard)/listings/[slug]/applications/[id]/page.tsx    (dashboard surface)
  *
  * Assembles the canonical FitScoreReportData object from raw DB rows so the
  * PDF and dashboard always present identical information content (Tribunal-match).

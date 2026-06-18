@@ -1,5 +1,5 @@
 /**
- * app/(dashboard)/applications/[id]/_components/FitScorePdfDownload.tsx — Stream 2 PDF download trigger
+ * app/(dashboard)/listings/[slug]/listings/[slug]/applications/[id]/_components/FitScorePdfDownload.tsx — Stream 2 PDF download trigger
  *
  * Auth:   agent workspace (client component — auth enforced by the API route)
  * Data:   fetches /api/screening/[id]/fitscore-pdf

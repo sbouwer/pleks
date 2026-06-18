@@ -1,5 +1,5 @@
 /**
- * app/(dashboard)/applications/[id]/_components/PopiaResponseAction.tsx
+ * app/(dashboard)/listings/[slug]/listings/[slug]/applications/[id]/_components/PopiaResponseAction.tsx
  *
  * Auth:   agent workspace (client component — server action enforces capability gate)
  * Data:   generatePopiaS23Response server action (generates + uploads L2 PDF, returns signed URL)

@@ -1,9 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/applications/[id]/DeclineDecisionModal.tsx — stage-2 decline reason capture (F3 round-4)
+ * app/(dashboard)/listings/[slug]/listings/[slug]/applications/[id]/DeclineDecisionModal.tsx — stage-2 decline reason capture (F3 round-4)
  *
- * Route:  /applications/[id]
+ * Route:  /listings/[slug]/applications/[id]
  * Auth:   parent (ApplicationActions) is gateway-gated
  * Data:   submits a structured decision to declineStage2Action (codes from decisionReasons.ts)
  * Notes:  Standard decline = one click on a plain-language reason (zero typing). The 100-char explanation

@@ -1,16 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/applications/compare/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/listings/[slug]/compare/page.tsx — side-by-side applicant comparison for a listing
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /listings/[slug]/compare?ids=<id,id,…>
+ * Auth:   gateway (dashboard layout)
+ * Data:   applications rows (by ?ids) via the browser Supabase client
+ * Notes:  applicants to compare arrive as a comma-separated ?ids query; the [slug] route param scopes the
+ *         back-link to the parent listing (the comparison itself is keyed by application id, not slug).
  */
 import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
@@ -104,9 +104,10 @@ function CompareContent() {
 }
 
 export default function ComparePage() {
+  const { slug } = useParams<{ slug: string }>()
   return (
     <div>
-      <BackLink href="/applications" label="Applications" />
+      <BackLink href={`/listings/${slug}`} label="Listing" />
       <h1 className="font-heading text-3xl mb-6">Compare Applicants</h1>
       <Card>
         <CardContent className="pt-4">

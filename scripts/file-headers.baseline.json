@@ -12,7 +12,6 @@
   "app/(applicant)/apply/invite/[token]/payment/page.tsx",
   "app/(applicant)/apply/invite/[token]/status/page.tsx",
   "app/(applicant)/layout.tsx",
-  "app/(dashboard)/applications/compare/page.tsx",
   "app/(dashboard)/billing/arrears/[caseId]/page.tsx",
   "app/(dashboard)/billing/invoices/[invoiceId]/page.tsx",
   "app/(dashboard)/billing/invoices/page.tsx",
