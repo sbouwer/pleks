@@ -3538,7 +3538,9 @@
       "forked_landlord_id",
       "agent_contact_id",
       "email_verified_at",
-      "ppra_ffc_number"
+      "ppra_ffc_number",
+      "ppra_ffc_issued_at",
+      "ppra_ffc_expires_at"
     ],
     "user_signatures": [
       "id",

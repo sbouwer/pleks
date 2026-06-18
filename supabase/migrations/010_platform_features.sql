@@ -3657,9 +3657,15 @@ ALTER TABLE legal_hold_events ADD CONSTRAINT legal_hold_events_trigger_category_
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §46  Individual property-practitioner FFC — each agent's own PPRA Fidelity Fund
---      Certificate number. Separate from organisations.ppra_ffc_number (the agency's):
+--      Certificate. Separate from organisations.ppra_ffc_number (the agency's):
 --      PPRA issues an FFC to the firm AND to each practitioner, so both are surfaced
---      to applicants (agency FFC + the responsible agent's FFC).
+--      to applicants (agency FFC + the responsible agent's FFC). Domicile is the
+--      user-in-org profile (a practising authorisation, NOT a global natural-person
+--      attribute — must not leak via the contact/party identity across orgs).
+--      Issue/expiry captured because practising on a lapsed FFC is a PPRA offence
+--      (voids commission) — lets us flag/block listings under an expired certificate.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_number text;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_issued_at date;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_expires_at date;
