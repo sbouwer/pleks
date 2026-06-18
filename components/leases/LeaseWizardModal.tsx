@@ -51,7 +51,7 @@ function primaryLabel(step: number, isSaving: boolean): string {
 function LeaseWizardModalInner({
   onClose, disclaimerAccepted,
 }: Readonly<{ onClose: () => void; disclaimerAccepted: boolean }>) {
-  const { step, setStep, goNext, goBack, maxReached } = useLeaseWizard()
+  const { step, setStep, goNext, goBack, maxReached, data } = useLeaseWizard()
   const [isSaving, startSaving] = useTransition()
   const [error, setError] = useState<string | null>(null)
   // The current step registers its validate-then-commit handler here on every render.
@@ -130,6 +130,19 @@ function LeaseWizardModalInner({
     )
   }
 
+  // Reactive Continue gate (ADDENDUM_69A) — computed from live wizard data so the button greys out as the
+  // agent types/selects (the step's submit() still enforces the same on click). Terms = start/end/rent/deposit
+  // (mirrors LeaseTermsStep.submit() order); Annexures = trust account selection.
+  let gateReason: string | null = null
+  if (step === 2) {
+    if (!data.startDate) gateReason = "Enter the start date to continue."
+    else if (data.isFixedTerm && !data.endDate) gateReason = "Enter the end date to continue."
+    else if (!data.rent || Number.parseFloat(data.rent) <= 0) gateReason = "Enter the monthly rent to continue."
+    else if (!data.deposit || Number.parseFloat(data.deposit) <= 0) gateReason = "Enter the deposit amount to continue."
+  } else if (step === 5 && data.availableAccounts.length > 0 && !data.trustAccountId) {
+    gateReason = "Select a trust account to continue (the deposit account is optional)."
+  }
+
   return (
     <WizardModal
       open
@@ -144,7 +157,8 @@ function LeaseWizardModalInner({
       onBack={() => (isFirst ? onClose() : goBack())}
       primaryLabel={primaryLabel(step, isSaving)}
       onPrimary={handlePrimary}
-      primaryDisabled={isSaving}
+      primaryDisabled={isSaving || !!gateReason}
+      primaryDisabledReason={gateReason ?? undefined}
       footerError={error}
     >
       <AddTenantProvider value={{ openAddTenant, refreshNonce, lastCreatedId }}>

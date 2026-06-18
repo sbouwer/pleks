@@ -1,7 +1,8 @@
 /**
  * sentry.server.config.ts — Sentry Node.js server-side initialisation
  *
- * Notes: enabled only when SENTRY_DSN is set. Loaded via instrumentation.ts
+ * Notes: enabled ONLY in the production Vercel environment (DSN set + VERCEL_ENV=production) — preview and
+ *        development never emit, so they never trigger Sentry alert emails. Loaded via instrumentation.ts
  *        register() hook — do not import this file directly.
  */
 import * as Sentry from "@sentry/nextjs"
@@ -15,5 +16,5 @@ Sentry.init({
   tracesSampleRate: 0.1,
 
   beforeSend: scrubEvent,
-  enabled: !!process.env.SENTRY_DSN,
+  enabled: !!process.env.SENTRY_DSN && process.env.VERCEL_ENV === "production",
 })

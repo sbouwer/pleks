@@ -327,6 +327,7 @@ async function fetchFinanceTabExtras(
   propertyId: string | null,
   unitId: string | null,
   depositAmountCents: number | null,
+  depositAccountId: string | null,
   lastPaymentMethod: string | null,
   today: Date,
   taxYearStart: string,
@@ -360,7 +361,7 @@ async function fetchFinanceTabExtras(
   let depositRateDescription: string | null = null
   let depositInterestCents = 0
   if (depositAmountCents && depositReceivedAt) {
-    const interestConfig = await resolveDepositInterestConfig(orgId, propertyId, unitId, todayStr)
+    const interestConfig = await resolveDepositInterestConfig(orgId, propertyId, unitId, todayStr, depositAccountId)
     if (interestConfig) {
       const currentPrime = await getPrimeRateOn(todayStr)
       depositRateDescription = describeRate(interestConfig, currentPrime)
@@ -654,7 +655,7 @@ export default async function LeaseDetailPage({
   // ── Tab-specific data (fetched only when tab is active) ──────────────────
   const [financeExtras, documentsData] = await Promise.all([
     activeTab === "finance"
-      ? fetchFinanceTabExtras(supabase, leaseId, lease.org_id, propertyId, lease.unit_id ?? null, lease.deposit_amount_cents ?? null, recentPayments[0]?.payment_method ?? null, today, taxYearStart)
+      ? fetchFinanceTabExtras(supabase, leaseId, lease.org_id, propertyId, lease.unit_id ?? null, lease.deposit_amount_cents ?? null, lease.deposit_account_id ?? lease.trust_account_id ?? null, recentPayments[0]?.payment_method ?? null, today, taxYearStart)
       : Promise.resolve(null),
     activeTab === "communications"
       ? fetchDocumentsTabData(supabase, leaseId, lease.org_id)

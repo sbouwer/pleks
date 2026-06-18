@@ -12,7 +12,7 @@ import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-for
 import { AddInline } from "@/components/ui/actions"
 import { ChevronDown, ChevronUp, X } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
-import type { LocalCharge, LocalOnceOffCharge, AnnexureCRules, SpecialTerm } from "../../wizardData"
+import type { LocalCharge, LocalOnceOffCharge, AnnexureCRules, SpecialTerm, SelectableAccount } from "../../wizardData"
 
 const SPECIAL_TERM_TYPES = [
   { value: "pet_permission", label: "Pet Permission", defaultDetail: "Tenant is permitted to keep [describe pet] on the premises subject to the property rules." },
@@ -32,12 +32,11 @@ const RULE_LABELS: Record<keyof AnnexureCRules, string> = {
 }
 
 function AnnexureSection({
-  letter, title, subtitle, defaultOpen = false, children,
-}: Readonly<{ letter: string; title: string; subtitle: string; defaultOpen?: boolean; children: React.ReactNode }>) {
-  const [open, setOpen] = useState(defaultOpen)
+  letter, title, subtitle, open, onToggle, children,
+}: Readonly<{ letter: string; title: string; subtitle: string; open: boolean; onToggle: () => void; children: React.ReactNode }>) {
   return (
     <div className="rounded-[var(--r-button)] border border-border">
-      <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setOpen((v) => !v)}>
+      <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={onToggle}>
         <div className="flex items-center gap-3">
           <span className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-bold">{letter}</span>
           <div>
@@ -80,17 +79,39 @@ interface Props {
   onceOffCharges: LocalOnceOffCharge[]
   rules: AnnexureCRules
   specialTerms: SpecialTerm[]
+  availableAccounts: SelectableAccount[]
+  trustAccountId: string
+  depositAccountId: string
+  onSelectTrust: (id: string) => void
+  onSelectDeposit: (id: string) => void
   onChangeRules: (next: AnnexureCRules) => void
   onChangeSpecialTerms: (next: SpecialTerm[]) => void
 }
 
 export function AnnexuresSection({
   rent, deposit, paymentDueDay, escalationPercent, escalationType,
-  charges, onceOffCharges, rules, specialTerms, onChangeRules, onChangeSpecialTerms,
+  charges, onceOffCharges, rules, specialTerms,
+  availableAccounts, trustAccountId, depositAccountId,
+  onSelectTrust, onSelectDeposit,
+  onChangeRules, onChangeSpecialTerms,
 }: Readonly<Props>) {
   const rentCents = Math.round(Number.parseFloat(rent || "0") * 100)
   const depositCents = Math.round(Number.parseFloat(deposit || "0") * 100)
   const totalRecurring = charges.reduce((s, c) => s + c.amount_cents, 0)
+
+  // Annexure B account selection (ADDENDUM_69A). availableAccounts is already non-business (D-TRUST-01).
+  // Trust = the rent account (trust/ppra_trust); deposit = any non-business account that holds the deposit.
+  const trustOptions = availableAccounts.filter((a) => a.type === "trust" || a.type === "ppra_trust")
+  const depositOptions = availableAccounts
+  function acctLabel(a: SelectableAccount): string {
+    const num = a.accountNumberMasked ? ` · ${a.accountNumberMasked}` : ""
+    const kind = a.type.replaceAll("_", " ")
+    return `${a.bankName}${num} (${kind})`
+  }
+
+  // Accordion: only one annexure open at a time (defaults to A). Clicking the open one closes it.
+  const [openLetter, setOpenLetter] = useState<string | null>("A")
+  const toggle = (l: string) => setOpenLetter((cur) => (cur === l ? null : l))
 
   function updateRule(key: keyof AnnexureCRules, value: string) {
     onChangeRules({ ...rules, [key]: value })
@@ -108,7 +129,7 @@ export function AnnexuresSection({
   return (
     <div className="space-y-4">
       {/* Annexure A — Rental Calculation */}
-      <AnnexureSection letter="A" title="Rental Calculation" subtitle="Summary of all amounts payable" defaultOpen>
+      <AnnexureSection letter="A" title="Rental Calculation" subtitle="Summary of all amounts payable" open={openLetter === "A"} onToggle={() => toggle("A")}>
         <div className="space-y-1">
           <ReadOnlyRow label="Monthly rent" value={rentCents > 0 ? formatZAR(rentCents) : "—"} />
           {charges.map((c) => <ReadOnlyRow key={c.id} label={c.description} value={`${formatZAR(c.amount_cents)}/mo`} />)}
@@ -126,16 +147,39 @@ export function AnnexuresSection({
         <p className="text-xs text-muted-foreground mt-3">This annexure is auto-populated from the lease terms and cannot be edited here.</p>
       </AnnexureSection>
 
-      {/* Annexure B — Banking Details */}
-      <AnnexureSection letter="B" title="Banking Details" subtitle="Landlord payment account — captured in property settings">
-        <p className="text-sm text-muted-foreground">
-          Banking details are pulled from your property settings at the time the lease document is generated.
-          To update them, go to <strong>Settings → Banking</strong>.
-        </p>
+      {/* Annexure B — Banking Details: select the trust (rent) + deposit (deposit-holding) accounts */}
+      <AnnexureSection letter="B" title="Banking Details" subtitle="Trust + deposit accounts for this lease" open={openLetter === "B"} onToggle={() => toggle("B")}>
+        {availableAccounts.length > 0 ? (
+          <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+            <Field label="Trust account (rent paid into)" required>
+              <UnderlineSelect
+                value={trustAccountId}
+                onChange={onSelectTrust}
+                options={[{ value: "", label: "Select…" }, ...trustOptions.map((a) => ({ value: a.id, label: acctLabel(a) }))]}
+              />
+            </Field>
+            <Field label="Deposit account (optional)">
+              <UnderlineSelect
+                value={depositAccountId}
+                onChange={onSelectDeposit}
+                options={[{ value: "", label: "Same as the trust account" }, ...depositOptions.map((a) => ({ value: a.id, label: acctLabel(a) }))]}
+              />
+            </Field>
+            <p className="col-span-full text-xs text-muted-foreground">
+              The deposit is held in the trust account by default; pick a separate interest-bearing account only if you keep one. The deposit-interest rate follows that account (set in <strong>Settings → Compliance</strong>). Full account numbers print on the generated lease; business accounts can&apos;t be selected.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No trust/deposit account is configured. Set one up in <strong>Settings → Compliance</strong> — lease creation is gated on it.
+          </p>
+        )}
+
+        {/* Deposit interest accrues to the tenant by statute (RHA s5(3)(d)) — not an election, so no selector. */}
       </AnnexureSection>
 
       {/* Annexure C — Property Rules */}
-      <AnnexureSection letter="C" title="Property Rules" subtitle="Amend as needed for this specific unit">
+      <AnnexureSection letter="C" title="Property Rules" subtitle="Amend as needed for this specific unit" open={openLetter === "C"} onToggle={() => toggle("C")}>
         <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
           {(Object.entries(rules) as [keyof AnnexureCRules, string][]).map(([key, value]) => (
             <Field key={key} label={RULE_LABELS[key]}>
@@ -146,7 +190,7 @@ export function AnnexuresSection({
       </AnnexureSection>
 
       {/* Annexure D — Special Agreements */}
-      <AnnexureSection letter="D" title="Special Agreements" subtitle="Pet permission, parking arrangements, custom terms, etc.">
+      <AnnexureSection letter="D" title="Special Agreements" subtitle="Pet permission, parking arrangements, custom terms, etc." open={openLetter === "D"} onToggle={() => toggle("D")}>
         <div className="space-y-3">
           {specialTerms.map((term, i) => (
             <div key={`term-${i}`} className="flex items-center gap-2">

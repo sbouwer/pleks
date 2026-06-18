@@ -19,8 +19,10 @@ import { cn } from "@/lib/utils"
 import { useOrg } from "@/hooks/useOrg"
 import { createLease, createUploadedLease } from "@/lib/actions/leases"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
+import { MomentFloorChecklist } from "@/components/properties/MomentFloorChecklist"
 import { writeBackUnitRuleSet } from "@/lib/actions/units"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
+import { momentCompleteness } from "@/lib/properties/journeyCompleteness"
 import { useLeaseWizard } from "../LeaseWizardContext"
 import type { WizardData } from "../wizardData"
 import type { StepHandle } from "../stepHandle"
@@ -58,6 +60,8 @@ function appendCommonFields(formData: FormData, data: WizardData, cpaApplies: bo
   formData.set("escalation_percent", data.escalationPercent)
   formData.set("escalation_type", data.escalationType)
   if (data.deposit) formData.set("deposit_amount", data.deposit)
+  if (data.trustAccountId) formData.set("trust_account_id", data.trustAccountId)
+  if (data.depositAccountId) formData.set("deposit_account_id", data.depositAccountId)
   if (data.coTenants.length > 0) formData.set("co_tenants_json", JSON.stringify(data.coTenants.map((c) => ({ tenant_id: c.id, is_signatory: !!c.isSignatory }))))
 }
 
@@ -66,7 +70,8 @@ function buildGeneratedFormData(data: WizardData, cpaApplies: boolean): FormData
   appendCommonFields(formData, data, cpaApplies)
   formData.set("is_franchise_agreement", String(data.isFranchiseAgreement))
   formData.set("deposit_interest_to", data.depositInterestTo)
-  formData.set("deposit_interest_rate", data.depositInterestRate)
+  // deposit_interest_rate is no longer written by the wizard (ADDENDUM_69A) — the rate resolves through
+  // deposit_interest_config (per the selected deposit account); the flat column is manual-override fallback only.
   formData.set("arrears_interest_enabled", String(data.arrearsInterestEnabled))
   formData.set("arrears_interest_margin", data.arrearsMargin)
   formData.set("special_terms", JSON.stringify(data.specialTerms.filter((t) => t.detail.trim())))
@@ -141,6 +146,13 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
     lease: { isFranchiseAgreement: data.isFranchiseAgreement },
   })
   const cpaApplies = cpaDetermination.applies === "yes"
+
+  // Signing-moment floor from the live wizard data — surfaces deposit / clauses / confirmed period before create.
+  const depositRands = data.deposit ? Number.parseFloat(data.deposit) : 0
+  const signingFloor = momentCompleteness("signing", {
+    lease: { deposit_amount_cents: depositRands > 0 ? Math.round(depositRands * 100) : null, start_date: data.startDate },
+    hasLeaseClauses: Object.values(data.clauseSelections).some(Boolean),
+  })
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null
@@ -267,6 +279,8 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
+
+      <MomentFloorChecklist completeness={signingFloor} heading="Before you sign" />
 
       <p className="text-xs text-muted-foreground">
         Both paths create a <span className="font-medium">draft</span> lease that drives invoicing, arrears, deposits, and
