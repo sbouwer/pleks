@@ -191,6 +191,37 @@ async function logAcknowledgedConflicts(db: DbClient, formData: FormData, leaseI
   } catch { /* ignore malformed */ }
 }
 
+/**
+ * Per-UNIT overlap guard: a new lease may only start the day AFTER the unit's current in-force lease ends.
+ * Returns a human-readable block message, or null if the slot is free. Drafts/expired/cancelled don't block
+ * (a unit can hold multiple drafts; only in-force leases — active/month_to_month/notice — occupy the slot).
+ */
+async function findLeaseOverlapBlock(
+  db: DbClient, orgId: string, unitId: string | null, startDate: string | null,
+): Promise<string | null> {
+  if (!unitId || !startDate) return null
+  const { data: inForce, error } = await db
+    .from("leases")
+    .select("id, status, end_date")
+    .eq("org_id", orgId)
+    .eq("unit_id", unitId)
+    .in("status", ["active", "month_to_month", "notice"])
+  logQueryError("findLeaseOverlapBlock leases", error)
+  if (!inForce?.length) return null
+
+  for (const l of inForce) {
+    if (!l.end_date) {
+      return "This unit has an ongoing month-to-month lease. End that lease before creating a new one for this unit."
+    }
+    if (startDate <= l.end_date) {
+      const next = new Date(l.end_date)
+      next.setDate(next.getDate() + 1)
+      return `This unit is leased until ${l.end_date}. A new lease must start on or after ${next.toISOString().slice(0, 10)}.`
+    }
+  }
+  return null
+}
+
 export async function createLease(formData: FormData) {
   const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
@@ -200,6 +231,10 @@ export async function createLease(formData: FormData) {
   if (!gate.allowed) return { error: LEASE_GATE_BLOCKED_MESSAGE }
 
   const f = parseLeaseFormData(formData)
+
+  // Fail-safe: never create a lease that overlaps the unit's current in-force lease (must start end+1).
+  const overlap = await findLeaseOverlapBlock(db, orgId, f.unitId, f.startDate)
+  if (overlap) return { error: overlap }
 
   const { data: lease, error } = await db
     .from("leases")
@@ -304,6 +339,10 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
   const depositCents = formData.get("deposit_amount")
     ? Math.round(Number.parseFloat(formData.get("deposit_amount") as string) * 100)
     : null
+
+  // Fail-safe: never create a lease that overlaps the unit's current in-force lease (must start end+1).
+  const uploadOverlap = await findLeaseOverlapBlock(db, orgId, unitId, startDate)
+  if (uploadOverlap) return { error: uploadOverlap }
 
   const startDateObj = new Date(startDate)
   const escalationReviewDate = new Date(startDateObj)
