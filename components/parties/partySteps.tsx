@@ -59,7 +59,7 @@ function entityBlurb(entity: PartyEntity, fullFica: boolean): string {
 // ── Step 1 — Identity ─────────────────────────────────────────────────────────
 type IdentityBodyProps = Readonly<{ f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean }>
 
-export function IndividualIdentity({ f, set, errors, fullFica, stepNumber = "01" }: IdentityBodyProps & { stepNumber?: string }) {
+export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber = "01" }: IdentityBodyProps & { stepNumber?: string }) {
   // Auto-fill DOB + gender from a valid SA ID — only when empty, so a manual choice (e.g. unlabelled gender) sticks.
   useEffect(() => {
     const v = validateSAId(f.idNumber)

@@ -49,6 +49,16 @@ export interface AnnexureCRules {
   commonAreas: string
 }
 
+/** An org bank account selectable in Annexure B (trust/deposit/ppra; never business). Number masked. */
+export interface SelectableAccount {
+  id: string
+  type: string
+  bankName: string
+  accountHolder: string
+  accountNumberMasked: string
+  branchCode: string
+}
+
 export interface WizardData {
   // Step 1 — Property → Building → Unit
   propertyId: string
@@ -59,6 +69,15 @@ export interface WizardData {
   unitLabel: string
   leaseType: "residential" | "commercial"
   askingRentCents: number | null
+  /** durable straddle default carried from the unit (BUILD_69) — seeds the lease end date on a 2nd+ lease. */
+  defaultLeasePeriodMonths: number | null
+  /** live SA prime rate (prime_rates table) resolved server-side — drives the arrears-interest preview, never hardcoded. */
+  currentPrimePercent: number | null
+  /** the org's non-business bank accounts (trust/deposit/ppra), selectable in Annexure B (ADDENDUM_69A). */
+  availableAccounts: SelectableAccount[]
+  /** the per-lease selected trust (rent) + deposit (deposit-holding) accounts. */
+  trustAccountId: string
+  depositAccountId: string
   bcLevyCents: number | null
   // Step 2 — Tenant(s)
   tenantId: string
@@ -113,6 +132,15 @@ export interface WizardPrefill {
   propertyName?: string | null
   unitId?: string | null
   unitLabel?: string | null
+  /** Durable unit fields carried so the rent/term seed even when the unit-select step is skipped (BUILD_69). */
+  askingRentCents?: number | null
+  defaultLeasePeriodMonths?: number | null
+  /** live SA prime (prime_rates) resolved server-side for the arrears-interest preview. */
+  currentPrimePercent?: number | null
+  /** selectable org accounts + pre-selected trust/deposit ids for the banking annexure. */
+  availableAccounts?: SelectableAccount[]
+  trustAccountId?: string
+  depositAccountId?: string
   tenantId?: string | null
   tenantName?: string | null
   coTenants?: CoTenant[]
@@ -128,7 +156,12 @@ export function buildInitialWizardData(prefill: WizardPrefill): WizardData {
     unitId: prefill.unitId ?? "",
     unitLabel: prefill.unitLabel ?? "",
     leaseType: "residential",
-    askingRentCents: null,
+    askingRentCents: prefill.askingRentCents ?? null,
+    defaultLeasePeriodMonths: prefill.defaultLeasePeriodMonths ?? null,
+    currentPrimePercent: prefill.currentPrimePercent ?? null,
+    availableAccounts: prefill.availableAccounts ?? [],
+    trustAccountId: prefill.trustAccountId ?? "",
+    depositAccountId: prefill.depositAccountId ?? "",
     bcLevyCents: null,
     tenantId: prefill.tenantId ?? "",
     tenantName: prefill.tenantName ?? "",

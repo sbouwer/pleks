@@ -8,8 +8,10 @@
 import { useState } from "react"
 import { ListingCreateDialog } from "@/components/applications/ListingCreateDialog"
 import { ListingCard } from "@/components/applications/ListingCard"
+import { MomentFloorChecklist } from "@/components/properties/MomentFloorChecklist"
 import { ActionButton } from "@/components/ui/actions"
 import { Plus } from "lucide-react"
+import type { MomentCompleteness } from "@/lib/properties/journeyCompleteness"
 
 interface Listing {
   id: string
@@ -27,13 +29,14 @@ interface Props {
   property: { id: string; name: string; city?: string | null }
   orgId: string
   activeListing: Listing | null
+  listingFloor: MomentCompleteness
 }
 
-export function ListingSection({ unit, property, orgId, activeListing }: Props) {
+export function ListingSection({ unit, property, orgId, activeListing, listingFloor }: Readonly<Props>) {
   const [dialogOpen, setDialogOpen] = useState(false)
 
   return (
-    <div>
+    <div className="space-y-3">
       {activeListing ? (
         <ListingCard
           listing={activeListing}
@@ -41,15 +44,18 @@ export function ListingSection({ unit, property, orgId, activeListing }: Props) 
           propertyName={property.name}
         />
       ) : (
-        <div className="flex items-center justify-between rounded-lg border border-dashed border-border p-4">
-          <div>
-            <p className="text-sm font-medium">No active listing</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Create a listing to start receiving applications.</p>
+        <>
+          <MomentFloorChecklist completeness={listingFloor} heading="To advertise this unit" />
+          <div className="flex items-center justify-between rounded-lg border border-dashed border-border p-4">
+            <div>
+              <p className="text-sm font-medium">No active listing</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Create a listing to start receiving applications.</p>
+            </div>
+            <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => setDialogOpen(true)}>
+              Create listing
+            </ActionButton>
           </div>
-          <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => setDialogOpen(true)}>
-            Create listing
-          </ActionButton>
-        </div>
+        </>
       )}
 
       <ListingCreateDialog

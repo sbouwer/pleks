@@ -51,6 +51,10 @@ export function lodCancellationBasis(clauseRef: string = DEFAULT_CLAUSE): string
 }
 
 // ── Deposit + inspection statutory bases (RHA 50 of 1999) — static, F-1 #5–#9 ──
+// ⚠ COMMENCEMENT WATCH: these cite the principal Act §5 because the Rental Housing Amendment Act 35 of
+// 2014 is NOT in force (no presidential proclamation as of 2026-06-18, web-verified). If proclaimed, ALL
+// deposit citations below migrate §5 → §4A/4B together with the deposit clause (migration 011) and
+// lib/rules/compliance/deposit-deadline-breach.ts (with the s21 6-month transition). Until then, §5 stands.
 /** F-1 #5 — deposit return schedule (s5(9) struck; it does not exist). */
 export const DEPOSIT_RETURN_SCHEDULE_BASIS =
   "Section 5(3)(g) read with Section 5(7) of the Rental Housing Act 50 of 1999"

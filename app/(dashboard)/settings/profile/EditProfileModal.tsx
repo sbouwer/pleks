@@ -37,14 +37,14 @@ export function EditProfileModal({
   onSaved?: () => void
 }>) {
   const [current, setCurrent] = useState(0)
-  const [form, setForm] = useState<PartyFormState>(initialForm)
+  const [form, setForm] = useState<PartyFormState>(initialForm ?? {})
   const [errors, setErrors] = useState<PartyErrors>({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
-    setForm(initialForm)
+    setForm(initialForm ?? {})
     setErrors({})
     setError(null)
     setCurrent(Math.max(0, STEPS.findIndex((s) => s.id === initialStep)))

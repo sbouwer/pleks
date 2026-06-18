@@ -15,6 +15,12 @@
  *         alarm may fire before the true statutory deadline, never after); (b) the s5(3)(g)(iii) 21-day
  *         tenant-no-show case isn't distinguishable from the data, so it's not modelled (folds into the
  *         scenarios above — also early-biased, which is safe for a breach alarm).
+ *
+ *         ⚠ COMMENCEMENT WATCH (RHA): these windows cite the principal Act §5 because the Rental Housing
+ *         Amendment Act 35 of 2014 is NOT in force (no presidential proclamation as of 2026-06-18). If it
+ *         is proclaimed, the citations + windows migrate §5 → §4A/4B together with the deposit clause
+ *         (migration 011) and the F-1 matrix (lib/comms/templates/legalCitations.ts), with the s21 6-month
+ *         transition. Until then, §5 stands.
  */
 import type { OrgRule } from "../types"
 import { hasBeenActionedFor } from "../engine"

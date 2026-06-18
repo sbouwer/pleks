@@ -10,6 +10,7 @@ import { redirect } from "next/navigation"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchLeases } from "@/lib/queries/portfolio"
+import { getLeaseCreationGate } from "@/lib/leases/leaseCreationGate"
 import { LeasesPageClient } from "./LeasesPageClient"
 
 export default async function LeasesPage() {
@@ -17,8 +18,11 @@ export default async function LeasesPage() {
   if (!membership) redirect("/login")
 
   const { org_id: orgId } = membership
+  const isOwner = membership.role === "owner"
   const queryClient = new QueryClient()
   const supabase = await createServiceClient()
+
+  const gate = await getLeaseCreationGate(supabase, orgId)
 
   await queryClient.prefetchQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.leases(orgId),
@@ -29,7 +33,7 @@ export default async function LeasesPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <LeasesPageClient orgId={orgId} />
+      <LeasesPageClient orgId={orgId} gate={gate} isOwner={isOwner} />
     </HydrationBoundary>
   )
 }
