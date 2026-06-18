@@ -28,6 +28,10 @@ export function AnnexuresStep({ register }: Readonly<Props>) {
   function handleRules(next: AnnexureCRules) { patch({ annexureCRules: next }) }
   function handleSpecialTerms(next: SpecialTerm[]) { patch({ specialTerms: next }) }
 
+  // Require a trust account when the org has accounts (ADDENDUM_69A). The deposit account is OPTIONAL —
+  // it falls back to the trust account, so it's not gated.
+  const accountsMissing = data.availableAccounts.length > 0 && !data.trustAccountId
+
   const cpaDetermination = determineCpaApplicability({
     tenant: {
       entityType: data.tenantIsJuristic ? "organisation" : "individual",
@@ -39,7 +43,7 @@ export function AnnexuresStep({ register }: Readonly<Props>) {
     lease: { isFranchiseAgreement: data.isFranchiseAgreement },
   })
 
-  register({ submit: () => true })
+  register({ submit: () => !accountsMissing })
 
   return (
     <div className="space-y-6">
@@ -53,7 +57,13 @@ export function AnnexuresStep({ register }: Readonly<Props>) {
         onceOffCharges={data.onceOffCharges}
         rules={data.annexureCRules}
         specialTerms={data.specialTerms}
-        lessorBanking={data.lessorBanking}
+        availableAccounts={data.availableAccounts}
+        trustAccountId={data.trustAccountId}
+        depositAccountId={data.depositAccountId}
+        depositInterestBeneficiary={data.depositInterestBeneficiary}
+        onSelectTrust={(id) => patch({ trustAccountId: id })}
+        onSelectDeposit={(id) => patch({ depositAccountId: id })}
+        onSelectBeneficiary={(v) => patch({ depositInterestBeneficiary: v })}
         onChangeRules={handleRules}
         onChangeSpecialTerms={handleSpecialTerms}
       />

@@ -1798,3 +1798,26 @@ CREATE INDEX IF NOT EXISTS idx_deposit_txns_tenant
 -- Trust ledger by lease (lease ledger view + FK cascade)
 CREATE INDEX IF NOT EXISTS idx_trust_tx_lease
   ON trust_transactions(lease_id) WHERE lease_id IS NOT NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  BUILD_69A: per-lease deposit/trust account selection (ADDENDUM_69A)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The trust account rent is paid into + the deposit-holding account the deposit sits in, chosen per lease
+-- from the org's own bank_accounts (the wizard filters to non-business types; D-TRUST-01: Pleks records,
+-- is not the trustee). The selected deposit_account_id feeds account-scoped interest resolution
+-- (deposit_interest_config.bank_account_id — see 008 §BUILD_69A). bank_accounts is created in 001 (before
+-- this file), so the FKs resolve on replay.
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS deposit_account_id uuid REFERENCES bank_accounts(id);
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS trust_account_id   uuid REFERENCES bank_accounts(id);
+CREATE INDEX IF NOT EXISTS idx_leases_deposit_account ON leases(deposit_account_id) WHERE deposit_account_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_leases_trust_account   ON leases(trust_account_id)   WHERE trust_account_id   IS NOT NULL;
+
+-- §7.2 written-agreement election (PPRA Practice Directive 2023): trust interest splits 50:50 agency:PPRA
+-- by default, EXCEPT where the lease agrees in writing to whom it's paid. For a residential deposit, RHA
+-- s5(3)(c) entitles the tenant — so the lease records, in writing, that deposit interest goes to the tenant
+-- (default), invoking the §7.2 exception. This written term is the legally load-bearing artifact (not the
+-- account type); it's surfaced verbatim in the lease document/Annexure.
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS deposit_interest_beneficiary text NOT NULL DEFAULT 'tenant';
+ALTER TABLE leases DROP CONSTRAINT IF EXISTS leases_deposit_interest_beneficiary_check;
+ALTER TABLE leases ADD CONSTRAINT leases_deposit_interest_beneficiary_check
+  CHECK (deposit_interest_beneficiary IN ('tenant', 'split_50_50'));

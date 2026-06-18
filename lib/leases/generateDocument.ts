@@ -9,6 +9,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
+import { resolveDepositInterestConfig, resolveEffectiveRate } from "@/lib/deposits/interestConfig"
 import { parseClauseBody, buildSelfLookup } from "./parseClauseBody"
 import { renderClauseBodyToDocx } from "./renderClauseDocx"
 import { getOrgDisplayName, getOrgLegalName } from "@/lib/org/displayName"
@@ -53,6 +54,7 @@ export interface LeaseVariables {
   arrears_interest_margin: string
   arrears_interest_margin_words: string
   deposit_interest_rate: string
+  deposit_interest_beneficiary: string
   lessor_bank_name: string
   lessor_account_holder: string
   lessor_account_number: string
@@ -155,6 +157,21 @@ export async function generateLeaseDocument(
   const unit = lease.units as Record<string, unknown> | null
   const property = (unit?.properties ?? null) as Record<string, string> | null
 
+  // Deposit-interest rate AS AT SIGNING (ADDENDUM_69A) — DISCLOSURE only; the accrual engine re-resolves the
+  // rate per period via deposit_interest_config, so a variable (prime/repo-linked) rate stays correct over
+  // time and is never frozen by this snapshot. Resolve for the lease's selected deposit account; fall back
+  // to the manual flat rate, then the legacy 5% default.
+  const signingDate = new Date().toISOString().slice(0, 10)
+  let depositRateAsAtSigning: number | null = lease.deposit_interest_rate_percent ?? null
+  const depositRateConfig = await resolveDepositInterestConfig(
+    orgId, lease.property_id ?? null, lease.unit_id ?? null, signingDate,
+    lease.deposit_account_id ?? lease.trust_account_id ?? null,
+  )
+  if (depositRateConfig) {
+    const resolved = await resolveEffectiveRate(depositRateConfig, signingDate)
+    if (resolved != null) depositRateAsAtSigning = resolved
+  }
+
   const orgFields = {
     name: org?.name ?? "",
     type: (org?.type as string) ?? "agency",
@@ -202,7 +219,13 @@ export async function generateLeaseDocument(
     lease_type_description: leaseType,
     arrears_interest_margin: String(lease.arrears_interest_margin_percent ?? 2),
     arrears_interest_margin_words: numberToWords(lease.arrears_interest_margin_percent ?? 2),
-    deposit_interest_rate: String(lease.deposit_interest_rate_percent ?? 5),
+    deposit_interest_rate: String(depositRateAsAtSigning ?? 5),
+    // §7.2 written-agreement election rendered into the deposit clause. 'tenant' renders "the lessee" so the
+    // DEFAULT clause text is byte-identical to the pre-69A wording (no legal-wording change); only the rare
+    // split election reads differently.
+    deposit_interest_beneficiary: lease.deposit_interest_beneficiary === "split_50_50"
+      ? "the Agency and the PPRA in equal shares"
+      : "the lessee",
     lessor_bank_name: bankDetails.bankName,
     lessor_account_holder: bankDetails.accountHolder,
     lessor_account_number: bankDetails.accountNumber,

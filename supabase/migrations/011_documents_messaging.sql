@@ -1032,3 +1032,26 @@ WHERE NOT EXISTS (
   SELECT 1 FROM document_templates
   WHERE scope = 'system' AND template_key = 'maintenance.logged_tenant' AND template_type = 'email'
 );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §N  BUILD_69A: §7.2 deposit-interest-beneficiary tokenisation of the clause library
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The PPRA Practice Directive §7.2 election (leases.deposit_interest_beneficiary, default 'tenant')
+-- must render into every clause that names who the deposit interest accrues to. Those clauses are
+-- seeded with a hardcoded "for the benefit of the lessee" in 006 (rental_deposit) and 007 (pets, the
+-- pet-deposit allocation). 006/007 are frozen for in-place edits, so we tokenise here — after ALL
+-- clause INSERTs — via idempotent UPDATEs. Each LIKE guard makes the statement a no-op once applied
+-- (and a no-op on the seed's own already-tokenised future state). The 'tenant' election renders as
+-- "the lessee", so default leases keep byte-identical wording; only a 'split_50_50' election differs.
+
+-- rental_deposit: "... for the benefit of the lessee." (sentence end)
+UPDATE lease_clause_library
+SET body_template = replace(body_template, 'for the benefit of the lessee.', 'for the benefit of {{var:deposit_interest_beneficiary}}.')
+WHERE clause_key = 'rental_deposit'
+  AND body_template LIKE '%for the benefit of the lessee.%';
+
+-- pets: "... interest for the benefit of the lessee in accordance with the Rental Housing Act ..."
+UPDATE lease_clause_library
+SET body_template = replace(body_template, 'for the benefit of the lessee in accordance', 'for the benefit of {{var:deposit_interest_beneficiary}} in accordance')
+WHERE clause_key = 'pets'
+  AND body_template LIKE '%for the benefit of the lessee in accordance%';

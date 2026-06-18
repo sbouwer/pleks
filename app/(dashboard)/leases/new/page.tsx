@@ -17,7 +17,6 @@ import { contactDisplayName } from "@/lib/contacts/displayName"
 import { NewLeaseRoute } from "./NewLeaseRoute"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getPrimeRateOn } from "@/lib/deposits/interestConfig"
-import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -183,17 +182,27 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   // Live SA prime (prime_rates) for the arrears-interest preview — derived, never hardcoded.
   const currentPrimePercent = await getPrimeRateOn(new Date().toISOString().slice(0, 10))
 
-  // Trust account that the lease doc's banking annexure renders (Annexure B). Account number masked to
-  // last 4 for the wizard preview — the full number only appears on the server-generated document.
-  const bank = await getLessorBankDetails(orgId)
-  const lessorBanking = bank.configured
-    ? {
-        bankName: bank.bankName,
-        accountHolder: bank.accountHolder,
-        accountNumberMasked: bank.accountNumber.length > 4 ? `•••• ${bank.accountNumber.slice(-4)}` : bank.accountNumber,
-        branchCode: bank.branchCode,
-      }
-    : null
+  // Selectable org accounts for the banking annexure (trust / deposit / ppra — NEVER business, per
+  // D-TRUST-01 + ADDENDUM_69A). Account numbers masked to last 4 for the wizard; the full number only
+  // appears on the server-generated lease. Pre-select a trust (rent) + deposit (deposit-holding) account.
+  const { data: acctRows, error: acctErr } = await supabase
+    .from("bank_accounts")
+    .select("id, type, bank_name, account_holder, account_number, branch_code")
+    .eq("org_id", orgId).neq("type", "business").order("created_at")
+  logQueryError("NewLeasePage bank_accounts", acctErr)
+  const availableAccounts = (acctRows ?? []).map((a) => ({
+    id: a.id as string,
+    type: a.type as string,
+    bankName: (a.bank_name as string) ?? "",
+    accountHolder: (a.account_holder as string) ?? "",
+    accountNumberMasked: a.account_number && (a.account_number as string).length > 4
+      ? `•••• ${(a.account_number as string).slice(-4)}`
+      : ((a.account_number as string) ?? ""),
+    branchCode: (a.branch_code as string) ?? "",
+  }))
+  const onlyOne = availableAccounts.length === 1 ? availableAccounts[0].id : ""
+  const trustAccountId = (availableAccounts.find((a) => a.type === "trust" || a.type === "ppra_trust")?.id) ?? onlyOne
+  const depositAccountId = (availableAccounts.find((a) => a.type === "deposit_holding" || a.type === "ppra_trust")?.id) ?? trustAccountId ?? onlyOne
 
   return (
     <NewLeaseRoute
@@ -205,7 +214,9 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
         askingRentCents: unitData?.asking_rent_cents ?? null,
         defaultLeasePeriodMonths: unitData?.default_lease_period_months ?? null,
         currentPrimePercent,
-        lessorBanking,
+        availableAccounts,
+        trustAccountId,
+        depositAccountId,
         tenantId,
         tenantName: resolvedTenantName ?? displayName(tenantRes.data as TenantRow),
         coTenants: finalCoTenants,

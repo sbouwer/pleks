@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Check, AlertTriangle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { DepositInterestConfig } from "@/components/deposits/DepositInterestConfig"
 
 const SCOPE_OPTIONS = [
   { value: "own_only", label: "Private landlord — I manage my own properties" },
@@ -355,15 +356,21 @@ function AccountSection({
       {existing.length > 0 && (
         <div className="space-y-2">
           {existing.map((acct) => (
-            <div key={acct.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5 text-sm">
-              <Check className="size-4 text-success shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium">{acct.bank_name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {acct.account_holder} · <span className="font-mono">{maskAccount(acct.account_number)}</span>
-                  {" · "}<span className="capitalize">{acct.type.replaceAll("_", " ")}</span>
-                </p>
+            <div key={acct.id} className="space-y-2">
+              <div className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5 text-sm">
+                <Check className="size-4 text-success shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium">{acct.bank_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {acct.account_holder} · <span className="font-mono">{maskAccount(acct.account_number)}</span>
+                    {" · "}<span className="capitalize">{acct.type.replaceAll("_", " ")}</span>
+                  </p>
+                </div>
               </div>
+              {/* Deposit-interest rate for this account (ADDENDUM_69A) — effective-dated; never for a business account. */}
+              {acct.type !== "business" && (
+                <DepositInterestConfig bankAccountId={acct.id} title={`Deposit interest rate — ${acct.bank_name}`} />
+              )}
             </div>
           ))}
         </div>
