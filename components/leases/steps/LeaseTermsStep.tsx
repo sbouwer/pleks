@@ -83,6 +83,7 @@ export function LeaseTermsStep({ register }: Readonly<Props>) {
     if (!value.startDate) { setError("Start date is required"); return false }
     if (value.isFixedTerm && !value.endDate) { setError("End date is required for a fixed-term lease"); return false }
     if (!value.rent || Number.parseFloat(value.rent) <= 0) { setError("Monthly rent is required"); return false }
+    if (!value.deposit || Number.parseFloat(value.deposit) <= 0) { setError("A deposit amount is required"); return false }
     setError("")
     // Persist the derivations the old merged step applied before create: CPA status + the residential
     // deposit-interest default, plus the normalised end date for month-to-month.
