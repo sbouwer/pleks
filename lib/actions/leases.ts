@@ -700,3 +700,51 @@ export async function removeLeaseCoTenant(leaseId: string, tenantId: string): Pr
   revalidatePath(`/leases/${leaseId}`)
   return { success: true }
 }
+
+/**
+ * Delete a DRAFT lease (only). Drafts have no payments/reconciliations yet, so this clears the child
+ * rows (co-tenants, charges, clause selections), undoes the unit's draft-tenant reflection if it still
+ * points at this draft, then removes the lease. Hard-guarded to status='draft' — an in-force lease is
+ * never deletable here (it must be cancelled/ended through its own flow).
+ */
+export async function deleteLease(leaseId: string): Promise<{ error: string } | { success: true }> {
+  const gw = await requireAgentWriteAccess("delete_lease")
+  const { db, orgId } = gw
+
+  const { data: lease, error: leaseError } = await db
+    .from("leases")
+    .select("id, org_id, status, unit_id, tenant_id")
+    .eq("id", leaseId)
+    .single()
+  logQueryError("deleteLease leases", leaseError)
+  if (!lease || lease.org_id !== orgId) return { error: "Lease not found" }
+  if (lease.status !== "draft") return { error: "Only draft leases can be deleted" }
+
+  const { error: ctErr } = await db.from("lease_co_tenants").delete().eq("lease_id", leaseId).eq("org_id", orgId)
+  logQueryError("deleteLease lease_co_tenants", ctErr)
+  const { error: chErr } = await db.from("lease_charges").delete().eq("lease_id", leaseId).eq("org_id", orgId)
+  logQueryError("deleteLease lease_charges", chErr)
+  const { error: clErr } = await db.from("lease_clause_selections").delete().eq("lease_id", leaseId).eq("org_id", orgId)
+  logQueryError("deleteLease lease_clause_selections", clErr)
+
+  // Undo the unit's draft-tenant reflection ONLY if it still points at this draft's tenant
+  // (another draft for the same unit may own it — the .eq guard leaves that one intact).
+  if (lease.unit_id) {
+    const { error: unitErr } = await db
+      .from("units")
+      .update({ prospective_tenant_id: null, prospective_co_tenant_ids: [] })
+      .eq("id", lease.unit_id).eq("org_id", orgId).eq("prospective_tenant_id", lease.tenant_id)
+    logQueryError("deleteLease units reflection", unitErr)
+  }
+
+  const { error: delErr } = await db.from("leases").delete().eq("id", leaseId).eq("org_id", orgId).eq("status", "draft")
+  if (delErr) return { error: delErr.message }
+
+  await recordAudit(db, {
+    orgId, actorId: gw.userId, action: "DELETE", table: "leases", recordId: leaseId,
+    after: { action: "draft_deleted", unit_id: lease.unit_id },
+  })
+
+  revalidatePath("/leases")
+  return { success: true }
+}
