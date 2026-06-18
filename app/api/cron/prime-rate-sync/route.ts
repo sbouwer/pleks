@@ -15,6 +15,17 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_PRIME_REPO_SPREAD } from "@/lib/constants"
 
+/**
+ * Parse the feed's last_updated (the actual rate-CHANGE date) into YYYY-MM-DD.
+ * Returns null when absent/unparseable so the caller falls back to today.
+ */
+function parseSourceDate(raw: string | undefined | null): string | null {
+  if (!raw) return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toISOString().slice(0, 10)
+}
+
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -28,6 +39,7 @@ export async function GET(req: NextRequest) {
   // Fetch the SA repo rate from API Ninjas (prime rates are premium-only). SA prime = repo + the documented
   // SA_PRIME_REPO_SPREAD (lib/constants), not a magic number.
   let fetchedRate: number
+  let sourceChangeDate: string | null = null
   try {
     const res = await fetch(
       "https://api.api-ninjas.com/v1/interestrate",
@@ -46,12 +58,16 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "South Africa not found in API response" }, { status: 502 })
     }
     fetchedRate = Math.round((saEntry.rate_pct + SA_PRIME_REPO_SPREAD) * 100) / 100
+    sourceChangeDate = parseSourceDate(saEntry.last_updated)
   } catch (e) {
     return Response.json({ error: `Fetch failed: ${String(e)}` }, { status: 502 })
   }
 
   const supabase = await createServiceClient()
   const today = new Date().toISOString().slice(0, 10)
+  // Date the row to the actual rate-CHANGE date from the feed, not the day we happened to detect it.
+  // Falls back to today only if the feed omits/garbles last_updated.
+  const effectiveDate = sourceChangeDate ?? today
 
   // Check most recent stored rate
   const { data: latest, error: latestError } = await supabase
@@ -68,9 +84,9 @@ export async function GET(req: NextRequest) {
 
   // Rate has changed (or no data yet) — insert new row
   const { error } = await supabase.from("prime_rates").insert({
-    effective_date: today,
+    effective_date: effectiveDate,
     rate_percent: fetchedRate,
-    notes: "API Ninjas daily sync",
+    notes: sourceChangeDate ? "API Ninjas daily sync" : "API Ninjas daily sync (effective date defaulted to sync day)",
   })
 
   if (error) {
@@ -81,6 +97,6 @@ export async function GET(req: NextRequest) {
     status: "updated",
     rate: fetchedRate,
     previous: latest?.rate_percent ?? null,
-    effective_date: today,
+    effective_date: effectiveDate,
   })
 }
