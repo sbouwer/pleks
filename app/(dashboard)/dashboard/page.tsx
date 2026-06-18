@@ -249,6 +249,13 @@ export default async function DashboardPage() {
     ),
   ])
 
+  // F-4: overdue deposit-return timers — a count roll-up for the alerts-bell Operations section
+  // (the per-item view is the attention queue; this is the "N awaiting action" summary).
+  const overdueTimersRes = await getCachedServiceClient().then((c) =>
+    c.from("deposit_timers").select("id", { count: "exact", head: true })
+      .eq("org_id", orgId).eq("status", "running").lt("deadline", new Date().toISOString()))
+  const overdueDepositTimers = overdueTimersRes.count ?? 0
+
   const org = orgRes.data as unknown as Record<string, unknown> | null
   const firstName = profileRes.data?.full_name?.split(" ")[0] ?? "there"
   const sub = subRes.data as SubRow
@@ -321,6 +328,7 @@ export default async function DashboardPage() {
               tier={tier as Tier}
               leaseCount={leasesCountRes.count ?? 0}
               emailVerify={emailVerify}
+              overdueDepositTimers={overdueDepositTimers}
             />
             <QuickAddMenu />
           </div>

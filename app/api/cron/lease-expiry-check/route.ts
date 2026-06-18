@@ -36,6 +36,7 @@ type ExpiryLease = {
   tenant_id: string
   end_date: string
   unit_id: string
+  cpa_applies_at_signing: boolean | null
 }
 
 type NoticeLease = {
@@ -111,6 +112,9 @@ async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Pro
         leaseEndDate: endDateDisplay,
         daysRemaining,
         senderName: orgSettings?.name ?? "Pleks",
+        // F-1 #10: this cron fires for ALL fixed-term leases (not CPA-filtered), so the notice basis must
+        // reflect each lease's own snapshot — not a blanket default.
+        cpaApplies: lease.cpa_applies_at_signing ?? undefined,
       }),
       entityType: "lease",
       entityId: lease.id,
@@ -216,7 +220,7 @@ export async function GET(req: Request) {
 
   const { data: expiringLeases, error: expiringLeasesError } = await supabase
     .from("leases")
-    .select("id, org_id, tenant_id, end_date, unit_id")
+    .select("id, org_id, tenant_id, end_date, unit_id, cpa_applies_at_signing")
     .eq("is_fixed_term", true)
     .eq("status", "active")
     .lte("end_date", reminderTargetStr)
@@ -225,7 +229,7 @@ export async function GET(req: Request) {
     logQueryError("GET leases", expiringLeasesError)
 
   for (const lease of expiringLeases || []) {
-    await handleExpiryReminder(supabase, lease as ExpiryLease)
+    await handleExpiryReminder(supabase, lease)
     processed++
   }
 

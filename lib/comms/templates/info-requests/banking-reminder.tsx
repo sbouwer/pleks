@@ -67,7 +67,7 @@ export function BankingInfoRequestReminder({
         account details by email.
       </EmailParagraph>
 
-      <ExpiryLine />
+      <ExpiryLine replyFallback={false} />
       <EmailSignoff orgName={branding.orgName} />
     </EmailLayout>
   )

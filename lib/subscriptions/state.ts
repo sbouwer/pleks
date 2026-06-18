@@ -96,3 +96,21 @@ export function canPerformAgentAction(
   if (state.status === "cancelled") return { allowed: false, reason: "locked_cancelled" }
   return { allowed: true }
 }
+
+/** The single automated non-payment ladder step for a given days-past-due (57G/57H canon, ADDENDUM_57G Step 11). */
+export type DunningLadderStep = "first_notice" | "day7_reminder" | "auto_pause" | "none"
+
+/**
+ * The canonical non-payment dunning ladder: day 0 → first notice · day 7 → reminder · day ≥14 → auto-pause.
+ * Pure decision over days-since-past_due_since (the dunning cron runs daily and acts on the returned step).
+ * The ONLY automated non-payment transition this drives is past_due → paused; it never returns a cancel step
+ * (cancellation is user-initiated only — 57H convergence). The day-7 and day-0 steps are exact-day by design
+ * (idempotency is enforced separately by the comm-log check), so a missed cron day skips that notice — the
+ * day-≥14 pause is the catch-all floor. Exported for the cron + its transition tests (57G Step 11).
+ */
+export function resolveDunningLadderStep(daysPastDue: number): DunningLadderStep {
+  if (daysPastDue >= 14) return "auto_pause"
+  if (daysPastDue === 7) return "day7_reminder"
+  if (daysPastDue === 0) return "first_notice"
+  return "none"
+}

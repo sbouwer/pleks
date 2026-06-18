@@ -72,7 +72,7 @@ export function BankingInfoRequestEmail({
         The secure form above is the only safe channel.
       </EmailParagraph>
 
-      <ExpiryLine />
+      <ExpiryLine replyFallback={false} />
       <POPIALine orgName={branding.orgName} />
       <EmailSignoff orgName={branding.orgName} />
     </EmailLayout>

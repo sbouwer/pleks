@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { ReconActions } from "./ReconActions"
+import { FuzzyMatchActions } from "./FuzzyMatchActions"
 import { BackLink } from "@/components/ui/BackLink"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -128,6 +129,7 @@ export default async function ReconDetailPage({
                       {line.direction === "credit" ? "+" : "-"}{formatZAR(Math.abs(line.amount_cents))}
                     </span>
                     <StatusBadge status={MATCH_STATUS_MAP[line.match_status] || "pending"} />
+                    {line.match_status === "matched_fuzzy" && <FuzzyMatchActions lineId={line.id} />}
                   </div>
                 </div>
               )})}
