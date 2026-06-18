@@ -116,8 +116,6 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
     onChange({ ...value, [key]: v })
   }
 
-  const depositTouched = !!value.deposit
-
   function handleStartDateChange(next: string) {
     const patch: Partial<TermsState> = { startDate: next }
     if (next && !value.endDate) {
@@ -131,13 +129,9 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
     onChange({ ...value, ...patch })
   }
 
+  // Deposit is entered manually — no auto-derive. The furnishing-based default (O-22) will seed it later.
   function handleRentChange(next: string) {
-    const patch: Partial<TermsState> = { rent: next }
-    if (!depositTouched) {
-      const rentNum = Number.parseFloat(next)
-      if (rentNum > 0) patch.deposit = rentNum.toFixed(2)
-    }
-    onChange({ ...value, ...patch })
+    onChange({ ...value, rent: next })
   }
 
   const margin = Number(value.arrearsMargin || 0)
@@ -173,7 +167,7 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
           <UnderlineInput id="rent" type="number" min="0" step="0.01" value={value.rent} onChange={(e) => handleRentChange(e.target.value)} placeholder="e.g. 8500" />
         </Field>
         <Field label="Deposit (ZAR)" htmlFor="deposit">
-          <UnderlineInput id="deposit" type="number" min="0" step="0.01" value={value.deposit} onChange={(e) => set("deposit", e.target.value)} placeholder="Defaults to 2× rent" />
+          <UnderlineInput id="deposit" type="number" min="0" step="0.01" value={value.deposit} onChange={(e) => set("deposit", e.target.value)} placeholder="Deposit amount" />
         </Field>
 
         <Field label="Payment due day">
