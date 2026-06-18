@@ -692,6 +692,14 @@ CREATE INDEX IF NOT EXISTS idx_inspections_org_scheduled
 CREATE INDEX IF NOT EXISTS idx_inspections_property
   ON inspections(property_id) WHERE property_id IS NOT NULL;
 
--- Drift backport: this column existed live (added ad-hoc) but was never recorded in a
--- migration — record it so a fresh replay matches prod and drift returns to zero.
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12.5  BUILD_69 Phase 1: durable-vs-per-lease field model (the ONE genuinely net-new field)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- BUILD_69 Component D classifies every property/lease field durable / per-lease / straddle. CC grounding
+-- (2026-06-11) found all but one already have a live column — including the durable inspection ROOM TEMPLATE,
+-- which already exists as unit_inspection_profiles + unit_inspection_profile_rooms (BUILD_57 §2 above) and is
+-- what moment-5 (ingoing) reads. The single net-new field:
+--   STRADDLE — a default lease period stored on the unit (advertised at listing, confirmed/overridden per
+--   lease). No durable default existed; leases carry only the per-lease start_date/end_date.
+-- (The column also existed live ad-hoc; this records it so a fresh replay matches prod — drift → zero.)
 ALTER TABLE units ADD COLUMN IF NOT EXISTS default_lease_period_months integer;

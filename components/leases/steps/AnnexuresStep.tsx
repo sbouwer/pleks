@@ -53,6 +53,7 @@ export function AnnexuresStep({ register }: Readonly<Props>) {
         onceOffCharges={data.onceOffCharges}
         rules={data.annexureCRules}
         specialTerms={data.specialTerms}
+        lessorBanking={data.lessorBanking}
         onChangeRules={handleRules}
         onChangeSpecialTerms={handleSpecialTerms}
       />

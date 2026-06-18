@@ -16,6 +16,8 @@ import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 import { contactDisplayName } from "@/lib/contacts/displayName"
 import { NewLeaseRoute } from "./NewLeaseRoute"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { getPrimeRateOn } from "@/lib/deposits/interestConfig"
+import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -162,7 +164,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
       ? supabase.from("properties").select("name").eq("id", propertyId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
     unitId
-      ? supabase.from("units").select("unit_number, bedrooms, bathrooms").eq("id", unitId).single()
+      ? supabase.from("units").select("unit_number, bedrooms, bathrooms, asking_rent_cents, default_lease_period_months").eq("id", unitId).single()
       : Promise.resolve({ data: null }),
     tenantId && !resolvedTenantName
       ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", tenantId).single()
@@ -173,10 +175,25 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
     ),
   ])
 
-  const unitData = unitRes.data as { unit_number: string | null; bedrooms: number | null; bathrooms: number | null } | null
+  const unitData = unitRes.data as { unit_number: string | null; bedrooms: number | null; bathrooms: number | null; asking_rent_cents: number | null; default_lease_period_months: number | null } | null
   const finalCoTenants = resolvedCoTenants.length > 0
     ? resolvedCoTenants
     : coTenantResults.map((r) => ({ id: r.id, name: displayName(r.data) ?? r.id }))
+
+  // Live SA prime (prime_rates) for the arrears-interest preview — derived, never hardcoded.
+  const currentPrimePercent = await getPrimeRateOn(new Date().toISOString().slice(0, 10))
+
+  // Trust account that the lease doc's banking annexure renders (Annexure B). Account number masked to
+  // last 4 for the wizard preview — the full number only appears on the server-generated document.
+  const bank = await getLessorBankDetails(orgId)
+  const lessorBanking = bank.configured
+    ? {
+        bankName: bank.bankName,
+        accountHolder: bank.accountHolder,
+        accountNumberMasked: bank.accountNumber.length > 4 ? `•••• ${bank.accountNumber.slice(-4)}` : bank.accountNumber,
+        branchCode: bank.branchCode,
+      }
+    : null
 
   return (
     <NewLeaseRoute
@@ -185,6 +202,10 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
         propertyName: propRes.data?.name ?? null,
         unitId,
         unitLabel: buildUnitLabel(unitData),
+        askingRentCents: unitData?.asking_rent_cents ?? null,
+        defaultLeasePeriodMonths: unitData?.default_lease_period_months ?? null,
+        currentPrimePercent,
+        lessorBanking,
         tenantId,
         tenantName: resolvedTenantName ?? displayName(tenantRes.data as TenantRow),
         coTenants: finalCoTenants,

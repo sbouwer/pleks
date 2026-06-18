@@ -14,7 +14,6 @@ import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CheckCircle2, ChevronDown, ChevronRight, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { contactDisplayName } from "@/lib/contacts/displayName"
@@ -45,6 +44,7 @@ interface Unit {
   status: string
   building_id: string | null
   asking_rent_cents: number | null
+  default_lease_period_months: number | null
   bedrooms: number | null
   bathrooms: number | null
   parking_bays: number | null
@@ -210,7 +210,7 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
           .order("name"),
         supabase
           .from("units")
-          .select("id, unit_number, status, building_id, asking_rent_cents, bedrooms, bathrooms, parking_bays, prospective_tenant_id, prospective_co_tenant_ids")
+          .select("id, unit_number, status, building_id, asking_rent_cents, default_lease_period_months, bedrooms, bathrooms, parking_bays, prospective_tenant_id, prospective_co_tenant_ids")
           .eq("property_id", propertyId)
           .is("deleted_at", null)
           .eq("is_archived", false)
@@ -312,6 +312,7 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
       unitLabel: unit ? unitLabel(unit) : "",
       leaseType,
       askingRentCents: selectedUnit.asking_rent_cents,
+      defaultLeasePeriodMonths: unit?.default_lease_period_months ?? null,
       bcLevyCents: prop?.levy_amount_cents ?? null,
       isSectionalTitle: prop?.is_sectional_title ?? false,
       parkingBays: unit?.parking_bays ?? 0,
@@ -422,15 +423,18 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
           {selectedUnit && (
             <div className="space-y-2">
               <Label>Lease type</Label>
-              <Select value={leaseType} onValueChange={(v) => setLeaseType(v as "residential" | "commercial")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="residential">Residential</SelectItem>
-                  <SelectItem value="commercial">Commercial</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Native select styled to match the InlineCombobox fields above (was the old shadcn Select pill). */}
+              <div className="relative">
+                <select
+                  value={leaseType}
+                  onChange={(e) => setLeaseType(e.target.value as "residential" | "commercial")}
+                  className="w-full appearance-none rounded-[var(--r-button)] border border-border/60 bg-background px-3 py-2 pr-9 text-sm outline-none transition-colors hover:border-primary/50 focus:border-primary"
+                >
+                  <option value="residential">Residential</option>
+                  <option value="commercial">Commercial</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              </div>
               {selectedProp?.type && (
                 <p className="text-xs text-muted-foreground">Auto-detected from property type.</p>
               )}
