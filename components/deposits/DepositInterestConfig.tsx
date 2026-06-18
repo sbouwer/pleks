@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * components/deposits/DepositInterestConfig.tsx — FILL: one-line purpose
+ * components/deposits/DepositInterestConfig.tsx — effective-dated deposit-interest config editor
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   client island; POSTs to /api/deposit-interest-config (org-scoped server auth)
+ * Data:   deposit_interest_config for one scope. Scope is account (bankAccountId) → unit → property → org;
+ *         most-specific wins at accrual (ADDENDUM_69A). Setting a new rate ends the prior active one.
+ * Notes:  bankAccountId scopes the rate to a deposit-holding account (used from Settings → Compliance).
  */
 import { useEffect, useState, useTransition } from "react"
 import { toast } from "sonner"
@@ -23,6 +22,8 @@ import { ChevronDown, ChevronUp } from "lucide-react"
 interface Props {
   propertyId?: string | null
   unitId?: string | null
+  /** Optional: scope the rate to a specific deposit-holding bank account (ADDENDUM_69A, most specific). */
+  bankAccountId?: string | null
   /** Optional: current prime rate to show effective rate preview */
   currentPrime?: number | null
   title?: string
@@ -44,7 +45,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
 }
 
-export function DepositInterestConfig({ propertyId = null, unitId = null, currentPrime, title }: Props) {
+export function DepositInterestConfig({ propertyId = null, unitId = null, bankAccountId = null, currentPrime, title }: Props) {
   const [configs, setConfigs] = useState<Config[]>([])
   const [active, setActive] = useState<Config | null>(null)
   const [showHistory, setShowHistory] = useState(false)
@@ -64,7 +65,8 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
 
   function buildParams() {
     const p = new URLSearchParams()
-    if (unitId) p.set("unitId", unitId)
+    if (bankAccountId) p.set("bankAccountId", bankAccountId)
+    else if (unitId) p.set("unitId", unitId)
     else if (propertyId) p.set("propertyId", propertyId)
     return p.toString()
   }
@@ -79,7 +81,7 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
       })
   }
 
-  useEffect(() => { loadConfigs() }, [propertyId, unitId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadConfigs() }, [propertyId, unitId, bankAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openForm() {
     if (active) {
@@ -102,6 +104,7 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
         const body: Record<string, unknown> = {
           propertyId,
           unitId,
+          bankAccountId,
           rateType,
           compounding,
           bankName: bankName || null,

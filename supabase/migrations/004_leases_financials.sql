@@ -1798,3 +1798,21 @@ CREATE INDEX IF NOT EXISTS idx_deposit_txns_tenant
 -- Trust ledger by lease (lease ledger view + FK cascade)
 CREATE INDEX IF NOT EXISTS idx_trust_tx_lease
   ON trust_transactions(lease_id) WHERE lease_id IS NOT NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  BUILD_69A: per-lease deposit/trust account selection (ADDENDUM_69A)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The trust account rent is paid into + the deposit-holding account the deposit sits in, chosen per lease
+-- from the org's own bank_accounts (the wizard filters to non-business types; D-TRUST-01: Pleks records,
+-- is not the trustee). The selected deposit_account_id feeds account-scoped interest resolution
+-- (deposit_interest_config.bank_account_id — see 008 §BUILD_69A). bank_accounts is created in 001 (before
+-- this file), so the FKs resolve on replay.
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS deposit_account_id uuid REFERENCES bank_accounts(id);
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS trust_account_id   uuid REFERENCES bank_accounts(id);
+CREATE INDEX IF NOT EXISTS idx_leases_deposit_account ON leases(deposit_account_id) WHERE deposit_account_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_leases_trust_account   ON leases(trust_account_id)   WHERE trust_account_id   IS NOT NULL;
+
+-- NOTE: an earlier 69A draft added leases.deposit_interest_beneficiary (a §7.2 election). REMOVED by the
+-- 2026-06-18 ownership correction: residential deposit interest is statutory (always the tenant, RHA
+-- s5(3)(d)), not a contractual election — so there is no beneficiary field and the deposit clause states
+-- the lessee literally. The column was dropped from live in the same change.

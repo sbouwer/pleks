@@ -12,7 +12,7 @@ import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-for
 import { AddInline } from "@/components/ui/actions"
 import { ChevronDown, ChevronUp, X } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
-import type { LocalCharge, LocalOnceOffCharge, AnnexureCRules, SpecialTerm, LessorBanking } from "../../wizardData"
+import type { LocalCharge, LocalOnceOffCharge, AnnexureCRules, SpecialTerm, SelectableAccount } from "../../wizardData"
 
 const SPECIAL_TERM_TYPES = [
   { value: "pet_permission", label: "Pet Permission", defaultDetail: "Tenant is permitted to keep [describe pet] on the premises subject to the property rules." },
@@ -79,18 +79,35 @@ interface Props {
   onceOffCharges: LocalOnceOffCharge[]
   rules: AnnexureCRules
   specialTerms: SpecialTerm[]
-  lessorBanking: LessorBanking | null
+  availableAccounts: SelectableAccount[]
+  trustAccountId: string
+  depositAccountId: string
+  onSelectTrust: (id: string) => void
+  onSelectDeposit: (id: string) => void
   onChangeRules: (next: AnnexureCRules) => void
   onChangeSpecialTerms: (next: SpecialTerm[]) => void
 }
 
 export function AnnexuresSection({
   rent, deposit, paymentDueDay, escalationPercent, escalationType,
-  charges, onceOffCharges, rules, specialTerms, lessorBanking, onChangeRules, onChangeSpecialTerms,
+  charges, onceOffCharges, rules, specialTerms,
+  availableAccounts, trustAccountId, depositAccountId,
+  onSelectTrust, onSelectDeposit,
+  onChangeRules, onChangeSpecialTerms,
 }: Readonly<Props>) {
   const rentCents = Math.round(Number.parseFloat(rent || "0") * 100)
   const depositCents = Math.round(Number.parseFloat(deposit || "0") * 100)
   const totalRecurring = charges.reduce((s, c) => s + c.amount_cents, 0)
+
+  // Annexure B account selection (ADDENDUM_69A). availableAccounts is already non-business (D-TRUST-01).
+  // Trust = the rent account (trust/ppra_trust); deposit = any non-business account that holds the deposit.
+  const trustOptions = availableAccounts.filter((a) => a.type === "trust" || a.type === "ppra_trust")
+  const depositOptions = availableAccounts
+  function acctLabel(a: SelectableAccount): string {
+    const num = a.accountNumberMasked ? ` · ${a.accountNumberMasked}` : ""
+    const kind = a.type.replaceAll("_", " ")
+    return `${a.bankName}${num} (${kind})`
+  }
 
   // Accordion: only one annexure open at a time (defaults to A). Clicking the open one closes it.
   const [openLetter, setOpenLetter] = useState<string | null>("A")
@@ -130,25 +147,35 @@ export function AnnexuresSection({
         <p className="text-xs text-muted-foreground mt-3">This annexure is auto-populated from the lease terms and cannot be edited here.</p>
       </AnnexureSection>
 
-      {/* Annexure B — Banking Details (the org trust account the tenant pays into) */}
-      <AnnexureSection letter="B" title="Banking Details" subtitle="Trust account — where the tenant pays rent" open={openLetter === "B"} onToggle={() => toggle("B")}>
-        {lessorBanking ? (
-          <>
-            <div className="space-y-1">
-              <ReadOnlyRow label="Bank" value={lessorBanking.bankName} />
-              <ReadOnlyRow label="Account holder" value={lessorBanking.accountHolder} />
-              <ReadOnlyRow label="Account number" value={lessorBanking.accountNumberMasked} />
-              <ReadOnlyRow label="Branch code" value={lessorBanking.branchCode} />
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Your trust account, configured in <strong>Settings → Compliance</strong>. The full number is printed on the generated lease.
+      {/* Annexure B — Banking Details: select the trust (rent) + deposit (deposit-holding) accounts */}
+      <AnnexureSection letter="B" title="Banking Details" subtitle="Trust + deposit accounts for this lease" open={openLetter === "B"} onToggle={() => toggle("B")}>
+        {availableAccounts.length > 0 ? (
+          <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+            <Field label="Trust account (rent paid into)" required>
+              <UnderlineSelect
+                value={trustAccountId}
+                onChange={onSelectTrust}
+                options={[{ value: "", label: "Select…" }, ...trustOptions.map((a) => ({ value: a.id, label: acctLabel(a) }))]}
+              />
+            </Field>
+            <Field label="Deposit account (optional)">
+              <UnderlineSelect
+                value={depositAccountId}
+                onChange={onSelectDeposit}
+                options={[{ value: "", label: "Same as the trust account" }, ...depositOptions.map((a) => ({ value: a.id, label: acctLabel(a) }))]}
+              />
+            </Field>
+            <p className="col-span-full text-xs text-muted-foreground">
+              The deposit is held in the trust account by default; pick a separate interest-bearing account only if you keep one. The deposit-interest rate follows that account (set in <strong>Settings → Compliance</strong>). Full account numbers print on the generated lease; business accounts can&apos;t be selected.
             </p>
-          </>
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No trust account is configured. Set one up in <strong>Settings → Compliance</strong> — it then appears here and on the generated lease.
+            No trust/deposit account is configured. Set one up in <strong>Settings → Compliance</strong> — lease creation is gated on it.
           </p>
         )}
+
+        {/* Deposit interest accrues to the tenant by statute (RHA s5(3)(d)) — not an election, so no selector. */}
       </AnnexureSection>
 
       {/* Annexure C — Property Rules */}

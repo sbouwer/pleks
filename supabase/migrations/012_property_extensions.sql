@@ -703,3 +703,11 @@ CREATE INDEX IF NOT EXISTS idx_inspections_property
 --   lease). No durable default existed; leases carry only the per-lease start_date/end_date.
 -- (The column also existed live ad-hoc; this records it so a fresh replay matches prod — drift → zero.)
 ALTER TABLE units ADD COLUMN IF NOT EXISTS default_lease_period_months integer;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12.6  ADDENDUM_69A: durable default deposit amount on the unit (separable)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- A durable deposit-AMOUNT prefill (distinct from deposit interest), advertised/confirmed per lease the
+-- same way default_lease_period_months is. Low legal risk (a prefill the agent confirms, not a binding
+-- rule); sets up O-22 (furnishing-based deposit). Decoupled from the accounts/interest core.
+ALTER TABLE units ADD COLUMN IF NOT EXISTS default_deposit_cents integer;

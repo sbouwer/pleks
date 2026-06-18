@@ -43,6 +43,8 @@ interface WizardModalProps {
   primaryLabel:  string
   onPrimary:     () => void
   primaryDisabled?: boolean
+  /** hover tooltip explaining why the primary is disabled (shown on a wrapping span — works while disabled). */
+  primaryDisabledReason?: string
   /** error shown above the footer (e.g. a failed save). */
   footerError?:  string | null
   /** extra control rendered to the left of the footer (e.g. an "Advanced setup" link). */
@@ -108,7 +110,7 @@ function RailStep({
 
 export function WizardModal({
   open, onOpenChange, eyebrow, steps, current, onStepSelect,
-  title, subtitle, backLabel, onBack, primaryLabel, onPrimary, primaryDisabled,
+  title, subtitle, backLabel, onBack, primaryLabel, onPrimary, primaryDisabled, primaryDisabledReason,
   footerError, footerSlot, className, children, success,
 }: Readonly<WizardModalProps>) {
   const { theme } = usePortalTheme()
@@ -190,9 +192,11 @@ export function WizardModal({
                       </ActionButton>
                       {footerSlot}
                     </div>
-                    <ActionButton tone="primary" onClick={onPrimary} disabled={primaryDisabled}>
-                      {primaryLabel}
-                    </ActionButton>
+                    <span title={primaryDisabled && primaryDisabledReason ? primaryDisabledReason : undefined}>
+                      <ActionButton tone="primary" onClick={onPrimary} disabled={primaryDisabled}>
+                        {primaryLabel}
+                      </ActionButton>
+                    </span>
                   </div>
                 </div>
               </>

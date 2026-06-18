@@ -166,7 +166,7 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
         <Field label="Monthly rent (ZAR)" required htmlFor="rent">
           <UnderlineInput id="rent" type="number" min="0" step="0.01" value={value.rent} onChange={(e) => handleRentChange(e.target.value)} placeholder="e.g. 8500" />
         </Field>
-        <Field label="Deposit (ZAR)" htmlFor="deposit">
+        <Field label="Deposit (ZAR)" required htmlFor="deposit">
           <UnderlineInput id="deposit" type="number" min="0" step="0.01" value={value.deposit} onChange={(e) => set("deposit", e.target.value)} placeholder="Deposit amount" />
         </Field>
 
@@ -180,19 +180,11 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
         <Field label="Escalation type">
           <UnderlineSelect value={value.escalationType} onChange={(v) => set("escalationType", v || "fixed")} options={ESCALATION_TYPES} />
         </Field>
-        {isResidential ? (
-          <Field label="Deposit interest rate (% p.a.)" htmlFor="deposit-rate">
-            <UnderlineInput id="deposit-rate" type="number" min="0" max="20" step="0.25" value={value.depositInterestRate} onChange={(e) => set("depositInterestRate", e.target.value)} />
-          </Field>
-        ) : (
+        {/* Deposit interest RATE is no longer entered here (ADDENDUM_69A) — it resolves via the selected
+            deposit account's config (Annexure B / Settings → Compliance). Commercial still picks who it accrues to. */}
+        {!isResidential && (
           <Field label="Deposit interest accrues to">
             <UnderlineSelect value={value.depositInterestTo} onChange={(v) => set("depositInterestTo", v || "landlord")} options={DEPOSIT_INTEREST_OPTIONS} />
-          </Field>
-        )}
-
-        {!isResidential && (
-          <Field label="Deposit interest rate (% p.a.)" htmlFor="deposit-rate-c">
-            <UnderlineInput id="deposit-rate-c" type="number" min="0" max="20" step="0.25" value={value.depositInterestRate} onChange={(e) => set("depositInterestRate", e.target.value)} />
           </Field>
         )}
       </div>

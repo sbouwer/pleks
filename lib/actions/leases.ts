@@ -222,9 +222,13 @@ export async function createLease(formData: FormData) {
       escalation_type: f.escalationType,
       escalation_review_date: f.escalationReviewDate,
       deposit_amount_cents: f.depositCents,
+      deposit_account_id: (formData.get("deposit_account_id") as string) || null,
+      trust_account_id:   (formData.get("trust_account_id") as string) || null,
       deposit_interest_to: f.depositInterestTo,
       special_terms: f.specialTerms,
       auto_renewal_notice_due: f.autoRenewalNoticeDue,
+      // ADDENDUM_69A: the wizard no longer writes a flat rate — it resolves via deposit_interest_config
+      // (per the selected deposit account). Stays null unless set as a manual-override fallback.
       deposit_interest_rate_percent: f.depositInterestRatePercent,
       arrears_interest_enabled: f.arrearsInterestEnabled,
       arrears_interest_margin_percent: f.arrearsInterestMarginPercent,
@@ -332,6 +336,8 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
       escalation_type: escalationType,
       escalation_review_date: escalationReviewDate.toISOString().split("T")[0],
       deposit_amount_cents: depositCents,
+      deposit_account_id: (formData.get("deposit_account_id") as string) || null,
+      trust_account_id:   (formData.get("trust_account_id") as string) || null,
       deposit_interest_to: leaseType === "residential" ? "tenant" : "landlord",
       auto_renewal_notice_due: autoRenewalNoticeDue,
       template_source: "uploaded",
