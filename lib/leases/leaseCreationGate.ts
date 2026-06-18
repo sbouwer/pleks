@@ -26,14 +26,15 @@ export const LEASE_GATE_BLOCKED_MESSAGE =
 
 export async function getLeaseCreationGate(db: SupabaseClient, orgId: string): Promise<LeaseCreationGate> {
   const { data: org, error: orgErr } = await db
-    .from("organisations").select("management_scope").eq("id", orgId).single()
+    .from("organisations").select("type").eq("id", orgId).single()
   logQueryError("getLeaseCreationGate organisations", orgErr)
 
-  // Only gate orgs that POSITIVELY manage others' properties (agency model → must hold a trust account).
-  // Self-managing orgs (own_only) — and any unknown/missing scope — are never gated (fail-open; the
-  // landlord-banking path is deferred).
-  const managesOthers = org?.management_scope === "own_and_others" || org?.management_scope === "others_only"
-  if (!managesOthers) return { allowed: true, ownerName: null }
+  // Agencies (incl. sole props) hold client money in a trust account → gated. A self-managing 'landlord'
+  // org operates no trust account, so it's never gated (landlord-banking path deferred). A missing org
+  // row fails open. NB: keyed on org TYPE, not management_scope — an agency can be own_only yet still
+  // require a trust account.
+  const requiresTrust = !!org && org.type !== "landlord"
+  if (!requiresTrust) return { allowed: true, ownerName: null }
 
   const { data: trust, error: trustErr } = await db
     .from("bank_accounts").select("id").eq("org_id", orgId).in("type", TRUST_ACCOUNT_TYPES).limit(1)
