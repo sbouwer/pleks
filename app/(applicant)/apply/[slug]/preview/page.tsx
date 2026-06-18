@@ -163,7 +163,7 @@ function StepPersonal() {
   const [f, setF] = useState<Record<string, string>>({ leaseType: "Residential" })
   const set = (k: string) => (v: string) => setF((p) => ({ ...p, [k]: v }))
   return (
-    <div className="flex flex-1 flex-col gap-5 py-5">
+    <div className="flex flex-1 flex-col gap-4 py-3">
       <div>
         <h2 className="text-xl font-medium tracking-[-0.01em] text-[var(--ink)]">Tell us about you</h2>
         <p className="mt-1 max-w-prose text-sm text-[var(--ink-soft)]">
@@ -226,8 +226,8 @@ export default function ApplyPreviewPage() {
 
       <div className="relative z-10 flex min-h-full flex-col">
         {/* Header — backed surface, real Wordmark */}
-        <header className="shrink-0 border-b border-[var(--rule)] bg-[var(--paper-raised)]">
-          <div className="mx-auto flex max-w-[1180px] items-center justify-between px-6 py-3.5">
+        <header className="sticky top-0 z-20 shrink-0 border-b border-[var(--rule)] bg-[var(--paper-raised)]">
+          <div className="mx-auto flex max-w-[1180px] items-center justify-between px-6 py-3">
             <div className="flex items-center gap-3">
               <Wordmark style={{ fontSize: 19 }} />
               <span className="h-4 w-px bg-[var(--rule)]" />
@@ -241,7 +241,7 @@ export default function ApplyPreviewPage() {
         </header>
 
         {/* Content row — fills to viewport bottom; columns stretch to equal height */}
-        <div className="mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-6 px-6 py-6 lg:flex-row lg:items-stretch">
+        <div className="mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-5 px-6 py-4 lg:flex-row lg:items-stretch">
           {/* Left rail — unit card grows to fill */}
           <aside className="flex w-full flex-col gap-4 lg:w-[360px]">
             <div className="flex flex-col lg:flex-1">
@@ -260,7 +260,7 @@ export default function ApplyPreviewPage() {
               <StepPersonal />
 
               {/* Footer */}
-              <div className="flex items-center justify-between border-t border-[var(--rule)] pt-4">
+              <div className="flex items-center justify-between border-t border-[var(--rule)] pt-3">
                 <span className="flex items-center gap-1.5 text-[11px] text-[var(--ink-soft)]">
                   <span className="size-1.5 rounded-full" style={{ background: "var(--positive, #2f9e63)" }} /> Saved automatically · step {step + 1} of 4
                 </span>
