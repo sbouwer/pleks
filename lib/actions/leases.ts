@@ -9,6 +9,7 @@
  *         L4+P1 fire in activateLeaseCascade. L11 fires from lease-expiry-check cron.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { getLeaseCreationGate, LEASE_GATE_BLOCKED_MESSAGE } from "@/lib/leases/leaseCreationGate"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import type { GatewayContext } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
@@ -194,6 +195,10 @@ export async function createLease(formData: FormData) {
   const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
 
+  // Hard gate: an agency org can't create leases until its trust/deposit banking is configured.
+  const gate = await getLeaseCreationGate(db, orgId)
+  if (!gate.allowed) return { error: LEASE_GATE_BLOCKED_MESSAGE }
+
   const f = parseLeaseFormData(formData)
 
   const { data: lease, error } = await db
@@ -271,6 +276,10 @@ export async function createLease(formData: FormData) {
 export async function createUploadedLease(formData: FormData): Promise<{ error: string } | { leaseId: string }> {
   const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
+
+  // Hard gate: an agency org can't create leases until its trust/deposit banking is configured.
+  const gate = await getLeaseCreationGate(db, orgId)
+  if (!gate.allowed) return { error: LEASE_GATE_BLOCKED_MESSAGE }
 
   const unitId = formData.get("unit_id") as string
   const propertyId = formData.get("property_id") as string

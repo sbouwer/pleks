@@ -53,14 +53,16 @@ const DEPOSIT_INTEREST_OPTIONS = [
   { value: "landlord", label: "Landlord" },
 ]
 
-const CURRENT_PRIME = 11.25
-
 interface Props {
   value: TermsState
   onChange: (next: TermsState) => void
   isResidential: boolean
   tenantIsJuristic: boolean
   cpaDetermination: CpaDetermination
+  /** durable default carried from the unit (BUILD_69); drives the auto end-date instead of a hardcoded year. */
+  defaultLeasePeriodMonths?: number | null
+  /** live SA prime (prime_rates) resolved server-side; drives the arrears-interest preview. Null → degrade. */
+  currentPrimePercent?: number | null
 }
 
 function cpaStatusLabel(cpa: CpaDetermination): string {
@@ -109,34 +111,31 @@ function CpaChip({ cpa }: Readonly<{ cpa: CpaDetermination }>) {
   )
 }
 
-export function TermsSection({ value, onChange, isResidential, cpaDetermination }: Readonly<Props>) {
+export function TermsSection({ value, onChange, isResidential, cpaDetermination, defaultLeasePeriodMonths, currentPrimePercent }: Readonly<Props>) {
   function set<K extends keyof TermsState>(key: K, v: TermsState[K]) {
     onChange({ ...value, [key]: v })
   }
 
-  const depositTouched = !!value.deposit
-
   function handleStartDateChange(next: string) {
     const patch: Partial<TermsState> = { startDate: next }
     if (next && !value.endDate) {
+      // Durable default from the unit (BUILD_69) drives the term; fall back to a 12-month year.
+      const months = defaultLeasePeriodMonths && defaultLeasePeriodMonths > 0 ? defaultLeasePeriodMonths : 12
       const d = new Date(next)
-      d.setFullYear(d.getFullYear() + 1)
+      d.setMonth(d.getMonth() + months)
       d.setDate(d.getDate() - 1)
       patch.endDate = d.toISOString().slice(0, 10)
     }
     onChange({ ...value, ...patch })
   }
 
+  // Deposit is entered manually — no auto-derive. The furnishing-based default (O-22) will seed it later.
   function handleRentChange(next: string) {
-    const patch: Partial<TermsState> = { rent: next }
-    if (!depositTouched) {
-      const rentNum = Number.parseFloat(next)
-      if (rentNum > 0) patch.deposit = rentNum.toFixed(2)
-    }
-    onChange({ ...value, ...patch })
+    onChange({ ...value, rent: next })
   }
 
-  const effectiveArrearsRate = CURRENT_PRIME + Number(value.arrearsMargin || 0)
+  const margin = Number(value.arrearsMargin || 0)
+  const effectiveArrearsRate = currentPrimePercent != null ? currentPrimePercent + margin : null
 
   return (
     <div className="space-y-4">
@@ -168,7 +167,7 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination 
           <UnderlineInput id="rent" type="number" min="0" step="0.01" value={value.rent} onChange={(e) => handleRentChange(e.target.value)} placeholder="e.g. 8500" />
         </Field>
         <Field label="Deposit (ZAR)" htmlFor="deposit">
-          <UnderlineInput id="deposit" type="number" min="0" step="0.01" value={value.deposit} onChange={(e) => set("deposit", e.target.value)} placeholder="Defaults to 2× rent" />
+          <UnderlineInput id="deposit" type="number" min="0" step="0.01" value={value.deposit} onChange={(e) => set("deposit", e.target.value)} placeholder="Deposit amount" />
         </Field>
 
         <Field label="Payment due day">
@@ -208,7 +207,9 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination 
           <div className="flex items-center gap-2 pl-6 text-sm">
             <span>Prime +</span>
             <input type="number" min="0" max="10" step="0.5" value={value.arrearsMargin} onChange={(e) => set("arrearsMargin", e.target.value)} className="w-16 border-0 border-b border-input bg-transparent px-0 py-1 text-sm focus:border-primary focus:outline-none" />
-            <span>% = {effectiveArrearsRate.toFixed(2)}% p.a. at current prime ({CURRENT_PRIME}%)</span>
+            <span>{effectiveArrearsRate != null
+              ? `% = ${effectiveArrearsRate.toFixed(2)}% p.a. at current prime (${currentPrimePercent}%)`
+              : "% above the prevailing prime rate"}</span>
           </div>
         )}
       </div>

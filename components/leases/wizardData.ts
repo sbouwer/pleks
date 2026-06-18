@@ -49,6 +49,14 @@ export interface AnnexureCRules {
   commonAreas: string
 }
 
+/** The trust account shown in the lease's banking annexure (Annexure B). Account number is masked. */
+export interface LessorBanking {
+  bankName: string
+  accountHolder: string
+  accountNumberMasked: string
+  branchCode: string
+}
+
 export interface WizardData {
   // Step 1 — Property → Building → Unit
   propertyId: string
@@ -59,6 +67,12 @@ export interface WizardData {
   unitLabel: string
   leaseType: "residential" | "commercial"
   askingRentCents: number | null
+  /** durable straddle default carried from the unit (BUILD_69) — seeds the lease end date on a 2nd+ lease. */
+  defaultLeasePeriodMonths: number | null
+  /** live SA prime rate (prime_rates table) resolved server-side — drives the arrears-interest preview, never hardcoded. */
+  currentPrimePercent: number | null
+  /** trust account rendered into the lease doc's banking annexure (Annexure B); account number masked. */
+  lessorBanking: LessorBanking | null
   bcLevyCents: number | null
   // Step 2 — Tenant(s)
   tenantId: string
@@ -113,6 +127,13 @@ export interface WizardPrefill {
   propertyName?: string | null
   unitId?: string | null
   unitLabel?: string | null
+  /** Durable unit fields carried so the rent/term seed even when the unit-select step is skipped (BUILD_69). */
+  askingRentCents?: number | null
+  defaultLeasePeriodMonths?: number | null
+  /** live SA prime (prime_rates) resolved server-side for the arrears-interest preview. */
+  currentPrimePercent?: number | null
+  /** trust account (masked) for the banking annexure preview. */
+  lessorBanking?: LessorBanking | null
   tenantId?: string | null
   tenantName?: string | null
   coTenants?: CoTenant[]
@@ -128,7 +149,10 @@ export function buildInitialWizardData(prefill: WizardPrefill): WizardData {
     unitId: prefill.unitId ?? "",
     unitLabel: prefill.unitLabel ?? "",
     leaseType: "residential",
-    askingRentCents: null,
+    askingRentCents: prefill.askingRentCents ?? null,
+    defaultLeasePeriodMonths: prefill.defaultLeasePeriodMonths ?? null,
+    currentPrimePercent: prefill.currentPrimePercent ?? null,
+    lessorBanking: prefill.lessorBanking ?? null,
     bcLevyCents: null,
     tenantId: prefill.tenantId ?? "",
     tenantName: prefill.tenantName ?? "",
