@@ -11,14 +11,24 @@
  */
 
 import { useState } from "react"
-import { LogIn, X } from "lucide-react"
+import { LogIn, X, CheckCircle2 } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 
-export function ApplyLoginButton({ slug }: Readonly<{ slug: string }>) {
+export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: string; loggedIn?: boolean; name?: string | null }>) {
   const [open, setOpen] = useState(false)
   function login() {
     globalThis.location.href = `/login?redirect=${encodeURIComponent(`/apply/${slug}/preview`)}`
   }
+
+  // Already authenticated — skip the door; the form is pre-filled from the user's own record.
+  if (loggedIn) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--ink-mute)]">
+        <CheckCircle2 className="size-3.5 text-emerald-600" /> Signed in{name ? ` as ${name}` : ""} · details pre-filled
+      </span>
+    )
+  }
+
   return (
     <>
       <button

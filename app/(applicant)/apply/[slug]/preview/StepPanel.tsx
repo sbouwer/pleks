@@ -113,15 +113,17 @@ function Cta({ label, onClick, busy, disabled }: Readonly<{ label: string; onCli
   )
 }
 
-export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, agentPhone }: Readonly<{
+export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, agentPhone, prefill }: Readonly<{
   slug: string; orgId: string; leaseType: "residential" | "commercial"; askingRentCents: number; agentName: string | null; agentPhone: string | null
+  prefill?: Partial<PartyFormState> | null
 }>) {
   const commercial = leaseType === "commercial"
   const [type, setType] = useState<ApplicantType | null>(null)
   const [step, setStep] = useState(0)
   const [maxReached, setMaxReached] = useState(0)
 
-  const [form, setForm] = useState<PartyFormState>({ idType: "sa_id" })
+  // Seed identity + address from the logged-in user's own record (financial/employment stay empty — re-confirmed).
+  const [form, setForm] = useState<PartyFormState>({ idType: "sa_id", ...(prefill ?? {}) })
   const [errors, setErrors] = useState<PartyErrors>({})
   const [emp, setEmp] = useState<Emp>({ employment_type: "", employer: "", gross_income: "" })
   const set: SetFn = (k, v) => setForm((p) => ({ ...p, [k]: v }))
@@ -281,16 +283,16 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   const isCompany = type === "company"
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col tallwide:h-full tallwide:min-h-0">
-      <div className="fs-panel mb-1.5 flex flex-1 flex-col tallwide:min-h-0" style={{ maxWidth: "none", width: "100%" }}>
+    <main className="flex min-w-0 flex-1 flex-col [@media(min-width:1024px)_and_(min-height:700px)]:h-full [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
+      <div className="fs-panel mb-1.5 flex flex-1 flex-col [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0" style={{ maxWidth: "none", width: "100%" }}>
         <span className="fs-knob" aria-hidden="true" />
 
         {type === null ? (
-          <div className="flex-1 py-3 tallwide:min-h-0 tallwide:overflow-y-auto"><Landing onPick={pickType} commercial={commercial} /></div>
+          <div className="flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"><Landing onPick={pickType} commercial={commercial} /></div>
         ) : (
           <>
             <TabBar step={step} maxReached={maxReached} onJump={setStep} />
-            <div className="flex-1 py-3 tallwide:min-h-0 tallwide:overflow-y-auto">
+            <div className="flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto">
               {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} />}
               {step === 1 && <StepAddressEmployment form={form} set={set} errors={errors} emp={emp} setEmp={setEmp} />}
               {step === 2 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} />}

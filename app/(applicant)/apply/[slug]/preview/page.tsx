@@ -23,6 +23,11 @@ import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
 import { Phone, Mail, MessageCircle, ShieldCheck, ImageIcon, type LucideIcon } from "lucide-react"
 import { StepPanel } from "./StepPanel"
 import { ApplyLoginButton } from "./ApplyLoginButton"
+import { gatewaySSR } from "@/lib/supabase/gateway"
+import { getServerUser } from "@/lib/auth/server"
+import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
+import { fetchAgentContactParty } from "@/lib/actions/parties"
+import type { PartyFormState } from "@/lib/parties/partyValidation"
 
 type UnitRow = {
   unit_number: string | null
@@ -117,6 +122,31 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
     agentFfc = (agent?.ppra_ffc_number as string | null) ?? null
   }
 
+  // Auth-gated autofill (identity finding §3): if the visitor is logged in, prefill ONLY from their OWN
+  // record (session authorises). Identity + address prefill clean; financial/employment are NOT prefilled
+  // (re-confirmed in-flow). Anonymous visitors get the login door instead — never blocked.
+  let prefill: Partial<PartyFormState> | null = null
+  let prefillName: string | null = null
+  const gw = await gatewaySSR()
+  if (gw) {
+    const authEmail = (await getServerUser())?.email ?? null
+    const resolved = await resolveAgentContact(gw.db, gw.orgId, gw.userId, authEmail)
+    if (resolved.ok && resolved.contactId) {
+      const fetched = await fetchAgentContactParty(resolved.contactId)
+      if (fetched.ok && fetched.form) {
+        const f = fetched.form
+        prefill = {
+          title: f.title, initials: f.initials, firstName: f.firstName, lastName: f.lastName,
+          middleNames: f.middleNames, suffix: f.suffix, designation: f.designation,
+          idType: f.idType ?? "sa_id", idNumber: f.idNumber, dob: f.dob, gender: f.gender,
+          preferredChannel: f.preferredChannel,
+          email: f.email ?? authEmail ?? undefined, phone: f.phone, addresses: f.addresses,
+        }
+        prefillName = [f.firstName, f.lastName].filter(Boolean).join(" ") || null
+      }
+    }
+  }
+
   const title = [property?.address_line1, property?.suburb ?? property?.city].filter(Boolean).join(", ") || property?.name || "This property"
   const photo = (listing.listing_photos as string[] | null)?.[0] ?? null
   const phone = agentPhone ?? org?.phone ?? null
@@ -155,16 +185,16 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
                 <ShieldCheck className="size-3.5" />
                 <Eyebrow>Encrypted</Eyebrow>
               </span>
-              <ApplyLoginButton slug={slug} />
+              <ApplyLoginButton slug={slug} loggedIn={!!gw} name={prefillName} />
             </div>
           </div>
         </header>
 
         {/* Content area — fills the viewport on desktop (each column scrolls internally); page-scrolls on mobile */}
-        <div className="min-h-0 flex-1 overflow-y-auto tallwide:overflow-hidden">
-          <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-6 py-4 tallwide:h-full tallwide:min-h-0 tallwide:flex-row tallwide:items-stretch">
+        <div className="min-h-0 flex-1 overflow-y-auto [@media(min-width:1024px)_and_(min-height:700px)]:overflow-hidden">
+          <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-6 py-4 [@media(min-width:1024px)_and_(min-height:700px)]:h-full [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:flex-row [@media(min-width:1024px)_and_(min-height:700px)]:items-stretch">
             {/* Left rail — unit card grows to fill */}
-            <aside className="flex w-full flex-col gap-4 tallwide:w-[360px] tallwide:min-h-0">
+            <aside className="flex w-full flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:w-[360px] [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
               <div className="flex flex-col lg:flex-1">
                 <DetailCard title={title}>
                   <div className="flex h-full flex-col">
@@ -209,6 +239,7 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
               askingRentCents={(listing.asking_rent_cents as number) ?? 0}
               agentName={agentName}
               agentPhone={phone}
+              prefill={prefill}
             />
           </div>
         </div>
