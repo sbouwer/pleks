@@ -1,7 +1,8 @@
 /**
- * lib/extraction/pipeline.ts — Extraction pipeline (Phase 1 + Phase 2a)
+ * lib/extraction/pipeline.ts — Extraction pipeline (Phase 1 + Phase 2 + Phase 3)
  *
- * Orchestration: validate → format-detect → archetype-derive → doctype-classify → extract
+ * Orchestration: validate → format-detect → archetype-derive → doctype-classify → extract → reconcile +
+ * fraud-signals. Reconciliation + fraud are DETERMINISTIC (no AI) — see reconciler.ts / fraudSignals.ts.
  *
  * Archetype is derived deterministically from unitType + applicantCount (no AI call).
  * Document type classification uses Claude Haiku per document.
@@ -37,27 +38,14 @@ import { extractSarsIncomeTaxReference } from "./extractors/sarsIncomeTaxReferen
 import { extractSarsVatReference } from "./extractors/sarsVatReference"
 import { extractSavingsAccountDetails } from "./extractors/savingsAccountDetails"
 import { extractCreditBureauReport } from "./extractors/creditBureauReport"
-import type { ApplicationArchetype, ApplicationInput, Document, DocumentExtraction } from "./types"
+import { reconcile } from "./reconciler"
+import { detectFraudSignals } from "./fraudSignals"
+import type { ApplicationArchetype, ApplicationInput, Document, DocumentExtraction, PipelineResult, PipelineDocumentResult } from "./types"
 import type { AiCallOptions } from "@/lib/ai/client"
 
-export interface PipelineDocumentResult {
-  filename: string
-  path: string
-  status: "classified" | "rejected-at-upload"
-  rejectionReason?: string
-  format?: string
-  documentType?: string
-  documentTypeConfidence?: number
-  language?: string
-  classifyNote?: string
-  extracted?: DocumentExtraction
-  extractionConfidence?: number
-}
-
-export interface PipelineResult {
-  archetype: ApplicationArchetype
-  documents: PipelineDocumentResult[]
-}
+// PipelineResult / PipelineDocumentResult now live in ./types (so reconciler/fraud can consume them without a
+// value-import cycle). Re-exported here for existing importers (e.g. the harness outputWriter).
+export type { PipelineResult, PipelineDocumentResult } from "./types"
 
 type AiOpts = Pick<AiCallOptions, "orgId" | "suppressLogging" | "harnessMode">
 
@@ -183,5 +171,9 @@ export async function runPipeline(
     }
   }
 
-  return { archetype, documents: results }
+  // Phase 3: deterministic reconciliation + heuristic fraud signals over the extractions (no AI).
+  const reconciliation = reconcile(results, input.declared, new Date())
+  const fraudSignals = detectFraudSignals(input.documents, results)
+
+  return { archetype, documents: results, reconciliation, fraudSignals }
 }

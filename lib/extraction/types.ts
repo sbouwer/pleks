@@ -66,6 +66,7 @@ export interface ApplicationInput {
   unitType: UnitType
   applicantCount: number
   documents: Document[]
+  declared?: DeclaredContext        // optional — production supplies it; harness omits it
   metadata: {
     source: "harness" | "production"
     orgId?: string
@@ -80,34 +81,118 @@ export interface ExtractedField<T> {
   rawText?: string
 }
 
-export interface CrossDocumentReconciliation {
-  field: string
-  sources: Array<{ documentPath: string; value: unknown }>
-  resolved: unknown
-  conflict: boolean
-  conflictNote?: string
+// ─── Phase 3: reconciliation + fraud signals ─────────────────────────────────
+// Deterministic (NOT an AI call — ADDENDUM_14L §4.7 Sonnet reconciler superseded). The shape is defined by
+// its downstream consumer, the affordability prescreen ruling (ADDENDUM_14M): each field maps to a 14M flag.
+
+/** Bump when the deterministic reconciliation logic changes — lets a 14M evaluation replay exactly
+ *  (reproducibility is the FitScore/POPIA s71 defence; ADDENDUM_14H delivery §8 mechanism #5). */
+export const RECONCILER_VERSION = "recon.v1"
+
+export type IncomeMatchStatus = "corroborated" | "variance" | "uncorroborated" | "no-evidence"
+
+/** One declared income source matched against the uploaded evidence. Unresolved attribution → "uncorroborated"
+ *  (never an AI guess) → 14M flag 5 remediation. Powers 14M flags 5 & 6. */
+export interface DeclaredSourceReconciliation {
+  source_key: string                  // aligns with SEED_INCOME keys (employment, rental, dividends, …)
+  label: string
+  declared_monthly_cents: number
+  evidenced_monthly_cents: number | null
+  variance_pct: number | null         // (declared − evidenced) / declared, rounded %
+  match_confidence: number            // 0..1
+  status: IncomeMatchStatus
+  evidenceDocType: DocumentType | null
 }
 
-export type FraudSignalSeverity = "low" | "medium" | "high"
+/** Demonstrated own-name recurring housing payment (rent/bond) — 14M flag 0 affordability override. */
+export interface HousingPaymentReconciliation {
+  detected: boolean
+  recurring_monthly_cents: number | null
+  months_observed: number
+  anyMissedOrReturned: boolean
+}
 
+export type ConsistencyVerdict = "consistent" | "minor-variation" | "material-mismatch" | "insufficient-data"
+
+/** Cross-document identity consistency — 14M flag 7. */
+export interface IdentityConsistency {
+  name: ConsistencyVerdict
+  idNumber: "consistent" | "missing-some" | "mismatch" | "insufficient-data"
+}
+
+/** Document recency + quantity — 14M flags 3 & 4 (14M judges sufficiency against the income type). */
+export interface DocumentRecency {
+  oldestDocumentDate: string | null   // ISO YYYY-MM-DD
+  newestDocumentDate: string | null
+  mostRecentWithinDays: number | null
+  salariedMonthsCovered: number       // = monthsCovered.length
+  monthsCovered: string[]             // sorted unique YYYY-MM — lets 14M judge "3 CONSECUTIVE recent months"
+  consecutive: boolean                // are monthsCovered an unbroken run (no gap)? (14M flag 3)
+}
+
+/** Deterministic reconciliation over the per-document extractions — the Confidence axis 14M rules over. */
+/** Payslip net pay vs the recurring bank salary credit — 14M flag 8 (garnishee / emoluments-attachment, or
+ *  salary paid into another account). Inputs already loaded (payslip + bank), so it's near-free here. */
+export interface NetPayVsCreditCheck {
+  payslip_net_cents: number | null
+  bank_salary_credit_cents: number | null
+  gap_pct: number | null
+  verdict: "match" | "gap" | "insufficient-data"
+}
+
+export interface ReconciliationResult {
+  reconcilerVersion: string
+  declaredSources: DeclaredSourceReconciliation[]
+  housingPayment: HousingPaymentReconciliation
+  netPayVsCredit: NetPayVsCreditCheck
+  identity: IdentityConsistency
+  recency: DocumentRecency
+}
+
+/** Heuristic, format/metadata-based fraud signals (no AI — D-14L-09). Descriptions are PII-safe by
+ *  construction (they NEVER echo a raw ID / account number). */
+export type FraudSignalType =
+  | "psd-source-detected"
+  | "embedded-id-in-filename"
+  | "editor-software-source"
+  | "low-extraction-confidence"
+export type FraudSignalSeverity = "info" | "warning" | "critical"
 export interface FraudSignal {
-  type: string
+  type: FraudSignalType
   severity: FraudSignalSeverity
+  documentPath: string
   description: string
-  affectedDocuments: string[]
 }
 
-export interface ApplicationExtraction {
-  applicationId?: string
+/** Declared application facts the reconciler compares evidence against. Optional: the harness omits it
+ *  (declared-source matching is skipped); production supplies it from the application record. */
+export interface DeclaredContext {
+  appliedRentCents?: number
+  applicant?: { fullName?: string; idNumber?: string }
+  incomeSources?: Array<{ key: string; label: string; monthly_cents: number; variable?: boolean }>
+}
+
+/** Per-document pipeline result (gating + classification + extraction). Lives here (not in pipeline.ts) so the
+ *  reconciler/fraud modules can consume it without a value-import cycle through the pipeline. */
+export interface PipelineDocumentResult {
+  filename: string
+  path: string
+  status: "classified" | "rejected-at-upload"
+  rejectionReason?: string
+  format?: string
+  documentType?: string
+  documentTypeConfidence?: number
+  language?: string
+  classifyNote?: string
+  extracted?: DocumentExtraction
+  extractionConfidence?: number
+}
+
+export interface PipelineResult {
   archetype: ApplicationArchetype
-  documents: Document[]
-  reconciliation: CrossDocumentReconciliation[]
+  documents: PipelineDocumentResult[]
+  reconciliation: ReconciliationResult
   fraudSignals: FraudSignal[]
-  metadata: {
-    processedAt: string
-    totalDocuments: number
-    successfulExtractions: number
-  }
 }
 
 // ─── Phase 2a per-extractor schemas ───────────────────────────────────────────
@@ -159,7 +244,7 @@ export interface BankStatementExtraction {
   outflows: Array<{
     date: string            // YYYY-MM-DD
     amount_cents: number
-    counterparty_category: "rent" | "debit-order" | "utility" | "retail" | "atm" | "transfer" | "loan" | "other"
+    counterparty_category: "rent" | "home-loan" | "debit-order" | "utility" | "retail" | "atm" | "transfer" | "loan" | "other"
     counterparty_label: string
   }>
   income_indicators: {

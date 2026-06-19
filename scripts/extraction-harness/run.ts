@@ -22,7 +22,7 @@ import { printSummaryTable } from "./lib/reporter"
 import type { HarnessRunResult } from "./lib/reporter"
 
 async function main() {
-  console.log("Extraction Harness — Phase 2a (classification + extraction)")
+  console.log("Extraction Harness — Phase 2 + 3 (extraction + reconciliation + fraud signals)")
   console.log("Test data: brief/build/_TEST/")
   console.log("Output:    brief/build/_HARNESS_OUTPUT/\n")
 
@@ -61,6 +61,12 @@ async function main() {
       const extracted        = pipelineResult.documents.filter(
         d => d.status === "classified" && d.extracted != null,
       ).length
+      const recon = pipelineResult.reconciliation
+      const reconIssues =
+        recon.declaredSources.filter(s => s.status === "uncorroborated" || s.status === "variance").length +
+        (recon.identity.name === "material-mismatch" ? 1 : 0) +
+        (recon.netPayVsCredit.verdict === "gap" ? 1 : 0)
+      const fraudCount = pipelineResult.fraudSignals.length
       const durationMs = Date.now() - start
 
       results.push({
@@ -71,6 +77,8 @@ async function main() {
         rejectedAtUpload,
         unknownType,
         extracted,
+        reconIssues,
+        fraudCount,
         durationMs,
       })
 
@@ -86,6 +94,8 @@ async function main() {
         rejectedAtUpload: 0,
         unknownType:   folder.documents.length,
         extracted:     0,
+        reconIssues:   0,
+        fraudCount:    0,
         durationMs:    Date.now() - start,
         error:         msg,
       })
