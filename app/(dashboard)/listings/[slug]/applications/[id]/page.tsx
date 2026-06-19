@@ -22,6 +22,7 @@ import { BackLink } from "@/components/ui/BackLink"
 import { FitScoreReport } from "@/lib/reports/screening/_web/FitScoreReport"
 import { FitScorePdfDownload } from "./_components/FitScorePdfDownload"
 import { IdReveal } from "./_components/IdReveal"
+import { ScreeningRulingCard, type ScreeningEvaluationRow } from "./_components/ScreeningRulingCard"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ApplicationDetailPage({
@@ -79,6 +80,14 @@ export default async function ApplicationDetailPage({
     .eq("primary_application_id", id)
     .order("co_applicant_index", { ascending: true })
     logQueryError("ApplicationDetailPage application_co_applicants", coApplicantsError)
+
+  // Latest 14M pre-screen ruling (ADDENDUM_14M) — the two-axis evaluation + flags + reconciliation.
+  const { data: screeningEval, error: screeningEvalErr } = await db
+    .from("application_screening_evaluations")
+    .select("iteration_number, ruling_tier, affordability_tier, affordability_ratio_pct, demonstrated_housing_cents, confidence_tier, flags, reconciliation, fraud_signals, reconciler_version, ruling_version, generated_at")
+    .eq("application_id", id).eq("org_id", orgId)
+    .order("iteration_number", { ascending: false }).limit(1).maybeSingle()
+  logQueryError("ApplicationDetailPage screening_evaluation", screeningEvalErr)
 
   const [{ data: idCap }, { data: s23Cap }, { data: orgRow }] = await Promise.all([
     db
@@ -229,6 +238,9 @@ export default async function ApplicationDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* 14M pre-screen ruling (Stage 1) — agent sees all flags incl. agent-only signals */}
+      {screeningEval && <ScreeningRulingCard evaluation={screeningEval as unknown as ScreeningEvaluationRow} />}
 
       {/* Stream 2 FitScore surface */}
       {hasStream2 && reportData && (

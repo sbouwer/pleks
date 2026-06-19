@@ -32,6 +32,7 @@ import { ActionButton } from "@/components/ui/actions"
 import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity, CompanyAddressSection } from "@/components/parties/partySteps"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
+import { validateUpload } from "@/lib/extraction/uploadValidator"
 import {
   validateIdentityCore, validateAddressStep,
   type PartyFormState, type PartyErrors, type PartyAddressInput, type PartyPerson, type PartyBankAccountInput,
@@ -315,6 +316,16 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   async function uploadDoc(index: number, file: File | null) {
     if (!file || !applicationId) return
     setDocs((prev) => prev.map((d, i) => i === index ? { ...d, file, uploading: true, error: null } : d))
+    // Four-gate validation client-side (extension + MIME + magic bytes + password-protected PDF) — the same
+    // ADDENDUM_14L gate the agent route uses. The applicant uploads straight to Storage, so enforce it here
+    // before the upload, not just downstream.
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const check = validateUpload(file.name, file.type, bytes)
+    if (!check.valid) {
+      setDocs((prev) => prev.map((d, i) => i === index ? { ...d, file: null, uploading: false, uploaded: false, storagePath: null, error: check.userMessage ?? "File not accepted." } : d))
+      toast.error(check.userMessage?.split("\n")[0] ?? "File not accepted.")
+      return
+    }
     try {
       const supabase = createClient()
       const ext = file.name.split(".").pop() ?? "pdf"
@@ -722,7 +733,7 @@ function StepDocuments({ docs, onUpload }: Readonly<{ docs: DocSlot[]; onUpload:
                 <span className="block text-sm font-medium text-[var(--ink)]">{doc.label}</span>
                 {doc.file && <span className="block truncate text-xs text-[var(--ink-mute)]">{doc.file.name}</span>}
                 {doc.detection && <span className="block text-xs text-emerald-600">{doc.detection}</span>}
-                {doc.error && <span className="block text-xs text-red-600">{doc.error}</span>}
+                {doc.error && <span className="block whitespace-pre-line text-xs text-red-600">{doc.error}</span>}
               </span>
               <FileText className="mt-0.5 size-4 shrink-0 text-[var(--ink-mute)]" />
               <input type="file" accept={doc.accept} className="sr-only" onChange={(e) => onUpload(i, e.target.files?.[0] ?? null)} />
