@@ -3654,3 +3654,18 @@ WHERE decided_at IS NULL AND (reviewed_at IS NOT NULL OR prescreened_at IS NOT N
 ALTER TABLE legal_hold_events DROP CONSTRAINT IF EXISTS legal_hold_events_trigger_category_check;
 ALTER TABLE legal_hold_events ADD CONSTRAINT legal_hold_events_trigger_category_check CHECK (
   trigger_category IN ('customer_dispute','attorney_correspondence','threatened_litigation_anticipated','regulator_inquiry','legal_demand','dsar_contested','tribunal_matter','manual_information_officer','pleks_platform_directive'));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §46  Individual property-practitioner FFC — each agent's own PPRA Fidelity Fund
+--      Certificate. Separate from organisations.ppra_ffc_number (the agency's):
+--      PPRA issues an FFC to the firm AND to each practitioner, so both are surfaced
+--      to applicants (agency FFC + the responsible agent's FFC). Domicile is the
+--      user-in-org profile (a practising authorisation, NOT a global natural-person
+--      attribute — must not leak via the contact/party identity across orgs).
+--      Issue/expiry captured because practising on a lapsed FFC is a PPRA offence
+--      (voids commission) — lets us flag/block listings under an expired certificate.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_number text;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_issued_at date;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_expires_at date;
