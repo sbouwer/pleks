@@ -2818,3 +2818,21 @@ CREATE INDEX IF NOT EXISTS idx_applications_tenant
   ON applications(tenant_id) WHERE tenant_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_applications_unit
   ON applications(unit_id) WHERE unit_id IS NOT NULL;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §34  APPLY INCOME DETAIL: structured income breakdown + employment tenure
+--   The applicant Income step captures itemised, period-aware income sources (Employment
+--   gross, rental, dividends, maintenance, alimony, savings/interest, + custom) and an
+--   employment start date (used to infer a possible probation period — an agent-facing
+--   signal, never a silent filter). income_sources is the SOURCE OF TRUTH; the scalar
+--   gross_monthly_income_cents is the derived monthly total cached for affordability/
+--   prescreen. Both are written from the same normalisation; any future edit path MUST
+--   recompute both or they drift. Additive + idempotent.
+--   income_sources row shape (rows with amount > 0 only):
+--     { key, label, amount_cents, period: 'month'|'quarter'|'annual', monthly_cents }
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS income_sources         jsonb,
+  ADD COLUMN IF NOT EXISTS employment_start_date  date;

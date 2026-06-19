@@ -1,7 +1,15 @@
 /**
- * POST /api/applications/create
- * Creates application record + access token from Step 1 (details form).
- * Returns { applicationId, token } for client to redirect to /documents.
+ * POST /api/applications/create — public, UNAUTHENTICATED applicant endpoint.
+ * Creates an application record + 30-day resumable access token from the apply flow.
+ * Returns { applicationId, token }.
+ *
+ * Security posture (anonymous by design):
+ *  - org_id is derived SERVER-SIDE from slug → listing.org_id — never trusted from the client (the
+ *    multi-tenant boundary). The applicant has no session.
+ *  - Rate-limited per IP (5/min).
+ *  - income_sources is validated + bounded (row cap, period enum, amount clamp, key/label length) and its
+ *    monthly_cents is RECOMPUTED server-side — the client shape is never stored verbatim. income_sources is
+ *    the source of truth; gross_monthly_income_cents is its derived monthly-total cache.
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -16,6 +24,36 @@ function getServiceClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+}
+
+const INCOME_PERIODS = ["month", "quarter", "annual"] as const
+type IncomePeriod = typeof INCOME_PERIODS[number]
+const PERIOD_DIVISOR: Record<IncomePeriod, number> = { month: 1, quarter: 3, annual: 12 }
+const MAX_INCOME_ROWS = 20
+const MAX_AMOUNT_CENTS = 1_000_000_000 // R10m per period — generous ceiling that rejects garbage
+type StoredIncomeRow = { key: string; label: string; amount_cents: number; period: IncomePeriod; monthly_cents: number }
+
+/** Validate + bound the client income breakdown and RECOMPUTE monthly_cents server-side (never trust the
+ *  client's monthly figure). Returns the stored rows + the derived monthly total (the affordability anchor). */
+function parseIncomeSources(raw: unknown): { rows: StoredIncomeRow[]; totalMonthlyCents: number } | null {
+  if (!Array.isArray(raw)) return null
+  const rows: StoredIncomeRow[] = []
+  for (const item of raw.slice(0, MAX_INCOME_ROWS)) {
+    if (!item || typeof item !== "object") continue
+    const r = item as Record<string, unknown>
+    const period: IncomePeriod = INCOME_PERIODS.includes(r.period as IncomePeriod) ? (r.period as IncomePeriod) : "month"
+    const amount_cents = Math.min(MAX_AMOUNT_CENTS, Math.max(0, Math.round(Number(r.amount_cents) || 0)))
+    if (amount_cents <= 0) continue
+    rows.push({
+      key: typeof r.key === "string" ? r.key.slice(0, 40) : "",
+      label: typeof r.label === "string" ? r.label.slice(0, 60) : "",
+      amount_cents,
+      period,
+      monthly_cents: Math.round(amount_cents / PERIOD_DIVISOR[period]),
+    })
+  }
+  const totalMonthlyCents = rows.reduce((s, r) => s + r.monthly_cents, 0)
+  return { rows, totalMonthlyCents }
 }
 
 export async function POST(req: NextRequest) {
@@ -56,9 +94,16 @@ export async function POST(req: NextRequest) {
     routedAgent = prop?.managing_agent_id ?? null
   }
 
-  const incomeCents = body.gross_monthly_income
-    ? Math.round(parseFloat(body.gross_monthly_income) * 100)
-    : null
+  // income_sources is the source of truth; gross_monthly_income_cents is its derived monthly-total cache.
+  // Recompute the total from the validated breakdown here; fall back to the legacy scalar body field for the
+  // older /apply flow that doesn't send a breakdown yet. (Any future edit path MUST recompute both or drift.)
+  const parsedIncome = parseIncomeSources((body as Record<string, unknown>).income_sources)
+  let incomeCents: number | null = null
+  if (parsedIncome) {
+    incomeCents = parsedIncome.totalMonthlyCents
+  } else if (body.gross_monthly_income) {
+    incomeCents = Math.round(Number.parseFloat(body.gross_monthly_income) * 100)
+  }
 
   // Create application
   const { data: application, error: appErr } = await service
@@ -81,7 +126,9 @@ export async function POST(req: NextRequest) {
       is_foreign_national: body.id_type !== "sa_id",
       employment_type: body.employment_type,
       employer_name: body.employer_name || null,
+      employment_start_date: body.employment_start_date || null,
       gross_monthly_income_cents: incomeCents,
+      income_sources: parsedIncome?.rows ?? null,
       applicant_motivation: body.motivation || null,
       stage1_status: "pending_documents",
       assigned_user_id: routedAgent,

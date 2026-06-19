@@ -458,7 +458,9 @@
       "criminal_screening_policy_version",
       "screening_policy_id",
       "screening_policy_version",
-      "decline_reason_text"
+      "decline_reason_text",
+      "income_sources",
+      "employment_start_date"
     ],
     "arrears_actions": [
       "id",

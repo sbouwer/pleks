@@ -4,15 +4,19 @@
  * app/(applicant)/apply/[slug]/preview/StepPanel.tsx — the interactive apply wizard (client island)
  *
  * Auth:   public (token-gated prefix) — preview only
- * Notes:  A 4-card LANDING (application type) → a functional 5-step wizard wired to the REAL backend:
+ * Notes:  A 4-card LANDING (application type) → a functional 6-step wizard wired to the REAL backend:
  *           Landing — Just me · Couple/multiple · Company · On behalf/guarantor (each a short blurb).
  *           1 Personal details — RESIDENTIAL types reuse the add-tenant capture (IndividualIdentity;
  *             SA-ID auto-fills DOB+gender). COMPANY (commercial) capture is the next build.
- *           2 Address & employment — mandatory current address + employment/income → POST create.
- *           3 Applicants — add others, each via their own email link, tagged co-applicant (lives here)
+ *           2 Address — mandatory current address.
+ *           3 Income — employment status + date employed + employer, then an "excel" sources-of-income grid
+ *             (Employment gross + rental/dividends/maintenance/… + custom), each with a period
+ *             (month/quarter/annual). The monthly total drives affordability → POST create (also persists
+ *             the breakdown to applications.income_sources + employment_start_date; probation is inferred).
+ *           4 Applicants — add others, each via their own email link, tagged co-applicant (lives here)
  *             or guarantor (doesn't) → POST /api/applications/[id]/co-applicant.
- *           4 Documents — upload to the application-docs bucket + AI detect (same as the live flow).
- *           5 Submit — POPIA consent → POST submit → reveal the pre-screen "application preview".
+ *           5 Documents — upload to the application-docs bucket + AI detect (same as the live flow).
+ *           6 Submit — POPIA consent → POST submit → reveal the pre-screen "application preview".
  *         The server page renders the shell + left cards and passes slug/orgId/rent + agent contact.
  */
 
@@ -28,7 +32,7 @@ import {
   validateIdentityCore, validateAddressStep,
   type PartyFormState, type PartyErrors, type PartyAddressInput, type PartyPerson, type PartyBankAccountInput,
 } from "@/lib/parties/partyValidation"
-import { formatZAR } from "@/lib/constants"
+import { formatZAR, startedWithinProbation, PROBATION_MONTHS } from "@/lib/constants"
 
 type ApplicantType = "individual" | "couple" | "company" | "guarantor"
 /** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
@@ -56,23 +60,40 @@ const EMPLOYMENT_OPTIONS = [
 ]
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[] | PartyBankAccountInput[]) => void
-type Emp = { employment_type: string; employer: string; gross_income: string }
+type Emp = { employment_type: string; employer: string; start_date: string }
 type CoRole = "co_applicant" | "guarantor"
-type OtherIncome = { source: string; amount: string }
 
-const OTHER_INCOME_SOURCES = [
-  { value: "", label: "Select source…" },
-  { value: "rental", label: "Rental income" },
-  { value: "investments", label: "Shares / investments" },
-  { value: "spouse", label: "Spouse / partner contribution" },
-  { value: "maintenance", label: "Maintenance / alimony" },
-  { value: "pension", label: "Pension / grant" },
-  { value: "freelance", label: "Freelance / side income" },
-  { value: "other", label: "Other" },
+type IncomePeriod = "month" | "quarter" | "annual"
+type IncomeRow = { key: string; label: string; amount: string; period: IncomePeriod; custom?: boolean }
+const PERIOD_OPTIONS = [
+  { value: "month", label: "Month" },
+  { value: "quarter", label: "Quarter" },
+  { value: "annual", label: "Annual" },
+]
+const PERIOD_DIVISOR: Record<IncomePeriod, number> = { month: 1, quarter: 3, annual: 12 }
+/** The fixed "excel" rows of the sources-of-income grid. "Employment (gross)" is the salary; the agent fills
+ *  what applies and adds custom rows. Each carries its own period (month/quarter/annual). */
+const SEED_INCOME: IncomeRow[] = [
+  { key: "employment", label: "Employment (gross)", amount: "", period: "month" },
+  { key: "other_remuneration", label: "Other remuneration", amount: "", period: "month" },
+  { key: "alimony", label: "Alimony", amount: "", period: "month" },
+  { key: "maintenance", label: "Maintenance", amount: "", period: "month" },
+  { key: "rental", label: "Rental income", amount: "", period: "month" },
+  { key: "dividends", label: "Shares / dividends", amount: "", period: "month" },
+  { key: "savings_interest", label: "Savings / interest", amount: "", period: "month" },
 ]
 const moneyCents = (s: string) => Math.round(parseFloat(s.replaceAll(/[^\d.]/g, "") || "0") * 100)
-function totalIncomeCents(emp: Emp, other: OtherIncome[]): number {
-  return moneyCents(emp.gross_income) + other.reduce((sum, o) => sum + moneyCents(o.amount), 0)
+const rowMonthlyCents = (r: IncomeRow) => Math.round(moneyCents(r.amount) / PERIOD_DIVISOR[r.period])
+/** The income rows are the source of truth; this monthly total is the derived affordability anchor. Any path
+ *  that edits the rows must recompute this (and the persisted total) or they drift. */
+function totalMonthlyCents(rows: IncomeRow[]): number {
+  return rows.reduce((sum, r) => sum + rowMonthlyCents(r), 0)
+}
+/** Bounded payload the create route stores in applications.income_sources (rows with a real amount only). */
+function incomeSourcesPayload(rows: IncomeRow[]) {
+  return rows
+    .filter((r) => moneyCents(r.amount) > 0)
+    .map((r) => ({ key: r.key, label: r.label, amount_cents: moneyCents(r.amount), period: r.period, monthly_cents: rowMonthlyCents(r) }))
 }
 
 interface DocSlot {
@@ -142,8 +163,8 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   // Seed identity + address from the logged-in user's own record (financial/employment stay empty — re-confirmed).
   const [form, setForm] = useState<PartyFormState>({ idType: "sa_id", ...(prefill ?? {}) })
   const [errors, setErrors] = useState<PartyErrors>({})
-  const [emp, setEmp] = useState<Emp>({ employment_type: "", employer: "", gross_income: "" })
-  const [otherIncome, setOtherIncome] = useState<OtherIncome[]>([])
+  const [emp, setEmp] = useState<Emp>({ employment_type: "", employer: "", start_date: "" })
+  const [income, setIncome] = useState<IncomeRow[]>(SEED_INCOME)
   const set: SetFn = (k, v) => setForm((p) => ({ ...p, [k]: v }))
 
   const [applicationId, setApplicationId] = useState<string | null>(null)
@@ -192,7 +213,9 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
 
   async function createApplication() {
     if (applicationId) { advance(3); return } // already created (came back) — don't create a duplicate
-    if (!emp.employment_type || !emp.gross_income.trim()) { toast.error("Employment status and gross monthly income are required."); return }
+    // Employment status only — a R0 primary (student/dependent) applies with a guarantor whose income is
+    // captured separately, so don't force an income figure here.
+    if (!emp.employment_type) { toast.error("Please select an employment status."); return }
     setBusy(true)
     try {
       const res = await fetch("/api/applications/create", {
@@ -201,10 +224,11 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
           slug,
           first_name: form.firstName, last_name: form.lastName, email: form.email, phone: form.phone,
           id_type: form.idType || "sa_id", id_number: form.idNumber, date_of_birth: form.dob || "",
-          employment_type: emp.employment_type, employer_name: emp.employer,
-          // Total monthly income (salary + other sources) drives the affordability pre-screen. The
-          // breakdown isn't persisted yet (follow-up: an income_sources jsonb for FitScore evidence).
-          gross_monthly_income: String(totalIncomeCents(emp, otherIncome) / 100),
+          employment_type: emp.employment_type, employer_name: emp.employer, employment_start_date: emp.start_date || "",
+          // income_sources is the source of truth; gross_monthly_income (rands) is the derived total — the
+          // route re-derives both from income_sources and stores gross_monthly_income_cents (cents).
+          gross_monthly_income: String(totalMonthlyCents(income) / 100),
+          income_sources: incomeSourcesPayload(income),
         }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; error?: string }
@@ -290,7 +314,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
       })
       const json = await res.json() as { ok?: boolean; prescreen?: { score: number; affordabilityFlag: boolean; rentToIncomePct: number | null }; error?: string }
       if (!res.ok || !json.ok) { toast.error(json.error ?? "Could not submit your application."); return }
-      const incomeCents = totalIncomeCents(emp, otherIncome)
+      const incomeCents = totalMonthlyCents(income)
       const localRatio = incomeCents > 0 ? Math.round((askingRentCents / incomeCents) * 100) : null
       setPrescreen({ score: json.prescreen?.score ?? null, affordabilityFlag: !!json.prescreen?.affordabilityFlag, rentToIncomePct: json.prescreen?.rentToIncomePct ?? localRatio })
     } catch {
@@ -316,10 +340,10 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
             <div className="flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto">
               {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} />}
               {step === 1 && <StepAddress form={form} set={set} errors={errors} />}
-              {step === 2 && <StepIncome emp={emp} setEmp={setEmp} otherIncome={otherIncome} setOtherIncome={setOtherIncome} />}
+              {step === 2 && <StepIncome emp={emp} setEmp={setEmp} income={income} setIncome={setIncome} />}
               {step === 3 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} />}
               {step === 4 && <StepDocuments docs={docs} onUpload={uploadDoc} />}
-              {step === 5 && <StepSubmit form={form} emp={emp} otherIncome={otherIncome} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} prescreen={prescreen} coApplicants={coApplicants} />}
+              {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} prescreen={prescreen} coApplicants={coApplicants} />}
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4">
               <div className="flex items-center gap-3">
@@ -406,23 +430,34 @@ function StepAddress({ form, set, errors }: Readonly<{ form: PartyFormState; set
   )
 }
 
-// ── Step 3 — Income (employment + other sources) ─────────────────────────────────
-function StepIncome({ emp, setEmp, otherIncome, setOtherIncome }: Readonly<{
-  emp: Emp; setEmp: (v: Emp) => void; otherIncome: OtherIncome[]; setOtherIncome: (v: OtherIncome[]) => void
+// ── Step 3 — Income (employment + itemised sources) ──────────────────────────────
+// Compact "excel" cell inputs — theme tokens; the native period <select> popup is themed light on the public
+// surface by the global .pleks-public select rule (app/globals.css). Flex-wrap so the row stacks on a 360px
+// phone (label on its own line, amount + period below) rather than overflowing a rigid grid.
+const CELL = "rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-mute)] focus:border-[var(--amber)] focus:outline-none"
+const CELL_SELECT = `${CELL} appearance-none`
+function StepIncome({ emp, setEmp, income, setIncome }: Readonly<{
+  emp: Emp; setEmp: (v: Emp) => void; income: IncomeRow[]; setIncome: (v: IncomeRow[]) => void
 }>) {
-  function addOther() { setOtherIncome([...otherIncome, { source: "", amount: "" }]) }
-  function removeOther(i: number) { setOtherIncome(otherIncome.filter((_, idx) => idx !== i)) }
-  function updateOther(i: number, patch: Partial<OtherIncome>) { setOtherIncome(otherIncome.map((o, idx) => idx === i ? { ...o, ...patch } : o)) }
-  const total = totalIncomeCents(emp, otherIncome)
+  function addCustom() { setIncome([...income, { key: `other_${income.length}`, label: "", amount: "", period: "month", custom: true }]) }
+  function removeRow(i: number) { setIncome(income.filter((_, idx) => idx !== i)) }
+  function updateRow(i: number, patch: Partial<IncomeRow>) { setIncome(income.map((r, idx) => idx === i ? { ...r, ...patch } : r)) }
+  const total = totalMonthlyCents(income)
   const variable = emp.employment_type === "commission" || emp.employment_type === "self_employed"
+  const probation = startedWithinProbation(emp.start_date)
   return (
     <div className="flex flex-col gap-4">
-      <StepHeading title="Income" sub="Your income helps us pre-screen affordability. Add any other regular income — it counts too." />
+      <StepHeading title="Income" sub="List every regular source — each counts towards what you can afford. Pick the period for each amount." />
       <FieldGrid>
         <SelectField label="Employment status" value={emp.employment_type} onChange={(v) => setEmp({ ...emp, employment_type: v })} required options={EMPLOYMENT_OPTIONS} />
-        <TextField label="Gross monthly salary" value={emp.gross_income} onChange={(v) => setEmp({ ...emp, gross_income: v })} required placeholder="R 0" />
+        <TextField label="Date employed" type="date" value={emp.start_date} onChange={(v) => setEmp({ ...emp, start_date: v })} />
         <TextField label="Employer" value={emp.employer} onChange={(v) => setEmp({ ...emp, employer: v })} span placeholder="Company name" />
       </FieldGrid>
+      {probation && (
+        <p className="rounded-[var(--r-button)] border border-[var(--amber)] bg-[var(--amber-wash)] px-3 py-2 text-xs text-[var(--amber-ink)]">
+          Started under {PROBATION_MONTHS} months ago — possibly still in a probation period. The agent sees this as context; it doesn&apos;t affect your score on its own.
+        </p>
+      )}
       {variable && (
         <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-xs text-[var(--ink-soft)]">
           Commission or variable income? Enter a typical month — we confirm the average from your bank statements.
@@ -430,29 +465,39 @@ function StepIncome({ emp, setEmp, otherIncome, setOtherIncome }: Readonly<{
       )}
 
       <div>
-        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Other sources of income · optional</p>
-        <div className="flex flex-col gap-2">
-          {otherIncome.map((o, i) => (
-            <div key={i} className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Source {i + 1}</span>
-                <button type="button" onClick={() => removeOther(i)} className="inline-flex items-center gap-1 text-xs text-[var(--ink-mute)] hover:text-red-600"><X className="size-3.5" /> Remove</button>
-              </div>
-              <FieldGrid>
-                <SelectField label="Type" value={o.source} onChange={(v) => updateOther(i, { source: v })} options={OTHER_INCOME_SOURCES} />
-                <TextField label="Monthly amount" value={o.amount} onChange={(v) => updateOther(i, { amount: v })} placeholder="R 0" />
-              </FieldGrid>
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Sources of income</p>
+        {/* column header — desktop only; widths mirror the rows below */}
+        <div className="hidden items-center gap-2 px-0.5 pb-1 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)] sm:flex">
+          <span className="min-w-[140px] flex-1">Source</span>
+          <span className="w-[120px]">Amount</span>
+          <span className="w-[110px]">Period</span>
+          <span className="size-7 shrink-0" aria-hidden="true" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {income.map((r, i) => (
+            <div key={`${r.key}-${i}`} className="flex flex-wrap items-center gap-2">
+              {r.custom
+                ? <input className={`${CELL} min-w-[140px] flex-1`} value={r.label} placeholder="Source name" maxLength={60} onChange={(e) => updateRow(i, { label: e.target.value })} />
+                : <span className="min-w-[140px] flex-1 text-sm text-[var(--ink)]">{r.label}</span>}
+              <input className={`${CELL} w-[120px]`} inputMode="numeric" value={r.amount} placeholder="R 0" onChange={(e) => updateRow(i, { amount: e.target.value })} />
+              <select className={`${CELL_SELECT} w-[110px]`} value={r.period} onChange={(e) => updateRow(i, { period: e.target.value as IncomePeriod })}>
+                {PERIOD_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+              {r.custom
+                ? <button type="button" onClick={() => removeRow(i)} aria-label="Remove source" className="flex size-7 shrink-0 items-center justify-center text-[var(--ink-mute)] hover:text-red-600"><X className="size-4" /></button>
+                : <span className="size-7 shrink-0" aria-hidden="true" />}
             </div>
           ))}
-          <button type="button" onClick={addOther} className="inline-flex w-fit items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-2 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
-            <Plus className="size-4" /> Add income source
-          </button>
         </div>
+        <button type="button" onClick={addCustom} className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-2 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
+          <Plus className="size-4" /> Add other source
+        </button>
       </div>
 
-      {total > 0 && (
-        <p className="text-xs text-[var(--ink-soft)]">Total monthly income used for affordability: <span className="font-medium text-[var(--ink)]">{formatZAR(total)}</span></p>
-      )}
+      <div className="flex items-center justify-between border-t border-[var(--rule)] pt-3 text-sm">
+        <span className="text-[var(--ink-soft)]">Total monthly income (for affordability)</span>
+        <span className="font-semibold text-[var(--ink)]">{formatZAR(total)}</span>
+      </div>
     </div>
   )
 }
@@ -557,14 +602,15 @@ function prescreenLabel(score: number | null): { label: string; cls: string } {
   return { label: "Needs a closer look", cls: "text-red-600" }
 }
 
-function StepSubmit({ form, emp, otherIncome, askingRentCents, consent, setConsent, prescreen, coApplicants }: Readonly<{
-  form: PartyFormState; emp: Emp; otherIncome: OtherIncome[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
+function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, prescreen, coApplicants }: Readonly<{
+  form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
   prescreen: PrescreenResult | null; coApplicants: CoApplicant[]
 }>) {
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
-  const incomeCents = totalIncomeCents(emp, otherIncome)
-  const otherCents = otherIncome.reduce((s, o) => s + moneyCents(o.amount), 0)
+  const incomeCents = totalMonthlyCents(income)
+  const namedSources = income.filter((r) => moneyCents(r.amount) > 0)
   const ratio = incomeCents > 0 ? Math.round((askingRentCents / incomeCents) * 100) : null
+  const probation = startedWithinProbation(emp.start_date)
   const others = coApplicants.filter((c) => c.email.trim())
 
   if (prescreen) {
@@ -598,8 +644,9 @@ function StepSubmit({ form, emp, otherIncome, askingRentCents, consent, setConse
         <Row k="Applicant" v={name} />
         <Row k="Email" v={form.email ?? "—"} />
         <Row k="Employment" v={emp.employment_type || "—"} />
-        <Row k={otherCents > 0 ? "Total income" : "Gross income"} v={incomeCents > 0 ? formatZAR(incomeCents) + " /mo" : "—"} />
-        {otherCents > 0 && <Row k="— incl. other sources" v={formatZAR(otherCents) + " /mo"} />}
+        {emp.start_date && <Row k="Employed since" v={probation ? `${emp.start_date} · possible probation` : emp.start_date} />}
+        <Row k="Total income" v={incomeCents > 0 ? formatZAR(incomeCents) + " /mo" : "—"} />
+        {namedSources.map((r) => <Row key={r.key} k={`— ${r.label || "Other"}`} v={`${formatZAR(rowMonthlyCents(r))} /mo`} />)}
         <Row k="Rent-to-income" v={ratio != null ? `${ratio}%` : "—"} />
         {others.length > 0 && <Row k="Others" v={others.map((c) => c.role === "guarantor" ? "guarantor" : "co-applicant").join(", ")} />}
       </div>
