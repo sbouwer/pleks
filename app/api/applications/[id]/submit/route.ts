@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Fetch application + listing
   const { data: app, error: appError } = await service
     .from("applications")
-    .select("*, listings(id, public_slug, asking_rent_cents, applications_count, units(unit_number, properties(id, name, city, managing_agent_id)), org_id)")
+    .select("*, listings(id, public_slug, asking_rent_cents, applications_count, status, closes_at, units(unit_number, properties(id, name, city, managing_agent_id)), org_id)")
     .eq("id", id)
     .single()
     logQueryError("POST applications", appError)
@@ -57,6 +57,14 @@ export async function POST(req: NextRequest, { params }: Props) {
   const listing = app.listings as Record<string, unknown> | null
   const unit = listing?.units as Record<string, unknown> | null
   const property = unit?.properties as Record<string, unknown> | null
+
+  // Retention race guard: once a listing has closed (status flipped by the expire-listings cron, or closes_at
+  // has simply passed), refuse new submissions — so a submit can't land while the cron is purging that listing's
+  // unsubmitted drafts. Saved drafts on a closed listing are deleted; they cannot be converted to submissions.
+  const listingClosesAt = listing?.closes_at as string | null
+  if (listing?.status === "expired" || (listingClosesAt && new Date(listingClosesAt) <= new Date())) {
+    return NextResponse.json({ error: "This listing has closed and is no longer accepting applications." }, { status: 410 })
+  }
 
   // Calculate pre-screen score
   const bankData = app.bank_statement_extracted as Record<string, unknown> | null

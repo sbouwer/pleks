@@ -195,6 +195,7 @@ const SENSITIVE_TABLES = [
 
 const PUBLIC_API_ROUTES = [
   "/api/applications/create",
+  "/api/applications/save-draft",
   "/api/auth/check-email",
   "/api/waitlist",
   "/api/unsubscribe/fake-token-123",
@@ -231,6 +232,8 @@ const CRON_ROUTES = [
   "/api/cron/prime-rate-sync",
   "/api/cron/application-reminders",
   "/api/cron/arrears-interest",
+  "/api/cron/screening-jobs",
+  "/api/cron/expire-listings",
 ]
 
 const WEBHOOK_ROUTES = [
