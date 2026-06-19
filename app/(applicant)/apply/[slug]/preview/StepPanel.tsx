@@ -610,9 +610,12 @@ function StepIncome({ emp, setEmp, income, setIncome }: Readonly<{
         </button>
       </div>
 
-      <div className="flex items-center justify-between border-t border-[var(--rule)] pt-3 text-sm">
-        <span className="text-[var(--ink-soft)]">Total monthly income (for affordability)</span>
-        <span className="font-semibold text-[var(--ink)]">{formatZAR(total)}</span>
+      {/* Total aligns under the Amount column (matching the input padding); "monthly" sits in the Period slot. */}
+      <div className="flex items-center gap-2 border-t border-[var(--rule)] pt-3 text-sm">
+        <span className="min-w-[140px] flex-1 text-[var(--ink-soft)]">Total monthly income (for affordability)</span>
+        <span className="w-[120px] px-2.5 font-semibold text-[var(--ink)]">{formatZAR(total)}</span>
+        <span className="w-[110px] text-[var(--ink-soft)]">monthly</span>
+        <span className="size-7 shrink-0" aria-hidden="true" />
       </div>
     </div>
   )
