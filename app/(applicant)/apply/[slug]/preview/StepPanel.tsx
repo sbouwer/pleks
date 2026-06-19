@@ -744,14 +744,33 @@ function DocCategoryCard({ cat, files, skipped, onUpload, onRemove, onRename, on
   onRename: (key: string, id: string, name: string) => void; onEscape: (key: string, v: boolean) => void
 }>) {
   const showAdd = !(cat.single && files.some((f) => f.uploaded))
+  const uploadCta = (
+    <label className="inline-flex w-fit shrink-0 cursor-pointer items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-1.5 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
+      {files.length > 0 ? <Plus className="size-4" /> : <Upload className="size-4" />}
+      {files.length > 0 ? "Add another" : "Upload"}
+      <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="sr-only" onChange={(e) => { onUpload(cat.key, e.target.files?.[0] ?? null, cat.single); e.currentTarget.value = "" }} />
+    </label>
+  )
   return (
-    <div className="rounded-[var(--r-button)] border border-[var(--rule)] p-4">
-      <span className="block text-sm font-medium text-[var(--ink)]">{cat.label}{cat.required && <span className="text-[var(--amber-ink)]"> *</span>}</span>
-      <span className="mt-0.5 block text-xs text-[var(--ink-soft)]">{cat.hint}</span>
+    <div className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
+      {/* label + hint on the left, Upload CTA on the right — keeps each empty category to one compact row */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="block text-sm font-medium text-[var(--ink)]">{cat.label}{cat.required && <span className="text-[var(--amber-ink)]"> *</span>}</span>
+          <span className="mt-0.5 block text-xs text-[var(--ink-soft)]">{cat.hint}</span>
+          {cat.escapeLabel && (
+            <label className="mt-1.5 flex w-fit cursor-pointer items-center gap-2 text-xs text-[var(--ink-soft)]">
+              <input type="checkbox" checked={skipped} onChange={(e) => onEscape(cat.key, e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
+              {cat.escapeLabel}
+            </label>
+          )}
+        </div>
+        {showAdd && uploadCta}
+      </div>
       {files.length > 0 && (
-        <div className="mt-3 flex flex-col gap-1.5">
+        <div className="mt-2 flex flex-col gap-1.5">
           {files.map((f) => (
-            <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5">
+            <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1">
               <span className="shrink-0">{docFileIcon(f)}</span>
               {cat.named
                 ? <input value={f.name} onChange={(e) => onRename(cat.key, f.id, e.target.value)} placeholder="Name this document" className="min-w-0 flex-1 border-0 bg-transparent text-sm text-[var(--ink)] focus:outline-none" />
@@ -762,19 +781,6 @@ function DocCategoryCard({ cat, files, skipped, onUpload, onRemove, onRename, on
             </div>
           ))}
         </div>
-      )}
-      {showAdd && (
-        <label className="mt-2 inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-2 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
-          {files.length > 0 ? <Plus className="size-4" /> : <Upload className="size-4" />}
-          {files.length > 0 ? "Add another" : "Upload"}
-          <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="sr-only" onChange={(e) => { onUpload(cat.key, e.target.files?.[0] ?? null, cat.single); e.currentTarget.value = "" }} />
-        </label>
-      )}
-      {cat.escapeLabel && (
-        <label className="mt-2 flex w-fit cursor-pointer items-center gap-2 text-xs text-[var(--ink-soft)]">
-          <input type="checkbox" checked={skipped} onChange={(e) => onEscape(cat.key, e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
-          {cat.escapeLabel}
-        </label>
       )}
       {cat.escapeNote && skipped && (
         <p className="mt-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-xs text-[var(--ink-soft)]">{cat.escapeNote}</p>
