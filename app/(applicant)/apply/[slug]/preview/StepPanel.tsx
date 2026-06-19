@@ -27,7 +27,7 @@
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft, Pencil } from "lucide-react"
+import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft, Pencil, Clock } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity, CompanyAddressSection } from "@/components/parties/partySteps"
@@ -152,6 +152,54 @@ const blankCo = (role: CoRole): CoApplicant => ({ firstName: "", lastName: "", e
 /** "Green" = enough to invite AND link them to the application: a name, an email, and an ID number. */
 const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.trim() && c.idNumber.trim())
 
+// ── Resume (save & finish later) ──────────────────────────────────────────────
+export interface ResumeState {
+  applicationId: string; token: string; step: number; savedAt: string | null
+  form: Partial<PartyFormState>; emp: Emp
+  incomeSources: { key: string; label: string; amount_cents: number; period: string }[]
+  coApplicants: CoApplicant[]; docPaths: { name: string; storagePath: string }[]
+}
+/** Rebuild the editable income grid from the persisted income_sources: fill the fixed rows by key, append any
+ *  unknown keys as custom rows. amount is rands-as-string (the grid's input shape). */
+function rebuildIncome(stored: ResumeState["incomeSources"]): IncomeRow[] {
+  const rows: IncomeRow[] = SEED_INCOME.map((r) => ({ ...r }))
+  const byKey = new Map(stored.map((s) => [s.key, s]))
+  for (const r of rows) {
+    const s = byKey.get(r.key)
+    if (s) { r.amount = String(s.amount_cents / 100); r.period = (s.period as IncomePeriod) || "month"; byKey.delete(r.key) }
+  }
+  for (const s of byKey.values()) {
+    rows.push({ key: s.key || `custom_${rows.length}`, label: s.label || "Other source", amount: String(s.amount_cents / 100), period: (s.period as IncomePeriod) || "month", custom: true })
+  }
+  return rows
+}
+/** A resumed draft doesn't persist the chosen party type — infer it from the co-applicants. Company drafts
+ *  (not persisted) resume as individual (the rare path); the applicant re-selects the type if needed. */
+function inferType(cos: CoApplicant[]): ApplicantType {
+  if (cos.some((c) => c.role === "guarantor")) return "guarantor"
+  if (cos.some((c) => c.role === "co_applicant")) return "couple"
+  return "individual"
+}
+/** Map a stored filename back to its doc category — paths are `{categoryKey}.ext` or `{categoryKey}_{id}.ext`. */
+function categoryForFilename(name: string, cats: DocCategory[]): string {
+  const base = name.replace(/\.[^.]+$/, "")
+  for (const k of [...cats.map((c) => c.key)].sort((a, b) => b.length - a.length)) {
+    if (base === k || base.startsWith(`${k}_`)) return k
+  }
+  return "other"
+}
+/** Rebuild docFiles from the paths already in Storage — placeholders (uploaded:true) carry the real storagePath
+ *  so they remain removable; the original filename/content is NOT re-rendered (POPIA — show "uploaded", a count). */
+function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { name: string; storagePath: string }[]): Record<string, DocFile[]> {
+  const cats = deriveDocCategories(income, employmentType)
+  const out: Record<string, DocFile[]> = {}
+  for (const p of docPaths) {
+    const cat = categoryForFilename(p.name, cats)
+    out[cat] = [...(out[cat] ?? []), { id: `resumed_${p.name}`, name: "Uploaded document", uploading: false, uploaded: true, storagePath: p.storagePath }]
+  }
+  return out
+}
+
 function tabClass(done: boolean, cur: boolean): string {
   if (cur) return "stoep font-medium text-[var(--ink)]"
   if (done) return "text-[var(--ink)]"
@@ -190,30 +238,37 @@ function Cta({ label, onClick, busy, disabled }: Readonly<{ label: string; onCli
   )
 }
 
-export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, agentPhone, prefill }: Readonly<{
+export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, agentPhone, prefill, resume }: Readonly<{
   slug: string; orgId: string; leaseType: "residential" | "commercial"; askingRentCents: number; agentName: string | null; agentPhone: string | null
   prefill?: Partial<PartyFormState> | null
+  resume?: ResumeState | null
 }>) {
   const commercial = leaseType === "commercial"
-  const [type, setType] = useState<ApplicantType | null>(null)
-  const [step, setStep] = useState(0)
-  const [maxReached, setMaxReached] = useState(0)
+  // Resuming a saved draft (the ?app&token link) rehydrates identity/income/employment/docs/co-applicants and
+  // drops the applicant back on the step they left. Address isn't persisted by the apply flow, so it re-enters.
+  const resumedIncome = resume ? rebuildIncome(resume.incomeSources) : null
+  const [type, setType] = useState<ApplicantType | null>(resume ? inferType(resume.coApplicants) : null)
+  const [step, setStep] = useState(resume?.step ?? 0)
+  const [maxReached, setMaxReached] = useState(resume?.step ?? 0)
 
-  // Seed identity + address from the logged-in user's own record (financial/employment stay empty — re-confirmed).
-  const [form, setForm] = useState<PartyFormState>({ idType: "sa_id", ...(prefill ?? {}) })
+  // Seed identity from the resumed draft (else the logged-in user's own record; financial/employment stay empty
+  // for a fresh start but rehydrate on resume).
+  const [form, setForm] = useState<PartyFormState>({ idType: "sa_id", ...(prefill ?? {}), ...(resume?.form ?? {}) })
   const [errors, setErrors] = useState<PartyErrors>({})
-  const [emp, setEmp] = useState<Emp>({ employment_type: "", employer: "", start_date: "" })
-  const [income, setIncome] = useState<IncomeRow[]>(SEED_INCOME)
+  const [emp, setEmp] = useState<Emp>(resume?.emp ?? { employment_type: "", employer: "", start_date: "" })
+  const [income, setIncome] = useState<IncomeRow[]>(resumedIncome ?? SEED_INCOME)
   const set: SetFn = (k, v) => setForm((p) => ({ ...p, [k]: v }))
 
-  const [applicationId, setApplicationId] = useState<string | null>(null)
-  const [token, setToken] = useState<string | null>(null)
+  const [applicationId, setApplicationId] = useState<string | null>(resume?.applicationId ?? null)
+  const [token, setToken] = useState<string | null>(resume?.token ?? null)
   const [busy, setBusy] = useState(false)
+  const [savedAt, setSavedAt] = useState<string | null>(resume?.savedAt ?? null)
+  const [resumeLink, setResumeLink] = useState<string | null>(null)
 
-  const [coApplicants, setCoApplicants] = useState<CoApplicant[]>([])
+  const [coApplicants, setCoApplicants] = useState<CoApplicant[]>(resume?.coApplicants ?? [])
   const [company, setCompany] = useState<CompanyInfo>({ companyType: "", companyReg: "" })
   const [invitePending, setInvitePending] = useState(false)
-  const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>({})
+  const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths) : {})
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
@@ -268,34 +323,52 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
     advance(2)
   }
 
+  // UPSERT the draft (create on first save, update thereafter — keyed on the held applicationId/token). Every
+  // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
+  // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
+  async function saveDraft(stepToSave: number, opts?: { silent?: boolean }): Promise<string | null> {
+    if (!form.email) { if (!opts?.silent) { toast.error("Add your email first so we can send you a link to finish later.") } return null }
+    try {
+      const res = await fetch("/api/applications/save-draft", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug, applicationId, token, step: stepToSave,
+          first_name: form.firstName, last_name: form.lastName, email: form.email, phone: form.phone,
+          id_type: form.idType || "sa_id", id_number: form.idNumber, date_of_birth: form.dob || "",
+          employment_type: emp.employment_type, employer_name: emp.employer, employment_start_date: emp.start_date || "",
+          // income_sources is the source of truth; gross_monthly_income (rands) is the derived total — the route
+          // re-derives both from income_sources and stores gross_monthly_income_cents (cents).
+          gross_monthly_income: String(totalMonthlyCents(income) / 100),
+          income_sources: incomeSourcesPayload(income),
+        }),
+      })
+      const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; error?: string }
+      if (!res.ok || !json.applicationId || !json.token) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
+      setApplicationId(json.applicationId); setToken(json.token)
+      setSavedAt(new Date().toISOString())
+      if (json.resumeUrl) setResumeLink(json.resumeUrl)
+      return json.applicationId
+    } catch { if (!opts?.silent) { toast.error("Could not save your progress.") } return null }
+  }
+
+  async function saveAndExit() {
+    setBusy(true)
+    try {
+      const id = await saveDraft(step)
+      if (id) toast.success("Saved — we've emailed you a link to finish later.")
+    } finally { setBusy(false) }
+  }
+
   async function createApplication() {
-    if (applicationId) { advance(3); return } // already created (came back) — don't create a duplicate
     // Employment status only — a R0 primary (student/dependent) applies with a guarantor whose income is
     // captured separately, so don't force an income figure here.
     if (!emp.employment_type) { toast.error("Please select an employment status."); return }
     setBusy(true)
     try {
-      const res = await fetch("/api/applications/create", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug,
-          first_name: form.firstName, last_name: form.lastName, email: form.email, phone: form.phone,
-          id_type: form.idType || "sa_id", id_number: form.idNumber, date_of_birth: form.dob || "",
-          employment_type: emp.employment_type, employer_name: emp.employer, employment_start_date: emp.start_date || "",
-          // income_sources is the source of truth; gross_monthly_income (rands) is the derived total — the
-          // route re-derives both from income_sources and stores gross_monthly_income_cents (cents).
-          gross_monthly_income: String(totalMonthlyCents(income) / 100),
-          income_sources: incomeSourcesPayload(income),
-        }),
-      })
-      const json = await res.json() as { applicationId?: string; token?: string; error?: string }
-      if (!res.ok || !json.applicationId || !json.token) { toast.error(json.error ?? "Could not start your application."); return }
-      setApplicationId(json.applicationId)
-      setToken(json.token)
-      void dispatchInvites(json.applicationId) // fire the held at-selection invites now the application exists
+      const appId = await saveDraft(3)        // create-or-update the draft, then move on
+      if (!appId) return
+      void dispatchInvites(appId)             // fire the held at-selection invites now the application exists
       advance(3)
-    } catch {
-      toast.error("Could not start your application.")
     } finally {
       setBusy(false)
     }
@@ -426,6 +499,8 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   // Submit gate: every applicant "green" — primary is implicit, each co-applicant has name+email+id (or is
   // already invited), and a company application has its type captured.
   const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
+  let savedFooter = "Free to start — no credit check at this stage"
+  if (savedAt) savedFooter = form.email ? `Saved — resume link sent to ${form.email}` : "Saved"
   const scrollCls = "flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"
   const footerCls = "flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4"
   const backBtn = "min-w-[200px] justify-center"
@@ -480,11 +555,28 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
           </>
         )}
 
-        <div className="flex shrink-0 items-center justify-between border-t border-[var(--rule)] pt-4">
-          <span className="flex items-center gap-1.5 text-[11px] text-[var(--ink-soft)]">
-            <span className="size-1.5 rounded-full" style={{ background: "var(--positive, #2f9e63)" }} /> {applicationId ? "Saved automatically" : "Free to start — no credit check at this stage"}
-          </span>
-          {(agentName || agentPhone) && <span className="text-[11px] text-[var(--ink-soft)]">Questions? {[agentName, agentPhone].filter(Boolean).join(" · ")}</span>}
+        <div className="flex shrink-0 items-start justify-between gap-3 border-t border-[var(--rule)] pt-4">
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="flex items-center gap-1.5 text-[11px] text-[var(--ink-soft)]">
+              <span className="size-1.5 rounded-full" style={{ background: "var(--positive, #2f9e63)" }} />
+              {savedFooter}
+            </span>
+            {(agentName || agentPhone) && <span className="text-[11px] text-[var(--ink-soft)]">Questions? {[agentName, agentPhone].filter(Boolean).join(" · ")}</span>}
+          </div>
+          {/* Save & finish later — a visible secondary button (same hover style as "Back to application type"),
+              sitting under Continue. Available once there's an email, before the submit/screening step. */}
+          {form.email && step <= 4 && screeningStatus === "idle" && (
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <ActionButton tone="secondary" icon={<Clock className="size-4" />} onClick={saveAndExit} disabled={busy} className={backBtn}>
+                Save &amp; finish later
+              </ActionButton>
+              {resumeLink && (
+                <button type="button" onClick={() => { void navigator.clipboard?.writeText(resumeLink); toast.success("Resume link copied to clipboard.") }} className="text-[11px] text-[var(--ink-mute)] hover:text-[var(--ink)]">
+                  Copy resume link
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </main>

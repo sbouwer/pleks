@@ -21,7 +21,7 @@ import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/components/layout/focus-shell.css"
 import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
 import { Phone, Mail, MessageCircle, ShieldCheck, ImageIcon, type LucideIcon } from "lucide-react"
-import { StepPanel } from "./StepPanel"
+import { StepPanel, type ResumeState } from "./StepPanel"
 import { ApplyLoginButton } from "./ApplyLoginButton"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getServerUser } from "@/lib/auth/server"
@@ -41,6 +41,69 @@ type UnitRow = {
   properties: { name: string | null; address_line1: string | null; suburb: string | null; city: string | null; managing_agent_id: string | null; type: string | null } | null
 }
 type OrgRow = { name: string | null; email: string | null; phone: string | null; ppra_ffc_number: string | null }
+
+// The resume link carries the token in the query string — keep it out of the Referer header sent to any
+// third-party subresource on the page (the token is a bearer capability to a PII-bearing draft).
+export const metadata = { referrer: "no-referrer" as const }
+
+/** Load + validate a save-&-resume draft from ?app&token. Returns null unless the token is bound to that
+ *  application, the draft belongs to THIS listing's org, and it has NOT been submitted (consent not given). */
+async function loadResume(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  listingOrgId: string,
+  appId: string,
+  token: string,
+): Promise<ResumeState | null> {
+  const { data: tok, error: tokErr } = await db
+    .from("application_tokens").select("application_id")
+    .eq("token", token).eq("application_id", appId).gt("expires_at", new Date().toISOString()).maybeSingle()
+  logQueryError("ApplyPreview resume token", tokErr)
+  if (!tok) return null
+
+  const { data: app, error: appErr } = await db
+    .from("applications")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, draft_step, draft_saved_at, org_id, stage1_consent_given")
+    .eq("id", appId).maybeSingle()
+  logQueryError("ApplyPreview resume app", appErr)
+  if (!app || app.org_id !== listingOrgId || app.stage1_consent_given === true) return null
+
+  // NB: the co-applicant role (co_applicant vs guarantor) isn't persisted, so a resumed roster defaults to
+  // co_applicant — the type then infers "couple". A guarantor-only draft re-picks the type if needed.
+  const { data: cos, error: cosErr } = await db
+    .from("application_co_applicants").select("first_name, last_name, applicant_email, applicant_phone, id_number")
+    .eq("primary_application_id", appId)
+  logQueryError("ApplyPreview resume co-applicants", cosErr)
+
+  const prefix = `applications/${listingOrgId}/${appId}`
+  const { data: files, error: filesErr } = await db.storage.from("application-docs").list(prefix)
+  logQueryError("ApplyPreview resume docs", filesErr)
+  const docPaths = (files ?? [])
+    .filter((f) => f.name && !f.name.startsWith("."))
+    .map((f) => ({ name: f.name, storagePath: `${prefix}/${f.name}` }))
+
+  const sources = (app.income_sources as ResumeState["incomeSources"] | null) ?? []
+  return {
+    applicationId: appId, token, step: (app.draft_step as number | null) ?? 3, savedAt: (app.draft_saved_at as string | null) ?? null,
+    form: {
+      firstName: (app.first_name as string | null) ?? undefined, lastName: (app.last_name as string | null) ?? undefined,
+      email: (app.applicant_email as string | null) ?? undefined, phone: (app.applicant_phone as string | null) ?? undefined,
+      idType: (app.id_type as string | null) ?? "sa_id", idNumber: (app.id_number as string | null) ?? undefined,
+      dob: (app.date_of_birth as string | null) ?? undefined,
+    },
+    emp: {
+      employment_type: (app.employment_type as string | null) ?? "",
+      employer: (app.employer_name as string | null) ?? "",
+      start_date: (app.employment_start_date as string | null) ?? "",
+    },
+    incomeSources: sources,
+    coApplicants: (cos ?? []).map((c) => ({
+      firstName: (c.first_name as string | null) ?? "", lastName: (c.last_name as string | null) ?? "",
+      email: (c.applicant_email as string | null) ?? "", phone: (c.applicant_phone as string | null) ?? "",
+      idNumber: (c.id_number as string | null) ?? "", role: "co_applicant", invited: true,
+    })),
+    docPaths,
+  }
+}
 
 function Eyebrow({ children }: Readonly<{ children: React.ReactNode }>) {
   return <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">{children}</span>
@@ -84,8 +147,9 @@ function waLink(phone: string | null): string | null {
   return null
 }
 
-export default async function ApplyPreviewPage({ params }: Readonly<{ params: Promise<{ slug: string }> }>) {
+export default async function ApplyPreviewPage({ params, searchParams }: Readonly<{ params: Promise<{ slug: string }>; searchParams: Promise<{ app?: string; token?: string }> }>) {
   const { slug } = await params
+  const { app: resumeAppId, token: resumeToken } = await searchParams
   const db = await createServiceClient()
 
   const { data: listing, error } = await db
@@ -96,6 +160,10 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
     .maybeSingle()
   logQueryError("ApplyPreview listings", error)
   if (!listing) notFound()
+
+  const resume = resumeAppId && resumeToken
+    ? await loadResume(db, listing.org_id as string, resumeAppId, resumeToken)
+    : null
 
   const unit = (listing.units as unknown as UnitRow | null) ?? null
   const property = unit?.properties ?? null
@@ -240,6 +308,7 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
               agentName={agentName}
               agentPhone={phone}
               prefill={prefill}
+              resume={resume}
             />
           </div>
         </div>

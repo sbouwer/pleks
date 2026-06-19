@@ -478,7 +478,9 @@
       "screening_policy_version",
       "decline_reason_text",
       "income_sources",
-      "employment_start_date"
+      "employment_start_date",
+      "draft_step",
+      "draft_saved_at"
     ],
     "arrears_actions": [
       "id",
@@ -2034,7 +2036,8 @@
       "created_by",
       "created_at",
       "updated_at",
-      "screening_bundle"
+      "screening_bundle",
+      "closes_at"
     ],
     "login_notifications_sent": [
       "id",

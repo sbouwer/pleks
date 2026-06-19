@@ -2906,3 +2906,19 @@ CREATE POLICY "org_screening_jobs" ON screening_jobs
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §36  APPLY SAVE-&-RESUME + LISTING-EXPIRY RETENTION (ADDENDUM_14M follow-on)
+--   A "draft" is an unsubmitted applications row (stage1_consent_given not true) — no separate PII store.
+--   draft_step = where to drop the applicant back; draft_saved_at = last activity (the retention basis +
+--   "Saved · …" state). listings.closes_at = optional agent-set expiry; once passed, unsubmitted drafts for
+--   that listing are purged (POPIA) — SUBMITTED applications are never touched. Additive + idempotent.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS draft_step      smallint,
+  ADD COLUMN IF NOT EXISTS draft_saved_at  timestamptz;
+
+ALTER TABLE listings
+  ADD COLUMN IF NOT EXISTS closes_at       timestamptz;

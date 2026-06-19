@@ -113,6 +113,33 @@ export async function sendApplicationReceived(
   })
 }
 
+// ── Resume link: finish a saved (not-yet-submitted) application ───────────────
+
+export async function sendApplicationResumeLink(
+  to: { email: string; firstName?: string | null },
+  listing: { unitLabel: string; propertyName: string; city?: string },
+  org: OrgContext,
+  opts: { resumeUrl: string; applicationId: string },
+) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "application.resume_link",
+    to: { email: to.email, name: to.firstName ?? "" },
+    subject: `Finish your application — ${listing.unitLabel}, ${listing.propertyName}`,
+    emailElement: (
+      <EmailLayout preview={`Pick up your application for ${listing.unitLabel} at ${listing.propertyName}`} branding={org.branding}>
+        <p style={S.greeting}>Hi{to.firstName ? ` ${to.firstName}` : ""},</p>
+        <p style={S.body}>Your application for {listing.unitLabel} at {listing.propertyName}{listing.city ? `, ${listing.city}` : ""} has been saved. Pick up where you left off any time — your details and uploaded documents are safe.</p>
+        <EmailButton href={opts.resumeUrl} accentColor={org.branding.accentColor}>Finish your application →</EmailButton>
+        <p style={S.body}>If you didn&apos;t start this application, you can safely ignore this email.</p>
+      </EmailLayout>
+    ),
+    bodyPreview: `Your application for ${listing.unitLabel} at ${listing.propertyName} is saved — finish it any time.`,
+    entityType: "application",
+    entityId: opts.applicationId,
+  })
+}
+
 // ── Email 2: Agent notification ───────────────────────────────────────────────
 
 export async function sendAgentApplicationNotification(
