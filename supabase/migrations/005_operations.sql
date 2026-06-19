@@ -2922,3 +2922,10 @@ ALTER TABLE applications
 
 ALTER TABLE listings
   ADD COLUMN IF NOT EXISTS closes_at       timestamptz;
+
+-- The apply wizard offers 'commission' + 'part_time' employment statuses (StepPanel EMPLOYMENT_OPTIONS), but the
+-- original CHECK never allowed them → every commission/part-time applicant 500'd on insert. Widen to match the UI.
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_employment_type_check;
+ALTER TABLE applications ADD CONSTRAINT applications_employment_type_check CHECK (
+  employment_type IN ('permanent','contract','commission','self_employed','part_time','student','unemployed','retired','other')
+);
