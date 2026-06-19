@@ -15,6 +15,7 @@ import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
 import { getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
 import { formatZAR } from "@/lib/constants"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { DeleteDraftButton } from "./DeleteDraftButton"
 
 export interface SerializedLease {
   id: string
@@ -72,6 +73,7 @@ function Avatar({ initials, size = 28 }: { initials: string; size?: number }) {
 
 export function LeaseRow({ lease }: { lease: SerializedLease }) {
   const router = useRouter()
+  const isDraft = lease.status === "draft"
   const tv = lease.tenant_view
   const primary = {
     id: tv?.id ?? lease.tenant_id,
@@ -130,7 +132,7 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
 
   return (
     <tr
-      className="cursor-pointer transition-colors hover:bg-muted/20"
+      className="group cursor-pointer transition-colors hover:bg-muted/20"
       onClick={() => router.push(`/leases/${lease.id}`)}
     >
       {/* Property / Unit */}
@@ -189,7 +191,10 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
 
       {/* Status */}
       <td className="px-3 py-3 align-top">
-        <StatusBadge status={lease.status} />
+        <div className="flex items-center justify-between gap-4">
+          <StatusBadge status={lease.status} />
+          {isDraft && <DeleteDraftButton leaseId={lease.id} />}
+        </div>
       </td>
     </tr>
   )
