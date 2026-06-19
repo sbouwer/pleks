@@ -305,8 +305,6 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
               orgId={listing.org_id as string}
               leaseType={leaseType}
               askingRentCents={(listing.asking_rent_cents as number) ?? 0}
-              agentName={agentName}
-              agentPhone={phone}
               prefill={prefill}
               resume={resume}
             />

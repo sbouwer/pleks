@@ -238,8 +238,8 @@ function Cta({ label, onClick, busy, disabled }: Readonly<{ label: string; onCli
   )
 }
 
-export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, agentPhone, prefill, resume }: Readonly<{
-  slug: string; orgId: string; leaseType: "residential" | "commercial"; askingRentCents: number; agentName: string | null; agentPhone: string | null
+export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, resume }: Readonly<{
+  slug: string; orgId: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
 }>) {
@@ -499,7 +499,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   // Submit gate: every applicant "green" — primary is implicit, each co-applicant has name+email+id (or is
   // already invited), and a company application has its type captured.
   const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
-  let savedFooter = "Free to start — no credit check at this stage"
+  let savedFooter = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage; that happens later, only after you submit and give explicit consent."
   if (savedAt) savedFooter = form.email ? `Saved — resume link sent to ${form.email}` : "Saved"
   const scrollCls = "flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"
   const footerCls = "flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4"
@@ -557,11 +557,10 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
 
         <div className="flex shrink-0 items-start justify-between gap-3 border-t border-[var(--rule)] pt-4">
           <div className="flex min-w-0 flex-col gap-1">
-            <span className="flex items-center gap-1.5 text-[11px] text-[var(--ink-soft)]">
-              <span className="size-1.5 rounded-full" style={{ background: "var(--positive, #2f9e63)" }} />
+            <span className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[var(--ink-soft)]">
+              <span className="mt-1 size-1.5 shrink-0 rounded-full" style={{ background: "var(--positive, #2f9e63)" }} />
               {savedFooter}
             </span>
-            {(agentName || agentPhone) && <span className="text-[11px] text-[var(--ink-soft)]">Questions? {[agentName, agentPhone].filter(Boolean).join(" · ")}</span>}
           </div>
           {/* Save & finish later — a visible secondary button (same hover style as "Back to application type"),
               sitting under Continue. Available once there's an email, before the submit/screening step. */}
