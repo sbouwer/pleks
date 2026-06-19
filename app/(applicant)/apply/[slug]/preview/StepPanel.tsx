@@ -4,22 +4,23 @@
  * app/(applicant)/apply/[slug]/preview/StepPanel.tsx — the interactive apply wizard (client island)
  *
  * Auth:   public (token-gated prefix) — preview only
- * Notes:  Functional 5-step apply flow wired to the REAL backend, walkable end-to-end:
- *           1 Personal details — RESIDENTIAL reuses the add-tenant capture (IndividualIdentity: SA-ID
- *             auto-fills DOB+gender). COMMERCIAL (company) path is the next build.
- *           2 Address & employment — mandatory current address + employment/income →
- *             POST /api/applications/create (needs identity + employment).
- *           3 Applicants — add co-applicants (name+email) → POST /api/applications/[id]/co-applicant.
+ * Notes:  A 4-card LANDING (application type) → a functional 5-step wizard wired to the REAL backend:
+ *           Landing — Just me · Couple/multiple · Company · On behalf/guarantor (each a short blurb).
+ *           1 Personal details — RESIDENTIAL types reuse the add-tenant capture (IndividualIdentity;
+ *             SA-ID auto-fills DOB+gender). COMPANY (commercial) capture is the next build.
+ *           2 Address & employment — mandatory current address + employment/income → POST create.
+ *           3 Applicants — add others, each via their own email link, tagged co-applicant (lives here)
+ *             or guarantor (doesn't) → POST /api/applications/[id]/co-applicant.
  *           4 Documents — upload to the application-docs bucket + AI detect (same as the live flow).
- *           5 Submit — POPIA consent → POST /api/applications/[id]/submit → reveal the pre-screen result
- *             (the applicant "application preview": score/45 + affordability).
+ *           5 Submit — POPIA consent → POST submit → reveal the pre-screen "application preview".
  *         The server page renders the shell + left cards and passes slug/orgId/rent + agent contact.
  */
 
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck } from "lucide-react"
+import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity, CompanyAddressSection } from "@/components/parties/partySteps"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
 import {
@@ -27,6 +28,17 @@ import {
   type PartyFormState, type PartyErrors, type PartyAddressInput, type PartyPerson, type PartyBankAccountInput,
 } from "@/lib/parties/partyValidation"
 import { formatZAR } from "@/lib/constants"
+
+type ApplicantType = "individual" | "couple" | "company" | "guarantor"
+/** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
+function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon: LucideIcon; title: string; blurb: string }> {
+  return [
+    { id: "individual", icon: User, title: commercial ? "Sole proprietor" : "Just me", blurb: commercial ? "I'm leasing in my own name (sole proprietor)." : "I'll be the only person on the lease." },
+    { id: "couple", icon: Users, title: commercial ? "Partners / multiple" : "Couple / multiple", blurb: commercial ? "Two or more partners on the lease together — each gets their own secure link." : "Two or more of us will be on the lease together — each gets their own secure link." },
+    { id: "company", icon: Building2, title: "Company", blurb: "A registered business is leasing, with a director signing surety." },
+    { id: "guarantor", icon: HandCoins, title: "On behalf / guarantor", blurb: commercial ? "A surety backs the application but won't be on the lease." : "Someone backs the application financially but won't live here — e.g. a parent for an adult child." },
+  ]
+}
 
 const STEPS = ["Personal details", "Address & employment", "Applicants", "Documents", "Submit"]
 
@@ -43,17 +55,12 @@ const EMPLOYMENT_OPTIONS = [
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[] | PartyBankAccountInput[]) => void
 type Emp = { employment_type: string; employer: string; gross_income: string }
+type CoRole = "co_applicant" | "guarantor"
 
 interface DocSlot {
-  key: string
-  label: string
-  accept: string
-  file: File | null
-  uploading: boolean
-  uploaded: boolean
-  storagePath: string | null
-  detection?: string | null
-  error?: string | null
+  key: string; label: string; accept: string
+  file: File | null; uploading: boolean; uploaded: boolean; storagePath: string | null
+  detection?: string | null; error?: string | null
 }
 const INITIAL_DOCS: DocSlot[] = [
   { key: "id_document", label: "SA ID / Passport", accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
@@ -64,7 +71,7 @@ const INITIAL_DOCS: DocSlot[] = [
   { key: "employment_letter", label: "Employment letter / contract", accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
 ]
 
-interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; invited: boolean }
+interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; role: CoRole; invited: boolean }
 interface PrescreenResult { score: number | null; affordabilityFlag: boolean; rentToIncomePct: number | null }
 
 function tabClass(done: boolean, cur: boolean): string {
@@ -86,13 +93,8 @@ function TabBar({ step, maxReached, onJump }: Readonly<{ step: number; maxReache
         const cur = i === step
         const reachable = i <= maxReached
         return (
-          <button
-            key={label}
-            type="button"
-            disabled={!reachable}
-            onClick={() => reachable && onJump(i)}
-            className={`flex items-center gap-2 pb-2.5 text-[13px] ${tabClass(done, cur)} ${reachable ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
-          >
+          <button key={label} type="button" disabled={!reachable} onClick={() => reachable && onJump(i)}
+            className={`flex items-center gap-2 pb-2.5 text-[13px] ${tabClass(done, cur)} ${reachable ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
             <span className={`flex size-[18px] items-center justify-center rounded-full text-[10px] ${circleClass(done, cur)}`}>{done ? "✓" : i + 1}</span>
             {label}
           </button>
@@ -102,25 +104,6 @@ function TabBar({ step, maxReached, onJump }: Readonly<{ step: number; maxReache
   )
 }
 
-function Segmented({ value, onChange, disabled }: Readonly<{ value: string; onChange: (v: string) => void; disabled?: boolean }>) {
-  return (
-    <div className="inline-flex rounded-[var(--r-button)] border border-[var(--rule)] p-0.5">
-      {["Residential", "Commercial"].map((o) => (
-        <button
-          key={o}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(o)}
-          className={`rounded-[var(--r-button)] px-4 py-1.5 text-sm transition-colors disabled:opacity-50 ${value === o ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-soft)] hover:text-[var(--ink)]"}`}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/** Footer CTA in the door grammar (.fs-cta). */
 function Cta({ label, onClick, busy, disabled }: Readonly<{ label: string; onClick: () => void; busy?: boolean; disabled?: boolean }>) {
   return (
     <button type="button" className="fs-cta" style={{ maxWidth: 300 }} onClick={onClick} disabled={busy || disabled}>
@@ -131,12 +114,13 @@ function Cta({ label, onClick, busy, disabled }: Readonly<{ label: string; onCli
   )
 }
 
-export function StepPanel({ slug, orgId, askingRentCents, agentName, agentPhone }: Readonly<{
-  slug: string; orgId: string; askingRentCents: number; agentName: string | null; agentPhone: string | null
+export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, agentPhone }: Readonly<{
+  slug: string; orgId: string; leaseType: "residential" | "commercial"; askingRentCents: number; agentName: string | null; agentPhone: string | null
 }>) {
+  const commercial = leaseType === "commercial"
+  const [type, setType] = useState<ApplicantType | null>(null)
   const [step, setStep] = useState(0)
   const [maxReached, setMaxReached] = useState(0)
-  const [lease, setLease] = useState<"Residential" | "Commercial">("Residential")
 
   const [form, setForm] = useState<PartyFormState>({ idType: "sa_id" })
   const [errors, setErrors] = useState<PartyErrors>({})
@@ -154,7 +138,20 @@ export function StepPanel({ slug, orgId, askingRentCents, agentName, agentPhone 
 
   function advance(to: number) { setStep(to); setMaxReached((m) => Math.max(m, to)) }
 
-  // Step 1 → 2: validate identity only
+  function pickType(t: ApplicantType) {
+    setType(t)
+    setStep(0); setMaxReached(0)
+    // Seed the Applicants step intent: couple = co-applicants who live here; guarantor = a non-occupant backer.
+    if (t === "guarantor") setCoApplicants([{ firstName: "", lastName: "", email: "", phone: "", role: "guarantor", invited: false }])
+    else if (t === "couple") setCoApplicants([{ firstName: "", lastName: "", email: "", phone: "", role: "co_applicant", invited: false }])
+    else setCoApplicants([])
+  }
+
+  function backToTypes() {
+    if (applicationId) return // can't change type after the application is created
+    setType(null); setStep(0); setMaxReached(0); setErrors({})
+  }
+
   function continueIdentity() {
     const e = validateIdentityCore("individual", form, true)
     setErrors(e)
@@ -162,7 +159,6 @@ export function StepPanel({ slug, orgId, askingRentCents, agentName, agentPhone 
     advance(1)
   }
 
-  // Step 2 → 3: validate address + employment, then create the application
   async function createApplication() {
     const e = validateAddressStep(form, true)
     setErrors(e)
@@ -195,7 +191,6 @@ export function StepPanel({ slug, orgId, askingRentCents, agentName, agentPhone 
     }
   }
 
-  // Step 3 → 4: invite co-applicants
   async function inviteCoApplicants() {
     if (!applicationId) return
     const pending = coApplicants.filter((c) => !c.invited && c.email.trim() && c.firstName.trim())
@@ -204,7 +199,7 @@ export function StepPanel({ slug, orgId, askingRentCents, agentName, agentPhone 
       for (const c of pending) {
         const res = await fetch(`/api/applications/${applicationId}/co-applicant`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ first_name: c.firstName, last_name: c.lastName, email: c.email, phone: c.phone }),
+          body: JSON.stringify({ first_name: c.firstName, last_name: c.lastName, email: c.email, phone: c.phone, role: c.role }),
         })
         if (!res.ok) toast.error(`Could not invite ${c.email}`)
       }
@@ -215,7 +210,6 @@ export function StepPanel({ slug, orgId, askingRentCents, agentName, agentPhone 
     }
   }
 
-  // Step 4: document upload
   async function uploadDoc(index: number, file: File | null) {
     if (!file || !applicationId) return
     setDocs((prev) => prev.map((d, i) => i === index ? { ...d, file, uploading: true, error: null } : d))
@@ -246,10 +240,7 @@ export function StepPanel({ slug, orgId, askingRentCents, agentName, agentPhone 
     try {
       const supabase = createClient()
       const bank = docs.find((d) => d.key === "bank_statement")
-      await supabase.from("applications").update({
-        bank_statement_path: bank?.storagePath ?? null,
-        stage1_status: "documents_submitted",
-      }).eq("id", applicationId)
+      await supabase.from("applications").update({ bank_statement_path: bank?.storagePath ?? null, stage1_status: "documents_submitted" }).eq("id", applicationId)
       if (bank?.storagePath) {
         void fetch(`/api/applications/${applicationId}/documents`, {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -262,24 +253,18 @@ export function StepPanel({ slug, orgId, askingRentCents, agentName, agentPhone 
     }
   }
 
-  // Step 5: consent + submit → reveal pre-screen
   async function submitApplication() {
     if (!applicationId || !token) return
     setBusy(true)
     try {
       const res = await fetch(`/api/applications/${applicationId}/submit`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
       })
       const json = await res.json() as { ok?: boolean; prescreen?: { score: number; affordabilityFlag: boolean; rentToIncomePct: number | null }; error?: string }
       if (!res.ok || !json.ok) { toast.error(json.error ?? "Could not submit your application."); return }
       const incomeCents = Math.round(parseFloat(emp.gross_income.replace(/[^\d.]/g, "") || "0") * 100)
       const localRatio = incomeCents > 0 ? Math.round((askingRentCents / incomeCents) * 100) : null
-      setPrescreen({
-        score: json.prescreen?.score ?? null,
-        affordabilityFlag: !!json.prescreen?.affordabilityFlag,
-        rentToIncomePct: json.prescreen?.rentToIncomePct ?? localRatio,
-      })
+      setPrescreen({ score: json.prescreen?.score ?? null, affordabilityFlag: !!json.prescreen?.affordabilityFlag, rentToIncomePct: json.prescreen?.rentToIncomePct ?? localRatio })
     } catch {
       toast.error("Could not submit your application.")
     } finally {
@@ -288,41 +273,72 @@ export function StepPanel({ slug, orgId, askingRentCents, agentName, agentPhone 
   }
 
   const allDocsUploaded = docs.every((d) => d.uploaded)
-  const commercial = lease === "Commercial"
+  const isCompany = type === "company"
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col">
-      <div className="fs-panel mb-1.5 flex flex-1 flex-col" style={{ maxWidth: "none", width: "100%" }}>
+    <main className="flex min-w-0 flex-1 flex-col tallwide:h-full tallwide:min-h-0">
+      <div className="fs-panel mb-1.5 flex flex-1 flex-col tallwide:min-h-0" style={{ maxWidth: "none", width: "100%" }}>
         <span className="fs-knob" aria-hidden="true" />
-        <TabBar step={step} maxReached={maxReached} onJump={setStep} />
 
-        <div className="flex flex-1 flex-col gap-4 py-3">
-          {step === 0 && <StepPersonal lease={lease} setLease={setLease} form={form} set={set} errors={errors} locked={!!applicationId} />}
-          {step === 1 && <StepAddressEmployment form={form} set={set} errors={errors} emp={emp} setEmp={setEmp} />}
-          {step === 2 && <StepApplicants coApplicants={coApplicants} setCoApplicants={setCoApplicants} />}
-          {step === 3 && <StepDocuments docs={docs} onUpload={uploadDoc} />}
-          {step === 4 && <StepSubmit form={form} emp={emp} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} prescreen={prescreen} coApplicants={coApplicants} />}
+        {type === null ? (
+          <div className="flex-1 py-3 tallwide:min-h-0 tallwide:overflow-y-auto"><Landing onPick={pickType} commercial={commercial} /></div>
+        ) : (
+          <>
+            <TabBar step={step} maxReached={maxReached} onJump={setStep} />
+            <div className="flex-1 py-3 tallwide:min-h-0 tallwide:overflow-y-auto">
+              {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} />}
+              {step === 1 && <StepAddressEmployment form={form} set={set} errors={errors} emp={emp} setEmp={setEmp} />}
+              {step === 2 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} />}
+              {step === 3 && <StepDocuments docs={docs} onUpload={uploadDoc} />}
+              {step === 4 && <StepSubmit form={form} emp={emp} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} prescreen={prescreen} coApplicants={coApplicants} />}
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4">
+              <div className="flex items-center gap-3">
+                {step === 0 && !applicationId && (
+                  <button type="button" onClick={backToTypes} className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] px-3 py-1.5 text-[12px] font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
+                    <ArrowLeft className="size-3.5" /> Back to application type
+                  </button>
+                )}
+              </div>
+              {step === 0 && !isCompany && <Cta label="Continue" onClick={continueIdentity} busy={busy} />}
+              {step === 1 && <Cta label="Continue to applicants" onClick={createApplication} busy={busy} />}
+              {step === 2 && <Cta label="Continue to documents" onClick={inviteCoApplicants} busy={busy} />}
+              {step === 3 && <Cta label="Continue to review" onClick={finishDocuments} busy={busy} disabled={!allDocsUploaded} />}
+              {step === 4 && !prescreen && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent} />}
+            </div>
+          </>
+        )}
 
-          <div className="mt-auto flex items-center justify-between gap-3 pt-2">
-            <span className="text-[11px] text-[var(--ink-mute)]">{prescreen ? "Submitted" : `Step ${step + 1} of ${STEPS.length}`}</span>
-            {step === 0 && !commercial && <Cta label="Continue" onClick={continueIdentity} busy={busy} />}
-            {step === 1 && <Cta label="Continue to applicants" onClick={createApplication} busy={busy} />}
-            {step === 2 && <Cta label="Continue to documents" onClick={inviteCoApplicants} busy={busy} />}
-            {step === 3 && <Cta label="Continue to review" onClick={finishDocuments} busy={busy} disabled={!allDocsUploaded} />}
-            {step === 4 && !prescreen && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent} />}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between border-t border-[var(--rule)] pt-4">
+        <div className="flex shrink-0 items-center justify-between border-t border-[var(--rule)] pt-4">
           <span className="flex items-center gap-1.5 text-[11px] text-[var(--ink-soft)]">
             <span className="size-1.5 rounded-full" style={{ background: "var(--positive, #2f9e63)" }} /> {applicationId ? "Saved automatically" : "Free to start — no credit check at this stage"}
           </span>
-          {(agentName || agentPhone) && (
-            <span className="text-[11px] text-[var(--ink-soft)]">Questions? {[agentName, agentPhone].filter(Boolean).join(" · ")}</span>
-          )}
+          {(agentName || agentPhone) && <span className="text-[11px] text-[var(--ink-soft)]">Questions? {[agentName, agentPhone].filter(Boolean).join(" · ")}</span>}
         </div>
       </div>
     </main>
+  )
+}
+
+// ── Landing — application type cards ──────────────────────────────────────────────
+function Landing({ onPick, commercial }: Readonly<{ onPick: (t: ApplicantType) => void; commercial: boolean }>) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h2 className="text-xl font-medium tracking-[-0.01em] text-[var(--ink)]">How are you applying?</h2>
+        <p className="mt-1 max-w-prose text-sm text-[var(--ink-soft)]">Pick the option that fits — it&apos;s free to start and no credit check runs at this stage.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {typesFor(commercial).map((t) => (
+          <button key={t.id} type="button" onClick={() => onPick(t.id)}
+            className="group flex flex-col items-start gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-left transition-colors hover:border-[var(--amber)]">
+            <span className="flex size-9 items-center justify-center rounded-[var(--r-button)] bg-[var(--amber-wash)] text-[var(--amber-ink)]"><t.icon className="size-5" /></span>
+            <span className="text-sm font-semibold text-[var(--ink)]">{t.title}</span>
+            <span className="text-[13px] leading-snug text-[var(--ink-soft)]">{t.blurb}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -336,21 +352,16 @@ function StepHeading({ title, sub }: Readonly<{ title: string; sub: string }>) {
 }
 
 // ── Step 1 — Personal details ────────────────────────────────────────────────────
-function StepPersonal({ lease, setLease, form, set, errors, locked }: Readonly<{
-  lease: "Residential" | "Commercial"; setLease: (v: "Residential" | "Commercial") => void
-  form: PartyFormState; set: SetFn; errors: PartyErrors; locked: boolean
-}>) {
+function StepPersonal({ type, commercial, form, set, errors }: Readonly<{ type: ApplicantType; commercial: boolean; form: PartyFormState; set: SetFn; errors: PartyErrors }>) {
+  if (type === "company") {
+    return <div className="rounded-[var(--r-button)] border border-dashed border-[var(--rule)] p-6 text-center text-sm text-[var(--ink-soft)]">Company applications (company + signatories) are the next build.</div>
+  }
+  const guarSub = commercial ? "First, the party who'll occupy the premises. You'll add the surety next." : "First, the person who'll live here (the tenant). You'll add the guarantor next."
+  const sub = type === "guarantor" ? guarSub : "The main applicant's details. SA ID auto-fills date of birth and gender."
   return (
-    <div className="flex flex-col gap-4">
-      <StepHeading title="Tell us about you" sub="A few details to start your application — free, no credit check at this stage. We collect consent later if you're shortlisted." />
-      <Segmented value={lease} onChange={(v) => setLease(v as "Residential" | "Commercial")} disabled={locked} />
-      {lease === "Residential" ? (
-        <IndividualIdentity f={form} set={set} errors={errors} fullFica stepNumber="" />
-      ) : (
-        <div className="rounded-[var(--r-button)] border border-dashed border-[var(--rule)] p-6 text-center text-sm text-[var(--ink-soft)]">
-          Commercial applications (company + signatories) are the next build.
-        </div>
-      )}
+    <div className="flex flex-col gap-2">
+      <p className="max-w-prose text-sm text-[var(--ink-soft)]">{sub}</p>
+      <IndividualIdentity f={form} set={set} errors={errors} fullFica stepNumber="" />
     </div>
   )
 }
@@ -375,25 +386,48 @@ function StepAddressEmployment({ form, set, errors, emp, setEmp }: Readonly<{
   )
 }
 
-// ── Step 3 — Applicants ──────────────────────────────────────────────────────────
-function StepApplicants({ coApplicants, setCoApplicants }: Readonly<{
-  coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
+// ── Step 3 — Applicants (co-applicants / guarantor) ──────────────────────────────
+function StepApplicants({ type, commercial, coApplicants, setCoApplicants }: Readonly<{
+  type: ApplicantType; commercial: boolean; coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
 }>) {
-  function add() { setCoApplicants([...coApplicants, { firstName: "", lastName: "", email: "", phone: "", invited: false }]) }
+  const defaultRole: CoRole = type === "guarantor" ? "guarantor" : "co_applicant"
+  function add() { setCoApplicants([...coApplicants, { firstName: "", lastName: "", email: "", phone: "", role: defaultRole, invited: false }]) }
   function remove(i: number) { setCoApplicants(coApplicants.filter((_, idx) => idx !== i)) }
   function update(i: number, patch: Partial<CoApplicant>) { setCoApplicants(coApplicants.map((c, idx) => idx === i ? { ...c, ...patch } : c)) }
+
+  const occLabel = commercial ? "On the lease" : "Lives here"
+  const guarLabel = commercial ? "Surety" : "Guarantor"
+  const addGuarLabel = commercial ? "a surety" : "a guarantor"
+  const guarHeading = commercial
+    ? { title: "Your surety", sub: "The party backing the application financially. They won't be on the lease, but they'll get their own secure link to consent." }
+    : { title: "Your guarantor", sub: "The person backing your application financially. They won't live here, but they'll get their own secure link to consent." }
+  const otherHeading = commercial
+    ? { title: "Other parties on the lease?", sub: "Add the other parties on the lease — each gets their own secure link." }
+    : { title: "Anyone applying with you?", sub: "Add other adults who'll live here — each gets their own secure link. Adding earners can also improve affordability." }
+  const heading = type === "guarantor" ? guarHeading : otherHeading
+
   return (
     <div className="flex flex-col gap-4">
-      <StepHeading title="Anyone applying with you?" sub="Add other adults who'll be on the lease. We'll email each of them their own secure link — adding earners can also improve affordability." />
+      <StepHeading title={heading.title} sub={heading.sub} />
       {coApplicants.length === 0 && (
         <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-4 py-3 text-sm text-[var(--ink-soft)]">Applying on your own? Just continue.</p>
       )}
       {coApplicants.map((c, i) => (
         <div key={i} className="rounded-[var(--r-button)] border border-[var(--rule)] p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Applicant {i + 2}{c.invited ? " · invited" : ""}</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">{c.role === "guarantor" ? guarLabel : "Co-applicant"}{c.invited ? " · invited" : ""}</span>
             {!c.invited && <button type="button" onClick={() => remove(i)} className="inline-flex items-center gap-1 text-xs text-[var(--ink-mute)] hover:text-red-600"><X className="size-3.5" /> Remove</button>}
           </div>
+          {!c.invited && (
+            <div className="mb-3 inline-flex rounded-[var(--r-button)] border border-[var(--rule)] p-0.5 text-xs">
+              {(["co_applicant", "guarantor"] as const).map((r) => (
+                <button key={r} type="button" onClick={() => update(i, { role: r })}
+                  className={`rounded-[var(--r-button)] px-2.5 py-1 transition-colors ${c.role === r ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-soft)]"}`}>
+                  {r === "co_applicant" ? occLabel : guarLabel}
+                </button>
+              ))}
+            </div>
+          )}
           <FieldGrid>
             <TextField label="First name" value={c.firstName} onChange={(v) => update(i, { firstName: v })} required />
             <TextField label="Last name" value={c.lastName} onChange={(v) => update(i, { lastName: v })} />
@@ -403,7 +437,7 @@ function StepApplicants({ coApplicants, setCoApplicants }: Readonly<{
         </div>
       ))}
       <button type="button" onClick={add} className="inline-flex w-fit items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-2 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
-        <Plus className="size-4" /> Add another applicant
+        <Plus className="size-4" /> Add {type === "guarantor" ? addGuarLabel : "another person"}
       </button>
     </div>
   )
@@ -459,7 +493,7 @@ function StepSubmit({ form, emp, askingRentCents, consent, setConsent, prescreen
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = Math.round(parseFloat(emp.gross_income.replace(/[^\d.]/g, "") || "0") * 100)
   const ratio = incomeCents > 0 ? Math.round((askingRentCents / incomeCents) * 100) : null
-  const invited = coApplicants.filter((c) => c.email.trim()).length
+  const others = coApplicants.filter((c) => c.email.trim())
 
   if (prescreen) {
     const { label, cls } = prescreenLabel(prescreen.score)
@@ -494,7 +528,7 @@ function StepSubmit({ form, emp, askingRentCents, consent, setConsent, prescreen
         <Row k="Employment" v={emp.employment_type || "—"} />
         <Row k="Gross income" v={incomeCents > 0 ? formatZAR(incomeCents) + " /mo" : "—"} />
         <Row k="Rent-to-income" v={ratio != null ? `${ratio}%` : "—"} />
-        {invited > 0 && <Row k="Co-applicants" v={`${invited} invited`} />}
+        {others.length > 0 && <Row k="Others" v={others.map((c) => c.role === "guarantor" ? "guarantor" : "co-applicant").join(", ")} />}
       </div>
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 accent-[var(--amber)]" />

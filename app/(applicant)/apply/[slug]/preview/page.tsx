@@ -32,7 +32,7 @@ type UnitRow = {
   furnishing_status: string | null
   parking_bays: number | null
   assigned_agent_id: string | null
-  properties: { name: string | null; address_line1: string | null; suburb: string | null; city: string | null; managing_agent_id: string | null } | null
+  properties: { name: string | null; address_line1: string | null; suburb: string | null; city: string | null; managing_agent_id: string | null; type: string | null } | null
 }
 type OrgRow = { name: string | null; email: string | null; phone: string | null; ppra_ffc_number: string | null }
 
@@ -84,7 +84,7 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
 
   const { data: listing, error } = await db
     .from("listings")
-    .select("org_id, asking_rent_cents, available_from, pet_friendly, listing_photos, units(unit_number, bedrooms, bathrooms, size_m2, furnished, furnishing_status, parking_bays, assigned_agent_id, properties(name, address_line1, suburb, city, managing_agent_id)), organisations(name, email, phone, ppra_ffc_number)")
+    .select("org_id, asking_rent_cents, available_from, pet_friendly, listing_photos, units(unit_number, bedrooms, bathrooms, size_m2, furnished, furnishing_status, parking_bays, assigned_agent_id, properties(name, address_line1, suburb, city, managing_agent_id, type)), organisations(name, email, phone, ppra_ffc_number)")
     .eq("public_slug", slug)
     .eq("status", "active")
     .maybeSingle()
@@ -94,6 +94,7 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
   const unit = (listing.units as unknown as UnitRow | null) ?? null
   const property = unit?.properties ?? null
   const org = (listing.organisations as unknown as OrgRow | null) ?? null
+  const leaseType: "residential" | "commercial" = property?.type === "commercial" ? "commercial" : "residential"
 
   // The agent shown to applicants is the practitioner RESPONSIBLE for the unit (unit's assigned agent,
   // else the property's managing agent) — NOT listings.created_by, which may be an admin.
@@ -154,11 +155,11 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
           </div>
         </header>
 
-        {/* Scrollable content area — only this scrolls; the header above is never in the scroll gutter */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-6 py-4 lg:flex-row lg:items-stretch">
+        {/* Content area — fills the viewport on desktop (each column scrolls internally); page-scrolls on mobile */}
+        <div className="min-h-0 flex-1 overflow-y-auto tallwide:overflow-hidden">
+          <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-6 py-4 tallwide:h-full tallwide:min-h-0 tallwide:flex-row tallwide:items-stretch">
             {/* Left rail — unit card grows to fill */}
-            <aside className="flex w-full flex-col gap-4 lg:w-[360px]">
+            <aside className="flex w-full flex-col gap-4 tallwide:w-[360px] tallwide:min-h-0">
               <div className="flex flex-col lg:flex-1">
                 <DetailCard title={title}>
                   <div className="flex h-full flex-col">
@@ -199,6 +200,7 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
             <StepPanel
               slug={slug}
               orgId={listing.org_id as string}
+              leaseType={leaseType}
               askingRentCents={(listing.asking_rent_cents as number) ?? 0}
               agentName={agentName}
               agentPhone={phone}

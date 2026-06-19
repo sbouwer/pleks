@@ -4,6 +4,9 @@
 @import "../components/ui/actions/action-language.css";
 
 @custom-variant dark (&:is(.dark *));
+/* tallwide: only when the viewport is both wide AND tall enough for a fixed-height two-column layout
+   (e.g. the apply preview). Below either threshold, layouts stack into a single scrolling column. */
+@custom-variant tallwide (@media (width >= 1024px) and (height >= 700px));
 
 @theme inline {
   --color-background: var(--background);
