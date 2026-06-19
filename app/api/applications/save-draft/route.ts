@@ -27,6 +27,9 @@ const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 interface Body {
   slug?: string; applicationId?: string; token?: string; step?: number
+  /** true ONLY when the applicant explicitly clicks "Save & finish later" — gates the resume email. Advancing
+   *  through the wizard (createApplication) upserts the draft silently and must NOT email. */
+  notify?: boolean
   first_name?: string; last_name?: string; email?: string; phone?: string
   id_type?: string; id_number?: string; date_of_birth?: string
   employment_type?: string; employer_name?: string; employment_start_date?: string
@@ -44,8 +47,10 @@ function draftFields(body: Body) {
   else if (body.gross_monthly_income) incomeCents = Math.round(Number.parseFloat(body.gross_monthly_income) * 100)
   return {
     first_name: body.first_name ?? null, last_name: body.last_name ?? null, applicant_phone: body.phone ?? null,
-    id_type: body.id_type ?? null, id_number: body.id_number ?? null, date_of_birth: body.date_of_birth || null,
-    employment_type: body.employment_type ?? null, employer_name: body.employer_name ?? null,
+    // id_type + employment_type carry DB CHECK constraints — an empty string (saving before they're picked)
+    // would VIOLATE the check, so coerce ""→null (NULL passes the check; a partial draft is allowed).
+    id_type: body.id_type || null, id_number: body.id_number ?? null, date_of_birth: body.date_of_birth || null,
+    employment_type: body.employment_type || null, employer_name: body.employer_name ?? null,
     employment_start_date: body.employment_start_date || null,
     gross_monthly_income_cents: incomeCents, income_sources: parsed?.rows ?? null,
     draft_step: typeof body.step === "number" ? body.step : null,
@@ -53,17 +58,24 @@ function draftFields(body: Body) {
   }
 }
 
-async function sendResumeEmail(db: Db, listing: ListingRow, body: Body, appId: string, url: string) {
+/** Email the resume link — resolves listing/org context by application id so it works on BOTH the create and
+ *  update path. Best-effort; only called when the applicant EXPLICITLY saved (notify), never on plain advance. */
+async function sendResumeEmail(db: Db, appId: string, email: string, firstName: string | undefined, url: string) {
   try {
-    if (!body.email) return
-    const { data: org, error: orgErr } = await db.from("organisations").select("name, email, phone").eq("id", listing.org_id).single()
+    const { data: app, error: appErr } = await db.from("applications")
+      .select("org_id, listings(units(unit_number, properties(name, city)))")
+      .eq("id", appId).maybeSingle()
+    logQueryError("save-draft email context", appErr)
+    if (!app) return
+    const orgId = app.org_id as string
+    const { data: org, error: orgErr } = await db.from("organisations").select("name, email, phone").eq("id", orgId).single()
     logQueryError("save-draft org branding", orgErr)
-    const branding = buildBranding(await fetchOrgSettings(listing.org_id))
-    const unit = listing.units
+    const branding = buildBranding(await fetchOrgSettings(orgId))
+    const unit = (app.listings as unknown as { units?: { unit_number?: string | null; properties?: { name?: string | null; city?: string | null } | null } | null })?.units
     await sendApplicationResumeLink(
-      { email: body.email, firstName: body.first_name },
+      { email, firstName },
       { unitLabel: unit?.unit_number ?? "the unit", propertyName: unit?.properties?.name ?? "the property", city: unit?.properties?.city ?? undefined },
-      { orgId: listing.org_id, orgName: org?.name ?? "Pleks", orgEmail: org?.email ?? undefined, orgPhone: org?.phone ?? undefined, branding },
+      { orgId, orgName: org?.name ?? "Pleks", orgEmail: org?.email ?? undefined, orgPhone: org?.phone ?? undefined, branding },
       { resumeUrl: url, applicationId: appId },
     )
   } catch (e) { console.error("sendApplicationResumeLink failed:", e) }
@@ -94,7 +106,9 @@ export async function POST(req: NextRequest) {
     logQueryError("save-draft update", upErr)
     const { error: extErr } = await db.from("application_tokens").update({ expires_at: expiresAt }).eq("token", body.token)
     logQueryError("save-draft token extend", extErr)
-    return NextResponse.json({ applicationId: body.applicationId, token: body.token, resumeUrl: resumeUrl(req, body.slug, body.applicationId, body.token) })
+    const updUrl = resumeUrl(req, body.slug, body.applicationId, body.token)
+    if (body.notify && body.email) void sendResumeEmail(db, body.applicationId, body.email, body.first_name, updUrl)
+    return NextResponse.json({ applicationId: body.applicationId, token: body.token, resumeUrl: updUrl })
   }
 
   // ── Create a new draft (email required to send the resume link) ──
@@ -123,7 +137,8 @@ export async function POST(req: NextRequest) {
   logQueryError("save-draft token insert", tokInsErr)
 
   const url = resumeUrl(req, body.slug, appRow.id, token)
-  void sendResumeEmail(db, l, body, appRow.id, url)   // email the link on first save (on-screen link always shown)
+  // Email ONLY on an explicit "Save & finish later" — advancing through the wizard upserts silently.
+  if (body.notify) void sendResumeEmail(db, appRow.id, body.email, body.first_name, url)
 
   return NextResponse.json({ applicationId: appRow.id, token, resumeUrl: url })
 }

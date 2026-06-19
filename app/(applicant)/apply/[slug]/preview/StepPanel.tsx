@@ -262,8 +262,11 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   const [applicationId, setApplicationId] = useState<string | null>(resume?.applicationId ?? null)
   const [token, setToken] = useState<string | null>(resume?.token ?? null)
   const [busy, setBusy] = useState(false)
-  const [savedAt, setSavedAt] = useState<string | null>(resume?.savedAt ?? null)
+  // `saved` = the applicant has explicitly saved at least once (a resumed draft counts) → the CTA shows a green
+  // tick. The save confirmation + copy link live in a modal, not the footer (which always shows the disclaimer).
+  const [saved, setSaved] = useState<boolean>(!!resume)
   const [resumeLink, setResumeLink] = useState<string | null>(null)
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
 
   const [coApplicants, setCoApplicants] = useState<CoApplicant[]>(resume?.coApplicants ?? [])
   const [company, setCompany] = useState<CompanyInfo>({ companyType: "", companyReg: "" })
@@ -326,13 +329,13 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   // UPSERT the draft (create on first save, update thereafter — keyed on the held applicationId/token). Every
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
-  async function saveDraft(stepToSave: number, opts?: { silent?: boolean }): Promise<string | null> {
-    if (!form.email) { if (!opts?.silent) { toast.error("Add your email first so we can send you a link to finish later.") } return null }
+  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean }): Promise<{ id: string; url: string | null } | null> {
+    if (!form.email) { toast.error("Add your email first so we can send you a link to finish later."); return null }
     try {
       const res = await fetch("/api/applications/save-draft", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          slug, applicationId, token, step: stepToSave,
+          slug, applicationId, token, step: stepToSave, notify: !!opts?.explicit,
           first_name: form.firstName, last_name: form.lastName, email: form.email, phone: form.phone,
           id_type: form.idType || "sa_id", id_number: form.idNumber, date_of_birth: form.dob || "",
           employment_type: emp.employment_type, employer_name: emp.employer, employment_start_date: emp.start_date || "",
@@ -343,19 +346,18 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
         }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; error?: string }
-      if (!res.ok || !json.applicationId || !json.token) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
+      if (!res.ok || !json.applicationId || !json.token) { toast.error(json.error ?? "Could not save your progress."); return null }
       setApplicationId(json.applicationId); setToken(json.token)
-      setSavedAt(new Date().toISOString())
-      if (json.resumeUrl) setResumeLink(json.resumeUrl)
-      return json.applicationId
-    } catch { if (!opts?.silent) { toast.error("Could not save your progress.") } return null }
+      return { id: json.applicationId, url: json.resumeUrl ?? null }
+    } catch { toast.error("Could not save your progress."); return null }
   }
 
+  // Explicit "Save & finish later": persist + email the link, then surface the resume-link modal + mark saved.
   async function saveAndExit() {
     setBusy(true)
     try {
-      const id = await saveDraft(step)
-      if (id) toast.success("Saved — we've emailed you a link to finish later.")
+      const r = await saveDraft(step, { explicit: true })
+      if (r) { setResumeLink(r.url); setSaved(true); setSaveModalOpen(true) }
     } finally { setBusy(false) }
   }
 
@@ -365,9 +367,9 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
     if (!emp.employment_type) { toast.error("Please select an employment status."); return }
     setBusy(true)
     try {
-      const appId = await saveDraft(3)        // create-or-update the draft, then move on
-      if (!appId) return
-      void dispatchInvites(appId)             // fire the held at-selection invites now the application exists
+      const r = await saveDraft(3)            // silent create-or-update (no email), then move on
+      if (!r) return
+      void dispatchInvites(r.id)              // fire the held at-selection invites now the application exists
       advance(3)
     } finally {
       setBusy(false)
@@ -499,8 +501,8 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   // Submit gate: every applicant "green" — primary is implicit, each co-applicant has name+email+id (or is
   // already invited), and a company application has its type captured.
   const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
-  let savedFooter = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage; that happens later, only after you submit and give explicit consent."
-  if (savedAt) savedFooter = form.email ? `Saved — resume link sent to ${form.email}` : "Saved"
+  // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
+  const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage; that happens later, only after you submit and give explicit consent."
   const scrollCls = "flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"
   const footerCls = "flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4"
   const backBtn = "min-w-[200px] justify-center"
@@ -559,25 +561,47 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
           <div className="flex min-w-0 flex-col gap-1">
             <span className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[var(--ink-soft)]">
               <span className="mt-1 size-1.5 shrink-0 rounded-full" style={{ background: "var(--positive, #2f9e63)" }} />
-              {savedFooter}
+              {disclaimer}
             </span>
           </div>
           {/* Save & finish later — a visible secondary button (same hover style as "Back to application type"),
-              sitting under Continue. Available once there's an email, before the submit/screening step. */}
-          {form.email && step <= 4 && screeningStatus === "idle" && (
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <ActionButton tone="secondary" icon={<Clock className="size-4" />} onClick={saveAndExit} disabled={busy} className={backBtn}>
-                Save &amp; finish later
-              </ActionButton>
-              {resumeLink && (
-                <button type="button" onClick={() => { void navigator.clipboard?.writeText(resumeLink); toast.success("Resume link copied to clipboard.") }} className="text-[11px] text-[var(--ink-mute)] hover:text-[var(--ink)]">
-                  Copy resume link
-                </button>
-              )}
-            </div>
+              sitting under Continue. Once saved it flips to a green tick + "Saved" (still re-savable). */}
+          {type !== null && form.email && step <= 4 && screeningStatus === "idle" && (
+            <ActionButton
+              tone="secondary"
+              icon={saved ? <CheckCircle2 className="size-4 text-emerald-600" /> : <Clock className="size-4" />}
+              onClick={saveAndExit}
+              disabled={busy}
+              className={backBtn}
+            >
+              {saved ? "Saved" : "Save & finish later"}
+            </ActionButton>
           )}
         </div>
       </div>
+
+      {/* Resume-link confirmation modal — shown after an explicit Save & finish later. */}
+      {saveModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => setSaveModalOpen(false)}>
+          <div className="w-full max-w-md rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="flex items-center gap-2 text-base font-semibold text-[var(--ink)]">
+              <CheckCircle2 className="size-5 text-emerald-600" /> Saved — you can finish later
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">
+              We&apos;ve emailed a resume link to <strong className="text-[var(--ink)]">{form.email}</strong>. Or copy the link below to come back to your application directly.
+            </p>
+            {resumeLink && (
+              <div className="mt-3 flex items-center gap-2">
+                <input readOnly value={resumeLink} onFocus={(e) => e.currentTarget.select()} className="min-w-0 flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-2.5 py-1.5 text-xs text-[var(--ink-soft)]" />
+                <ActionButton tone="secondary" onClick={() => { void navigator.clipboard?.writeText(resumeLink); toast.success("Resume link copied.") }}>Copy</ActionButton>
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <ActionButton tone="primary" onClick={() => setSaveModalOpen(false)}>Done</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
