@@ -1,15 +1,14 @@
 /**
- * app/(public)/approve/[token]/page.tsx — FILL: one-line purpose
+ * app/(public)/approve/[token]/page.tsx — landlord maintenance-approval page (public, token-gated)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /approve/[token]
+ * Auth:   token must match maintenance_requests.landlord_approval_token (service client, no RLS)
+ * Data:   maintenance_requests (+ unit/property/contractor) + the org approval threshold
+ * Notes:  An already-actioned request renders an approved/rejected status screen instead of the form.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
-import Image from "next/image"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { formatZAR } from "@/lib/constants"
 import { LandlordApprovalClient } from "./LandlordApprovalClient"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -60,7 +59,7 @@ export default async function LandlordApprovalPage({ params }: Props) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
-          <Image src="/logo.svg" alt="Pleks" width={80} height={24} className="h-6 w-auto opacity-80" />
+          <Wordmark className="opacity-80" style={{ fontSize: 18 }} />
           <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-6 text-center space-y-2">
             <p className="text-lg font-semibold">
               {req.status === "landlord_approved" ? "✅ Approved" : "❌ Rejected"}
@@ -79,7 +78,7 @@ export default async function LandlordApprovalPage({ params }: Props) {
       <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
 
         {/* Header */}
-        <Image src="/logo.svg" alt="Pleks" width={80} height={24} className="h-6 w-auto opacity-80" />
+        <Wordmark className="opacity-80" style={{ fontSize: 18 }} />
 
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">

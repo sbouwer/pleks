@@ -1,17 +1,15 @@
 /**
- * app/(public)/owner/statement/[token]/page.tsx — FILL: one-line purpose
+ * app/(public)/owner/statement/[token]/page.tsx — public owner statement (token-gated)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /owner/statement/[token]
+ * Auth:   token-gated (service client, no RLS — the token is the auth)
+ * Data:   the owner statement for the period (income/expense lines, net-to-owner) + property/owner
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
-import Image from "next/image"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function OwnerPortalPage({
@@ -65,7 +63,7 @@ export default async function OwnerPortalPage({
     <div className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
-          <Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-8 w-auto mx-auto mb-4" />
+          <Wordmark className="mb-4" style={{ fontSize: 22 }} />
           <h1 className="font-heading text-2xl">Owner Statement — {periodLabel}</h1>
           <p className="text-muted-foreground">{property?.name}, {property?.city}</p>
           {property?.owner_name && <p className="text-sm text-muted-foreground">Prepared for: {property.owner_name}</p>}
