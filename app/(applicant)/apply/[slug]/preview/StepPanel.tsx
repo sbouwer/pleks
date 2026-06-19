@@ -4,18 +4,22 @@
  * app/(applicant)/apply/[slug]/preview/StepPanel.tsx — the interactive apply wizard (client island)
  *
  * Auth:   public (token-gated prefix) — preview only
- * Notes:  A 4-card LANDING (application type) → a functional 6-step wizard wired to the REAL backend:
+ * Notes:  A 4-card LANDING (application type) → a functional 6-step wizard wired to the REAL backend.
+ *         Every type except "Just me" implies >1 party, so the co-applicant/company invite is captured UP
+ *         FRONT (an InviteCapture panel right after the landing) and dispatched once the application exists.
  *           Landing — Just me · Couple/multiple · Company · On behalf/guarantor (each a short blurb).
- *           1 Personal details — RESIDENTIAL types reuse the add-tenant capture (IndividualIdentity;
- *             SA-ID auto-fills DOB+gender). COMPANY (commercial) capture is the next build.
+ *           1 Personal details — the applicant (or, for a company, the contact/director) reuses the
+ *             add-tenant capture (IndividualIdentity; SA-ID auto-fills DOB+gender).
  *           2 Address — mandatory current address.
  *           3 Income — employment status + date employed + employer, then an "excel" sources-of-income grid
  *             (Employment gross + rental/dividends/maintenance/… + custom), each with a period
  *             (month/quarter/annual). The monthly total drives affordability → POST create (also persists
- *             the breakdown to applications.income_sources + employment_start_date; probation is inferred).
- *           4 Applicants — add others, each via their own email link, tagged co-applicant (lives here)
- *             or guarantor (doesn't) → POST /api/applications/[id]/co-applicant.
- *           5 Documents — upload to the application-docs bucket + AI detect (same as the live flow).
+ *             the breakdown to applications.income_sources + employment_start_date; probation is inferred,
+ *             and the held at-selection invites are dispatched here once the application id exists).
+ *           4 Documents — upload to the application-docs bucket + AI detect (same as the live flow).
+ *           5 Applicants — status roster of every party (primary + company + co-applicants), each invited
+ *             with email + id_number (links them) → POST /api/applications/[id]/co-applicant; + add another.
+ *             Submit unlocks only when every applicant is "green" (information complete).
  *           6 Submit — POPIA consent → POST submit → reveal the pre-screen "application preview".
  *         The server page renders the shell + left cards and passes slug/orgId/rent + agent contact.
  */
@@ -45,7 +49,7 @@ function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon:
   ]
 }
 
-const STEPS = ["Personal details", "Address", "Income", "Applicants", "Documents", "Submit"]
+const STEPS = ["Personal details", "Address", "Income", "Documents", "Applicants", "Submit"]
 
 const EMPLOYMENT_OPTIONS = [
   { value: "", label: "Select…" },
@@ -110,8 +114,22 @@ const INITIAL_DOCS: DocSlot[] = [
   { key: "employment_letter", label: "Employment letter / contract", accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
 ]
 
-interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; role: CoRole; invited: boolean }
+interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idNumber: string; role: CoRole; invited: boolean }
+interface CompanyInfo { companyType: string; companyReg: string }
 interface PrescreenResult { score: number | null; affordabilityFlag: boolean; rentToIncomePct: number | null }
+const COMPANY_TYPE_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "pty_ltd", label: "(Pty) Ltd" },
+  { value: "cc", label: "Close Corporation (CC)" },
+  { value: "npc", label: "Non-Profit Company" },
+  { value: "trust", label: "Trust" },
+  { value: "sole_prop", label: "Sole proprietor" },
+  { value: "partnership", label: "Partnership" },
+  { value: "other", label: "Other" },
+]
+const blankCo = (role: CoRole): CoApplicant => ({ firstName: "", lastName: "", email: "", phone: "", idNumber: "", role, invited: false })
+/** "Green" = enough to invite AND link them to the application: a name, an email, and an ID number. */
+const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.trim() && c.idNumber.trim())
 
 function tabClass(done: boolean, cur: boolean): string {
   if (cur) return "stoep font-medium text-[var(--ink)]"
@@ -172,6 +190,8 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   const [busy, setBusy] = useState(false)
 
   const [coApplicants, setCoApplicants] = useState<CoApplicant[]>([])
+  const [company, setCompany] = useState<CompanyInfo>({ companyType: "", companyReg: "" })
+  const [invitePending, setInvitePending] = useState(false)
   const [docs, setDocs] = useState<DocSlot[]>(INITIAL_DOCS)
   const [consent, setConsent] = useState(false)
   const [prescreen, setPrescreen] = useState<PrescreenResult | null>(null)
@@ -181,15 +201,29 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   function pickType(t: ApplicantType) {
     setType(t)
     setStep(0); setMaxReached(0)
-    // Seed the Applicants step intent: couple = co-applicants who live here; guarantor = a non-occupant backer.
-    if (t === "guarantor") setCoApplicants([{ firstName: "", lastName: "", email: "", phone: "", role: "guarantor", invited: false }])
-    else if (t === "couple") setCoApplicants([{ firstName: "", lastName: "", email: "", phone: "", role: "co_applicant", invited: false }])
-    else setCoApplicants([])
+    setCompany({ companyType: "", companyReg: "" })
+    // Every type except "individual" implies more than one party — capture that invite UP FRONT (at type
+    // selection), held now and dispatched once the application exists (at create). guarantor = a non-occupant
+    // backer; couple = a co-applicant who lives here; company = the business (type + reg).
+    if (t === "guarantor") { setCoApplicants([blankCo("guarantor")]); setInvitePending(true) }
+    else if (t === "couple") { setCoApplicants([blankCo("co_applicant")]); setInvitePending(true) }
+    else if (t === "company") { setCoApplicants([]); setInvitePending(true) }
+    else { setCoApplicants([]); setInvitePending(false) }
+  }
+
+  function confirmInvite() {
+    if (type === "company") {
+      if (!company.companyType) { toast.error("Please select the company type."); return }
+    } else {
+      const c = coApplicants[0]
+      if (!c || !coComplete(c)) { toast.error("Add the co-applicant's name, email and ID number."); return }
+    }
+    setInvitePending(false)
   }
 
   function backToTypes() {
     if (applicationId) return // can't change type after the application is created
-    setType(null); setStep(0); setMaxReached(0); setErrors({})
+    setType(null); setStep(0); setMaxReached(0); setErrors({}); setInvitePending(false)
   }
 
   function goBack() {
@@ -235,6 +269,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
       if (!res.ok || !json.applicationId || !json.token) { toast.error(json.error ?? "Could not start your application."); return }
       setApplicationId(json.applicationId)
       setToken(json.token)
+      void dispatchInvites(json.applicationId) // fire the held at-selection invites now the application exists
       advance(3)
     } catch {
       toast.error("Could not start your application.")
@@ -243,20 +278,27 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
     }
   }
 
-  async function inviteCoApplicants() {
-    if (!applicationId) return
-    const pending = coApplicants.filter((c) => !c.invited && c.email.trim() && c.firstName.trim())
+  // Send every complete-but-not-yet-invited co-applicant (id_number links them to the application). Called at
+  // create (the at-selection invites) and again from the Applicants step (any added there).
+  async function dispatchInvites(appId: string) {
+    const pending = coApplicants.filter((c) => !c.invited && coComplete(c))
+    if (pending.length === 0) return
+    for (const c of pending) {
+      const res = await fetch(`/api/applications/${appId}/co-applicant`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ first_name: c.firstName, last_name: c.lastName, email: c.email, phone: c.phone, id_number: c.idNumber, id_type: "sa_id", role: c.role }),
+      })
+      if (!res.ok) toast.error(`Could not invite ${c.email}`)
+    }
+    setCoApplicants((prev) => prev.map((c) => coComplete(c) ? { ...c, invited: true } : c))
+  }
+
+  async function continueApplicants() {
+    if (!applicationId) { advance(5); return }
     setBusy(true)
     try {
-      for (const c of pending) {
-        const res = await fetch(`/api/applications/${applicationId}/co-applicant`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ first_name: c.firstName, last_name: c.lastName, email: c.email, phone: c.phone, role: c.role }),
-        })
-        if (!res.ok) toast.error(`Could not invite ${c.email}`)
-      }
-      setCoApplicants((prev) => prev.map((c) => ({ ...c, invited: c.email.trim() ? true : c.invited })))
-      advance(4)
+      await dispatchInvites(applicationId) // send any invites added at the roster
+      advance(5)
     } finally {
       setBusy(false)
     }
@@ -299,7 +341,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
           body: JSON.stringify({ bankStatementPath: bank.storagePath }),
         })
       }
-      advance(5)
+      advance(4)
     } finally {
       setBusy(false)
     }
@@ -325,40 +367,60 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   }
 
   const allDocsUploaded = docs.every((d) => d.uploaded)
-  const isCompany = type === "company"
+  const companyOk = type !== "company" || Boolean(company.companyType)
+  // Submit gate: every applicant "green" — primary is implicit, each co-applicant has name+email+id (or is
+  // already invited), and a company application has its type captured.
+  const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
+  const scrollCls = "flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"
+  const footerCls = "flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4"
+  const backBtn = "min-w-[200px] justify-center"
 
   return (
     <main className="flex min-w-0 flex-1 flex-col [@media(min-width:1024px)_and_(min-height:700px)]:h-full [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
       <div className="fs-panel mb-1.5 flex flex-1 flex-col [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0" style={{ maxWidth: "none", width: "100%" }}>
         <span className="fs-knob" aria-hidden="true" />
 
-        {type === null ? (
-          <div className="flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"><Landing onPick={pickType} commercial={commercial} /></div>
-        ) : (
+        {type === null && (
+          <div className={scrollCls}><Landing onPick={pickType} commercial={commercial} /></div>
+        )}
+
+        {type !== null && invitePending && (
+          <>
+            <div className={scrollCls}>
+              <InviteCapture type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} setCompany={setCompany} />
+            </div>
+            <div className={footerCls}>
+              <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={backToTypes} className={backBtn}>Back to application type</ActionButton>
+              <Cta label="Continue" onClick={confirmInvite} busy={busy} />
+            </div>
+          </>
+        )}
+
+        {type !== null && !invitePending && (
           <>
             <TabBar step={step} maxReached={maxReached} onJump={setStep} />
-            <div className="flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto">
+            <div className={scrollCls}>
               {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} />}
               {step === 1 && <StepAddress form={form} set={set} errors={errors} />}
               {step === 2 && <StepIncome emp={emp} setEmp={setEmp} income={income} setIncome={setIncome} />}
-              {step === 3 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} />}
-              {step === 4 && <StepDocuments docs={docs} onUpload={uploadDoc} />}
+              {step === 3 && <StepDocuments docs={docs} onUpload={uploadDoc} />}
+              {step === 4 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} primaryName={[form.firstName, form.lastName].filter(Boolean).join(" ") || "You"} />}
               {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} prescreen={prescreen} coApplicants={coApplicants} />}
             </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4">
+            <div className={footerCls}>
               <div className="flex items-center gap-3">
                 {!prescreen && (
-                  <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={step === 0 && !!applicationId} className="min-w-[200px] justify-center">
+                  <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={step === 0 && !!applicationId} className={backBtn}>
                     {step === 0 ? "Back to application type" : "Back"}
                   </ActionButton>
                 )}
               </div>
-              {step === 0 && !isCompany && <Cta label="Continue" onClick={continueIdentity} busy={busy} />}
+              {step === 0 && <Cta label="Continue" onClick={continueIdentity} busy={busy} />}
               {step === 1 && <Cta label="Continue" onClick={continueAddress} busy={busy} />}
-              {step === 2 && <Cta label="Continue to applicants" onClick={createApplication} busy={busy} />}
-              {step === 3 && <Cta label="Continue to documents" onClick={inviteCoApplicants} busy={busy} />}
-              {step === 4 && <Cta label="Continue to review" onClick={finishDocuments} busy={busy} disabled={!allDocsUploaded} />}
-              {step === 5 && !prescreen && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent} />}
+              {step === 2 && <Cta label="Continue to documents" onClick={createApplication} busy={busy} />}
+              {step === 3 && <Cta label="Continue to applicants" onClick={finishDocuments} busy={busy} disabled={!allDocsUploaded} />}
+              {step === 4 && <Cta label="Continue to review" onClick={continueApplicants} busy={busy} disabled={!applicantsGreen} />}
+              {step === 5 && !prescreen && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen} />}
             </div>
           </>
         )}
@@ -407,11 +469,10 @@ function StepHeading({ title, sub }: Readonly<{ title: string; sub: string }>) {
 
 // ── Step 1 — Personal details ────────────────────────────────────────────────────
 function StepPersonal({ type, commercial, form, set, errors }: Readonly<{ type: ApplicantType; commercial: boolean; form: PartyFormState; set: SetFn; errors: PartyErrors }>) {
-  if (type === "company") {
-    return <div className="rounded-[var(--r-button)] border border-dashed border-[var(--rule)] p-6 text-center text-sm text-[var(--ink-soft)]">Company applications (company + signatories) are the next build.</div>
-  }
-  const guarSub = commercial ? "First, the party who'll occupy the premises. You'll add the surety next." : "First, the person who'll live here (the tenant). You'll add the guarantor next."
-  const sub = type === "guarantor" ? guarSub : "The main applicant's details. SA ID auto-fills date of birth and gender."
+  let sub: string
+  if (type === "company") sub = "Your own details as the contact for the company (a director/signatory). SA ID auto-fills date of birth and gender."
+  else if (type === "guarantor") sub = commercial ? "First, the party who'll occupy the premises. You'll add the surety next." : "First, the person who'll live here (the tenant). You'll add the guarantor next."
+  else sub = "The main applicant's details. SA ID auto-fills date of birth and gender."
   return (
     <div className="flex flex-col gap-2">
       <p className="max-w-prose text-sm text-[var(--ink-soft)]">{sub}</p>
@@ -502,59 +563,114 @@ function StepIncome({ emp, setEmp, income, setIncome }: Readonly<{
   )
 }
 
-// ── Step 3 — Applicants (co-applicants / guarantor) ──────────────────────────────
-function StepApplicants({ type, commercial, coApplicants, setCoApplicants }: Readonly<{
-  type: ApplicantType; commercial: boolean; coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
+// ── Invite capture (at type selection) — the co-applicant / company, captured up front ──
+function roleLabels(commercial: boolean) {
+  return { occ: commercial ? "On the lease" : "Lives here", guar: commercial ? "Surety" : "Guarantor" }
+}
+function InviteCapture({ type, commercial, coApplicants, setCoApplicants, company, setCompany }: Readonly<{
+  type: ApplicantType; commercial: boolean
+  coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
+  company: CompanyInfo; setCompany: (v: CompanyInfo) => void
 }>) {
-  const defaultRole: CoRole = type === "guarantor" ? "guarantor" : "co_applicant"
-  function add() { setCoApplicants([...coApplicants, { firstName: "", lastName: "", email: "", phone: "", role: defaultRole, invited: false }]) }
-  function remove(i: number) { setCoApplicants(coApplicants.filter((_, idx) => idx !== i)) }
-  function update(i: number, patch: Partial<CoApplicant>) { setCoApplicants(coApplicants.map((c, idx) => idx === i ? { ...c, ...patch } : c)) }
-
-  const occLabel = commercial ? "On the lease" : "Lives here"
-  const guarLabel = commercial ? "Surety" : "Guarantor"
-  const addGuarLabel = commercial ? "a surety" : "a guarantor"
-  const guarHeading = commercial
-    ? { title: "Your surety", sub: "The party backing the application financially. They won't be on the lease, but they'll get their own secure link to consent." }
-    : { title: "Your guarantor", sub: "The person backing your application financially. They won't live here, but they'll get their own secure link to consent." }
-  const otherHeading = commercial
-    ? { title: "Other parties on the lease?", sub: "Add the other parties on the lease — each gets their own secure link." }
-    : { title: "Anyone applying with you?", sub: "Add other adults who'll live here — each gets their own secure link. Adding earners can also improve affordability." }
-  const heading = type === "guarantor" ? guarHeading : otherHeading
-
+  if (type === "company") {
+    return (
+      <div className="flex flex-col gap-4">
+        <StepHeading title="The company applying" sub="Tell us about the business on the lease — you'll add your own details (as a director/signatory) next." />
+        <FieldGrid>
+          <SelectField label="Company type" value={company.companyType} onChange={(v) => setCompany({ ...company, companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
+          <TextField label="Registration number" value={company.companyReg} onChange={(v) => setCompany({ ...company, companyReg: v })} placeholder="e.g. 2019/123456/07 (if applicable)" />
+        </FieldGrid>
+        <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-xs text-[var(--ink-soft)]">
+          Full company capture (every director/signatory) is being finalised — for now we record the company here and treat you as the contact. You can add director invites at the Applicants step.
+        </p>
+      </div>
+    )
+  }
+  const { occ, guar } = roleLabels(commercial)
+  const isGuar = type === "guarantor"
+  const c = coApplicants[0] ?? blankCo(isGuar ? "guarantor" : "co_applicant")
+  const update = (patch: Partial<CoApplicant>) => setCoApplicants([{ ...c, ...patch }, ...coApplicants.slice(1)])
+  const heading = isGuar
+    ? { title: commercial ? "Your surety" : "Your guarantor", sub: "They back the application financially and get their own secure link to consent + load their own documents." }
+    : { title: "Who's applying with you?", sub: "Your co-applicant gets their own secure link to consent + load their own documents. We need their ID number to link them to this application." }
   return (
     <div className="flex flex-col gap-4">
       <StepHeading title={heading.title} sub={heading.sub} />
-      {coApplicants.length === 0 && (
-        <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-4 py-3 text-sm text-[var(--ink-soft)]">Applying on your own? Just continue.</p>
-      )}
-      {coApplicants.map((c, i) => (
-        <div key={i} className="rounded-[var(--r-button)] border border-[var(--rule)] p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">{c.role === "guarantor" ? guarLabel : "Co-applicant"}{c.invited ? " · invited" : ""}</span>
-            {!c.invited && <button type="button" onClick={() => remove(i)} className="inline-flex items-center gap-1 text-xs text-[var(--ink-mute)] hover:text-red-600"><X className="size-3.5" /> Remove</button>}
-          </div>
-          {!c.invited && (
-            <div className="mb-3 inline-flex rounded-[var(--r-button)] border border-[var(--rule)] p-0.5 text-xs">
-              {(["co_applicant", "guarantor"] as const).map((r) => (
-                <button key={r} type="button" onClick={() => update(i, { role: r })}
-                  className={`rounded-[var(--r-button)] px-2.5 py-1 transition-colors ${c.role === r ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-soft)]"}`}>
-                  {r === "co_applicant" ? occLabel : guarLabel}
-                </button>
-              ))}
-            </div>
-          )}
-          <FieldGrid>
-            <TextField label="First name" value={c.firstName} onChange={(v) => update(i, { firstName: v })} required />
-            <TextField label="Last name" value={c.lastName} onChange={(v) => update(i, { lastName: v })} />
-            <TextField label="Email" type="email" value={c.email} onChange={(v) => update(i, { email: v })} required span />
-            <TextField label="Mobile" type="tel" value={c.phone} onChange={(v) => update(i, { phone: v })} />
-          </FieldGrid>
+      {!isGuar && (
+        <div className="inline-flex w-fit rounded-[var(--r-button)] border border-[var(--rule)] p-0.5 text-xs">
+          {(["co_applicant", "guarantor"] as const).map((r) => (
+            <button key={r} type="button" onClick={() => update({ role: r })}
+              className={`rounded-[var(--r-button)] px-2.5 py-1 transition-colors ${c.role === r ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-soft)]"}`}>
+              {r === "co_applicant" ? occ : guar}
+            </button>
+          ))}
         </div>
+      )}
+      <FieldGrid>
+        <TextField label="First name" value={c.firstName} onChange={(v) => update({ firstName: v })} required />
+        <TextField label="Last name" value={c.lastName} onChange={(v) => update({ lastName: v })} />
+        <TextField label="Email" type="email" value={c.email} onChange={(v) => update({ email: v })} required autoComplete="off" />
+        <TextField label="ID number" value={c.idNumber} onChange={(v) => update({ idNumber: v })} required />
+        <TextField label="Mobile" type="tel" value={c.phone} onChange={(v) => update({ phone: v })} span />
+      </FieldGrid>
+    </div>
+  )
+}
+
+// ── Step 5 — Applicants (status roster) ──────────────────────────────────────────
+function RosterRow({ title, detail, green }: Readonly<{ title: string; detail?: string; green: boolean }>) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] px-4 py-3">
+      <div className="min-w-0">
+        <span className="block text-sm font-medium text-[var(--ink)]">{title}</span>
+        {detail && <span className="block truncate text-xs text-[var(--ink-mute)]">{detail}</span>}
+      </div>
+      {green
+        ? <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600"><CheckCircle2 className="size-4" /> Complete</span>
+        : <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-amber-600"><AlertCircle className="size-4" /> Needs info</span>}
+    </div>
+  )
+}
+function StepApplicants({ type, commercial, coApplicants, setCoApplicants, company, primaryName }: Readonly<{
+  type: ApplicantType; commercial: boolean
+  coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
+  company: CompanyInfo; primaryName: string
+}>) {
+  const { occ, guar } = roleLabels(commercial)
+  const defaultRole: CoRole = type === "guarantor" ? "guarantor" : "co_applicant"
+  let addLabel = "another applicant"
+  if (type === "guarantor") addLabel = commercial ? "a surety" : "a guarantor"
+  function add() { setCoApplicants([...coApplicants, blankCo(defaultRole)]) }
+  function remove(i: number) { setCoApplicants(coApplicants.filter((_, idx) => idx !== i)) }
+  function update(i: number, patch: Partial<CoApplicant>) { setCoApplicants(coApplicants.map((c, idx) => idx === i ? { ...c, ...patch } : c)) }
+  const companyLabel = COMPANY_TYPE_OPTIONS.find((o) => o.value === company.companyType)?.label
+  return (
+    <div className="flex flex-col gap-3">
+      <StepHeading title="Applicants" sub="Everyone on this application. Each gets their own secure link to consent and load their own documents — submit once everyone's details are complete." />
+      <RosterRow title={`${primaryName} — primary applicant`} detail="Your details, documents & income" green />
+      {type === "company" && <RosterRow title="Company" detail={[companyLabel, company.companyReg].filter(Boolean).join(" · ") || "Company details"} green={Boolean(company.companyType)} />}
+      {coApplicants.map((c, i) => (
+        c.invited
+          ? <RosterRow key={i} title={[c.firstName, c.lastName].filter(Boolean).join(" ") || c.email} detail={`${c.email} · invited (${c.role === "guarantor" ? guar : occ})`} green />
+          : (
+            <div key={i} className="rounded-[var(--r-button)] border border-[var(--rule)] p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">{c.role === "guarantor" ? guar : "Co-applicant"}</span>
+                <button type="button" onClick={() => remove(i)} className="inline-flex items-center gap-1 text-xs text-[var(--ink-mute)] hover:text-red-600"><X className="size-3.5" /> Remove</button>
+              </div>
+              <FieldGrid>
+                <TextField label="First name" value={c.firstName} onChange={(v) => update(i, { firstName: v })} required />
+                <TextField label="Last name" value={c.lastName} onChange={(v) => update(i, { lastName: v })} />
+                <TextField label="Email" type="email" value={c.email} onChange={(v) => update(i, { email: v })} required autoComplete="off" />
+                <TextField label="ID number" value={c.idNumber} onChange={(v) => update(i, { idNumber: v })} required />
+              </FieldGrid>
+            </div>
+          )
       ))}
       <button type="button" onClick={add} className="inline-flex w-fit items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-2 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
-        <Plus className="size-4" /> Add {type === "guarantor" ? addGuarLabel : "another person"}
+        <Plus className="size-4" /> Add {addLabel}
       </button>
+      <p className="text-xs text-[var(--ink-mute)]">Co-applicants are invited when you continue; each then completes their own details, documents and consent via their link.</p>
     </div>
   )
 }
@@ -593,7 +709,7 @@ function StepDocuments({ docs, onUpload }: Readonly<{ docs: DocSlot[]; onUpload:
   )
 }
 
-// ── Step 5 — Submit & preview ────────────────────────────────────────────────────
+// ── Step 6 — Submit & preview ────────────────────────────────────────────────────
 function prescreenLabel(score: number | null): { label: string; cls: string } {
   if (score == null) return { label: "Pending", cls: "text-[var(--ink-mute)]" }
   if (score >= 35) return { label: "Strong", cls: "text-emerald-600" }
