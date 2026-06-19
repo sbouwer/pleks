@@ -2836,3 +2836,73 @@ CREATE INDEX IF NOT EXISTS idx_applications_unit
 ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS income_sources         jsonb,
   ADD COLUMN IF NOT EXISTS employment_start_date  date;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §35  APPLY PRE-SCREEN RULING (ADDENDUM_14M): versioned two-axis evaluation + durable async job
+--   Submit kicks off async screening (14L pipeline → reconcile → 14M deterministic ruling). Results are a
+--   VERSIONED evaluation (the re-run / self-improvement loop). screening_jobs makes the async run durable:
+--   submit fires the screen route immediately AND inserts a job; a tight cron sweeps stuck/failed jobs.
+--   Additive + idempotent. application_prescreens (above) is the dead 55-pt predecessor — left untouched.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- 'screening' = the 14L pipeline is running post-submit, before the ruling lands.
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_stage1_status_check;
+ALTER TABLE applications ADD CONSTRAINT applications_stage1_status_check CHECK (stage1_status IN (
+  'pending_documents','documents_submitted','extracting','screening',
+  'pre_screen_complete','shortlisted','not_shortlisted'
+));
+
+-- Versioned 14M ruling. POPIA (fix #2): input_snapshot holds amounts / source keys / periods / verdicts
+-- ONLY — never raw name/ID. reconciliation + fraud_signals are verdict-only and POPIA-safe.
+CREATE TABLE IF NOT EXISTS application_screening_evaluations (
+  id                         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                     uuid NOT NULL REFERENCES organisations(id),
+  application_id             uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  iteration_number           integer NOT NULL DEFAULT 1,
+  ruling_tier                text NOT NULL CHECK (ruling_tier IN ('strong','adequate','needs-evidence','below-threshold')),
+  affordability_tier         text NOT NULL CHECK (affordability_tier IN ('within','marginal','below','demonstrated-override')),
+  affordability_ratio_pct    integer,
+  demonstrated_housing_cents bigint,
+  confidence_tier            text NOT NULL CHECK (confidence_tier IN ('strong','adequate','needs-evidence')),
+  flags                      jsonb NOT NULL DEFAULT '[]',
+  reconciliation             jsonb,
+  fraud_signals              jsonb NOT NULL DEFAULT '[]',
+  reconciler_version         text,
+  ruling_version             text NOT NULL,
+  input_snapshot             jsonb NOT NULL DEFAULT '{}',
+  generated_at               timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(application_id, iteration_number)
+);
+CREATE INDEX IF NOT EXISTS idx_screening_evals_app    ON application_screening_evaluations(application_id);
+CREATE INDEX IF NOT EXISTS idx_screening_evals_latest ON application_screening_evaluations(application_id, iteration_number DESC);
+ALTER TABLE application_screening_evaluations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_screening_evals" ON application_screening_evaluations;
+CREATE POLICY "org_screening_evals" ON application_screening_evaluations
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+  );
+
+-- Durable async screening job (fix #4/#5: immediate fire + cron retry; atomic claim via conditional UPDATE).
+CREATE TABLE IF NOT EXISTS screening_jobs (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id            uuid NOT NULL REFERENCES organisations(id),
+  application_id    uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  status            text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','running','done','failed')),
+  attempts          integer NOT NULL DEFAULT 0,
+  max_attempts      integer NOT NULL DEFAULT 3,
+  iteration_number  integer,
+  error             text,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  started_at        timestamptz,
+  finished_at       timestamptz,
+  updated_at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_screening_jobs_status ON screening_jobs(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_screening_jobs_app    ON screening_jobs(application_id);
+ALTER TABLE screening_jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_screening_jobs" ON screening_jobs;
+CREATE POLICY "org_screening_jobs" ON screening_jobs
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+  );

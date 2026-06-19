@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: Props) {
 
   // Update application
   await service.from("applications").update({
-    stage1_status: "pre_screen_complete",
+    stage1_status: "screening",
     stage1_consent_given: true,
     stage1_consent_given_at: now,
     stage1_consent_ip: body.consentIp ?? null,
@@ -155,6 +155,26 @@ export async function POST(req: NextRequest, { params }: Props) {
     if (countErr) console.error("submit applications count:", countErr.message)
     void sendAgentApplicationNotification(appSummary, listingSummary, orgContext, { applicationsCount: count ?? 0 })
   }
+
+  // POPIA: record financial-screening consent as a consent_log row BEFORE any document processing.
+  await service.from("consent_log").insert({
+    org_id: app.org_id as string,
+    subject_email: (tokenRow.applicant_email as string | null) ?? (app.applicant_email as string),
+    consent_type: "popia_application", consent_given: true,
+    ip_address: body.consentIp ?? null,
+    metadata: { application_id: id, scope: "stage1_financial_screening" },
+  })
+
+  // Kick off the durable async pre-screen (14L pipeline → 14M ruling): insert a job + fire the screen route.
+  // The fire is awaited briefly so it flushes; the screening-jobs cron is the real reliability path if this
+  // invocation dies before the connection lands.
+  await service.from("screening_jobs").insert({ org_id: app.org_id as string, application_id: id, status: "pending" })
+  try {
+    await fetch(`${req.nextUrl.origin}/api/applications/${id}/screen`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: body.token }), signal: AbortSignal.timeout(2500),
+    })
+  } catch { /* best-effort dispatch; cron retries the pending job if this didn't land */ }
 
   return NextResponse.json({
     ok: true,
