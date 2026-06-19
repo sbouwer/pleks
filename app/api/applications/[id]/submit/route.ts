@@ -156,5 +156,12 @@ export async function POST(req: NextRequest, { params }: Props) {
     void sendAgentApplicationNotification(appSummary, listingSummary, orgContext, { applicationsCount: count ?? 0 })
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({
+    ok: true,
+    prescreen: {
+      score: prescreen.total,
+      affordabilityFlag: prescreen.affordability_flag,
+      rentToIncomePct: prescreen.rent_to_income_pct,
+    },
+  })
 }

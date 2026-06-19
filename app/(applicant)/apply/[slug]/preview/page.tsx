@@ -84,7 +84,7 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
 
   const { data: listing, error } = await db
     .from("listings")
-    .select("asking_rent_cents, available_from, pet_friendly, listing_photos, units(unit_number, bedrooms, bathrooms, size_m2, furnished, furnishing_status, parking_bays, assigned_agent_id, properties(name, address_line1, suburb, city, managing_agent_id)), organisations(name, email, phone, ppra_ffc_number)")
+    .select("org_id, asking_rent_cents, available_from, pet_friendly, listing_photos, units(unit_number, bedrooms, bathrooms, size_m2, furnished, furnishing_status, parking_bays, assigned_agent_id, properties(name, address_line1, suburb, city, managing_agent_id)), organisations(name, email, phone, ppra_ffc_number)")
     .eq("public_slug", slug)
     .eq("status", "active")
     .maybeSingle()
@@ -196,7 +196,13 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
             </aside>
 
             {/* Right door working panel (client island) */}
-            <StepPanel agentName={agentName} agentPhone={phone} />
+            <StepPanel
+              slug={slug}
+              orgId={listing.org_id as string}
+              askingRentCents={(listing.asking_rent_cents as number) ?? 0}
+              agentName={agentName}
+              agentPhone={phone}
+            />
           </div>
         </div>
       </div>
