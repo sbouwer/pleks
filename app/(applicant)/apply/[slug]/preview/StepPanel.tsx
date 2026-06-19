@@ -20,6 +20,7 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft } from "lucide-react"
+import { ActionButton } from "@/components/ui/actions"
 import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity, CompanyAddressSection } from "@/components/parties/partySteps"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
@@ -106,11 +107,9 @@ function TabBar({ step, maxReached, onJump }: Readonly<{ step: number; maxReache
 
 function Cta({ label, onClick, busy, disabled }: Readonly<{ label: string; onClick: () => void; busy?: boolean; disabled?: boolean }>) {
   return (
-    <button type="button" className="fs-cta" style={{ maxWidth: 300 }} onClick={onClick} disabled={busy || disabled}>
-      <span className="fs-cta-bar" aria-hidden="true" />
-      <span className="fs-cta-label">{busy ? "Working…" : label}</span>
-      <span className="fs-cta-arrow" aria-hidden="true">→</span>
-    </button>
+    <ActionButton tone="primary" onClick={onClick} disabled={busy || disabled} className="min-w-[200px] justify-center">
+      {busy ? "Working…" : label}
+    </ActionButton>
   )
 }
 
@@ -152,6 +151,11 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
     setType(null); setStep(0); setMaxReached(0); setErrors({})
   }
 
+  function goBack() {
+    if (step === 0) backToTypes()
+    else setStep(step - 1)
+  }
+
   function continueIdentity() {
     const e = validateIdentityCore("individual", form, true)
     setErrors(e)
@@ -160,6 +164,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   }
 
   async function createApplication() {
+    if (applicationId) { advance(2); return } // already created (came back) — don't create a duplicate
     const e = validateAddressStep(form, true)
     setErrors(e)
     const empMissing = !emp.employment_type || !emp.gross_income.trim()
@@ -294,10 +299,10 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4">
               <div className="flex items-center gap-3">
-                {step === 0 && !applicationId && (
-                  <button type="button" onClick={backToTypes} className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] px-3 py-1.5 text-[12px] font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
-                    <ArrowLeft className="size-3.5" /> Back to application type
-                  </button>
+                {!prescreen && (
+                  <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={step === 0 && !!applicationId} className="min-w-[200px] justify-center">
+                    {step === 0 ? "Back to application type" : "Back"}
+                  </ActionButton>
                 )}
               </div>
               {step === 0 && !isCompany && <Cta label="Continue" onClick={continueIdentity} busy={busy} />}

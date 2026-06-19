@@ -22,6 +22,7 @@ import "@/components/layout/focus-shell.css"
 import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
 import { Phone, Mail, MessageCircle, ShieldCheck, ImageIcon, type LucideIcon } from "lucide-react"
 import { StepPanel } from "./StepPanel"
+import { ApplyLoginButton } from "./ApplyLoginButton"
 
 type UnitRow = {
   unit_number: string | null
@@ -135,9 +136,10 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
   ]
 
   return (
-    <div className="pleks-public fixed inset-0 z-50 overflow-hidden" data-theme="light" style={{ background: "var(--paper)", color: "var(--ink)" }}>
-      {/* Same 4-layer warm backdrop as the login surface (fixed behind content) */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden"><FocusBackdrop /></div>
+    <div className="pleks-public" data-theme="light" style={{ display: "contents" }}>
+      <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: "var(--paper)", color: "var(--ink)", colorScheme: "light" }}>
+        {/* Same 4-layer warm backdrop as the login surface (fixed behind content) */}
+        <div className="pointer-events-none fixed inset-0 overflow-hidden"><FocusBackdrop /></div>
 
       <div className="relative z-10 flex h-full flex-col">
         {/* Header — backed surface; sits ABOVE the scroll area so a scrollbar can't clip it */}
@@ -148,10 +150,13 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
               <span className="h-4 w-px bg-[var(--rule)]" />
               <Eyebrow>Rental application</Eyebrow>
             </div>
-            <span className="flex items-center gap-1.5 text-[var(--ink-mute)]">
-              <ShieldCheck className="size-3.5" />
-              <Eyebrow>Encrypted</Eyebrow>
-            </span>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <span className="hidden items-center gap-1.5 text-[var(--ink-mute)] sm:flex">
+                <ShieldCheck className="size-3.5" />
+                <Eyebrow>Encrypted</Eyebrow>
+              </span>
+              <ApplyLoginButton slug={slug} />
+            </div>
           </div>
         </header>
 
@@ -207,6 +212,7 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
             />
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

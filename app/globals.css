@@ -504,6 +504,14 @@ table.ledger tr.paid td:first-child::before {
    popups — set it on the controls directly so the OS draws the dropdown list dark, not white. */
 .pleks-portal[data-theme="dark"] select { color-scheme: dark; }
 
+/* Same fix for the public/applicant surfaces: native <select> popups don't reliably inherit the
+   wrapper's color-scheme, so the dropdown list renders with the root dark scheme (black). Pin it. */
+.pleks-public select { color-scheme: light; }
+.pleks-public[data-theme="dark"] select { color-scheme: dark; }
+/* Hard fallback — some browsers ignore color-scheme for the native <option> popup and fall back to the OS
+   dark theme. Force the option list light on the public/applicant surfaces. */
+.pleks-public:not([data-theme="dark"]) select option { background-color: #ffffff; color: #1a1a1a; }
+
 /* ── Template-preview merge-field chips (injected into the branded preview HTML) ───────────
    The preview "paper" is always a light document regardless of app theme, so these are fixed
    light-surface colours. .tpl-mf = the {{token}} chip; .tpl-mf-filled = the sample fill value. */
