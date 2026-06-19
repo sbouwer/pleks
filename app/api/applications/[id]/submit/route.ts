@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { calculatePrescreen } from "@/lib/applications/prescreen"
+import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { sendApplicationReceived, sendAgentApplicationNotification } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { getUserEmail } from "@/lib/auth/userEmail"
@@ -165,19 +166,31 @@ export async function POST(req: NextRequest, { params }: Props) {
     metadata: { application_id: id, scope: "stage1_financial_screening" },
   })
 
-  // Kick off the durable async pre-screen (14L pipeline → 14M ruling): insert a job + fire the screen route.
-  // The fire is awaited briefly so it flushes; the screening-jobs cron is the real reliability path if this
-  // invocation dies before the connection lands.
-  await service.from("screening_jobs").insert({ org_id: app.org_id as string, application_id: id, status: "pending" })
-  try {
-    await fetch(`${req.nextUrl.origin}/api/applications/${id}/screen`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: body.token }), signal: AbortSignal.timeout(2500),
-    })
-  } catch { /* best-effort dispatch; cron retries the pending job if this didn't land */ }
+  // ONE-ADJUSTMENT CAP: the initial pre-screen + exactly one re-check (MAX_SCREENING_ITERATIONS). Don't kick
+  // off another pass once the cap is reached — caps Sonnet cost + gaming; the agent reviews from there.
+  const { count: evalCount, error: evalCountErr } = await service
+    .from("application_screening_evaluations")
+    .select("id", { count: "exact", head: true })
+    .eq("application_id", id)
+  logQueryError("submit screening eval count", evalCountErr)
+  const capReached = (evalCount ?? 0) >= MAX_SCREENING_ITERATIONS
+
+  if (!capReached) {
+    // Kick off the durable async pre-screen (14L pipeline → 14M ruling): insert a job + fire the screen route.
+    // The fire is awaited briefly so it flushes; the screening-jobs cron is the real reliability path if this
+    // invocation dies before the connection lands.
+    await service.from("screening_jobs").insert({ org_id: app.org_id as string, application_id: id, status: "pending" })
+    try {
+      await fetch(`${req.nextUrl.origin}/api/applications/${id}/screen`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: body.token }), signal: AbortSignal.timeout(2500),
+      })
+    } catch { /* best-effort dispatch; cron retries the pending job if this didn't land */ }
+  }
 
   return NextResponse.json({
     ok: true,
+    capReached,
     prescreen: {
       score: prescreen.total,
       affordabilityFlag: prescreen.affordability_flag,

@@ -37,7 +37,7 @@ import {
   validateIdentityCore, validateAddressStep,
   type PartyFormState, type PartyErrors, type PartyAddressInput, type PartyPerson, type PartyBankAccountInput,
 } from "@/lib/parties/partyValidation"
-import { formatZAR, startedWithinProbation, PROBATION_MONTHS } from "@/lib/constants"
+import { formatZAR, startedWithinProbation, PROBATION_MONTHS, MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 
 type ApplicantType = "individual" | "couple" | "company" | "guarantor"
 /** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
@@ -903,7 +903,14 @@ function RulingView({ evaluation, onAmend, onRerun }: Readonly<{ evaluation: Scr
           </div>
         </div>
       )}
-      <AmendBar onAmend={onAmend} onRerun={onRerun} />
+      {evaluation.iteration_number < MAX_SCREENING_ITERATIONS ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-[var(--ink-mute)]">You can make <span className="font-medium text-[var(--ink-soft)]">one</span> round of changes and re-check — after that your agent reviews it.</p>
+          <AmendBar onAmend={onAmend} onRerun={onRerun} />
+        </div>
+      ) : (
+        <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-xs text-[var(--ink-soft)]">You&apos;ve used your re-check — your agent takes it from here and will be in touch.</p>
+      )}
       <p className="text-xs text-[var(--ink-mute)]">We&apos;ve emailed your confirmation. The agent will be in touch about next steps.</p>
     </div>
   )

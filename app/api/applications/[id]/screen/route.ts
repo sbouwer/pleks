@@ -21,6 +21,7 @@ import { evaluateRuling } from "@/lib/applications/ruling"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { RECONCILER_VERSION, type DeclaredContext, type Document, type ReconciliationResult } from "@/lib/extraction/types"
+import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
@@ -120,6 +121,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!claim) return NextResponse.json({ ok: true, status: "already-claimed" })   // idempotent vs double-fire/cron
 
   try {
+    // Hard cap (defensive — also enforced at submit): never exceed MAX_SCREENING_ITERATIONS evaluations.
+    // Checked BEFORE the pipeline so a capped re-fire wastes no Sonnet calls.
+    const { count: evalCount, error: evalCountErr } = await db.from("application_screening_evaluations").select("id", { count: "exact", head: true }).eq("application_id", id)
+    logQueryError("screen eval cap count", evalCountErr)
+    if ((evalCount ?? 0) >= MAX_SCREENING_ITERATIONS) {
+      await db.from("screening_jobs").update({ status: "done", finished_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", claim.id)
+      return NextResponse.json({ ok: true, status: "cap-reached" })
+    }
+
     const listing = app.listings as { asking_rent_cents?: number; units?: { properties?: { type?: string } } } | null
     const appliedRentCents = listing?.asking_rent_cents ?? 0
     const unitType = listing?.units?.properties?.type === "commercial" ? "commercial" as const : "residential" as const
