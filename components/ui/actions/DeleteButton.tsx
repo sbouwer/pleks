@@ -66,7 +66,7 @@ export function DeleteButton({
         aria-label={label}
         title={label}
         disabled={disabled}
-        onClick={() => { setResultBlock(null); setBusy(false); setOpen(true) }}
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setResultBlock(null); setBusy(false); setOpen(true) }}
         className={cn("pa-edit", className)}
       >
         <Icon className="size-3.5" />

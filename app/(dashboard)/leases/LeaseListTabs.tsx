@@ -24,6 +24,7 @@ import { useMyPortfolio } from "@/hooks/useMyPortfolio"
 import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { LeaseRow, type SerializedLease } from "./LeaseRow"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { DeleteDraftButton } from "./DeleteDraftButton"
 import { LeaseListFooter } from "./LeaseListFooter"
 import { isExpiringSoon, getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
@@ -136,7 +137,10 @@ function LeaseCard({ lease }: Readonly<{ lease: SerializedLease }>) {
             {lease.hasArrears ? " · Arrears" : ""}
           </p>
         </div>
-        <StatusBadge status={lease.status} className="shrink-0" />
+        <div className="flex shrink-0 items-center gap-2">
+          <StatusBadge status={lease.status} className="shrink-0" />
+          {lease.status === "draft" && <DeleteDraftButton leaseId={lease.id} />}
+        </div>
       </div>
 
       <p className="truncate text-xs text-muted-foreground">{propertyLabel}</p>
