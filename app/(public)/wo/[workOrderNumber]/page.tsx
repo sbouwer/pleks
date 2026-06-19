@@ -10,7 +10,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
-import Image from "next/image"
+import { Wordmark } from "@/components/ui/Wordmark"
 import { formatZAR } from "@/lib/constants"
 import { ContractorTrackingClient } from "./ContractorTrackingClient"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -86,7 +86,7 @@ export default async function WorkOrderPage({ params, searchParams }: Props) {
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <Image src="/logo.svg" alt="Pleks" width={80} height={24} className="h-6 w-auto opacity-80" />
+          <Wordmark className="opacity-80" style={{ fontSize: 18 }} />
         </div>
 
         {/* Work order header */}
