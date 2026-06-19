@@ -41,12 +41,13 @@ function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon:
   ]
 }
 
-const STEPS = ["Personal details", "Address & employment", "Applicants", "Documents", "Submit"]
+const STEPS = ["Personal details", "Address", "Income", "Applicants", "Documents", "Submit"]
 
 const EMPLOYMENT_OPTIONS = [
   { value: "", label: "Select…" },
   { value: "permanent", label: "Permanently employed" },
   { value: "contract", label: "Contract" },
+  { value: "commission", label: "Commission-based" },
   { value: "self_employed", label: "Self-employed" },
   { value: "part_time", label: "Part-time" },
   { value: "retired", label: "Retired" },
@@ -57,6 +58,22 @@ const EMPLOYMENT_OPTIONS = [
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[] | PartyBankAccountInput[]) => void
 type Emp = { employment_type: string; employer: string; gross_income: string }
 type CoRole = "co_applicant" | "guarantor"
+type OtherIncome = { source: string; amount: string }
+
+const OTHER_INCOME_SOURCES = [
+  { value: "", label: "Select source…" },
+  { value: "rental", label: "Rental income" },
+  { value: "investments", label: "Shares / investments" },
+  { value: "spouse", label: "Spouse / partner contribution" },
+  { value: "maintenance", label: "Maintenance / alimony" },
+  { value: "pension", label: "Pension / grant" },
+  { value: "freelance", label: "Freelance / side income" },
+  { value: "other", label: "Other" },
+]
+const moneyCents = (s: string) => Math.round(parseFloat(s.replaceAll(/[^\d.]/g, "") || "0") * 100)
+function totalIncomeCents(emp: Emp, other: OtherIncome[]): number {
+  return moneyCents(emp.gross_income) + other.reduce((sum, o) => sum + moneyCents(o.amount), 0)
+}
 
 interface DocSlot {
   key: string; label: string; accept: string
@@ -126,6 +143,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   const [form, setForm] = useState<PartyFormState>({ idType: "sa_id", ...(prefill ?? {}) })
   const [errors, setErrors] = useState<PartyErrors>({})
   const [emp, setEmp] = useState<Emp>({ employment_type: "", employer: "", gross_income: "" })
+  const [otherIncome, setOtherIncome] = useState<OtherIncome[]>([])
   const set: SetFn = (k, v) => setForm((p) => ({ ...p, [k]: v }))
 
   const [applicationId, setApplicationId] = useState<string | null>(null)
@@ -165,15 +183,16 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
     advance(1)
   }
 
-  async function createApplication() {
-    if (applicationId) { advance(2); return } // already created (came back) — don't create a duplicate
+  function continueAddress() {
     const e = validateAddressStep(form, true)
     setErrors(e)
-    const empMissing = !emp.employment_type || !emp.gross_income.trim()
-    if (Object.keys(e).length > 0 || empMissing) {
-      toast.error(empMissing ? "Employment status and gross monthly income are required." : "A current address is required.")
-      return
-    }
+    if (Object.keys(e).length > 0) { toast.error("A current address is required."); return }
+    advance(2)
+  }
+
+  async function createApplication() {
+    if (applicationId) { advance(3); return } // already created (came back) — don't create a duplicate
+    if (!emp.employment_type || !emp.gross_income.trim()) { toast.error("Employment status and gross monthly income are required."); return }
     setBusy(true)
     try {
       const res = await fetch("/api/applications/create", {
@@ -183,14 +202,16 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
           first_name: form.firstName, last_name: form.lastName, email: form.email, phone: form.phone,
           id_type: form.idType || "sa_id", id_number: form.idNumber, date_of_birth: form.dob || "",
           employment_type: emp.employment_type, employer_name: emp.employer,
-          gross_monthly_income: emp.gross_income.replace(/[^\d.]/g, ""),
+          // Total monthly income (salary + other sources) drives the affordability pre-screen. The
+          // breakdown isn't persisted yet (follow-up: an income_sources jsonb for FitScore evidence).
+          gross_monthly_income: String(totalIncomeCents(emp, otherIncome) / 100),
         }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; error?: string }
       if (!res.ok || !json.applicationId || !json.token) { toast.error(json.error ?? "Could not start your application."); return }
       setApplicationId(json.applicationId)
       setToken(json.token)
-      advance(2)
+      advance(3)
     } catch {
       toast.error("Could not start your application.")
     } finally {
@@ -211,7 +232,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
         if (!res.ok) toast.error(`Could not invite ${c.email}`)
       }
       setCoApplicants((prev) => prev.map((c) => ({ ...c, invited: c.email.trim() ? true : c.invited })))
-      advance(3)
+      advance(4)
     } finally {
       setBusy(false)
     }
@@ -254,7 +275,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
           body: JSON.stringify({ bankStatementPath: bank.storagePath }),
         })
       }
-      advance(4)
+      advance(5)
     } finally {
       setBusy(false)
     }
@@ -269,7 +290,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
       })
       const json = await res.json() as { ok?: boolean; prescreen?: { score: number; affordabilityFlag: boolean; rentToIncomePct: number | null }; error?: string }
       if (!res.ok || !json.ok) { toast.error(json.error ?? "Could not submit your application."); return }
-      const incomeCents = Math.round(parseFloat(emp.gross_income.replace(/[^\d.]/g, "") || "0") * 100)
+      const incomeCents = totalIncomeCents(emp, otherIncome)
       const localRatio = incomeCents > 0 ? Math.round((askingRentCents / incomeCents) * 100) : null
       setPrescreen({ score: json.prescreen?.score ?? null, affordabilityFlag: !!json.prescreen?.affordabilityFlag, rentToIncomePct: json.prescreen?.rentToIncomePct ?? localRatio })
     } catch {
@@ -294,10 +315,11 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
             <TabBar step={step} maxReached={maxReached} onJump={setStep} />
             <div className="flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto">
               {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} />}
-              {step === 1 && <StepAddressEmployment form={form} set={set} errors={errors} emp={emp} setEmp={setEmp} />}
-              {step === 2 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} />}
-              {step === 3 && <StepDocuments docs={docs} onUpload={uploadDoc} />}
-              {step === 4 && <StepSubmit form={form} emp={emp} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} prescreen={prescreen} coApplicants={coApplicants} />}
+              {step === 1 && <StepAddress form={form} set={set} errors={errors} />}
+              {step === 2 && <StepIncome emp={emp} setEmp={setEmp} otherIncome={otherIncome} setOtherIncome={setOtherIncome} />}
+              {step === 3 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} />}
+              {step === 4 && <StepDocuments docs={docs} onUpload={uploadDoc} />}
+              {step === 5 && <StepSubmit form={form} emp={emp} otherIncome={otherIncome} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} prescreen={prescreen} coApplicants={coApplicants} />}
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4">
               <div className="flex items-center gap-3">
@@ -308,10 +330,11 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
                 )}
               </div>
               {step === 0 && !isCompany && <Cta label="Continue" onClick={continueIdentity} busy={busy} />}
-              {step === 1 && <Cta label="Continue to applicants" onClick={createApplication} busy={busy} />}
-              {step === 2 && <Cta label="Continue to documents" onClick={inviteCoApplicants} busy={busy} />}
-              {step === 3 && <Cta label="Continue to review" onClick={finishDocuments} busy={busy} disabled={!allDocsUploaded} />}
-              {step === 4 && !prescreen && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent} />}
+              {step === 1 && <Cta label="Continue" onClick={continueAddress} busy={busy} />}
+              {step === 2 && <Cta label="Continue to applicants" onClick={createApplication} busy={busy} />}
+              {step === 3 && <Cta label="Continue to documents" onClick={inviteCoApplicants} busy={busy} />}
+              {step === 4 && <Cta label="Continue to review" onClick={finishDocuments} busy={busy} disabled={!allDocsUploaded} />}
+              {step === 5 && !prescreen && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent} />}
             </div>
           </>
         )}
@@ -373,22 +396,63 @@ function StepPersonal({ type, commercial, form, set, errors }: Readonly<{ type: 
   )
 }
 
-// ── Step 2 — Address & employment ────────────────────────────────────────────────
-function StepAddressEmployment({ form, set, errors, emp, setEmp }: Readonly<{
-  form: PartyFormState; set: SetFn; errors: PartyErrors; emp: Emp; setEmp: (v: Emp) => void
-}>) {
+// ── Step 2 — Address ─────────────────────────────────────────────────────────────
+function StepAddress({ form, set, errors }: Readonly<{ form: PartyFormState; set: SetFn; errors: PartyErrors }>) {
   return (
     <div className="flex flex-col gap-4">
-      <StepHeading title="Where you live & what you earn" sub="Your current address and income help us pre-screen affordability." />
+      <StepHeading title="Your current address" sub="Where you live now — it helps verify your application." />
       <CompanyAddressSection n="" title="Current address" optional={false} addresses={form.addresses ?? []} onChange={(a) => set("addresses", a)} error={errors.addresses} />
-      <div className="mt-2">
-        <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Employment &amp; income</p>
-        <FieldGrid>
-          <SelectField label="Employment status" value={emp.employment_type} onChange={(v) => setEmp({ ...emp, employment_type: v })} required options={EMPLOYMENT_OPTIONS} />
-          <TextField label="Gross monthly income" value={emp.gross_income} onChange={(v) => setEmp({ ...emp, gross_income: v })} required placeholder="R 0" />
-          <TextField label="Employer" value={emp.employer} onChange={(v) => setEmp({ ...emp, employer: v })} span placeholder="Company name" />
-        </FieldGrid>
+    </div>
+  )
+}
+
+// ── Step 3 — Income (employment + other sources) ─────────────────────────────────
+function StepIncome({ emp, setEmp, otherIncome, setOtherIncome }: Readonly<{
+  emp: Emp; setEmp: (v: Emp) => void; otherIncome: OtherIncome[]; setOtherIncome: (v: OtherIncome[]) => void
+}>) {
+  function addOther() { setOtherIncome([...otherIncome, { source: "", amount: "" }]) }
+  function removeOther(i: number) { setOtherIncome(otherIncome.filter((_, idx) => idx !== i)) }
+  function updateOther(i: number, patch: Partial<OtherIncome>) { setOtherIncome(otherIncome.map((o, idx) => idx === i ? { ...o, ...patch } : o)) }
+  const total = totalIncomeCents(emp, otherIncome)
+  const variable = emp.employment_type === "commission" || emp.employment_type === "self_employed"
+  return (
+    <div className="flex flex-col gap-4">
+      <StepHeading title="Income" sub="Your income helps us pre-screen affordability. Add any other regular income — it counts too." />
+      <FieldGrid>
+        <SelectField label="Employment status" value={emp.employment_type} onChange={(v) => setEmp({ ...emp, employment_type: v })} required options={EMPLOYMENT_OPTIONS} />
+        <TextField label="Gross monthly salary" value={emp.gross_income} onChange={(v) => setEmp({ ...emp, gross_income: v })} required placeholder="R 0" />
+        <TextField label="Employer" value={emp.employer} onChange={(v) => setEmp({ ...emp, employer: v })} span placeholder="Company name" />
+      </FieldGrid>
+      {variable && (
+        <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-xs text-[var(--ink-soft)]">
+          Commission or variable income? Enter a typical month — we confirm the average from your bank statements.
+        </p>
+      )}
+
+      <div>
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Other sources of income · optional</p>
+        <div className="flex flex-col gap-2">
+          {otherIncome.map((o, i) => (
+            <div key={i} className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Source {i + 1}</span>
+                <button type="button" onClick={() => removeOther(i)} className="inline-flex items-center gap-1 text-xs text-[var(--ink-mute)] hover:text-red-600"><X className="size-3.5" /> Remove</button>
+              </div>
+              <FieldGrid>
+                <SelectField label="Type" value={o.source} onChange={(v) => updateOther(i, { source: v })} options={OTHER_INCOME_SOURCES} />
+                <TextField label="Monthly amount" value={o.amount} onChange={(v) => updateOther(i, { amount: v })} placeholder="R 0" />
+              </FieldGrid>
+            </div>
+          ))}
+          <button type="button" onClick={addOther} className="inline-flex w-fit items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-2 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
+            <Plus className="size-4" /> Add income source
+          </button>
+        </div>
       </div>
+
+      {total > 0 && (
+        <p className="text-xs text-[var(--ink-soft)]">Total monthly income used for affordability: <span className="font-medium text-[var(--ink)]">{formatZAR(total)}</span></p>
+      )}
     </div>
   )
 }
@@ -493,12 +557,13 @@ function prescreenLabel(score: number | null): { label: string; cls: string } {
   return { label: "Needs a closer look", cls: "text-red-600" }
 }
 
-function StepSubmit({ form, emp, askingRentCents, consent, setConsent, prescreen, coApplicants }: Readonly<{
-  form: PartyFormState; emp: Emp; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
+function StepSubmit({ form, emp, otherIncome, askingRentCents, consent, setConsent, prescreen, coApplicants }: Readonly<{
+  form: PartyFormState; emp: Emp; otherIncome: OtherIncome[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
   prescreen: PrescreenResult | null; coApplicants: CoApplicant[]
 }>) {
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
-  const incomeCents = Math.round(parseFloat(emp.gross_income.replace(/[^\d.]/g, "") || "0") * 100)
+  const incomeCents = totalIncomeCents(emp, otherIncome)
+  const otherCents = otherIncome.reduce((s, o) => s + moneyCents(o.amount), 0)
   const ratio = incomeCents > 0 ? Math.round((askingRentCents / incomeCents) * 100) : null
   const others = coApplicants.filter((c) => c.email.trim())
 
@@ -533,7 +598,8 @@ function StepSubmit({ form, emp, askingRentCents, consent, setConsent, prescreen
         <Row k="Applicant" v={name} />
         <Row k="Email" v={form.email ?? "—"} />
         <Row k="Employment" v={emp.employment_type || "—"} />
-        <Row k="Gross income" v={incomeCents > 0 ? formatZAR(incomeCents) + " /mo" : "—"} />
+        <Row k={otherCents > 0 ? "Total income" : "Gross income"} v={incomeCents > 0 ? formatZAR(incomeCents) + " /mo" : "—"} />
+        {otherCents > 0 && <Row k="— incl. other sources" v={formatZAR(otherCents) + " /mo"} />}
         <Row k="Rent-to-income" v={ratio != null ? `${ratio}%` : "—"} />
         {others.length > 0 && <Row k="Others" v={others.map((c) => c.role === "guarantor" ? "guarantor" : "co-applicant").join(", ")} />}
       </div>
