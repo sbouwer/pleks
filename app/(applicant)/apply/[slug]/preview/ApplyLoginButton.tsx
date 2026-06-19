@@ -11,7 +11,7 @@
  */
 
 import { useState } from "react"
-import { LogIn, X, CheckCircle2 } from "lucide-react"
+import { LogIn, LogOut, X, CheckCircle2 } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 
 export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: string; loggedIn?: boolean; name?: string | null }>) {
@@ -19,12 +19,23 @@ export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: stri
   function login() {
     globalThis.location.href = `/login?redirect=${encodeURIComponent(`/apply/${slug}/preview`)}`
   }
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null)
+    globalThis.location.href = `/apply/${slug}/preview`
+  }
 
-  // Already authenticated — skip the door; the form is pre-filled from the user's own record.
+  // Already authenticated — skip the door; the form is pre-filled from the user's own record. Offer sign-out
+  // (e.g. to apply as a different person, or test the anonymous path).
   if (loggedIn) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--ink-mute)]">
-        <CheckCircle2 className="size-3.5 text-emerald-600" /> Signed in{name ? ` as ${name}` : ""} · details pre-filled
+      <span className="inline-flex items-center gap-2 text-[12px] text-[var(--ink-mute)]">
+        <span className="inline-flex items-center gap-1.5">
+          <CheckCircle2 className="size-3.5 text-emerald-600" /> Signed in{name ? ` as ${name}` : ""} · details pre-filled
+        </span>
+        <button type="button" onClick={logout}
+          className="inline-flex items-center gap-1 rounded-[var(--r-button)] border border-[var(--rule)] px-2 py-1 font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
+          <LogOut className="size-3.5" /> Sign out
+        </button>
       </span>
     )
   }
