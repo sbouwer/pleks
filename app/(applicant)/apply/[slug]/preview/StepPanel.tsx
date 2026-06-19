@@ -27,7 +27,7 @@
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft } from "lucide-react"
+import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft, Pencil } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity, CompanyAddressSection } from "@/components/parties/partySteps"
@@ -116,7 +116,14 @@ const INITIAL_DOCS: DocSlot[] = [
 
 interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idNumber: string; role: CoRole; invited: boolean }
 interface CompanyInfo { companyType: string; companyReg: string }
-interface PrescreenResult { score: number | null; affordabilityFlag: boolean; rentToIncomePct: number | null }
+type ScreeningStatus = "idle" | "processing" | "done" | "failed"
+interface RulingFlagView { id: number; key: string; axis: string; severity: string; type: string; title: string; remediation: string | null }
+interface ScreeningEvaluation {
+  iteration_number: number; ruling_tier: string; affordability_tier: string
+  affordability_ratio_pct: number | null; demonstrated_housing_cents: number | null
+  confidence_tier: string; flags: RulingFlagView[]
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const COMPANY_TYPE_OPTIONS = [
   { value: "", label: "Select…" },
   { value: "pty_ltd", label: "(Pty) Ltd" },
@@ -194,7 +201,8 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   const [invitePending, setInvitePending] = useState(false)
   const [docs, setDocs] = useState<DocSlot[]>(INITIAL_DOCS)
   const [consent, setConsent] = useState(false)
-  const [prescreen, setPrescreen] = useState<PrescreenResult | null>(null)
+  const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
+  const [evaluation, setEvaluation] = useState<ScreeningEvaluation | null>(null)
 
   function advance(to: number) { setStep(to); setMaxReached((m) => Math.max(m, to)) }
 
@@ -347,23 +355,40 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
     }
   }
 
+  /** Amend the application (add applicant / upload docs / edit details) → re-enter that step; the user
+   *  re-submits to run a fresh screening iteration (the 14M self-improvement loop). */
+  function amendAt(toStep: number) { setScreeningStatus("idle"); setEvaluation(null); setStep(toStep) }
+
   async function submitApplication() {
     if (!applicationId || !token) return
-    setBusy(true)
+    setBusy(true); setScreeningStatus("processing"); setEvaluation(null)
     try {
       const res = await fetch(`/api/applications/${applicationId}/submit`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
       })
-      const json = await res.json() as { ok?: boolean; prescreen?: { score: number; affordabilityFlag: boolean; rentToIncomePct: number | null }; error?: string }
-      if (!res.ok || !json.ok) { toast.error(json.error ?? "Could not submit your application."); return }
-      const incomeCents = totalMonthlyCents(income)
-      const localRatio = incomeCents > 0 ? Math.round((askingRentCents / incomeCents) * 100) : null
-      setPrescreen({ score: json.prescreen?.score ?? null, affordabilityFlag: !!json.prescreen?.affordabilityFlag, rentToIncomePct: json.prescreen?.rentToIncomePct ?? localRatio })
+      const json = await res.json() as { ok?: boolean; error?: string }
+      if (!res.ok || !json.ok) { toast.error(json.error ?? "Could not submit your application."); setScreeningStatus("idle"); return }
+      void pollScreening(applicationId, token)   // background poll; the panel shows "processing"
     } catch {
-      toast.error("Could not submit your application.")
+      toast.error("Could not submit your application."); setScreeningStatus("idle")
     } finally {
       setBusy(false)
     }
+  }
+
+  /** Poll the screen route until the ruling lands. Backs off 2s→6s and tolerates offline/reconnect (it keeps
+   *  polling on a fetch error) rather than hammering; gives up (failed) after ~3 min. */
+  async function pollScreening(appId: string, tok: string) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await sleep(Math.min(2000 + attempt * 500, 6000))   // first wait = the guaranteed "breathing" beat
+      try {
+        const res = await fetch(`/api/applications/${appId}/screen?token=${encodeURIComponent(tok)}`)
+        const json = await res.json() as { status?: string; evaluation?: ScreeningEvaluation }
+        if (json.status === "done" && json.evaluation) { setEvaluation(json.evaluation); setScreeningStatus("done"); return }
+        if (json.status === "failed") { setScreeningStatus("failed"); return }
+      } catch { /* offline / reconnect — keep polling */ }
+    }
+    setScreeningStatus("failed")
   }
 
   const allDocsUploaded = docs.every((d) => d.uploaded)
@@ -405,11 +430,11 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
               {step === 2 && <StepIncome emp={emp} setEmp={setEmp} income={income} setIncome={setIncome} />}
               {step === 3 && <StepDocuments docs={docs} onUpload={uploadDoc} />}
               {step === 4 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} primaryName={[form.firstName, form.lastName].filter(Boolean).join(" ") || "You"} />}
-              {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} prescreen={prescreen} coApplicants={coApplicants} />}
+              {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} screeningStatus={screeningStatus} evaluation={evaluation} onAmend={amendAt} onRerun={submitApplication} />}
             </div>
             <div className={footerCls}>
               <div className="flex items-center gap-3">
-                {!prescreen && (
+                {!(step === 5 && screeningStatus !== "idle") && (
                   <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={step === 0 && !!applicationId} className={backBtn}>
                     {step === 0 ? "Back to application type" : "Back"}
                   </ActionButton>
@@ -420,7 +445,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
               {step === 2 && <Cta label="Continue to documents" onClick={createApplication} busy={busy} />}
               {step === 3 && <Cta label="Continue to applicants" onClick={finishDocuments} busy={busy} disabled={!allDocsUploaded} />}
               {step === 4 && <Cta label="Continue to review" onClick={continueApplicants} busy={busy} disabled={!applicantsGreen} />}
-              {step === 5 && !prescreen && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen} />}
+              {step === 5 && screeningStatus === "idle" && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen} />}
             </div>
           </>
         )}
@@ -709,50 +734,123 @@ function StepDocuments({ docs, onUpload }: Readonly<{ docs: DocSlot[]; onUpload:
   )
 }
 
-// ── Step 6 — Submit & preview ────────────────────────────────────────────────────
-function prescreenLabel(score: number | null): { label: string; cls: string } {
-  if (score == null) return { label: "Pending", cls: "text-[var(--ink-mute)]" }
-  if (score >= 35) return { label: "Strong", cls: "text-emerald-600" }
-  if (score >= 25) return { label: "Good", cls: "text-emerald-600" }
-  if (score >= 18) return { label: "Borderline", cls: "text-amber-600" }
-  return { label: "Needs a closer look", cls: "text-red-600" }
+// ── Step 6 — Submit → processing → 14M two-axis ruling ───────────────────────────
+const RULING_LABEL: Record<string, { label: string; cls: string; note: string }> = {
+  strong:            { label: "Strong application",   cls: "text-emerald-600", note: "Well-evidenced and affordable." },
+  adequate:          { label: "Looks good",           cls: "text-emerald-600", note: "A solid application — a few optional improvements below." },
+  "needs-evidence":  { label: "Needs a bit more",     cls: "text-amber-600",   note: "Add the evidence below to strengthen your application." },
+  "below-threshold": { label: "Affordability concern", cls: "text-red-600",    note: "Rent is high relative to your income — see the options below." },
+}
+const AFFORD_LABEL: Record<string, string> = {
+  within: "Within the 30% guideline", marginal: "Marginally over guideline",
+  below: "Over the 30% guideline", "demonstrated-override": "Proven by your payment history",
+}
+const CONF_LABEL: Record<string, string> = { strong: "Strong", adequate: "Adequate", "needs-evidence": "Needs evidence" }
+
+function ProcessingView() {
+  return (
+    <div className="flex flex-col items-center gap-4 py-10 text-center">
+      <Loader2 className="size-8 animate-spin text-[var(--amber-ink)]" />
+      <div>
+        <h2 className="text-xl font-medium text-[var(--ink)]">Checking your application…</h2>
+        <p className="mt-1 max-w-prose text-sm text-[var(--ink-soft)]">We&apos;re reading your documents and matching them to what you&apos;ve told us. This usually takes under a minute — you can leave this open.</p>
+      </div>
+      <ul className="space-y-1 text-xs text-[var(--ink-mute)]">
+        <li>Reading your uploaded documents</li>
+        <li>Checking affordability &amp; income evidence</li>
+        <li>Preparing your result</li>
+      </ul>
+    </div>
+  )
 }
 
-function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, prescreen, coApplicants }: Readonly<{
+function FailedView({ onRetry }: Readonly<{ onRetry: () => void }>) {
+  return (
+    <div className="flex flex-col items-center gap-4 py-10 text-center">
+      <AlertCircle className="size-8 text-amber-600" />
+      <div>
+        <h2 className="text-xl font-medium text-[var(--ink)]">We couldn&apos;t finish the check</h2>
+        <p className="mt-1 max-w-prose text-sm text-[var(--ink-soft)]">Something interrupted the screening — your application is saved. Please try again.</p>
+      </div>
+      <ActionButton tone="primary" onClick={onRetry}>Try again</ActionButton>
+    </div>
+  )
+}
+
+function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void; onRerun: () => void }>) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} onClick={() => onAmend(4)}>Add an applicant</ActionButton>
+      <ActionButton tone="secondary" size="sm" icon={<Upload className="size-4" />} onClick={() => onAmend(3)}>Upload documents</ActionButton>
+      <ActionButton tone="secondary" size="sm" icon={<Pencil className="size-4" />} onClick={() => onAmend(0)}>Edit details</ActionButton>
+      <ActionButton tone="primary" size="sm" onClick={onRerun}>Re-check</ActionButton>
+    </div>
+  )
+}
+
+function RulingView({ evaluation, onAmend, onRerun }: Readonly<{ evaluation: ScreeningEvaluation; onAmend: (s: number) => void; onRerun: () => void }>) {
+  const r = RULING_LABEL[evaluation.ruling_tier] ?? RULING_LABEL["needs-evidence"]
+  const todos = evaluation.flags.filter((f) => (f.type === "fixable" || f.type === "structural") && f.remediation)
+  const positives = evaluation.flags.filter((f) => f.type === "override")
+  return (
+    <div className="flex flex-col gap-4">
+      <StepHeading title="Application submitted ✓" sub="Here's your pre-screen result. The final decision is the agent's — you can strengthen it any time." />
+      <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-5">
+        <div className="flex items-end justify-between">
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Pre-screen result</span>
+          <span className={`text-sm font-semibold ${r.cls}`}>{r.label}</span>
+        </div>
+        <p className="mt-2 text-sm text-[var(--ink-soft)]">{r.note}</p>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
+            <span className="block font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Affordability</span>
+            <span className="mt-1 block text-sm font-medium text-[var(--ink)]">{evaluation.affordability_ratio_pct != null ? `${evaluation.affordability_ratio_pct}% of income` : "—"}</span>
+            <span className="block text-xs text-[var(--ink-soft)]">{AFFORD_LABEL[evaluation.affordability_tier] ?? evaluation.affordability_tier}</span>
+          </div>
+          <div className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
+            <span className="block font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Confidence</span>
+            <span className="mt-1 block text-sm font-medium text-[var(--ink)]">{CONF_LABEL[evaluation.confidence_tier] ?? evaluation.confidence_tier}</span>
+            <span className="block text-xs text-[var(--ink-soft)]">How well your documents back it up</span>
+          </div>
+        </div>
+      </div>
+      {positives.map((f) => (
+        <p key={f.key} className="flex items-start gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />{f.title}</p>
+      ))}
+      {todos.length > 0 && (
+        <div>
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Strengthen your application</p>
+          <div className="flex flex-col gap-2">
+            {todos.map((f) => (
+              <div key={f.key} className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
+                <span className="block text-sm font-medium text-[var(--ink)]">{f.title}</span>
+                {f.remediation && <span className="mt-0.5 block text-xs text-[var(--ink-soft)]">{f.remediation}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <AmendBar onAmend={onAmend} onRerun={onRerun} />
+      <p className="text-xs text-[var(--ink-mute)]">We&apos;ve emailed your confirmation. The agent will be in touch about next steps.</p>
+    </div>
+  )
+}
+
+function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, screeningStatus, evaluation, onAmend, onRerun }: Readonly<{
   form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
-  prescreen: PrescreenResult | null; coApplicants: CoApplicant[]
+  coApplicants: CoApplicant[]; screeningStatus: ScreeningStatus; evaluation: ScreeningEvaluation | null
+  onAmend: (s: number) => void; onRerun: () => void
 }>) {
+  if (screeningStatus === "processing") return <ProcessingView />
+  if (screeningStatus === "failed") return <FailedView onRetry={onRerun} />
+  if (screeningStatus === "done" && evaluation) return <RulingView evaluation={evaluation} onAmend={onAmend} onRerun={onRerun} />
+
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = totalMonthlyCents(income)
   const namedSources = income.filter((r) => moneyCents(r.amount) > 0)
   const ratio = incomeCents > 0 ? Math.round((askingRentCents / incomeCents) * 100) : null
   const probation = startedWithinProbation(emp.start_date)
   const others = coApplicants.filter((c) => c.email.trim())
-
-  if (prescreen) {
-    const { label, cls } = prescreenLabel(prescreen.score)
-    const pct = prescreen.score != null ? Math.round((prescreen.score / 45) * 100) : 0
-    return (
-      <div className="flex flex-col gap-4">
-        <StepHeading title="Application submitted ✓" sub="Here's your pre-screen indication. The final decision is made by the agent." />
-        <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-5">
-          <div className="flex items-end justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Pre-screen indication</span>
-            <span className={`text-sm font-semibold ${cls}`}>{label}</span>
-          </div>
-          <p className="mt-1 text-3xl font-medium text-[var(--ink)]">{prescreen.score ?? "—"}<span className="text-base text-[var(--ink-mute)]"> / 45</span></p>
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[var(--paper-sunk)]">
-            <div className="h-full rounded-full bg-[var(--amber)] transition-all" style={{ width: `${pct}%` }} />
-          </div>
-          <p className="mt-3 text-xs text-[var(--ink-soft)]">
-            Rent is {ratio != null ? `${ratio}%` : "—"} of your stated income{prescreen.affordabilityFlag ? " — above the 30% guideline. Adding an earning applicant can improve this." : " — within the 30% guideline."}
-          </p>
-        </div>
-        <p className="text-xs text-[var(--ink-mute)]">We&apos;ve emailed your confirmation. The agent will be in touch about next steps.</p>
-      </div>
-    )
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <StepHeading title="Review & submit" sub="Check your details, then submit for a free pre-screen." />
