@@ -101,19 +101,32 @@ function incomeSourcesPayload(rows: IncomeRow[]) {
     .map((r) => ({ key: r.key, label: r.label, amount_cents: moneyCents(r.amount), period: r.period, monthly_cents: rowMonthlyCents(r) }))
 }
 
-interface DocSlot {
-  key: string; label: string; accept: string
-  file: File | null; uploading: boolean; uploaded: boolean; storagePath: string | null
-  detection?: string | null; error?: string | null
+interface DocFile { id: string; name: string; uploading: boolean; uploaded: boolean; storagePath: string | null; detection?: string | null; error?: string | null }
+interface DocCategory { key: string; label: string; hint: string; single: boolean; required: boolean; escapeLabel?: string; escapeNote?: string; named?: boolean; booster?: boolean }
+
+/** The documents we ask for are DERIVED from the declared income (the Income step) — so we request exactly the
+ *  evidence that best supports this applicant's sources (14M §4) and guide them to the strongest outcome. */
+function hasIncome(income: IncomeRow[], key: string): boolean { return income.some((r) => r.key === key && moneyCents(r.amount) > 0) }
+function deriveDocCategories(income: IncomeRow[], employmentType: string): DocCategory[] {
+  const variable = employmentType === "commission" || employmentType === "self_employed"
+  const cats: DocCategory[] = [
+    { key: "id", label: "ID document", hint: "Your SA ID (smart card or green book) or passport.", single: true, required: true },
+  ]
+  if (hasIncome(income, "employment")) {
+    cats.push({ key: "payslips", label: "Payslips", hint: variable ? "Your recent commission / payslip statements — one file or several." : "Your latest payslip(s) — a combined PDF or separate files.", single: false, required: false })
+  }
+  cats.push({ key: "bank_main", label: "Bank statement — main account", hint: variable ? "6 months for the account your income is paid into — we average variable income over 6 months for the fairest result." : "3 consecutive months for the account your income is paid into.", single: false, required: true, escapeLabel: "I only have one statement", escapeNote: "Fewer months means we can verify less of your income — your agent will see this." })
+  if (hasIncome(income, "savings_interest") || hasIncome(income, "dividends")) {
+    cats.push({ key: "bank_savings", label: "Savings / investment statement", hint: "A statement for the savings or investment account behind that income.", single: false, required: false, escapeLabel: "I can't supply this", escapeNote: "Extra declared income can't be verified if you don't supply additional information — it won't count towards your affordability." })
+  }
+  // Optional boosters — shown with a "when it helps" explanation; they raise confidence, never required.
+  if (hasIncome(income, "employment")) {
+    cats.push({ key: "employment_letter", label: "Employment letter or contract", hint: "Substantiates your job and salary — especially helpful if you started recently (it can clear a probation flag).", single: true, required: false, booster: true })
+  }
+  cats.push({ key: "current_lease", label: "Current lease / rental agreement", hint: "If you already rent, add your lease — it proves what you currently afford and can lift your affordability result.", single: true, required: false, booster: true })
+  cats.push({ key: "other", label: "Other documents", hint: "Anything else that strengthens your application — name each one (e.g. previous rental reference, court order, foreign bank statement).", single: false, required: false, named: true })
+  return cats
 }
-const INITIAL_DOCS: DocSlot[] = [
-  { key: "id_document", label: "SA ID / Passport", accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
-  { key: "payslip_1", label: "Payslip (most recent)", accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
-  { key: "payslip_2", label: "Payslip 2", accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
-  { key: "payslip_3", label: "Payslip 3", accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
-  { key: "bank_statement", label: "3-month bank statement", accept: ".pdf", file: null, uploading: false, uploaded: false, storagePath: null },
-  { key: "employment_letter", label: "Employment letter / contract", accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
-]
 
 interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idNumber: string; role: CoRole; invited: boolean }
 interface CompanyInfo { companyType: string; companyReg: string }
@@ -200,7 +213,8 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
   const [coApplicants, setCoApplicants] = useState<CoApplicant[]>([])
   const [company, setCompany] = useState<CompanyInfo>({ companyType: "", companyReg: "" })
   const [invitePending, setInvitePending] = useState(false)
-  const [docs, setDocs] = useState<DocSlot[]>(INITIAL_DOCS)
+  const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>({})
+  const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [evaluation, setEvaluation] = useState<ScreeningEvaluation | null>(null)
@@ -313,53 +327,56 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
     }
   }
 
-  async function uploadDoc(index: number, file: File | null) {
+  async function uploadDoc(categoryKey: string, file: File | null, single: boolean) {
     if (!file || !applicationId) return
-    setDocs((prev) => prev.map((d, i) => i === index ? { ...d, file, uploading: true, error: null } : d))
+    const fileId = `${categoryKey}_${crypto.randomUUID().slice(0, 8)}`
+    const entry: DocFile = { id: fileId, name: file.name, uploading: true, uploaded: false, storagePath: null }
+    setDocFiles((prev) => ({ ...prev, [categoryKey]: single ? [entry] : [...(prev[categoryKey] ?? []), entry] }))
+    const patch = (p: Partial<DocFile>) => setDocFiles((prev) => ({ ...prev, [categoryKey]: (prev[categoryKey] ?? []).map((f) => f.id === fileId ? { ...f, ...p } : f) }))
+
     // Four-gate validation client-side (extension + MIME + magic bytes + password-protected PDF) — the same
-    // ADDENDUM_14L gate the agent route uses. The applicant uploads straight to Storage, so enforce it here
-    // before the upload, not just downstream.
+    // ADDENDUM_14L gate the agent route uses; the applicant uploads straight to Storage, so enforce it here.
     const bytes = new Uint8Array(await file.arrayBuffer())
     const check = validateUpload(file.name, file.type, bytes)
-    if (!check.valid) {
-      setDocs((prev) => prev.map((d, i) => i === index ? { ...d, file: null, uploading: false, uploaded: false, storagePath: null, error: check.userMessage ?? "File not accepted." } : d))
-      toast.error(check.userMessage?.split("\n")[0] ?? "File not accepted.")
-      return
-    }
+    if (!check.valid) { patch({ uploading: false, error: check.userMessage ?? "File not accepted." }); toast.error(check.userMessage?.split("\n")[0] ?? "File not accepted."); return }
+
     try {
       const supabase = createClient()
       const ext = file.name.split(".").pop() ?? "pdf"
-      const key = docs[index].key
-      const path = `applications/${orgId}/${applicationId}/${key}.${ext}`
+      const path = `applications/${orgId}/${applicationId}/${single ? categoryKey : fileId}.${ext}`
       const { error: upErr } = await supabase.storage.from("application-docs").upload(path, file, { upsert: true })
       if (upErr) throw upErr
       let detection: string | null = null
       try {
         const res = await fetch(`/api/applications/${applicationId}/detect-document`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path, docKey: key }),
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, docKey: categoryKey }),
         })
         if (res.ok) detection = ((await res.json()) as { summary?: string }).summary ?? null
       } catch { /* detection non-fatal */ }
-      setDocs((prev) => prev.map((d, i) => i === index ? { ...d, uploading: false, uploaded: true, storagePath: path, detection } : d))
+      patch({ uploading: false, uploaded: true, storagePath: path, detection })
     } catch (err) {
-      setDocs((prev) => prev.map((d, i) => i === index ? { ...d, uploading: false, error: err instanceof Error ? err.message : "Upload failed" } : d))
+      patch({ uploading: false, error: err instanceof Error ? err.message : "Upload failed" })
     }
+  }
+
+  async function removeDoc(categoryKey: string, fileId: string) {
+    const f = (docFiles[categoryKey] ?? []).find((x) => x.id === fileId)
+    setDocFiles((prev) => ({ ...prev, [categoryKey]: (prev[categoryKey] ?? []).filter((x) => x.id !== fileId) }))
+    // Delete from Storage too — the /screen pipeline enumerates the whole prefix, so a removed file must go.
+    if (f?.storagePath) { try { await createClient().storage.from("application-docs").remove([f.storagePath]) } catch { /* best-effort */ } }
+  }
+  function renameDoc(categoryKey: string, fileId: string, name: string) {
+    setDocFiles((prev) => ({ ...prev, [categoryKey]: (prev[categoryKey] ?? []).map((f) => f.id === fileId ? { ...f, name } : f) }))
   }
 
   async function finishDocuments() {
     if (!applicationId) return
     setBusy(true)
     try {
-      const supabase = createClient()
-      const bank = docs.find((d) => d.key === "bank_statement")
-      await supabase.from("applications").update({ bank_statement_path: bank?.storagePath ?? null, stage1_status: "documents_submitted" }).eq("id", applicationId)
-      if (bank?.storagePath) {
-        void fetch(`/api/applications/${applicationId}/documents`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bankStatementPath: bank.storagePath }),
-        })
-      }
+      // Back-compat: store the first main bank-statement path. The real extraction is the /screen pipeline,
+      // which enumerates EVERY uploaded file — so multi-file categories flow through with no extra wiring.
+      const bankPath = (docFiles["bank_main"] ?? []).find((f) => f.uploaded)?.storagePath ?? null
+      await createClient().from("applications").update({ bank_statement_path: bankPath, stage1_status: "documents_submitted" }).eq("id", applicationId)
       advance(4)
     } finally {
       setBusy(false)
@@ -402,7 +419,9 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
     setScreeningStatus("failed")
   }
 
-  const allDocsUploaded = docs.every((d) => d.uploaded)
+  const docCategories = deriveDocCategories(income, emp.employment_type)
+  const docsReady = docCategories.filter((c) => c.required).every((c) => (docFiles[c.key] ?? []).some((f) => f.uploaded))
+    && !Object.values(docFiles).flat().some((f) => f.uploading)
   const companyOk = type !== "company" || Boolean(company.companyType)
   // Submit gate: every applicant "green" — primary is implicit, each co-applicant has name+email+id (or is
   // already invited), and a company application has its type captured.
@@ -439,7 +458,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
               {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} />}
               {step === 1 && <StepAddress form={form} set={set} errors={errors} />}
               {step === 2 && <StepIncome emp={emp} setEmp={setEmp} income={income} setIncome={setIncome} />}
-              {step === 3 && <StepDocuments docs={docs} onUpload={uploadDoc} />}
+              {step === 3 && <StepDocuments categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />}
               {step === 4 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} primaryName={[form.firstName, form.lastName].filter(Boolean).join(" ") || "You"} />}
               {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} screeningStatus={screeningStatus} evaluation={evaluation} onAmend={amendAt} onRerun={submitApplication} />}
             </div>
@@ -454,7 +473,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, agentName, 
               {step === 0 && <Cta label="Continue" onClick={continueIdentity} busy={busy} />}
               {step === 1 && <Cta label="Continue" onClick={continueAddress} busy={busy} />}
               {step === 2 && <Cta label="Continue to documents" onClick={createApplication} busy={busy} />}
-              {step === 3 && <Cta label="Continue to applicants" onClick={finishDocuments} busy={busy} disabled={!allDocsUploaded} />}
+              {step === 3 && <Cta label="Continue to applicants" onClick={finishDocuments} busy={busy} disabled={!docsReady} />}
               {step === 4 && <Cta label="Continue to review" onClick={continueApplicants} busy={busy} disabled={!applicantsGreen} />}
               {step === 5 && screeningStatus === "idle" && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen} />}
             </div>
@@ -711,36 +730,79 @@ function StepApplicants({ type, commercial, coApplicants, setCoApplicants, compa
   )
 }
 
-// ── Step 4 — Documents ───────────────────────────────────────────────────────────
-function StepDocuments({ docs, onUpload }: Readonly<{ docs: DocSlot[]; onUpload: (i: number, f: File | null) => void }>) {
-  const done = docs.filter((d) => d.uploaded).length
+// ── Step 4 — Documents (income-driven categories, multi-file) ────────────────────
+function docFileIcon(f: DocFile) {
+  if (f.uploading) return <Loader2 className="size-4 animate-spin text-[var(--amber-ink)]" />
+  if (f.error) return <AlertCircle className="size-4 text-red-600" />
+  if (f.uploaded) return <CheckCircle2 className="size-4 text-emerald-600" />
+  return <FileText className="size-4 text-[var(--ink-mute)]" />
+}
+
+function DocCategoryCard({ cat, files, skipped, onUpload, onRemove, onRename, onEscape }: Readonly<{
+  cat: DocCategory; files: DocFile[]; skipped: boolean
+  onUpload: (key: string, f: File | null, single: boolean) => void; onRemove: (key: string, id: string) => void
+  onRename: (key: string, id: string, name: string) => void; onEscape: (key: string, v: boolean) => void
+}>) {
+  const showAdd = !(cat.single && files.some((f) => f.uploaded))
   return (
-    <div className="flex flex-col gap-4">
-      <StepHeading title="Upload your documents" sub={`Take a photo or upload a file. ${done}/${docs.length} uploaded.`} />
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--paper-sunk)]">
-        <div className="h-full rounded-full bg-[var(--amber)] transition-all" style={{ width: `${(done / docs.length) * 100}%` }} />
-      </div>
-      <div className="grid gap-2">
-        {docs.map((doc, i) => {
-          let icon = <Upload className="size-5 text-[var(--ink-mute)]" />
-          if (doc.uploading) icon = <Loader2 className="size-5 animate-spin text-[var(--amber-ink)]" />
-          else if (doc.uploaded) icon = <CheckCircle2 className="size-5 text-emerald-600" />
-          else if (doc.error) icon = <AlertCircle className="size-5 text-red-600" />
-          return (
-            <label key={doc.key} className="flex cursor-pointer items-start gap-3 rounded-[var(--r-button)] border border-[var(--rule)] p-3 transition-colors hover:bg-[var(--paper-sunk)]">
-              <span className="mt-0.5 shrink-0">{icon}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium text-[var(--ink)]">{doc.label}</span>
-                {doc.file && <span className="block truncate text-xs text-[var(--ink-mute)]">{doc.file.name}</span>}
-                {doc.detection && <span className="block text-xs text-emerald-600">{doc.detection}</span>}
-                {doc.error && <span className="block whitespace-pre-line text-xs text-red-600">{doc.error}</span>}
-              </span>
-              <FileText className="mt-0.5 size-4 shrink-0 text-[var(--ink-mute)]" />
-              <input type="file" accept={doc.accept} className="sr-only" onChange={(e) => onUpload(i, e.target.files?.[0] ?? null)} />
-            </label>
-          )
-        })}
-      </div>
+    <div className="rounded-[var(--r-button)] border border-[var(--rule)] p-4">
+      <span className="block text-sm font-medium text-[var(--ink)]">{cat.label}{cat.required && <span className="text-[var(--amber-ink)]"> *</span>}</span>
+      <span className="mt-0.5 block text-xs text-[var(--ink-soft)]">{cat.hint}</span>
+      {files.length > 0 && (
+        <div className="mt-3 flex flex-col gap-1.5">
+          {files.map((f) => (
+            <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5">
+              <span className="shrink-0">{docFileIcon(f)}</span>
+              {cat.named
+                ? <input value={f.name} onChange={(e) => onRename(cat.key, f.id, e.target.value)} placeholder="Name this document" className="min-w-0 flex-1 border-0 bg-transparent text-sm text-[var(--ink)] focus:outline-none" />
+                : <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]">{f.name}</span>}
+              {f.detection && <span className="text-xs text-emerald-600">{f.detection}</span>}
+              {!f.uploading && <button type="button" onClick={() => onRemove(cat.key, f.id)} aria-label="Remove document" className="text-[var(--ink-mute)] hover:text-red-600"><X className="size-4" /></button>}
+              {f.error && <span className="w-full whitespace-pre-line text-xs text-red-600">{f.error}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {showAdd && (
+        <label className="mt-2 inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-2 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
+          {files.length > 0 ? <Plus className="size-4" /> : <Upload className="size-4" />}
+          {files.length > 0 ? "Add another" : "Upload"}
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="sr-only" onChange={(e) => { onUpload(cat.key, e.target.files?.[0] ?? null, cat.single); e.currentTarget.value = "" }} />
+        </label>
+      )}
+      {cat.escapeLabel && (
+        <label className="mt-2 flex w-fit cursor-pointer items-center gap-2 text-xs text-[var(--ink-soft)]">
+          <input type="checkbox" checked={skipped} onChange={(e) => onEscape(cat.key, e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
+          {cat.escapeLabel}
+        </label>
+      )}
+      {cat.escapeNote && skipped && (
+        <p className="mt-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-xs text-[var(--ink-soft)]">{cat.escapeNote}</p>
+      )}
+    </div>
+  )
+}
+
+function StepDocuments({ categories, docFiles, escape, onUpload, onRemove, onRename, onEscape }: Readonly<{
+  categories: DocCategory[]; docFiles: Record<string, DocFile[]>; escape: Record<string, boolean>
+  onUpload: (key: string, f: File | null, single: boolean) => void; onRemove: (key: string, id: string) => void
+  onRename: (key: string, id: string, name: string) => void; onEscape: (key: string, v: boolean) => void
+}>) {
+  const core = categories.filter((c) => !c.booster)
+  const boosters = categories.filter((c) => c.booster)
+  const render = (cat: DocCategory) => (
+    <DocCategoryCard key={cat.key} cat={cat} files={docFiles[cat.key] ?? []} skipped={!!escape[cat.key]} onUpload={onUpload} onRemove={onRemove} onRename={onRename} onEscape={onEscape} />
+  )
+  return (
+    <div className="flex flex-col gap-3">
+      <StepHeading title="Upload your documents" sub="We ask for what matches the income you entered — supplying it gives you the strongest, fairest result." />
+      {core.map(render)}
+      {boosters.length > 0 && (
+        <>
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Optional — these can strengthen your application</p>
+          {boosters.map(render)}
+        </>
+      )}
     </div>
   )
 }
