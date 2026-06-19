@@ -113,9 +113,9 @@ function deriveDocCategories(income: IncomeRow[], employmentType: string): DocCa
     { key: "id", label: "ID document", hint: "Your SA ID (smart card or green book) or passport.", single: true, required: true },
   ]
   if (hasIncome(income, "employment")) {
-    cats.push({ key: "payslips", label: "Payslips", hint: variable ? "Your recent commission / payslip statements — one file or several." : "Your latest payslip(s) — a combined PDF or separate files.", single: false, required: false })
+    cats.push({ key: "payslips", label: "Payslips", hint: variable ? "Your 3 most recent commission / payslip statements — one file or several." : "Your 3 most recent payslips — a combined PDF or separate files.", single: false, required: false, escapeLabel: "I don't have 3 payslips — I'll upload what I have", escapeNote: "Fewer payslips means we can verify less of your income — your agent will see this." })
   }
-  cats.push({ key: "bank_main", label: "Bank statement — main account", hint: variable ? "6 months for the account your income is paid into — we average variable income over 6 months for the fairest result." : "3 consecutive months for the account your income is paid into.", single: false, required: true, escapeLabel: "I only have one statement", escapeNote: "Fewer months means we can verify less of your income — your agent will see this." })
+  cats.push({ key: "bank_main", label: "Bank statement — main account", hint: variable ? "6 months for the account your income is paid into — we average variable income over 6 months for the fairest result." : "3 consecutive months for the account your income is paid into.", single: false, required: true, escapeLabel: "I don't have all the requested statements — I'll upload what I have", escapeNote: "Fewer months means we can verify less of your income — your agent will see this." })
   if (hasIncome(income, "savings_interest") || hasIncome(income, "dividends")) {
     cats.push({ key: "bank_savings", label: "Savings / investment statement", hint: "A statement for the savings or investment account behind that income.", single: false, required: false, escapeLabel: "I can't supply this", escapeNote: "Extra declared income can't be verified if you don't supply additional information — it won't count towards your affordability." })
   }
