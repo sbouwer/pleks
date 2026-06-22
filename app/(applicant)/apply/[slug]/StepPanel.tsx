@@ -1009,24 +1009,21 @@ function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void;
   )
 }
 
-/** A two-marker bar: a filled "you are here" track + a tick for the minimum/guideline you're aiming at. */
-function MeterBar({ label, fillPct, markerPct, youText, markerText, ok, hint }: Readonly<{
-  label: string; fillPct: number; markerPct: number; youText: string; markerText: string; ok: boolean; hint: string
+/** A compact two-marker bar: a filled "you are here" track + a tick for the minimum/guideline you aim at.
+ *  Both numbers sit on the label row to save vertical space (the tick shows it visually). */
+function MeterBar({ label, fillPct, markerPct, youText, markerText, ok }: Readonly<{
+  label: string; fillPct: number; markerPct: number; youText: string; markerText: string; ok: boolean
 }>) {
   const clamp = (n: number) => Math.max(0, Math.min(100, n))
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">{label}</span>
-        <span className={`text-xs font-semibold ${ok ? "text-emerald-600" : "text-amber-600"}`}>{youText}</span>
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="text-[var(--ink-soft)]">{label}</span>
+        <span><span className={`font-semibold ${ok ? "text-emerald-600" : "text-amber-600"}`}>{youText}</span> <span className="text-[var(--ink-mute)]">/ {markerText}</span></span>
       </div>
-      <div className="relative mt-2 h-2.5 rounded-full bg-[var(--rule)]/50">
+      <div className="relative mt-1.5 h-2 rounded-full bg-[var(--rule)]/50">
         <div className={`h-full rounded-full ${ok ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${clamp(fillPct)}%` }} />
-        <div className="absolute -top-1 -bottom-1 w-0.5 bg-[var(--ink)]" style={{ left: `${clamp(markerPct)}%` }} />
-      </div>
-      <div className="mt-1 flex items-baseline justify-between text-[11px] text-[var(--ink-mute)]">
-        <span>{hint}</span>
-        <span>↑ {markerText}</span>
+        <div className="absolute -top-1 -bottom-1 w-0.5 bg-[var(--ink)]" style={{ left: `${clamp(markerPct)}%` }} title={markerText} />
       </div>
     </div>
   )
@@ -1068,93 +1065,73 @@ function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun
   const confOk = confPct >= 65
 
   return (
-    <div className="flex flex-col gap-4">
-      <StepHeading title="Application submitted ✓" sub="Here's your pre-screen result — where you are now, and the minimum you're aiming for." />
-      <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-5">
-        <div className="flex items-end justify-between">
+    <div className="flex flex-col gap-3">
+      <StepHeading title="Your pre-screen result" sub="A free pre-screen — not sent yet. Submit it to your agent, or strengthen it first." />
+      <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4">
+        <div className="flex items-center justify-between">
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Pre-screen result</span>
           <span className={`text-sm font-semibold ${r.cls}`}>{r.label}</span>
         </div>
-        <p className="mt-2 text-sm text-[var(--ink-soft)]">{r.note}</p>
-        <div className="mt-4 flex flex-col gap-1.5 border-t border-[var(--rule)] pt-4 text-sm">
-          <div className="flex items-baseline justify-between">
-            <span className="text-[var(--ink-soft)]">Asking rent</span>
-            <span className="font-medium text-[var(--ink)]">{formatZAR(askingRentCents)} /mo</span>
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-[var(--ink-soft)]">Declared income</span>
-            <span className="font-medium text-[var(--ink)]">{incomeCents > 0 ? `${formatZAR(incomeCents)} /mo` : "—"}</span>
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-[var(--ink-soft)]">Rent-to-income</span>
-            <span className={`font-semibold ${affordOk ? "text-emerald-600" : "text-amber-600"}`}>{ratio != null ? `${ratio}%` : "—"}</span>
-          </div>
+        <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--rule)] pt-3 text-sm">
+          <div><span className="block text-[11px] text-[var(--ink-mute)]">Rent /mo</span><span className="font-medium text-[var(--ink)]">{formatZAR(askingRentCents)}</span></div>
+          <div><span className="block text-[11px] text-[var(--ink-mute)]">Income /mo</span><span className="font-medium text-[var(--ink)]">{incomeCents > 0 ? formatZAR(incomeCents) : "—"}</span></div>
+          <div><span className="block text-[11px] text-[var(--ink-mute)]">Rent-to-income</span><span className={`font-semibold ${affordOk ? "text-emerald-600" : "text-amber-600"}`}>{ratio != null ? `${ratio}%` : "—"}</span></div>
         </div>
-        <div className="mt-5 flex flex-col gap-5">
+        <div className="mt-3 flex flex-col gap-2.5">
           <MeterBar
-            label="Affordability — rent vs income"
+            label="Affordability"
             fillPct={ratio != null ? (ratio / AFFORD_MAX) * 100 : 0}
             markerPct={(30 / AFFORD_MAX) * 100}
-            youText={ratio != null ? `You: ${ratio}%` : "You: —"}
-            markerText="Guideline 30%"
+            youText={ratio != null ? `${ratio}%` : "—"}
+            markerText="guideline 30%"
             ok={affordOk}
-            hint={affordOk ? "Within the 30% guideline" : "Over the 30% guideline"}
           />
           <MeterBar
-            label="Confidence — how well your documents back it up"
+            label="Document confidence"
             fillPct={confPct}
             markerPct={65}
-            youText={`You: ${CONF_LABEL[evaluation.confidence_tier] ?? evaluation.confidence_tier}`}
-            markerText="Minimum: Adequate"
+            youText={CONF_LABEL[evaluation.confidence_tier] ?? evaluation.confidence_tier}
+            markerText="min. Adequate"
             ok={confOk}
-            hint={confOk ? "Your documents support your declaration" : "Documents don't yet fully back your declaration"}
           />
         </div>
       </div>
       {positives.map((f) => (
-        <p key={f.key} className="flex items-start gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />{f.title}</p>
+        <p key={f.key} className="flex items-start gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />{f.title}</p>
       ))}
       {todos.length > 0 && (
-        <div>
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Proposed changes to strengthen it</p>
-          <div className="flex flex-col gap-2">
+        <div className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
+          <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Proposed change to strengthen it</p>
+          <div className="flex flex-col gap-1.5">
             {todos.map((f) => (
-              <div key={f.key} className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
-                <span className="block text-sm font-medium text-[var(--ink)]">{f.title}</span>
-                {f.remediation && <span className="mt-0.5 block text-xs text-[var(--ink-soft)]">{f.remediation}</span>}
+              <div key={f.key} className="text-sm">
+                <span className="font-medium text-[var(--ink)]">{f.title}</span>
+                {f.remediation && <span className="block text-xs text-[var(--ink-soft)]">{f.remediation}</span>}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Two clear paths — submit as is now, or make the one allowed round of changes then re-check. */}
-      <div className="flex flex-col gap-3 border-t border-[var(--rule)] pt-4">
-        <p className="text-sm text-[var(--ink-soft)]">
-          Happy with this? Send it to your agent now. Or make <span className="font-medium text-[var(--ink)]">one</span> round of changes first — then it goes to your agent for review.
-        </p>
+      {/* Two clear paths — submit to the agent now, or make the one allowed round of changes then re-check. */}
+      <div className="flex flex-col gap-2 border-t border-[var(--rule)] pt-3">
         <div className="flex flex-wrap items-center gap-2">
-          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} onClick={() => (todos.length > 0 ? setConfirmOpen(true) : setDone(true))}>Submit to agent as is</ActionButton>
+          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} onClick={() => (todos.length > 0 ? setConfirmOpen(true) : setDone(true))}>Submit to agent</ActionButton>
           <ActionButton tone="secondary" icon={<Pencil className="size-4" />} onClick={() => setAmendOpen((v) => !v)}>{amendOpen ? "Cancel changes" : "Amend & re-check"}</ActionButton>
         </div>
         {amendOpen && (
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
-            <p className="text-xs text-[var(--ink-mute)]">
-              {todos.length > 0
-                ? <>Make the proposed change above, then re-check. You get <span className="font-medium text-[var(--ink-soft)]">one</span> re-check before your agent reviews it.</>
-                : <>Update anything you need, then re-check. You get <span className="font-medium text-[var(--ink-soft)]">one</span> re-check before your agent reviews it.</>}
-            </p>
+            <p className="text-xs text-[var(--ink-mute)]">Make your change{todos.length > 0 ? " (above)" : ""}, then re-check. You get <span className="font-medium text-[var(--ink-soft)]">one</span> re-check before your agent reviews it.</p>
             <AmendBar onAmend={onAmend} onRerun={onRerun} />
           </div>
         )}
       </div>
-      <p className="text-xs text-[var(--ink-mute)]">We&apos;ve emailed your confirmation. The agent will be in touch about next steps.</p>
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="Submit without the suggested changes?"
-        description="We suggested a change to strengthen your application. If you submit as is, it goes straight to your agent and you won't be able to change it afterwards."
-        confirmLabel="Yes, submit as is"
+        title="Submit without the suggested change?"
+        description="We suggested a change to strengthen your application. If you submit now, it goes to your agent and you won't be able to change it afterwards."
+        confirmLabel="Yes, submit"
         cancelLabel="Keep editing"
         onConfirm={() => { setConfirmOpen(false); setDone(true) }}
       />
