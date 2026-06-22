@@ -17,11 +17,11 @@ import { ActionButton } from "@/components/ui/actions"
 export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: string; loggedIn?: boolean; name?: string | null }>) {
   const [open, setOpen] = useState(false)
   function login() {
-    globalThis.location.href = `/login?redirect=${encodeURIComponent(`/apply/${slug}/preview`)}`
+    globalThis.location.href = `/login?redirect=${encodeURIComponent(`/apply/${slug}`)}`
   }
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null)
-    globalThis.location.href = `/apply/${slug}/preview`
+    globalThis.location.href = `/apply/${slug}`
   }
 
   // Already authenticated — skip the door; the form is pre-filled from the user's own record. Offer sign-out
