@@ -15,10 +15,12 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
-import { IconButton } from "@/components/ui/actions"
+import { IconButton, ActionButton } from "@/components/ui/actions"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
+import { usePermissions } from "@/hooks/usePermissions"
 import { formatZAR } from "@/lib/constants"
-import { shortlistStage1Action, declineStage1Action } from "@/lib/applications/applicationActions"
-import { Eye, Check, X, Users } from "lucide-react"
+import { shortlistStage1Action, declineStage1Action, deleteApplicationsAction } from "@/lib/applications/applicationActions"
+import { Eye, Check, X, Users, Trash2 } from "lucide-react"
 
 export interface TriageApp {
   id: string
@@ -74,11 +76,32 @@ const DECISION_FILTER = [
 
 export function ApplicationTriageList({ slug, applications }: Readonly<{ slug: string; applications: TriageApp[] }>) {
   const router = useRouter()
+  const { isAdmin } = usePermissions()
   const [overrides, setOverrides] = useState<Map<string, Decision>>(new Map())
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const [search, setSearch] = useState("")
   const [decisions, setDecisions] = useState<string[]>([])
   const { sortKey, sortDir, onSort } = useListSort<TriageSortKey>("match", "desc")
+  // Bulk delete (owner/admin only)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
+
+  function toggleSel(id: string) {
+    setSelected((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) { n.delete(id) } else { n.add(id) }
+      return n
+    })
+  }
+  async function bulkDelete() {
+    setBulkBusy(true)
+    const r = await deleteApplicationsAction([...selected])
+    if (r?.error) { toast.error(r.error); setBulkBusy(false); return }
+    toast.success(`Removed ${(r.soft ?? 0) + (r.hard ?? 0)} application${(r.soft ?? 0) + (r.hard ?? 0) === 1 ? "" : "s"}`)
+    setSelected(new Set()); setBulkOpen(false); setBulkBusy(false)
+    router.refresh()
+  }
 
   const decisionOf = (a: TriageApp): Decision => overrides.get(a.id) ?? serverDecision(a)
 
@@ -157,16 +180,32 @@ export function ApplicationTriageList({ slug, applications }: Readonly<{ slug: s
         placeholder="Search applicants by name…"
         filters={<ToolbarFilter label="Decision" multiple selected={decisions} onChange={setDecisions} options={DECISION_FILTER} />}
       />
-      <p className="text-xs text-muted-foreground">{rows.length} of {applications.length} applications</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">{rows.length} of {applications.length} applications</p>
+        {isAdmin && selected.size > 0 && (
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted-foreground hover:text-foreground">Clear</button>
+            <ActionButton tone="destructive" size="sm" icon={<Trash2 className="size-4" />} onClick={() => setBulkOpen(true)}>Delete {selected.size}</ActionButton>
+          </div>
+        )}
+      </div>
 
       <ListCard fill>
         <table className="w-full table-fixed text-sm">
           <colgroup>
+            {isAdmin && <col className="w-[4%]" />}
             <col className="w-[12%]" /><col className="w-[26%]" /><col className="w-[22%]" />
             <col className="w-[16%]" /><col className="w-[12%]" /><col className="w-[12%]" />
           </colgroup>
           <thead className="sticky top-0 z-10 border-b border-border/60 bg-card">
             <tr>
+              {isAdmin && (
+                <th className="px-3 py-2.5 text-left">
+                  <input type="checkbox" aria-label="Select all" className="size-3.5 accent-[var(--amber)]"
+                    checked={rows.length > 0 && rows.every((a) => selected.has(a.id))}
+                    onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((a) => a.id)) : new Set())} />
+                </th>
+              )}
               <th className="px-3 py-2.5 text-left"><SortHeader col="type" label="Type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-left"><SortHeader col="name" label="Applicant" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-left"><SortHeader col="match" label="Match" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
@@ -181,6 +220,11 @@ export function ApplicationTriageList({ slug, applications }: Readonly<{ slug: s
               const chip = a.ruling ? RULING_CHIP[a.ruling.tier] : null
               return (
                 <tr key={a.id} className={d === "declined" ? "opacity-45" : ""}>
+                  {isAdmin && (
+                    <td className="px-3 py-3">
+                      <input type="checkbox" aria-label={`Select ${a.name}`} className="size-3.5 accent-[var(--amber)]" checked={selected.has(a.id)} onChange={() => toggleSel(a.id)} />
+                    </td>
+                  )}
                   <td className="px-3 py-3 text-xs text-muted-foreground">{TYPE_LABEL[a.type] ?? a.type}</td>
                   <td className="truncate px-3 py-3">
                     <span className="font-medium">{a.name}</span>
@@ -210,6 +254,17 @@ export function ApplicationTriageList({ slug, applications }: Readonly<{ slug: s
           </tbody>
         </table>
       </ListCard>
+
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Delete ${selected.size} application${selected.size === 1 ? "" : "s"}?`}
+        description="Submitted applications are removed from your lists but their records, documents, consent and audit trail are kept (evidentiary). Any unsubmitted drafts are permanently deleted."
+        variant="destructive"
+        confirmLabel={`Delete ${selected.size}`}
+        onConfirm={bulkDelete}
+        loading={bulkBusy}
+      />
     </div>
   )
 }

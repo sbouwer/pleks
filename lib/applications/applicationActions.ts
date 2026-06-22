@@ -151,6 +151,36 @@ export async function deleteApplicationAction(applicationId: string) {
   return { ok: true, soft: false }
 }
 
+/** Bulk variant of deleteApplicationAction (owner/admin) — same per-app rule (soft submitted / hard draft). */
+export async function deleteApplicationsAction(applicationIds: string[]) {
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorized" }
+  if (!gw.isAdmin) return { error: "Only an owner or admin can delete applications." }
+  const { db, userId, orgId } = gw
+  if (applicationIds.length === 0) return { ok: true, soft: 0, hard: 0 }
+
+  const { data: apps, error } = await db.from("applications")
+    .select("id, stage1_consent_given").in("id", applicationIds).eq("org_id", orgId).is("deleted_at", null)
+  if (error) return { error: error.message }
+
+  let soft = 0, hard = 0
+  for (const app of apps ?? []) {
+    const id = app.id as string
+    if (app.stage1_consent_given) {
+      await db.from("applications").update({ deleted_at: NOW() }).eq("id", id).eq("org_id", orgId)
+      await recordAudit(db, { orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: id, after: { action: "application_soft_deleted", bulk: true } })
+      soft++
+    } else {
+      await purgeApplicationDocs(db, orgId, id)
+      await db.from("applications").delete().eq("id", id).eq("org_id", orgId)
+      await recordAudit(db, { orgId, actorId: userId, action: "DELETE", table: "applications", recordId: id, before: { action: "draft_application_deleted", bulk: true } })
+      hard++
+    }
+  }
+  revalidatePath("/listings")
+  return { ok: true, soft, hard }
+}
+
 export async function approveAction(applicationId: string, agentId: string, tenantId: string) {
   const gw = await gateway()
   if (!gw) return { error: "Unauthorized" }
