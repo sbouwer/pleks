@@ -19,7 +19,7 @@ import { runPipeline } from "@/lib/extraction/pipeline"
 import { reconcile } from "@/lib/extraction/reconciler"
 import { evaluateRuling } from "@/lib/applications/ruling"
 import { hasFeature } from "@/lib/tier/gates"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { RECONCILER_VERSION, type DeclaredContext, type Document, type ReconciliationResult } from "@/lib/extraction/types"
 import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -138,7 +138,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Tier gate: full AI extraction for ai_full orgs with docs; else declared-only reconciliation (graceful
     // degrade — confidence will be 'needs-evidence' with upload prompts; no AI cost).
-    const tier = await getOrgTier(app.org_id)
+    // CANONICAL tier (service-client, DB-authoritative) — NOT getOrgTier: the screen route runs in the applicant's
+    // token context with no agent cookie/membership, so getOrgTier's cookie-client fallback returns "owner" and
+    // silently skips AI extraction even for paid orgs. Capability gates must use the canonical tier.
+    const tier = await getOrgTierCanonical(app.org_id)
     let reconciliation: ReconciliationResult
     let fraudSignals: unknown[] = []
     const docs = await loadDocuments(db, app.org_id, id)
