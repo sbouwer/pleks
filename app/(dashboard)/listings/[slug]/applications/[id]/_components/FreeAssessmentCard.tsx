@@ -6,19 +6,16 @@
  * Auth:   rendered inside the agent application detail page (gatewaySSR-gated).
  * Data:   applications.free_assessment (jsonb) — computed at submit by lib/applications/freeAssessment.
  */
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { Step1Checklist } from "@/components/applications/Step1Checklist"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 
 export function FreeAssessmentCard({ assessment, rentCents }: Readonly<{ assessment: FreeAssessmentResult | null; rentCents: number }>) {
   return (
-    <Card>
-      <CardHeader><CardTitle className="text-lg">Free assessment (Step 1)</CardTitle></CardHeader>
-      <CardContent>
-        {assessment?.rollup
-          ? <Step1Checklist assessment={assessment} rentCents={rentCents} audience="agent" />
-          : <p className="text-sm text-muted-foreground">No Step-1 checklist for this application (it predates the checklist) — see the verified ruling if present.</p>}
-      </CardContent>
-    </Card>
+    <DetailCard title="Free assessment · Step 1">
+      {assessment?.rollup
+        ? <Step1Checklist assessment={assessment} rentCents={rentCents} audience="agent" />
+        : <p className="text-sm text-muted-foreground">No Step-1 checklist for this application (it predates the checklist) — see the verified ruling.</p>}
+    </DetailCard>
   )
 }
