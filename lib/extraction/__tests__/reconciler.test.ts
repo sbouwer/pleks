@@ -21,7 +21,7 @@ function payslip(p: Partial<PayslipExtraction>): PayslipExtraction {
   return { employer_name: "Acme", employee_name: "John Smith", pay_period: "2026-05", language: "en", gross_pay_cents: 2_500_000, net_pay_cents: 1_900_000, deductions: [], ytd_gross_cents: null, ytd_paye_cents: null, payment_method: "eft", bank_account_last4: null, extraction_confidence: 0.95, ...p }
 }
 function bank(p: Partial<BankStatementExtraction>): BankStatementExtraction {
-  return { bank: "FNB", account_number_last4: null, account_type: "cheque", statement_period_from: "2026-03-01", statement_period_to: "2026-05-31", opening_balance_cents: 0, closing_balance_cents: 0, inflows: [], outflows: [], income_indicators: { regular_salary_detected: false, average_monthly_inflow_cents: null, debit_order_volume_cents: null, end_of_month_dip_detected: false }, extraction_confidence: 0.95, ...p }
+  return { bank: "FNB", account_number_last4: null, account_type: "cheque", statement_period_from: "2026-03-01", statement_period_to: "2026-05-31", opening_balance_cents: 0, closing_balance_cents: 0, inflows: [], outflows: [], income_indicators: { regular_salary_detected: false, average_monthly_inflow_cents: null, debit_order_volume_cents: null, end_of_month_dip_detected: false }, monthly_summary: [], returned_debit_count: null, overdraft_days: null, lowest_balance_cents: null, extraction_confidence: 0.95, ...p }
 }
 function id(p: Partial<IDExtraction>): IDExtraction {
   return { document_type: "sa-smart-id", full_name: "John Smith", id_number: "9001015800087", date_of_birth: null, gender: null, citizenship: null, expiry_date: null, extraction_confidence: 0.95, ...p }

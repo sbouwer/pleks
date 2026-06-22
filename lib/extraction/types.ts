@@ -261,6 +261,13 @@ export interface BankStatementExtraction {
     debit_order_volume_cents: number | null
     end_of_month_dip_detected: boolean
   }
+  // Aggregates for the affordability obligations picture — feed flags 10–13 (debit-order load, returned debits,
+  // overdraft, declining balance trend) AND flag 0b's observed_obligations / residual-income override. Captured
+  // now so the bank schema doesn't need re-extraction when those flags land. (ADDENDUM_14M)
+  monthly_summary: Array<{ month: string; closing_balance_cents: number | null }>  // per-month → balance trend
+  returned_debit_count: number | null   // returned/bounced/unpaid debit-order events (flag 12)
+  overdraft_days: number | null         // count of days the balance was below zero (flag 13)
+  lowest_balance_cents: number | null   // trough balance over the period (overdraft depth; can be negative)
   extraction_confidence: number
 }
 
