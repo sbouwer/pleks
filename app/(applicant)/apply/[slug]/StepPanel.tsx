@@ -24,12 +24,11 @@
  *         The server page renders the shell + left cards and passes slug/orgId/rent + agent contact.
  */
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft, Pencil, Clock } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity, CompanyAddressSection } from "@/components/parties/partySteps"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
@@ -38,7 +37,8 @@ import {
   validateIdentityCore, validateAddressStep,
   type PartyFormState, type PartyErrors, type PartyAddressInput, type PartyPerson, type PartyBankAccountInput,
 } from "@/lib/parties/partyValidation"
-import { formatZAR, startedWithinProbation, PROBATION_MONTHS, MAX_SCREENING_ITERATIONS } from "@/lib/constants"
+import { formatZAR, startedWithinProbation, PROBATION_MONTHS } from "@/lib/constants"
+import type { FreeAssessmentResult, DeclaredAffordabilityTier } from "@/lib/applications/freeAssessment"
 
 type ApplicantType = "individual" | "couple" | "company" | "guarantor"
 /** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
@@ -132,15 +132,9 @@ function deriveDocCategories(income: IncomeRow[], employmentType: string): DocCa
 
 interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idNumber: string; role: CoRole; invited: boolean }
 interface CompanyInfo { companyType: string; companyReg: string }
-type ScreeningStatus = "idle" | "processing" | "done" | "failed"
-interface RulingFlagView { id: number; key: string; axis: string; severity: string; type: string; title: string; remediation: string | null }
-interface ScreeningEvaluation {
-  iteration_number: number; ruling_tier: string; affordability_tier: string
-  affordability_ratio_pct: number | null; demonstrated_housing_cents: number | null
-  affordability_corroborated_ratio_pct?: number | null; corroborated_income_cents?: number | null
-  confidence_tier: string; flags: RulingFlagView[]
-}
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+// "done" = the Step-1 free assessment is ready to show (it's instant — no processing/poll). The deep-scan ruling
+// moved off the applicant flow to the agent's shortlist step (Step 2). (ADDENDUM_14M three-step funnel)
+type ScreeningStatus = "idle" | "done"
 const COMPANY_TYPE_OPTIONS = [
   { value: "", label: "Select…" },
   { value: "pty_ltd", label: "(Pty) Ltd" },
@@ -284,7 +278,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
-  const [evaluation, setEvaluation] = useState<ScreeningEvaluation | null>(null)
+  const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
 
   function advance(to: number) { setStep(to); setMaxReached((m) => Math.max(m, to)) }
 
@@ -494,42 +488,29 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
 
   /** Amend the application (add applicant / upload docs / edit details) → re-enter that step; the user
    *  re-submits to run a fresh screening iteration (the 14M self-improvement loop). */
-  function amendAt(toStep: number) { setScreeningStatus("idle"); setEvaluation(null); setStep(toStep) }
+  function amendAt(toStep: number) { setScreeningStatus("idle"); setAssessment(null); setStep(toStep) }
 
+  /** Run the Step-1 FREE assessment (zero-AI, instant) and show the result. NO deep scan, NO poll — the deep
+   *  scan runs later, at the agent's shortlist step. The assessment can be re-run freely (it's free). */
   async function submitApplication() {
     if (!applicationId || !token) return
-    setBusy(true); setScreeningStatus("processing"); setEvaluation(null)
+    setBusy(true)
     try {
       const res = await fetch(`/api/applications/${applicationId}/submit`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
       })
-      const json = await res.json() as { ok?: boolean; error?: string; code?: string }
-      if (!res.ok || !json.ok) {
+      const json = await res.json() as { ok?: boolean; error?: string; code?: string; freeAssessment?: FreeAssessmentResult }
+      if (!res.ok || !json.ok || !json.freeAssessment) {
         // If the email changed since verifying, the server clears the gate — re-show "Verify your email".
         if (json.code === "email_unverified") setEmailVerified(false)
-        toast.error(json.error ?? "Could not submit your application."); setScreeningStatus("idle"); return
+        toast.error(json.error ?? "Could not run your assessment."); return
       }
-      void pollScreening(applicationId, token)   // background poll; the panel shows "processing"
+      setAssessment(json.freeAssessment); setScreeningStatus("done")
     } catch {
-      toast.error("Could not submit your application."); setScreeningStatus("idle")
+      toast.error("Could not run your assessment.")
     } finally {
       setBusy(false)
     }
-  }
-
-  /** Poll the screen route until the ruling lands. Backs off 2s→6s and tolerates offline/reconnect (it keeps
-   *  polling on a fetch error) rather than hammering; gives up (failed) after ~3 min. */
-  async function pollScreening(appId: string, tok: string) {
-    for (let attempt = 0; attempt < 40; attempt++) {
-      await sleep(Math.min(2000 + attempt * 500, 6000))   // first wait = the guaranteed "breathing" beat
-      try {
-        const res = await fetch(`/api/applications/${appId}/screen?token=${encodeURIComponent(tok)}`)
-        const json = await res.json() as { status?: string; evaluation?: ScreeningEvaluation }
-        if (json.status === "done" && json.evaluation) { setEvaluation(json.evaluation); setScreeningStatus("done"); return }
-        if (json.status === "failed") { setScreeningStatus("failed"); return }
-      } catch { /* offline / reconnect — keep polling */ }
-    }
-    setScreeningStatus("failed")
   }
 
   const docCategories = deriveDocCategories(income, emp.employment_type)
@@ -577,7 +558,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
               {step === 2 && <StepIncome emp={emp} setEmp={setEmp} income={income} setIncome={setIncome} dependents={dependents} setDependents={setDependents} />}
               {step === 3 && <StepDocuments categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />}
               {step === 4 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} primaryName={[form.firstName, form.lastName].filter(Boolean).join(" ") || "You"} />}
-              {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} screeningStatus={screeningStatus} evaluation={evaluation} onAmend={amendAt} onRerun={submitApplication} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />}
+              {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onRerun={submitApplication} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />}
             </div>
             <div className={footerCls}>
               <div className="flex items-center gap-3">
@@ -592,7 +573,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
               {step === 2 && <Cta label="Continue to documents" onClick={createApplication} busy={busy} />}
               {step === 3 && <Cta label="Continue to applicants" onClick={finishDocuments} busy={busy} disabled={!docsReady} />}
               {step === 4 && <Cta label="Continue to review" onClick={continueApplicants} busy={busy} disabled={!applicantsGreen} />}
-              {step === 5 && screeningStatus === "idle" && <Cta label="Run my pre-screen" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen || !emailGateSatisfied} />}
+              {step === 5 && screeningStatus === "idle" && <Cta label="Run my free assessment" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen || !emailGateSatisfied} />}
             </div>
           </>
         )}
@@ -976,93 +957,9 @@ function StepDocuments({ categories, docFiles, escape, onUpload, onRemove, onRen
   )
 }
 
-// ── Step 6 — Submit → processing → 14M two-axis ruling ───────────────────────────
-const RULING_LABEL: Record<string, { label: string; cls: string; note: string }> = {
-  strong:            { label: "Strong application",   cls: "text-emerald-600", note: "Well-evidenced and affordable." },
-  adequate:          { label: "Looks good",           cls: "text-emerald-600", note: "A solid application — a few optional improvements below." },
-  "needs-evidence":  { label: "Needs a bit more",     cls: "text-amber-600",   note: "Add the evidence below to strengthen your application." },
-  "below-threshold": { label: "Affordability concern", cls: "text-red-600",    note: "Rent is high relative to your income — see the options below." },
-}
-const CONF_LABEL: Record<string, string> = { strong: "Strong", adequate: "Adequate", "needs-evidence": "Needs evidence" }
-
-// Time-based progress so the ~1–2 min screening never looks frozen. Stages advance on an elapsed timer (the real
-// per-doc backend progress is a follow-up); the last stage holds until the poll returns the result. Honest copy +
-// a visible elapsed clock so the applicant knows it's working, not crashed.
-const PROCESSING_STAGES = [
-  { label: "Reading your uploaded documents", until: 30 },
-  { label: "Checking affordability & income evidence", until: 65 },
-  { label: "Cross-checking the details across your documents", until: 95 },
-  { label: "Preparing your result", until: Infinity },
-] as const
-
-type StageState = "done" | "active" | "pending"
-function stageState(i: number, current: number): StageState {
-  if (i < current) return "done"
-  if (i === current) return "active"
-  return "pending"
-}
-const STAGE_TONE: Record<StageState, string> = {
-  done: "text-[var(--ink-soft)]", active: "text-[var(--ink)]", pending: "text-[var(--ink-mute)]",
-}
-function StageIcon({ state }: Readonly<{ state: StageState }>) {
-  if (state === "done") return <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
-  if (state === "active") return <Loader2 className="size-4 shrink-0 animate-spin text-[var(--amber-ink)]" />
-  return <span className="size-4 shrink-0 rounded-full border border-[var(--rule)]" />
-}
-function ProcessingStage({ label, state }: Readonly<{ label: string; state: StageState }>) {
-  return (
-    <li className={`flex items-center gap-2.5 text-sm ${STAGE_TONE[state]}`}>
-      <StageIcon state={state} />
-      <span>{label}</span>
-    </li>
-  )
-}
-
-function ProcessingView() {
-  const [elapsed, setElapsed] = useState(0)
-  useEffect(() => {
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000)
-    return () => clearInterval(t)
-  }, [])
-  const currentIdx = PROCESSING_STAGES.findIndex((s) => elapsed < s.until)
-  const current = currentIdx === -1 ? PROCESSING_STAGES.length - 1 : currentIdx
-  const pct = Math.min(95, Math.round((elapsed / 90) * 100)) // cap at 95% until the real result lands
-  const mm = Math.floor(elapsed / 60), ss = String(elapsed % 60).padStart(2, "0")
-
-  return (
-    <div className="flex flex-col gap-5 py-6">
-      <div className="text-center">
-        <h2 className="text-xl font-medium text-[var(--ink)]">Checking your application…</h2>
-        <p className="mt-1 text-sm text-[var(--ink-soft)]">This usually takes about a minute, sometimes two. You can leave this open — we&apos;ll show your result here.</p>
-      </div>
-
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--rule)]/50">
-        <div className="h-full rounded-full bg-[var(--amber-ink)] transition-[width] duration-1000 ease-linear" style={{ width: `${pct}%` }} />
-      </div>
-
-      <ul className="mx-auto flex w-full max-w-sm flex-col gap-2.5">
-        {PROCESSING_STAGES.map((s, i) => (
-          <ProcessingStage key={s.label} label={s.label} state={stageState(i, current)} />
-        ))}
-      </ul>
-
-      <p className="text-center font-mono text-[11px] tabular-nums text-[var(--ink-mute)]">{mm}:{ss} elapsed</p>
-    </div>
-  )
-}
-
-function FailedView({ onRetry }: Readonly<{ onRetry: () => void }>) {
-  return (
-    <div className="flex flex-col items-center gap-4 py-10 text-center">
-      <AlertCircle className="size-8 text-amber-600" />
-      <div>
-        <h2 className="text-xl font-medium text-[var(--ink)]">We couldn&apos;t finish the check</h2>
-        <p className="mt-1 max-w-prose text-sm text-[var(--ink-soft)]">Something interrupted the screening — your application is saved. Please try again.</p>
-      </div>
-      <ActionButton tone="primary" onClick={onRetry}>Try again</ActionButton>
-    </div>
-  )
-}
+// ── Step 6 — Submit → instant Step-1 FREE assessment (declared affordability + readiness; zero-AI) ───────────
+// The deep-scan ruling UI (ProcessingView/RulingView/poll) was removed here: the applicant no longer triggers an
+// AI deep scan at submit. That runs later, on the agent's shortlist (Step 2). (ADDENDUM_14M three-step funnel)
 
 function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void; onRerun: () => void }>) {
   return (
@@ -1095,10 +992,7 @@ function MeterBar({ label, fillPct, markerPct, youText, markerText, ok }: Readon
   )
 }
 
-const CONF_PCT: Record<string, number> = { "needs-evidence": 30, adequate: 65, strong: 100 }
-
-/** Final state — nothing more for the applicant to do; the agent has it. Reached by "Submit as is" or after the
- *  one allowed re-check. */
+/** Final state — nothing more for the applicant to do; the agent has it. Reached by "Submit to agent". */
 function HandoffView() {
   return (
     <div className="flex flex-col gap-4">
@@ -1113,10 +1007,19 @@ function HandoffView() {
   )
 }
 
-function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun, onSubmitToAgent }: Readonly<{ evaluation: ScreeningEvaluation; askingRentCents: number; incomeCents: number; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean> }>) {
+const DECLARED_TIER: Record<DeclaredAffordabilityTier, { label: string; cls: string; ok: boolean }> = {
+  within:      { label: "Looks affordable",     cls: "text-emerald-600", ok: true },
+  marginal:    { label: "A bit tight",          cls: "text-amber-600",   ok: false },
+  below:       { label: "Affordability concern", cls: "text-red-600",    ok: false },
+  "no-income": { label: "No income entered",    cls: "text-amber-600",   ok: false },
+}
+
+/** Step-1 FREE assessment result — combined DECLARED affordability + readiness, nothing verified. The applicant
+ *  reviews it, can re-run it freely (it's zero-cost), then submits to the agent. The J1 gate (all co-applicants
+ *  complete) blocks submit both here (button) and server-side (/submit-to-agent). (ADDENDUM_14M three-step funnel) */
+function FreeAssessmentView({ assessment, askingRentCents, onAmend, onRerun, onSubmitToAgent }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean> }>) {
   const [done, setDone] = useState(false)
   const [amendOpen, setAmendOpen] = useState(false)
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   async function doSubmit() {
@@ -1125,97 +1028,55 @@ function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun
     if (ok) setDone(true)
     else setSubmitting(false)
   }
-  // Either the applicant chose "submit as is", or the one allowed re-check has been used → hand off to the agent.
-  if (done || evaluation.iteration_number >= MAX_SCREENING_ITERATIONS) return <HandoffView />
+  if (done) return <HandoffView />
 
-  const r = RULING_LABEL[evaluation.ruling_tier] ?? RULING_LABEL["needs-evidence"]
-  const todos = evaluation.flags.filter((f) => (f.type === "fixable" || f.type === "structural") && f.remediation)
-  const positives = evaluation.flags.filter((f) => f.type === "override")
-
-  const ratio = evaluation.affordability_ratio_pct
-  const affordOk = ratio != null && ratio <= 30
-  const corrIncome = evaluation.corroborated_income_cents ?? null
-  const corrRatio = evaluation.affordability_corroborated_ratio_pct ?? null
-  const confPct = CONF_PCT[evaluation.confidence_tier] ?? 30
-  const confOk = confPct >= 65
+  const t = DECLARED_TIER[assessment.affordabilityTier]
+  const ratio = assessment.declaredRatioPct
+  const incomeCents = assessment.combinedIncomeCents
+  const { band, incompleteCount, invalidIdCount } = assessment.readiness
+  const readyToSubmit = incompleteCount === 0   // J1: someone unfinished → blocked (server enforces too)
 
   return (
     <div className="flex flex-col gap-3">
-      <StepHeading title="Your pre-screen result" sub="A free pre-screen — not sent yet. Submit it to your agent, or strengthen it first." />
+      <StepHeading title="Your free assessment" sub="Based on what you've entered — nothing is verified yet. Submit it to your agent, or strengthen it first." />
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4">
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Pre-screen result</span>
-          <span className={`text-sm font-semibold ${r.cls}`}>{r.label}</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Declared affordability · unverified</span>
+          <span className={`text-sm font-semibold ${t.cls}`}>{t.label}</span>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--rule)] pt-3 text-sm">
           <div><span className="block text-[11px] text-[var(--ink-mute)]">Rent /mo</span><span className="font-medium text-[var(--ink)]">{formatZAR(askingRentCents)}</span></div>
-          <div><span className="block text-[11px] text-[var(--ink-mute)]">Income /mo</span><span className="font-medium text-[var(--ink)]">{incomeCents > 0 ? formatZAR(incomeCents) : "—"}</span></div>
-          <div><span className="block text-[11px] text-[var(--ink-mute)]">Rent-to-income</span><span className={`font-semibold ${affordOk ? "text-emerald-600" : "text-amber-600"}`}>{ratio != null ? `${ratio}%` : "—"}</span></div>
+          <div><span className="block text-[11px] text-[var(--ink-mute)]">Combined income /mo</span><span className="font-medium text-[var(--ink)]">{incomeCents > 0 ? formatZAR(incomeCents) : "—"}</span></div>
+          <div><span className="block text-[11px] text-[var(--ink-mute)]">Rent-to-income</span><span className={`font-semibold ${t.ok ? "text-emerald-600" : "text-amber-600"}`}>{ratio != null ? `${ratio}%` : "—"}</span></div>
         </div>
-        {corrIncome != null && incomeCents > 0 && corrIncome < incomeCents && (
-          <p className="mt-2 text-[11px] text-[var(--ink-mute)]">
-            Verified (documented) income so far: <span className="font-medium text-[var(--ink-soft)]">{formatZAR(corrIncome)}/mo</span>
-            {corrRatio != null && <> · {corrRatio}% rent-to-income on verified</>} — the rest isn&apos;t corroborated yet (see below).
-          </p>
-        )}
-        <div className="mt-3 flex flex-col gap-2.5">
-          <MeterBar
-            label="Income left after rent"
-            fillPct={ratio != null ? 100 - ratio : 0}
-            markerPct={70}
-            youText={ratio != null ? `${100 - ratio}%` : "—"}
-            markerText="keep 70%+"
-            ok={affordOk}
-          />
-          <MeterBar
-            label="Document confidence"
-            fillPct={confPct}
-            markerPct={65}
-            youText={CONF_LABEL[evaluation.confidence_tier] ?? evaluation.confidence_tier}
-            markerText="min. Adequate"
-            ok={confOk}
-          />
+        <div className="mt-3">
+          <MeterBar label="Income left after rent" fillPct={ratio != null ? 100 - ratio : 0} markerPct={70} youText={ratio != null ? `${100 - ratio}%` : "—"} markerText="keep 70%+" ok={t.ok} />
         </div>
+        <p className="mt-2 text-[11px] text-[var(--ink-mute)]">On the figures you entered. Your agent verifies income against documents after shortlisting — this is not a credit check.</p>
       </div>
-      {positives.map((f) => (
-        <p key={f.key} className="flex items-start gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />{f.title}</p>
-      ))}
-      {todos.length > 0 && (
-        <div className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
-          <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Proposed change to strengthen it</p>
-          <div className="flex flex-col gap-1.5">
-            {todos.map((f) => (
-              <div key={f.key} className="text-sm">
-                <span className="font-medium text-[var(--ink)]">{f.title}</span>
-                {f.remediation && <span className="block text-xs text-[var(--ink-soft)]">{f.remediation}</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Two clear paths — submit to the agent now, or make the one allowed round of changes then re-check. */}
+      <div className={`flex items-start gap-2 rounded-[var(--r-button)] border px-3 py-2 text-xs ${band === "ready" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+        {band === "ready"
+          ? <><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" /><span>Everyone&apos;s finished — your application is ready to submit.</span></>
+          : <><AlertCircle className="mt-0.5 size-3.5 shrink-0" /><span>
+              {incompleteCount > 0 && `${incompleteCount} ${incompleteCount === 1 ? "applicant hasn't" : "applicants haven't"} finished — everyone must complete their part before you can submit. `}
+              {invalidIdCount > 0 && `${invalidIdCount} ID number ${invalidIdCount === 1 ? "looks" : "look"} incorrect — check to avoid a delay.`}
+            </span></>}
+      </div>
+
       <div className="flex flex-col gap-2 border-t border-[var(--rule)] pt-3">
         <div className="flex items-center justify-between gap-2">
           <ActionButton tone="secondary" icon={<Pencil className="size-4" />} disabled={submitting} onClick={() => setAmendOpen((v) => !v)}>{amendOpen ? "Cancel changes" : "Amend & re-check"}</ActionButton>
-          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} disabled={submitting} onClick={() => (todos.length > 0 ? setConfirmOpen(true) : doSubmit())}>{submitting ? "Submitting…" : "Submit to agent"}</ActionButton>
+          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} disabled={submitting || !readyToSubmit} onClick={doSubmit}>{submitting ? "Submitting…" : "Submit to agent"}</ActionButton>
         </div>
+        {!readyToSubmit && <p className="text-right text-[11px] text-[var(--ink-mute)]">Waiting on {incompleteCount} {incompleteCount === 1 ? "applicant" : "applicants"} to finish.</p>}
         {amendOpen && (
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
-            <p className="text-xs text-[var(--ink-mute)]">Make your change{todos.length > 0 ? " (above)" : ""}, then re-check. You get <span className="font-medium text-[var(--ink-soft)]">one</span> re-check before your agent reviews it.</p>
+            <p className="text-xs text-[var(--ink-mute)]">Make your change, then re-check — the assessment is free to re-run.</p>
             <AmendBar onAmend={onAmend} onRerun={onRerun} />
           </div>
         )}
       </div>
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Submit without the suggested change?"
-        description="We suggested a change to strengthen your application. If you submit now, it goes to your agent and you won't be able to change it afterwards."
-        confirmLabel="Yes, submit"
-        cancelLabel="Keep editing"
-        onConfirm={() => { setConfirmOpen(false); doSubmit() }}
-      />
     </div>
   )
 }
@@ -1280,9 +1141,9 @@ function VerifyEmail({ applicationId, token, email, verified, onVerified }: Read
   )
 }
 
-function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, screeningStatus, evaluation, onAmend, onRerun, applicationId, token, emailVerified, onVerified }: Readonly<{
+function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, screeningStatus, assessment, onAmend, onRerun, applicationId, token, emailVerified, onVerified }: Readonly<{
   form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
-  coApplicants: CoApplicant[]; screeningStatus: ScreeningStatus; evaluation: ScreeningEvaluation | null
+  coApplicants: CoApplicant[]; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null
   onAmend: (s: number) => void; onRerun: () => void
   applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
 }>) {
@@ -1298,9 +1159,7 @@ function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, c
     } catch { toast.error("Could not submit. Please try again."); return false }
   }
 
-  if (screeningStatus === "processing") return <ProcessingView />
-  if (screeningStatus === "failed") return <FailedView onRetry={onRerun} />
-  if (screeningStatus === "done" && evaluation) return <RulingView evaluation={evaluation} askingRentCents={askingRentCents} incomeCents={totalMonthlyCents(income)} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} />
+  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} />
 
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = totalMonthlyCents(income)
@@ -1310,7 +1169,7 @@ function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, c
   const others = coApplicants.filter((c) => c.email.trim())
   return (
     <div className="flex flex-col gap-4">
-      <StepHeading title="Review & pre-screen" sub="Check your details, then run your free pre-screen. You'll review the result and decide whether to submit." />
+      <StepHeading title="Review & assess" sub="Check your details, then run your free assessment. You'll review the result and decide whether to submit." />
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm">
         <Row k="Applicant" v={name} />
         <Row k="Email" v={form.email ?? "—"} />

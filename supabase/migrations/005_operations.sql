@@ -2982,3 +2982,14 @@ ALTER TABLE application_screening_evaluations ADD COLUMN IF NOT EXISTS affordabi
 -- Household dependents the applicant supports — feeds flag 0b's living floor (2:1 adult:dependent weighting).
 -- Adults come from co_applicants_count + 1. NULL = not declared (treated as 0). (ADDENDUM_14M flag 0b)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependents_count integer;
+
+-- Widen the evaluation affordability_tier CHECK to admit the flag-0b residual-override tier (else a residual
+-- override fails to persist with 23514). (ADDENDUM_14M flag 0b)
+ALTER TABLE application_screening_evaluations DROP CONSTRAINT IF EXISTS application_screening_evaluations_affordability_tier_check;
+ALTER TABLE application_screening_evaluations ADD CONSTRAINT application_screening_evaluations_affordability_tier_check
+  CHECK (affordability_tier = ANY (ARRAY['within','marginal','below','demonstrated-override','residual-override']));
+
+-- Step-1 zero-AI free assessment (combined declared affordability + readiness) stored at submit. The agent
+-- shortlists on this; the verified deep scan (application_screening_evaluations) supersedes it at Step 2. Stored
+-- as an application-level fact (NOT an eval row — it has no verified ruling/confidence). (ADDENDUM_14M funnel P1e)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS free_assessment jsonb;

@@ -490,7 +490,8 @@
       "email_verified_at",
       "deleted_at",
       "submitted_at",
-      "dependents_count"
+      "dependents_count",
+      "free_assessment"
     ],
     "arrears_actions": [
       "id",
