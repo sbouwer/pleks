@@ -2255,7 +2255,11 @@ BEGIN
                  OR pe.zip_storage_path = storage.objects.name)
             AND (
               pe.subject_user_id = (SELECT auth.uid())
-              OR lower(pe.subject_email) = (SELECT lower(email) FROM auth.users WHERE id = (SELECT auth.uid()))
+              -- Read the email from the JWT claim, NOT a sub-SELECT on auth.users: storage uploads do
+              -- INSERT ... RETURNING *, which evaluates every SELECT policy on the new row, and Postgres plans
+              -- this sub-SELECT as an InitPlan regardless of the bucket_id guard. anon/authenticated can't read
+              -- auth.users → "permission denied for table users" broke uploads to EVERY bucket. (drift-fix 2026-06-22)
+              OR lower(pe.subject_email) = lower((auth.jwt() ->> 'email'))
             )
             AND pe.expires_at > now()
         )
