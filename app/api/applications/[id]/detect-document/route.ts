@@ -6,17 +6,34 @@
  * Data:   application-docs storage bucket; Anthropic API via lib/ai/client.ts
  * Notes:  Images only — PDFs fall through to key-based classification.
  *         Triggers bank statement extraction when bank_statement detected.
+ *         Genuinely password-locked PDFs are rejected here (422) so the applicant gets immediate feedback;
+ *         empty-password PDFs (the common bank-statement case) pass — the screen pipeline decrypts them.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createMessage } from "@/lib/ai/client"
+import { isProtectedPdf } from "@/lib/extraction/uploadValidator"
+import { decryptProtectedPdf } from "@/lib/extraction/pdfDecrypt"
 
 function getServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+}
+
+/** 422 response if the PDF needs a real password to open; null if it's clean or empty-password (decryptable). */
+async function passwordLockedResponse(bytes: Uint8Array): Promise<NextResponse | null> {
+  if (!isProtectedPdf(bytes)) return null
+  const decrypted = await decryptProtectedPdf(bytes)
+  if (!decrypted.ok && decrypted.reason === "password-required") {
+    return NextResponse.json({
+      error: "password_protected",
+      message: "This PDF needs a password to open. Please save an unprotected copy (open it, then File → Print → Save as PDF, or remove the password) and upload that.",
+    }, { status: 422 })
+  }
+  return null
 }
 
 interface Props { params: Promise<{ id: string }> }
@@ -77,7 +94,9 @@ export async function POST(req: NextRequest, { params }: Props) {
         summary: parsed.details,
       })
     } else {
-      // PDF: use text prompt only (can't embed PDF as image in Haiku)
+      // PDF: reject a genuinely password-locked file up front (empty-password PDFs decrypt fine downstream).
+      const locked = await passwordLockedResponse(new Uint8Array(await fileData.arrayBuffer()))
+      if (locked) return locked
       return NextResponse.json({
         documentType: body.docKey.replace(/_\d$/, ""),
         confidence: 0.8,

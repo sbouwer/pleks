@@ -60,6 +60,9 @@ export interface Document {
   documentType?: DocumentType
   documentTypeConfidence?: number
   language?: "en" | "af" | "mixed" | "unknown"
+  /** Decrypted plain text for an encrypted (empty-password) PDF — Claude can't read the encrypted bytes, so the
+   *  pipeline sets this and toMediaBlock sends it as a text document block instead. (lib/extraction/pdfDecrypt) */
+  textContent?: string
 }
 
 export interface ApplicationInput {

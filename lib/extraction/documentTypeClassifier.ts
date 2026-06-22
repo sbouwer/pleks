@@ -33,7 +33,7 @@ export async function classifyDocumentType(
     return { documentType: "unknown", confidence: 0, language: "unknown" }
   }
 
-  const mediaBlock = toMediaBlock(doc.bytes, fmt, doc.filename)
+  const mediaBlock = toMediaBlock(doc)
   const archetypeHint = archetype ?? "unknown"
 
   const { message } = await createMessage(

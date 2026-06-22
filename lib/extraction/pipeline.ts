@@ -15,7 +15,8 @@
  *
  * Spec: ADDENDUM_14L §4.2, §4.6, §4.7
  */
-import { validateUpload } from "./uploadValidator"
+import { validateUpload, isProtectedPdf } from "./uploadValidator"
+import { decryptProtectedPdf } from "./pdfDecrypt"
 import { detectFormat } from "./formatDetector"
 import { detectLanguage } from "./languageDetector"
 import { deriveArchetype } from "./archetypeClassifier"
@@ -139,6 +140,30 @@ function applyClassification(
   if (result.classifyNote) results[idx].classifyNote = result.classifyNote
 }
 
+/** Decrypt empty-password PDFs to text so the (un-readable) encrypted bytes become extractable; a genuinely
+ *  password-locked PDF is recorded rejected and excluded. Returns the docs that can proceed to classify/extract. */
+async function decryptProtectedDocs(docs: Document[], results: PipelineDocumentResult[]): Promise<Document[]> {
+  const extractable: Document[] = []
+  for (const doc of docs) {
+    if (doc.format !== "pdf" || !isProtectedPdf(doc.bytes)) {
+      extractable.push(doc)
+      continue
+    }
+    const decrypted = await decryptProtectedPdf(doc.bytes)
+    if (decrypted.ok) {
+      doc.textContent = decrypted.text
+      extractable.push(doc)
+      continue
+    }
+    const idx = results.findIndex(r => r.path === doc.path)
+    if (idx !== -1) {
+      results[idx].status = "rejected-at-upload"
+      results[idx].rejectionReason = decrypted.reason === "password-required" ? "pdf-password-required" : "pdf-unreadable"
+    }
+  }
+  return extractable
+}
+
 export async function runPipeline(
   input: ApplicationInput,
   aiOpts: AiOpts,
@@ -150,17 +175,21 @@ export async function runPipeline(
     gateDocument(doc, results, classifiableDocs)
   }
 
+  // Decrypt empty-password PDFs to text BEFORE classify/extract (Claude can't read encrypted bytes); a truly
+  // password-locked PDF is marked rejected and dropped.
+  const extractableDocs = await decryptProtectedDocs(classifiableDocs, results)
+
   // Archetype is deterministic — derived from structured application data, not documents
   const archetype = deriveArchetype(input.unitType, input.applicantCount)
 
   // Document type classification — per classifiable document (D-14L-07)
-  for (const doc of classifiableDocs) {
+  for (const doc of extractableDocs) {
     const result = await classifyDocWithFallback(doc, archetype, aiOpts)
     applyClassification(doc, result, results)
   }
 
   // Phase 2a: per-type structured extraction (ID, payslip, bank statement, employer letter, proof of address)
-  for (const doc of classifiableDocs) {
+  for (const doc of extractableDocs) {
     const extraction = await extractDocument(doc, aiOpts)
     if (extraction !== null) {
       const idx = results.findIndex(r => r.path === doc.path)

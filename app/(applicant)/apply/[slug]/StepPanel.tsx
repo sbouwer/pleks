@@ -429,8 +429,9 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
     setDocFiles((prev) => ({ ...prev, [categoryKey]: single ? [entry] : [...(prev[categoryKey] ?? []), entry] }))
     const patch = (p: Partial<DocFile>) => setDocFiles((prev) => ({ ...prev, [categoryKey]: (prev[categoryKey] ?? []).map((f) => f.id === fileId ? { ...f, ...p } : f) }))
 
-    // Four-gate validation client-side (extension + MIME + magic bytes + password-protected PDF) — the same
-    // ADDENDUM_14L gate the agent route uses; the applicant uploads straight to Storage, so enforce it here.
+    // Format validation client-side (extension + MIME + magic bytes) — the same ADDENDUM_14L gate the agent
+    // route uses; the applicant uploads straight to Storage, so enforce it here. Encrypted PDFs are NOT blocked:
+    // the server pipeline decrypts empty-password files (the common bank-statement case) before extraction.
     const bytes = new Uint8Array(await file.arrayBuffer())
     const check = validateUpload(file.name, file.type, bytes)
     if (!check.valid) { patch({ uploading: false, error: check.userMessage ?? "File not accepted." }); toast.error(check.userMessage?.split("\n")[0] ?? "File not accepted."); return }
@@ -446,7 +447,17 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
         const res = await fetch(`/api/applications/${applicationId}/detect-document`, {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, docKey: categoryKey }),
         })
-        if (res.ok) detection = ((await res.json()) as { summary?: string }).summary ?? null
+        if (res.ok) {
+          detection = ((await res.json()) as { summary?: string }).summary ?? null
+        } else if (res.status === 422) {
+          // A genuinely password-locked PDF — remove the just-uploaded file and tell the applicant to re-save it.
+          const b = await res.json().catch(() => ({})) as { message?: string }
+          const msg = b.message ?? "This file is password-protected — please upload an unprotected version."
+          try { await supabase.storage.from("application-docs").remove([path]) } catch { /* best-effort */ }
+          patch({ uploading: false, error: msg })
+          toast.error(msg)
+          return
+        }
       } catch { /* detection non-fatal */ }
       patch({ uploading: false, uploaded: true, storagePath: path, detection })
     } catch (err) {

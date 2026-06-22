@@ -44,7 +44,7 @@ function deductionRow(v: unknown): { label: string; amount_cents: number } | nul
 export async function extractPayslip(doc: Document, aiOpts: AiOpts): Promise<PayslipExtraction | null> {
   if (!doc.format || (doc.format !== "pdf" && doc.format !== "image-jpeg" && doc.format !== "image-png")) return null
 
-  const mediaBlock = toMediaBlock(doc.bytes, doc.format, doc.filename)
+  const mediaBlock = toMediaBlock(doc)
 
   let text: string
   try {
