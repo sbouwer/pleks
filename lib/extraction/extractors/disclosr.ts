@@ -37,7 +37,7 @@ export async function extractDisclosr(doc: Document, aiOpts: AiOpts): Promise<Di
   try {
     const { message } = await createMessage(
       {
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",  // simple doc — Haiku (routing): identity/income docs stay on Sonnet
         max_tokens: 512,
         system: [{ type: "text", text: DISCLOSR_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
