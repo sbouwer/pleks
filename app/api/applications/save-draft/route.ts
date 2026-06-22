@@ -117,7 +117,18 @@ export async function POST(req: NextRequest) {
       .select("id").eq("token", body.token).eq("application_id", body.applicationId).maybeSingle()
     logQueryError("save-draft token", tokErr)
     if (!tok) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    const { error: upErr } = await db.from("applications").update(fields).eq("id", body.applicationId)
+    // If the applicant changed their email, persist it AND invalidate any prior email verification (the
+    // anti-bot gate must re-verify the new address — else verify A, switch to B, submit B unverified).
+    const updateFields: Record<string, unknown> = { ...fields }
+    if (body.email) {
+      const { data: cur, error: curErr } = await db.from("applications").select("applicant_email").eq("id", body.applicationId).maybeSingle()
+      logQueryError("save-draft current email", curErr)
+      if (cur && body.email !== cur.applicant_email) {
+        updateFields.applicant_email = body.email
+        updateFields.email_verified_at = null
+      }
+    }
+    const { error: upErr } = await db.from("applications").update(updateFields).eq("id", body.applicationId)
     logQueryError("save-draft update", upErr)
     const { error: extErr } = await db.from("application_tokens").update({ expires_at: expiresAt }).eq("token", body.token)
     logQueryError("save-draft token extend", extErr)

@@ -155,7 +155,7 @@ const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.tri
 // ── Resume (save & finish later) ──────────────────────────────────────────────
 export interface ResumeState {
   applicationId: string; token: string; step: number; savedAt: string | null
-  applicantType: ApplicantType | null; company: CompanyInfo | null
+  applicantType: ApplicantType | null; company: CompanyInfo | null; emailVerified: boolean
   form: Partial<PartyFormState>; emp: Emp
   incomeSources: { key: string; label: string; amount_cents: number; period: string }[]
   coApplicants: CoApplicant[]; docPaths: { name: string; storagePath: string }[]
@@ -239,10 +239,12 @@ function Cta({ label, onClick, busy, disabled }: Readonly<{ label: string; onCli
   )
 }
 
-export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, resume }: Readonly<{
+export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, resume, verifiedEmail }: Readonly<{
   slug: string; orgId: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
+  /** the logged-in visitor's account email (already confirmed) — if it matches, skip the email-OTP gate. */
+  verifiedEmail?: string | null
 }>) {
   const commercial = leaseType === "commercial"
   // Resuming a saved draft (the ?app&token link) rehydrates identity/income/employment/docs/co-applicants and
@@ -269,6 +271,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   const [resumeLink, setResumeLink] = useState<string | null>(null)
   const [emailed, setEmailed] = useState(false)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [emailVerified, setEmailVerified] = useState<boolean>(resume?.emailVerified ?? false)
 
   const [coApplicants, setCoApplicants] = useState<CoApplicant[]>(resume?.coApplicants ?? [])
   const [company, setCompany] = useState<CompanyInfo>(resume?.company ?? { companyType: "", companyReg: "" })
@@ -484,8 +487,12 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
       const res = await fetch(`/api/applications/${applicationId}/submit`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
       })
-      const json = await res.json() as { ok?: boolean; error?: string }
-      if (!res.ok || !json.ok) { toast.error(json.error ?? "Could not submit your application."); setScreeningStatus("idle"); return }
+      const json = await res.json() as { ok?: boolean; error?: string; code?: string }
+      if (!res.ok || !json.ok) {
+        // If the email changed since verifying, the server clears the gate — re-show "Verify your email".
+        if (json.code === "email_unverified") setEmailVerified(false)
+        toast.error(json.error ?? "Could not submit your application."); setScreeningStatus("idle"); return
+      }
       void pollScreening(applicationId, token)   // background poll; the panel shows "processing"
     } catch {
       toast.error("Could not submit your application."); setScreeningStatus("idle")
@@ -516,6 +523,8 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   // Submit gate: every applicant "green" — primary is implicit, each co-applicant has name+email+id (or is
   // already invited), and a company application has its type captured.
   const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
+  // Email gate satisfied if they verified by OTP OR they're the logged-in owner of this email (already confirmed).
+  const emailGateSatisfied = emailVerified || (!!verifiedEmail && !!form.email && form.email.toLowerCase() === verifiedEmail.toLowerCase())
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage; that happens later, only after you submit and give explicit consent."
   const scrollCls = "flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"
@@ -552,7 +561,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
               {step === 2 && <StepIncome emp={emp} setEmp={setEmp} income={income} setIncome={setIncome} />}
               {step === 3 && <StepDocuments categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />}
               {step === 4 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} primaryName={[form.firstName, form.lastName].filter(Boolean).join(" ") || "You"} />}
-              {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} screeningStatus={screeningStatus} evaluation={evaluation} onAmend={amendAt} onRerun={submitApplication} />}
+              {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} screeningStatus={screeningStatus} evaluation={evaluation} onAmend={amendAt} onRerun={submitApplication} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />}
             </div>
             <div className={footerCls}>
               <div className="flex items-center gap-3">
@@ -567,7 +576,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
               {step === 2 && <Cta label="Continue to documents" onClick={createApplication} busy={busy} />}
               {step === 3 && <Cta label="Continue to applicants" onClick={finishDocuments} busy={busy} disabled={!docsReady} />}
               {step === 4 && <Cta label="Continue to review" onClick={continueApplicants} busy={busy} disabled={!applicantsGreen} />}
-              {step === 5 && screeningStatus === "idle" && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen} />}
+              {step === 5 && screeningStatus === "idle" && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen || !emailGateSatisfied} />}
             </div>
           </>
         )}
@@ -1069,10 +1078,71 @@ function RulingView({ evaluation, onAmend, onRerun }: Readonly<{ evaluation: Scr
   )
 }
 
-function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, screeningStatus, evaluation, onAmend, onRerun }: Readonly<{
+/** Anti-bot email verification — send a 6-digit code to the applicant's email, then confirm it before submit. */
+function VerifyEmail({ applicationId, token, email, verified, onVerified }: Readonly<{
+  applicationId: string | null; token: string | null; email?: string; verified: boolean; onVerified: () => void
+}>) {
+  const [sent, setSent] = useState(false)
+  const [code, setCode] = useState("")
+  const [busy, setBusy] = useState(false)
+
+  async function send() {
+    if (!applicationId || !token) { toast.error("Please complete the earlier steps first."); return }
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/applications/${applicationId}/verify/send`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
+      })
+      const json = await res.json() as { ok?: boolean; alreadyVerified?: boolean; error?: string }
+      if (json.alreadyVerified) { onVerified(); return }
+      if (!res.ok) { toast.error(json.error ?? "Could not send the code."); return }
+      setSent(true); toast.success(`Code sent to ${email}`)
+    } catch { toast.error("Could not send the code.") } finally { setBusy(false) }
+  }
+  async function check() {
+    if (!applicationId || !token) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/applications/${applicationId}/verify/check`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, code }),
+      })
+      const json = await res.json() as { ok?: boolean; status?: string; error?: string }
+      if (json.ok && json.status === "verified") { onVerified(); toast.success("Email verified ✓") }
+      else if (json.status === "locked") toast.error(json.error ?? "Too many attempts — try again later.")
+      else if (json.status === "expired") { toast.error("That code expired — send a new one."); setSent(false); setCode("") }
+      else toast.error("Incorrect code — check and try again.")
+    } catch { toast.error("Could not verify the code.") } finally { setBusy(false) }
+  }
+
+  if (verified) {
+    return (
+      <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <CheckCircle2 className="size-4" /> Email verified
+      </p>
+    )
+  }
+  return (
+    <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
+      <p className="text-sm font-medium text-[var(--ink)]">Verify your email</p>
+      <p className="mt-0.5 text-xs text-[var(--ink-soft)]">We&apos;ll send a 6-digit code to <strong className="text-[var(--ink)]">{email ?? "your email"}</strong> to confirm it&apos;s really you before submitting.</p>
+      {!sent ? (
+        <ActionButton tone="secondary" size="sm" onClick={send} disabled={busy} className="mt-2">Send code</ActionButton>
+      ) : (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="123456" className="w-28 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm tracking-[0.3em]" />
+          <ActionButton tone="primary" size="sm" onClick={check} disabled={busy || code.length !== 6}>Verify</ActionButton>
+          <button type="button" onClick={send} disabled={busy} className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]">Resend</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, screeningStatus, evaluation, onAmend, onRerun, applicationId, token, emailVerified, onVerified }: Readonly<{
   form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
   coApplicants: CoApplicant[]; screeningStatus: ScreeningStatus; evaluation: ScreeningEvaluation | null
   onAmend: (s: number) => void; onRerun: () => void
+  applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
 }>) {
   if (screeningStatus === "processing") return <ProcessingView />
   if (screeningStatus === "failed") return <FailedView onRetry={onRerun} />
@@ -1097,6 +1167,7 @@ function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, c
         <Row k="Rent-to-income" v={ratio != null ? `${ratio}%` : "—"} />
         {others.length > 0 && <Row k="Others" v={others.map((c) => c.role === "guarantor" ? "guarantor" : "co-applicant").join(", ")} />}
       </div>
+      <VerifyEmail applicationId={applicationId} token={token} email={form.email} verified={emailVerified} onVerified={onVerified} />
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 accent-[var(--amber)]" />
         <span className="text-[13px] leading-relaxed text-[var(--ink-soft)]">
