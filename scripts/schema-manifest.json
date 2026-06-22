@@ -484,7 +484,8 @@
       "draft_saved_at",
       "applicant_addresses",
       "applicant_type",
-      "company_info"
+      "company_info",
+      "email_verified_at"
     ],
     "arrears_actions": [
       "id",

@@ -31,6 +31,10 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "application.resume_link", channel: "email", category: "applications", is_mandatory: true,
     description: "Applicant resume link — finish a saved (not-yet-submitted) application",
   },
+  "application.verify_code": {
+    key: "application.verify_code", channel: "email", category: "applications", is_mandatory: true,
+    description: "Applicant email verification code (anti-bot, before submit)",
+  },
   "application.agent_notify": {
     key: "application.agent_notify", channel: "email", category: "applications", is_mandatory: false,
     description: "Agent notified of new application",

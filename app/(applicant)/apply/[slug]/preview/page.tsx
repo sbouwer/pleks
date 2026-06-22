@@ -62,7 +62,7 @@ async function loadResume(
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, applicant_addresses, applicant_type, company_info, draft_step, draft_saved_at, org_id, stage1_consent_given")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, applicant_addresses, applicant_type, company_info, email_verified_at, draft_step, draft_saved_at, org_id, stage1_consent_given")
     .eq("id", appId).maybeSingle()
   logQueryError("ApplyPreview resume app", appErr)
   if (!app || app.org_id !== listingOrgId || app.stage1_consent_given === true) return null
@@ -84,6 +84,7 @@ async function loadResume(
     applicationId: appId, token, step: (app.draft_step as number | null) ?? 3, savedAt: (app.draft_saved_at as string | null) ?? null,
     applicantType: (app.applicant_type as ResumeState["applicantType"]) ?? null,
     company: (app.company_info as ResumeState["company"]) ?? null,
+    emailVerified: (app.email_verified_at as string | null) != null,
     form: {
       firstName: (app.first_name as string | null) ?? undefined, lastName: (app.last_name as string | null) ?? undefined,
       email: (app.applicant_email as string | null) ?? undefined, phone: (app.applicant_phone as string | null) ?? undefined,
@@ -196,9 +197,12 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
   // (re-confirmed in-flow). Anonymous visitors get the login door instead — never blocked.
   let prefill: Partial<PartyFormState> | null = null
   let prefillName: string | null = null
+  // A logged-in visitor's account email is already confirmed (Supabase auth) — they skip the email-OTP gate.
+  let verifiedEmail: string | null = null
   const gw = await gatewaySSR()
   if (gw) {
     const authEmail = (await getServerUser())?.email ?? null
+    verifiedEmail = authEmail
     const resolved = await resolveAgentContact(gw.db, gw.orgId, gw.userId, authEmail)
     if (resolved.ok && resolved.contactId) {
       const fetched = await fetchAgentContactParty(resolved.contactId)
@@ -308,6 +312,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
               askingRentCents={(listing.asking_rent_cents as number) ?? 0}
               prefill={prefill}
               resume={resume}
+              verifiedEmail={verifiedEmail}
             />
           </div>
         </div>

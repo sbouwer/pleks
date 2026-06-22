@@ -2925,7 +2925,18 @@ ALTER TABLE applications
   -- the chosen application TYPE + company details — persisted so resume restores the right flow for all four
   -- scenarios (individual/couple/company/guarantor) instead of inferring it from the co-applicant roster.
   ADD COLUMN IF NOT EXISTS applicant_type      text CHECK (applicant_type IN ('individual','couple','company','guarantor')),
-  ADD COLUMN IF NOT EXISTS company_info        jsonb;
+  ADD COLUMN IF NOT EXISTS company_info        jsonb,
+  -- anti-bot: applicant must verify their email (OTP) before submit; cleared if the email is later changed.
+  ADD COLUMN IF NOT EXISTS email_verified_at   timestamptz;
+
+-- Reuse the consent OTP engine for the applicant pre-submit email verification: allow the email_otp method +
+-- an application_email "consent type" on consent_verifications.
+ALTER TABLE consent_verifications DROP CONSTRAINT IF EXISTS consent_verifications_verification_method_check;
+ALTER TABLE consent_verifications ADD CONSTRAINT consent_verifications_verification_method_check
+  CHECK (verification_method IN ('sms_code','email_link','email_otp'));
+ALTER TABLE consent_verifications DROP CONSTRAINT IF EXISTS consent_verifications_consent_type_check;
+ALTER TABLE consent_verifications ADD CONSTRAINT consent_verifications_consent_type_check
+  CHECK (consent_type IN ('standard_bundle','estate_criminal','director_standard','director_estate_criminal','application_email'));
 
 -- Co-applicant role (co_applicant = lives here / guarantor = backer) was sent by the invite flow but never had
 -- a column to land in — so a resumed roster couldn't tell them apart. Persist it.

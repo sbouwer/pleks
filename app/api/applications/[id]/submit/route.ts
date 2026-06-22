@@ -14,6 +14,7 @@ import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { sendApplicationReceived, sendAgentApplicationNotification } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { getUserEmail } from "@/lib/auth/userEmail"
+import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -64,6 +65,16 @@ export async function POST(req: NextRequest, { params }: Props) {
   const listingClosesAt = listing?.closes_at as string | null
   if (listing?.status === "expired" || (listingClosesAt && new Date(listingClosesAt) <= new Date())) {
     return NextResponse.json({ error: "This listing has closed and is no longer accepting applications." }, { status: 410 })
+  }
+
+  // Anti-bot gate: the applicant must have verified their email (OTP) before submit — UNLESS they're the
+  // logged-in owner of that email (a Supabase account's email is already confirmed, so no second check needed).
+  if (!app.email_verified_at) {
+    const sessionEmail = (await getServerUser())?.email ?? null
+    const ownerLoggedIn = !!sessionEmail && !!app.applicant_email && sessionEmail.toLowerCase() === (app.applicant_email as string).toLowerCase()
+    if (!ownerLoggedIn) {
+      return NextResponse.json({ error: "Please verify your email before submitting.", code: "email_unverified" }, { status: 403 })
+    }
   }
 
   // Calculate pre-screen score
