@@ -16,16 +16,16 @@ import { getDepositRecommendation } from "@/lib/screening/depositRecommendation"
 import { checkVisaLeaseAlignment } from "@/lib/screening/visaLeaseCheck"
 import { assembleReportData } from "@/lib/screening/assembleReportData"
 import { gatewaySSR } from "@/lib/supabase/gateway"
-import { AssigneePicker } from "@/components/work/AssigneePicker"
 import { ApplicationActions } from "./ApplicationActions"
 import { ApplicationDetailShell } from "./ApplicationDetailShell"
+import { ApplicantsCard, type PartyInfo } from "./ApplicantsCard"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import type { DetailFact, DetailStatus, DetailTab } from "@/lib/detail/types"
 import { FitScoreReport } from "@/lib/reports/screening/_web/FitScoreReport"
 import { FitScorePdfDownload } from "./_components/FitScorePdfDownload"
-import { IdReveal } from "./_components/IdReveal"
 import { ScreeningRulingCard, type ScreeningEvaluationRow } from "./_components/ScreeningRulingCard"
+import { DocumentsCard } from "./_components/DocumentsCard"
 import { FreeAssessmentCard } from "./_components/FreeAssessmentCard"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -114,7 +114,7 @@ export default async function ApplicationDetailPage({
     .select(`
       id, org_id, assigned_user_id, assigned_team_id, first_name, last_name, applicant_email, applicant_phone,
       id_type, id_number, employment_type, employer_name,
-      gross_monthly_income_cents, bank_statement_extracted,
+      gross_monthly_income_cents, income_sources, bank_statement_extracted,
       applicant_nationality_type, is_foreign_national,
       permit_type, permit_expiry_date, tpn_listing_limited,
       immigration_compliance_confirmed,
@@ -145,6 +145,7 @@ export default async function ApplicationDetailPage({
     .from("application_co_applicants")
     .select(`
       id, first_name, last_name, id_type, co_applicant_index,
+      role, is_surety_director, gross_monthly_income_cents, employment_type, employer_name,
       identity_match_status, employer_verification_status,
       salary_reconciliation_status, document_consistency_status,
       bank_account_ownership_status,
@@ -256,14 +257,23 @@ export default async function ApplicationDetailPage({
   )
 
   // ── Tab 1 · Applicant & documents ───────────────────────────────────────────
+  const incomeKeys = ((app.income_sources as { key?: string; amount_cents?: number }[] | null) ?? [])
+    .filter((s) => (s.amount_cents ?? 0) > 0 && s.key).map((s) => s.key as string)
+  const primaryParty: PartyInfo = {
+    label: name || "Primary applicant", role: "primary",
+    email: app.applicant_email as string | null, phone: app.applicant_phone as string | null,
+    idType: app.id_type as string | null, employment: app.employment_type as string | null, employer: app.employer_name as string | null,
+    incomeCents, isPrimary: true, hasIdNumber: !!app.id_number,
+  }
+  const otherParties: PartyInfo[] = (coApplicants ?? []).map((c) => ({
+    label: [c.first_name, c.last_name].filter(Boolean).join(" ") || "Applicant",
+    role: c.is_surety_director ? "guarantor" : ((c.role as string | null) ?? "co_applicant"),
+    idType: c.id_type as string | null, employment: c.employment_type as string | null, employer: c.employer_name as string | null,
+    incomeCents: c.gross_monthly_income_cents as number | null,
+  }))
+
   const applicantPanel = (
     <>
-      <DetailFullWidth>
-        <div className="max-w-xs">
-          <AssigneePicker workTable="applications" recordId={id} currentAssigneeId={(app.assigned_user_id as string | null) ?? null} currentTeamId={(app.assigned_team_id as string | null) ?? null} />
-        </div>
-      </DetailFullWidth>
-
       {app.is_foreign_national && (
         <ForeignNationalBanner
           permitType={app.permit_type as string | null}
@@ -275,33 +285,9 @@ export default async function ApplicationDetailPage({
         />
       )}
 
-      <DetailCard title="Applicant details">
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Email</span><span className="text-right">{app.applicant_email}</span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Phone</span><span>{app.applicant_phone || "—"}</span></div>
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">ID type</span><span className="capitalize">{app.id_type?.replaceAll("_", " ") || "—"}</span></div>
-          <IdReveal applicationId={id} idType={app.id_type} hasIdNumber={!!app.id_number} hasCapability={canViewId} />
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Employment</span><span className="capitalize">{app.employment_type || "—"}</span></div>
-          {app.employer_name && <div className="flex justify-between gap-4"><span className="text-muted-foreground">Employer</span><span>{app.employer_name}</span></div>}
-          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Stated income</span><span>{incomeCents ? `${formatZAR(incomeCents)}/mo` : "—"}</span></div>
-        </div>
-      </DetailCard>
+      <ApplicantsCard applicationId={id} canViewId={canViewId} primary={primaryParty} others={otherParties} />
 
-      <DetailCard title="Documents" count={fa?.documents?.length}>
-        {fa?.documents && fa.documents.length > 0 ? (
-          <ul className="space-y-1.5 text-sm">
-            {fa.documents.map((d) => (
-              <li key={d.key} className="flex items-center justify-between gap-3">
-                <span className="text-foreground">{d.label}{d.required && <span className="text-muted-foreground"> · required</span>}</span>
-                <span className={d.present ? "text-success" : "text-warning"}>{d.present ? "✓ uploaded" : "✗ missing"}</span>
-              </li>
-            ))}
-            <li className="pt-1.5 text-xs text-muted-foreground border-t border-border">Uploaded, unverified — contents are checked in the Step-2 deep scan.</li>
-          </ul>
-        ) : (
-          <p className="text-sm text-muted-foreground">No itemised documents for this record.</p>
-        )}
-      </DetailCard>
+      <DocumentsCard applicationId={id} incomeKeys={incomeKeys} employmentType={(app.employment_type as string | null) ?? ""} canViewId={canViewId} />
 
       <DetailFullWidth>
         <DetailCard title="Applicant motivation">
