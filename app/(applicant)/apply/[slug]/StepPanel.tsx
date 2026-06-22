@@ -1058,7 +1058,6 @@ function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun
   const todos = evaluation.flags.filter((f) => (f.type === "fixable" || f.type === "structural") && f.remediation)
   const positives = evaluation.flags.filter((f) => f.type === "override")
 
-  const AFFORD_MAX = 45 // bar scales 0..45% so the 30% guideline sits ~2/3 across, leaving room for "over"
   const ratio = evaluation.affordability_ratio_pct
   const affordOk = ratio != null && ratio <= 30
   const confPct = CONF_PCT[evaluation.confidence_tier] ?? 30
@@ -1079,11 +1078,11 @@ function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun
         </div>
         <div className="mt-3 flex flex-col gap-2.5">
           <MeterBar
-            label="Affordability"
-            fillPct={ratio != null ? (ratio / AFFORD_MAX) * 100 : 0}
-            markerPct={(30 / AFFORD_MAX) * 100}
-            youText={ratio != null ? `${ratio}%` : "—"}
-            markerText="guideline 30%"
+            label="Income left after rent"
+            fillPct={ratio != null ? 100 - ratio : 0}
+            markerPct={70}
+            youText={ratio != null ? `${100 - ratio}%` : "—"}
+            markerText="keep 70%+"
             ok={affordOk}
           />
           <MeterBar
@@ -1115,9 +1114,9 @@ function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun
 
       {/* Two clear paths — submit to the agent now, or make the one allowed round of changes then re-check. */}
       <div className="flex flex-col gap-2 border-t border-[var(--rule)] pt-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} onClick={() => (todos.length > 0 ? setConfirmOpen(true) : setDone(true))}>Submit to agent</ActionButton>
+        <div className="flex items-center justify-between gap-2">
           <ActionButton tone="secondary" icon={<Pencil className="size-4" />} onClick={() => setAmendOpen((v) => !v)}>{amendOpen ? "Cancel changes" : "Amend & re-check"}</ActionButton>
+          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} onClick={() => (todos.length > 0 ? setConfirmOpen(true) : setDone(true))}>Submit to agent</ActionButton>
         </div>
         {amendOpen && (
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
