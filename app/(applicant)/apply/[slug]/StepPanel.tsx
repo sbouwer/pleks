@@ -589,7 +589,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
               {step === 2 && <Cta label="Continue to documents" onClick={createApplication} busy={busy} />}
               {step === 3 && <Cta label="Continue to applicants" onClick={finishDocuments} busy={busy} disabled={!docsReady} />}
               {step === 4 && <Cta label="Continue to review" onClick={continueApplicants} busy={busy} disabled={!applicantsGreen} />}
-              {step === 5 && screeningStatus === "idle" && <Cta label="Submit application" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen || !emailGateSatisfied} />}
+              {step === 5 && screeningStatus === "idle" && <Cta label="Run my pre-screen" onClick={submitApplication} busy={busy} disabled={!consent || !applicantsGreen || !emailGateSatisfied} />}
             </div>
           </>
         )}
@@ -1247,7 +1247,7 @@ function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, c
   const others = coApplicants.filter((c) => c.email.trim())
   return (
     <div className="flex flex-col gap-4">
-      <StepHeading title="Review & submit" sub="Check your details, then submit for a free pre-screen." />
+      <StepHeading title="Review & pre-screen" sub="Check your details, then run your free pre-screen. You'll review the result and decide whether to submit." />
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm">
         <Row k="Applicant" v={name} />
         <Row k="Email" v={form.email ?? "—"} />
