@@ -1003,6 +1003,21 @@ function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void;
 }
 
 function RulingView({ evaluation, onAmend, onRerun }: Readonly<{ evaluation: ScreeningEvaluation; onAmend: (s: number) => void; onRerun: () => void }>) {
+  // Re-check used (second submission): this is the way forward — hand off to the agent, no "you can't resubmit"
+  // framing and no strengthen/amend detail they can no longer act on.
+  if (evaluation.iteration_number >= MAX_SCREENING_ITERATIONS) {
+    return (
+      <div className="flex flex-col gap-4">
+        <StepHeading title="Application submitted ✓" sub="Your application is now with your agent." />
+        <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-5">
+          <p className="text-sm leading-relaxed text-[var(--ink-soft)]">
+            Thanks — your application and documents are now with your agent. They&apos;ll verify everything and update you directly on the outcome. There&apos;s nothing more you need to do for now.
+          </p>
+        </div>
+        <p className="text-xs text-[var(--ink-mute)]">We&apos;ve emailed your confirmation.</p>
+      </div>
+    )
+  }
   const r = RULING_LABEL[evaluation.ruling_tier] ?? RULING_LABEL["needs-evidence"]
   const todos = evaluation.flags.filter((f) => (f.type === "fixable" || f.type === "structural") && f.remediation)
   const positives = evaluation.flags.filter((f) => f.type === "override")
@@ -1044,14 +1059,11 @@ function RulingView({ evaluation, onAmend, onRerun }: Readonly<{ evaluation: Scr
           </div>
         </div>
       )}
-      {evaluation.iteration_number < MAX_SCREENING_ITERATIONS ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-[var(--ink-mute)]">You can make <span className="font-medium text-[var(--ink-soft)]">one</span> round of changes and re-check — after that your agent reviews it.</p>
-          <AmendBar onAmend={onAmend} onRerun={onRerun} />
-        </div>
-      ) : (
-        <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-xs text-[var(--ink-soft)]">You&apos;ve used your re-check — your agent takes it from here and will be in touch.</p>
-      )}
+      {/* Only the first pass reaches here (the capped state returns above), so the re-check is always available. */}
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-[var(--ink-mute)]">You can make <span className="font-medium text-[var(--ink-soft)]">one</span> round of changes and re-check — after that your agent reviews it.</p>
+        <AmendBar onAmend={onAmend} onRerun={onRerun} />
+      </div>
       <p className="text-xs text-[var(--ink-mute)]">We&apos;ve emailed your confirmation. The agent will be in touch about next steps.</p>
     </div>
   )
