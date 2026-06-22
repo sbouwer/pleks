@@ -299,7 +299,16 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
 
       {filtered.length > 0 && view === "list" && (
         <ListCard fill>
-          <table className="w-full text-sm">
+          {/* table-fixed + colgroup: columns share a fixed % of the container so the table never exceeds it
+              (no horizontal scroll when the vertical scrollbar appears); cells truncate within their column. */}
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-[27%]" />
+              <col className="w-[24%]" />
+              <col className="w-[12%]" />
+              <col className="w-[24%]" />
+              <col className="w-[13%]" />
+            </colgroup>
             <thead className="sticky top-0 z-10 border-b border-border/60 bg-card">
               <tr>
                 <th className="px-3 py-2.5 text-left"><SortHeader col="property" label="Property / Unit" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
