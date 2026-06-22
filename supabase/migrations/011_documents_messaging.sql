@@ -1103,3 +1103,13 @@ WHERE clause_key = 'pets' AND body_template LIKE '%{{ref:rental_deposit}}%';
 
 -- Retire the rental_deposit id now that rental + deposit replace it and all refs are repointed.
 DELETE FROM lease_clause_library WHERE clause_key = 'rental_deposit';
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §21  Make org-assets PUBLIC (email logo fix)
+--   fetchOrgSettings builds the email/branding logo URL via storage.getPublicUrl("org-assets", …); the bucket
+--   was created private (007 §…), so that URL 403'd and every org-branded email rendered a broken logo. The
+--   bucket only holds 2MB png/jpeg branding images, so public read is correct + intended. Idempotent UPDATE so
+--   it applies on existing DBs and after 007 creates it private on a fresh replay.
+-- ═══════════════════════════════════════════════════════════════════════════════
+UPDATE storage.buckets SET public = true WHERE id = 'org-assets';
