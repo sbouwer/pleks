@@ -79,6 +79,43 @@ export async function declineStage1Action(
   return { ok: true }
 }
 
+/**
+ * Stage-1 triage SHORTLIST — the green-tick "pre-approve" from the listing list. A lightweight selection mark:
+ * advances stage1_status to 'shortlisted' (+ prescreen stamps + audit), but does NOT send any email or start
+ * Stage 2. The actual paid Stage-2 invitation stays the explicit detail-page step (sendShortlistInvitation),
+ * so triaging 200 applicants never fires 200 invites/credit checks.
+ */
+export async function shortlistStage1Action(applicationId: string) {
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorized" }
+  if (!(await hasCapability(gw, "applications"))) return { error: "Applications access is required." }
+  const { db, userId, orgId } = gw
+
+  const policy = await resolveActiveScreeningPolicy(db, orgId)
+  const auditId = await recordAuditReturningId(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: applicationId,
+    after: { action: "application_shortlisted" },
+  })
+
+  const { error } = await db
+    .from("applications")
+    .update({
+      stage1_status: "shortlisted",
+      prescreened_by: userId,
+      prescreened_at: NOW(),
+      deciding_agent_capacity: DEFAULT_DECIDING_AGENT_CAPACITY,
+      screening_policy_id: policy?.id ?? null,
+      screening_policy_version: policy?.version ?? null,
+      audit_log_decision_entry_id: auditId,
+    })
+    .eq("id", applicationId)
+    .eq("org_id", orgId)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/listings`)
+  return { ok: true }
+}
+
 export async function approveAction(applicationId: string, agentId: string, tenantId: string) {
   const gw = await gateway()
   if (!gw) return { error: "Unauthorized" }
