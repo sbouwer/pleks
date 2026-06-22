@@ -296,6 +296,16 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
       ],
     })
 
+    // The Resend SDK does NOT throw on API-level rejections (unverified domain, test-key recipient
+    // restriction, invalid address, rate limit) — it returns them in result.error. Without this check a
+    // rejected send was logged as "sent" and reported success, silently masking non-delivery app-wide.
+    if (result.error) {
+      const message = result.error.message ?? "Resend rejected the send"
+      logId = await logToDb(service, { ...params, ...auditFields, status: "failed", failedReason: message })
+      console.error(`[sendEmail] Resend rejected ${params.templateKey} to ${params.to.email}:`, message)
+      return { success: false, logId, error: message }
+    }
+
     logId = await logToDb(service, {
       ...params,
       ...auditFields,
