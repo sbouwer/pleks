@@ -18,6 +18,7 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import { isErasableNow, type DataCategory } from "@/lib/popia/retention"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { purgeApplicationDocs } from "@/lib/applications/purgeDocs"
 
 type CatResult = { evaluated: number; deleted: number; skipped_carveout: number }
 type CatSummary = { orgs_processed: number; deleted: number; skipped: number; errors: string[] }
@@ -58,6 +59,7 @@ async function purgeRejectedApplications(
       created_at: new Date(row.created_at),
     })
     if ("erasable" in decision && decision.erasable) {
+      await purgeApplicationDocs(db, orgId, row.id)   // remove the applicant's docs FIRST (was the orphaned-docs gap)
       await db.from("applications").delete().eq("id", row.id).eq("org_id", orgId)
       await recordAudit(db, {
         orgId, actorId: null, action: "DELETE", table: "applications", recordId: row.id,
