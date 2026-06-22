@@ -416,7 +416,6 @@
   "lib/reports/welcomePackRecommendations.ts",
   "lib/screening/additionalDocExtraction.ts",
   "lib/screening/checkRecentReport.ts",
-  "lib/screening/combinedAffordability.ts",
   "lib/screening/depositRecommendation.ts",
   "lib/screening/preScreenScore.ts",
   "lib/screening/searchworxBundle.ts",
