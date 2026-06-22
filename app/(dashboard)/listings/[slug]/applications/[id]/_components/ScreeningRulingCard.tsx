@@ -49,7 +49,7 @@ export function ScreeningRulingCard({ evaluation }: Readonly<{ evaluation: Scree
     <Card className="mt-6">
       <CardHeader>
         <CardTitle className="text-lg flex items-center justify-between">
-          <span>Pre-screen ruling</span>
+          <span>Verified ruling (Step 2)</span>
           <span className={`text-sm font-semibold ${r.cls}`}>{r.label}</span>
         </CardTitle>
       </CardHeader>
