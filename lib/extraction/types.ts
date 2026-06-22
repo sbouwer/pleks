@@ -90,7 +90,7 @@ export interface ExtractedField<T> {
 
 /** Bump when the deterministic reconciliation logic changes — lets a 14M evaluation replay exactly
  *  (reproducibility is the FitScore/POPIA s71 defence; ADDENDUM_14H delivery §8 mechanism #5). */
-export const RECONCILER_VERSION = "recon.v1"
+export const RECONCILER_VERSION = "recon.v2"  // v2: oldest/newestDocumentDate span actual statement coverage (period_from fed too)
 
 export type IncomeMatchStatus = "corroborated" | "variance" | "uncorroborated" | "no-evidence"
 

@@ -147,7 +147,9 @@ function integrityFlags(input: RulingInput): RulingFlag[] {
   // (14M guardrail #3). The agent-side surface keeps a PERSISTENT integrity record regardless of re-uploads.
   if (id.idNumber === "mismatch" || id.name === "material-mismatch") {
     // HARD mismatch — different surname or a different ID number. Real integrity signal → major (→ needs-evidence).
-    out.push({ id: 7, key: "identity_mismatch", axis: "integrity", severity: "major", type: "fixable", title: "We couldn't confirm these documents belong to you", remediation: "Identity verification is required before this application can proceed. Please re-check that the documents you uploaded are yours." })
+    // Soft wording — no implied hard gate (nothing blocks submit but email-OTP; the agent decides — shows-all /
+    // never-auto-reject). States the agent MAY verify, without naming the matching mechanism.
+    out.push({ id: 7, key: "identity_mismatch", axis: "integrity", severity: "major", type: "fixable", title: "We couldn't confirm these documents belong to you", remediation: "Please double-check that the documents you uploaded are your own. Your agent may ask you to verify your identity." })
   } else if (id.name === "minor-variation") {
     // SOFT variation — initials vs full name, maiden/married surname, an extra middle name. Almost always innocent.
     out.push({ id: 7, key: "identity_soft_variation", axis: "integrity", severity: "minor", type: "fixable", title: "The name on your documents differs slightly from your application", remediation: "If you've recently changed your name (e.g. marriage) or used initials, that's fine — just check the spelling matches." })
