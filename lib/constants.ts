@@ -49,6 +49,21 @@ export const FOUNDING_AGENT_DURATION_MONTHS = 24
 export const APPLICATION_FEE_CENTS = 39900 // R399 Stage 2 single
 export const JOINT_APPLICATION_FEE_CENTS = 74900 // R749 Stage 2 joint
 export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income
+export const PROBATION_MONTHS = 3 // typical SA probation window — an inference for screening, NOT a legal status
+// Applicants get the initial pre-screen + exactly ONE adjustment (re-check). Caps Sonnet cost + gaming;
+// after this the agent reviews. Hard-enforced server-side (submit + /screen) AND surfaced clearly in the UI.
+export const MAX_SCREENING_ITERATIONS = 2
+
+/** Inference only: did employment start within the probation window? SA probation isn't fixed (it varies by
+ *  contract/sector), so callers must surface this as agent-facing evidence — never a silent filter. */
+export function startedWithinProbation(startDate: string | null | undefined, now: Date = new Date()): boolean {
+  if (!startDate) return false
+  const start = new Date(startDate)
+  if (Number.isNaN(start.getTime())) return false
+  const cutoff = new Date(now)
+  cutoff.setMonth(cutoff.getMonth() - PROBATION_MONTHS)
+  return start > cutoff
+}
 
 export const ORG_TYPES = ["agency", "landlord", "sole_prop"] as const
 export type OrgType = (typeof ORG_TYPES)[number]

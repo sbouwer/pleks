@@ -21,7 +21,13 @@ import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/components/layout/focus-shell.css"
 import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
 import { Phone, Mail, MessageCircle, ShieldCheck, ImageIcon, type LucideIcon } from "lucide-react"
-import { StepPanel } from "./StepPanel"
+import { StepPanel, type ResumeState } from "./StepPanel"
+import { ApplyLoginButton } from "./ApplyLoginButton"
+import { gatewaySSR } from "@/lib/supabase/gateway"
+import { getServerUser } from "@/lib/auth/server"
+import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
+import { fetchAgentContactParty } from "@/lib/actions/parties"
+import type { PartyFormState } from "@/lib/parties/partyValidation"
 
 type UnitRow = {
   unit_number: string | null
@@ -32,9 +38,72 @@ type UnitRow = {
   furnishing_status: string | null
   parking_bays: number | null
   assigned_agent_id: string | null
-  properties: { name: string | null; address_line1: string | null; suburb: string | null; city: string | null; managing_agent_id: string | null } | null
+  properties: { name: string | null; address_line1: string | null; suburb: string | null; city: string | null; managing_agent_id: string | null; type: string | null } | null
 }
 type OrgRow = { name: string | null; email: string | null; phone: string | null; ppra_ffc_number: string | null }
+
+// The resume link carries the token in the query string — keep it out of the Referer header sent to any
+// third-party subresource on the page (the token is a bearer capability to a PII-bearing draft).
+export const metadata = { referrer: "no-referrer" as const }
+
+/** Load + validate a save-&-resume draft from ?app&token. Returns null unless the token is bound to that
+ *  application, the draft belongs to THIS listing's org, and it has NOT been submitted (consent not given). */
+async function loadResume(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  listingOrgId: string,
+  appId: string,
+  token: string,
+): Promise<ResumeState | null> {
+  const { data: tok, error: tokErr } = await db
+    .from("application_tokens").select("application_id")
+    .eq("token", token).eq("application_id", appId).gt("expires_at", new Date().toISOString()).maybeSingle()
+  logQueryError("ApplyPreview resume token", tokErr)
+  if (!tok) return null
+
+  const { data: app, error: appErr } = await db
+    .from("applications")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, draft_step, draft_saved_at, org_id, stage1_consent_given")
+    .eq("id", appId).maybeSingle()
+  logQueryError("ApplyPreview resume app", appErr)
+  if (!app || app.org_id !== listingOrgId || app.stage1_consent_given === true) return null
+
+  // NB: the co-applicant role (co_applicant vs guarantor) isn't persisted, so a resumed roster defaults to
+  // co_applicant — the type then infers "couple". A guarantor-only draft re-picks the type if needed.
+  const { data: cos, error: cosErr } = await db
+    .from("application_co_applicants").select("first_name, last_name, applicant_email, applicant_phone, id_number")
+    .eq("primary_application_id", appId)
+  logQueryError("ApplyPreview resume co-applicants", cosErr)
+
+  const prefix = `applications/${listingOrgId}/${appId}`
+  const { data: files, error: filesErr } = await db.storage.from("application-docs").list(prefix)
+  logQueryError("ApplyPreview resume docs", filesErr)
+  const docPaths = (files ?? [])
+    .filter((f) => f.name && !f.name.startsWith("."))
+    .map((f) => ({ name: f.name, storagePath: `${prefix}/${f.name}` }))
+
+  const sources = (app.income_sources as ResumeState["incomeSources"] | null) ?? []
+  return {
+    applicationId: appId, token, step: (app.draft_step as number | null) ?? 3, savedAt: (app.draft_saved_at as string | null) ?? null,
+    form: {
+      firstName: (app.first_name as string | null) ?? undefined, lastName: (app.last_name as string | null) ?? undefined,
+      email: (app.applicant_email as string | null) ?? undefined, phone: (app.applicant_phone as string | null) ?? undefined,
+      idType: (app.id_type as string | null) ?? "sa_id", idNumber: (app.id_number as string | null) ?? undefined,
+      dob: (app.date_of_birth as string | null) ?? undefined,
+    },
+    emp: {
+      employment_type: (app.employment_type as string | null) ?? "",
+      employer: (app.employer_name as string | null) ?? "",
+      start_date: (app.employment_start_date as string | null) ?? "",
+    },
+    incomeSources: sources,
+    coApplicants: (cos ?? []).map((c) => ({
+      firstName: (c.first_name as string | null) ?? "", lastName: (c.last_name as string | null) ?? "",
+      email: (c.applicant_email as string | null) ?? "", phone: (c.applicant_phone as string | null) ?? "",
+      idNumber: (c.id_number as string | null) ?? "", role: "co_applicant", invited: true,
+    })),
+    docPaths,
+  }
+}
 
 function Eyebrow({ children }: Readonly<{ children: React.ReactNode }>) {
   return <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">{children}</span>
@@ -78,22 +147,28 @@ function waLink(phone: string | null): string | null {
   return null
 }
 
-export default async function ApplyPreviewPage({ params }: Readonly<{ params: Promise<{ slug: string }> }>) {
+export default async function ApplyPreviewPage({ params, searchParams }: Readonly<{ params: Promise<{ slug: string }>; searchParams: Promise<{ app?: string; token?: string }> }>) {
   const { slug } = await params
+  const { app: resumeAppId, token: resumeToken } = await searchParams
   const db = await createServiceClient()
 
   const { data: listing, error } = await db
     .from("listings")
-    .select("org_id, asking_rent_cents, available_from, pet_friendly, listing_photos, units(unit_number, bedrooms, bathrooms, size_m2, furnished, furnishing_status, parking_bays, assigned_agent_id, properties(name, address_line1, suburb, city, managing_agent_id)), organisations(name, email, phone, ppra_ffc_number)")
+    .select("org_id, asking_rent_cents, available_from, pet_friendly, listing_photos, units(unit_number, bedrooms, bathrooms, size_m2, furnished, furnishing_status, parking_bays, assigned_agent_id, properties(name, address_line1, suburb, city, managing_agent_id, type)), organisations(name, email, phone, ppra_ffc_number)")
     .eq("public_slug", slug)
     .eq("status", "active")
     .maybeSingle()
   logQueryError("ApplyPreview listings", error)
   if (!listing) notFound()
 
+  const resume = resumeAppId && resumeToken
+    ? await loadResume(db, listing.org_id as string, resumeAppId, resumeToken)
+    : null
+
   const unit = (listing.units as unknown as UnitRow | null) ?? null
   const property = unit?.properties ?? null
   const org = (listing.organisations as unknown as OrgRow | null) ?? null
+  const leaseType: "residential" | "commercial" = property?.type === "commercial" ? "commercial" : "residential"
 
   // The agent shown to applicants is the practitioner RESPONSIBLE for the unit (unit's assigned agent,
   // else the property's managing agent) — NOT listings.created_by, which may be an admin.
@@ -115,6 +190,31 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
     agentFfc = (agent?.ppra_ffc_number as string | null) ?? null
   }
 
+  // Auth-gated autofill (identity finding §3): if the visitor is logged in, prefill ONLY from their OWN
+  // record (session authorises). Identity + address prefill clean; financial/employment are NOT prefilled
+  // (re-confirmed in-flow). Anonymous visitors get the login door instead — never blocked.
+  let prefill: Partial<PartyFormState> | null = null
+  let prefillName: string | null = null
+  const gw = await gatewaySSR()
+  if (gw) {
+    const authEmail = (await getServerUser())?.email ?? null
+    const resolved = await resolveAgentContact(gw.db, gw.orgId, gw.userId, authEmail)
+    if (resolved.ok && resolved.contactId) {
+      const fetched = await fetchAgentContactParty(resolved.contactId)
+      if (fetched.ok && fetched.form) {
+        const f = fetched.form
+        prefill = {
+          title: f.title, initials: f.initials, firstName: f.firstName, lastName: f.lastName,
+          middleNames: f.middleNames, suffix: f.suffix, designation: f.designation,
+          idType: f.idType ?? "sa_id", idNumber: f.idNumber, dob: f.dob, gender: f.gender,
+          preferredChannel: f.preferredChannel,
+          email: f.email ?? authEmail ?? undefined, phone: f.phone, addresses: f.addresses,
+        }
+        prefillName = [f.firstName, f.lastName].filter(Boolean).join(" ") || null
+      }
+    }
+  }
+
   const title = [property?.address_line1, property?.suburb ?? property?.city].filter(Boolean).join(", ") || property?.name || "This property"
   const photo = (listing.listing_photos as string[] | null)?.[0] ?? null
   const phone = agentPhone ?? org?.phone ?? null
@@ -134,9 +234,10 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
   ]
 
   return (
-    <div className="pleks-public fixed inset-0 z-50 overflow-hidden" data-theme="light" style={{ background: "var(--paper)", color: "var(--ink)" }}>
-      {/* Same 4-layer warm backdrop as the login surface (fixed behind content) */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden"><FocusBackdrop /></div>
+    <div className="pleks-public" data-theme="light" style={{ display: "contents" }}>
+      <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: "var(--paper)", color: "var(--ink)", colorScheme: "light" }}>
+        {/* Same 4-layer warm backdrop as the login surface (fixed behind content) */}
+        <div className="pointer-events-none fixed inset-0 overflow-hidden"><FocusBackdrop /></div>
 
       <div className="relative z-10 flex h-full flex-col">
         {/* Header — backed surface; sits ABOVE the scroll area so a scrollbar can't clip it */}
@@ -147,18 +248,21 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
               <span className="h-4 w-px bg-[var(--rule)]" />
               <Eyebrow>Rental application</Eyebrow>
             </div>
-            <span className="flex items-center gap-1.5 text-[var(--ink-mute)]">
-              <ShieldCheck className="size-3.5" />
-              <Eyebrow>Encrypted</Eyebrow>
-            </span>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <span className="hidden items-center gap-1.5 text-[var(--ink-mute)] sm:flex">
+                <ShieldCheck className="size-3.5" />
+                <Eyebrow>Encrypted</Eyebrow>
+              </span>
+              <ApplyLoginButton slug={slug} loggedIn={!!gw} name={prefillName} />
+            </div>
           </div>
         </header>
 
-        {/* Scrollable content area — only this scrolls; the header above is never in the scroll gutter */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-6 py-4 lg:flex-row lg:items-stretch">
+        {/* Content area — fills the viewport on desktop (each column scrolls internally); page-scrolls on mobile */}
+        <div className="min-h-0 flex-1 overflow-y-auto [@media(min-width:1024px)_and_(min-height:700px)]:overflow-hidden">
+          <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-6 py-4 [@media(min-width:1024px)_and_(min-height:700px)]:h-full [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:flex-row [@media(min-width:1024px)_and_(min-height:700px)]:items-stretch">
             {/* Left rail — unit card grows to fill */}
-            <aside className="flex w-full flex-col gap-4 lg:w-[360px]">
+            <aside className="flex w-full flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:w-[360px] [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
               <div className="flex flex-col lg:flex-1">
                 <DetailCard title={title}>
                   <div className="flex h-full flex-col">
@@ -199,12 +303,14 @@ export default async function ApplyPreviewPage({ params }: Readonly<{ params: Pr
             <StepPanel
               slug={slug}
               orgId={listing.org_id as string}
+              leaseType={leaseType}
               askingRentCents={(listing.asking_rent_cents as number) ?? 0}
-              agentName={agentName}
-              agentPhone={phone}
+              prefill={prefill}
+              resume={resume}
             />
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

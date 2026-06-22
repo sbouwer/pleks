@@ -143,15 +143,18 @@ function AddressBlock({ prefix, form, set, onRemove }: Readonly<{
       </div>
       <F label="Street address" id={t("line1")} required>
         <Input id={t("line1")} value={(form[t("line1")] as string) ?? ""}
+          autoComplete={prefix === "addr" ? "address-line1" : "off"}
           onChange={(e) => set(t("line1"), e.target.value)} placeholder="14 Rose Street" />
       </F>
       <div className="grid grid-cols-2 gap-3">
         <F label="Suburb" id={t("suburb")}>
           <Input id={t("suburb")} value={(form[t("suburb")] as string) ?? ""}
+            autoComplete={prefix === "addr" ? "address-level3" : "off"}
             onChange={(e) => set(t("suburb"), e.target.value)} />
         </F>
         <F label="City / Town" id={t("city")} required>
           <Input id={t("city")} value={(form[t("city")] as string) ?? ""}
+            autoComplete={prefix === "addr" ? "address-level2" : "off"}
             onChange={(e) => set(t("city"), e.target.value)} />
         </F>
       </div>
@@ -162,6 +165,7 @@ function AddressBlock({ prefix, form, set, onRemove }: Readonly<{
         </F>
         <F label="Postal code" id={t("postal_code")}>
           <Input id={t("postal_code")} value={(form[t("postal_code")] as string) ?? ""}
+            autoComplete={prefix === "addr" ? "postal-code" : "off"}
             onChange={(e) => set(t("postal_code"), e.target.value)} maxLength={4} />
         </F>
       </div>

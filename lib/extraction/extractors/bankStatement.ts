@@ -18,7 +18,7 @@ const VALID_BANKS = new Set<string>([
 ])
 const VALID_ACCOUNT_TYPES  = new Set(["cheque", "savings", "credit", "transmission", "other"])
 const VALID_INFLOW_CATS    = new Set(["salary", "rental-deposit", "transfer", "refund", "other"])
-const VALID_OUTFLOW_CATS   = new Set(["rent", "debit-order", "utility", "retail", "atm", "transfer", "loan", "other"])
+const VALID_OUTFLOW_CATS   = new Set(["rent", "home-loan", "debit-order", "utility", "retail", "atm", "transfer", "loan", "other"])
 
 function parseJson(text: string): Record<string, unknown> | null {
   const start = text.indexOf("{")

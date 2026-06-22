@@ -1,7 +1,15 @@
 /**
- * POST /api/applications/create
- * Creates application record + access token from Step 1 (details form).
- * Returns { applicationId, token } for client to redirect to /documents.
+ * POST /api/applications/create — public, UNAUTHENTICATED applicant endpoint.
+ * Creates an application record + 30-day resumable access token from the apply flow.
+ * Returns { applicationId, token }.
+ *
+ * Security posture (anonymous by design):
+ *  - org_id is derived SERVER-SIDE from slug → listing.org_id — never trusted from the client (the
+ *    multi-tenant boundary). The applicant has no session.
+ *  - Rate-limited per IP (5/min).
+ *  - income_sources is validated + bounded (row cap, period enum, amount clamp, key/label length) and its
+ *    monthly_cents is RECOMPUTED server-side — the client shape is never stored verbatim. income_sources is
+ *    the source of truth; gross_monthly_income_cents is its derived monthly-total cache.
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -10,6 +18,7 @@ import { randomBytes } from "crypto"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { parseIncomeSources } from "@/lib/applications/incomeSources"
 
 function getServiceClient() {
   return createClient(
@@ -56,9 +65,16 @@ export async function POST(req: NextRequest) {
     routedAgent = prop?.managing_agent_id ?? null
   }
 
-  const incomeCents = body.gross_monthly_income
-    ? Math.round(parseFloat(body.gross_monthly_income) * 100)
-    : null
+  // income_sources is the source of truth; gross_monthly_income_cents is its derived monthly-total cache.
+  // Recompute the total from the validated breakdown here; fall back to the legacy scalar body field for the
+  // older /apply flow that doesn't send a breakdown yet. (Any future edit path MUST recompute both or drift.)
+  const parsedIncome = parseIncomeSources((body as Record<string, unknown>).income_sources)
+  let incomeCents: number | null = null
+  if (parsedIncome) {
+    incomeCents = parsedIncome.totalMonthlyCents
+  } else if (body.gross_monthly_income) {
+    incomeCents = Math.round(Number.parseFloat(body.gross_monthly_income) * 100)
+  }
 
   // Create application
   const { data: application, error: appErr } = await service
@@ -81,7 +97,9 @@ export async function POST(req: NextRequest) {
       is_foreign_national: body.id_type !== "sa_id",
       employment_type: body.employment_type,
       employer_name: body.employer_name || null,
+      employment_start_date: body.employment_start_date || null,
       gross_monthly_income_cents: incomeCents,
+      income_sources: parsedIncome?.rows ?? null,
       applicant_motivation: body.motivation || null,
       stage1_status: "pending_documents",
       assigned_user_id: routedAgent,

@@ -1,22 +1,29 @@
 /**
- * app/api/applications/[id]/co-applicant/route.ts — FILL: one-line purpose
+ * app/api/applications/[id]/co-applicant/route.ts — invite a co-applicant / guarantor onto an application.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/applications/[id]/co-applicant
+ * Auth:   PUBLIC / unauthenticated by design — the apply flow has no session. Service client; the application
+ *         id in the path is the capability. Rate-limited per IP (it sends an invite email). org_id is read
+ *         from the application server-side, never trusted from the client.
+ * Data:   inserts application_co_applicants (incl. id_number + id_number_hash so the person can be LINKED to
+ *         the application at promotion), bumps applications.co_applicants_count, emails the invitee a link.
+ * Notes:  id_number is hashed at rest (hashIdNumber) and never logged. The invite email is best-effort.
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
+import { hashIdNumber } from "@/lib/crypto/idNumber"
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!rateLimit(`coapp-invite:${getClientIp(req)}`, { limit: 10, windowMs: 60_000 })) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 })
+  }
   const { id: applicationId } = await params
   const body = await req.json()
   const supabase = await createServiceClient()
@@ -42,6 +49,9 @@ export async function POST(
       last_name: body.last_name,
       applicant_email: body.email,
       applicant_phone: body.phone || null,
+      id_type: body.id_type || null,
+      id_number: body.id_number || null,
+      id_number_hash: body.id_number ? hashIdNumber(body.id_number) : null,
     })
     .select("id, access_token")
     .single()

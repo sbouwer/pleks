@@ -79,11 +79,11 @@ export function AddressEditForm({ entityType, entityId, address, onSaved }: Read
 
   return (
     <div className="space-y-2">
-      <div><Label className="text-xs">Street address</Label><Input value={form.street_line1} onChange={(e) => setForm((f) => ({ ...f, street_line1: e.target.value }))} className="h-8 text-sm mt-1" /></div>
-      <Input value={form.street_line2} onChange={(e) => setForm((f) => ({ ...f, street_line2: e.target.value }))} className="h-8 text-sm" placeholder="Unit / building (optional)" />
+      <div><Label className="text-xs">Street address</Label><Input value={form.street_line1} autoComplete="address-line1" onChange={(e) => setForm((f) => ({ ...f, street_line1: e.target.value }))} className="h-8 text-sm mt-1" /></div>
+      <Input value={form.street_line2} autoComplete="address-line2" onChange={(e) => setForm((f) => ({ ...f, street_line2: e.target.value }))} className="h-8 text-sm" placeholder="Unit / building (optional)" />
       <div className="grid grid-cols-2 gap-2">
-        <div><Label className="text-xs">Suburb</Label><Input value={form.suburb} onChange={(e) => setForm((f) => ({ ...f, suburb: e.target.value }))} className="h-8 text-sm mt-1" /></div>
-        <div><Label className="text-xs">City</Label><Input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} className="h-8 text-sm mt-1" /></div>
+        <div><Label className="text-xs">Suburb</Label><Input value={form.suburb} autoComplete="address-level3" onChange={(e) => setForm((f) => ({ ...f, suburb: e.target.value }))} className="h-8 text-sm mt-1" /></div>
+        <div><Label className="text-xs">City</Label><Input value={form.city} autoComplete="address-level2" onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} className="h-8 text-sm mt-1" /></div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
@@ -94,10 +94,10 @@ export function AddressEditForm({ entityType, entityId, address, onSaved }: Read
               <SelectContent>{SA_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
             </Select>
           ) : (
-            <Input value={form.province} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} className="h-8 text-sm mt-1" placeholder="e.g. Noord-Holland" />
+            <Input value={form.province} autoComplete="address-level1" onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} className="h-8 text-sm mt-1" placeholder="e.g. Noord-Holland" />
           )}
         </div>
-        <div><Label className="text-xs">Postal code</Label><Input value={form.postal_code} onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))} className="h-8 text-sm mt-1" maxLength={isSA ? 4 : 12} /></div>
+        <div><Label className="text-xs">Postal code</Label><Input value={form.postal_code} autoComplete="postal-code" onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))} className="h-8 text-sm mt-1" maxLength={isSA ? 4 : 12} /></div>
       </div>
       <div>
         <Label className="text-xs">Country</Label>

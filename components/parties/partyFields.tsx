@@ -209,21 +209,21 @@ export function ChipPicker({
 const FUNCTION_SELECT_OPTIONS = [{ value: "", label: "Select…" }, ...COMPANY_FUNCTION_OPTIONS]
 
 function Bare({
-  label, value, onChange, required, type = "text", placeholder,
-}: Readonly<{ label: string; value?: string; onChange: (v: string) => void; required?: boolean; type?: string; placeholder?: string }>) {
+  label, value, onChange, required, type = "text", placeholder, autoComplete,
+}: Readonly<{ label: string; value?: string; onChange: (v: string) => void; required?: boolean; type?: string; placeholder?: string; autoComplete?: string }>) {
   return (
     <Field label={label} required={required}>
-      <input className={inputCls(false)} type={type} value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <input className={inputCls(false)} type={type} value={value ?? ""} placeholder={placeholder} autoComplete={autoComplete} onChange={(e) => onChange(e.target.value)} />
     </Field>
   )
 }
 
 function BareSelect({
-  label, value, onChange, options, required,
-}: Readonly<{ label: string; value: string; onChange: (v: string) => void; options: ReadonlyArray<{ value: string; label: string }>; required?: boolean }>) {
+  label, value, onChange, options, required, autoComplete,
+}: Readonly<{ label: string; value: string; onChange: (v: string) => void; options: ReadonlyArray<{ value: string; label: string }>; required?: boolean; autoComplete?: string }>) {
   return (
     <Field label={label} required={required}>
-      <select className={cn(inputCls(false), "appearance-none")} value={value} onChange={(e) => onChange(e.target.value)}>
+      <select className={cn(inputCls(false), "appearance-none")} value={value} autoComplete={autoComplete} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </Field>
@@ -242,17 +242,17 @@ export function AddressFields({
   const isSA = country === DEFAULT_COUNTRY
   return (
     <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-      <Bare label="Street address" required={requiredLine} value={address.line1} onChange={(v) => onUpdate({ line1: v })} placeholder="12 Main Road" />
-      <Bare label="Address line 2" value={address.line2} onChange={(v) => onUpdate({ line2: v })} placeholder="Optional" />
-      <Bare label="Suburb" value={address.suburb} onChange={(v) => onUpdate({ suburb: v })} placeholder="Sea Point" />
-      <Bare label="City" required={requiredLine} value={address.city} onChange={(v) => onUpdate({ city: v })} placeholder="Cape Town" />
+      <Bare label="Street address" required={requiredLine} value={address.line1} onChange={(v) => onUpdate({ line1: v })} placeholder="12 Main Road" autoComplete="address-line1" />
+      <Bare label="Address line 2" value={address.line2} onChange={(v) => onUpdate({ line2: v })} placeholder="Optional" autoComplete="address-line2" />
+      <Bare label="Suburb" value={address.suburb} onChange={(v) => onUpdate({ suburb: v })} placeholder="Sea Point" autoComplete="address-level3" />
+      <Bare label="City" required={requiredLine} value={address.city} onChange={(v) => onUpdate({ city: v })} placeholder="Cape Town" autoComplete="address-level2" />
       {isSA ? (
-        <BareSelect label="Province" value={address.province ?? ""} onChange={(v) => onUpdate({ province: v })} options={ADDRESS_PROVINCE_OPTIONS} />
+        <BareSelect label="Province" value={address.province ?? ""} onChange={(v) => onUpdate({ province: v })} options={ADDRESS_PROVINCE_OPTIONS} autoComplete="address-level1" />
       ) : (
-        <Bare label="Province / state" value={address.province} onChange={(v) => onUpdate({ province: v })} placeholder="e.g. Noord-Holland" />
+        <Bare label="Province / state" value={address.province} onChange={(v) => onUpdate({ province: v })} placeholder="e.g. Noord-Holland" autoComplete="address-level1" />
       )}
-      <Bare label="Postal code" value={address.postal} onChange={(v) => onUpdate({ postal: v })} placeholder="8005" />
-      <BareSelect label="Country" value={country} onChange={(v) => onUpdate({ country: v })} options={COUNTRY_OPTIONS} />
+      <Bare label="Postal code" value={address.postal} onChange={(v) => onUpdate({ postal: v })} placeholder="8005" autoComplete="postal-code" />
+      <BareSelect label="Country" value={country} onChange={(v) => onUpdate({ country: v })} options={COUNTRY_OPTIONS} autoComplete="country-name" />
     </div>
   )
 }

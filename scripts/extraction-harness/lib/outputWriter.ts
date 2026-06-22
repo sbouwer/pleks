@@ -34,6 +34,9 @@ export function writeOutput(folderName: string, result: PipelineResult): void {
       extractionConfidence:  doc.extractionConfidence,
       extracted:             redactExtraction(doc.documentType, doc.extracted ?? null),
     })),
+    // Phase 3 — POPIA-safe by construction (verdicts + amounts; no raw names/IDs; PII-safe fraud descriptions).
+    reconciliation: result.reconciliation,
+    fraudSignals:   result.fraudSignals,
   }
   writeFileSync(outPath, JSON.stringify(safeResult, null, 2), "utf-8")
 }

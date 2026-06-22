@@ -53,6 +53,7 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
   const [form, setForm] = useState({
     asking_rent: unit.asking_rent_cents ? Math.round(unit.asking_rent_cents / 100).toString() : "",
     available_from: "",
+    closes_at: "",
     description: "",
     requirements: "",
     min_income_multiple: "3.33",
@@ -94,6 +95,7 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
           description: form.description.trim() || null,
           requirements: form.requirements.trim() || null,
           min_income_multiple: parseFloat(form.min_income_multiple) || 3.33,
+          closes_at: form.closes_at || null,
           pet_friendly: form.pet_friendly,
           status: publish ? "active" : "draft",
           public_slug: publish ? slug : null,
@@ -169,6 +171,12 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
                   <Label htmlFor="available_from">Available from *</Label>
                   <DatePickerInput value={form.available_from} onChange={(v) => update("available_from", v)} placeholder="Available from" />
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="closes_at">Applications close (optional)</Label>
+                <DatePickerInput value={form.closes_at} onChange={(v) => update("closes_at", v)} placeholder="No closing date" />
+                <p className="text-xs text-muted-foreground">After this date the listing expires and any saved, not-yet-submitted applications are removed.</p>
               </div>
 
               <div className="space-y-1.5">

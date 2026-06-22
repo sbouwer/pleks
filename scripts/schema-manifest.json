@@ -245,6 +245,24 @@
       "income_cents",
       "capital_cents"
     ],
+    "application_screening_evaluations": [
+      "id",
+      "org_id",
+      "application_id",
+      "iteration_number",
+      "ruling_tier",
+      "affordability_tier",
+      "affordability_ratio_pct",
+      "demonstrated_housing_cents",
+      "confidence_tier",
+      "flags",
+      "reconciliation",
+      "fraud_signals",
+      "reconciler_version",
+      "ruling_version",
+      "input_snapshot",
+      "generated_at"
+    ],
     "application_screening_lines": [
       "id",
       "org_id",
@@ -458,7 +476,11 @@
       "criminal_screening_policy_version",
       "screening_policy_id",
       "screening_policy_version",
-      "decline_reason_text"
+      "decline_reason_text",
+      "income_sources",
+      "employment_start_date",
+      "draft_step",
+      "draft_saved_at"
     ],
     "arrears_actions": [
       "id",
@@ -2014,7 +2036,8 @@
       "created_by",
       "created_at",
       "updated_at",
-      "screening_bundle"
+      "screening_bundle",
+      "closes_at"
     ],
     "login_notifications_sent": [
       "id",
@@ -3017,6 +3040,20 @@
       "supersedes_artifact_id",
       "regeneration_reason",
       "created_at"
+    ],
+    "screening_jobs": [
+      "id",
+      "org_id",
+      "application_id",
+      "status",
+      "attempts",
+      "max_attempts",
+      "iteration_number",
+      "error",
+      "created_at",
+      "started_at",
+      "finished_at",
+      "updated_at"
     ],
     "screening_policies": [
       "id",

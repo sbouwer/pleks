@@ -255,7 +255,7 @@ export function calculatePrescreen(
   hasReasonForMoving: boolean,
 ): { income: number; employment: number; references: number; total: number; affordability_flag: boolean; rent_to_income_pct: number | null } {
   const EMPLOYMENT_MAP: Record<string, number> = {
-    permanent: 15, retired: 12, contract: 10, self_employed: 8,
+    permanent: 15, retired: 12, contract: 10, commission: 10, self_employed: 8,
     full_time: 15, part_time: 8, contractor: 10, student: 5, unemployed: 3, other: 5,
   }
   const incomeCents = bankStatementAvgIncomeCents ?? grossMonthlyIncomeCents

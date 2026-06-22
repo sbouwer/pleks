@@ -12,6 +12,8 @@ export interface HarnessRunResult {
   rejectedAtUpload: number
   unknownType: number
   extracted: number
+  reconIssues: number       // declared sources uncorroborated/variance + identity mismatch + net-pay gap (Phase 3)
+  fraudCount: number        // fraud signals raised (Phase 3)
   durationMs: number
   error?: string
 }
@@ -41,7 +43,7 @@ function formatRow(r: HarnessRunResult): string {
   )
 }
 
-function sumField(results: HarnessRunResult[], key: "totalDocs" | "classified" | "rejectedAtUpload" | "unknownType" | "extracted"): number {
+function sumField(results: HarnessRunResult[], key: "totalDocs" | "classified" | "rejectedAtUpload" | "unknownType" | "extracted" | "reconIssues" | "fraudCount"): number {
   return results.reduce((s, r) => s + r[key], 0)
 }
 
@@ -63,6 +65,7 @@ export function printSummaryTable(results: HarnessRunResult[]): void {
   for (const r of results) {
     console.log(formatRow(r))
     if (r.error) console.log("       ERROR: " + r.error)
+    if (r.reconIssues > 0 || r.fraudCount > 0) console.log(`       ISSUES: ${r.reconIssues} reconciliation · ${r.fraudCount} fraud signal(s)`)
   }
 
   const totalDocs       = sumField(results, "totalDocs")
@@ -84,6 +87,8 @@ export function printSummaryTable(results: HarnessRunResult[]): void {
   console.log(`Rejected at upload:  ${totalRejected}`)
   console.log(`Type unknown:        ${totalUnknown}`)
   console.log(`Extracted:           ${totalExtracted}`)
+  console.log(`Reconciliation flags:${sumField(results, "reconIssues")}`)
+  console.log(`Fraud signals:       ${sumField(results, "fraudCount")}`)
   if (errors > 0) console.log(`Pipeline errors:     ${errors}`)
 
   printGate(archetypesOk, results.length, errors)

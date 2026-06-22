@@ -142,7 +142,6 @@
   "app/api/admin/org-clause/route.ts",
   "app/api/admin/orgs/[orgId]/custom-template/route.ts",
   "app/api/admin/prime-rate/route.ts",
-  "app/api/applications/[id]/co-applicant/route.ts",
   "app/api/approve/[token]/route.ts",
   "app/api/arrears/[caseId]/waive-interest/route.ts",
   "app/api/auth/passkeys/list/route.ts",

@@ -25,13 +25,15 @@ Inflow categories:
   "other"           — any other inflow (label: brief category description, no names)
 
 Outflow categories:
-  "rent"            — monthly rental payment to landlord (label: "monthly rent")
+  "rent"            — monthly rental payment to a landlord/agent (label: "monthly rent")
+  "home-loan"       — monthly home-loan / bond instalment to a bank (label: "bond instalment", "home loan") —
+                      keep SEPARATE from "loan"; this is the applicant's own housing payment (affordability evidence)
   "debit-order"     — recurring debit order (label: "medical aid", "insurance", "loan repayment", "subscription", etc.)
   "utility"         — municipal/utility payment (label: "electricity", "water", "rates and taxes", "municipal account")
   "retail"          — point-of-sale or online retail purchase (label: "grocery store", "clothing retail", "online purchase", etc.)
   "atm"             — ATM cash withdrawal (label: "ATM withdrawal")
   "transfer"        — transfer to another account (label: "own transfer", "payment to individual")
-  "loan"            — loan or credit repayment (label: "vehicle finance", "personal loan", "home loan", etc.)
+  "loan"            — NON-housing loan/credit repayment (label: "vehicle finance", "personal loan", "store card", etc.)
   "other"           — any other outflow (label: brief description, no names)
 
 Extract exactly these fields and return ONLY a single-line JSON object:

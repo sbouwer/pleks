@@ -4,6 +4,9 @@
 @import "../components/ui/actions/action-language.css";
 
 @custom-variant dark (&:is(.dark *));
+/* tallwide: only when the viewport is both wide AND tall enough for a fixed-height two-column layout
+   (e.g. the apply preview). Below either threshold, layouts stack into a single scrolling column. */
+@custom-variant tallwide (@media (width >= 1024px) and (height >= 700px));
 
 @theme inline {
   --color-background: var(--background);
@@ -497,9 +500,18 @@ table.ledger tr.paid td:first-child::before {
   --shadow-2: 0 1px 2px oklch(0.2 0.01 260 / 0.04), 0 1px 0 oklch(0.88 0.006 85 / 0.8);
 }
 
-/* The .pleks-portal wrapper is display:contents, so color-scheme doesn't reach native <select> option
-   popups — set it on the controls directly so the OS draws the dropdown list dark, not white. */
-.pleks-portal[data-theme="dark"] select { color-scheme: dark; }
+/* Native control popups (the <select> option list, date/time pickers) don't inherit color-scheme through
+   the display:contents theme wrappers (.pleks-public / .pleks-portal), so they fall back to the :root dark
+   scheme and render black. Pin the scheme on the controls per surface — light by default, dark only when
+   the surface is explicitly in dark mode. Covers BOTH the portal and the public/applicant surfaces. */
+.pleks-public:not([data-theme="dark"]) :is(select, input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"], input[type="week"]),
+.pleks-portal:not([data-theme="dark"]) :is(select, input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"], input[type="week"]) { color-scheme: light; }
+.pleks-public[data-theme="dark"] :is(select, input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"], input[type="week"]),
+.pleks-portal[data-theme="dark"] :is(select, input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"], input[type="week"]) { color-scheme: dark; }
+/* Hard fallback — some browsers ignore color-scheme for the native <option> popup and fall back to the OS
+   dark theme. Force the option list light on both light surfaces. */
+.pleks-public:not([data-theme="dark"]) select option,
+.pleks-portal:not([data-theme="dark"]) select option { background-color: #ffffff; color: #1a1a1a; }
 
 /* ── Template-preview merge-field chips (injected into the branded preview HTML) ───────────
    The preview "paper" is always a light document regardless of app theme, so these are fixed
