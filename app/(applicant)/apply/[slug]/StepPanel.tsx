@@ -29,6 +29,7 @@ import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft, Pencil, Clock } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity, CompanyAddressSection } from "@/components/parties/partySteps"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
@@ -965,10 +966,6 @@ const RULING_LABEL: Record<string, { label: string; cls: string; note: string }>
   "needs-evidence":  { label: "Needs a bit more",     cls: "text-amber-600",   note: "Add the evidence below to strengthen your application." },
   "below-threshold": { label: "Affordability concern", cls: "text-red-600",    note: "Rent is high relative to your income — see the options below." },
 }
-const AFFORD_LABEL: Record<string, string> = {
-  within: "Within the 30% guideline", marginal: "Marginally over guideline",
-  below: "Over the 30% guideline", "demonstrated-override": "Proven by your payment history",
-}
 const CONF_LABEL: Record<string, string> = { strong: "Strong", adequate: "Adequate", "needs-evidence": "Needs evidence" }
 
 function ProcessingView() {
@@ -1007,50 +1004,111 @@ function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void;
       <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} onClick={() => onAmend(4)}>Add an applicant</ActionButton>
       <ActionButton tone="secondary" size="sm" icon={<Upload className="size-4" />} onClick={() => onAmend(3)}>Upload documents</ActionButton>
       <ActionButton tone="secondary" size="sm" icon={<Pencil className="size-4" />} onClick={() => onAmend(0)}>Edit details</ActionButton>
-      <ActionButton tone="primary" size="sm" onClick={onRerun}>Re-check</ActionButton>
+      <ActionButton tone="primary" size="sm" onClick={onRerun}>Re-check now</ActionButton>
     </div>
   )
 }
 
-function RulingView({ evaluation, onAmend, onRerun }: Readonly<{ evaluation: ScreeningEvaluation; onAmend: (s: number) => void; onRerun: () => void }>) {
-  // Re-check used (second submission): this is the way forward — hand off to the agent, no "you can't resubmit"
-  // framing and no strengthen/amend detail they can no longer act on.
-  if (evaluation.iteration_number >= MAX_SCREENING_ITERATIONS) {
-    return (
-      <div className="flex flex-col gap-4">
-        <StepHeading title="Application submitted ✓" sub="Your application is now with your agent." />
-        <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-5">
-          <p className="text-sm leading-relaxed text-[var(--ink-soft)]">
-            Thanks — your application and documents are now with your agent. They&apos;ll verify everything and update you directly on the outcome. There&apos;s nothing more you need to do for now.
-          </p>
-        </div>
-        <p className="text-xs text-[var(--ink-mute)]">We&apos;ve emailed your confirmation.</p>
+/** A two-marker bar: a filled "you are here" track + a tick for the minimum/guideline you're aiming at. */
+function MeterBar({ label, fillPct, markerPct, youText, markerText, ok, hint }: Readonly<{
+  label: string; fillPct: number; markerPct: number; youText: string; markerText: string; ok: boolean; hint: string
+}>) {
+  const clamp = (n: number) => Math.max(0, Math.min(100, n))
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">{label}</span>
+        <span className={`text-xs font-semibold ${ok ? "text-emerald-600" : "text-amber-600"}`}>{youText}</span>
       </div>
-    )
-  }
+      <div className="relative mt-2 h-2.5 rounded-full bg-[var(--rule)]/50">
+        <div className={`h-full rounded-full ${ok ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${clamp(fillPct)}%` }} />
+        <div className="absolute -top-1 -bottom-1 w-0.5 bg-[var(--ink)]" style={{ left: `${clamp(markerPct)}%` }} />
+      </div>
+      <div className="mt-1 flex items-baseline justify-between text-[11px] text-[var(--ink-mute)]">
+        <span>{hint}</span>
+        <span>↑ {markerText}</span>
+      </div>
+    </div>
+  )
+}
+
+const CONF_PCT: Record<string, number> = { "needs-evidence": 30, adequate: 65, strong: 100 }
+
+/** Final state — nothing more for the applicant to do; the agent has it. Reached by "Submit as is" or after the
+ *  one allowed re-check. */
+function HandoffView() {
+  return (
+    <div className="flex flex-col gap-4">
+      <StepHeading title="Submitted to your agent ✓" sub="Your application is now with your agent." />
+      <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-5">
+        <p className="text-sm leading-relaxed text-[var(--ink-soft)]">
+          Thanks — your application and documents are now with your agent. They&apos;ll verify everything and update you directly on the outcome. There&apos;s nothing more you need to do for now.
+        </p>
+      </div>
+      <p className="text-xs text-[var(--ink-mute)]">We&apos;ve emailed your confirmation.</p>
+    </div>
+  )
+}
+
+function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun }: Readonly<{ evaluation: ScreeningEvaluation; askingRentCents: number; incomeCents: number; onAmend: (s: number) => void; onRerun: () => void }>) {
+  const [done, setDone] = useState(false)
+  const [amendOpen, setAmendOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  // Either the applicant chose "submit as is", or the one allowed re-check has been used → hand off to the agent.
+  if (done || evaluation.iteration_number >= MAX_SCREENING_ITERATIONS) return <HandoffView />
+
   const r = RULING_LABEL[evaluation.ruling_tier] ?? RULING_LABEL["needs-evidence"]
   const todos = evaluation.flags.filter((f) => (f.type === "fixable" || f.type === "structural") && f.remediation)
   const positives = evaluation.flags.filter((f) => f.type === "override")
+
+  const AFFORD_MAX = 45 // bar scales 0..45% so the 30% guideline sits ~2/3 across, leaving room for "over"
+  const ratio = evaluation.affordability_ratio_pct
+  const affordOk = ratio != null && ratio <= 30
+  const confPct = CONF_PCT[evaluation.confidence_tier] ?? 30
+  const confOk = confPct >= 65
+
   return (
     <div className="flex flex-col gap-4">
-      <StepHeading title="Application submitted ✓" sub="Here's your pre-screen result. The final decision is the agent's — you can strengthen it any time." />
+      <StepHeading title="Application submitted ✓" sub="Here's your pre-screen result — where you are now, and the minimum you're aiming for." />
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-5">
         <div className="flex items-end justify-between">
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Pre-screen result</span>
           <span className={`text-sm font-semibold ${r.cls}`}>{r.label}</span>
         </div>
         <p className="mt-2 text-sm text-[var(--ink-soft)]">{r.note}</p>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
-            <span className="block font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Affordability</span>
-            <span className="mt-1 block text-sm font-medium text-[var(--ink)]">{evaluation.affordability_ratio_pct != null ? `${evaluation.affordability_ratio_pct}% of income` : "—"}</span>
-            <span className="block text-xs text-[var(--ink-soft)]">{AFFORD_LABEL[evaluation.affordability_tier] ?? evaluation.affordability_tier}</span>
+        <div className="mt-4 flex flex-col gap-1.5 border-t border-[var(--rule)] pt-4 text-sm">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[var(--ink-soft)]">Asking rent</span>
+            <span className="font-medium text-[var(--ink)]">{formatZAR(askingRentCents)} /mo</span>
           </div>
-          <div className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
-            <span className="block font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Confidence</span>
-            <span className="mt-1 block text-sm font-medium text-[var(--ink)]">{CONF_LABEL[evaluation.confidence_tier] ?? evaluation.confidence_tier}</span>
-            <span className="block text-xs text-[var(--ink-soft)]">How well your documents back it up</span>
+          <div className="flex items-baseline justify-between">
+            <span className="text-[var(--ink-soft)]">Declared income</span>
+            <span className="font-medium text-[var(--ink)]">{incomeCents > 0 ? `${formatZAR(incomeCents)} /mo` : "—"}</span>
           </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-[var(--ink-soft)]">Rent-to-income</span>
+            <span className={`font-semibold ${affordOk ? "text-emerald-600" : "text-amber-600"}`}>{ratio != null ? `${ratio}%` : "—"}</span>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-col gap-5">
+          <MeterBar
+            label="Affordability — rent vs income"
+            fillPct={ratio != null ? (ratio / AFFORD_MAX) * 100 : 0}
+            markerPct={(30 / AFFORD_MAX) * 100}
+            youText={ratio != null ? `You: ${ratio}%` : "You: —"}
+            markerText="Guideline 30%"
+            ok={affordOk}
+            hint={affordOk ? "Within the 30% guideline" : "Over the 30% guideline"}
+          />
+          <MeterBar
+            label="Confidence — how well your documents back it up"
+            fillPct={confPct}
+            markerPct={65}
+            youText={`You: ${CONF_LABEL[evaluation.confidence_tier] ?? evaluation.confidence_tier}`}
+            markerText="Minimum: Adequate"
+            ok={confOk}
+            hint={confOk ? "Your documents support your declaration" : "Documents don't yet fully back your declaration"}
+          />
         </div>
       </div>
       {positives.map((f) => (
@@ -1058,7 +1116,7 @@ function RulingView({ evaluation, onAmend, onRerun }: Readonly<{ evaluation: Scr
       ))}
       {todos.length > 0 && (
         <div>
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Strengthen your application</p>
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Proposed changes to strengthen it</p>
           <div className="flex flex-col gap-2">
             {todos.map((f) => (
               <div key={f.key} className="rounded-[var(--r-button)] border border-[var(--rule)] p-3">
@@ -1069,12 +1127,37 @@ function RulingView({ evaluation, onAmend, onRerun }: Readonly<{ evaluation: Scr
           </div>
         </div>
       )}
-      {/* Only the first pass reaches here (the capped state returns above), so the re-check is always available. */}
-      <div className="flex flex-col gap-2">
-        <p className="text-xs text-[var(--ink-mute)]">You can make <span className="font-medium text-[var(--ink-soft)]">one</span> round of changes and re-check — after that your agent reviews it.</p>
-        <AmendBar onAmend={onAmend} onRerun={onRerun} />
+
+      {/* Two clear paths — submit as is now, or make the one allowed round of changes then re-check. */}
+      <div className="flex flex-col gap-3 border-t border-[var(--rule)] pt-4">
+        <p className="text-sm text-[var(--ink-soft)]">
+          Happy with this? Send it to your agent now. Or make <span className="font-medium text-[var(--ink)]">one</span> round of changes first — then it goes to your agent for review.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} onClick={() => (todos.length > 0 ? setConfirmOpen(true) : setDone(true))}>Submit to agent as is</ActionButton>
+          <ActionButton tone="secondary" icon={<Pencil className="size-4" />} onClick={() => setAmendOpen((v) => !v)}>{amendOpen ? "Cancel changes" : "Amend & re-check"}</ActionButton>
+        </div>
+        {amendOpen && (
+          <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
+            <p className="text-xs text-[var(--ink-mute)]">
+              {todos.length > 0
+                ? <>Make the proposed change above, then re-check. You get <span className="font-medium text-[var(--ink-soft)]">one</span> re-check before your agent reviews it.</>
+                : <>Update anything you need, then re-check. You get <span className="font-medium text-[var(--ink-soft)]">one</span> re-check before your agent reviews it.</>}
+            </p>
+            <AmendBar onAmend={onAmend} onRerun={onRerun} />
+          </div>
+        )}
       </div>
       <p className="text-xs text-[var(--ink-mute)]">We&apos;ve emailed your confirmation. The agent will be in touch about next steps.</p>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Submit without the suggested changes?"
+        description="We suggested a change to strengthen your application. If you submit as is, it goes straight to your agent and you won't be able to change it afterwards."
+        confirmLabel="Yes, submit as is"
+        cancelLabel="Keep editing"
+        onConfirm={() => { setConfirmOpen(false); setDone(true) }}
+      />
     </div>
   )
 }
@@ -1147,7 +1230,7 @@ function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, c
 }>) {
   if (screeningStatus === "processing") return <ProcessingView />
   if (screeningStatus === "failed") return <FailedView onRetry={onRerun} />
-  if (screeningStatus === "done" && evaluation) return <RulingView evaluation={evaluation} onAmend={onAmend} onRerun={onRerun} />
+  if (screeningStatus === "done" && evaluation) return <RulingView evaluation={evaluation} askingRentCents={askingRentCents} incomeCents={totalMonthlyCents(income)} onAmend={onAmend} onRerun={onRerun} />
 
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = totalMonthlyCents(income)
