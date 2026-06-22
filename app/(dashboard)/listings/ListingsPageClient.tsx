@@ -35,7 +35,13 @@ export interface ListingListRow {
   submittedCount: number
 }
 
-type ListingSortKey = "property" | "applications" | "rent" | "created"
+type ListingSortKey = "property" | "applications" | "rent" | "created" | "closes"
+
+/** Short cut-off date, or a dash when the listing has no closing date set. */
+function closesLabel(iso: string | null): string {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+}
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -69,6 +75,7 @@ export function ListingsPageClient({ listings }: Readonly<{ listings: ListingLis
       if (sortKey === "property") cmp = `${a.propertyName} ${a.unitNumber}`.localeCompare(`${b.propertyName} ${b.unitNumber}`)
       else if (sortKey === "applications") cmp = a.submittedCount - b.submittedCount
       else if (sortKey === "rent") cmp = a.askingRentCents - b.askingRentCents
+      else if (sortKey === "closes") cmp = (a.closesAt ?? "9999").localeCompare(b.closesAt ?? "9999")
       else cmp = a.createdAt.localeCompare(b.createdAt)
       return sortDir === "asc" ? cmp : -cmp
     })
@@ -132,16 +139,18 @@ export function ListingsPageClient({ listings }: Readonly<{ listings: ListingLis
           <ListCard fill>
             <table className="w-full table-fixed text-sm">
               <colgroup>
-                <col className="w-[42%]" />
+                <col className="w-[34%]" />
+                <col className="w-[16%]" />
+                <col className="w-[15%]" />
                 <col className="w-[18%]" />
-                <col className="w-[18%]" />
-                <col className="w-[22%]" />
+                <col className="w-[17%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 border-b border-border/60 bg-card">
                 <tr>
                   <th className="px-3 py-2.5 text-left"><SortHeader col="property" label="Property / Unit" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
                   <th className="px-3 py-2.5 text-left"><SortHeader col="applications" label="Applications" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
                   <th className="px-3 py-2.5 text-left"><SortHeader col="rent" label="Rent" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                  <th className="px-3 py-2.5 text-left"><SortHeader col="closes" label="Closes" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
                   <th className="px-3 py-2.5 text-left">Status</th>
                 </tr>
               </thead>
@@ -163,6 +172,7 @@ export function ListingsPageClient({ listings }: Readonly<{ listings: ListingLis
                       <span className="text-muted-foreground"> {l.submittedCount === 1 ? "application" : "applications"}</span>
                     </td>
                     <td className="px-3 py-3">{formatZAR(l.askingRentCents)}<span className="text-muted-foreground">/mo</span></td>
+                    <td className="px-3 py-3 text-muted-foreground">{closesLabel(l.closesAt)}</td>
                     <td className="px-3 py-3"><StatusBadge status={l.status} /></td>
                   </tr>
                 ))}
