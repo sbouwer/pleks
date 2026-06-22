@@ -35,7 +35,10 @@ interface Body {
   employment_type?: string; employer_name?: string; employment_start_date?: string
   gross_monthly_income?: string; income_sources?: unknown
   addresses?: unknown
+  applicant_type?: string; company_info?: unknown
 }
+
+const APPLICANT_TYPES = ["individual", "couple", "company", "guarantor"]
 
 const resumeUrl = (req: NextRequest, slug: string, id: string, token: string) =>
   `${req.nextUrl.origin}/apply/${slug}/preview?app=${id}&token=${encodeURIComponent(token)}`
@@ -56,6 +59,9 @@ function draftFields(body: Body) {
     gross_monthly_income_cents: incomeCents, income_sources: parsed?.rows ?? null,
     // applicant's current address(es) — bounded (array, cap 5) since it's public input; stored as-is for resume.
     applicant_addresses: Array.isArray(body.addresses) ? body.addresses.slice(0, 5) : null,
+    // chosen application type + company details — so resume restores the exact flow (not inferred).
+    applicant_type: typeof body.applicant_type === "string" && APPLICANT_TYPES.includes(body.applicant_type) ? body.applicant_type : null,
+    company_info: body.company_info && typeof body.company_info === "object" ? body.company_info : null,
     draft_step: typeof body.step === "number" ? body.step : null,
     draft_saved_at: new Date().toISOString(),
   }

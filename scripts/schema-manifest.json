@@ -171,7 +171,8 @@
       "adverse_factor_codes",
       "decided_at",
       "decided_by",
-      "decision_stage"
+      "decision_stage",
+      "role"
     ],
     "application_directors": [
       "id",
@@ -481,7 +482,9 @@
       "employment_start_date",
       "draft_step",
       "draft_saved_at",
-      "applicant_addresses"
+      "applicant_addresses",
+      "applicant_type",
+      "company_info"
     ],
     "arrears_actions": [
       "id",

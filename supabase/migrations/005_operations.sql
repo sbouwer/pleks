@@ -2921,7 +2921,16 @@ ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS draft_saved_at      timestamptz,
   -- the applicant's current address(es) (the party-address shape, as captured in the Address step). The apply
   -- flow never persisted address before, so it was lost on resume; stored as jsonb for draft rehydration.
-  ADD COLUMN IF NOT EXISTS applicant_addresses jsonb;
+  ADD COLUMN IF NOT EXISTS applicant_addresses jsonb,
+  -- the chosen application TYPE + company details — persisted so resume restores the right flow for all four
+  -- scenarios (individual/couple/company/guarantor) instead of inferring it from the co-applicant roster.
+  ADD COLUMN IF NOT EXISTS applicant_type      text CHECK (applicant_type IN ('individual','couple','company','guarantor')),
+  ADD COLUMN IF NOT EXISTS company_info        jsonb;
+
+-- Co-applicant role (co_applicant = lives here / guarantor = backer) was sent by the invite flow but never had
+-- a column to land in — so a resumed roster couldn't tell them apart. Persist it.
+ALTER TABLE application_co_applicants
+  ADD COLUMN IF NOT EXISTS role text CHECK (role IN ('co_applicant','guarantor')) DEFAULT 'co_applicant';
 
 ALTER TABLE listings
   ADD COLUMN IF NOT EXISTS closes_at       timestamptz;

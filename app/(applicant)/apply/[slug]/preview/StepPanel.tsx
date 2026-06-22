@@ -155,6 +155,7 @@ const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.tri
 // ── Resume (save & finish later) ──────────────────────────────────────────────
 export interface ResumeState {
   applicationId: string; token: string; step: number; savedAt: string | null
+  applicantType: ApplicantType | null; company: CompanyInfo | null
   form: Partial<PartyFormState>; emp: Emp
   incomeSources: { key: string; label: string; amount_cents: number; period: string }[]
   coApplicants: CoApplicant[]; docPaths: { name: string; storagePath: string }[]
@@ -247,7 +248,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   // Resuming a saved draft (the ?app&token link) rehydrates identity/income/employment/docs/co-applicants and
   // drops the applicant back on the step they left. Address isn't persisted by the apply flow, so it re-enters.
   const resumedIncome = resume ? rebuildIncome(resume.incomeSources) : null
-  const [type, setType] = useState<ApplicantType | null>(resume ? inferType(resume.coApplicants) : null)
+  const [type, setType] = useState<ApplicantType | null>(resume ? (resume.applicantType ?? inferType(resume.coApplicants)) : null)
   const [step, setStep] = useState(resume?.step ?? 0)
   const [maxReached, setMaxReached] = useState(resume?.step ?? 0)
 
@@ -270,7 +271,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   const [saveModalOpen, setSaveModalOpen] = useState(false)
 
   const [coApplicants, setCoApplicants] = useState<CoApplicant[]>(resume?.coApplicants ?? [])
-  const [company, setCompany] = useState<CompanyInfo>({ companyType: "", companyReg: "" })
+  const [company, setCompany] = useState<CompanyInfo>(resume?.company ?? { companyType: "", companyReg: "" })
   const [invitePending, setInvitePending] = useState(false)
   const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths) : {})
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
@@ -347,6 +348,8 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
           gross_monthly_income: String(totalMonthlyCents(income) / 100),
           income_sources: incomeSourcesPayload(income),
           addresses: form.addresses ?? null,
+          applicant_type: type,
+          company_info: type === "company" ? company : null,
         }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
