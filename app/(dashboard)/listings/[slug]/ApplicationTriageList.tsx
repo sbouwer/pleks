@@ -14,6 +14,7 @@ import { useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { IconButton } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { shortlistStage1Action, declineStage1Action } from "@/lib/applications/applicationActions"
@@ -139,7 +140,13 @@ export function ApplicationTriageList({ slug, applications }: Readonly<{ slug: s
   }, [applications, q, decisions, overrides, sortKey, sortDir])
 
   if (applications.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">No submitted applications yet. Share the public link above to start receiving applications.</p>
+    return (
+      <EmptyResourceState
+        emptyTitle="No submitted applications yet"
+        emptySub="Share the public application link above — submitted applications appear here for you to review, shortlist and screen."
+        icon={<Users className="h-6 w-6" />}
+      />
+    )
   }
 
   return (
