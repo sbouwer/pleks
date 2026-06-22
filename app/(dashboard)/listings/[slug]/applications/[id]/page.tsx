@@ -23,6 +23,8 @@ import { FitScoreReport } from "@/lib/reports/screening/_web/FitScoreReport"
 import { FitScorePdfDownload } from "./_components/FitScorePdfDownload"
 import { IdReveal } from "./_components/IdReveal"
 import { ScreeningRulingCard, type ScreeningEvaluationRow } from "./_components/ScreeningRulingCard"
+import { FreeAssessmentCard } from "./_components/FreeAssessmentCard"
+import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ApplicationDetailPage({
@@ -116,17 +118,9 @@ export default async function ApplicationDetailPage({
 
   const name = `${app.first_name || ""} ${app.last_name || ""}`.trim()
 
-  // Step-1 free assessment (declared affordability + readiness; zero-AI, unverified). Replaces the legacy
-  // prescreen_score box. Verified figures (bank analysis, corroboration) live in the Step-2 ruling card below —
-  // keeping them out of here is what stops the two screening representations conflicting. (ADDENDUM_14M funnel)
-  const FA_TIER: Record<string, { label: string; cls: string }> = {
-    within: { label: "Looks affordable", cls: "text-success" },
-    marginal: { label: "A bit tight", cls: "text-warning" },
-    below: { label: "Affordability concern", cls: "text-danger" },
-    "no-income": { label: "No income entered", cls: "text-warning" },
-  }
-  const fa = app.free_assessment as { affordabilityTier?: string; declaredRatioPct?: number | null; combinedIncomeCents?: number; readiness?: { band?: string } } | null
-  const faTier = FA_TIER[fa?.affordabilityTier ?? ""] ?? { label: fa?.affordabilityTier ?? "—", cls: "" }
+  // Step-1 free assessment (the administrative readiness checklist; zero-AI, declared/unverified). Replaces the
+  // legacy prescreen_score box; verified figures live in the Step-2 ruling card below. (ADDENDUM_14M funnel)
+  const fa = app.free_assessment as FreeAssessmentResult | null
 
   const permitExpiry = app.permit_expiry_date ? new Date(app.permit_expiry_date) : null
   const depositRec = app.is_foreign_national
@@ -225,25 +219,9 @@ export default async function ApplicationDetailPage({
           </CardContent>
         </Card>
 
-        {/* Free assessment (Step 1) — declared figures only, unverified. NO bank analysis / corroboration here:
-            that's the Step-2 verified ruling below, which would otherwise read as a conflicting second verdict. */}
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Free assessment (Step 1)</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {fa ? (
-              <>
-                <div className="flex justify-between"><span className="text-muted-foreground">Declared affordability</span><span className={`font-medium ${faTier.cls}`}>{faTier.label}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Rent</span><span>{listing?.asking_rent_cents ? formatZAR(listing.asking_rent_cents) + "/mo" : "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Combined income</span><span>{fa.combinedIncomeCents ? formatZAR(fa.combinedIncomeCents) + "/mo" : "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Rent-to-income</span><span>{fa.declaredRatioPct != null ? `${fa.declaredRatioPct}%` : "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Readiness</span><span className="capitalize">{fa.readiness?.band ?? "—"}</span></div>
-                <p className="text-muted-foreground text-xs pt-2 border-t border-border">Declared figures only — unverified. The deep scan runs after shortlisting (Step 2).</p>
-              </>
-            ) : (
-              <p className="text-muted-foreground text-xs">No free assessment recorded{screeningEval ? " — see the verified ruling below." : " yet."}</p>
-            )}
-          </CardContent>
-        </Card>
+        {/* Free assessment (Step 1) — the administrative readiness checklist (agent audience: includes the
+            ID/fraud line). Declared/unverified; the Step-2 verified ruling renders separately below. */}
+        <FreeAssessmentCard assessment={fa} rentCents={(listing?.asking_rent_cents as number | undefined) ?? 0} />
       </div>
 
       {/* 14M pre-screen ruling (Stage 1) — agent sees all flags incl. agent-only signals */}

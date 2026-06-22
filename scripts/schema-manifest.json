@@ -172,7 +172,8 @@
       "decided_at",
       "decided_by",
       "decision_stage",
-      "role"
+      "role",
+      "declared_monthly_obligations_cents"
     ],
     "application_directors": [
       "id",
@@ -491,7 +492,8 @@
       "deleted_at",
       "submitted_at",
       "dependents_count",
-      "free_assessment"
+      "free_assessment",
+      "declared_monthly_obligations_cents"
     ],
     "arrears_actions": [
       "id",

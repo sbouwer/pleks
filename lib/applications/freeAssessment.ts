@@ -25,6 +25,13 @@ const MARGINAL_CEILING = 0.35
 export type DeclaredAffordabilityTier = "within" | "marginal" | "below" | "no-income"
 export type ReadinessBand = "ready" | "partial" | "incomplete"
 export type Residency = "citizen" | "permanent_resident" | "foreign" | "unknown"
+/** The Step-1 roll-up — an administrative "is this worth a deep scan?" state, the triage-list sort key.
+ *  Reds (does-not-qualify, incomplete) sort above amber (missing-docs) above green (verify-ready). */
+export type Step1Status = "verify-ready" | "missing-docs" | "does-not-qualify" | "incomplete"
+
+/** A required/expected document slot + whether the applicant has uploaded SOMETHING for it (presence, NOT proof
+ *  of contents — "uploaded, unverified"). */
+export interface DocSlot { key: string; label: string; required: boolean; present: boolean }
 
 export interface FreeApplicantInput {
   role: "primary" | "co_applicant" | "guarantor"
@@ -34,7 +41,8 @@ export interface FreeApplicantInput {
   idNumber: string | null
   declaredDob?: string | null         // separately-declared DOB (YYYY-MM-DD) — for the ID cross-check
   employmentStartDate?: string | null // for tenure + probation (primary only today)
-  documentsUploaded?: boolean         // for readiness; undefined = unknown (not flagged)
+  documentsUploaded?: boolean         // any docs at all (co-applicant readiness); undefined = unknown
+  documents?: DocSlot[]               // itemised slots (primary) — powers the documents checklist
   complete: boolean                   // finished their part (identity + income + docs + consent)
 }
 
@@ -76,9 +84,12 @@ export interface FreeAssessmentResult {
   // Identity (primary) + employment (primary)
   identity: IdentitySignal
   employment: EmploymentSignal
-  // Readiness
+  // Documents (primary's required/expected slots) + readiness
+  documents: DocSlot[]
+  allRequiredDocsPresent: boolean
   readiness: { band: ReadinessBand; items: ReadinessItem[]; allComplete: boolean; incompleteCount: number; invalidIdCount: number; total: number }
-  // Interpretation
+  // The administrative roll-up (the triage sort key) + the interpretation reads
+  rollup: Step1Status
   interpretations: Interpretation[]
 }
 
@@ -222,6 +233,16 @@ function affordabilityTierOf(combinedIncome: number, ratio: number | null): Decl
   return "below"
 }
 
+/** The administrative roll-up, reds first: their declared numbers don't work, OR they didn't finish, OR a required
+ *  doc is missing, else it's coherent enough to be worth a (paid) deep scan. A sort key + suggestion — never an
+ *  auto-decline; ID validity is an agent-only fraud check and is NOT folded in here. */
+function rollupOf(tier: DeclaredAffordabilityTier, allComplete: boolean, allRequiredDocsPresent: boolean): Step1Status {
+  if (tier === "below" || tier === "no-income") return "does-not-qualify"
+  if (!allComplete) return "incomplete"
+  if (!allRequiredDocsPresent) return "missing-docs"
+  return "verify-ready"
+}
+
 function buildReadiness(applicants: FreeApplicantInput[]): FreeAssessmentResult["readiness"] {
   let coCount = 0, guCount = 0
   const items = applicants.map((a) => {
@@ -275,6 +296,11 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
   const employment = employmentSignal(primaryApplicant, asOf)
   const readiness = buildReadiness(applicants)
 
+  // Documents: the primary's required/expected slots (itemised at /submit by listing what's uploaded).
+  const documents = primaryApplicant?.documents ?? []
+  const allRequiredDocsPresent = documents.filter((d) => d.required).every((d) => d.present)
+  const rollup = rollupOf(affordabilityTier, readiness.allComplete, allRequiredDocsPresent)
+
   const base: Omit<FreeAssessmentResult, "interpretations"> = {
     primaryIncomeCents: primary,
     combinedIncomeCents: combinedIncome,
@@ -289,7 +315,10 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
     estimatedMoveInCents,
     identity,
     employment,
+    documents,
+    allRequiredDocsPresent,
     readiness,
+    rollup,
   }
 
   return { ...base, interpretations: buildInterpretations(base) }

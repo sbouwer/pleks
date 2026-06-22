@@ -125,3 +125,24 @@ describe("freeAssessment — interpretation library", () => {
     expect(r.interpretations.some((i) => i.kind === "action" && /incomplete/i.test(i.text))).toBe(true)
   })
 })
+
+describe("freeAssessment — Step-1 roll-up (triage sort key)", () => {
+  const docs = (present: boolean) => [
+    { key: "id", label: "ID", required: true, present: true },
+    { key: "bank_main", label: "Bank statement", required: true, present },
+  ]
+  it("verify-ready: affordable + complete + required docs present", () => {
+    expect(freeAssessment(900_000, [a({ documents: docs(true) })]).rollup).toBe("verify-ready")
+  })
+  it("missing-docs when a required slot is absent", () => {
+    const r = freeAssessment(900_000, [a({ documents: docs(false) })])
+    expect(r.rollup).toBe("missing-docs")
+    expect(r.allRequiredDocsPresent).toBe(false)
+  })
+  it("incomplete when a party hasn't finished", () => {
+    expect(freeAssessment(900_000, [a({ documents: docs(true) }), a({ role: "co_applicant", complete: false })]).rollup).toBe("incomplete")
+  })
+  it("does-not-qualify (reds first) when declared income fails, even with docs", () => {
+    expect(freeAssessment(1_500_000, [a({ declaredIncomeCents: 3_000_000, documents: docs(true) })]).rollup).toBe("does-not-qualify")
+  })
+})

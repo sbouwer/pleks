@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { freeAssessment, type FreeApplicantInput } from "@/lib/applications/freeAssessment"
+import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
 import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Fetch application + listing
   const { data: app, error: appError } = await service
     .from("applications")
-    .select("*, listings(id, public_slug, asking_rent_cents, applications_count, status, closes_at, units(unit_number, properties(id, name, city, managing_agent_id)), org_id)")
+    .select("*, listings(id, public_slug, asking_rent_cents, applications_count, status, closes_at, units(unit_number, default_deposit_cents, deposit_amount_cents, properties(id, name, city, managing_agent_id)), org_id)")
     .eq("id", id)
     .single()
     logQueryError("POST applications", appError)
@@ -75,21 +76,50 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Build the applicant set (primary + co-applicants) for the combined declared assessment. Guarantors/sureties
   // are included so readiness reflects them, but freeAssessment excludes their income from combined affordability.
   const rentCents = (listing?.asking_rent_cents as number) ?? 0
+  const unit = listing?.units as Record<string, unknown> | null
+  const depositCents = (unit?.default_deposit_cents as number | null) ?? (unit?.deposit_amount_cents as number | null) ?? null
+
+  // Itemise the primary's required document slots: derive the expected slots from declared income, then check
+  // which are PRESENT by listing what's uploaded to Storage (presence, not proof — "uploaded, unverified").
+  const incomeSources = (app.income_sources as { key?: string; amount_cents?: number }[] | null) ?? []
+  const positiveIncomeKeys = new Set(incomeSources.filter((s) => (s.amount_cents ?? 0) > 0 && s.key).map((s) => s.key as string))
+  if (positiveIncomeKeys.size === 0 && ((app.gross_monthly_income_cents as number | null) ?? 0) > 0) positiveIncomeKeys.add("employment")
+  const docCats = deriveDocCategories(positiveIncomeKeys, (app.employment_type as string | null) ?? "")
+  const { data: docFiles, error: docListErr } = await service.storage.from("application-docs").list(`applications/${app.org_id}/${id}`, { limit: 200 })
+  logQueryError("submit doc list", docListErr)
+  const presentDocKeys = new Set((docFiles ?? []).map((f) => categoryForFilename(f.name, docCats)))
+  const primaryDocuments = docCats
+    .filter((c) => !c.booster && c.key !== "other")
+    .map((c) => ({ key: c.key, label: c.label, required: c.required, present: presentDocKeys.has(c.key) }))
+
   const { data: coRows, error: coErr } = await service.from("application_co_applicants")
-    .select("role, is_surety_director, gross_monthly_income_cents, id_type, id_number, stage1_consent_given")
+    .select("role, is_surety_director, gross_monthly_income_cents, declared_monthly_obligations_cents, id_type, id_number, date_of_birth, documents_submitted, stage1_consent_given")
     .eq("primary_application_id", id)
   logQueryError("submit co-applicants", coErr)
 
   const applicants: FreeApplicantInput[] = [
-    { role: "primary", declaredIncomeCents: (app.gross_monthly_income_cents as number | null) ?? 0, idType: app.id_type as string | null, idNumber: app.id_number as string | null, complete: true },
+    {
+      role: "primary",
+      declaredIncomeCents: (app.gross_monthly_income_cents as number | null) ?? 0,
+      declaredObligationsCents: (app.declared_monthly_obligations_cents as number | null) ?? null,
+      idType: app.id_type as string | null, idNumber: app.id_number as string | null,
+      declaredDob: (app.date_of_birth as string | null) ?? null,
+      employmentStartDate: (app.employment_start_date as string | null) ?? null,
+      documentsUploaded: app.documents_submitted === true || !!app.bank_statement_path,
+      documents: primaryDocuments,
+      complete: true,
+    },
     ...(coRows ?? []).map((c): FreeApplicantInput => ({
       role: c.role === "guarantor" || c.is_surety_director === true ? "guarantor" : "co_applicant",
       declaredIncomeCents: (c.gross_monthly_income_cents as number | null) ?? 0,
+      declaredObligationsCents: (c.declared_monthly_obligations_cents as number | null) ?? null,
       idType: c.id_type as string | null, idNumber: c.id_number as string | null,
+      declaredDob: (c.date_of_birth as string | null) ?? null,
+      documentsUploaded: c.documents_submitted === true,
       complete: c.stage1_consent_given === true,
     })),
   ]
-  const assessment = freeAssessment(rentCents, applicants)
+  const assessment = freeAssessment(rentCents, applicants, { depositCents })
 
   const now = new Date().toISOString()
   // Store the free assessment + record Stage-1 consent. NO deep scan — it runs at shortlist (Step 2).

@@ -2993,3 +2993,9 @@ ALTER TABLE application_screening_evaluations ADD CONSTRAINT application_screeni
 -- shortlists on this; the verified deep scan (application_screening_evaluations) supersedes it at Step 2. Stored
 -- as an application-level fact (NOT an eval row — it has no verified ruling/confidence). (ADDENDUM_14M funnel P1e)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS free_assessment jsonb;
+
+-- Declared existing monthly obligations (debit orders / commitments) — lets the Step-1 free assessment show
+-- residual-after-obligations (a more realistic affordability read than gross−rent) with no bank scan. Declared,
+-- unverified; summed across primary + co-applicants like income. (ADDENDUM_14M funnel, Step-1 enrichment)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS declared_monthly_obligations_cents bigint;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS declared_monthly_obligations_cents bigint;
