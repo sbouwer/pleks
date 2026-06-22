@@ -62,15 +62,13 @@ async function loadResume(
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, applicant_addresses, draft_step, draft_saved_at, org_id, stage1_consent_given")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, applicant_addresses, applicant_type, company_info, draft_step, draft_saved_at, org_id, stage1_consent_given")
     .eq("id", appId).maybeSingle()
   logQueryError("ApplyPreview resume app", appErr)
   if (!app || app.org_id !== listingOrgId || app.stage1_consent_given === true) return null
 
-  // NB: the co-applicant role (co_applicant vs guarantor) isn't persisted, so a resumed roster defaults to
-  // co_applicant — the type then infers "couple". A guarantor-only draft re-picks the type if needed.
   const { data: cos, error: cosErr } = await db
-    .from("application_co_applicants").select("first_name, last_name, applicant_email, applicant_phone, id_number")
+    .from("application_co_applicants").select("first_name, last_name, applicant_email, applicant_phone, id_number, role")
     .eq("primary_application_id", appId)
   logQueryError("ApplyPreview resume co-applicants", cosErr)
 
@@ -84,6 +82,8 @@ async function loadResume(
   const sources = (app.income_sources as ResumeState["incomeSources"] | null) ?? []
   return {
     applicationId: appId, token, step: (app.draft_step as number | null) ?? 3, savedAt: (app.draft_saved_at as string | null) ?? null,
+    applicantType: (app.applicant_type as ResumeState["applicantType"]) ?? null,
+    company: (app.company_info as ResumeState["company"]) ?? null,
     form: {
       firstName: (app.first_name as string | null) ?? undefined, lastName: (app.last_name as string | null) ?? undefined,
       email: (app.applicant_email as string | null) ?? undefined, phone: (app.applicant_phone as string | null) ?? undefined,
@@ -100,7 +100,7 @@ async function loadResume(
     coApplicants: (cos ?? []).map((c) => ({
       firstName: (c.first_name as string | null) ?? "", lastName: (c.last_name as string | null) ?? "",
       email: (c.applicant_email as string | null) ?? "", phone: (c.applicant_phone as string | null) ?? "",
-      idNumber: (c.id_number as string | null) ?? "", role: "co_applicant", invited: true,
+      idNumber: (c.id_number as string | null) ?? "", role: (c.role as "co_applicant" | "guarantor") ?? "co_applicant", invited: true,
     })),
     docPaths,
   }
