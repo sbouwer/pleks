@@ -318,6 +318,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
     setErrors(e)
     if (Object.keys(e).length > 0) { toast.error("Please complete the highlighted fields."); return }
     advance(1)
+    autosave(1)
   }
 
   function continueAddress() {
@@ -325,13 +326,14 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
     setErrors(e)
     if (Object.keys(e).length > 0) { toast.error("A current address is required."); return }
     advance(2)
+    autosave(2)
   }
 
   // UPSERT the draft (create on first save, update thereafter — keyed on the held applicationId/token). Every
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
-  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
-    if (!form.email) { toast.error("Add your email first so we can send you a link to finish later."); return null }
+  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
+    if (!form.email) { if (!opts?.silent) { toast.error("Add your email first so we can send you a link to finish later.") } return null }
     try {
       const res = await fetch("/api/applications/save-draft", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -347,10 +349,17 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
         }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
-      if (!res.ok || !json.applicationId || !json.token) { toast.error(json.error ?? "Could not save your progress."); return null }
+      if (!res.ok || !json.applicationId || !json.token) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
       setApplicationId(json.applicationId); setToken(json.token)
       return { id: json.applicationId, url: json.resumeUrl ?? null, emailed: !!json.emailed }
-    } catch { toast.error("Could not save your progress."); return null }
+    } catch { if (!opts?.silent) { toast.error("Could not save your progress.") } return null }
+  }
+
+  // Per-step autosave: once a draft EXISTS (explicit save or the Income create), silently UPDATE it on every
+  // step-advance so additional data is captured as you go — never CREATES a row on plain advance (no draft
+  // spam from casual visitors), and never toasts/emails. Best-effort; the next save re-sends full state.
+  function autosave(stepToSave: number) {
+    if (applicationId && form.email) void saveDraft(stepToSave, { silent: true })
   }
 
   // Explicit "Save & finish later": persist + email the link, then surface the resume-link modal + mark saved.
@@ -398,6 +407,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
     try {
       await dispatchInvites(applicationId) // send any invites added at the roster
       advance(5)
+      autosave(5)
     } finally {
       setBusy(false)
     }
