@@ -35,6 +35,10 @@ function getResend() {
 const DEFAULT_FROM = "Pleks <notifications@pleks.co.za>"
 const REPLY_TO_DEFAULT = "no-reply@pleks.co.za"
 
+/** Resend tag values may ONLY contain ASCII letters, numbers, underscores or dashes (no dots, etc.). Template
+ *  keys are dotted (e.g. "application.resume_link") — unsanitised they make Resend reject the WHOLE send. */
+const tagValue = (v: string) => v.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 256)
+
 export interface SendEmailParams {
   orgId: string
   templateKey: string
@@ -289,10 +293,10 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
         })),
       }),
       tags: [
-        { name: "org_id", value: params.orgId },
-        { name: "template", value: template.key },
-        ...(params.entityType ? [{ name: "entity_type", value: params.entityType }] : []),
-        ...(params.entityId ? [{ name: "entity_id", value: params.entityId }] : []),
+        { name: "org_id", value: tagValue(params.orgId) },
+        { name: "template", value: tagValue(template.key) },
+        ...(params.entityType ? [{ name: "entity_type", value: tagValue(params.entityType) }] : []),
+        ...(params.entityId ? [{ name: "entity_id", value: tagValue(params.entityId) }] : []),
       ],
     })
 
