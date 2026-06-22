@@ -130,11 +130,11 @@ export async function deleteApplicationAction(applicationId: string) {
   const { db, userId, orgId } = gw
 
   const { data: app, error: aErr } = await db.from("applications")
-    .select("stage1_consent_given").eq("id", applicationId).eq("org_id", orgId).maybeSingle()
+    .select("submitted_at").eq("id", applicationId).eq("org_id", orgId).maybeSingle()
   if (aErr) return { error: aErr.message }
   if (!app) return { error: "Application not found" }
 
-  if (app.stage1_consent_given) {
+  if (app.submitted_at) {
     const { error } = await db.from("applications").update({ deleted_at: NOW() }).eq("id", applicationId).eq("org_id", orgId)
     if (error) return { error: error.message }
     await recordAudit(db, { orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: applicationId, after: { action: "application_soft_deleted" } })
@@ -142,7 +142,7 @@ export async function deleteApplicationAction(applicationId: string) {
     return { ok: true, soft: true }
   }
 
-  // Draft (pre-consent): hard delete + purge docs. consent_log/audit_log are not FK-cascaded → preserved.
+  // Not submitted (draft / pre-screen only): hard delete + purge docs. consent_log/audit_log aren't FK-cascaded → preserved.
   await purgeApplicationDocs(db, orgId, applicationId)
   const { error } = await db.from("applications").delete().eq("id", applicationId).eq("org_id", orgId)
   if (error) return { error: error.message }
@@ -151,7 +151,7 @@ export async function deleteApplicationAction(applicationId: string) {
   return { ok: true, soft: false }
 }
 
-/** Bulk variant of deleteApplicationAction (owner/admin) — same per-app rule (soft submitted / hard draft). */
+/** Bulk variant of deleteApplicationAction (owner/admin) — same per-app rule (soft submitted / hard not-submitted). */
 export async function deleteApplicationsAction(applicationIds: string[]) {
   const gw = await gateway()
   if (!gw) return { error: "Unauthorized" }
@@ -160,13 +160,13 @@ export async function deleteApplicationsAction(applicationIds: string[]) {
   if (applicationIds.length === 0) return { ok: true, soft: 0, hard: 0 }
 
   const { data: apps, error } = await db.from("applications")
-    .select("id, stage1_consent_given").in("id", applicationIds).eq("org_id", orgId).is("deleted_at", null)
+    .select("id, submitted_at").in("id", applicationIds).eq("org_id", orgId).is("deleted_at", null)
   if (error) return { error: error.message }
 
   let soft = 0, hard = 0
   for (const app of apps ?? []) {
     const id = app.id as string
-    if (app.stage1_consent_given) {
+    if (app.submitted_at) {
       await db.from("applications").update({ deleted_at: NOW() }).eq("id", id).eq("org_id", orgId)
       await recordAudit(db, { orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: id, after: { action: "application_soft_deleted", bulk: true } })
       soft++

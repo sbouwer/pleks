@@ -1058,10 +1058,18 @@ function HandoffView() {
   )
 }
 
-function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun }: Readonly<{ evaluation: ScreeningEvaluation; askingRentCents: number; incomeCents: number; onAmend: (s: number) => void; onRerun: () => void }>) {
+function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun, onSubmitToAgent }: Readonly<{ evaluation: ScreeningEvaluation; askingRentCents: number; incomeCents: number; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean> }>) {
   const [done, setDone] = useState(false)
   const [amendOpen, setAmendOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function doSubmit() {
+    setSubmitting(true)
+    const ok = await onSubmitToAgent()
+    if (ok) setDone(true)
+    else setSubmitting(false)
+  }
   // Either the applicant chose "submit as is", or the one allowed re-check has been used → hand off to the agent.
   if (done || evaluation.iteration_number >= MAX_SCREENING_ITERATIONS) return <HandoffView />
 
@@ -1126,8 +1134,8 @@ function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun
       {/* Two clear paths — submit to the agent now, or make the one allowed round of changes then re-check. */}
       <div className="flex flex-col gap-2 border-t border-[var(--rule)] pt-3">
         <div className="flex items-center justify-between gap-2">
-          <ActionButton tone="secondary" icon={<Pencil className="size-4" />} onClick={() => setAmendOpen((v) => !v)}>{amendOpen ? "Cancel changes" : "Amend & re-check"}</ActionButton>
-          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} onClick={() => (todos.length > 0 ? setConfirmOpen(true) : setDone(true))}>Submit to agent</ActionButton>
+          <ActionButton tone="secondary" icon={<Pencil className="size-4" />} disabled={submitting} onClick={() => setAmendOpen((v) => !v)}>{amendOpen ? "Cancel changes" : "Amend & re-check"}</ActionButton>
+          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} disabled={submitting} onClick={() => (todos.length > 0 ? setConfirmOpen(true) : doSubmit())}>{submitting ? "Submitting…" : "Submit to agent"}</ActionButton>
         </div>
         {amendOpen && (
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
@@ -1143,7 +1151,7 @@ function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun
         description="We suggested a change to strengthen your application. If you submit now, it goes to your agent and you won't be able to change it afterwards."
         confirmLabel="Yes, submit"
         cancelLabel="Keep editing"
-        onConfirm={() => { setConfirmOpen(false); setDone(true) }}
+        onConfirm={() => { setConfirmOpen(false); doSubmit() }}
       />
     </div>
   )
@@ -1215,9 +1223,21 @@ function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, c
   onAmend: (s: number) => void; onRerun: () => void
   applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
 }>) {
+  // The REAL submission — only when the applicant reviews the pre-screen and chooses to send it to the agent.
+  async function submitToAgent(): Promise<boolean> {
+    if (!applicationId || !token) return true
+    try {
+      const res = await fetch(`/api/applications/${applicationId}/submit-to-agent`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
+      })
+      if (!res.ok) { const b = await res.json().catch(() => ({})) as { error?: string }; toast.error(b.error ?? "Could not submit. Please try again."); return false }
+      return true
+    } catch { toast.error("Could not submit. Please try again."); return false }
+  }
+
   if (screeningStatus === "processing") return <ProcessingView />
   if (screeningStatus === "failed") return <FailedView onRetry={onRerun} />
-  if (screeningStatus === "done" && evaluation) return <RulingView evaluation={evaluation} askingRentCents={askingRentCents} incomeCents={totalMonthlyCents(income)} onAmend={onAmend} onRerun={onRerun} />
+  if (screeningStatus === "done" && evaluation) return <RulingView evaluation={evaluation} askingRentCents={askingRentCents} incomeCents={totalMonthlyCents(income)} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} />
 
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = totalMonthlyCents(income)

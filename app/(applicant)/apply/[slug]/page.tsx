@@ -60,10 +60,11 @@ async function loadResume(
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, applicant_addresses, applicant_type, company_info, email_verified_at, draft_step, draft_saved_at, org_id, stage1_consent_given")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, applicant_addresses, applicant_type, company_info, email_verified_at, draft_step, draft_saved_at, org_id, submitted_at")
     .eq("id", appId).maybeSingle()
   logQueryError("ApplyPreview resume app", appErr)
-  if (!app || app.org_id !== listingOrgId || app.stage1_consent_given === true) return null
+  // Don't resume a SUBMITTED application (submitted_at set) — only drafts / pre-screens are editable.
+  if (!app || app.org_id !== listingOrgId || app.submitted_at != null) return null
 
   const { data: cos, error: cosErr } = await db
     .from("application_co_applicants").select("first_name, last_name, applicant_email, applicant_phone, id_number, role")
@@ -116,7 +117,8 @@ async function loadOwnDraft(
   const { data: app, error: appErr } = await db
     .from("applications").select("id")
     .eq("listing_id", listingId).eq("org_id", listingOrgId).ilike("applicant_email", email)
-    .not("stage1_consent_given", "is", true).is("deleted_at", null).maybeSingle()
+    .is("submitted_at", null).is("deleted_at", null)
+    .order("created_at", { ascending: false }).limit(1).maybeSingle()
   logQueryError("ApplyPreview own draft", appErr)
   if (!app) return null
   const { data: tok, error: tokErr } = await db
@@ -126,6 +128,21 @@ async function loadOwnDraft(
   logQueryError("ApplyPreview own draft token", tokErr)
   if (!tok) return null
   return loadResume(db, listingOrgId, app.id as string, tok.token as string)
+}
+
+/** True if this email already has a SUBMITTED (not deleted) application for this listing. */
+async function hasSubmittedApplication(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  listingOrgId: string,
+  listingId: string,
+  email: string,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("applications").select("id")
+    .eq("listing_id", listingId).eq("org_id", listingOrgId).ilike("applicant_email", email)
+    .not("submitted_at", "is", null).is("deleted_at", null).limit(1).maybeSingle()
+  logQueryError("ApplyPreview already-applied", error)
+  return !!data
 }
 
 function Eyebrow({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -246,6 +263,12 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
     resume = await loadOwnDraft(db, listing.org_id as string, listing.id as string, verifiedEmail)
   }
 
+  // Logged-in applicant who already SUBMITTED to this listing → tell them up front (don't make them fill it again
+  // only to be blocked on save). Only checked for a known email (logged-in); anonymous dedup happens at submit.
+  const alreadyApplied = verifiedEmail
+    ? await hasSubmittedApplication(db, listing.org_id as string, listing.id as string, verifiedEmail)
+    : false
+
   const title = [property?.address_line1, property?.suburb ?? property?.city].filter(Boolean).join(", ") || property?.name || "This property"
   const photo = (listing.listing_photos as string[] | null)?.[0] ?? null
   const phone = agentPhone ?? org?.phone ?? null
@@ -331,15 +354,25 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
             </aside>
 
             {/* Right door working panel (client island) */}
-            <StepPanel
-              slug={slug}
-              orgId={listing.org_id as string}
-              leaseType={leaseType}
-              askingRentCents={(listing.asking_rent_cents as number) ?? 0}
-              prefill={prefill}
-              resume={resume}
-              verifiedEmail={verifiedEmail}
-            />
+            {alreadyApplied ? (
+              <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
+                <Eyebrow>Already applied</Eyebrow>
+                <h2 className="mt-2 text-lg font-medium text-[var(--ink)]">You&apos;ve already applied for this unit</h2>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">
+                  Your application for this listing is with the agent. There&apos;s nothing more to do — they&apos;ll be in touch about next steps. If you need to change something, contact the agent directly.
+                </p>
+              </div>
+            ) : (
+              <StepPanel
+                slug={slug}
+                orgId={listing.org_id as string}
+                leaseType={leaseType}
+                askingRentCents={(listing.asking_rent_cents as number) ?? 0}
+                prefill={prefill}
+                resume={resume}
+                verifiedEmail={verifiedEmail}
+              />
+            )}
           </div>
         </div>
       </div>

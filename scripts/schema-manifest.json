@@ -486,7 +486,8 @@
       "applicant_type",
       "company_info",
       "email_verified_at",
-      "deleted_at"
+      "deleted_at",
+      "submitted_at"
     ],
     "arrears_actions": [
       "id",

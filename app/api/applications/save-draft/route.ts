@@ -2,8 +2,8 @@
  * app/api/applications/save-draft/route.ts — save & resume a draft application (ADDENDUM_14M follow-on).
  *
  * Route:  POST /api/applications/save-draft
- * Auth:   PUBLIC / UNAUTHENTICATED. A "draft" is an unsubmitted applications row (stage1_consent_given not
- *         true) — no separate PII store. org_id is derived SERVER-SIDE from slug → listing. Update is
+ * Auth:   PUBLIC / UNAUTHENTICATED. A "draft" is an applications row not yet submitted to the agent
+ *         (submitted_at IS NULL) — no separate PII store. org_id is derived SERVER-SIDE from slug → listing. Update is
  *         token-bound to the application id (the token is the capability). Rate-limited.
  * Notes:  UPSERT — no applicationId → create a minimal draft (email required, to send the resume link) +
  *         mint a 30-day token; with applicationId+token → update the filled fields. EVERY save/resume EXTENDS
@@ -148,15 +148,21 @@ export async function POST(req: NextRequest) {
   const l = listing as unknown as ListingRow
   const routedAgent = l.units?.assigned_agent_id ?? l.units?.properties?.managing_agent_id ?? null
 
-  // Dedup: one active application per applicant email per listing (the unique index is the backstop).
+  // Dedup keys off submitted_at (the real submission), NOT consent — merely pre-screening doesn't count as
+  // applying. Block only if a SUBMITTED application already exists (the partial unique index is the backstop).
+  const { data: submitted, error: subErr } = await db.from("applications")
+    .select("id").eq("listing_id", l.id).ilike("applicant_email", body.email)
+    .not("submitted_at", "is", null).is("deleted_at", null).limit(1).maybeSingle()
+  logQueryError("save-draft submitted check", subErr)
+  if (submitted) {
+    return NextResponse.json({ error: "You've already applied for this unit.", code: "already_applied" }, { status: 409 })
+  }
+  // Otherwise resume the latest non-submitted draft for this email+listing (apply the edits) instead of duplicating.
   const { data: existing, error: exErr } = await db.from("applications")
-    .select("id, stage1_consent_given").eq("listing_id", l.id).ilike("applicant_email", body.email).is("deleted_at", null).maybeSingle()
-  logQueryError("save-draft dedup check", exErr)
+    .select("id").eq("listing_id", l.id).ilike("applicant_email", body.email)
+    .is("submitted_at", null).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle()
+  logQueryError("save-draft draft check", exErr)
   if (existing) {
-    if (existing.stage1_consent_given) {
-      return NextResponse.json({ error: "You've already applied for this unit.", code: "already_applied" }, { status: 409 })
-    }
-    // A draft already exists for this email+listing — resume it (apply the current edits) instead of duplicating.
     const reToken = randomBytes(32).toString("hex")
     await db.from("applications").update(fields).eq("id", existing.id as string)
     const { error: rtErr } = await db.from("application_tokens").insert({

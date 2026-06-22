@@ -54,13 +54,13 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   if (!listingRaw) notFound()
   const listing = listingRaw as unknown as ListingDetail
 
-  // SUBMITTED applications only — drafts (stage1_consent_given not true) never surface to the agent.
+  // SUBMITTED applications only — pre-screened-but-not-submitted (submitted_at IS NULL) never surface to the agent.
   const { data: appsRaw, error: aErr } = await db
     .from("applications")
     .select("id, first_name, last_name, applicant_email, applicant_type, has_co_applicant, stage1_status, stage2_status, prescreen_score, fitscore, gross_monthly_income_cents")
     .eq("listing_id", listing.id)
     .eq("org_id", orgId)
-    .eq("stage1_consent_given", true)
+    .not("submitted_at", "is", null)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
   if (aErr) logQueryError("ListingDetail apps", aErr)

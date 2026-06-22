@@ -69,7 +69,7 @@ export async function updateListingAction(listingId: string, input: ListingEditI
     // Live submitted applicants (not already declined) get told what changed.
     const { data: apps, error: appsErr } = await db.from("applications")
       .select("id").eq("listing_id", listingId).eq("org_id", orgId)
-      .eq("stage1_consent_given", true).neq("stage1_status", "not_shortlisted")
+      .not("submitted_at", "is", null).neq("stage1_status", "not_shortlisted")
     if (appsErr) console.error("updateListingAction notify query:", appsErr.message)
     for (const a of apps ?? []) {
       const ctx = await buildEmailContext(a.id as string)
@@ -87,7 +87,7 @@ export async function deleteListingAction(listingId: string) {
   const { db, userId, orgId } = gw
 
   const { data: apps, error: aErr } = await db.from("applications")
-    .select("id").eq("listing_id", listingId).eq("org_id", orgId).eq("stage1_consent_given", true)
+    .select("id").eq("listing_id", listingId).eq("org_id", orgId).not("submitted_at", "is", null)
   if (aErr) return { error: aErr.message }
   const submitted = apps ?? []
 

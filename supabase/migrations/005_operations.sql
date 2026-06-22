@@ -2954,9 +2954,21 @@ ALTER TABLE applications ADD CONSTRAINT applications_employment_type_check CHECK
 );
 
 -- Dedup + soft-delete: `deleted_at` excludes a row from the active set (powers retention soft-delete of submitted
--- applications too). Partial unique index = one ACTIVE application per applicant email per listing (no duplicates;
--- a withdrawn/soft-deleted one frees the slot).
+-- applications too). Partial unique index = one SUBMITTED application per applicant email per listing.
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+-- submitted_at = the explicit "submit to agent" act (the real submission). Distinct from stage1_consent_given,
+-- which is POPIA consent to PROCESS for the pre-screen — given before the score so documents can be read. The
+-- applicant fills → reviews the pre-screen → and only THEN submits. Agent visibility, dedup, and retention all
+-- key off submitted_at (NOT consent), so merely viewing your score no longer counts as submitting.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS submitted_at timestamptz;
+COMMENT ON COLUMN applications.submitted_at IS 'When the applicant explicitly submitted to the agent (the real submission). NULL = filled/pre-screened but not yet submitted. Distinct from stage1_consent_given (POPIA processing consent for the pre-screen).';
+-- Backfill: existing consent-given submissions predate the split → treat them as submitted (keep agent view).
+UPDATE applications SET submitted_at = COALESCE(stage1_consent_given_at, created_at)
+  WHERE stage1_consent_given = true AND submitted_at IS NULL AND deleted_at IS NULL;
+
+-- Uniqueness applies only among SUBMITTED rows — multiple drafts/pre-screens may exist; one submission wins.
+DROP INDEX IF EXISTS idx_applications_one_per_listing_email;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_one_per_listing_email
   ON applications (listing_id, lower(applicant_email))
-  WHERE applicant_email IS NOT NULL AND deleted_at IS NULL;
+  WHERE applicant_email IS NOT NULL AND submitted_at IS NOT NULL AND deleted_at IS NULL;

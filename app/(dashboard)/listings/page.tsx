@@ -42,7 +42,7 @@ export default async function ListingsPage() {
       .from("applications")
       .select("listing_id")
       .eq("org_id", orgId)
-      .eq("stage1_consent_given", true)
+      .not("submitted_at", "is", null)
       .is("deleted_at", null),
   ])
   logQueryError("ListingsPage listings", listingsResult.error)
