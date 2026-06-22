@@ -24,7 +24,7 @@
  *         The server page renders the shell + left cards and passes slug/orgId/rent + agent contact.
  */
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft, Pencil, Clock } from "lucide-react"
@@ -979,19 +979,56 @@ const RULING_LABEL: Record<string, { label: string; cls: string; note: string }>
 }
 const CONF_LABEL: Record<string, string> = { strong: "Strong", adequate: "Adequate", "needs-evidence": "Needs evidence" }
 
+// Time-based progress so the ~1–2 min screening never looks frozen. Stages advance on an elapsed timer (the real
+// per-doc backend progress is a follow-up); the last stage holds until the poll returns the result. Honest copy +
+// a visible elapsed clock so the applicant knows it's working, not crashed.
+const PROCESSING_STAGES = [
+  { label: "Reading your uploaded documents", until: 30 },
+  { label: "Checking affordability & income evidence", until: 65 },
+  { label: "Cross-checking the details across your documents", until: 95 },
+  { label: "Preparing your result", until: Infinity },
+] as const
+
 function ProcessingView() {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const currentIdx = PROCESSING_STAGES.findIndex((s) => elapsed < s.until)
+  const current = currentIdx === -1 ? PROCESSING_STAGES.length - 1 : currentIdx
+  const pct = Math.min(95, Math.round((elapsed / 90) * 100)) // cap at 95% until the real result lands
+  const mm = Math.floor(elapsed / 60), ss = String(elapsed % 60).padStart(2, "0")
+
   return (
-    <div className="flex flex-col items-center gap-4 py-10 text-center">
-      <Loader2 className="size-8 animate-spin text-[var(--amber-ink)]" />
-      <div>
+    <div className="flex flex-col gap-5 py-6">
+      <div className="text-center">
         <h2 className="text-xl font-medium text-[var(--ink)]">Checking your application…</h2>
-        <p className="mt-1 max-w-prose text-sm text-[var(--ink-soft)]">We&apos;re reading your documents and matching them to what you&apos;ve told us. This usually takes under a minute — you can leave this open.</p>
+        <p className="mt-1 text-sm text-[var(--ink-soft)]">This usually takes about a minute, sometimes two. You can leave this open — we&apos;ll show your result here.</p>
       </div>
-      <ul className="space-y-1 text-xs text-[var(--ink-mute)]">
-        <li>Reading your uploaded documents</li>
-        <li>Checking affordability &amp; income evidence</li>
-        <li>Preparing your result</li>
+
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--rule)]/50">
+        <div className="h-full rounded-full bg-[var(--amber-ink)] transition-[width] duration-1000 ease-linear" style={{ width: `${pct}%` }} />
+      </div>
+
+      <ul className="mx-auto flex w-full max-w-sm flex-col gap-2.5">
+        {PROCESSING_STAGES.map((s, i) => {
+          const done = i < current
+          const active = i === current
+          return (
+            <li key={s.label} className={`flex items-center gap-2.5 text-sm ${done ? "text-[var(--ink-soft)]" : active ? "text-[var(--ink)]" : "text-[var(--ink-mute)]"}`}>
+              {done
+                ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                : active
+                  ? <Loader2 className="size-4 shrink-0 animate-spin text-[var(--amber-ink)]" />
+                  : <span className="size-4 shrink-0 rounded-full border border-[var(--rule)]" />}
+              <span>{s.label}</span>
+            </li>
+          )
+        })}
       </ul>
+
+      <p className="text-center font-mono text-[11px] tabular-nums text-[var(--ink-mute)]">{mm}:{ss} elapsed</p>
     </div>
   )
 }
