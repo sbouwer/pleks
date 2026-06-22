@@ -59,26 +59,32 @@ function draftFields(body: Body) {
 }
 
 /** Email the resume link — resolves listing/org context by application id so it works on BOTH the create and
- *  update path. Best-effort; only called when the applicant EXPLICITLY saved (notify), never on plain advance. */
-async function sendResumeEmail(db: Db, appId: string, email: string, firstName: string | undefined, url: string) {
+ *  update path. AWAITED on the explicit-save path so the dangling promise isn't dropped when the route returns;
+ *  returns whether it actually sent (+ the error) so the response/modal can be honest about delivery. */
+async function sendResumeEmail(db: Db, appId: string, email: string, firstName: string | undefined, url: string): Promise<{ sent: boolean; error?: string }> {
   try {
     const { data: app, error: appErr } = await db.from("applications")
       .select("org_id, listings(units(unit_number, properties(name, city)))")
       .eq("id", appId).maybeSingle()
     logQueryError("save-draft email context", appErr)
-    if (!app) return
+    if (!app) return { sent: false, error: "application not found" }
     const orgId = app.org_id as string
     const { data: org, error: orgErr } = await db.from("organisations").select("name, email, phone").eq("id", orgId).single()
     logQueryError("save-draft org branding", orgErr)
     const branding = buildBranding(await fetchOrgSettings(orgId))
     const unit = (app.listings as unknown as { units?: { unit_number?: string | null; properties?: { name?: string | null; city?: string | null } | null } | null })?.units
-    await sendApplicationResumeLink(
+    const result = await sendApplicationResumeLink(
       { email, firstName },
       { unitLabel: unit?.unit_number ?? "the unit", propertyName: unit?.properties?.name ?? "the property", city: unit?.properties?.city ?? undefined },
       { orgId, orgName: org?.name ?? "Pleks", orgEmail: org?.email ?? undefined, orgPhone: org?.phone ?? undefined, branding },
       { resumeUrl: url, applicationId: appId },
     )
-  } catch (e) { console.error("sendApplicationResumeLink failed:", e) }
+    if (!result?.success) console.error("[save-draft] resume email not sent:", result?.error)
+    return { sent: !!result?.success, error: result?.error }
+  } catch (e) {
+    console.error("[save-draft] sendApplicationResumeLink threw:", e)
+    return { sent: false, error: e instanceof Error ? e.message : "send failed" }
+  }
 }
 
 interface ListingRow {
@@ -107,8 +113,9 @@ export async function POST(req: NextRequest) {
     const { error: extErr } = await db.from("application_tokens").update({ expires_at: expiresAt }).eq("token", body.token)
     logQueryError("save-draft token extend", extErr)
     const updUrl = resumeUrl(req, body.slug, body.applicationId, body.token)
-    if (body.notify && body.email) void sendResumeEmail(db, body.applicationId, body.email, body.first_name, updUrl)
-    return NextResponse.json({ applicationId: body.applicationId, token: body.token, resumeUrl: updUrl })
+    let updEmail: { sent: boolean; error?: string } = { sent: false }
+    if (body.notify && body.email) updEmail = await sendResumeEmail(db, body.applicationId, body.email, body.first_name, updUrl)
+    return NextResponse.json({ applicationId: body.applicationId, token: body.token, resumeUrl: updUrl, emailed: updEmail.sent, emailError: updEmail.error })
   }
 
   // ── Create a new draft (email required to send the resume link) ──
@@ -137,8 +144,10 @@ export async function POST(req: NextRequest) {
   logQueryError("save-draft token insert", tokInsErr)
 
   const url = resumeUrl(req, body.slug, appRow.id, token)
-  // Email ONLY on an explicit "Save & finish later" — advancing through the wizard upserts silently.
-  if (body.notify) void sendResumeEmail(db, appRow.id, body.email, body.first_name, url)
+  // Email ONLY on an explicit "Save & finish later" — advancing through the wizard upserts silently. Awaited so
+  // the send completes before the response (a dropped fire-and-forget promise was why no email arrived).
+  let email: { sent: boolean; error?: string } = { sent: false }
+  if (body.notify) email = await sendResumeEmail(db, appRow.id, body.email, body.first_name, url)
 
-  return NextResponse.json({ applicationId: appRow.id, token, resumeUrl: url })
+  return NextResponse.json({ applicationId: appRow.id, token, resumeUrl: url, emailed: email.sent, emailError: email.error })
 }

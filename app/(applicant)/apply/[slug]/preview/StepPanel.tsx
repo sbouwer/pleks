@@ -266,6 +266,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   // tick. The save confirmation + copy link live in a modal, not the footer (which always shows the disclaimer).
   const [saved, setSaved] = useState<boolean>(!!resume)
   const [resumeLink, setResumeLink] = useState<string | null>(null)
+  const [emailed, setEmailed] = useState(false)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
 
   const [coApplicants, setCoApplicants] = useState<CoApplicant[]>(resume?.coApplicants ?? [])
@@ -329,7 +330,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   // UPSERT the draft (create on first save, update thereafter — keyed on the held applicationId/token). Every
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
-  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean }): Promise<{ id: string; url: string | null } | null> {
+  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
     if (!form.email) { toast.error("Add your email first so we can send you a link to finish later."); return null }
     try {
       const res = await fetch("/api/applications/save-draft", {
@@ -345,10 +346,10 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
           income_sources: incomeSourcesPayload(income),
         }),
       })
-      const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; error?: string }
+      const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
       if (!res.ok || !json.applicationId || !json.token) { toast.error(json.error ?? "Could not save your progress."); return null }
       setApplicationId(json.applicationId); setToken(json.token)
-      return { id: json.applicationId, url: json.resumeUrl ?? null }
+      return { id: json.applicationId, url: json.resumeUrl ?? null, emailed: !!json.emailed }
     } catch { toast.error("Could not save your progress."); return null }
   }
 
@@ -357,7 +358,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
     setBusy(true)
     try {
       const r = await saveDraft(step, { explicit: true })
-      if (r) { setResumeLink(r.url); setSaved(true); setSaveModalOpen(true) }
+      if (r) { setResumeLink(r.url); setEmailed(r.emailed); setSaved(true); setSaveModalOpen(true) }
     } finally { setBusy(false) }
   }
 
@@ -588,7 +589,9 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
               <CheckCircle2 className="size-5 text-emerald-600" /> Saved — you can finish later
             </h3>
             <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">
-              We&apos;ve emailed a resume link to <strong className="text-[var(--ink)]">{form.email}</strong>. Or copy the link below to come back to your application directly.
+              {emailed
+                ? <>We&apos;ve emailed a resume link to <strong className="text-[var(--ink)]">{form.email}</strong>. Or copy the link below to come back to your application directly.</>
+                : <>Your progress is saved. Copy the link below to come back to your application — keep it somewhere safe.</>}
             </p>
             {resumeLink && (
               <div className="mt-3 flex items-center gap-2">
