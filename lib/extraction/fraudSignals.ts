@@ -31,15 +31,13 @@ function pdfEditorSoftware(bytes: Uint8Array): string | null {
   return m ? m[1].toLowerCase() : null
 }
 
-export function detectFraudSignals(
-  documents: Document[],
-  results: PipelineDocumentResult[],
-): FraudSignal[] {
+/** Zero-AI, format/metadata-only fraud signals (PSD source · embedded ID in filename · editor-software producer).
+ *  Needs only the document bytes/filename — no extraction — so it's usable at Step 1 (free readiness) AND composed
+ *  into the full Step-2 signal set below. (ADDENDUM_14M three-step funnel, P1c) */
+export function metadataFraudSignals(documents: Document[]): FraudSignal[] {
   const signals: FraudSignal[] = []
-
   for (const doc of documents) {
     const format = doc.format ?? detectFormat(doc.filename, doc.bytes)
-
     if (format === "psd") {
       signals.push({ type: "psd-source-detected", severity: "warning", documentPath: doc.path, description: "Layered Photoshop (PSD) source — documents should be a final PDF/JPEG/PNG, not an editable source file." })
     }
@@ -51,6 +49,15 @@ export function detectFraudSignals(
       if (editor) signals.push({ type: "editor-software-source", severity: "warning", documentPath: doc.path, description: `PDF metadata names image-editing software (${editor}) as the producer — possible re-export of an edited document.` })
     }
   }
+  return signals
+}
+
+export function detectFraudSignals(
+  documents: Document[],
+  results: PipelineDocumentResult[],
+): FraudSignal[] {
+  // Zero-AI metadata signals + the extraction-gated low-confidence signal (Step-2 only — needs extraction).
+  const signals = metadataFraudSignals(documents)
 
   for (const r of results) {
     if (typeof r.extractionConfidence === "number" && r.extractionConfidence < CONFIDENCE_FLOOR) {
