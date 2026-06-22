@@ -10,11 +10,19 @@
  */
 import { redirect, notFound } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
-import { BackLink } from "@/components/ui/BackLink"
-import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { DetailPageLayout } from "@/components/detail/DetailPageLayout"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { ApplicationTriageList, type TriageApp } from "./ApplicationTriageList"
+import { ListingQuickbar } from "./ListingQuickbar"
+
+const LISTING_STATUS: Record<string, DetailStatus> = {
+  active: { kind: "occupied", label: "Active" },
+  paused: { kind: "neutral", label: "Paused" },
+  filled: { kind: "occupied", label: "Filled" },
+  expired: { kind: "flag", label: "Expired" },
+}
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
@@ -25,6 +33,7 @@ function unwrap<T>(v: T | T[] | null | undefined): T | null {
 interface ListingDetail {
   id: string; public_slug: string | null; asking_rent_cents: number; available_from: string | null
   requirements: string | null; status: string; application_fee_cents: number; views_count: number | null
+  closes_at: string | null; description: string | null; min_income_multiple: number | null; pet_friendly: boolean | null
   units: { unit_number: string; properties: { name: string } | { name: string }[] } | { unit_number: string; properties: { name: string } }[]
 }
 interface EvalRow { application_id: string; ruling_tier: string; affordability_ratio_pct: number | null; confidence_tier: string; iteration_number: number }
@@ -37,7 +46,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
   const { data: listingRaw, error: lErr } = await db
     .from("listings")
-    .select("id, public_slug, asking_rent_cents, available_from, requirements, status, application_fee_cents, views_count, units(unit_number, properties(name))")
+    .select("id, public_slug, asking_rent_cents, available_from, requirements, status, application_fee_cents, views_count, closes_at, description, min_income_multiple, pet_friendly, units(unit_number, properties(name))")
     .eq("public_slug", slug)
     .eq("org_id", orgId)
     .maybeSingle()
@@ -98,31 +107,42 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const property = unit ? unwrap(unit.properties) : null
   const applyUrl = listing.public_slug ? `${APP_URL}/apply/${listing.public_slug}` : null
 
+  const facts: DetailFact[] = [
+    { k: "Rent", v: `${formatZAR(listing.asking_rent_cents)}/mo` },
+    { k: "Available", v: listing.available_from ?? "Now" },
+    { k: "Closes", v: listing.closes_at ? new Date(listing.closes_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "—" },
+    { k: "Application fee", v: formatZAR(listing.application_fee_cents) },
+    { k: "Views", v: String(listing.views_count ?? 0) },
+    { k: "Submitted", v: String(triage.length) },
+  ]
+
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <BackLink href="/listings" label="Listings" />
-      <ResourcePageHeader
-        eyebrow="Operations"
-        title="Listing"
-        headline={`${unit?.unit_number ?? "Unit"}, ${property?.name ?? "Property"}`}
-        sub={
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-              <span>{formatZAR(listing.asking_rent_cents)}/mo</span>
-              <span>Status: {listing.status}</span>
-              {listing.available_from && <span>Available {listing.available_from}</span>}
-              <span>Fee {formatZAR(listing.application_fee_cents)}</span>
-              <span>{listing.views_count ?? 0} views</span>
-              <span>{triage.length} submitted</span>
-            </div>
-            {listing.requirements && (
-              <p className="whitespace-pre-line border-l-2 border-border pl-3 text-sm text-muted-foreground">{listing.requirements}</p>
-            )}
-          </div>
-        }
-        action={applyUrl ? <a href={applyUrl} target="_blank" rel="noreferrer" className="pa-link text-xs">Open public page →</a> : undefined}
-      />
+    <DetailPageLayout
+      category="Listings"
+      backHref="/listings"
+      title={`${unit?.unit_number ?? "Unit"}, ${property?.name ?? "Property"}`}
+      status={LISTING_STATUS[listing.status] ?? { kind: "neutral", label: listing.status }}
+      facts={facts}
+      actions={
+        <ListingQuickbar
+          listingId={listing.id}
+          publicUrl={applyUrl}
+          submittedCount={triage.length}
+          initial={{
+            asking_rent_cents: listing.asking_rent_cents,
+            available_from: listing.available_from,
+            closes_at: listing.closes_at,
+            description: listing.description,
+            requirements: listing.requirements,
+            min_income_multiple: listing.min_income_multiple,
+            pet_friendly: !!listing.pet_friendly,
+            status: listing.status,
+          }}
+        />
+      }
+      fill
+    >
       <ApplicationTriageList slug={slug} applications={triage} />
-    </div>
+    </DetailPageLayout>
   )
 }
