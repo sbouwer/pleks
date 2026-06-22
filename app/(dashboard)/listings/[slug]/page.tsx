@@ -11,6 +11,7 @@
 import { redirect, notFound } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { BackLink } from "@/components/ui/BackLink"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { ApplicationTriageList, type TriageApp } from "./ApplicationTriageList"
@@ -98,31 +99,29 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const applyUrl = listing.public_slug ? `${APP_URL}/apply/${listing.public_slug}` : null
 
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-6">
+    <div className="flex h-full min-h-0 flex-col">
       <BackLink href="/listings" label="Listings" />
-
-      <header className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Listing</p>
-        <h1 className="font-heading text-3xl">{unit?.unit_number ?? "Unit"}, {property?.name ?? "Property"}</h1>
-        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-          <span>{formatZAR(listing.asking_rent_cents)}/mo</span>
-          <span>Status: {listing.status}</span>
-          {listing.available_from && <span>Available {listing.available_from}</span>}
-          <span>Application fee {formatZAR(listing.application_fee_cents)}</span>
-          <span>{listing.views_count ?? 0} views</span>
-          <span>{triage.length} submitted</span>
-        </div>
-        {applyUrl && (
-          <div className="flex items-center gap-2">
-            <code className="max-w-md truncate rounded bg-muted px-2 py-1 text-xs">{applyUrl}</code>
-            <a href={applyUrl} target="_blank" rel="noreferrer" className="pa-link text-xs">Open public page →</a>
+      <ResourcePageHeader
+        eyebrow="Operations"
+        title="Listing"
+        headline={`${unit?.unit_number ?? "Unit"}, ${property?.name ?? "Property"}`}
+        sub={
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+              <span>{formatZAR(listing.asking_rent_cents)}/mo</span>
+              <span>Status: {listing.status}</span>
+              {listing.available_from && <span>Available {listing.available_from}</span>}
+              <span>Fee {formatZAR(listing.application_fee_cents)}</span>
+              <span>{listing.views_count ?? 0} views</span>
+              <span>{triage.length} submitted</span>
+            </div>
+            {listing.requirements && (
+              <p className="whitespace-pre-line border-l-2 border-border pl-3 text-sm text-muted-foreground">{listing.requirements}</p>
+            )}
           </div>
-        )}
-        {listing.requirements && (
-          <p className="whitespace-pre-line border-l-2 border-border pl-3 text-sm text-muted-foreground">{listing.requirements}</p>
-        )}
-      </header>
-
+        }
+        action={applyUrl ? <a href={applyUrl} target="_blank" rel="noreferrer" className="pa-link text-xs">Open public page →</a> : undefined}
+      />
       <ApplicationTriageList slug={slug} applications={triage} />
     </div>
   )

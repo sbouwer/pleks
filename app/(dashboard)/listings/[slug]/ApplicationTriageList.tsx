@@ -33,8 +33,9 @@ export interface TriageApp {
 }
 
 type Decision = "shortlisted" | "declined" | "pending"
-type TriageSortKey = "match" | "income" | "name"
+type TriageSortKey = "type" | "match" | "income" | "name" | "status"
 const UNDO_MS = 5000
+const STATUS_RANK: Record<Decision, number> = { pending: 0, shortlisted: 1, declined: 2 }
 
 const TYPE_LABEL: Record<string, string> = { individual: "Individual", couple: "Couple", company: "Company", guarantor: "Guarantor" }
 const RULING_CHIP: Record<string, { label: string; cls: string }> = {
@@ -128,8 +129,10 @@ export function ApplicationTriageList({ slug, applications }: Readonly<{ slug: s
     })
     return [...filtered].sort((a, b) => {
       let cmp = 0
-      if (sortKey === "match") cmp = matchValue(a) - matchValue(b)
+      if (sortKey === "type") cmp = a.type.localeCompare(b.type)
+      else if (sortKey === "match") cmp = matchValue(a) - matchValue(b)
       else if (sortKey === "income") cmp = (a.incomeCents ?? 0) - (b.incomeCents ?? 0)
+      else if (sortKey === "status") cmp = STATUS_RANK[overrides.get(a.id) ?? serverDecision(a)] - STATUS_RANK[overrides.get(b.id) ?? serverDecision(b)]
       else cmp = a.name.localeCompare(b.name)
       return sortDir === "asc" ? cmp : -cmp
     })
@@ -157,11 +160,11 @@ export function ApplicationTriageList({ slug, applications }: Readonly<{ slug: s
           </colgroup>
           <thead className="sticky top-0 z-10 border-b border-border/60 bg-card">
             <tr>
-              <th className="px-3 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Type</th>
+              <th className="px-3 py-2.5 text-left"><SortHeader col="type" label="Type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-left"><SortHeader col="name" label="Applicant" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-left"><SortHeader col="match" label="Match" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-left"><SortHeader col="income" label="Income" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Decision</th>
+              <th className="px-3 py-2.5 text-left"><SortHeader col="status" label="Decision" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">Actions</th>
             </tr>
           </thead>
