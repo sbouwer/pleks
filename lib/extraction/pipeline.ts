@@ -140,6 +140,23 @@ function applyClassification(
   if (result.classifyNote) results[idx].classifyNote = result.classifyNote
 }
 
+/** Max concurrent per-doc AI calls within ONE application's pipeline. Bounds Sonnet/Haiku fan-out so a hot
+ *  listing being screened doesn't trip provider rate limits (the cron serialises across applications). */
+const AI_FANOUT = 4
+
+/** Run fn over items with at most `limit` in flight at once. Workers pull from a shared cursor; each call writes
+ *  a distinct entry, so there's no cross-write race (JS is single-threaded between awaits). */
+async function mapWithConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const i = next++
+      await fn(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+}
+
 /** Decrypt empty-password PDFs to text so the (un-readable) encrypted bytes become extractable; a genuinely
  *  password-locked PDF is recorded rejected and excluded. Returns the docs that can proceed to classify/extract. */
 async function decryptProtectedDocs(docs: Document[], results: PipelineDocumentResult[]): Promise<Document[]> {
@@ -182,23 +199,26 @@ export async function runPipeline(
   // Archetype is deterministic — derived from structured application data, not documents
   const archetype = deriveArchetype(input.unitType, input.applicantCount)
 
-  // Document type classification — per classifiable document (D-14L-07)
-  for (const doc of extractableDocs) {
+  // Document type classification — per classifiable document (D-14L-07). Parallel with a capped fan-out so the
+  // wall-clock is ~the slowest single doc, not the sum; the cap bounds concurrent AI calls so a hot listing
+  // (200 applications) can't trip Sonnet/Haiku rate limits. Each worker writes a distinct doc/results entry.
+  await mapWithConcurrency(extractableDocs, AI_FANOUT, async (doc) => {
     const result = await classifyDocWithFallback(doc, archetype, aiOpts)
     applyClassification(doc, result, results)
-  }
+  })
 
-  // Phase 2a: per-type structured extraction (ID, payslip, bank statement, employer letter, proof of address)
-  for (const doc of extractableDocs) {
+  // Phase 2a: per-type structured extraction — parallel (same cap). Must run AFTER classification (extraction
+  // dispatches on doc.documentType), so it's a separate awaited pass. The single multi-page bank-statement call
+  // is the latency floor here; tighter output (batch 2) is what brings that down.
+  await mapWithConcurrency(extractableDocs, AI_FANOUT, async (doc) => {
     const extraction = await extractDocument(doc, aiOpts)
-    if (extraction !== null) {
-      const idx = results.findIndex(r => r.path === doc.path)
-      if (idx !== -1) {
-        results[idx].extracted            = extraction
-        results[idx].extractionConfidence = extraction.extraction_confidence
-      }
+    if (extraction === null) return
+    const idx = results.findIndex(r => r.path === doc.path)
+    if (idx !== -1) {
+      results[idx].extracted            = extraction
+      results[idx].extractionConfidence = extraction.extraction_confidence
     }
-  }
+  })
 
   // Phase 3: deterministic reconciliation + heuristic fraud signals over the extractions (no AI).
   const reconciliation = reconcile(results, input.declared, new Date())
