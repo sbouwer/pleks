@@ -35,6 +35,9 @@ type Status =
   | "month_to_month"
   | "pending_signing"
   | "expired"
+  // listing-specific
+  | "paused"
+  | "filled"
 
 const statusConfig: Record<Status, { label: string; variant: "green" | "amber" | "red" | "blue" | "purple" | "gray" }> = {
   active: { label: "Active", variant: "green" },
@@ -58,6 +61,8 @@ const statusConfig: Record<Status, { label: string; variant: "green" | "amber" |
   month_to_month: { label: "MTM", variant: "green" },
   pending_signing: { label: "Pending", variant: "amber" },
   expired: { label: "Expired", variant: "red" },
+  paused: { label: "Paused", variant: "gray" },
+  filled: { label: "Filled", variant: "green" },
 }
 
 // Solid saturated bg + white text — readable in light AND dark (the soft tint-on-tint variants washed
