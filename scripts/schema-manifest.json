@@ -480,7 +480,8 @@
       "income_sources",
       "employment_start_date",
       "draft_step",
-      "draft_saved_at"
+      "draft_saved_at",
+      "applicant_addresses"
     ],
     "arrears_actions": [
       "id",

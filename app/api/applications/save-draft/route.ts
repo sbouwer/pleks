@@ -34,6 +34,7 @@ interface Body {
   id_type?: string; id_number?: string; date_of_birth?: string
   employment_type?: string; employer_name?: string; employment_start_date?: string
   gross_monthly_income?: string; income_sources?: unknown
+  addresses?: unknown
 }
 
 const resumeUrl = (req: NextRequest, slug: string, id: string, token: string) =>
@@ -53,6 +54,8 @@ function draftFields(body: Body) {
     employment_type: body.employment_type || null, employer_name: body.employer_name ?? null,
     employment_start_date: body.employment_start_date || null,
     gross_monthly_income_cents: incomeCents, income_sources: parsed?.rows ?? null,
+    // applicant's current address(es) — bounded (array, cap 5) since it's public input; stored as-is for resume.
+    applicant_addresses: Array.isArray(body.addresses) ? body.addresses.slice(0, 5) : null,
     draft_step: typeof body.step === "number" ? body.step : null,
     draft_saved_at: new Date().toISOString(),
   }

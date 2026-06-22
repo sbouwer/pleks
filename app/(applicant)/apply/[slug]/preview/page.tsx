@@ -62,7 +62,7 @@ async function loadResume(
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, draft_step, draft_saved_at, org_id, stage1_consent_given")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, applicant_addresses, draft_step, draft_saved_at, org_id, stage1_consent_given")
     .eq("id", appId).maybeSingle()
   logQueryError("ApplyPreview resume app", appErr)
   if (!app || app.org_id !== listingOrgId || app.stage1_consent_given === true) return null
@@ -89,6 +89,7 @@ async function loadResume(
       email: (app.applicant_email as string | null) ?? undefined, phone: (app.applicant_phone as string | null) ?? undefined,
       idType: (app.id_type as string | null) ?? "sa_id", idNumber: (app.id_number as string | null) ?? undefined,
       dob: (app.date_of_birth as string | null) ?? undefined,
+      addresses: (app.applicant_addresses as PartyFormState["addresses"]) ?? undefined,
     },
     emp: {
       employment_type: (app.employment_type as string | null) ?? "",

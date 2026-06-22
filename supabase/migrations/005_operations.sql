@@ -2917,8 +2917,11 @@ CREATE POLICY "org_screening_jobs" ON screening_jobs
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE applications
-  ADD COLUMN IF NOT EXISTS draft_step      smallint,
-  ADD COLUMN IF NOT EXISTS draft_saved_at  timestamptz;
+  ADD COLUMN IF NOT EXISTS draft_step          smallint,
+  ADD COLUMN IF NOT EXISTS draft_saved_at      timestamptz,
+  -- the applicant's current address(es) (the party-address shape, as captured in the Address step). The apply
+  -- flow never persisted address before, so it was lost on resume; stored as jsonb for draft rehydration.
+  ADD COLUMN IF NOT EXISTS applicant_addresses jsonb;
 
 ALTER TABLE listings
   ADD COLUMN IF NOT EXISTS closes_at       timestamptz;
