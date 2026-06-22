@@ -54,6 +54,10 @@ Extract exactly these fields and return ONLY a single-line JSON object:
     "debit_order_volume_cents": integer | null,
     "end_of_month_dip_detected": boolean
   },
+  "monthly_summary": [{"month":"YYYY-MM","closing_balance_cents":integer | null}],
+  "returned_debit_count": integer | null,
+  "overdraft_days": integer | null,
+  "lowest_balance_cents": integer | null,
   "extraction_confidence": 0.0–1.0
 }
 
@@ -63,8 +67,16 @@ Income indicator rules:
 - debit_order_volume_cents: total of all debit order outflows (recurring monthly debits); null if none detected
 - end_of_month_dip_detected: true if the account balance at the end of any month is more than 40% lower than the mid-month peak balance — this signals financial stress
 
-Transaction rules:
-- Include ALL transactions shown in the statement, sorted by date ascending
+Aggregate rules (these summarise the account so individual noise transactions don't need listing):
+- monthly_summary: one entry per calendar month in the statement, with that month's CLOSING balance — used to read the balance trend
+- returned_debit_count: number of returned / unpaid / reversed debit-order entries (often labelled "RD", "unpaid", "debit order returned"); 0 if none, null if you genuinely cannot tell
+- overdraft_days: count of days the running balance was below zero; 0 if never negative, null if balance not shown per-day
+- lowest_balance_cents: the lowest running balance over the whole period (may be negative for overdraft)
+
+Transaction rules — list ONLY the transactions that matter for affordability; summarise the rest:
+- INFLOWS: list ALL credits (income is the point of this check — never omit a credit), sorted by date ascending
+- OUTFLOWS: list ONLY these categories — "rent", "home-loan", "debit-order", "loan". Do NOT list individual
+  "retail", "atm", "utility", "transfer" or "other" outflows — they are high-volume noise captured by the
+  aggregates above. (This keeps the response small and fast without losing any affordability signal.)
 - Use only the categorisation scheme above; never use individual names or account numbers in labels
-- If the statement is 3+ months long and has 150+ transactions, include all of them
 - No text outside the JSON object`

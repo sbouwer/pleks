@@ -1,280 +1,104 @@
 "use client"
 
 /**
- * app/(dashboard)/listings/ListingsPageClient.tsx — Listings list (each listing grouped with its applicants) + bulk-decide panel
+ * app/(dashboard)/listings/ListingsPageClient.tsx — the rental listings list (level 1 of the drill-down)
  *
  * Route:  /listings
- * Auth:   gateway (dashboard layout)
- * Data:   fetchApplicationsAction + server-side listings prop via React Query
- * Notes:  shared <ListToolbar> drives search (applicant name/email) + a multi-select Stage filter; the four
- *         stage buckets (pending/active/completed/arrears) mirror the StatusBadge derived from stage1/stage2
- *         status. Filtering runs before grouping; empty listing groups are hidden while a filter is active.
- *         List view = listing-grouped (default); Cards view = a flat applicant grid. Content fill-scrolls
- *         inside the list area (page itself does not scroll) — mirrors the suppliers reference layout.
+ * Auth:   dashboard layout (server page is org-scoped)
+ * Data:   listings prop (each row = one listing + its SUBMITTED application count) from the server page
+ * Notes:  Canonical resource-list (ListToolbar + SortHeader + ListCard), like Properties/Leases. Rows are
+ *         LISTINGS (not applications); each opens its submitted applications at /listings/[slug]. "My work"
+ *         scopes to listings the user is responsible for (unit's assigned agent ?? property's managing agent).
  */
-import { useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { Card, CardContent } from "@/components/ui/card"
-import { IconButton } from "@/components/ui/actions"
-import { AddButton } from "@/components/ui/add-button"
-import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
-import { ListToolbar, ToolbarFilter } from "@/components/ui/resource-list"
-import { isMine } from "@/lib/work/myWorkFilter"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { AddButton } from "@/components/ui/add-button"
+import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { StatusBadge } from "@/components/shared/StatusBadge"
-import { BulkDecidePanel } from "@/components/applications/BulkDecidePanel"
-import { Users, Copy, Check, ExternalLink, User, Globe } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
-import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
-import { fetchApplicationsAction } from "@/lib/queries/portfolioActions"
-import { relativeTime } from "@/lib/utils"
 import { useUser } from "@/hooks/useUser"
-import { useMyTeams } from "@/hooks/useMyTeams"
 import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
+import { Building2, User, Globe } from "lucide-react"
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
-
-const STAGE1_MAP: Record<string, "pending" | "active" | "completed" | "arrears"> = {
-  pending_documents: "pending",
-  documents_submitted: "pending",
-  extracting: "pending",
-  pre_screen_complete: "active",
-  shortlisted: "completed",
-  not_shortlisted: "arrears",
+export interface ListingListRow {
+  id: string
+  slug: string | null
+  unitNumber: string
+  propertyName: string
+  askingRentCents: number
+  status: string
+  closesAt: string | null
+  createdAt: string
+  responsibleAgentId: string | null
+  submittedCount: number
 }
 
-const STAGE2_MAP: Record<string, "pending" | "active" | "completed" | "arrears"> = {
-  invited: "pending",
-  pending_consent: "pending",
-  pending_payment: "pending",
-  payment_received: "active",
-  screening_in_progress: "active",
-  screening_complete: "completed",
-  approved: "completed",
-  declined: "arrears",
-  withdrawn: "arrears",
+type ListingSortKey = "property" | "applications" | "rent" | "created" | "closes"
+
+/** Short cut-off date, or a dash when the listing has no closing date set. */
+function closesLabel(iso: string | null): string {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
 }
 
-type StageBucket = "pending" | "active" | "completed" | "arrears"
-
-/** One application row as returned by fetchApplications (element of the inferred array). */
-type ApplicationRow = Awaited<ReturnType<typeof fetchApplicationsAction>>[number]
-
-/** The single stage bucket displayed on each card's StatusBadge — stage2 takes precedence over stage1. */
-function appStage(app: { stage1_status: string; stage2_status: string | null }): StageBucket {
-  if (app.stage2_status) return STAGE2_MAP[app.stage2_status] ?? "pending"
-  return STAGE1_MAP[app.stage1_status] ?? "pending"
-}
-
-/** Filter options mirror the displayed StatusBadge labels (Pending / Active / Completed / Arrears). */
-const STAGE_FILTER_OPTIONS: { value: StageBucket; label: string }[] = [
-  { value: "pending", label: "Pending" },
+const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
-  { value: "completed", label: "Completed" },
-  { value: "arrears", label: "Declined / Withdrawn" },
+  { value: "paused", label: "Paused" },
+  { value: "filled", label: "Filled" },
+  { value: "expired", label: "Expired" },
 ]
 
-interface ListingShape {
-  id: string
-  public_slug: string | null
-  asking_rent_cents: number
-  applications_count: number | null
-  units: { unit_number: string; properties: { name: string } }
-}
-
-interface ListingRow {
-  id: string
-  public_slug: string | null
-  asking_rent_cents: number
-  applications_count: number | null
-  status: string
-  units: { unit_number: string; properties: { name: string } } | { unit_number: string; properties: { name: string } }[]
-}
-
-interface Props {
-  orgId: string
-  listings: ListingRow[]
-}
-
-function CopyButton({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false)
-  async function copy() {
-    await navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-  return (
-    <IconButton icon={copied ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />} label="Copy link" onClick={copy} />
-  )
-}
-
-function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount: number }) {
-  const listingUrl = listing.public_slug ? `${APP_URL}/apply/${listing.public_slug}` : null
-  let applicantLabel: string
-  if (appCount === 0) { applicantLabel = "No applicants yet" }
-  else { applicantLabel = `${appCount} applicant${appCount !== 1 ? "s" : ""}` }
-  return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="font-medium text-sm">
-          {listing.units.unit_number}, {listing.units.properties.name}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {formatZAR(listing.asking_rent_cents)}/mo
-          {" · "}
-          {applicantLabel}
-        </p>
-      </div>
-      {listingUrl && (
-        <div className="flex items-center gap-2">
-          <code className="flex-1 text-xs bg-muted px-2 py-1 rounded truncate">{listingUrl}</code>
-          <CopyButton url={listingUrl} />
-          <a href={listingUrl} target="_blank" rel="noreferrer" className="pa-iconbtn" aria-label="Open listing"><ExternalLink className="size-3.5" /></a>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** The application detail URL — nested under its listing's slug; falls back to the /applications/[id] shim
- *  (which resolves the slug server-side) only when the slug is somehow absent. */
-function appHref(app: { id: string; listings?: unknown }): string {
-  const raw = (app as { listings?: unknown }).listings
-  const listing = (Array.isArray(raw) ? raw[0] : raw) as ListingShape | null | undefined
-  return listing?.public_slug ? `/listings/${listing.public_slug}/applications/${app.id}` : `/applications/${app.id}`
-}
-
-/** Resolve the (possibly array-wrapped) listing on an application row to its unit/property label. */
-function appListingLabel(app: { listings?: unknown }): string | null {
-  const raw = (app as { listings?: unknown }).listings
-  const listing = (Array.isArray(raw) ? raw[0] : raw) as ListingShape | null | undefined
-  if (!listing?.units) return null
-  return `${listing.units.unit_number}, ${listing.units.properties.name}`
-}
-
-/** Card-view tile (the "Cards" toggle) — flat applicant tile mirroring the grouped row's data. */
-function ApplicantCard({
-  app, onOpen,
-}: Readonly<{
-  app: ApplicationRow
-  onOpen: () => void
-}>) {
-  const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
-  const listingLabel = appListingLabel(app)
-  const stage: StageBucket = app.stage2_status
-    ? (STAGE2_MAP[app.stage2_status] || "pending")
-    : (STAGE1_MAP[app.stage1_status] || "pending")
-  return (
-    <div
-      onClick={onOpen}
-      className="group relative flex cursor-pointer flex-col gap-3 rounded-[var(--r-button)] border border-border bg-card p-4 transition-colors hover:border-primary/40"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-medium">{name}</p>
-            {app.is_foreign_national && <span className="shrink-0 rounded bg-info-bg px-1.5 py-0.5 text-[10px] text-info">Foreign</span>}
-            {app.has_co_applicant && <span className="shrink-0 rounded bg-surface-elevated px-1.5 py-0.5 text-[10px]">Joint</span>}
-          </div>
-          <p className="truncate text-[11px] text-muted-foreground">{listingLabel ?? "No listing"}</p>
-        </div>
-        <StatusBadge status={stage} />
-      </div>
-
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}</span>
-        {app.fitscore !== null && <span className="font-heading text-base text-foreground">{app.fitscore}/100</span>}
-        {app.prescreen_score !== null && app.fitscore === null && <span>{app.prescreen_score}/45</span>}
-      </div>
-    </div>
-  )
-}
-
-/** Group filtered applications under their listing, merged with the server's active/paused listings.
- *  While a filter is active, listing groups with no matching applications are dropped. */
-function buildMergedGroups<A extends { listings?: unknown }>(
-  filteredList: A[],
-  listings: ListingRow[],
-  isFiltering: boolean,
-): { mergedList: { listing: ListingShape; apps: A[] }[]; noListing: A[] } {
-  const grouped = new Map<string, { listing: ListingShape; apps: A[] }>()
-  const noListing: A[] = []
-  for (const app of filteredList) {
-    const raw = app.listings
-    const listing = (Array.isArray(raw) ? raw[0] : raw) as ListingShape | null | undefined
-    if (!listing?.id) { noListing.push(app); continue }
-    if (!grouped.has(listing.id)) grouped.set(listing.id, { listing, apps: [] })
-    grouped.get(listing.id)!.apps.push(app)
-  }
-  const merged = new Map<string, { listing: ListingShape; apps: A[] }>()
-  for (const sl of listings) {
-    const units = (Array.isArray(sl.units) ? sl.units[0] : sl.units) as { unit_number: string; properties: { name: string } | { name: string }[] } | undefined
-    let props: { name: string } | null = null
-    if (units) props = Array.isArray(units.properties) ? units.properties[0] : units.properties
-    if (!units || !props) continue
-    merged.set(sl.id, {
-      listing: { id: sl.id, public_slug: sl.public_slug, asking_rent_cents: sl.asking_rent_cents, applications_count: sl.applications_count, units: { unit_number: units.unit_number, properties: { name: props.name } } },
-      apps: grouped.get(sl.id)?.apps ?? [],
-    })
-  }
-  for (const [id, entry] of grouped) {
-    if (!merged.has(id)) merged.set(id, entry)
-  }
-  const mergedList = Array.from(merged.values()).filter((entry) => !isFiltering || entry.apps.length > 0)
-  return { mergedList, noListing }
-}
-
-export function ListingsPageClient({ orgId, listings }: Readonly<Props>) {
+export function ListingsPageClient({ listings }: Readonly<{ listings: ListingListRow[] }>) {
   const router = useRouter()
-  const queryClient = useQueryClient()
   const { user } = useUser()
-  const { teams, teamIds } = useMyTeams()
-  const queryKey = OPERATIONAL_QUERY_KEYS.applications(orgId)
-  const { data: list = [], dataUpdatedAt } = useQuery({
-    queryKey,
-    queryFn: () => fetchApplicationsAction(orgId),
-    staleTime: STALE_TIME.applications,
-  })
-
-  const [scope, setScope] = useState<"mine" | "all" | `team:${string}`>("mine")
-  const showScope = useShowScopeFilter()  // View filter only from Growth up; below that, everything is "all"
+  const showScope = useShowScopeFilter()
+  const [scope, setScope] = useState<"mine" | "all">("mine")
   const [search, setSearch] = useState("")
-  const [stages, setStages] = useState<string[]>([])
-  const [view, setView] = useState<"list" | "cards">("list")
+  const [statuses, setStatuses] = useState<string[]>([])
+  const { sortKey, sortDir, onSort } = useListSort<ListingSortKey>("created", "desc")
 
-  // My work / All (ADDENDUM_TEAMS Layer 0) — scope the applications (the listing frame stays org-wide as
-  // context); null assignee = Everyone/Org, shown only under "All".
+  // My work = listings I'm responsible for (the responsible agent), below Portfolio everyone sees All.
   const effScope = showScope ? scope : "all"
-  let scopedList = list
-  if (effScope === "mine" && user?.id) {
-    scopedList = list.filter((a) => isMine(a as { assigned_user_id: string | null; assigned_team_id: string | null }, user.id, teamIds))
-  } else if (effScope.startsWith("team:")) {
-    const tid = effScope.slice(5)
-    scopedList = list.filter((a) => (a as { assigned_team_id?: string | null }).assigned_team_id === tid)
-  }
-
-  const prescreenReady = scopedList.filter((a) => a.stage1_status === "pre_screen_complete")
-  const screeningComplete = scopedList.filter((a) => a.stage2_status === "screening_complete")
-
-  // Apply search (applicant name / email) + stage filter before grouping.
+  const userId = user?.id ?? null
   const q = search.trim().toLowerCase()
-  const filteredList = scopedList.filter((a) => {
-    const name = `${a.first_name || ""} ${a.last_name || ""}`.trim().toLowerCase()
-    const matchSearch = !q || name.includes(q) || (a.applicant_email?.toLowerCase().includes(q) ?? false)
-    const matchStage = stages.length === 0 || stages.includes(appStage(a))
-    return matchSearch && matchStage
-  })
-  const isFiltering = q.length > 0 || stages.length > 0
+  const filtered = useMemo(() => {
+    const rows = listings.filter((l) => {
+      if (effScope === "mine" && userId && l.responsibleAgentId !== userId) return false
+      if (statuses.length > 0 && !statuses.includes(l.status)) return false
+      if (q && !`${l.unitNumber} ${l.propertyName}`.toLowerCase().includes(q)) return false
+      return true
+    })
+    return [...rows].sort((a, b) => {
+      let cmp = 0
+      if (sortKey === "property") cmp = `${a.propertyName} ${a.unitNumber}`.localeCompare(`${b.propertyName} ${b.unitNumber}`)
+      else if (sortKey === "applications") cmp = a.submittedCount - b.submittedCount
+      else if (sortKey === "rent") cmp = a.askingRentCents - b.askingRentCents
+      else if (sortKey === "closes") cmp = (a.closesAt ?? "9999").localeCompare(b.closesAt ?? "9999")
+      else cmp = a.createdAt.localeCompare(b.createdAt)
+      return sortDir === "asc" ? cmp : -cmp
+    })
+  }, [listings, effScope, userId, statuses, q, sortKey, sortDir])
 
-  const { mergedList, noListing } = buildMergedGroups(filteredList, listings, isFiltering)
-  const hasContent = mergedList.length > 0 || noListing.length > 0
-  // The toolbar is only meaningful once there's underlying data to filter.
-  const showToolbar = list.length > 0
-  const filteredCount = filteredList.length
-  const appWord = scopedList.length === 1 ? "application" : "applications"
-  const countLabel = isFiltering ? `${filteredCount} of ${scopedList.length} ${appWord}` : `${scopedList.length} ${appWord}`
+  const isFiltering = q.length > 0 || statuses.length > 0 || effScope === "mine"
+  const countLabel = isFiltering ? `${filtered.length} of ${listings.length} listings` : `${listings.length} listings`
+
+  if (listings.length === 0) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <EmptyResourceState
+          eyebrow="Operations"
+          title="Listings"
+          headline="Rental listings"
+          emptyTitle="No active listings"
+          emptySub="Listings are created from a unit. Once published, applicants apply via a shareable link and you'll review, shortlist and screen them here."
+          icon={<Building2 className="h-6 w-6" />}
+          heroAction={<AddButton label="Go to properties" showPlus={false} onClick={() => router.push("/properties")} />}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -282,176 +106,79 @@ export function ListingsPageClient({ orgId, listings }: Readonly<Props>) {
         eyebrow="Operations"
         title="Listings"
         headline="Rental listings"
-        sub={
-          (list.length > 0 || dataUpdatedAt > 0) ? (
-            <div className="space-y-0.5">
-              {/* Always render (even "0 ready") so toggling the filter doesn't jump the sticky header. */}
-              <p>{prescreenReady.length} ready to review &middot; {screeningComplete.length} screening complete</p>
-              {dataUpdatedAt > 0 && (
-                <span className="flex items-center gap-2 text-xs">
-                  Updated {relativeTime(new Date(dataUpdatedAt))}
-                  <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
-                </span>
-              )}
-            </div>
-          ) : undefined
-        }
         action={<AddButton label="New listing" onClick={() => router.push("/properties")} />}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        {showToolbar && (
-          <div className="space-y-2">
-            <ListToolbar
-              search={search}
-              onSearch={setSearch}
-              placeholder="Search applicants by name or email…"
-              view={view}
-              onView={setView}
-              rightFilters={
-                showScope ? (
-                  <ToolbarFilter
-                    label="View"
-                    selected={[scope]}
-                    onChange={(next) => setScope((next[0] as "mine" | "all" | `team:${string}`) ?? "mine")}
-                    options={[
-                      { value: "mine", label: "My work", icon: <User /> },
-                      { value: "all", label: "All", icon: <Globe /> },
-                      ...teams.map((t) => ({ value: `team:${t.id}`, label: t.name, icon: <Users /> })),
-                    ]}
-                  />
-                ) : null
-              }
-              filters={
-                <ToolbarFilter
-                  label="Stage"
-                  multiple
-                  selected={stages}
-                  onChange={setStages}
-                  options={STAGE_FILTER_OPTIONS}
-                />
-              }
-            />
-            <p className="text-xs text-muted-foreground">{countLabel}</p>
-          </div>
-        )}
-
-        {showToolbar && isFiltering && !hasContent && (
-          <p className="py-8 text-center text-sm text-muted-foreground">No applications match your filters.</p>
-        )}
-
-        {!hasContent && !(showToolbar && isFiltering) && (
-          <EmptyResourceState
-          emptyTitle="No active listings"
-          emptySub="Listings are created from a unit. Once published, applicants apply via a shareable link and you'll manage everything here — review, shortlist, screen, and approve."
-          icon={<Users className="h-6 w-6" />}
-          heroAction={<AddButton label="Go to properties" showPlus={false} onClick={() => router.push("/properties")} />}
-        >
-          <div className="space-y-3 rounded-[var(--r-button)] border border-border/60 bg-muted/30 p-4 text-left">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">How it works</p>
-            <ol className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex gap-2"><span className="shrink-0 font-medium text-primary">1.</span> Go to a property and open a vacant unit</li>
-              <li className="flex gap-2"><span className="shrink-0 font-medium text-primary">2.</span> Click &ldquo;Create listing&rdquo; — set the asking rent and requirements</li>
-              <li className="flex gap-2"><span className="shrink-0 font-medium text-primary">3.</span> Share the link — applicants apply on their phone</li>
-              <li className="flex gap-2"><span className="shrink-0 font-medium text-primary">4.</span> Come back here to review and decide</li>
-            </ol>
-          </div>
-          </EmptyResourceState>
-        )}
-
-        {/* List view (default) — listing-grouped. Scrolls internally; page itself does not scroll. */}
-        {hasContent && view === "list" && (
-          <div className="min-h-0 flex-1 space-y-6 overflow-auto">
-            {mergedList.map(({ listing, apps }) => {
-              const bulkEligible = apps.filter((a) => a.stage1_status === "pre_screen_complete" && !a.stage2_status)
-              return (
-              <div key={listing.id} className="space-y-2">
-                <ListingHeader listing={listing} appCount={apps.length} />
-                {apps.map((app) => {
-                  const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
-                  return (
-                    <Link key={app.id} href={appHref(app)}>
-                      <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-                        <CardContent className="flex items-center justify-between pt-4">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{name}</p>
-                              {app.is_foreign_national && <span className="text-xs px-1.5 py-0.5 bg-info-bg text-info rounded">Foreign</span>}
-                              {app.has_co_applicant && <span className="text-xs px-1.5 py-0.5 bg-surface-elevated rounded">Joint</span>}
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {app.fitscore !== null && <span className="font-heading text-lg">{app.fitscore}/100</span>}
-                            {app.prescreen_score !== null && !app.fitscore && <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>}
-                            <StatusBadge status={app.stage2_status ? (STAGE2_MAP[app.stage2_status] || "pending") : (STAGE1_MAP[app.stage1_status] || "pending")} />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  )
-                })}
-                {bulkEligible.length >= 2 && user && (
-                  <BulkDecidePanel
-                    agentId={user.id}
-                    applicants={bulkEligible.map((a) => ({
-                      id: a.id,
-                      name: `${a.first_name || ""} ${a.last_name || ""}`.trim() || a.applicant_email,
-                      prescreenScore: a.prescreen_score ?? null,
-                    }))}
-                    onDone={() => queryClient.invalidateQueries({ queryKey })}
-                  />
-                )}
-              </div>
-              )
-            })}
-
-            {noListing.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">Other</p>
-                {noListing.map((app) => {
-                  const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
-                  return (
-                    <Link key={app.id} href={appHref(app)}>
-                      <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-                        <CardContent className="flex items-center justify-between pt-4">
-                          <div>
-                            <p className="font-medium">{name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {app.fitscore !== null && <span className="font-heading text-lg">{app.fitscore}/100</span>}
-                            {app.prescreen_score !== null && !app.fitscore && <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>}
-                            <StatusBadge status={app.stage2_status ? (STAGE2_MAP[app.stage2_status] || "pending") : (STAGE1_MAP[app.stage1_status] || "pending")} />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Cards view — flat applicant grid over the filtered list (grouping flattened). */}
-        {hasContent && view === "cards" && filteredList.length === 0 && (
-          <p className="py-8 text-center text-sm text-muted-foreground">No applicants yet.</p>
-        )}
-        {hasContent && view === "cards" && filteredList.length > 0 && (
-          <div className="grid min-h-0 flex-1 gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
-            {filteredList.map((app) => (
-              <ApplicantCard
-                key={app.id}
-                app={app}
-                onOpen={() => router.push(appHref(app))}
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <ListToolbar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Search by unit or property…"
+          rightFilters={
+            showScope ? (
+              <ToolbarFilter
+                label="View"
+                selected={[scope]}
+                onChange={(next) => setScope((next[0] as "mine" | "all") ?? "mine")}
+                options={[
+                  { value: "mine", label: "My work", icon: <User /> },
+                  { value: "all", label: "All", icon: <Globe /> },
+                ]}
               />
-            ))}
-          </div>
+            ) : null
+          }
+          filters={
+            <ToolbarFilter label="Status" multiple selected={statuses} onChange={setStatuses} options={STATUS_OPTIONS} />
+          }
+        />
+        <p className="text-xs text-muted-foreground">{countLabel}</p>
+
+        {filtered.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">No listings match your filters.</p>
+        ) : (
+          <ListCard fill>
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[16%]" />
+                <col className="w-[15%]" />
+                <col className="w-[18%]" />
+                <col className="w-[17%]" />
+              </colgroup>
+              <thead className="sticky top-0 z-10 border-b border-border/60 bg-card">
+                <tr>
+                  <th className="px-3 py-2.5 text-left"><SortHeader col="property" label="Property / Unit" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                  <th className="px-3 py-2.5 text-left"><SortHeader col="applications" label="Applications" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                  <th className="px-3 py-2.5 text-left"><SortHeader col="rent" label="Rent" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                  <th className="px-3 py-2.5 text-left"><SortHeader col="closes" label="Closes" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                  <th className="px-3 py-2.5 text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {filtered.map((l) => (
+                  <tr
+                    key={l.id}
+                    onClick={() => l.slug && router.push(`/listings/${l.slug}`)}
+                    className="cursor-pointer transition-colors hover:bg-muted/40"
+                  >
+                    <td className="truncate px-3 py-3">
+                      <span className="font-medium">{l.unitNumber}</span>
+                      <span className="text-muted-foreground">, {l.propertyName}</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      {l.submittedCount > 0
+                        ? <span className="font-medium">{l.submittedCount}</span>
+                        : <span className="text-muted-foreground">—</span>}
+                      <span className="text-muted-foreground"> {l.submittedCount === 1 ? "application" : "applications"}</span>
+                    </td>
+                    <td className="px-3 py-3">{formatZAR(l.askingRentCents)}<span className="text-muted-foreground">/mo</span></td>
+                    <td className="px-3 py-3 text-muted-foreground">{closesLabel(l.closesAt)}</td>
+                    <td className="px-3 py-3"><StatusBadge status={l.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ListCard>
         )}
       </div>
     </div>

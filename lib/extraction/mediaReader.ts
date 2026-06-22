@@ -9,11 +9,17 @@
  *
  * Spec: ADDENDUM_14L §4.2
  */
-import type { DocumentFormat } from "./types"
+import type { Document } from "./types"
 
 interface PdfBlock {
   type: "document"
   source: { type: "base64"; media_type: "application/pdf"; data: string }
+  title: string
+}
+
+interface TextDocBlock {
+  type: "document"
+  source: { type: "text"; media_type: "text/plain"; data: string }
   title: string
 }
 
@@ -22,20 +28,30 @@ interface ImageBlock {
   source: { type: "base64"; media_type: "image/jpeg" | "image/png"; data: string }
 }
 
-export type MediaBlock = PdfBlock | ImageBlock
+export type MediaBlock = PdfBlock | TextDocBlock | ImageBlock
 
-export function toMediaBlock(bytes: Uint8Array, format: DocumentFormat, filename: string): MediaBlock {
-  const data = Buffer.from(bytes).toString("base64")
-
-  if (format === "pdf") {
+export function toMediaBlock(doc: Pick<Document, "bytes" | "format" | "filename" | "textContent">): MediaBlock {
+  // Encrypted PDF decrypted upstream → send the extracted text as a text document block (Claude can't read the
+  // encrypted bytes). (lib/extraction/pdfDecrypt + pipeline pre-decrypt pass.)
+  if (doc.textContent != null) {
     return {
       type: "document",
-      source: { type: "base64", media_type: "application/pdf", data },
-      title: filename,
+      source: { type: "text", media_type: "text/plain", data: doc.textContent },
+      title: doc.filename,
     }
   }
 
-  const mediaType = format === "image-jpeg" ? "image/jpeg" : "image/png"
+  const data = Buffer.from(doc.bytes).toString("base64")
+
+  if (doc.format === "pdf") {
+    return {
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data },
+      title: doc.filename,
+    }
+  }
+
+  const mediaType = doc.format === "image-jpeg" ? "image/jpeg" : "image/png"
   return {
     type: "image",
     source: { type: "base64", media_type: mediaType, data },

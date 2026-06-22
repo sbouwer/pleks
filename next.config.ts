@@ -47,7 +47,9 @@ const nextConfig: NextConfig = {
 
   // @react-pdf/renderer v4 uses yoga-wasm-web (WASM). Turbopack bundling breaks
   // WASM initialisation — exclude from bundling so it loads from node_modules at runtime.
-  serverExternalPackages: ["@react-pdf/renderer"],
+  // pdf-parse (pdfjs) is the same shape — bundling it breaks the worker/decryption at runtime
+  // (the encrypted-PDF decrypt in lib/extraction/pdfDecrypt would throw and get swallowed → file accepted).
+  serverExternalPackages: ["@react-pdf/renderer", "pdf-parse"],
 
   // Tree-shake large packages at the module graph level (saves bundle + compile time)
   // Note: @react-pdf/renderer is intentionally absent — see serverExternalPackages above.

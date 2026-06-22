@@ -1103,3 +1103,53 @@ WHERE clause_key = 'pets' AND body_template LIKE '%{{ref:rental_deposit}}%';
 
 -- Retire the rental_deposit id now that rental + deposit replace it and all refs are repointed.
 DELETE FROM lease_clause_library WHERE clause_key = 'rental_deposit';
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §21  Make org-assets PUBLIC (email logo fix)
+--   fetchOrgSettings builds the email/branding logo URL via storage.getPublicUrl("org-assets", …); the bucket
+--   was created private (007 §…), so that URL 403'd and every org-branded email rendered a broken logo. The
+--   bucket only holds 2MB png/jpeg branding images, so public read is correct + intended. Idempotent UPDATE so
+--   it applies on existing DBs and after 007 creates it private on a fresh replay.
+-- ═══════════════════════════════════════════════════════════════════════════════
+UPDATE storage.buckets SET public = true WHERE id = 'org-assets';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §22  application-docs bucket + RLS (redesigned public application wizard)
+--   Applicants (anon — they have no account at apply time) upload supporting docs to
+--   applications/{org_id}/{application_id}/{filename}. Private bucket; agents read via the service client.
+--   The supabase-js .upload() runs INSERT ... ON CONFLICT DO UPDATE ... RETURNING *, so the role needs
+--   INSERT + UPDATE + (re-read) SELECT on the row, plus DELETE for re-uploads. The SELECT policy is REQUIRED —
+--   without it RETURNING fails with "new row violates row-level security policy". All four are scoped to the
+--   bucket + the applications/ prefix (same guard), granted to anon+authenticated.
+-- ═══════════════════════════════════════════════════════════════════════════════
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('application-docs', 'application-docs', false, 20971520,
+        ARRAY['application/pdf','image/jpeg','image/jpg','image/png'])
+ON CONFLICT (id) DO NOTHING;
+
+DO $DOLLAR$
+DECLARE
+  pol record;
+BEGIN
+  FOR pol IN
+    SELECT * FROM (VALUES
+      ('application_docs_insert', 'INSERT'),
+      ('application_docs_update', 'UPDATE'),
+      ('application_docs_delete', 'DELETE'),
+      ('application_docs_select', 'SELECT')
+    ) AS t(name, cmd)
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', pol.name);
+  END LOOP;
+
+  CREATE POLICY "application_docs_insert" ON storage.objects FOR INSERT TO anon, authenticated
+    WITH CHECK (bucket_id = 'application-docs' AND (storage.foldername(name))[1] = 'applications');
+  CREATE POLICY "application_docs_update" ON storage.objects FOR UPDATE TO anon, authenticated
+    USING (bucket_id = 'application-docs' AND (storage.foldername(name))[1] = 'applications')
+    WITH CHECK (bucket_id = 'application-docs' AND (storage.foldername(name))[1] = 'applications');
+  CREATE POLICY "application_docs_delete" ON storage.objects FOR DELETE TO anon, authenticated
+    USING (bucket_id = 'application-docs' AND (storage.foldername(name))[1] = 'applications');
+  CREATE POLICY "application_docs_select" ON storage.objects FOR SELECT TO anon, authenticated
+    USING (bucket_id = 'application-docs' AND (storage.foldername(name))[1] = 'applications');
+END $DOLLAR$;

@@ -13,8 +13,9 @@
  */
 import { INCOME_AFFORDABILITY_THRESHOLD, startedWithinProbation, PROBATION_MONTHS } from "@/lib/constants"
 import type { ReconciliationResult } from "@/lib/extraction/types"
+import { householdLivingFloorCents } from "./livingFloor"
 
-export const RULING_VERSION = "ruling.v1"
+export const RULING_VERSION = "ruling.v3"  // v3: flag 0b residual-income override + residual-override tier
 
 const MARGINAL_CEILING = 0.35       // 0.31–0.35 → near-miss (surface paths), > 0.35 → below
 const STALE_DAYS = 35               // most-recent document older than this → flag 3
@@ -22,7 +23,7 @@ const HOUSING_MIN_MONTHS = 6        // flag 0 requires a SUSTAINED history…
 const SALARIED_MIN_MONTHS = 3       // flag 4 quantity (salaried)
 const VARIABLE_MIN_MONTHS = 6       // …and 6 for commission / self-employed
 
-export type AffordabilityTier = "within" | "marginal" | "below" | "demonstrated-override"
+export type AffordabilityTier = "within" | "marginal" | "below" | "demonstrated-override" | "residual-override"
 export type ConfidenceTier = "strong" | "adequate" | "needs-evidence"
 export type RulingTier = "strong" | "adequate" | "needs-evidence" | "below-threshold"
 export type FlagSeverity = "block" | "major" | "minor" | "positive"
@@ -41,7 +42,13 @@ export interface RulingFlag {
 export interface RulingResult {
   rulingVersion: string
   rulingTier: RulingTier
-  affordability: { ratioPct: number | null; tier: AffordabilityTier; demonstratedHousingCents: number | null }
+  affordability: {
+    ratioPct: number | null; tier: AffordabilityTier; demonstratedHousingCents: number | null
+    /** Verified-income view: rent ÷ CORROBORATED income (sum of evidenced sources; uncorroborated counts 0).
+     *  Shown beside the declared ratio so phantom uncorroborated income can't visually carry affordability, and
+     *  the base figure for flag 0b's residual override. (ADDENDUM_14M #3) */
+    corroboratedIncomeCents: number; corroboratedRatioPct: number | null
+  }
   confidence: { tier: ConfidenceTier }
   flags: RulingFlag[]
 }
@@ -53,6 +60,8 @@ export interface RulingInput {
   employmentStartDate: string | null
   reconciliation: ReconciliationResult
   now: Date
+  adults?: number       // household adults (applicant + co-applicants); defaults to 1
+  dependents?: number   // declared dependents; defaults to 0. Both feed flag 0b's living floor.
 }
 
 const isVariable = (t: string | null): boolean => t === "commission" || t === "self_employed"
@@ -128,8 +137,11 @@ function declaredSourceFlags(input: RulingInput): RulingFlag[] {
   for (const s of input.reconciliation.declaredSources) {
     if (s.status === "uncorroborated" || s.status === "no-evidence") {
       out.push({ id: 5, key: `uncorroborated:${s.source_key}`, axis: "confidence", severity: "major", type: "fixable", title: `We couldn't corroborate your declared ${s.label.toLowerCase()}`, remediation: evidencePrompt(s.source_key, input.employmentType) })
-    } else if (s.status === "variance") {
-      out.push({ id: 6, key: `variance:${s.source_key}`, axis: "confidence", severity: "major", type: "fixable", title: `Your declared ${s.label.toLowerCase()} is higher than your documents show`, remediation: "Extend to a 6-month window, or revise the figure — we substantiate at the lower of declared vs observed." })
+    } else if (s.status === "variance" && s.declared_monthly_cents != null && s.evidenced_monthly_cents != null && s.declared_monthly_cents > s.evidenced_monthly_cents) {
+      // Only OVER-declaration (declared > documented) is a confidence concern. UNDER-declaration (documents show
+      // MORE than declared) is conservative and fully supported, so it's left unflagged — treated as corroborated.
+      // Coach the EVIDENCE, not the number (no "revise the figure" — that nudges gaming, 14M guardrail #3).
+      out.push({ id: 6, key: `variance:${s.source_key}`, axis: "confidence", severity: "major", type: "fixable", title: `Your declared ${s.label.toLowerCase()} is higher than your documents show`, remediation: "We substantiate at the lower (documented) figure. To support the higher amount, upload statements covering a longer period (e.g. 6 months)." })
     }
   }
   return out
@@ -138,8 +150,18 @@ function declaredSourceFlags(input: RulingInput): RulingFlag[] {
 function integrityFlags(input: RulingInput): RulingFlag[] {
   const out: RulingFlag[] = []
   const id = input.reconciliation.identity
-  if (id.name === "material-mismatch" || id.idNumber === "mismatch") {
-    out.push({ id: 7, key: "name_mismatch", axis: "integrity", severity: "major", type: "fixable", title: "The name/ID on your documents doesn't match your application", remediation: "Upload documents in your own name." })
+  // Identity mismatch is GRADED. This applicant-facing flag is NOT the fraud wall — DHA identity verification
+  // (Searchworx) runs downstream and a re-upload of name-matching docs still hits it. So this flag's job is to let
+  // an HONEST mix-up be re-checked, worded neutrally so it never names the matching mechanism or how to clear it
+  // (14M guardrail #3). The agent-side surface keeps a PERSISTENT integrity record regardless of re-uploads.
+  if (id.idNumber === "mismatch" || id.name === "material-mismatch") {
+    // HARD mismatch — different surname or a different ID number. Real integrity signal → major (→ needs-evidence).
+    // Soft wording — no implied hard gate (nothing blocks submit but email-OTP; the agent decides — shows-all /
+    // never-auto-reject). States the agent MAY verify, without naming the matching mechanism.
+    out.push({ id: 7, key: "identity_mismatch", axis: "integrity", severity: "major", type: "fixable", title: "We couldn't confirm these documents belong to you", remediation: "Please double-check that the documents you uploaded are your own. Your agent may ask you to verify your identity." })
+  } else if (id.name === "minor-variation") {
+    // SOFT variation — initials vs full name, maiden/married surname, an extra middle name. Almost always innocent.
+    out.push({ id: 7, key: "identity_soft_variation", axis: "integrity", severity: "minor", type: "fixable", title: "The name on your documents differs slightly from your application", remediation: "If you've recently changed your name (e.g. marriage) or used initials, that's fine — just check the spelling matches." })
   }
   if (input.reconciliation.netPayVsCredit.verdict === "gap") {
     // Flag 8 — risk SIGNAL for the agent (garnishee / salary into another account); not an applicant to-do.
@@ -175,25 +197,47 @@ export function evaluateRuling(input: RulingInput): RulingResult {
   const ratioPct = income > 0 ? Math.round((input.appliedRentCents / income) * 100) : null
   const affordabilityTier = affordabilityTierOf(override, ratioPct)
 
+  // Corroborated (verified) income = sum of evidenced amounts across sources; uncorroborated/no-evidence count 0.
+  // Tier stays on DECLARED (unchanged behaviour); this is surfaced alongside + feeds flag 0b's residual override.
+  const corroboratedIncomeCents = input.reconciliation.declaredSources.reduce((sum, s) => sum + (s.evidenced_monthly_cents ?? 0), 0)
+  const corroboratedRatioPct = corroboratedIncomeCents > 0 ? Math.round((input.appliedRentCents / corroboratedIncomeCents) * 100) : null
+
   const flags: RulingFlag[] = []
   if (overrideFlag) flags.push(overrideFlag)
-  const affFlag = affordabilityFlagFor(override, income, ratioPct, affordabilityTier)
+
+  // Flag 0b — residual-income override. A marginal/below RATIO is overridden when VERIFIED income covers rent +
+  // observed obligations with at least the household living floor (PMBEJD) left over. A residual floor, not income
+  // bands (a floor self-scales). Only ever RAISES affordability; corroboration-weighted (uncorroborated income
+  // counts 0, so it can't pass phantom affordability) and surfaced-not-determinative — so it can't auto-harm.
+  const obligationsCents = input.reconciliation.observedObligationsCents ?? 0
+  const residualCents = corroboratedIncomeCents - input.appliedRentCents - obligationsCents
+  const livingFloorCents = householdLivingFloorCents(input.adults ?? 1, input.dependents ?? 0)
+  const residualOverride = corroboratedIncomeCents > 0
+    && (affordabilityTier === "marginal" || affordabilityTier === "below")
+    && residualCents >= livingFloorCents
+  const effectiveTier: AffordabilityTier = residualOverride ? "residual-override" : affordabilityTier
+  if (residualOverride) {
+    flags.push({ id: 0, key: "residual_override", axis: "affordability", severity: "positive", type: "override",
+      title: `Verified income covers rent + obligations with ~R${Math.round(residualCents / 100)}/mo to spare — above the household living floor (R${Math.round(livingFloorCents / 100)})`,
+      remediation: null })
+  }
+
+  const affFlag = affordabilityFlagFor(override || residualOverride, income, ratioPct, effectiveTier)
   if (affFlag) flags.push(affFlag)
   const probation = probationFlag(input)
   if (probation) flags.push(probation)
   flags.push(...recencyFlags(input), ...declaredSourceFlags(input), ...integrityFlags(input))
 
   const confidence = confidenceTierOf(flags)
-  const affordabilityBlocked = affordabilityTier === "below" && !override
+  const affordabilityBlocked = effectiveTier === "below" && !override
   let rulingTier: RulingTier = affordabilityBlocked ? "below-threshold" : confidence
-  // A marginal ratio can't read "strong" — Strong requires a clear ratio or the demonstrated-payment override.
-  // (A blocked ruling is "below-threshold", never "strong", so this only catches the marginal-but-clean case.)
-  if (affordabilityTier === "marginal" && rulingTier === "strong") rulingTier = "adequate"
+  // A marginal ratio can't read "strong" — Strong requires a clear ratio or an override.
+  if (effectiveTier === "marginal" && rulingTier === "strong") rulingTier = "adequate"
 
   return {
     rulingVersion: RULING_VERSION,
     rulingTier,
-    affordability: { ratioPct, tier: affordabilityTier, demonstratedHousingCents: demonstrated },
+    affordability: { ratioPct, tier: effectiveTier, demonstratedHousingCents: demonstrated, corroboratedIncomeCents, corroboratedRatioPct },
     confidence: { tier: confidence },
     flags,
   }

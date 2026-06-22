@@ -17,9 +17,10 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { runPipeline } from "@/lib/extraction/pipeline"
 import { reconcile } from "@/lib/extraction/reconciler"
+import { slotTypeForFilename } from "@/lib/extraction/slotType"
 import { evaluateRuling } from "@/lib/applications/ruling"
 import { hasFeature } from "@/lib/tier/gates"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { RECONCILER_VERSION, type DeclaredContext, type Document, type ReconciliationResult } from "@/lib/extraction/types"
 import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -46,13 +47,13 @@ async function loadDocuments(db: Db, orgId: string, appId: string): Promise<Docu
     if (!f.name || f.name.startsWith(".")) continue
     const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(`${prefix}/${f.name}`)
     if (dlErr || !blob) { logQueryError("screen storage.download", dlErr); continue }
-    docs.push({ path: `${prefix}/${f.name}`, filename: f.name, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(f.name) })
+    docs.push({ path: `${prefix}/${f.name}`, filename: f.name, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(f.name), slotType: slotTypeForFilename(f.name) })
   }
   return docs
 }
 
 interface AppRow {
-  org_id: string; listing_id: string; co_applicants_count: number | null
+  org_id: string; listing_id: string; co_applicants_count: number | null; dependents_count: number | null
   first_name: string | null; last_name: string | null; id_number: string | null
   gross_monthly_income_cents: number | null; employment_type: string | null; employment_start_date: string | null
   income_sources: Array<{ key: string; label: string; monthly_cents: number }> | null
@@ -109,7 +110,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("org_id, listing_id, co_applicants_count, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, employment_start_date, income_sources, stage1_consent_given, listings(asking_rent_cents, units(properties(type)))")
+    .select("org_id, listing_id, co_applicants_count, dependents_count, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, employment_start_date, income_sources, stage1_consent_given, listings(asking_rent_cents, units(properties(type)))")
     .eq("id", id).single()
   logQueryError("screen applications", appErr)
   if (!app) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -138,7 +139,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Tier gate: full AI extraction for ai_full orgs with docs; else declared-only reconciliation (graceful
     // degrade — confidence will be 'needs-evidence' with upload prompts; no AI cost).
-    const tier = await getOrgTier(app.org_id)
+    // CANONICAL tier (service-client, DB-authoritative) — NOT getOrgTier: the screen route runs in the applicant's
+    // token context with no agent cookie/membership, so getOrgTier's cookie-client fallback returns "owner" and
+    // silently skips AI extraction even for paid orgs. Capability gates must use the canonical tier.
+    const tier = await getOrgTierCanonical(app.org_id)
     let reconciliation: ReconciliationResult
     let fraudSignals: unknown[] = []
     const docs = await loadDocuments(db, app.org_id, id)
@@ -160,6 +164,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       employmentStartDate: app.employment_start_date,
       reconciliation,
       now: new Date(),
+      adults: applicantCount,                          // applicant + co-applicants
+      dependents: (app as unknown as AppRow).dependents_count ?? 0,
     })
 
     const iteration = await persistEvaluation(db, { orgId: app.org_id, appId: id, ruling, reconciliation, fraudSignals, declared, unitType, applicantCount, docCount: docs.length })
@@ -193,6 +199,7 @@ async function persistEvaluation(db: Db, args: {
     org_id: orgId, application_id: appId, iteration_number: iteration,
     ruling_tier: ruling.rulingTier, affordability_tier: ruling.affordability.tier,
     affordability_ratio_pct: ruling.affordability.ratioPct, demonstrated_housing_cents: ruling.affordability.demonstratedHousingCents,
+    corroborated_income_cents: ruling.affordability.corroboratedIncomeCents, affordability_corroborated_ratio_pct: ruling.affordability.corroboratedRatioPct,
     confidence_tier: ruling.confidence.tier, flags: ruling.flags,
     reconciliation, fraud_signals: fraudSignals,
     reconciler_version: RECONCILER_VERSION, ruling_version: ruling.rulingVersion,
@@ -216,7 +223,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
   }
   const { data: evalRow, error: evalErr } = await db.from("application_screening_evaluations")
-    .select("iteration_number, ruling_tier, affordability_tier, affordability_ratio_pct, demonstrated_housing_cents, confidence_tier, flags, generated_at")
+    .select("iteration_number, ruling_tier, affordability_tier, affordability_ratio_pct, affordability_corroborated_ratio_pct, corroborated_income_cents, demonstrated_housing_cents, confidence_tier, flags, generated_at")
     .eq("application_id", id).order("iteration_number", { ascending: false }).limit(1).maybeSingle()
   logQueryError("screen GET evaluation", evalErr)
   if (evalRow) return NextResponse.json({ status: "done", evaluation: evalRow })

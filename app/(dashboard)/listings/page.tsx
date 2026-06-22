@@ -1,48 +1,75 @@
 /**
- * app/(dashboard)/listings/page.tsx — server entry for the rental listings list (prefetch + hydrate)
+ * app/(dashboard)/listings/page.tsx — server entry for the rental listings list
  *
  * Route:  /listings
  * Auth:   getServerOrgMembership (dashboard gateway) — redirects to /login if no membership
- * Data:   prefetches fetchApplications into React Query + loads active/paused listings via service client
- * Notes:  each listing groups its applicants client-side (applicant identity is a tenant; no applicants table)
+ * Data:   listings (active/paused/filled/expired) + a single aggregate count of SUBMITTED applications per
+ *         listing (stage1_consent_given = true; drafts excluded). Responsible agent (unit.assigned_agent_id ??
+ *         property.managing_agent_id) drives the client's "My work = my listings" filter.
+ * Notes:  Level 1 of the drill-down — a listing opens its submitted applications at /listings/[slug].
  */
-import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
-import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchApplications } from "@/lib/queries/portfolio"
-import { ListingsPageClient } from "./ListingsPageClient"
+import { logQueryError } from "@/lib/supabase/logQueryError"
+import { ListingsPageClient, type ListingListRow } from "./ListingsPageClient"
+
+interface ListingJoin {
+  id: string
+  public_slug: string | null
+  asking_rent_cents: number
+  status: string
+  closes_at: string | null
+  created_at: string
+  units: { unit_number: string | null; assigned_agent_id: string | null; properties: { name: string | null; managing_agent_id: string | null } | null } | null
+}
 
 export default async function ListingsPage() {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
-
   const { org_id: orgId } = membership
-  const queryClient = new QueryClient()
   const supabase = await createServiceClient()
 
-  const [, listingsResult] = await Promise.all([
-    queryClient.prefetchQuery({
-      queryKey: OPERATIONAL_QUERY_KEYS.applications(orgId),
-      queryFn: () => fetchApplications(supabase, orgId),
-      staleTime: STALE_TIME.applications,
-    }),
+  const [listingsResult, submittedResult] = await Promise.all([
     supabase
       .from("listings")
-      .select("id, public_slug, asking_rent_cents, applications_count, status, units(unit_number, properties(name))")
+      .select("id, public_slug, asking_rent_cents, status, closes_at, created_at, units(unit_number, assigned_agent_id, properties(name, managing_agent_id))")
       .eq("org_id", orgId)
-      .in("status", ["active", "paused"])
+      .in("status", ["active", "paused", "filled", "expired"])
       .order("created_at", { ascending: false }),
+    // One aggregate pass: every SUBMITTED application's listing_id (drafts excluded) → tally per listing in JS.
+    supabase
+      .from("applications")
+      .select("listing_id")
+      .eq("org_id", orgId)
+      .not("submitted_at", "is", null)
+      .is("deleted_at", null),
   ])
+  logQueryError("ListingsPage listings", listingsResult.error)
+  logQueryError("ListingsPage submitted counts", submittedResult.error)
 
-  const { data: listingsRaw, error: listingsError } = listingsResult
-  if (listingsError) console.error("fetchListings failed:", listingsError.message)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const listings = (listingsRaw ?? []) as any[]
+  const counts = new Map<string, number>()
+  for (const row of submittedResult.data ?? []) {
+    const lid = (row as { listing_id: string | null }).listing_id
+    if (lid) counts.set(lid, (counts.get(lid) ?? 0) + 1)
+  }
 
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <ListingsPageClient orgId={orgId} listings={listings ?? []} />
-    </HydrationBoundary>
-  )
+  const listings: ListingListRow[] = ((listingsResult.data ?? []) as unknown as ListingJoin[]).map((l) => {
+    const unit = l.units
+    const prop = unit?.properties
+    return {
+      id: l.id,
+      slug: l.public_slug,
+      unitNumber: unit?.unit_number ?? "—",
+      propertyName: prop?.name ?? "—",
+      askingRentCents: l.asking_rent_cents,
+      status: l.status,
+      closesAt: l.closes_at,
+      createdAt: l.created_at,
+      responsibleAgentId: unit?.assigned_agent_id ?? prop?.managing_agent_id ?? null,
+      submittedCount: counts.get(l.id) ?? 0,
+    }
+  })
+
+  return <ListingsPageClient listings={listings} />
 }

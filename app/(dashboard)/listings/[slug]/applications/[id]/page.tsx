@@ -48,8 +48,7 @@ export default async function ApplicationDetailPage({
       identity_match_status, employer_verification_status,
       salary_reconciliation_status, document_consistency_status,
       bank_account_ownership_status,
-      prescreen_score, prescreen_income_score, prescreen_employment_score,
-      prescreen_refs_score, prescreen_affordability_flag,
+      free_assessment,
       stage1_status, stage2_status,
       fitscore, fitscore_band, fitscore_confidence_index,
       fitscore_verification_integrity, fitscore_material_flags,
@@ -116,7 +115,18 @@ export default async function ApplicationDetailPage({
   } | null
 
   const name = `${app.first_name || ""} ${app.last_name || ""}`.trim()
-  const bankData = app.bank_statement_extracted as Record<string, unknown> | null
+
+  // Step-1 free assessment (declared affordability + readiness; zero-AI, unverified). Replaces the legacy
+  // prescreen_score box. Verified figures (bank analysis, corroboration) live in the Step-2 ruling card below —
+  // keeping them out of here is what stops the two screening representations conflicting. (ADDENDUM_14M funnel)
+  const FA_TIER: Record<string, { label: string; cls: string }> = {
+    within: { label: "Looks affordable", cls: "text-success" },
+    marginal: { label: "A bit tight", cls: "text-warning" },
+    below: { label: "Affordability concern", cls: "text-danger" },
+    "no-income": { label: "No income entered", cls: "text-warning" },
+  }
+  const fa = app.free_assessment as { affordabilityTier?: string; declaredRatioPct?: number | null; combinedIncomeCents?: number; readiness?: { band?: string } } | null
+  const faTier = FA_TIER[fa?.affordabilityTier ?? ""] ?? { label: fa?.affordabilityTier ?? "—", cls: "" }
 
   const permitExpiry = app.permit_expiry_date ? new Date(app.permit_expiry_date) : null
   const depositRec = app.is_foreign_national
@@ -215,25 +225,22 @@ export default async function ApplicationDetailPage({
           </CardContent>
         </Card>
 
-        {/* Pre-screen (Stage 1) */}
+        {/* Free assessment (Step 1) — declared figures only, unverified. NO bank analysis / corroboration here:
+            that's the Step-2 verified ruling below, which would otherwise read as a conflicting second verdict. */}
         <Card>
-          <CardHeader><CardTitle className="text-lg">Pre-screen (Stage 1)</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">Free assessment (Step 1)</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Score</span><span className="font-heading">{app.prescreen_score ?? "—"}/45</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Income</span><span>{app.prescreen_income_score ?? "—"}/25</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Employment</span><span>{app.prescreen_employment_score ?? "—"}/15</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">References</span><span>{app.prescreen_refs_score ?? "—"}/5</span></div>
-            {app.prescreen_affordability_flag && (
-              <p className="text-warning text-xs">Affordability concern — rent exceeds 30% of income</p>
-            )}
-            {bankData && (
-              <div className="pt-2 border-t border-border">
-                <p className="text-muted-foreground mb-1">Bank Statement Analysis</p>
-                <p>Income: {(bankData.avg_monthly_income_cents as number) ? formatZAR(bankData.avg_monthly_income_cents as number) + "/mo" : "—"}</p>
-                <p>Consistency: {bankData.income_consistency ? `${Math.round((bankData.income_consistency as number) * 100)}%` : "—"}</p>
-                {(bankData.bounced_debit_orders as number) > 0 && <p className="text-danger">Bounced debits: {bankData.bounced_debit_orders as number}</p>}
-                {(bankData.red_flags as string[])?.length > 0 && <p className="text-warning">Flags: {(bankData.red_flags as string[]).join(", ")}</p>}
-              </div>
+            {fa ? (
+              <>
+                <div className="flex justify-between"><span className="text-muted-foreground">Declared affordability</span><span className={`font-medium ${faTier.cls}`}>{faTier.label}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Rent</span><span>{listing?.asking_rent_cents ? formatZAR(listing.asking_rent_cents) + "/mo" : "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Combined income</span><span>{fa.combinedIncomeCents ? formatZAR(fa.combinedIncomeCents) + "/mo" : "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Rent-to-income</span><span>{fa.declaredRatioPct != null ? `${fa.declaredRatioPct}%` : "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Readiness</span><span className="capitalize">{fa.readiness?.band ?? "—"}</span></div>
+                <p className="text-muted-foreground text-xs pt-2 border-t border-border">Declared figures only — unverified. The deep scan runs after shortlisting (Step 2).</p>
+              </>
+            ) : (
+              <p className="text-muted-foreground text-xs">No free assessment recorded{screeningEval ? " — see the verified ruling below." : " yet."}</p>
             )}
           </CardContent>
         </Card>

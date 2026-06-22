@@ -60,6 +60,13 @@ export interface Document {
   documentType?: DocumentType
   documentTypeConfidence?: number
   language?: "en" | "af" | "mixed" | "unknown"
+  /** Decrypted plain text for an encrypted (empty-password) PDF — Claude can't read the encrypted bytes, so the
+   *  pipeline sets this and toMediaBlock sends it as a text document block instead. (lib/extraction/pdfDecrypt) */
+  textContent?: string
+  /** The document type implied by the UPLOAD SLOT the applicant chose (id / payslips / bank_main / …). When set,
+   *  the pipeline trusts it and SKIPS the Haiku classification call, then validates the extraction against it
+   *  (a wrong-type doc in a slot is flagged, not silently extracted). Unset for the free-form "other" slot. */
+  slotType?: DocumentType
 }
 
 export interface ApplicationInput {
@@ -87,7 +94,7 @@ export interface ExtractedField<T> {
 
 /** Bump when the deterministic reconciliation logic changes — lets a 14M evaluation replay exactly
  *  (reproducibility is the FitScore/POPIA s71 defence; ADDENDUM_14H delivery §8 mechanism #5). */
-export const RECONCILER_VERSION = "recon.v1"
+export const RECONCILER_VERSION = "recon.v3"  // v3: + observedObligationsCents (debit-order load) for flag 0b residual
 
 export type IncomeMatchStatus = "corroborated" | "variance" | "uncorroborated" | "no-evidence"
 
@@ -147,6 +154,9 @@ export interface ReconciliationResult {
   netPayVsCredit: NetPayVsCreditCheck
   identity: IdentityConsistency
   recency: DocumentRecency
+  /** Average monthly recurring debit-order obligations observed across bank statements (cents); null if no bank
+   *  data. Netted in flag 0b's residual: corroborated_income − rent − observedObligations ≥ living floor. */
+  observedObligationsCents: number | null
 }
 
 /** Heuristic, format/metadata-based fraud signals (no AI — D-14L-09). Descriptions are PII-safe by
@@ -156,6 +166,7 @@ export type FraudSignalType =
   | "embedded-id-in-filename"
   | "editor-software-source"
   | "low-extraction-confidence"
+  | "document-type-mismatch"   // a slot-trusted doc didn't extract as its expected type (skip-classification guard)
 export type FraudSignalSeverity = "info" | "warning" | "critical"
 export interface FraudSignal {
   type: FraudSignalType
@@ -253,6 +264,13 @@ export interface BankStatementExtraction {
     debit_order_volume_cents: number | null
     end_of_month_dip_detected: boolean
   }
+  // Aggregates for the affordability obligations picture — feed flags 10–13 (debit-order load, returned debits,
+  // overdraft, declining balance trend) AND flag 0b's observed_obligations / residual-income override. Captured
+  // now so the bank schema doesn't need re-extraction when those flags land. (ADDENDUM_14M)
+  monthly_summary: Array<{ month: string; closing_balance_cents: number | null }>  // per-month → balance trend
+  returned_debit_count: number | null   // returned/bounced/unpaid debit-order events (flag 12)
+  overdraft_days: number | null         // count of days the balance was below zero (flag 13)
+  lowest_balance_cents: number | null   // trough balance over the period (overdraft depth; can be negative)
   extraction_confidence: number
 }
 

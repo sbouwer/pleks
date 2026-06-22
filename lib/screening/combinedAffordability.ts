@@ -1,11 +1,9 @@
 /**
- * lib/screening/combinedAffordability.ts — FILL: one-line purpose
+ * lib/screening/combinedAffordability.ts — sum household incomes for combined affordability.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Pure (no AI/IO). Primary + co-applicant incomes are summed (co-lessees share the rent); the caller excludes
+ * guarantors (a backstop, scored separately via GUARANTOR_MIN_INCOME_MULTIPLE). Used by the Step-1 free assessment
+ * (lib/applications/freeAssessment) and the Step-2 verified ruling. Returns combined income + rent-to-income ratio.
  */
 export function calculateCombinedAffordability(
   primaryIncomeCents: number | null,

@@ -21,33 +21,14 @@ import { createClient } from "@supabase/supabase-js"
 import { withCronRun } from "@/lib/cron/withCronRun"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { purgeApplicationDocs } from "@/lib/applications/purgeDocs"
 
 function getServiceClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
-type Db = ReturnType<typeof getServiceClient>
-const BUCKET = "application-docs"
 const RETENTION_FALLBACK_MS = 30 * 24 * 60 * 60 * 1000 // no closes_at → purge a draft idle this long (token TTL)
 
 interface DraftRow { id: string; org_id: string; listing_id: string | null }
-
-/** Storage-first: remove every object under the draft's prefix (paginated; uploads are flat per app, so no
- *  recursion). Returns false on any failure so the caller leaves the row in place to retry — never orphan PII. */
-async function purgeAppDocs(db: Db, orgId: string, appId: string): Promise<boolean> {
-  const prefix = `applications/${orgId}/${appId}`
-  const LIMIT = 100
-  for (let offset = 0; ; offset += LIMIT) {
-    const { data: files, error } = await db.storage.from(BUCKET).list(prefix, { limit: LIMIT, offset })
-    if (error) { logQueryError("expire-listings storage.list", error); return false }
-    if (!files || files.length === 0) return true
-    const paths = files.filter((f) => f.name && !f.name.startsWith(".")).map((f) => `${prefix}/${f.name}`)
-    if (paths.length > 0) {
-      const { error: rmErr } = await db.storage.from(BUCKET).remove(paths)
-      if (rmErr) { logQueryError("expire-listings storage.remove", rmErr); return false }
-    }
-    if (files.length < LIMIT) return true
-  }
-}
 
 export const GET = withCronRun("expire_listings", handler)
 
@@ -66,15 +47,16 @@ async function handler(_req: NextRequest): Promise<Response> {
   logQueryError("expire-listings flip", flipErr)
 
   // 2. Collect unsubmitted drafts to purge — policy (A) closed listing, policy (B) idle on a no-expiry listing.
+  //    "Unsubmitted" = submitted_at IS NULL (covers both never-touched drafts and pre-screened-but-abandoned).
   const { data: draftsA, error: aErr } = await db.from("applications")
     .select("id, org_id, listing_id, listings!inner(closes_at)")
-    .not("stage1_consent_given", "is", true)
+    .is("submitted_at", null)
     .lt("listings.closes_at", nowIso)
   logQueryError("expire-listings drafts A", aErr)
 
   const { data: draftsB, error: bErr } = await db.from("applications")
     .select("id, org_id, listing_id, listings!inner(closes_at)")
-    .not("stage1_consent_given", "is", true)
+    .is("submitted_at", null)
     .is("listings.closes_at", null)
     .lt("draft_saved_at", fallbackCutoff)
   logQueryError("expire-listings drafts B", bErr)
@@ -84,11 +66,11 @@ async function handler(_req: NextRequest): Promise<Response> {
 
   let purged = 0, retried = 0
   for (const d of byId.values()) {
-    const ok = await purgeAppDocs(db, d.org_id, d.id)
+    const ok = await purgeApplicationDocs(db, d.org_id, d.id)
     if (!ok) { retried++; continue } // leave the row → next run retries (storage-first; don't orphan docs)
-    // Re-apply the consent guard in the DELETE itself — a row submitted since we selected it survives.
+    // Re-apply the submitted guard in the DELETE itself — a row submitted since we selected it survives.
     const { error: delErr } = await db.from("applications")
-      .delete().eq("id", d.id).eq("org_id", d.org_id).not("stage1_consent_given", "is", true)
+      .delete().eq("id", d.id).eq("org_id", d.org_id).is("submitted_at", null)
     if (delErr) { logQueryError("expire-listings delete", delErr); retried++; continue }
     await recordAudit(db, {
       orgId: d.org_id, actorId: null, action: "DELETE", table: "applications", recordId: d.id,

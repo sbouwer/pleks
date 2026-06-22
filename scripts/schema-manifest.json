@@ -171,7 +171,8 @@
       "adverse_factor_codes",
       "decided_at",
       "decided_by",
-      "decision_stage"
+      "decision_stage",
+      "role"
     ],
     "application_directors": [
       "id",
@@ -261,7 +262,9 @@
       "reconciler_version",
       "ruling_version",
       "input_snapshot",
-      "generated_at"
+      "generated_at",
+      "corroborated_income_cents",
+      "affordability_corroborated_ratio_pct"
     ],
     "application_screening_lines": [
       "id",
@@ -480,7 +483,15 @@
       "income_sources",
       "employment_start_date",
       "draft_step",
-      "draft_saved_at"
+      "draft_saved_at",
+      "applicant_addresses",
+      "applicant_type",
+      "company_info",
+      "email_verified_at",
+      "deleted_at",
+      "submitted_at",
+      "dependents_count",
+      "free_assessment"
     ],
     "arrears_actions": [
       "id",

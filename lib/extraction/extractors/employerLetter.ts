@@ -34,7 +34,7 @@ function int(v: unknown): number | null {
 export async function extractEmployerLetter(doc: Document, aiOpts: AiOpts): Promise<EmployerLetterExtraction | null> {
   if (!doc.format || (doc.format !== "pdf" && doc.format !== "image-jpeg" && doc.format !== "image-png")) return null
 
-  const mediaBlock = toMediaBlock(doc.bytes, doc.format, doc.filename)
+  const mediaBlock = toMediaBlock(doc)
 
   let text: string
   try {

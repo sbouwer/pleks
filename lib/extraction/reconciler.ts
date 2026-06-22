@@ -215,6 +215,66 @@ function reconcileRecency(dates: string[], salariedMonths: Set<string>, now: Dat
   }
 }
 
+function payslipRecency(payslips: Typed<PayslipExtraction>[]): { dates: string[]; months: string[] } {
+  const dates: string[] = []
+  const months: string[] = []
+  for (const p of payslips) {
+    const pp = p.ex.pay_period
+    if (!pp) continue
+    const end = pp.includes("/") ? pp.split("/")[1] : pp
+    months.push(monthOf(end))
+    if (/^\d{4}-\d{2}-\d{2}$/.test(end)) dates.push(end)
+  }
+  return { dates, months }
+}
+
+/** BOTH ends of a statement's coverage feed `dates` so oldest/newestDocumentDate span the data actually provided. */
+function bankRecency(banks: Typed<BankStatementExtraction>[]): { dates: string[]; months: string[] } {
+  const dates: string[] = []
+  const months: string[] = []
+  for (const b of banks) {
+    if (b.ex.statement_period_from) dates.push(b.ex.statement_period_from)
+    if (b.ex.statement_period_to) dates.push(b.ex.statement_period_to)
+    if (b.ex.statement_period_from && b.ex.statement_period_to) {
+      months.push(...monthsBetween(monthOf(b.ex.statement_period_from), monthOf(b.ex.statement_period_to)))
+    }
+  }
+  return { dates, months }
+}
+
+/** Representative dates + salaried months for the recency check (payslip periods + bank spans + other doc dates). */
+function collectRecencyInputs(
+  payslips: Typed<PayslipExtraction>[],
+  banks: Typed<BankStatementExtraction>[],
+  letters: Typed<EmployerLetterExtraction>[],
+  proofs: Typed<ProofOfAddressExtraction>[],
+  savings: Typed<SavingsAccountDetailsExtraction>[],
+): { dates: string[]; salariedMonths: Set<string> } {
+  const pay = payslipRecency(payslips)
+  const bank = bankRecency(banks)
+  const dates: string[] = [...pay.dates, ...bank.dates]
+  const salariedMonths = new Set<string>([...pay.months, ...bank.months])
+  for (const l of letters) if (l.ex.letter_date) dates.push(l.ex.letter_date)
+  for (const pr of proofs) if (pr.ex.document_date) dates.push(pr.ex.document_date)
+  for (const sv of savings) if (sv.ex.balance_date) dates.push(sv.ex.balance_date)
+  return { dates, salariedMonths }
+}
+
+/** Average monthly recurring debit-order obligations across bank statements (cents); null if no bank data.
+ *  debit_order_volume_cents is a period total → divided by months covered, then averaged across statements. */
+function observedObligations(banks: Typed<BankStatementExtraction>[]): number | null {
+  const monthly: number[] = []
+  for (const b of banks) {
+    const vol = b.ex.income_indicators?.debit_order_volume_cents
+    if (vol == null) continue
+    const from = b.ex.statement_period_from, to = b.ex.statement_period_to
+    const months = from && to ? Math.max(1, monthsBetween(monthOf(from), monthOf(to)).length) : 1
+    monthly.push(Math.round(vol / months))
+  }
+  if (monthly.length === 0) return null
+  return Math.round(monthly.reduce((sum, m) => sum + m, 0) / monthly.length)
+}
+
 // ─── Orchestration ────────────────────────────────────────────────────────────
 export function reconcile(
   results: PipelineDocumentResult[],
@@ -235,25 +295,7 @@ export function reconcile(
     reconcileSource(src, evidenceFor(src.key, src.monthly_cents, bags), anyDocs),
   )
 
-  // Recency inputs: representative dates + salaried months (payslip periods + bank statement spans).
-  const dates: string[] = []
-  const salariedMonths = new Set<string>()
-  for (const p of payslips) {
-    const pp = p.ex.pay_period
-    if (!pp) continue
-    const end = pp.includes("/") ? pp.split("/")[1] : pp
-    salariedMonths.add(monthOf(end))
-    if (/^\d{4}-\d{2}-\d{2}$/.test(end)) dates.push(end)
-  }
-  for (const b of banks) {
-    if (b.ex.statement_period_to) dates.push(b.ex.statement_period_to)
-    if (b.ex.statement_period_from && b.ex.statement_period_to) {
-      for (const m of monthsBetween(monthOf(b.ex.statement_period_from), monthOf(b.ex.statement_period_to))) salariedMonths.add(m)
-    }
-  }
-  for (const l of letters) if (l.ex.letter_date) dates.push(l.ex.letter_date)
-  for (const pr of proofs) if (pr.ex.document_date) dates.push(pr.ex.document_date)
-  for (const sv of savings) if (sv.ex.balance_date) dates.push(sv.ex.balance_date)
+  const { dates, salariedMonths } = collectRecencyInputs(payslips, banks, letters, proofs, savings)
 
   const names = [declared?.applicant?.fullName, ...ids.map((d) => d.ex.full_name), ...payslips.map((d) => d.ex.employee_name), ...letters.map((d) => d.ex.employee_name), ...proofs.map((d) => d.ex.full_name)]
   const idNumbers = [declared?.applicant?.idNumber, ...ids.map((d) => d.ex.id_number)]
@@ -265,5 +307,6 @@ export function reconcile(
     netPayVsCredit: reconcileNetPay(payslips, banks),
     identity: { name: nameConsistency(names), idNumber: idConsistency(idNumbers) },
     recency: reconcileRecency(dates, salariedMonths, now),
+    observedObligationsCents: observedObligations(banks),
   }
 }

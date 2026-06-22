@@ -2,8 +2,8 @@
  * app/api/applications/save-draft/route.ts — save & resume a draft application (ADDENDUM_14M follow-on).
  *
  * Route:  POST /api/applications/save-draft
- * Auth:   PUBLIC / UNAUTHENTICATED. A "draft" is an unsubmitted applications row (stage1_consent_given not
- *         true) — no separate PII store. org_id is derived SERVER-SIDE from slug → listing. Update is
+ * Auth:   PUBLIC / UNAUTHENTICATED. A "draft" is an applications row not yet submitted to the agent
+ *         (submitted_at IS NULL) — no separate PII store. org_id is derived SERVER-SIDE from slug → listing. Update is
  *         token-bound to the application id (the token is the capability). Rate-limited.
  * Notes:  UPSERT — no applicationId → create a minimal draft (email required, to send the resume link) +
  *         mint a 30-day token; with applicationId+token → update the filled fields. EVERY save/resume EXTENDS
@@ -33,11 +33,16 @@ interface Body {
   first_name?: string; last_name?: string; email?: string; phone?: string
   id_type?: string; id_number?: string; date_of_birth?: string
   employment_type?: string; employer_name?: string; employment_start_date?: string
+  dependents?: number | null
   gross_monthly_income?: string; income_sources?: unknown
+  addresses?: unknown
+  applicant_type?: string; company_info?: unknown
 }
 
+const APPLICANT_TYPES = ["individual", "couple", "company", "guarantor"]
+
 const resumeUrl = (req: NextRequest, slug: string, id: string, token: string) =>
-  `${req.nextUrl.origin}/apply/${slug}/preview?app=${id}&token=${encodeURIComponent(token)}`
+  `${req.nextUrl.origin}/apply/${slug}?app=${id}&token=${encodeURIComponent(token)}`
 
 /** Map the partial body → the application columns we persist (only what's filled). */
 function draftFields(body: Body) {
@@ -53,6 +58,12 @@ function draftFields(body: Body) {
     employment_type: body.employment_type || null, employer_name: body.employer_name ?? null,
     employment_start_date: body.employment_start_date || null,
     gross_monthly_income_cents: incomeCents, income_sources: parsed?.rows ?? null,
+    dependents_count: typeof body.dependents === "number" && Number.isFinite(body.dependents) ? Math.max(0, Math.trunc(body.dependents)) : null,
+    // applicant's current address(es) — bounded (array, cap 5) since it's public input; stored as-is for resume.
+    applicant_addresses: Array.isArray(body.addresses) ? body.addresses.slice(0, 5) : null,
+    // chosen application type + company details — so resume restores the exact flow (not inferred).
+    applicant_type: typeof body.applicant_type === "string" && APPLICANT_TYPES.includes(body.applicant_type) ? body.applicant_type : null,
+    company_info: body.company_info && typeof body.company_info === "object" ? body.company_info : null,
     draft_step: typeof body.step === "number" ? body.step : null,
     draft_saved_at: new Date().toISOString(),
   }
@@ -108,7 +119,18 @@ export async function POST(req: NextRequest) {
       .select("id").eq("token", body.token).eq("application_id", body.applicationId).maybeSingle()
     logQueryError("save-draft token", tokErr)
     if (!tok) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    const { error: upErr } = await db.from("applications").update(fields).eq("id", body.applicationId)
+    // If the applicant changed their email, persist it AND invalidate any prior email verification (the
+    // anti-bot gate must re-verify the new address — else verify A, switch to B, submit B unverified).
+    const updateFields: Record<string, unknown> = { ...fields }
+    if (body.email) {
+      const { data: cur, error: curErr } = await db.from("applications").select("applicant_email").eq("id", body.applicationId).maybeSingle()
+      logQueryError("save-draft current email", curErr)
+      if (cur && body.email !== cur.applicant_email) {
+        updateFields.applicant_email = body.email
+        updateFields.email_verified_at = null
+      }
+    }
+    const { error: upErr } = await db.from("applications").update(updateFields).eq("id", body.applicationId)
     logQueryError("save-draft update", upErr)
     const { error: extErr } = await db.from("application_tokens").update({ expires_at: expiresAt }).eq("token", body.token)
     logQueryError("save-draft token extend", extErr)
@@ -127,6 +149,30 @@ export async function POST(req: NextRequest) {
   if (!listing) return NextResponse.json({ error: "Listing not found or no longer active" }, { status: 404 })
   const l = listing as unknown as ListingRow
   const routedAgent = l.units?.assigned_agent_id ?? l.units?.properties?.managing_agent_id ?? null
+
+  // Dedup keys off submitted_at (the real submission), NOT consent — merely pre-screening doesn't count as
+  // applying. Block only if a SUBMITTED application already exists (the partial unique index is the backstop).
+  const { data: submitted, error: subErr } = await db.from("applications")
+    .select("id").eq("listing_id", l.id).ilike("applicant_email", body.email)
+    .not("submitted_at", "is", null).is("deleted_at", null).limit(1).maybeSingle()
+  logQueryError("save-draft submitted check", subErr)
+  if (submitted) {
+    return NextResponse.json({ error: "You've already applied for this unit.", code: "already_applied" }, { status: 409 })
+  }
+  // Otherwise resume the latest non-submitted draft for this email+listing (apply the edits) instead of duplicating.
+  const { data: existing, error: exErr } = await db.from("applications")
+    .select("id").eq("listing_id", l.id).ilike("applicant_email", body.email)
+    .is("submitted_at", null).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle()
+  logQueryError("save-draft draft check", exErr)
+  if (existing) {
+    const reToken = randomBytes(32).toString("hex")
+    await db.from("applications").update(fields).eq("id", existing.id as string)
+    const { error: rtErr } = await db.from("application_tokens").insert({
+      application_id: existing.id as string, token: reToken, token_type: "application", applicant_email: body.email, expires_at: expiresAt,
+    })
+    logQueryError("save-draft dedup token", rtErr)
+    return NextResponse.json({ applicationId: existing.id, token: reToken, resumeUrl: resumeUrl(req, body.slug, existing.id as string, reToken) })
+  }
 
   const { data: appRow, error: insErr } = await db.from("applications").insert({
     org_id: l.org_id, listing_id: l.id, unit_id: l.unit_id,

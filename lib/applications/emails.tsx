@@ -140,6 +140,61 @@ export async function sendApplicationResumeLink(
   })
 }
 
+// ── Email verification code (anti-bot, before submit) ─────────────────────────
+
+export async function sendApplicationVerifyCode(
+  to: { email: string; firstName?: string | null },
+  code: string,
+  org: OrgContext,
+  opts: { applicationId: string },
+) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "application.verify_code",
+    to: { email: to.email, name: to.firstName ?? "" },
+    subject: `Your verification code: ${code}`,
+    emailElement: (
+      <EmailLayout preview={`Your verification code is ${code}`} branding={org.branding}>
+        <p style={S.greeting}>Hi{to.firstName ? ` ${to.firstName}` : ""},</p>
+        <p style={S.body}>Enter this code to verify your email address and submit your application:</p>
+        <p style={{ ...S.body, fontSize: 30, fontWeight: 700, letterSpacing: 6, textAlign: "center", margin: "20px 0" }}>{code}</p>
+        <p style={S.body}>It expires in 10 minutes. If you didn&apos;t request this, you can safely ignore this email.</p>
+      </EmailLayout>
+    ),
+    bodyPreview: `Your verification code is ${code}.`,
+    entityType: "application",
+    entityId: opts.applicationId,
+  })
+}
+
+// ── Listing changed — notify a submitted applicant ────────────────────────────
+
+export async function sendListingUpdated(
+  app: ApplicationSummary,
+  listing: ListingSummary,
+  org: OrgContext,
+  opts: { changes: { label: string; from: string; to: string }[] },
+) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "application.listing_updated",
+    to: { email: app.email, name: `${app.firstName} ${app.lastName}` },
+    subject: `Update to ${listing.unitLabel}, ${listing.propertyName}`,
+    emailElement: (
+      <EmailLayout preview={`The listing you applied for has been updated`} branding={org.branding}>
+        <p style={S.greeting}>Dear {app.firstName},</p>
+        <p style={S.body}>The agent has updated {listing.unitLabel} at {listing.propertyName}{listing.city ? `, ${listing.city}` : ""} — the listing you applied for. Here&apos;s what changed:</p>
+        <EmailSectionHeading>What changed</EmailSectionHeading>
+        {opts.changes.map((c) => <EmailDetail key={c.label} label={c.label} value={`${c.from} → ${c.to}`} />)}
+        <p style={S.body}>No action is needed — your application still stands. If this changes things for you, reply to this email and the agent will help.</p>
+      </EmailLayout>
+    ),
+    bodyPreview: `The listing you applied for was updated: ${opts.changes.map((c) => c.label).join(", ")}.`,
+    entityType: "application",
+    entityId: app.id,
+  })
+}
+
 // ── Email 2: Agent notification ───────────────────────────────────────────────
 
 export async function sendAgentApplicationNotification(

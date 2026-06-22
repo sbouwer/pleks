@@ -48,6 +48,14 @@ function parseInflowRow(v: unknown): BankStatementExtraction["inflows"][number] 
   return { date, amount_cents: amount, counterparty_category: cat as BankStatementExtraction["inflows"][number]["counterparty_category"], counterparty_label: label }
 }
 
+function parseMonthlyRow(v: unknown): BankStatementExtraction["monthly_summary"][number] | null {
+  if (!v || typeof v !== "object") return null
+  const r = v as Record<string, unknown>
+  const month = str(r.month)
+  if (!month) return null
+  return { month, closing_balance_cents: int(r.closing_balance_cents) }
+}
+
 function parseOutflowRow(v: unknown): BankStatementExtraction["outflows"][number] | null {
   if (!v || typeof v !== "object") return null
   const r = v as Record<string, unknown>
@@ -62,7 +70,7 @@ function parseOutflowRow(v: unknown): BankStatementExtraction["outflows"][number
 export async function extractBankStatement(doc: Document, aiOpts: AiOpts): Promise<BankStatementExtraction | null> {
   if (!doc.format || (doc.format !== "pdf" && doc.format !== "image-jpeg" && doc.format !== "image-png")) return null
 
-  const mediaBlock = toMediaBlock(doc.bytes, doc.format, doc.filename)
+  const mediaBlock = toMediaBlock(doc)
 
   let text: string
   try {
@@ -115,6 +123,10 @@ export async function extractBankStatement(doc: Document, aiOpts: AiOpts): Promi
       debit_order_volume_cents:     int(indicators.debit_order_volume_cents),
       end_of_month_dip_detected:    indicators.end_of_month_dip_detected === true,
     },
+    monthly_summary:      (Array.isArray(parsed.monthly_summary) ? parsed.monthly_summary : []).map(parseMonthlyRow).filter((r): r is NonNullable<typeof r> => r !== null),
+    returned_debit_count: int(parsed.returned_debit_count),
+    overdraft_days:       int(parsed.overdraft_days),
+    lowest_balance_cents: int(parsed.lowest_balance_cents),
     extraction_confidence: typeof parsed.extraction_confidence === "number" ? parsed.extraction_confidence : 0,
   }
 }

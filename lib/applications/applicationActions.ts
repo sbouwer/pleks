@@ -27,6 +27,7 @@ import {
 } from "@/lib/screening/recordDecision"
 import type { NotShortlistedReasonCode } from "@/lib/screening/decisionReasons"
 import type { ComponentSnapshot } from "@/lib/screening/fitScoreEngine.v1"
+import { purgeApplicationDocs } from "./purgeDocs"
 import { buildEmailContext } from "./buildEmailContext"
 import {
   sendDeclinedStage1,
@@ -77,6 +78,107 @@ export async function declineStage1Action(
 
   revalidatePath(`/applications/${applicationId}`)
   return { ok: true }
+}
+
+/**
+ * Stage-1 triage SHORTLIST — the green-tick "pre-approve" from the listing list. A lightweight selection mark:
+ * advances stage1_status to 'shortlisted' (+ prescreen stamps + audit), but does NOT send any email or start
+ * Stage 2. The actual paid Stage-2 invitation stays the explicit detail-page step (sendShortlistInvitation),
+ * so triaging 200 applicants never fires 200 invites/credit checks.
+ */
+export async function shortlistStage1Action(applicationId: string) {
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorized" }
+  if (!(await hasCapability(gw, "applications"))) return { error: "Applications access is required." }
+  const { db, userId, orgId } = gw
+
+  const policy = await resolveActiveScreeningPolicy(db, orgId)
+  const auditId = await recordAuditReturningId(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: applicationId,
+    after: { action: "application_shortlisted" },
+  })
+
+  const { error } = await db
+    .from("applications")
+    .update({
+      stage1_status: "shortlisted",
+      prescreened_by: userId,
+      prescreened_at: NOW(),
+      deciding_agent_capacity: DEFAULT_DECIDING_AGENT_CAPACITY,
+      screening_policy_id: policy?.id ?? null,
+      screening_policy_version: policy?.version ?? null,
+      audit_log_decision_entry_id: auditId,
+    })
+    .eq("id", applicationId)
+    .eq("org_id", orgId)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/listings`)
+  return { ok: true }
+}
+
+/**
+ * Agent manual delete (owner/admin only). Drafts (pre-consent) are hard-deleted with their Storage docs
+ * purged. SUBMITTED/screened applications are an evidentiary record (FitScore replay, proof of consent,
+ * discrimination defence) → SOFT-deleted (deleted_at tombstone) only; the row, docs, consent_log and audit_log
+ * are all preserved.
+ */
+export async function deleteApplicationAction(applicationId: string) {
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorized" }
+  if (!gw.isAdmin) return { error: "Only an owner or admin can delete an application." }
+  const { db, userId, orgId } = gw
+
+  const { data: app, error: aErr } = await db.from("applications")
+    .select("submitted_at").eq("id", applicationId).eq("org_id", orgId).maybeSingle()
+  if (aErr) return { error: aErr.message }
+  if (!app) return { error: "Application not found" }
+
+  if (app.submitted_at) {
+    const { error } = await db.from("applications").update({ deleted_at: NOW() }).eq("id", applicationId).eq("org_id", orgId)
+    if (error) return { error: error.message }
+    await recordAudit(db, { orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: applicationId, after: { action: "application_soft_deleted" } })
+    revalidatePath("/listings")
+    return { ok: true, soft: true }
+  }
+
+  // Not submitted (draft / pre-screen only): hard delete + purge docs. consent_log/audit_log aren't FK-cascaded → preserved.
+  await purgeApplicationDocs(db, orgId, applicationId)
+  const { error } = await db.from("applications").delete().eq("id", applicationId).eq("org_id", orgId)
+  if (error) return { error: error.message }
+  await recordAudit(db, { orgId, actorId: userId, action: "DELETE", table: "applications", recordId: applicationId, before: { action: "draft_application_deleted" } })
+  revalidatePath("/listings")
+  return { ok: true, soft: false }
+}
+
+/** Bulk variant of deleteApplicationAction (owner/admin) — same per-app rule (soft submitted / hard not-submitted). */
+export async function deleteApplicationsAction(applicationIds: string[]) {
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorized" }
+  if (!gw.isAdmin) return { error: "Only an owner or admin can delete applications." }
+  const { db, userId, orgId } = gw
+  if (applicationIds.length === 0) return { ok: true, soft: 0, hard: 0 }
+
+  const { data: apps, error } = await db.from("applications")
+    .select("id, submitted_at").in("id", applicationIds).eq("org_id", orgId).is("deleted_at", null)
+  if (error) return { error: error.message }
+
+  let soft = 0, hard = 0
+  for (const app of apps ?? []) {
+    const id = app.id as string
+    if (app.submitted_at) {
+      await db.from("applications").update({ deleted_at: NOW() }).eq("id", id).eq("org_id", orgId)
+      await recordAudit(db, { orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: id, after: { action: "application_soft_deleted", bulk: true } })
+      soft++
+    } else {
+      await purgeApplicationDocs(db, orgId, id)
+      await db.from("applications").delete().eq("id", id).eq("org_id", orgId)
+      await recordAudit(db, { orgId, actorId: userId, action: "DELETE", table: "applications", recordId: id, before: { action: "draft_application_deleted", bulk: true } })
+      hard++
+    }
+  }
+  revalidatePath("/listings")
+  return { ok: true, soft, hard }
 }
 
 export async function approveAction(applicationId: string, agentId: string, tenantId: string) {

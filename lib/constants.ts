@@ -48,7 +48,12 @@ export const FOUNDING_AGENT_DURATION_MONTHS = 24
 // Application screening fees (D-003 REVISED)
 export const APPLICATION_FEE_CENTS = 39900 // R399 Stage 2 single
 export const JOINT_APPLICATION_FEE_CENTS = 74900 // R749 Stage 2 joint
-export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income
+export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income — PRINCIPAL/co-applicant ceiling (rent ÷ combined gross; ≈ income ≥ 3.33× rent)
+// Guarantor/surety floor — DECOUPLED from and STRICTER than the principal threshold. A guarantor must cover the
+// WHOLE lease on default (not share it), so their independent income is checked against a higher multiple of rent
+// (industry 4–6×; 4× ⇒ rent ≤ 25% of guarantor income). Tunable strictness dial; guarantor income is NEVER summed
+// into combined affordability — it produces a separate guarantee-strength signal. (ADDENDUM_14M J4)
+export const GUARANTOR_MIN_INCOME_MULTIPLE = 4
 export const PROBATION_MONTHS = 3 // typical SA probation window — an inference for screening, NOT a legal status
 // Applicants get the initial pre-screen + exactly ONE adjustment (re-check). Caps Sonnet cost + gaming;
 // after this the agent reviews. Hard-enforced server-side (submit + /screen) AND surfaced clearly in the UI.

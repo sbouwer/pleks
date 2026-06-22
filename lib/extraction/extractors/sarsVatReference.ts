@@ -26,13 +26,13 @@ function str(v: unknown): string | null {
 export async function extractSarsVatReference(doc: Document, aiOpts: AiOpts): Promise<SarsVatReferenceExtraction | null> {
   if (!doc.format || (doc.format !== "pdf" && doc.format !== "image-jpeg" && doc.format !== "image-png")) return null
 
-  const mediaBlock = toMediaBlock(doc.bytes, doc.format, doc.filename)
+  const mediaBlock = toMediaBlock(doc)
 
   let text: string
   try {
     const { message } = await createMessage(
       {
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",  // simple doc — Haiku (routing): identity/income docs stay on Sonnet
         max_tokens: 256,
         system: [{ type: "text", text: SARS_VAT_REFERENCE_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{

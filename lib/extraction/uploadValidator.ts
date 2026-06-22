@@ -33,12 +33,15 @@ const MIME_MAP: Record<string, AllowedFormat> = {
   "image/png":       "png",
 }
 
-// Scan for /Encrypt token in the PDF trailer (last 4 KB covers the common case).
-// Uses latin1 so byte values map 1:1 to character codes — no UTF-8 mangling.
-function isProtectedPdf(bytes: Uint8Array): boolean {
-  const tail = bytes.slice(Math.max(0, bytes.length - 4096))
-  const ascii = new TextDecoder("latin1").decode(tail)
-  return /\/Encrypt\s/.test(ascii)
+// Detect a genuinely encrypted PDF. The trailer's /Encrypt entry is ALWAYS an indirect reference
+// (`/Encrypt N G R`) and the trailer itself is never encrypted, so that exact token reliably marks an encrypted
+// file. A bare "/Encrypt" substring does NOT — it appears in plenty of unencrypted PDFs (field/key names,
+// content streams, XMP metadata) and was the cause of false "password-protected" rejections. We also scan the
+// whole file (latin1, so bytes map 1:1 to char codes) rather than just the last 4 KB, which missed the trailer
+// in linearized/large PDFs.
+export function isProtectedPdf(bytes: Uint8Array): boolean {
+  const ascii = new TextDecoder("latin1").decode(bytes)
+  return /\/Encrypt\s+\d+\s+\d+\s+R\b/.test(ascii)
 }
 
 function checkMagicBytes(bytes: Uint8Array): AllowedFormat | null {
@@ -92,14 +95,9 @@ export function validateUpload(filename: string, mimeType: string, bytes: Uint8A
     }
   }
 
-  if (magicFormat === "pdf" && isProtectedPdf(bytes)) {
-    return {
-      valid: false,
-      format: null,
-      rejectionReason: "pdf-encrypted",
-      userMessage: "This PDF is password-protected.\n\nPleks can't process encrypted PDFs. Most online banking portals let you download an unprotected version directly:\n- FNB, Standard Bank, ABSA, Nedbank, Capitec: When downloading the statement, look for \"without password\" or untick the \"password-protect\" option.\n- If you only have the protected version: Open it in any PDF viewer, enter the password to unlock, then File → Save As / Export As → PDF (without protection).",
-    }
-  }
-
+  // NOTE: encrypted PDFs are NOT rejected here. Most SA statements ship encrypted with an empty user password
+  // (they open with no prompt) and the pipeline decrypts them to text (lib/extraction/pdfDecrypt). A genuinely
+  // password-locked PDF is surfaced downstream (extraction can't read it → password-required), not blocked at
+  // upload — so a benign empty-password file is never wrongly rejected.
   return { valid: true, format: magicFormat, rejectionReason: null, userMessage: null }
 }

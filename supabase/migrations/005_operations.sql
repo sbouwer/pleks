@@ -2917,8 +2917,31 @@ CREATE POLICY "org_screening_jobs" ON screening_jobs
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE applications
-  ADD COLUMN IF NOT EXISTS draft_step      smallint,
-  ADD COLUMN IF NOT EXISTS draft_saved_at  timestamptz;
+  ADD COLUMN IF NOT EXISTS draft_step          smallint,
+  ADD COLUMN IF NOT EXISTS draft_saved_at      timestamptz,
+  -- the applicant's current address(es) (the party-address shape, as captured in the Address step). The apply
+  -- flow never persisted address before, so it was lost on resume; stored as jsonb for draft rehydration.
+  ADD COLUMN IF NOT EXISTS applicant_addresses jsonb,
+  -- the chosen application TYPE + company details — persisted so resume restores the right flow for all four
+  -- scenarios (individual/couple/company/guarantor) instead of inferring it from the co-applicant roster.
+  ADD COLUMN IF NOT EXISTS applicant_type      text CHECK (applicant_type IN ('individual','couple','company','guarantor')),
+  ADD COLUMN IF NOT EXISTS company_info        jsonb,
+  -- anti-bot: applicant must verify their email (OTP) before submit; cleared if the email is later changed.
+  ADD COLUMN IF NOT EXISTS email_verified_at   timestamptz;
+
+-- Reuse the consent OTP engine for the applicant pre-submit email verification: allow the email_otp method +
+-- an application_email "consent type" on consent_verifications.
+ALTER TABLE consent_verifications DROP CONSTRAINT IF EXISTS consent_verifications_verification_method_check;
+ALTER TABLE consent_verifications ADD CONSTRAINT consent_verifications_verification_method_check
+  CHECK (verification_method IN ('sms_code','email_link','email_otp'));
+ALTER TABLE consent_verifications DROP CONSTRAINT IF EXISTS consent_verifications_consent_type_check;
+ALTER TABLE consent_verifications ADD CONSTRAINT consent_verifications_consent_type_check
+  CHECK (consent_type IN ('standard_bundle','estate_criminal','director_standard','director_estate_criminal','application_email'));
+
+-- Co-applicant role (co_applicant = lives here / guarantor = backer) was sent by the invite flow but never had
+-- a column to land in — so a resumed roster couldn't tell them apart. Persist it.
+ALTER TABLE application_co_applicants
+  ADD COLUMN IF NOT EXISTS role text CHECK (role IN ('co_applicant','guarantor')) DEFAULT 'co_applicant';
 
 ALTER TABLE listings
   ADD COLUMN IF NOT EXISTS closes_at       timestamptz;
@@ -2929,3 +2952,44 @@ ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_employment_type_
 ALTER TABLE applications ADD CONSTRAINT applications_employment_type_check CHECK (
   employment_type IN ('permanent','contract','commission','self_employed','part_time','student','unemployed','retired','other')
 );
+
+-- Dedup + soft-delete: `deleted_at` excludes a row from the active set (powers retention soft-delete of submitted
+-- applications too). Partial unique index = one SUBMITTED application per applicant email per listing.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+-- submitted_at = the explicit "submit to agent" act (the real submission). Distinct from stage1_consent_given,
+-- which is POPIA consent to PROCESS for the pre-screen — given before the score so documents can be read. The
+-- applicant fills → reviews the pre-screen → and only THEN submits. Agent visibility, dedup, and retention all
+-- key off submitted_at (NOT consent), so merely viewing your score no longer counts as submitting.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS submitted_at timestamptz;
+COMMENT ON COLUMN applications.submitted_at IS 'When the applicant explicitly submitted to the agent (the real submission). NULL = filled/pre-screened but not yet submitted. Distinct from stage1_consent_given (POPIA processing consent for the pre-screen).';
+-- Backfill: existing consent-given submissions predate the split → treat them as submitted (keep agent view).
+UPDATE applications SET submitted_at = COALESCE(stage1_consent_given_at, created_at)
+  WHERE stage1_consent_given = true AND submitted_at IS NULL AND deleted_at IS NULL;
+
+-- Uniqueness applies only among SUBMITTED rows — multiple drafts/pre-screens may exist; one submission wins.
+DROP INDEX IF EXISTS idx_applications_one_per_listing_email;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_one_per_listing_email
+  ON applications (listing_id, lower(applicant_email))
+  WHERE applicant_email IS NOT NULL AND submitted_at IS NOT NULL AND deleted_at IS NULL;
+
+-- Corroborated (verified-income) affordability view on each evaluation — rent ÷ documented income (sum of evidenced
+-- sources; uncorroborated counts 0). Shown beside the declared ratio so phantom income can't visually carry
+-- affordability, and the base figure for flag 0b's residual-income override. (ADDENDUM_14M #3 / 0b)
+ALTER TABLE application_screening_evaluations ADD COLUMN IF NOT EXISTS corroborated_income_cents bigint;
+ALTER TABLE application_screening_evaluations ADD COLUMN IF NOT EXISTS affordability_corroborated_ratio_pct integer;
+
+-- Household dependents the applicant supports — feeds flag 0b's living floor (2:1 adult:dependent weighting).
+-- Adults come from co_applicants_count + 1. NULL = not declared (treated as 0). (ADDENDUM_14M flag 0b)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependents_count integer;
+
+-- Widen the evaluation affordability_tier CHECK to admit the flag-0b residual-override tier (else a residual
+-- override fails to persist with 23514). (ADDENDUM_14M flag 0b)
+ALTER TABLE application_screening_evaluations DROP CONSTRAINT IF EXISTS application_screening_evaluations_affordability_tier_check;
+ALTER TABLE application_screening_evaluations ADD CONSTRAINT application_screening_evaluations_affordability_tier_check
+  CHECK (affordability_tier = ANY (ARRAY['within','marginal','below','demonstrated-override','residual-override']));
+
+-- Step-1 zero-AI free assessment (combined declared affordability + readiness) stored at submit. The agent
+-- shortlists on this; the verified deep scan (application_screening_evaluations) supersedes it at Step 2. Stored
+-- as an application-level fact (NOT an eval row — it has no verified ruling/confidence). (ADDENDUM_14M funnel P1e)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS free_assessment jsonb;

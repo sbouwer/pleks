@@ -15,7 +15,8 @@
  *
  * Spec: ADDENDUM_14L §4.2, §4.6, §4.7
  */
-import { validateUpload } from "./uploadValidator"
+import { validateUpload, isProtectedPdf } from "./uploadValidator"
+import { decryptProtectedPdf } from "./pdfDecrypt"
 import { detectFormat } from "./formatDetector"
 import { detectLanguage } from "./languageDetector"
 import { deriveArchetype } from "./archetypeClassifier"
@@ -40,7 +41,8 @@ import { extractSavingsAccountDetails } from "./extractors/savingsAccountDetails
 import { extractCreditBureauReport } from "./extractors/creditBureauReport"
 import { reconcile } from "./reconciler"
 import { detectFraudSignals } from "./fraudSignals"
-import type { ApplicationArchetype, ApplicationInput, Document, DocumentExtraction, PipelineResult, PipelineDocumentResult } from "./types"
+import { extractionMatchesSlot } from "./slotType"
+import type { ApplicationArchetype, ApplicationInput, Document, DocumentExtraction, PipelineResult, PipelineDocumentResult, FraudSignal } from "./types"
 import type { AiCallOptions } from "@/lib/ai/client"
 
 // PipelineResult / PipelineDocumentResult now live in ./types (so reconciler/fraud can consume them without a
@@ -105,7 +107,15 @@ function gateDocument(
   const format = detectFormat(doc.filename, doc.bytes)
   doc.format = format
   classifiableDocs.push(doc)
-  results.push({ filename: doc.filename, path: doc.path, status: "classified", format })
+  const entry: PipelineDocumentResult = { filename: doc.filename, path: doc.path, status: "classified", format }
+  // Trust the upload slot for the type (skip the Haiku classification call). Validated post-extraction.
+  if (doc.slotType) {
+    doc.documentType = doc.slotType
+    doc.documentTypeConfidence = 1
+    entry.documentType = doc.slotType
+    entry.documentTypeConfidence = 1
+  }
+  results.push(entry)
 }
 
 async function classifyDocWithFallback(
@@ -139,6 +149,66 @@ function applyClassification(
   if (result.classifyNote) results[idx].classifyNote = result.classifyNote
 }
 
+/** Max concurrent per-doc AI calls within ONE application's pipeline. Bounds Sonnet/Haiku fan-out so a hot
+ *  listing being screened doesn't trip provider rate limits (the cron serialises across applications). */
+const AI_FANOUT = 4
+
+/** Run fn over items with at most `limit` in flight at once. Workers pull from a shared cursor; each call writes
+ *  a distinct entry, so there's no cross-write race (JS is single-threaded between awaits). */
+async function mapWithConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const i = next++
+      await fn(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+}
+
+/** Decrypt empty-password PDFs to text so the (un-readable) encrypted bytes become extractable; a genuinely
+ *  password-locked PDF is recorded rejected and excluded. Returns the docs that can proceed to classify/extract. */
+async function decryptProtectedDocs(docs: Document[], results: PipelineDocumentResult[]): Promise<Document[]> {
+  const extractable: Document[] = []
+  for (const doc of docs) {
+    if (doc.format !== "pdf" || !isProtectedPdf(doc.bytes)) {
+      extractable.push(doc)
+      continue
+    }
+    const decrypted = await decryptProtectedPdf(doc.bytes)
+    if (decrypted.ok) {
+      doc.textContent = decrypted.text
+      extractable.push(doc)
+      continue
+    }
+    const idx = results.findIndex(r => r.path === doc.path)
+    if (idx !== -1) {
+      results[idx].status = "rejected-at-upload"
+      results[idx].rejectionReason = decrypted.reason === "password-required" ? "pdf-password-required" : "pdf-unreadable"
+    }
+  }
+  return extractable
+}
+
+/** Skip-classification guardrail: flag a slot-trusted doc whose extraction doesn't match its slot (wrong doc in a
+ *  slot) — agent-facing warning, never an auto-reject. */
+function validateSlotTypes(docs: Document[], results: PipelineDocumentResult[]): FraudSignal[] {
+  const signals: FraudSignal[] = []
+  for (const doc of docs) {
+    if (!doc.slotType) continue
+    const res = results.find((r) => r.path === doc.path)
+    if (!res || res.status !== "classified") continue
+    if (extractionMatchesSlot(doc.slotType, (res.extracted as { extraction_confidence?: number } | null) ?? null, res.extractionConfidence)) continue
+    signals.push({
+      type: "document-type-mismatch",
+      severity: "warning",
+      documentPath: doc.path,
+      description: `Uploaded as a ${doc.slotType.replaceAll("-", " ")} but it doesn't read as one — possibly the wrong document in that slot.`,
+    })
+  }
+  return signals
+}
+
 export async function runPipeline(
   input: ApplicationInput,
   aiOpts: AiOpts,
@@ -150,30 +220,42 @@ export async function runPipeline(
     gateDocument(doc, results, classifiableDocs)
   }
 
+  // Decrypt empty-password PDFs to text BEFORE classify/extract (Claude can't read encrypted bytes); a truly
+  // password-locked PDF is marked rejected and dropped.
+  const extractableDocs = await decryptProtectedDocs(classifiableDocs, results)
+
   // Archetype is deterministic — derived from structured application data, not documents
   const archetype = deriveArchetype(input.unitType, input.applicantCount)
 
-  // Document type classification — per classifiable document (D-14L-07)
-  for (const doc of classifiableDocs) {
+  // Document type classification (D-14L-07) — ONLY for docs whose type we don't already trust from the upload
+  // slot (gateDocument set documentType for slot-trusted docs). This skips the Haiku call for ID/payslip/bank/etc.
+  // and only classifies the free-form "other" slot. Parallel + capped fan-out so a hot listing can't trip limits.
+  const toClassify = extractableDocs.filter((d) => !d.documentType)
+  await mapWithConcurrency(toClassify, AI_FANOUT, async (doc) => {
     const result = await classifyDocWithFallback(doc, archetype, aiOpts)
     applyClassification(doc, result, results)
-  }
+  })
 
-  // Phase 2a: per-type structured extraction (ID, payslip, bank statement, employer letter, proof of address)
-  for (const doc of classifiableDocs) {
+  // Phase 2a: per-type structured extraction — parallel (same cap). Must run AFTER classification (extraction
+  // dispatches on doc.documentType), so it's a separate awaited pass. The single multi-page bank-statement call
+  // is the latency floor here; tighter output (batch 2) is what brings that down.
+  await mapWithConcurrency(extractableDocs, AI_FANOUT, async (doc) => {
     const extraction = await extractDocument(doc, aiOpts)
-    if (extraction !== null) {
-      const idx = results.findIndex(r => r.path === doc.path)
-      if (idx !== -1) {
-        results[idx].extracted            = extraction
-        results[idx].extractionConfidence = extraction.extraction_confidence
-      }
+    if (extraction === null) return
+    const idx = results.findIndex(r => r.path === doc.path)
+    if (idx !== -1) {
+      results[idx].extracted            = extraction
+      results[idx].extractionConfidence = extraction.extraction_confidence
     }
-  }
+  })
+
+  // Skip-classification guardrail: a slot-trusted doc whose extraction doesn't match its slot is flagged (a wrong
+  // doc in a slot), not silently extracted as junk. Agent-facing warning, never an auto-reject.
+  const mismatchSignals = validateSlotTypes(extractableDocs, results)
 
   // Phase 3: deterministic reconciliation + heuristic fraud signals over the extractions (no AI).
   const reconciliation = reconcile(results, input.declared, new Date())
-  const fraudSignals = detectFraudSignals(input.documents, results)
+  const fraudSignals = [...detectFraudSignals(input.documents, results), ...mismatchSignals]
 
   return { archetype, documents: results, reconciliation, fraudSignals }
 }

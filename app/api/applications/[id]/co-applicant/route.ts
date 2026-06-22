@@ -52,6 +52,7 @@ export async function POST(
       id_type: body.id_type || null,
       id_number: body.id_number || null,
       id_number_hash: body.id_number ? hashIdNumber(body.id_number) : null,
+      role: body.role === "guarantor" ? "guarantor" : "co_applicant",
     })
     .select("id, access_token")
     .single()
