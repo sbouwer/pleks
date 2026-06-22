@@ -27,6 +27,7 @@ import {
 } from "@/lib/screening/recordDecision"
 import type { NotShortlistedReasonCode } from "@/lib/screening/decisionReasons"
 import type { ComponentSnapshot } from "@/lib/screening/fitScoreEngine.v1"
+import { purgeApplicationDocs } from "./purgeDocs"
 import { buildEmailContext } from "./buildEmailContext"
 import {
   sendDeclinedStage1,
@@ -114,6 +115,40 @@ export async function shortlistStage1Action(applicationId: string) {
   if (error) return { error: error.message }
   revalidatePath(`/listings`)
   return { ok: true }
+}
+
+/**
+ * Agent manual delete (owner/admin only). Drafts (pre-consent) are hard-deleted with their Storage docs
+ * purged. SUBMITTED/screened applications are an evidentiary record (FitScore replay, proof of consent,
+ * discrimination defence) → SOFT-deleted (deleted_at tombstone) only; the row, docs, consent_log and audit_log
+ * are all preserved.
+ */
+export async function deleteApplicationAction(applicationId: string) {
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorized" }
+  if (!gw.isAdmin) return { error: "Only an owner or admin can delete an application." }
+  const { db, userId, orgId } = gw
+
+  const { data: app, error: aErr } = await db.from("applications")
+    .select("stage1_consent_given").eq("id", applicationId).eq("org_id", orgId).maybeSingle()
+  if (aErr) return { error: aErr.message }
+  if (!app) return { error: "Application not found" }
+
+  if (app.stage1_consent_given) {
+    const { error } = await db.from("applications").update({ deleted_at: NOW() }).eq("id", applicationId).eq("org_id", orgId)
+    if (error) return { error: error.message }
+    await recordAudit(db, { orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: applicationId, after: { action: "application_soft_deleted" } })
+    revalidatePath("/listings")
+    return { ok: true, soft: true }
+  }
+
+  // Draft (pre-consent): hard delete + purge docs. consent_log/audit_log are not FK-cascaded → preserved.
+  await purgeApplicationDocs(db, orgId, applicationId)
+  const { error } = await db.from("applications").delete().eq("id", applicationId).eq("org_id", orgId)
+  if (error) return { error: error.message }
+  await recordAudit(db, { orgId, actorId: userId, action: "DELETE", table: "applications", recordId: applicationId, before: { action: "draft_application_deleted" } })
+  revalidatePath("/listings")
+  return { ok: true, soft: false }
 }
 
 export async function approveAction(applicationId: string, agentId: string, tenantId: string) {

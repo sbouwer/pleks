@@ -11,10 +11,12 @@
 import { useState } from "react"
 import { ActionButton } from "@/components/ui/actions"
 import { sendShortlistInvitation } from "@/lib/screening/sendShortlistInvitation"
-import { declineStage1Action, approveAction, declineStage2Action } from "@/lib/applications/applicationActions"
+import { declineStage1Action, approveAction, declineStage2Action, deleteApplicationAction } from "@/lib/applications/applicationActions"
 import { createTenantFromApplication } from "@/lib/applications/createTenantFromApplication"
 import { DeclineDecisionModal, type DeclineSubmission } from "./DeclineDecisionModal"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { useUser } from "@/hooks/useUser"
+import { usePermissions } from "@/hooks/usePermissions"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
@@ -37,8 +39,19 @@ export function ApplicationActions({
   immigrationConfirmed,
 }: ApplicationActionsProps) {
   const { user } = useUser()
+  const { isAdmin } = usePermissions()
   const router = useRouter()
   const [declineModalOpen, setDeclineModalOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    setDeleting(true)
+    const r = await deleteApplicationAction(applicationId)
+    if (r?.error) { toast.error(r.error); setDeleting(false); return }
+    toast.success("Application removed")
+    router.push("/listings")
+  }
 
   async function handleShortlist() {
     if (isForeignNational && !immigrationConfirmed) {
@@ -128,10 +141,21 @@ export function ApplicationActions({
           <ActionButton tone="destructive" onClick={() => setDeclineModalOpen(true)}>Decline</ActionButton>
         </>
       )}
+      {isAdmin && <ActionButton tone="destructive" onClick={() => setDeleteOpen(true)}>Delete</ActionButton>}
       <DeclineDecisionModal
         open={declineModalOpen}
         onClose={() => setDeclineModalOpen(false)}
         onSubmit={handleDeclineStage2}
+      />
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete this application?"
+        description="It's removed from your lists, but the record, documents, consent and audit trail are retained — a submitted application is an evidentiary record (FitScore replay, proof of consent)."
+        variant="destructive"
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        loading={deleting}
       />
     </div>
   )
