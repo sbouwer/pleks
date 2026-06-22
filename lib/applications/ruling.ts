@@ -14,7 +14,7 @@
 import { INCOME_AFFORDABILITY_THRESHOLD, startedWithinProbation, PROBATION_MONTHS } from "@/lib/constants"
 import type { ReconciliationResult } from "@/lib/extraction/types"
 
-export const RULING_VERSION = "ruling.v1"
+export const RULING_VERSION = "ruling.v2"  // v2: graded identity mismatch (hard/soft) + over-declaration-only variance
 
 const MARGINAL_CEILING = 0.35       // 0.31–0.35 → near-miss (surface paths), > 0.35 → below
 const STALE_DAYS = 35               // most-recent document older than this → flag 3
@@ -128,8 +128,11 @@ function declaredSourceFlags(input: RulingInput): RulingFlag[] {
   for (const s of input.reconciliation.declaredSources) {
     if (s.status === "uncorroborated" || s.status === "no-evidence") {
       out.push({ id: 5, key: `uncorroborated:${s.source_key}`, axis: "confidence", severity: "major", type: "fixable", title: `We couldn't corroborate your declared ${s.label.toLowerCase()}`, remediation: evidencePrompt(s.source_key, input.employmentType) })
-    } else if (s.status === "variance") {
-      out.push({ id: 6, key: `variance:${s.source_key}`, axis: "confidence", severity: "major", type: "fixable", title: `Your declared ${s.label.toLowerCase()} is higher than your documents show`, remediation: "Extend to a 6-month window, or revise the figure — we substantiate at the lower of declared vs observed." })
+    } else if (s.status === "variance" && s.declared_monthly_cents != null && s.evidenced_monthly_cents != null && s.declared_monthly_cents > s.evidenced_monthly_cents) {
+      // Only OVER-declaration (declared > documented) is a confidence concern. UNDER-declaration (documents show
+      // MORE than declared) is conservative and fully supported, so it's left unflagged — treated as corroborated.
+      // Coach the EVIDENCE, not the number (no "revise the figure" — that nudges gaming, 14M guardrail #3).
+      out.push({ id: 6, key: `variance:${s.source_key}`, axis: "confidence", severity: "major", type: "fixable", title: `Your declared ${s.label.toLowerCase()} is higher than your documents show`, remediation: "We substantiate at the lower (documented) figure. To support the higher amount, upload statements covering a longer period (e.g. 6 months)." })
     }
   }
   return out
@@ -138,8 +141,16 @@ function declaredSourceFlags(input: RulingInput): RulingFlag[] {
 function integrityFlags(input: RulingInput): RulingFlag[] {
   const out: RulingFlag[] = []
   const id = input.reconciliation.identity
-  if (id.name === "material-mismatch" || id.idNumber === "mismatch") {
-    out.push({ id: 7, key: "name_mismatch", axis: "integrity", severity: "major", type: "fixable", title: "The name/ID on your documents doesn't match your application", remediation: "Upload documents in your own name." })
+  // Identity mismatch is GRADED. This applicant-facing flag is NOT the fraud wall — DHA identity verification
+  // (Searchworx) runs downstream and a re-upload of name-matching docs still hits it. So this flag's job is to let
+  // an HONEST mix-up be re-checked, worded neutrally so it never names the matching mechanism or how to clear it
+  // (14M guardrail #3). The agent-side surface keeps a PERSISTENT integrity record regardless of re-uploads.
+  if (id.idNumber === "mismatch" || id.name === "material-mismatch") {
+    // HARD mismatch — different surname or a different ID number. Real integrity signal → major (→ needs-evidence).
+    out.push({ id: 7, key: "identity_mismatch", axis: "integrity", severity: "major", type: "fixable", title: "We couldn't confirm these documents belong to you", remediation: "Identity verification is required before this application can proceed. Please re-check that the documents you uploaded are yours." })
+  } else if (id.name === "minor-variation") {
+    // SOFT variation — initials vs full name, maiden/married surname, an extra middle name. Almost always innocent.
+    out.push({ id: 7, key: "identity_soft_variation", axis: "integrity", severity: "minor", type: "fixable", title: "The name on your documents differs slightly from your application", remediation: "If you've recently changed your name (e.g. marriage) or used initials, that's fine — just check the spelling matches." })
   }
   if (input.reconciliation.netPayVsCredit.verdict === "gap") {
     // Flag 8 — risk SIGNAL for the agent (garnishee / salary into another account); not an applicant to-do.

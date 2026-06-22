@@ -80,10 +80,14 @@ describe("evaluateRuling — confidence flags", () => {
     expect(f5?.remediation).toMatch(/rent/i)
     expect(r.confidence.tier).toBe("needs-evidence")
   })
-  it("variance source → flag 6", () => {
+  it("OVER-declared variance (declared > documented) → flag 6", () => {
     const r = evaluateRuling(input({ reconciliation: recon({ declaredSources: [{ source_key: "employment", label: "Employment (gross)", declared_monthly_cents: 2_800_000, evidenced_monthly_cents: 2_000_000, variance_pct: 29, match_confidence: 0.6, status: "variance", evidenceDocType: "payslip" }] }) }))
     expect(flag(r, 6)).toBeDefined()
     expect(r.confidence.tier).toBe("needs-evidence")
+  })
+  it("UNDER-declared variance (documents show MORE) → NO flag 6 (conservative, supported)", () => {
+    const r = evaluateRuling(input({ reconciliation: recon({ declaredSources: [{ source_key: "employment", label: "Employment (gross)", declared_monthly_cents: 1_750_000, evidenced_monthly_cents: 2_460_000, variance_pct: -41, match_confidence: 0.6, status: "variance", evidenceDocType: "payslip" }] }) }))
+    expect(flag(r, 6)).toBeUndefined()
   })
   it("probation → flag 2 (minor) when started recently", () => {
     const r = evaluateRuling(input({ employmentStartDate: "2026-05-01" }))
@@ -97,9 +101,19 @@ describe("evaluateRuling — confidence flags", () => {
 })
 
 describe("evaluateRuling — integrity / risk", () => {
-  it("identity material-mismatch → flag 7 (fixable)", () => {
+  it("identity HARD mismatch (different surname) → flag 7 major → needs-evidence", () => {
     const r = evaluateRuling(input({ reconciliation: recon({ identity: { name: "material-mismatch", idNumber: "consistent" } }) }))
-    expect(flag(r, 7)?.type).toBe("fixable")
+    expect(flag(r, 7)?.severity).toBe("major")
+    expect(r.confidence.tier).toBe("needs-evidence")
+  })
+  it("identity HARD mismatch (ID number) → flag 7 major even if name is consistent", () => {
+    const r = evaluateRuling(input({ reconciliation: recon({ identity: { name: "consistent", idNumber: "mismatch" } }) }))
+    expect(flag(r, 7)?.severity).toBe("major")
+  })
+  it("identity SOFT variation (initials/maiden) → flag 7 MINOR (not needs-evidence)", () => {
+    const r = evaluateRuling(input({ reconciliation: recon({ identity: { name: "minor-variation", idNumber: "consistent" } }) }))
+    expect(flag(r, 7)?.severity).toBe("minor")
+    expect(r.confidence.tier).not.toBe("needs-evidence")
   })
   it("net-pay gap → flag 8 as a SIGNAL (agent-facing, not an applicant to-do)", () => {
     const r = evaluateRuling(input({ reconciliation: recon({ netPayVsCredit: { payslip_net_cents: 1_900_000, bank_salary_credit_cents: 1_400_000, gap_pct: 26, verdict: "gap" } }) }))
