@@ -2952,3 +2952,11 @@ ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_employment_type_
 ALTER TABLE applications ADD CONSTRAINT applications_employment_type_check CHECK (
   employment_type IN ('permanent','contract','commission','self_employed','part_time','student','unemployed','retired','other')
 );
+
+-- Dedup + soft-delete: `deleted_at` excludes a row from the active set (powers retention soft-delete of submitted
+-- applications too). Partial unique index = one ACTIVE application per applicant email per listing (no duplicates;
+-- a withdrawn/soft-deleted one frees the slot).
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_one_per_listing_email
+  ON applications (listing_id, lower(applicant_email))
+  WHERE applicant_email IS NOT NULL AND deleted_at IS NULL;

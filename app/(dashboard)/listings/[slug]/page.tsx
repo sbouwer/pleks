@@ -61,6 +61,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
     .eq("listing_id", listing.id)
     .eq("org_id", orgId)
     .eq("stage1_consent_given", true)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
   if (aErr) logQueryError("ListingDetail apps", aErr)
   const apps = (appsRaw ?? []) as Array<Record<string, unknown>>
