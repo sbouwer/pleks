@@ -346,6 +346,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
           // re-derives both from income_sources and stores gross_monthly_income_cents (cents).
           gross_monthly_income: String(totalMonthlyCents(income) / 100),
           income_sources: incomeSourcesPayload(income),
+          addresses: form.addresses ?? null,
         }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
