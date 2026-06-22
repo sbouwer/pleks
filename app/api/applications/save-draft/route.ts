@@ -148,6 +148,24 @@ export async function POST(req: NextRequest) {
   const l = listing as unknown as ListingRow
   const routedAgent = l.units?.assigned_agent_id ?? l.units?.properties?.managing_agent_id ?? null
 
+  // Dedup: one active application per applicant email per listing (the unique index is the backstop).
+  const { data: existing, error: exErr } = await db.from("applications")
+    .select("id, stage1_consent_given").eq("listing_id", l.id).ilike("applicant_email", body.email).is("deleted_at", null).maybeSingle()
+  logQueryError("save-draft dedup check", exErr)
+  if (existing) {
+    if (existing.stage1_consent_given) {
+      return NextResponse.json({ error: "You've already applied for this unit.", code: "already_applied" }, { status: 409 })
+    }
+    // A draft already exists for this email+listing — resume it (apply the current edits) instead of duplicating.
+    const reToken = randomBytes(32).toString("hex")
+    await db.from("applications").update(fields).eq("id", existing.id as string)
+    const { error: rtErr } = await db.from("application_tokens").insert({
+      application_id: existing.id as string, token: reToken, token_type: "application", applicant_email: body.email, expires_at: expiresAt,
+    })
+    logQueryError("save-draft dedup token", rtErr)
+    return NextResponse.json({ applicationId: existing.id, token: reToken, resumeUrl: resumeUrl(req, body.slug, existing.id as string, reToken) })
+  }
+
   const { data: appRow, error: insErr } = await db.from("applications").insert({
     org_id: l.org_id, listing_id: l.id, unit_id: l.unit_id,
     applicant_email: body.email, stage1_status: "pending_documents",
