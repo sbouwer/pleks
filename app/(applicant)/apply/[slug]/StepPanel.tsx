@@ -63,6 +63,7 @@ const EMPLOYMENT_OPTIONS = [
   { value: "unemployed", label: "Unemployed" },
   { value: "other", label: "Other" },
 ]
+const employmentLabel = (v: string) => EMPLOYMENT_OPTIONS.find((o) => o.value === v)?.label ?? v
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[] | PartyBankAccountInput[]) => void
 type Emp = { employment_type: string; employer: string; start_date: string }
@@ -1160,7 +1161,7 @@ function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, c
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm">
         <Row k="Applicant" v={name} />
         <Row k="Email" v={form.email ?? "—"} />
-        <Row k="Employment" v={emp.employment_type || "—"} />
+        <Row k="Employment" v={emp.employment_type ? employmentLabel(emp.employment_type) : "—"} />
         {emp.start_date && <Row k="Employed since" v={probation ? `${emp.start_date} · possible probation` : emp.start_date} />}
         <Row k="Total income" v={incomeCents > 0 ? formatZAR(incomeCents) + " /mo" : "—"} />
         {namedSources.map((r) => <Row key={r.key} k={`— ${r.label || "Other"}`} v={`${formatZAR(rowMonthlyCents(r))} /mo`} />)}
