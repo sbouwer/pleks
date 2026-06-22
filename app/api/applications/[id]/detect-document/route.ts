@@ -23,17 +23,16 @@ function getServiceClient() {
   )
 }
 
-/** 422 response if the PDF needs a real password to open; null if it's clean or empty-password (decryptable). */
+/** 422 response if an encrypted PDF can't be read (real password, or otherwise un-decryptable); null if it's
+ *  clean or an empty-password PDF we successfully decrypted (those proceed — the screen pipeline re-decrypts). */
 async function passwordLockedResponse(bytes: Uint8Array): Promise<NextResponse | null> {
   if (!isProtectedPdf(bytes)) return null
   const decrypted = await decryptProtectedPdf(bytes)
-  if (!decrypted.ok && decrypted.reason === "password-required") {
-    return NextResponse.json({
-      error: "password_protected",
-      message: "This PDF needs a password to open. Please save an unprotected copy (open it, then File → Print → Save as PDF, or remove the password) and upload that.",
-    }, { status: 422 })
-  }
-  return null
+  if (decrypted.ok) return null
+  const message = decrypted.reason === "password-required"
+    ? "This PDF needs a password to open. Please save an unprotected copy (open it, then File → Print → Save as PDF, or remove the password) and upload that."
+    : "We couldn't read this PDF — it appears to be encrypted or corrupted. Please save a fresh, unprotected copy and upload that."
+  return NextResponse.json({ error: "password_protected", message }, { status: 422 })
 }
 
 interface Props { params: Promise<{ id: string }> }
