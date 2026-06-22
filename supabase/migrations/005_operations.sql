@@ -2978,3 +2978,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_one_per_listing_email
 -- affordability, and the base figure for flag 0b's residual-income override. (ADDENDUM_14M #3 / 0b)
 ALTER TABLE application_screening_evaluations ADD COLUMN IF NOT EXISTS corroborated_income_cents bigint;
 ALTER TABLE application_screening_evaluations ADD COLUMN IF NOT EXISTS affordability_corroborated_ratio_pct integer;
+
+-- Household dependents the applicant supports — feeds flag 0b's living floor (2:1 adult:dependent weighting).
+-- Adults come from co_applicants_count + 1. NULL = not declared (treated as 0). (ADDENDUM_14M flag 0b)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependents_count integer;

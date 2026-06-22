@@ -260,6 +260,21 @@ function collectRecencyInputs(
   return { dates, salariedMonths }
 }
 
+/** Average monthly recurring debit-order obligations across bank statements (cents); null if no bank data.
+ *  debit_order_volume_cents is a period total → divided by months covered, then averaged across statements. */
+function observedObligations(banks: Typed<BankStatementExtraction>[]): number | null {
+  const monthly: number[] = []
+  for (const b of banks) {
+    const vol = b.ex.income_indicators?.debit_order_volume_cents
+    if (vol == null) continue
+    const from = b.ex.statement_period_from, to = b.ex.statement_period_to
+    const months = from && to ? Math.max(1, monthsBetween(monthOf(from), monthOf(to)).length) : 1
+    monthly.push(Math.round(vol / months))
+  }
+  if (monthly.length === 0) return null
+  return Math.round(monthly.reduce((sum, m) => sum + m, 0) / monthly.length)
+}
+
 // ─── Orchestration ────────────────────────────────────────────────────────────
 export function reconcile(
   results: PipelineDocumentResult[],
@@ -292,5 +307,6 @@ export function reconcile(
     netPayVsCredit: reconcileNetPay(payslips, banks),
     identity: { name: nameConsistency(names), idNumber: idConsistency(idNumbers) },
     recency: reconcileRecency(dates, salariedMonths, now),
+    observedObligationsCents: observedObligations(banks),
   }
 }

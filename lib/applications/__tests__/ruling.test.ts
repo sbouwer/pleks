@@ -19,6 +19,7 @@ function recon(over: Partial<ReconciliationResult> = {}): ReconciliationResult {
     netPayVsCredit: { payslip_net_cents: 1_900_000, bank_salary_credit_cents: 1_900_000, gap_pct: 0, verdict: "match" },
     identity: { name: "consistent", idNumber: "consistent" },
     recency: { oldestDocumentDate: "2026-03-31", newestDocumentDate: "2026-05-31", mostRecentWithinDays: 20, salariedMonthsCovered: 3, monthsCovered: ["2026-03", "2026-04", "2026-05"], consecutive: true },
+    observedObligationsCents: null,
     ...over,
   }
 }
@@ -26,6 +27,9 @@ function input(over: Partial<RulingInput> = {}): RulingInput {
   return { appliedRentCents: 700_000, declaredMonthlyIncomeCents: 2_800_000, employmentType: "permanent", employmentStartDate: "2020-01-01", reconciliation: recon(), now: NOW, ...over }
 }
 const flag = (r: ReturnType<typeof evaluateRuling>, id: number) => r.flags.find((f) => f.id === id)
+// Corroborated income that does NOT clear the living floor against the rent — isolates the affordability TIER and
+// the housing override from flag 0b's residual override (which legitimately rescues high-income marginal/below).
+const lowCorrob = (cents: number) => ({ declaredSources: [{ source_key: "employment", label: "Employment (gross)", declared_monthly_cents: cents, evidenced_monthly_cents: cents, variance_pct: 0, match_confidence: 0.9, status: "corroborated" as const, evidenceDocType: "payslip" as const }] })
 
 describe("evaluateRuling — affordability axis", () => {
   it("clean ratio + corroborated + recent → within + strong", () => {
@@ -34,40 +38,41 @@ describe("evaluateRuling — affordability axis", () => {
     expect(r.rulingTier).toBe("strong")
     expect(flag(r, 1)).toBeUndefined()
   })
-  it("marginal ratio (32%) → marginal + a minor flag, capped to adequate (not strong)", () => {
-    const r = evaluateRuling(input({ appliedRentCents: 900_000 }))
+  it("marginal ratio (34%, residual below floor) → marginal + a minor flag, capped to adequate (not strong)", () => {
+    const r = evaluateRuling(input({ appliedRentCents: 170_000, declaredMonthlyIncomeCents: 500_000, reconciliation: recon(lowCorrob(500_000)) }))
     expect(r.affordability.tier).toBe("marginal")
     expect(flag(r, 1)?.severity).toBe("minor")
     expect(r.rulingTier).toBe("adequate")
   })
-  it("ratio over 35% → below + below-threshold ruling", () => {
-    const r = evaluateRuling(input({ appliedRentCents: 1_500_000 }))
+  it("ratio over 35% (residual below floor) → below + below-threshold ruling", () => {
+    const r = evaluateRuling(input({ appliedRentCents: 250_000, declaredMonthlyIncomeCents: 500_000, reconciliation: recon(lowCorrob(500_000)) }))
     expect(r.affordability.tier).toBe("below")
     expect(r.rulingTier).toBe("below-threshold")
     expect(flag(r, 1)?.severity).toBe("block")
   })
   it("no declared income → block", () => {
-    const r = evaluateRuling(input({ declaredMonthlyIncomeCents: 0 }))
+    const r = evaluateRuling(input({ declaredMonthlyIncomeCents: 0, reconciliation: recon({ declaredSources: [] }) }))
     expect(r.rulingTier).toBe("below-threshold")
     expect(flag(r, 1)?.severity).toBe("block")
   })
 })
 
 describe("evaluateRuling — flag-0 demonstrated-payment override (fix #1: guarded)", () => {
-  const failing = { appliedRentCents: 800_000, declaredMonthlyIncomeCents: 1_500_000 } // 53% — below
+  const failing = { appliedRentCents: 250_000, declaredMonthlyIncomeCents: 300_000 } // 83% — below; residual won't clear
+  const lowHousing = (housing: object) => recon({ ...lowCorrob(300_000), housingPayment: housing as never })
   it("overrides a failing ratio when sustained (≥6 months) + clean + covers the rent", () => {
-    const r = evaluateRuling(input({ ...failing, reconciliation: recon({ housingPayment: { detected: true, recurring_monthly_cents: 800_000, months_observed: 6, anyMissedOrReturned: false } }) }))
+    const r = evaluateRuling(input({ ...failing, reconciliation: lowHousing({ detected: true, recurring_monthly_cents: 250_000, months_observed: 6, anyMissedOrReturned: false }) }))
     expect(r.affordability.tier).toBe("demonstrated-override")
     expect(r.rulingTier).not.toBe("below-threshold")
     expect(flag(r, 0)?.severity).toBe("positive")
   })
   it("does NOT override on only 3 months", () => {
-    const r = evaluateRuling(input({ ...failing, reconciliation: recon({ housingPayment: { detected: true, recurring_monthly_cents: 800_000, months_observed: 3, anyMissedOrReturned: false } }) }))
+    const r = evaluateRuling(input({ ...failing, reconciliation: lowHousing({ detected: true, recurring_monthly_cents: 250_000, months_observed: 3, anyMissedOrReturned: false }) }))
     expect(r.affordability.tier).toBe("below")
     expect(r.rulingTier).toBe("below-threshold")
   })
   it("does NOT override when the housing history has a missed/returned month", () => {
-    const r = evaluateRuling(input({ ...failing, reconciliation: recon({ housingPayment: { detected: true, recurring_monthly_cents: 800_000, months_observed: 8, anyMissedOrReturned: true } }) }))
+    const r = evaluateRuling(input({ ...failing, reconciliation: lowHousing({ detected: true, recurring_monthly_cents: 250_000, months_observed: 8, anyMissedOrReturned: true }) }))
     expect(r.affordability.tier).toBe("below")
   })
 })
@@ -120,6 +125,39 @@ describe("evaluateRuling — integrity / risk", () => {
     const f8 = flag(r, 8)
     expect(f8?.type).toBe("signal")
     expect(f8?.remediation).toBeNull()
+  })
+})
+
+describe("evaluateRuling — flag 0b residual-income override", () => {
+  // Rent R8,000 = 32% of declared R25,000 → marginal. Corroborated R25,000, obligations R1,000.
+  // Residual = 25000 - 8000 - 1000 = R16,000. Floor (1 adult, 0 deps) = R3,500 → clears → override.
+  const marginalOver = () => input({
+    appliedRentCents: 800_000, declaredMonthlyIncomeCents: 2_500_000,
+    adults: 1, dependents: 0,
+    reconciliation: recon({
+      observedObligationsCents: 100_000,
+      declaredSources: [{ source_key: "employment", label: "Employment (gross)", declared_monthly_cents: 2_500_000, evidenced_monthly_cents: 2_500_000, variance_pct: 0, match_confidence: 0.9, status: "corroborated", evidenceDocType: "payslip" }],
+    }),
+  })
+  it("marginal ratio + residual clears the living floor → residual-override (not blocked)", () => {
+    const r = evaluateRuling(marginalOver())
+    expect(r.affordability.tier).toBe("residual-override")
+    expect(flag(r, 0)?.type).toBe("override")
+    expect(flag(r, 1)).toBeUndefined()  // affordability concern flag suppressed
+  })
+  it("does NOT fire on phantom income — uncorroborated income can't clear the floor", () => {
+    const r = evaluateRuling(input({
+      appliedRentCents: 800_000, declaredMonthlyIncomeCents: 2_500_000, adults: 1, dependents: 0,
+      reconciliation: recon({ observedObligationsCents: 0, declaredSources: [
+        { source_key: "employment", label: "Employment (gross)", declared_monthly_cents: 2_500_000, evidenced_monthly_cents: null, variance_pct: null, match_confidence: 0, status: "uncorroborated", evidenceDocType: null },
+      ] }),
+    }))
+    expect(r.affordability.tier).not.toBe("residual-override")  // corroborated income 0 → no override
+  })
+  it("more dependents raise the floor → override withheld when residual no longer clears it", () => {
+    const base = marginalOver()
+    const r = evaluateRuling({ ...base, dependents: 8 })  // floor = 3500 + 8*1750 = R17,500 > R16,000 residual
+    expect(r.affordability.tier).not.toBe("residual-override")
   })
 })
 

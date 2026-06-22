@@ -32,7 +32,7 @@ const RULING: Record<string, { label: string; cls: string }> = {
   "needs-evidence":  { label: "Needs evidence",  cls: "text-warning" },
   "below-threshold": { label: "Below threshold", cls: "text-danger" },
 }
-const AFFORD: Record<string, string> = { within: "Within 30% guideline", marginal: "Marginally over guideline", below: "Over 30% guideline", "demonstrated-override": "Demonstrated payment override" }
+const AFFORD: Record<string, string> = { within: "Within 30% guideline", marginal: "Marginally over guideline", below: "Over 30% guideline", "demonstrated-override": "Demonstrated payment override", "residual-override": "Residual-income override (covers rent + obligations above the living floor)" }
 const CONF: Record<string, string> = { strong: "Strong", adequate: "Adequate", "needs-evidence": "Needs evidence" }
 const SEV: Record<string, string> = { block: "text-danger", major: "text-warning", minor: "text-muted-foreground", positive: "text-success" }
 

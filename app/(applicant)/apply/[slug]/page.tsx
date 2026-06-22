@@ -60,7 +60,7 @@ async function loadResume(
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, income_sources, applicant_addresses, applicant_type, company_info, email_verified_at, draft_step, draft_saved_at, org_id, submitted_at")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, dependents_count, income_sources, applicant_addresses, applicant_type, company_info, email_verified_at, draft_step, draft_saved_at, org_id, submitted_at")
     .eq("id", appId).maybeSingle()
   logQueryError("ApplyPreview resume app", appErr)
   // Don't resume a SUBMITTED application (submitted_at set) — only drafts / pre-screens are editable.
@@ -96,6 +96,7 @@ async function loadResume(
       employer: (app.employer_name as string | null) ?? "",
       start_date: (app.employment_start_date as string | null) ?? "",
     },
+    dependents: (app.dependents_count as number | null) ?? null,
     incomeSources: sources,
     coApplicants: (cos ?? []).map((c) => ({
       firstName: (c.first_name as string | null) ?? "", lastName: (c.last_name as string | null) ?? "",

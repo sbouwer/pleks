@@ -33,6 +33,7 @@ interface Body {
   first_name?: string; last_name?: string; email?: string; phone?: string
   id_type?: string; id_number?: string; date_of_birth?: string
   employment_type?: string; employer_name?: string; employment_start_date?: string
+  dependents?: number | null
   gross_monthly_income?: string; income_sources?: unknown
   addresses?: unknown
   applicant_type?: string; company_info?: unknown
@@ -57,6 +58,7 @@ function draftFields(body: Body) {
     employment_type: body.employment_type || null, employer_name: body.employer_name ?? null,
     employment_start_date: body.employment_start_date || null,
     gross_monthly_income_cents: incomeCents, income_sources: parsed?.rows ?? null,
+    dependents_count: typeof body.dependents === "number" && Number.isFinite(body.dependents) ? Math.max(0, Math.trunc(body.dependents)) : null,
     // applicant's current address(es) — bounded (array, cap 5) since it's public input; stored as-is for resume.
     applicant_addresses: Array.isArray(body.addresses) ? body.addresses.slice(0, 5) : null,
     // chosen application type + company details — so resume restores the exact flow (not inferred).

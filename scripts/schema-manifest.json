@@ -489,7 +489,8 @@
       "company_info",
       "email_verified_at",
       "deleted_at",
-      "submitted_at"
+      "submitted_at",
+      "dependents_count"
     ],
     "arrears_actions": [
       "id",

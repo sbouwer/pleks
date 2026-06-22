@@ -159,7 +159,7 @@ const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.tri
 export interface ResumeState {
   applicationId: string; token: string; step: number; savedAt: string | null
   applicantType: ApplicantType | null; company: CompanyInfo | null; emailVerified: boolean
-  form: Partial<PartyFormState>; emp: Emp
+  form: Partial<PartyFormState>; emp: Emp; dependents: number | null
   incomeSources: { key: string; label: string; amount_cents: number; period: string }[]
   coApplicants: CoApplicant[]; docPaths: { name: string; storagePath: string }[]
 }
@@ -262,6 +262,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   const [form, setForm] = useState<PartyFormState>({ idType: "sa_id", ...(prefill ?? {}), ...(resume?.form ?? {}) })
   const [errors, setErrors] = useState<PartyErrors>({})
   const [emp, setEmp] = useState<Emp>(resume?.emp ?? { employment_type: "", employer: "", start_date: "" })
+  const [dependents, setDependents] = useState(resume?.dependents != null ? String(resume.dependents) : "")
   const [income, setIncome] = useState<IncomeRow[]>(resumedIncome ?? SEED_INCOME)
   const set: SetFn = (k, v) => setForm((p) => ({ ...p, [k]: v }))
 
@@ -349,6 +350,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
           first_name: form.firstName, last_name: form.lastName, email: form.email, phone: form.phone,
           id_type: form.idType || "sa_id", id_number: form.idNumber, date_of_birth: form.dob || "",
           employment_type: emp.employment_type, employer_name: emp.employer, employment_start_date: emp.start_date || "",
+          dependents: dependents.trim() === "" ? null : Number.parseInt(dependents, 10),
           // income_sources is the source of truth; gross_monthly_income (rands) is the derived total — the route
           // re-derives both from income_sources and stores gross_monthly_income_cents (cents).
           gross_monthly_income: String(totalMonthlyCents(income) / 100),
@@ -572,7 +574,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
             <div className={scrollCls}>
               {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} />}
               {step === 1 && <StepAddress form={form} set={set} errors={errors} />}
-              {step === 2 && <StepIncome emp={emp} setEmp={setEmp} income={income} setIncome={setIncome} />}
+              {step === 2 && <StepIncome emp={emp} setEmp={setEmp} income={income} setIncome={setIncome} dependents={dependents} setDependents={setDependents} />}
               {step === 3 && <StepDocuments categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />}
               {step === 4 && <StepApplicants type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} primaryName={[form.firstName, form.lastName].filter(Boolean).join(" ") || "You"} />}
               {step === 5 && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} screeningStatus={screeningStatus} evaluation={evaluation} onAmend={amendAt} onRerun={submitApplication} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />}
@@ -707,8 +709,9 @@ function StepAddress({ form, set, errors }: Readonly<{ form: PartyFormState; set
 // phone (label on its own line, amount + period below) rather than overflowing a rigid grid.
 const CELL = "rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-mute)] focus:border-[var(--amber)] focus:outline-none"
 const CELL_SELECT = `${CELL} appearance-none`
-function StepIncome({ emp, setEmp, income, setIncome }: Readonly<{
+function StepIncome({ emp, setEmp, income, setIncome, dependents, setDependents }: Readonly<{
   emp: Emp; setEmp: (v: Emp) => void; income: IncomeRow[]; setIncome: (v: IncomeRow[]) => void
+  dependents: string; setDependents: (v: string) => void
 }>) {
   function addCustom() { setIncome([...income, { key: `other_${income.length}`, label: "", amount: "", period: "month", custom: true }]) }
   function removeRow(i: number) { setIncome(income.filter((_, idx) => idx !== i)) }
@@ -722,8 +725,10 @@ function StepIncome({ emp, setEmp, income, setIncome }: Readonly<{
       <FieldGrid>
         <SelectField label="Employment status" value={emp.employment_type} onChange={(v) => setEmp({ ...emp, employment_type: v })} required options={EMPLOYMENT_OPTIONS} />
         <TextField label="Date employed" type="date" value={emp.start_date} onChange={(v) => setEmp({ ...emp, start_date: v })} />
-        <TextField label="Employer" value={emp.employer} onChange={(v) => setEmp({ ...emp, employer: v })} span placeholder="Company name" />
+        <TextField label="Employer" value={emp.employer} onChange={(v) => setEmp({ ...emp, employer: v })} placeholder="Company name" />
+        <TextField label="Dependents you support" type="number" value={dependents} onChange={setDependents} placeholder="0" />
       </FieldGrid>
+      <p className="-mt-1 text-[11px] text-[var(--ink-mute)]">Children or others who rely on your income — used to gauge what you need left over after rent. Leave blank if none.</p>
       {probation && (
         <p className="rounded-[var(--r-button)] border border-[var(--amber)] bg-[var(--amber-wash)] px-3 py-2 text-xs text-[var(--amber-ink)]">
           Started under {PROBATION_MONTHS} months ago — possibly still in a probation period. The agent sees this as context; it doesn&apos;t affect your score on its own.

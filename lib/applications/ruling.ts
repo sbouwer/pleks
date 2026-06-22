@@ -13,8 +13,9 @@
  */
 import { INCOME_AFFORDABILITY_THRESHOLD, startedWithinProbation, PROBATION_MONTHS } from "@/lib/constants"
 import type { ReconciliationResult } from "@/lib/extraction/types"
+import { householdLivingFloorCents } from "./livingFloor"
 
-export const RULING_VERSION = "ruling.v2"  // v2: graded identity mismatch (hard/soft) + over-declaration-only variance
+export const RULING_VERSION = "ruling.v3"  // v3: flag 0b residual-income override + residual-override tier
 
 const MARGINAL_CEILING = 0.35       // 0.31–0.35 → near-miss (surface paths), > 0.35 → below
 const STALE_DAYS = 35               // most-recent document older than this → flag 3
@@ -22,7 +23,7 @@ const HOUSING_MIN_MONTHS = 6        // flag 0 requires a SUSTAINED history…
 const SALARIED_MIN_MONTHS = 3       // flag 4 quantity (salaried)
 const VARIABLE_MIN_MONTHS = 6       // …and 6 for commission / self-employed
 
-export type AffordabilityTier = "within" | "marginal" | "below" | "demonstrated-override"
+export type AffordabilityTier = "within" | "marginal" | "below" | "demonstrated-override" | "residual-override"
 export type ConfidenceTier = "strong" | "adequate" | "needs-evidence"
 export type RulingTier = "strong" | "adequate" | "needs-evidence" | "below-threshold"
 export type FlagSeverity = "block" | "major" | "minor" | "positive"
@@ -59,6 +60,8 @@ export interface RulingInput {
   employmentStartDate: string | null
   reconciliation: ReconciliationResult
   now: Date
+  adults?: number       // household adults (applicant + co-applicants); defaults to 1
+  dependents?: number   // declared dependents; defaults to 0. Both feed flag 0b's living floor.
 }
 
 const isVariable = (t: string | null): boolean => t === "commission" || t === "self_employed"
@@ -201,23 +204,40 @@ export function evaluateRuling(input: RulingInput): RulingResult {
 
   const flags: RulingFlag[] = []
   if (overrideFlag) flags.push(overrideFlag)
-  const affFlag = affordabilityFlagFor(override, income, ratioPct, affordabilityTier)
+
+  // Flag 0b — residual-income override. A marginal/below RATIO is overridden when VERIFIED income covers rent +
+  // observed obligations with at least the household living floor (PMBEJD) left over. A residual floor, not income
+  // bands (a floor self-scales). Only ever RAISES affordability; corroboration-weighted (uncorroborated income
+  // counts 0, so it can't pass phantom affordability) and surfaced-not-determinative — so it can't auto-harm.
+  const obligationsCents = input.reconciliation.observedObligationsCents ?? 0
+  const residualCents = corroboratedIncomeCents - input.appliedRentCents - obligationsCents
+  const livingFloorCents = householdLivingFloorCents(input.adults ?? 1, input.dependents ?? 0)
+  const residualOverride = corroboratedIncomeCents > 0
+    && (affordabilityTier === "marginal" || affordabilityTier === "below")
+    && residualCents >= livingFloorCents
+  const effectiveTier: AffordabilityTier = residualOverride ? "residual-override" : affordabilityTier
+  if (residualOverride) {
+    flags.push({ id: 0, key: "residual_override", axis: "affordability", severity: "positive", type: "override",
+      title: `Verified income covers rent + obligations with ~R${Math.round(residualCents / 100)}/mo to spare — above the household living floor (R${Math.round(livingFloorCents / 100)})`,
+      remediation: null })
+  }
+
+  const affFlag = affordabilityFlagFor(override || residualOverride, income, ratioPct, effectiveTier)
   if (affFlag) flags.push(affFlag)
   const probation = probationFlag(input)
   if (probation) flags.push(probation)
   flags.push(...recencyFlags(input), ...declaredSourceFlags(input), ...integrityFlags(input))
 
   const confidence = confidenceTierOf(flags)
-  const affordabilityBlocked = affordabilityTier === "below" && !override
+  const affordabilityBlocked = effectiveTier === "below" && !override
   let rulingTier: RulingTier = affordabilityBlocked ? "below-threshold" : confidence
-  // A marginal ratio can't read "strong" — Strong requires a clear ratio or the demonstrated-payment override.
-  // (A blocked ruling is "below-threshold", never "strong", so this only catches the marginal-but-clean case.)
-  if (affordabilityTier === "marginal" && rulingTier === "strong") rulingTier = "adequate"
+  // A marginal ratio can't read "strong" — Strong requires a clear ratio or an override.
+  if (effectiveTier === "marginal" && rulingTier === "strong") rulingTier = "adequate"
 
   return {
     rulingVersion: RULING_VERSION,
     rulingTier,
-    affordability: { ratioPct, tier: affordabilityTier, demonstratedHousingCents: demonstrated, corroboratedIncomeCents, corroboratedRatioPct },
+    affordability: { ratioPct, tier: effectiveTier, demonstratedHousingCents: demonstrated, corroboratedIncomeCents, corroboratedRatioPct },
     confidence: { tier: confidence },
     flags,
   }
