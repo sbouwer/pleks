@@ -989,6 +989,29 @@ const PROCESSING_STAGES = [
   { label: "Preparing your result", until: Infinity },
 ] as const
 
+type StageState = "done" | "active" | "pending"
+function stageState(i: number, current: number): StageState {
+  if (i < current) return "done"
+  if (i === current) return "active"
+  return "pending"
+}
+const STAGE_TONE: Record<StageState, string> = {
+  done: "text-[var(--ink-soft)]", active: "text-[var(--ink)]", pending: "text-[var(--ink-mute)]",
+}
+function StageIcon({ state }: Readonly<{ state: StageState }>) {
+  if (state === "done") return <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+  if (state === "active") return <Loader2 className="size-4 shrink-0 animate-spin text-[var(--amber-ink)]" />
+  return <span className="size-4 shrink-0 rounded-full border border-[var(--rule)]" />
+}
+function ProcessingStage({ label, state }: Readonly<{ label: string; state: StageState }>) {
+  return (
+    <li className={`flex items-center gap-2.5 text-sm ${STAGE_TONE[state]}`}>
+      <StageIcon state={state} />
+      <span>{label}</span>
+    </li>
+  )
+}
+
 function ProcessingView() {
   const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
@@ -1012,20 +1035,9 @@ function ProcessingView() {
       </div>
 
       <ul className="mx-auto flex w-full max-w-sm flex-col gap-2.5">
-        {PROCESSING_STAGES.map((s, i) => {
-          const done = i < current
-          const active = i === current
-          return (
-            <li key={s.label} className={`flex items-center gap-2.5 text-sm ${done ? "text-[var(--ink-soft)]" : active ? "text-[var(--ink)]" : "text-[var(--ink-mute)]"}`}>
-              {done
-                ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
-                : active
-                  ? <Loader2 className="size-4 shrink-0 animate-spin text-[var(--amber-ink)]" />
-                  : <span className="size-4 shrink-0 rounded-full border border-[var(--rule)]" />}
-              <span>{s.label}</span>
-            </li>
-          )
-        })}
+        {PROCESSING_STAGES.map((s, i) => (
+          <ProcessingStage key={s.label} label={s.label} state={stageState(i, current)} />
+        ))}
       </ul>
 
       <p className="text-center font-mono text-[11px] tabular-nums text-[var(--ink-mute)]">{mm}:{ss} elapsed</p>
