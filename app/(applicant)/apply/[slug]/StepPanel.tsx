@@ -1326,7 +1326,7 @@ function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, c
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 accent-[var(--amber)]" />
         <span className="text-[13px] leading-relaxed text-[var(--ink-soft)]">
           <ShieldCheck className="mr-1 inline size-3.5 text-[var(--ink-mute)]" />
-          I consent to Pleks processing the information I&apos;ve provided to pre-screen this application (POPIA). No credit check is run unless I&apos;m shortlisted and consent again.
+          I consent to Pleks processing the information and documents I&apos;ve provided — including automated (AI) analysis of my uploaded documents — to pre-screen this application (POPIA). No credit check or bureau enquiry runs at this stage; that only happens later if I&apos;m shortlisted and I consent again.
         </span>
       </label>
     </div>

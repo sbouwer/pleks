@@ -109,7 +109,9 @@ export async function POST(req: NextRequest, { params }: Props) {
     subject_email: (tokenRow.applicant_email as string | null) ?? (app.applicant_email as string),
     consent_type: "popia_application", consent_given: true,
     ip_address: body.consentIp ?? null,
-    metadata: { application_id: id, scope: "stage1_financial_screening" },
+    // Scope explicitly covers AI analysis of uploaded documents (the Step-2 deep scan), not just declared data —
+    // so there's no consent gap when the scan runs at shortlist. (ADDENDUM_14M three-step funnel, P1h)
+    metadata: { application_id: id, scope: "stage1_prescreen_and_ai_document_analysis" },
   })
 
   // ONE-ADJUSTMENT CAP: the initial pre-screen + exactly one re-check (MAX_SCREENING_ITERATIONS). Don't kick
