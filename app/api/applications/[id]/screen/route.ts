@@ -17,6 +17,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { runPipeline } from "@/lib/extraction/pipeline"
 import { reconcile } from "@/lib/extraction/reconciler"
+import { slotTypeForFilename } from "@/lib/extraction/slotType"
 import { evaluateRuling } from "@/lib/applications/ruling"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
@@ -46,7 +47,7 @@ async function loadDocuments(db: Db, orgId: string, appId: string): Promise<Docu
     if (!f.name || f.name.startsWith(".")) continue
     const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(`${prefix}/${f.name}`)
     if (dlErr || !blob) { logQueryError("screen storage.download", dlErr); continue }
-    docs.push({ path: `${prefix}/${f.name}`, filename: f.name, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(f.name) })
+    docs.push({ path: `${prefix}/${f.name}`, filename: f.name, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(f.name), slotType: slotTypeForFilename(f.name) })
   }
   return docs
 }

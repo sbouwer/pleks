@@ -63,6 +63,10 @@ export interface Document {
   /** Decrypted plain text for an encrypted (empty-password) PDF — Claude can't read the encrypted bytes, so the
    *  pipeline sets this and toMediaBlock sends it as a text document block instead. (lib/extraction/pdfDecrypt) */
   textContent?: string
+  /** The document type implied by the UPLOAD SLOT the applicant chose (id / payslips / bank_main / …). When set,
+   *  the pipeline trusts it and SKIPS the Haiku classification call, then validates the extraction against it
+   *  (a wrong-type doc in a slot is flagged, not silently extracted). Unset for the free-form "other" slot. */
+  slotType?: DocumentType
 }
 
 export interface ApplicationInput {
@@ -159,6 +163,7 @@ export type FraudSignalType =
   | "embedded-id-in-filename"
   | "editor-software-source"
   | "low-extraction-confidence"
+  | "document-type-mismatch"   // a slot-trusted doc didn't extract as its expected type (skip-classification guard)
 export type FraudSignalSeverity = "info" | "warning" | "critical"
 export interface FraudSignal {
   type: FraudSignalType

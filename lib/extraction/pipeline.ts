@@ -41,7 +41,8 @@ import { extractSavingsAccountDetails } from "./extractors/savingsAccountDetails
 import { extractCreditBureauReport } from "./extractors/creditBureauReport"
 import { reconcile } from "./reconciler"
 import { detectFraudSignals } from "./fraudSignals"
-import type { ApplicationArchetype, ApplicationInput, Document, DocumentExtraction, PipelineResult, PipelineDocumentResult } from "./types"
+import { extractionMatchesSlot } from "./slotType"
+import type { ApplicationArchetype, ApplicationInput, Document, DocumentExtraction, PipelineResult, PipelineDocumentResult, FraudSignal } from "./types"
 import type { AiCallOptions } from "@/lib/ai/client"
 
 // PipelineResult / PipelineDocumentResult now live in ./types (so reconciler/fraud can consume them without a
@@ -106,7 +107,15 @@ function gateDocument(
   const format = detectFormat(doc.filename, doc.bytes)
   doc.format = format
   classifiableDocs.push(doc)
-  results.push({ filename: doc.filename, path: doc.path, status: "classified", format })
+  const entry: PipelineDocumentResult = { filename: doc.filename, path: doc.path, status: "classified", format }
+  // Trust the upload slot for the type (skip the Haiku classification call). Validated post-extraction.
+  if (doc.slotType) {
+    doc.documentType = doc.slotType
+    doc.documentTypeConfidence = 1
+    entry.documentType = doc.slotType
+    entry.documentTypeConfidence = 1
+  }
+  results.push(entry)
 }
 
 async function classifyDocWithFallback(
@@ -181,6 +190,25 @@ async function decryptProtectedDocs(docs: Document[], results: PipelineDocumentR
   return extractable
 }
 
+/** Skip-classification guardrail: flag a slot-trusted doc whose extraction doesn't match its slot (wrong doc in a
+ *  slot) — agent-facing warning, never an auto-reject. */
+function validateSlotTypes(docs: Document[], results: PipelineDocumentResult[]): FraudSignal[] {
+  const signals: FraudSignal[] = []
+  for (const doc of docs) {
+    if (!doc.slotType) continue
+    const res = results.find((r) => r.path === doc.path)
+    if (!res || res.status !== "classified") continue
+    if (extractionMatchesSlot(doc.slotType, (res.extracted as { extraction_confidence?: number } | null) ?? null, res.extractionConfidence)) continue
+    signals.push({
+      type: "document-type-mismatch",
+      severity: "warning",
+      documentPath: doc.path,
+      description: `Uploaded as a ${doc.slotType.replaceAll("-", " ")} but it doesn't read as one — possibly the wrong document in that slot.`,
+    })
+  }
+  return signals
+}
+
 export async function runPipeline(
   input: ApplicationInput,
   aiOpts: AiOpts,
@@ -199,10 +227,11 @@ export async function runPipeline(
   // Archetype is deterministic — derived from structured application data, not documents
   const archetype = deriveArchetype(input.unitType, input.applicantCount)
 
-  // Document type classification — per classifiable document (D-14L-07). Parallel with a capped fan-out so the
-  // wall-clock is ~the slowest single doc, not the sum; the cap bounds concurrent AI calls so a hot listing
-  // (200 applications) can't trip Sonnet/Haiku rate limits. Each worker writes a distinct doc/results entry.
-  await mapWithConcurrency(extractableDocs, AI_FANOUT, async (doc) => {
+  // Document type classification (D-14L-07) — ONLY for docs whose type we don't already trust from the upload
+  // slot (gateDocument set documentType for slot-trusted docs). This skips the Haiku call for ID/payslip/bank/etc.
+  // and only classifies the free-form "other" slot. Parallel + capped fan-out so a hot listing can't trip limits.
+  const toClassify = extractableDocs.filter((d) => !d.documentType)
+  await mapWithConcurrency(toClassify, AI_FANOUT, async (doc) => {
     const result = await classifyDocWithFallback(doc, archetype, aiOpts)
     applyClassification(doc, result, results)
   })
@@ -220,9 +249,13 @@ export async function runPipeline(
     }
   })
 
+  // Skip-classification guardrail: a slot-trusted doc whose extraction doesn't match its slot is flagged (a wrong
+  // doc in a slot), not silently extracted as junk. Agent-facing warning, never an auto-reject.
+  const mismatchSignals = validateSlotTypes(extractableDocs, results)
+
   // Phase 3: deterministic reconciliation + heuristic fraud signals over the extractions (no AI).
   const reconciliation = reconcile(results, input.declared, new Date())
-  const fraudSignals = detectFraudSignals(input.documents, results)
+  const fraudSignals = [...detectFraudSignals(input.documents, results), ...mismatchSignals]
 
   return { archetype, documents: results, reconciliation, fraudSignals }
 }
