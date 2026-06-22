@@ -41,7 +41,7 @@ interface Body {
 const APPLICANT_TYPES = ["individual", "couple", "company", "guarantor"]
 
 const resumeUrl = (req: NextRequest, slug: string, id: string, token: string) =>
-  `${req.nextUrl.origin}/apply/${slug}/preview?app=${id}&token=${encodeURIComponent(token)}`
+  `${req.nextUrl.origin}/apply/${slug}?app=${id}&token=${encodeURIComponent(token)}`
 
 /** Map the partial body → the application columns we persist (only what's filled). */
 function draftFields(body: Body) {
