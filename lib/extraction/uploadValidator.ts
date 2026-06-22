@@ -33,12 +33,15 @@ const MIME_MAP: Record<string, AllowedFormat> = {
   "image/png":       "png",
 }
 
-// Scan for /Encrypt token in the PDF trailer (last 4 KB covers the common case).
-// Uses latin1 so byte values map 1:1 to character codes — no UTF-8 mangling.
+// Detect a genuinely encrypted PDF. The trailer's /Encrypt entry is ALWAYS an indirect reference
+// (`/Encrypt N G R`) and the trailer itself is never encrypted, so that exact token reliably marks an encrypted
+// file. A bare "/Encrypt" substring does NOT — it appears in plenty of unencrypted PDFs (field/key names,
+// content streams, XMP metadata) and was the cause of false "password-protected" rejections. We also scan the
+// whole file (latin1, so bytes map 1:1 to char codes) rather than just the last 4 KB, which missed the trailer
+// in linearized/large PDFs.
 function isProtectedPdf(bytes: Uint8Array): boolean {
-  const tail = bytes.slice(Math.max(0, bytes.length - 4096))
-  const ascii = new TextDecoder("latin1").decode(tail)
-  return /\/Encrypt\s/.test(ascii)
+  const ascii = new TextDecoder("latin1").decode(bytes)
+  return /\/Encrypt\s+\d+\s+\d+\s+R\b/.test(ascii)
 }
 
 function checkMagicBytes(bytes: Uint8Array): AllowedFormat | null {
