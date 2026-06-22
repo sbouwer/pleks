@@ -41,7 +41,13 @@ export interface RulingFlag {
 export interface RulingResult {
   rulingVersion: string
   rulingTier: RulingTier
-  affordability: { ratioPct: number | null; tier: AffordabilityTier; demonstratedHousingCents: number | null }
+  affordability: {
+    ratioPct: number | null; tier: AffordabilityTier; demonstratedHousingCents: number | null
+    /** Verified-income view: rent ÷ CORROBORATED income (sum of evidenced sources; uncorroborated counts 0).
+     *  Shown beside the declared ratio so phantom uncorroborated income can't visually carry affordability, and
+     *  the base figure for flag 0b's residual override. (ADDENDUM_14M #3) */
+    corroboratedIncomeCents: number; corroboratedRatioPct: number | null
+  }
   confidence: { tier: ConfidenceTier }
   flags: RulingFlag[]
 }
@@ -188,6 +194,11 @@ export function evaluateRuling(input: RulingInput): RulingResult {
   const ratioPct = income > 0 ? Math.round((input.appliedRentCents / income) * 100) : null
   const affordabilityTier = affordabilityTierOf(override, ratioPct)
 
+  // Corroborated (verified) income = sum of evidenced amounts across sources; uncorroborated/no-evidence count 0.
+  // Tier stays on DECLARED (unchanged behaviour); this is surfaced alongside + feeds flag 0b's residual override.
+  const corroboratedIncomeCents = input.reconciliation.declaredSources.reduce((sum, s) => sum + (s.evidenced_monthly_cents ?? 0), 0)
+  const corroboratedRatioPct = corroboratedIncomeCents > 0 ? Math.round((input.appliedRentCents / corroboratedIncomeCents) * 100) : null
+
   const flags: RulingFlag[] = []
   if (overrideFlag) flags.push(overrideFlag)
   const affFlag = affordabilityFlagFor(override, income, ratioPct, affordabilityTier)
@@ -206,7 +217,7 @@ export function evaluateRuling(input: RulingInput): RulingResult {
   return {
     rulingVersion: RULING_VERSION,
     rulingTier,
-    affordability: { ratioPct, tier: affordabilityTier, demonstratedHousingCents: demonstrated },
+    affordability: { ratioPct, tier: affordabilityTier, demonstratedHousingCents: demonstrated, corroboratedIncomeCents, corroboratedRatioPct },
     confidence: { tier: confidence },
     flags,
   }

@@ -137,6 +137,7 @@ interface RulingFlagView { id: number; key: string; axis: string; severity: stri
 interface ScreeningEvaluation {
   iteration_number: number; ruling_tier: string; affordability_tier: string
   affordability_ratio_pct: number | null; demonstrated_housing_cents: number | null
+  affordability_corroborated_ratio_pct?: number | null; corroborated_income_cents?: number | null
   confidence_tier: string; flags: RulingFlagView[]
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -1128,6 +1129,8 @@ function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun
 
   const ratio = evaluation.affordability_ratio_pct
   const affordOk = ratio != null && ratio <= 30
+  const corrIncome = evaluation.corroborated_income_cents ?? null
+  const corrRatio = evaluation.affordability_corroborated_ratio_pct ?? null
   const confPct = CONF_PCT[evaluation.confidence_tier] ?? 30
   const confOk = confPct >= 65
 
@@ -1144,6 +1147,12 @@ function RulingView({ evaluation, askingRentCents, incomeCents, onAmend, onRerun
           <div><span className="block text-[11px] text-[var(--ink-mute)]">Income /mo</span><span className="font-medium text-[var(--ink)]">{incomeCents > 0 ? formatZAR(incomeCents) : "—"}</span></div>
           <div><span className="block text-[11px] text-[var(--ink-mute)]">Rent-to-income</span><span className={`font-semibold ${affordOk ? "text-emerald-600" : "text-amber-600"}`}>{ratio != null ? `${ratio}%` : "—"}</span></div>
         </div>
+        {corrIncome != null && incomeCents > 0 && corrIncome < incomeCents && (
+          <p className="mt-2 text-[11px] text-[var(--ink-mute)]">
+            Verified (documented) income so far: <span className="font-medium text-[var(--ink-soft)]">{formatZAR(corrIncome)}/mo</span>
+            {corrRatio != null && <> · {corrRatio}% rent-to-income on verified</>} — the rest isn&apos;t corroborated yet (see below).
+          </p>
+        )}
         <div className="mt-3 flex flex-col gap-2.5">
           <MeterBar
             label="Income left after rent"

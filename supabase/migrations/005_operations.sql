@@ -2972,3 +2972,9 @@ DROP INDEX IF EXISTS idx_applications_one_per_listing_email;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_one_per_listing_email
   ON applications (listing_id, lower(applicant_email))
   WHERE applicant_email IS NOT NULL AND submitted_at IS NOT NULL AND deleted_at IS NULL;
+
+-- Corroborated (verified-income) affordability view on each evaluation — rent ÷ documented income (sum of evidenced
+-- sources; uncorroborated counts 0). Shown beside the declared ratio so phantom income can't visually carry
+-- affordability, and the base figure for flag 0b's residual-income override. (ADDENDUM_14M #3 / 0b)
+ALTER TABLE application_screening_evaluations ADD COLUMN IF NOT EXISTS corroborated_income_cents bigint;
+ALTER TABLE application_screening_evaluations ADD COLUMN IF NOT EXISTS affordability_corroborated_ratio_pct integer;

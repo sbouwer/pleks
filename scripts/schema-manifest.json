@@ -262,7 +262,9 @@
       "reconciler_version",
       "ruling_version",
       "input_snapshot",
-      "generated_at"
+      "generated_at",
+      "corroborated_income_cents",
+      "affordability_corroborated_ratio_pct"
     ],
     "application_screening_lines": [
       "id",

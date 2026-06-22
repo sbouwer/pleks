@@ -122,3 +122,21 @@ describe("evaluateRuling — integrity / risk", () => {
     expect(f8?.remediation).toBeNull()
   })
 })
+
+describe("evaluateRuling — corroborated (verified) income dual ratio", () => {
+  it("sums evidenced across sources (uncorroborated counts 0) + computes the verified ratio", () => {
+    const r = evaluateRuling(input({ appliedRentCents: 700_000, reconciliation: recon({ declaredSources: [
+      { source_key: "employment", label: "Employment (gross)", declared_monthly_cents: 1_750_000, evidenced_monthly_cents: 2_460_000, variance_pct: -41, match_confidence: 0.6, status: "variance", evidenceDocType: "payslip" },
+      { source_key: "rental", label: "Rental income", declared_monthly_cents: 500_000, evidenced_monthly_cents: null, variance_pct: null, match_confidence: 0, status: "uncorroborated", evidenceDocType: null },
+    ] }) }))
+    expect(r.affordability.corroboratedIncomeCents).toBe(2_460_000) // only the evidenced employment; rental counts 0
+    expect(r.affordability.corroboratedRatioPct).toBe(28)           // 700000 / 2460000
+  })
+  it("no evidence → corroborated income 0, ratio null", () => {
+    const r = evaluateRuling(input({ reconciliation: recon({ declaredSources: [
+      { source_key: "employment", label: "Employment (gross)", declared_monthly_cents: 2_800_000, evidenced_monthly_cents: null, variance_pct: null, match_confidence: 0, status: "no-evidence", evidenceDocType: null },
+    ] }) }))
+    expect(r.affordability.corroboratedIncomeCents).toBe(0)
+    expect(r.affordability.corroboratedRatioPct).toBeNull()
+  })
+})

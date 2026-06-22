@@ -197,6 +197,7 @@ async function persistEvaluation(db: Db, args: {
     org_id: orgId, application_id: appId, iteration_number: iteration,
     ruling_tier: ruling.rulingTier, affordability_tier: ruling.affordability.tier,
     affordability_ratio_pct: ruling.affordability.ratioPct, demonstrated_housing_cents: ruling.affordability.demonstratedHousingCents,
+    corroborated_income_cents: ruling.affordability.corroboratedIncomeCents, affordability_corroborated_ratio_pct: ruling.affordability.corroboratedRatioPct,
     confidence_tier: ruling.confidence.tier, flags: ruling.flags,
     reconciliation, fraud_signals: fraudSignals,
     reconciler_version: RECONCILER_VERSION, ruling_version: ruling.rulingVersion,
@@ -220,7 +221,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
   }
   const { data: evalRow, error: evalErr } = await db.from("application_screening_evaluations")
-    .select("iteration_number, ruling_tier, affordability_tier, affordability_ratio_pct, demonstrated_housing_cents, confidence_tier, flags, generated_at")
+    .select("iteration_number, ruling_tier, affordability_tier, affordability_ratio_pct, affordability_corroborated_ratio_pct, corroborated_income_cents, demonstrated_housing_cents, confidence_tier, flags, generated_at")
     .eq("application_id", id).order("iteration_number", { ascending: false }).limit(1).maybeSingle()
   logQueryError("screen GET evaluation", evalErr)
   if (evalRow) return NextResponse.json({ status: "done", evaluation: evalRow })
