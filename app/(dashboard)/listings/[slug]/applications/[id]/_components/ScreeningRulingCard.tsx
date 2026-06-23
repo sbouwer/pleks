@@ -6,7 +6,7 @@
  * the evidence reconciliation, document-integrity signals, and the reconciler/ruling versions for replay.
  * Read-only; the page is already gateway-gated + org-filtered.
  */
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { formatZAR } from "@/lib/constants"
 import type { RulingFlag } from "@/lib/applications/ruling"
 import type { ReconciliationResult, FraudSignal } from "@/lib/extraction/types"
@@ -46,14 +46,8 @@ export function ScreeningRulingCard({ evaluation }: Readonly<{ evaluation: Scree
   const fraud = evaluation.fraud_signals ?? []
 
   return (
-    <Card className="mt-6">
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center justify-between">
-          <span>Verified ruling (Step 2)</span>
-          <span className={`text-sm font-semibold ${r.cls}`}>{r.label}</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm">
+    <DetailCard title="Verified ruling · Step 2" headerAction={<span className={`text-sm font-semibold ${r.cls}`}>{r.label}</span>}>
+      <div className="space-y-4 text-sm">
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded border border-border p-3">
             <p className="text-xs text-muted-foreground">Affordability</p>
@@ -109,7 +103,7 @@ export function ScreeningRulingCard({ evaluation }: Readonly<{ evaluation: Scree
         <p className="text-[11px] text-muted-foreground pt-2 border-t border-border">
           Iteration {evaluation.iteration_number} · {evaluation.ruling_version} / {evaluation.reconciler_version} · {evaluation.generated_at.slice(0, 16).replace("T", " ")}
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    </DetailCard>
   )
 }

@@ -33,12 +33,14 @@ import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity, CompanyAddressSection } from "@/components/parties/partySteps"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
+import { deriveDocCategories, categoryForFilename, type DocCategory } from "@/lib/applications/docCategories"
+import { Step1Checklist } from "@/components/applications/Step1Checklist"
 import {
   validateIdentityCore, validateAddressStep,
   type PartyFormState, type PartyErrors, type PartyAddressInput, type PartyPerson, type PartyBankAccountInput,
 } from "@/lib/parties/partyValidation"
 import { formatZAR, startedWithinProbation, PROBATION_MONTHS } from "@/lib/constants"
-import type { FreeAssessmentResult, DeclaredAffordabilityTier } from "@/lib/applications/freeAssessment"
+import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 
 type ApplicantType = "individual" | "couple" | "company" | "guarantor"
 /** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
@@ -80,13 +82,12 @@ const PERIOD_OPTIONS = [
 const PERIOD_DIVISOR: Record<IncomePeriod, number> = { month: 1, quarter: 3, annual: 12 }
 /** The fixed "excel" rows of the sources-of-income grid. "Employment (gross)" is the salary; the agent fills
  *  what applies and adds custom rows. Each carries its own period (month/quarter/annual). */
+// Kept short — the common sources. Less-common ones (alimony, shares/dividends) can be added as custom rows.
 const SEED_INCOME: IncomeRow[] = [
   { key: "employment", label: "Employment (gross)", amount: "", period: "month" },
   { key: "other_remuneration", label: "Other remuneration", amount: "", period: "month" },
-  { key: "alimony", label: "Alimony", amount: "", period: "month" },
   { key: "maintenance", label: "Maintenance", amount: "", period: "month" },
   { key: "rental", label: "Rental income", amount: "", period: "month" },
-  { key: "dividends", label: "Shares / dividends", amount: "", period: "month" },
   { key: "savings_interest", label: "Savings / interest", amount: "", period: "month" },
 ]
 const moneyCents = (s: string) => Math.round(parseFloat(s.replaceAll(/[^\d.]/g, "") || "0") * 100)
@@ -104,30 +105,10 @@ function incomeSourcesPayload(rows: IncomeRow[]) {
 }
 
 interface DocFile { id: string; name: string; uploading: boolean; uploaded: boolean; storagePath: string | null; detection?: string | null; error?: string | null }
-interface DocCategory { key: string; label: string; hint: string; single: boolean; required: boolean; escapeLabel?: string; escapeNote?: string; named?: boolean; booster?: boolean }
 
-/** The documents we ask for are DERIVED from the declared income (the Income step) — so we request exactly the
- *  evidence that best supports this applicant's sources (14M §4) and guide them to the strongest outcome. */
-function hasIncome(income: IncomeRow[], key: string): boolean { return income.some((r) => r.key === key && moneyCents(r.amount) > 0) }
-function deriveDocCategories(income: IncomeRow[], employmentType: string): DocCategory[] {
-  const variable = employmentType === "commission" || employmentType === "self_employed"
-  const cats: DocCategory[] = [
-    { key: "id", label: "ID document", hint: "Your SA ID (smart card or green book) or passport.", single: true, required: true },
-  ]
-  if (hasIncome(income, "employment")) {
-    cats.push({ key: "payslips", label: "Payslips", hint: variable ? "Your 3 most recent commission / payslip statements — one file or several." : "Your 3 most recent payslips — a combined PDF or separate files.", single: false, required: false, escapeLabel: "I don't have 3 payslips — I'll upload what I have", escapeNote: "Fewer payslips means we can verify less of your income — your agent will see this." })
-  }
-  cats.push({ key: "bank_main", label: "Bank statement — main account", hint: variable ? "6 months for the account your income is paid into — we average variable income over 6 months for the fairest result." : "3 consecutive months for the account your income is paid into.", single: false, required: true, escapeLabel: "I don't have all the requested statements — I'll upload what I have", escapeNote: "Fewer months means we can verify less of your income — your agent will see this." })
-  if (hasIncome(income, "savings_interest") || hasIncome(income, "dividends")) {
-    cats.push({ key: "bank_savings", label: "Savings / investment statement", hint: "A statement for the savings or investment account behind that income.", single: false, required: false, escapeLabel: "I can't supply this", escapeNote: "Extra declared income can't be verified if you don't supply additional information — it won't count towards your affordability." })
-  }
-  // Optional boosters — shown with a "when it helps" explanation; they raise confidence, never required.
-  if (hasIncome(income, "employment")) {
-    cats.push({ key: "employment_letter", label: "Employment letter or contract", hint: "Substantiates your job and salary — especially helpful if you started recently (it can clear a probation flag).", single: true, required: false, booster: true })
-  }
-  cats.push({ key: "current_lease", label: "Current lease / rental agreement", hint: "If you already rent, add your lease — it proves what you currently afford and can lift your affordability result.", single: true, required: false, booster: true })
-  cats.push({ key: "other", label: "Other documents", hint: "Anything else that strengthens your application — name each one (e.g. previous rental reference, court order, foreign bank statement).", single: false, required: false, named: true })
-  return cats
+/** Income-source keys with a positive declared amount — the input to the shared deriveDocCategories. */
+function incomeKeys(income: IncomeRow[]): Set<string> {
+  return new Set(income.filter((r) => moneyCents(r.amount) > 0).map((r) => r.key))
 }
 
 interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idNumber: string; role: CoRole; invited: boolean }
@@ -178,18 +159,10 @@ function inferType(cos: CoApplicant[]): ApplicantType {
   if (cos.some((c) => c.role === "co_applicant")) return "couple"
   return "individual"
 }
-/** Map a stored filename back to its doc category — paths are `{categoryKey}.ext` or `{categoryKey}_{id}.ext`. */
-function categoryForFilename(name: string, cats: DocCategory[]): string {
-  const base = name.replace(/\.[^.]+$/, "")
-  for (const k of [...cats.map((c) => c.key)].sort((a, b) => b.length - a.length)) {
-    if (base === k || base.startsWith(`${k}_`)) return k
-  }
-  return "other"
-}
 /** Rebuild docFiles from the paths already in Storage — placeholders (uploaded:true) carry the real storagePath
  *  so they remain removable; the original filename/content is NOT re-rendered (POPIA — show "uploaded", a count). */
 function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { name: string; storagePath: string }[]): Record<string, DocFile[]> {
-  const cats = deriveDocCategories(income, employmentType)
+  const cats = deriveDocCategories(incomeKeys(income), employmentType)
   const out: Record<string, DocFile[]> = {}
   for (const p of docPaths) {
     const cat = categoryForFilename(p.name, cats)
@@ -513,7 +486,7 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
     }
   }
 
-  const docCategories = deriveDocCategories(income, emp.employment_type)
+  const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type)
   const docsReady = docCategories.filter((c) => c.required).every((c) => (docFiles[c.key] ?? []).some((f) => f.uploaded))
     && !Object.values(docFiles).flat().some((f) => f.uploading)
   const companyOk = type !== "company" || Boolean(company.companyType)
@@ -972,26 +945,6 @@ function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void;
   )
 }
 
-/** A compact two-marker bar: a filled "you are here" track + a tick for the minimum/guideline you aim at.
- *  Both numbers sit on the label row to save vertical space (the tick shows it visually). */
-function MeterBar({ label, fillPct, markerPct, youText, markerText, ok }: Readonly<{
-  label: string; fillPct: number; markerPct: number; youText: string; markerText: string; ok: boolean
-}>) {
-  const clamp = (n: number) => Math.max(0, Math.min(100, n))
-  return (
-    <div>
-      <div className="flex items-baseline justify-between text-xs">
-        <span className="text-[var(--ink-soft)]">{label}</span>
-        <span><span className={`font-semibold ${ok ? "text-emerald-600" : "text-amber-600"}`}>{youText}</span> <span className="text-[var(--ink-mute)]">/ {markerText}</span></span>
-      </div>
-      <div className="relative mt-1.5 h-2 rounded-full bg-[var(--rule)]/50">
-        <div className={`h-full rounded-full ${ok ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${clamp(fillPct)}%` }} />
-        <div className="absolute -top-1 -bottom-1 w-0.5 bg-[var(--ink)]" style={{ left: `${clamp(markerPct)}%` }} title={markerText} />
-      </div>
-    </div>
-  )
-}
-
 /** Final state — nothing more for the applicant to do; the agent has it. Reached by "Submit to agent". */
 function HandoffView() {
   return (
@@ -1007,16 +960,9 @@ function HandoffView() {
   )
 }
 
-const DECLARED_TIER: Record<DeclaredAffordabilityTier, { label: string; cls: string; ok: boolean }> = {
-  within:      { label: "Looks affordable",     cls: "text-emerald-600", ok: true },
-  marginal:    { label: "A bit tight",          cls: "text-amber-600",   ok: false },
-  below:       { label: "Affordability concern", cls: "text-red-600",    ok: false },
-  "no-income": { label: "No income entered",    cls: "text-amber-600",   ok: false },
-}
-
-/** Step-1 FREE assessment result — combined DECLARED affordability + readiness, nothing verified. The applicant
- *  reviews it, can re-run it freely (it's zero-cost), then submits to the agent. The J1 gate (all co-applicants
- *  complete) blocks submit both here (button) and server-side (/submit-to-agent). (ADDENDUM_14M three-step funnel) */
+/** Step-1 FREE assessment — the same administrative readiness checklist the agent sees (minus the ID/fraud line),
+ *  so the applicant knows exactly what's still missing. Re-runnable for free; the J1 gate (all co-applicants
+ *  complete) blocks submit both here (button) and server-side. (ADDENDUM_14M three-step funnel) */
 function FreeAssessmentView({ assessment, askingRentCents, onAmend, onRerun, onSubmitToAgent }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean> }>) {
   const [done, setDone] = useState(false)
   const [amendOpen, setAmendOpen] = useState(false)
@@ -1030,38 +976,14 @@ function FreeAssessmentView({ assessment, askingRentCents, onAmend, onRerun, onS
   }
   if (done) return <HandoffView />
 
-  const t = DECLARED_TIER[assessment.affordabilityTier]
-  const ratio = assessment.declaredRatioPct
-  const incomeCents = assessment.combinedIncomeCents
-  const { band, incompleteCount, invalidIdCount } = assessment.readiness
+  const { incompleteCount } = assessment.readiness
   const readyToSubmit = incompleteCount === 0   // J1: someone unfinished → blocked (server enforces too)
 
   return (
     <div className="flex flex-col gap-3">
-      <StepHeading title="Your free assessment" sub="Based on what you've entered — nothing is verified yet. Submit it to your agent, or strengthen it first." />
+      <StepHeading title="Your free assessment" sub="A quick readiness check on what you've entered — nothing's verified yet. Add anything missing, then submit to your agent." />
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">Declared affordability · unverified</span>
-          <span className={`text-sm font-semibold ${t.cls}`}>{t.label}</span>
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--rule)] pt-3 text-sm">
-          <div><span className="block text-[11px] text-[var(--ink-mute)]">Rent /mo</span><span className="font-medium text-[var(--ink)]">{formatZAR(askingRentCents)}</span></div>
-          <div><span className="block text-[11px] text-[var(--ink-mute)]">Combined income /mo</span><span className="font-medium text-[var(--ink)]">{incomeCents > 0 ? formatZAR(incomeCents) : "—"}</span></div>
-          <div><span className="block text-[11px] text-[var(--ink-mute)]">Rent-to-income</span><span className={`font-semibold ${t.ok ? "text-emerald-600" : "text-amber-600"}`}>{ratio != null ? `${ratio}%` : "—"}</span></div>
-        </div>
-        <div className="mt-3">
-          <MeterBar label="Income left after rent" fillPct={ratio != null ? 100 - ratio : 0} markerPct={70} youText={ratio != null ? `${100 - ratio}%` : "—"} markerText="keep 70%+" ok={t.ok} />
-        </div>
-        <p className="mt-2 text-[11px] text-[var(--ink-mute)]">On the figures you entered. Your agent verifies income against documents after shortlisting — this is not a credit check.</p>
-      </div>
-
-      <div className={`flex items-start gap-2 rounded-[var(--r-button)] border px-3 py-2 text-xs ${band === "ready" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-        {band === "ready"
-          ? <><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" /><span>Everyone&apos;s finished — your application is ready to submit.</span></>
-          : <><AlertCircle className="mt-0.5 size-3.5 shrink-0" /><span>
-              {incompleteCount > 0 && `${incompleteCount} ${incompleteCount === 1 ? "applicant hasn't" : "applicants haven't"} finished — everyone must complete their part before you can submit. `}
-              {invalidIdCount > 0 && `${invalidIdCount} ID number ${invalidIdCount === 1 ? "looks" : "look"} incorrect — check to avoid a delay.`}
-            </span></>}
+        <Step1Checklist assessment={assessment} rentCents={askingRentCents} audience="applicant" />
       </div>
 
       <div className="flex flex-col gap-2 border-t border-[var(--rule)] pt-3">
