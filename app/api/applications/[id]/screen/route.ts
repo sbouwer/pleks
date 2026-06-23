@@ -54,6 +54,7 @@ async function loadDocuments(db: Db, orgId: string, appId: string): Promise<Docu
 
 interface AppRow {
   org_id: string; listing_id: string; co_applicants_count: number | null; dependents_count: number | null
+  dependent_adults_count: number | null; dependent_minors_count: number | null; school_fees_cents: number | null
   first_name: string | null; last_name: string | null; id_number: string | null
   gross_monthly_income_cents: number | null; employment_type: string | null; employment_start_date: string | null
   income_sources: Array<{ key: string; label: string; monthly_cents: number }> | null
@@ -110,7 +111,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("org_id, listing_id, co_applicants_count, dependents_count, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, employment_start_date, income_sources, stage1_consent_given, listings(asking_rent_cents, units(properties(type)))")
+    .select("org_id, listing_id, co_applicants_count, dependents_count, dependent_adults_count, dependent_minors_count, school_fees_cents, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, employment_start_date, income_sources, stage1_consent_given, listings(asking_rent_cents, units(properties(type)))")
     .eq("id", id).single()
   logQueryError("screen applications", appErr)
   if (!app) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -164,8 +165,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       employmentStartDate: app.employment_start_date,
       reconciliation,
       now: new Date(),
-      adults: applicantCount,                          // applicant + co-applicants
-      dependents: (app as unknown as AppRow).dependents_count ?? 0,
+      adults: applicantCount,                          // earner adults (applicant + co-applicants)
+      adultDependents: (app as unknown as AppRow).dependent_adults_count ?? 0,
+      minorDependents: (app as unknown as AppRow).dependent_minors_count ?? (app as unknown as AppRow).dependents_count ?? 0,
+      schoolFeesCents: (app as unknown as AppRow).school_fees_cents ?? 0,
+      // Child maintenance received — excluded from rent-payable income, offsets the child bucket (floor + fees).
+      childMaintenanceCents: ((app as unknown as AppRow).income_sources ?? []).filter((s) => s.key === "maintenance").reduce((sum, s) => sum + (s.monthly_cents ?? 0), 0),
     })
 
     const iteration = await persistEvaluation(db, { orgId: app.org_id, appId: id, ruling, reconciliation, fraudSignals, declared, unitType, applicantCount, docCount: docs.length })

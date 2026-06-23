@@ -33,8 +33,11 @@ interface Body {
   first_name?: string; last_name?: string; email?: string; phone?: string
   id_type?: string; id_number?: string; date_of_birth?: string
   employment_type?: string; employer_name?: string; employment_start_date?: string
+  employment_details?: Record<string, unknown> | null
   dependents?: number | null
+  dependent_adults?: number | null; dependent_minors?: number | null; school_fees?: number | null
   gross_monthly_income?: string; income_sources?: unknown
+  declared_monthly_obligations?: number | null; expenses?: unknown
   addresses?: unknown
   applicant_type?: string; company_info?: unknown
 }
@@ -47,6 +50,7 @@ const resumeUrl = (req: NextRequest, slug: string, id: string, token: string) =>
 /** Map the partial body → the application columns we persist (only what's filled). */
 function draftFields(body: Body) {
   const parsed = parseIncomeSources(body.income_sources)
+  const parsedExpenses = parseIncomeSources(body.expenses)
   let incomeCents: number | null = null
   if (parsed) incomeCents = parsed.totalMonthlyCents
   else if (body.gross_monthly_income) incomeCents = Math.round(Number.parseFloat(body.gross_monthly_income) * 100)
@@ -57,8 +61,14 @@ function draftFields(body: Body) {
     id_type: body.id_type || null, id_number: body.id_number ?? null, date_of_birth: body.date_of_birth || null,
     employment_type: body.employment_type || null, employer_name: body.employer_name ?? null,
     employment_start_date: body.employment_start_date || null,
+    employment_details: body.employment_details && typeof body.employment_details === "object" ? body.employment_details : null,
     gross_monthly_income_cents: incomeCents, income_sources: parsed?.rows ?? null,
     dependents_count: typeof body.dependents === "number" && Number.isFinite(body.dependents) ? Math.max(0, Math.trunc(body.dependents)) : null,
+    dependent_adults_count: typeof body.dependent_adults === "number" && Number.isFinite(body.dependent_adults) ? Math.max(0, Math.trunc(body.dependent_adults)) : null,
+    dependent_minors_count: typeof body.dependent_minors === "number" && Number.isFinite(body.dependent_minors) ? Math.max(0, Math.trunc(body.dependent_minors)) : null,
+    school_fees_cents: typeof body.school_fees === "number" && Number.isFinite(body.school_fees) ? Math.max(0, Math.round(body.school_fees * 100)) : null,
+    declared_monthly_obligations_cents: typeof body.declared_monthly_obligations === "number" && Number.isFinite(body.declared_monthly_obligations) ? Math.max(0, Math.round(body.declared_monthly_obligations * 100)) : null,
+    expenses: parsedExpenses?.rows ?? null,
     // applicant's current address(es) — bounded (array, cap 5) since it's public input; stored as-is for resume.
     applicant_addresses: Array.isArray(body.addresses) ? body.addresses.slice(0, 5) : null,
     // chosen application type + company details — so resume restores the exact flow (not inferred).

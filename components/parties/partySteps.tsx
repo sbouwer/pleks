@@ -59,7 +59,7 @@ function entityBlurb(entity: PartyEntity, fullFica: boolean): string {
 // ── Step 1 — Identity ─────────────────────────────────────────────────────────
 type IdentityBodyProps = Readonly<{ f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean }>
 
-export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber = "01" }: IdentityBodyProps & { stepNumber?: string }) {
+export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber = "01", sectioned = false }: IdentityBodyProps & { stepNumber?: string; sectioned?: boolean }) {
   // Auto-fill DOB + gender from a valid SA ID — only when empty, so a manual choice (e.g. unlabelled gender) sticks.
   useEffect(() => {
     const v = validateSAId(f.idNumber)
@@ -73,6 +73,49 @@ export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber =
     if (!f.gender) set("gender", v.gender.toLowerCase())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [f.idNumber])
+
+  // Sectioned layout (apply wizard): three iconic-line sections — Personal details · Identity · Contact.
+  if (sectioned) {
+    return (
+      <div className="flex flex-col gap-9">
+        <section>
+          <SectLabel n="01">Personal details</SectLabel>
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-3">
+            <TextField label="First name" k="firstName" f={f} set={set} errors={errors} required placeholder="Jane" />
+            <TextField label="Last name" k="lastName" f={f} set={set} errors={errors} required placeholder="Smith" />
+            <TextField label="Middle name(s)" k="middleNames" f={f} set={set} errors={errors} placeholder="Optional" />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4">
+            <SelectField label="Title" k="title" f={f} set={set} options={TITLE_OPTIONS} />
+            <TextField label="Initials" k="initials" f={f} set={set} errors={errors} placeholder="J.S." />
+            <TextField label="Suffix" k="suffix" f={f} set={set} errors={errors} placeholder="Jr / Sr" />
+            <TextField label="Designation" k="designation" f={f} set={set} errors={errors} placeholder="Dr, CA(SA)" />
+          </div>
+        </section>
+        <section>
+          <SectLabel n="02">Identity</SectLabel>
+          {/* One row: ID type · ID number (the IdField pair) · Date of birth · Gender. */}
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+            <IdField label="ID" typeKey="idType" numKey="idNumber" f={f} set={set} errors={errors} required={fullFica} />
+            <TextField label="Date of birth" k="dob" f={f} set={set} errors={errors} type="date" />
+            <SelectField label="Gender" k="gender" f={f} set={set} options={GENDER_OPTIONS} />
+          </div>
+        </section>
+        <section>
+          <SectLabel n="03">Contact</SectLabel>
+          {/* Row 1: email · mobile · preferred. Row 2: emergency contact (name · number · relationship). */}
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+            <TextField label="Email" k="email" f={f} set={set} errors={errors} required type="email" placeholder="jane@email.co.za" />
+            <TextField label="Mobile phone" k="phone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
+            <SelectField label="Preferred contact" k="preferredChannel" f={f} set={set} options={CHANNEL_OPTIONS} />
+            <TextField label="Emergency contact name" k="emergencyContactName" f={f} set={set} errors={errors} placeholder="Full name" />
+            <TextField label="Emergency contact number" k="emergencyContactNumber" f={f} set={set} errors={errors} type="tel" placeholder="082 000 0000" />
+            <TextField label="Emergency contact relationship" k="emergencyContactRelationship" f={f} set={set} errors={errors} placeholder="e.g. Spouse, Parent" />
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   return (
     <div className="mt-6">
@@ -98,6 +141,9 @@ export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber =
         <SelectField label="Gender" k="gender" f={f} set={set} options={GENDER_OPTIONS} />
         <TextField label="Email" k="email" f={f} set={set} errors={errors} required type="email" placeholder="jane@email.co.za" />
         <TextField label="Phone" k="phone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
+        <TextField label="Emergency contact name" k="emergencyContactName" f={f} set={set} errors={errors} placeholder="Full name" />
+        <TextField label="Emergency contact number" k="emergencyContactNumber" f={f} set={set} errors={errors} type="tel" placeholder="082 000 0000" />
+        <TextField label="Emergency contact relationship" k="emergencyContactRelationship" f={f} set={set} errors={errors} placeholder="e.g. Spouse, Parent" />
       </div>
     </div>
   )

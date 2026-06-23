@@ -36,11 +36,14 @@ export interface DocSlot { key: string; label: string; required: boolean; presen
 export interface FreeApplicantInput {
   role: "primary" | "co_applicant" | "guarantor"
   declaredIncomeCents: number
+  childMaintenanceCents?: number             // child maintenance RECEIVED — earmarked for the child, so it
+                                             // offsets that dependent's cost; NOT counted as rent-payable income
   declaredObligationsCents?: number | null  // existing monthly debits/commitments, if declared
   idType: string | null
   idNumber: string | null
   declaredDob?: string | null         // separately-declared DOB (YYYY-MM-DD) — for the ID cross-check
   employmentStartDate?: string | null // for tenure + probation (primary only today)
+  contractEndDate?: string | null     // stated fixed-term contract end (YYYY-MM-DD) — vs the lease term
   documentsUploaded?: boolean         // any docs at all (co-applicant readiness); undefined = unknown
   documents?: DocSlot[]               // itemised slots (primary) — powers the documents checklist
   complete: boolean                   // finished their part (identity + income + docs + consent)
@@ -63,6 +66,8 @@ export interface IdentitySignal {
 export interface EmploymentSignal {
   tenureMonths: number | null
   recentlyStarted: boolean            // started within the probation window
+  contractEndDate: string | null      // stated fixed-term contract end (echoed for the agent)
+  contractEndsBeforeLease: boolean    // stated contract ends before the lease term would run out
 }
 
 export type InterpretationKind = "positive" | "caution" | "action"
@@ -71,7 +76,8 @@ export interface Interpretation { kind: InterpretationKind; text: string }
 export interface FreeAssessmentResult {
   // Affordability (declared / unverified)
   primaryIncomeCents: number
-  combinedIncomeCents: number          // primary + co-applicants (guarantors excluded)
+  combinedIncomeCents: number          // primary + co-applicants (guarantors excluded), EXCL child maintenance
+  childMaintenanceCents: number        // child maintenance received (summed) — excluded from affordability income
   declaredObligationsCents: number     // summed across primary + co-applicants
   declaredRatioPct: number | null      // rent ÷ combined income, on STATED figures
   affordabilityTier: DeclaredAffordabilityTier
@@ -95,6 +101,7 @@ export interface FreeAssessmentResult {
 
 export interface FreeAssessmentOptions {
   depositCents?: number | null         // unit deposit; falls back to 1× rent for the move-in estimate
+  leaseTermMonths?: number | null      // listing's lease term — for the contract-end-vs-lease signal; skip if absent
   asOf?: Date                          // for deterministic age/tenure in tests
 }
 
@@ -156,12 +163,25 @@ function identitySignal(primary: FreeApplicantInput | undefined, asOf: Date): Id
   }
 }
 
-function employmentSignal(primary: FreeApplicantInput | undefined, asOf: Date): EmploymentSignal {
+function employmentSignal(primary: FreeApplicantInput | undefined, asOf: Date, leaseTermMonths: number | null | undefined): EmploymentSignal {
+  // Contract-end-vs-lease: a declared, deterministic signal. Skip gracefully when either the stated contract end
+  // or the listing's lease term is absent (never guess a lease term). Lease end ≈ asOf + term.
+  const contractEndDate = primary?.contractEndDate ?? null
+  const contractEnd = parseDob(contractEndDate)
+  let contractEndsBeforeLease = false
+  if (contractEnd && leaseTermMonths && leaseTermMonths > 0) {
+    const leaseEnd = new Date(asOf)
+    leaseEnd.setMonth(leaseEnd.getMonth() + leaseTermMonths)
+    contractEndsBeforeLease = contractEnd.getTime() < leaseEnd.getTime()
+  }
+
   const start = primary?.employmentStartDate ? new Date(primary.employmentStartDate) : null
-  if (!start || Number.isNaN(start.getTime())) return { tenureMonths: null, recentlyStarted: false }
+  if (!start || Number.isNaN(start.getTime())) return { tenureMonths: null, recentlyStarted: false, contractEndDate, contractEndsBeforeLease }
   return {
     tenureMonths: Math.max(0, monthsBetween(start, asOf)),
     recentlyStarted: startedWithinProbation(primary?.employmentStartDate, asOf),
+    contractEndDate,
+    contractEndsBeforeLease,
   }
 }
 
@@ -210,6 +230,12 @@ function buildInterpretations(r: Omit<FreeAssessmentResult, "interpretations">):
 
   if (r.employment.recentlyStarted) {
     out.push({ kind: "caution", text: `Less than ${PROBATION_MONTHS} months in the current role — employment not yet established.` })
+  }
+  if (r.employment.contractEndsBeforeLease) {
+    out.push({ kind: "caution", text: "Stated contract ends before the lease term — income may not cover the full lease. Worth asking the applicant if it's expected to renew." })
+  }
+  if (r.childMaintenanceCents > 0) {
+    out.push({ kind: "caution", text: "Child maintenance received is treated as covering the child's costs (a reduced dependent cost), not as rent-payable income — so it's excluded from the affordability figure above." })
   }
   if (r.identity.residency === "foreign") {
     out.push({ kind: "caution", text: "Foreign national — SA credit data may be limited; see the foreign-national checks." })
@@ -266,10 +292,14 @@ function buildReadiness(applicants: FreeApplicantInput[]): FreeAssessmentResult[
 export function freeAssessment(rentCents: number, applicants: FreeApplicantInput[], opts: FreeAssessmentOptions = {}): FreeAssessmentResult {
   const asOf = opts.asOf ?? new Date()
 
-  // Affordability: co-applicants share the rent → summed; guarantors are a backstop → excluded.
+  // Affordability: co-applicants share the rent → summed; guarantors are a backstop → excluded. Child maintenance
+  // received is earmarked for the child (offsets that dependent's cost), so it's NOT rent-payable income — net it
+  // out of each applicant's affordability income.
+  const affordabilityIncomeOf = (a: FreeApplicantInput) => Math.max(0, a.declaredIncomeCents - (a.childMaintenanceCents ?? 0))
   const primaryApplicant = applicants.find((a) => a.role === "primary")
-  const primary = primaryApplicant?.declaredIncomeCents ?? 0
-  const coIncomes = applicants.filter((a) => a.role === "co_applicant").map((a) => a.declaredIncomeCents)
+  const primary = primaryApplicant ? affordabilityIncomeOf(primaryApplicant) : 0
+  const coIncomes = applicants.filter((a) => a.role === "co_applicant").map(affordabilityIncomeOf)
+  const childMaintenanceCents = applicants.filter((a) => a.role !== "guarantor").reduce((sum, a) => sum + (a.childMaintenanceCents ?? 0), 0)
   const { combinedIncome, ratio } = calculateCombinedAffordability(primary, coIncomes, rentCents)
   const declaredRatioPct = ratio == null ? null : Math.round(ratio * 100)
   const affordabilityTier = affordabilityTierOf(combinedIncome, ratio)
@@ -293,7 +323,7 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
   const estimatedMoveInCents = rentCents > 0 && depositCents != null ? depositCents + rentCents : null
 
   const identity = identitySignal(primaryApplicant, asOf)
-  const employment = employmentSignal(primaryApplicant, asOf)
+  const employment = employmentSignal(primaryApplicant, asOf, opts.leaseTermMonths)
   const readiness = buildReadiness(applicants)
 
   // Documents: the primary's required/expected slots (itemised at /submit by listing what's uploaded).
@@ -304,6 +334,7 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
   const base: Omit<FreeAssessmentResult, "interpretations"> = {
     primaryIncomeCents: primary,
     combinedIncomeCents: combinedIncome,
+    childMaintenanceCents,
     declaredObligationsCents,
     declaredRatioPct,
     affordabilityTier,

@@ -2999,3 +2999,28 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS free_assessment jsonb;
 -- unverified; summed across primary + co-applicants like income. (ADDENDUM_14M funnel, Step-1 enrichment)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS declared_monthly_obligations_cents bigint;
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS declared_monthly_obligations_cents bigint;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §37  APPLY EMPLOYMENT BRANCHING CONTEXT (ADDENDUM_14M apply redesign — Employment sub-tab)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The Employment sub-tab branches on employment_type: employed → employer fields; self-employed/freelance →
+-- business fields; retired/grant → minimal; unemployed → route to other income. The branching context (contract
+-- end date, job title, employer contact, business name/nature/trading-since, registration, SARS) is held in one
+-- jsonb — the income figure itself stays in income_sources. Two new status values (freelance, grant) are added:
+-- freelance is treated as variable income (like commission/self_employed), grant as a fixed minimal source.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS employment_details jsonb;
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_employment_type_check;
+ALTER TABLE applications ADD CONSTRAINT applications_employment_type_check CHECK (
+  employment_type IN ('permanent','contract','commission','self_employed','freelance','part_time','student','unemployed','retired','grant','other')
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §38  APPLY EXPENSES TABLE + DEPENDANT BREAKDOWN (ADDENDUM_14M apply redesign — Expenses sub-tab)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Dependants split into adults vs minors — different living-floor cost (adult ≈ full adult essentials, minor ≈
+-- half; PMBEJD). dependents_count stays as the combined total for back-compat. Expenses become an itemised list
+-- (jsonb, mirrors income_sources); their monthly sum is the declared_monthly_obligations_cents used by the read.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependent_adults_count integer;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependent_minors_count integer;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS school_fees_cents bigint;  -- declared child cost (child bucket)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS expenses jsonb;

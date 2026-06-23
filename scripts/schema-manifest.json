@@ -493,7 +493,12 @@
       "submitted_at",
       "dependents_count",
       "free_assessment",
-      "declared_monthly_obligations_cents"
+      "declared_monthly_obligations_cents",
+      "employment_details",
+      "dependent_adults_count",
+      "dependent_minors_count",
+      "expenses",
+      "school_fees_cents"
     ],
     "arrears_actions": [
       "id",

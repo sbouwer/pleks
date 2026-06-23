@@ -91,6 +91,32 @@ describe("freeAssessment — employment tenure (declared)", () => {
   })
 })
 
+describe("freeAssessment — contract end vs lease term (declared signal)", () => {
+  it("flags a stated contract ending before the lease term", () => {
+    const r = freeAssessment(900_000, [a({ contractEndDate: "2026-09-01" })], { asOf: ASOF, leaseTermMonths: 12 })
+    expect(r.employment.contractEndsBeforeLease).toBe(true)
+    expect(r.interpretations.some((i) => i.text.includes("contract ends before the lease"))).toBe(true)
+  })
+  it("does not flag when the contract runs past the lease term", () => {
+    const r = freeAssessment(900_000, [a({ contractEndDate: "2028-01-01" })], { asOf: ASOF, leaseTermMonths: 12 })
+    expect(r.employment.contractEndsBeforeLease).toBe(false)
+  })
+  it("skips gracefully when the listing has no defined lease term", () => {
+    const r = freeAssessment(900_000, [a({ contractEndDate: "2026-09-01" })], { asOf: ASOF })
+    expect(r.employment.contractEndsBeforeLease).toBe(false)
+  })
+})
+
+describe("freeAssessment — child maintenance is a reduced dependent cost, not income", () => {
+  it("excludes received child maintenance from the affordability income", () => {
+    const withMaint = freeAssessment(900_000, [a({ declaredIncomeCents: 3_000_000, childMaintenanceCents: 500_000 })], { asOf: ASOF })
+    const without = freeAssessment(900_000, [a({ declaredIncomeCents: 2_500_000 })], { asOf: ASOF })
+    expect(withMaint.combinedIncomeCents).toBe(without.combinedIncomeCents) // 3.0m − 0.5m maintenance == 2.5m
+    expect(withMaint.childMaintenanceCents).toBe(500_000)
+    expect(withMaint.interpretations.some((i) => i.text.includes("Child maintenance"))).toBe(true)
+  })
+})
+
 describe("freeAssessment — affordability framings", () => {
   it("rand-left, income multiple, primary-alone-clears", () => {
     const r = freeAssessment(1_000_000, [a({ declaredIncomeCents: 3_000_000 })]) // R10k rent / R30k = 33%

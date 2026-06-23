@@ -1,21 +1,22 @@
 "use client"
 
 /**
- * app/(applicant)/apply/[slug]/preview/ApplyLoginButton.tsx — header "Log in" affordance for the apply preview
+ * app/(applicant)/apply/[slug]/ApplyLoginButton.tsx — compact header "Log in" / account affordance for apply
  *
- * Auth:   public (token-gated prefix) — preview only
- * Notes:  Existing Pleks tenants can log in to auto-fill their applicant details instead of re-entering
- *         everything. Opens a light inline modal (kept inside the .pleks-public surface so it matches the
- *         warm theme, unlike a portalled dialog). "Log in" routes through /login with a redirect back here;
- *         the post-login auto-fill of the applicant form from the tenant's contact record is the follow-up.
+ * Auth:   public (token-gated prefix)
+ * Notes:  Existing Pleks tenants can log in to auto-fill their applicant details. Logged OUT → a small "Log in"
+ *         button opening a light inline modal (kept inside .pleks-public so it matches the warm theme). Logged
+ *         IN → a compact initials avatar with a dropdown ("Signed in as …", details auto-filled, Sign out) so the
+ *         header stays uncluttered. Post-login auto-fill of the form from the tenant's record is wired elsewhere.
  */
 
 import { useState } from "react"
-import { LogIn, LogOut, X, CheckCircle2 } from "lucide-react"
+import { LogIn, LogOut, X, CheckCircle2, User } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 
 export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: string; loggedIn?: boolean; name?: string | null }>) {
   const [open, setOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   function login() {
     globalThis.location.href = `/login?redirect=${encodeURIComponent(`/apply/${slug}`)}`
   }
@@ -24,19 +25,32 @@ export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: stri
     globalThis.location.href = `/apply/${slug}`
   }
 
-  // Already authenticated — skip the door; the form is pre-filled from the user's own record. Offer sign-out
-  // (e.g. to apply as a different person, or test the anonymous path).
+  // Already authenticated — the portal's user-profile icon button (pa-iconbtn + User); the "signed in as /
+  // auto-filled / sign out" detail lives in the dropdown so the header isn't cluttered.
   if (loggedIn) {
     return (
-      <span className="inline-flex items-center gap-2 text-[12px] text-[var(--ink-mute)]">
-        <span className="inline-flex items-center gap-1.5">
-          <CheckCircle2 className="size-3.5 text-emerald-600" /> Signed in{name ? ` as ${name}` : ""} · details pre-filled
-        </span>
-        <button type="button" onClick={logout}
-          className="inline-flex items-center gap-1 rounded-[var(--r-button)] border border-[var(--rule)] px-2 py-1 font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
-          <LogOut className="size-3.5" /> Sign out
+      <div className="relative">
+        <button type="button" onClick={() => setMenuOpen((o) => !o)} className="pa-iconbtn" aria-label="Account menu" title="Account">
+          <User size={15} />
         </button>
-      </span>
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-[55]" onClick={() => setMenuOpen(false)} aria-hidden />
+            <div className="absolute right-0 top-[42px] z-[60] min-w-[220px] overflow-hidden rounded-[var(--r-button)] border border-border bg-popover shadow-lg">
+              <div className="border-b border-border px-3 py-2">
+                <p className="text-[13px] font-medium text-foreground">Signed in{name ? ` as ${name}` : ""}</p>
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" /> Your details are auto-filled
+                </p>
+              </div>
+              <button type="button" onClick={logout}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted">
+                <LogOut size={14} /> Sign out
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     )
   }
 
@@ -47,7 +61,7 @@ export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: stri
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] px-3 py-1.5 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]"
       >
-        <LogIn className="size-4" /> Log in
+        <LogIn className="size-4" /> <span className="hidden sm:inline">Log in</span>
       </button>
 
       {open && (

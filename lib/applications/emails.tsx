@@ -54,7 +54,7 @@ interface OrgContext {
 function appRef(id: string) { return `APP-${id.slice(0, 8).toUpperCase()}` }
 function statusUrl(slug: string, id: string, token: string) { return `${APP_URL}/apply/${slug}/status?token=${token}` }
 function formatEmployment(type = ""): string {
-  return ({ permanent: "Permanent", contract: "Contract", self_employed: "Self-employed", retired: "Retired", student: "Student", unemployed: "Unemployed", full_time: "Full-time", part_time: "Part-time", contractor: "Contractor" })[type] ?? type
+  return ({ permanent: "Permanent", contract: "Contract", commission: "Commission-based", self_employed: "Self-employed", freelance: "Freelance", retired: "Pensioner / retired", grant: "Receiving grants", student: "Student", unemployed: "Unemployed", full_time: "Full-time", part_time: "Part-time", contractor: "Contractor" })[type] ?? type
 }
 function formatDate(d?: string) {
   if (!d) return ""

@@ -30,6 +30,8 @@ export type PartyAddressType = "physical" | "postal" | "billing"
 
 export interface PartyAddressInput {
   type: PartyAddressType
+  streetNumber?: string      // split street capture; line1 is kept as the combined "number name" for display
+  streetName?: string
   line1?: string
   line2?: string
   suburb?: string
@@ -83,6 +85,9 @@ export interface PartyFormState {
   idNumber?: string
   email?: string
   phone?: string
+  emergencyContactName?: string          // next-of-kin — lives on the global contact
+  emergencyContactNumber?: string
+  emergencyContactRelationship?: string  // e.g. Spouse, Parent
   // company
   companyName?: string
   companyReg?: string

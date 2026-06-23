@@ -46,7 +46,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Fetch application + listing
   const { data: app, error: appError } = await service
     .from("applications")
-    .select("*, listings(id, public_slug, asking_rent_cents, applications_count, status, closes_at, units(unit_number, default_deposit_cents, deposit_amount_cents, properties(id, name, city, managing_agent_id)), org_id)")
+    .select("*, listings(id, public_slug, asking_rent_cents, applications_count, status, closes_at, units(unit_number, default_deposit_cents, deposit_amount_cents, default_lease_period_months, properties(id, name, city, managing_agent_id)), org_id)")
     .eq("id", id)
     .single()
     logQueryError("POST applications", appError)
@@ -81,10 +81,12 @@ export async function POST(req: NextRequest, { params }: Props) {
 
   // Itemise the primary's required document slots: derive the expected slots from declared income, then check
   // which are PRESENT by listing what's uploaded to Storage (presence, not proof — "uploaded, unverified").
-  const incomeSources = (app.income_sources as { key?: string; amount_cents?: number }[] | null) ?? []
+  const incomeSources = (app.income_sources as { key?: string; amount_cents?: number; monthly_cents?: number }[] | null) ?? []
   const positiveIncomeKeys = new Set(incomeSources.filter((s) => (s.amount_cents ?? 0) > 0 && s.key).map((s) => s.key as string))
+  // Child maintenance received is earmarked for the child (a reduced dependent cost), not rent-payable income.
+  const childMaintenanceCents = incomeSources.filter((s) => s.key === "maintenance").reduce((sum, s) => sum + (s.monthly_cents ?? 0), 0)
   if (positiveIncomeKeys.size === 0 && ((app.gross_monthly_income_cents as number | null) ?? 0) > 0) positiveIncomeKeys.add("employment")
-  const docCats = deriveDocCategories(positiveIncomeKeys, (app.employment_type as string | null) ?? "")
+  const docCats = deriveDocCategories(positiveIncomeKeys, (app.employment_type as string | null) ?? "", app.id_type as string | null)
   const { data: docFiles, error: docListErr } = await service.storage.from("application-docs").list(`applications/${app.org_id}/${id}`, { limit: 200 })
   logQueryError("submit doc list", docListErr)
   const presentDocKeys = new Set((docFiles ?? []).map((f) => categoryForFilename(f.name, docCats)))
@@ -101,10 +103,12 @@ export async function POST(req: NextRequest, { params }: Props) {
     {
       role: "primary",
       declaredIncomeCents: (app.gross_monthly_income_cents as number | null) ?? 0,
+      childMaintenanceCents,
       declaredObligationsCents: (app.declared_monthly_obligations_cents as number | null) ?? null,
       idType: app.id_type as string | null, idNumber: app.id_number as string | null,
       declaredDob: (app.date_of_birth as string | null) ?? null,
       employmentStartDate: (app.employment_start_date as string | null) ?? null,
+      contractEndDate: ((app.employment_details as Record<string, unknown> | null)?.contract_end_date as string | null) ?? null,
       documentsUploaded: app.documents_submitted === true || !!app.bank_statement_path,
       documents: primaryDocuments,
       complete: true,
@@ -119,7 +123,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       complete: c.stage1_consent_given === true,
     })),
   ]
-  const assessment = freeAssessment(rentCents, applicants, { depositCents })
+  const assessment = freeAssessment(rentCents, applicants, { depositCents, leaseTermMonths: (unit?.default_lease_period_months as number | null) ?? null })
 
   const now = new Date().toISOString()
   // Store the free assessment + record Stage-1 consent. NO deep scan — it runs at shortlist (Step 2).

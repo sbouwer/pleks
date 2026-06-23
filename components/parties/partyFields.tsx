@@ -121,25 +121,33 @@ export function IdField({
   label: string; typeKey: keyof PartyFormState; numKey: keyof PartyFormState
   f: PartyFormState; set: SetFn; errors: PartyErrors; required?: boolean
 }>) {
-  const isSaId = ((f[typeKey] as string) || "sa_id") === "sa_id"
+  const idType = (f[typeKey] as string) || "sa_id"
+  const isSaId = idType === "sa_id"
   const v = isSaId ? validateSAId(f[numKey] as string) : null
   const dobStr = v?.dob ? v.dob.toLocaleDateString("en-ZA") : ""
+  // The number field's label + placeholder follow the chosen ID type (passport → "Passport number", etc.).
+  const NUM_LABEL: Record<string, string> = { passport: "Passport number", asylum_permit: "Permit number" }
+  const numLabel = NUM_LABEL[idType] ?? `${label} number`
+  const numPlaceholder = isSaId ? "13-digit SA ID" : numLabel
   return (
     <>
       <SelectField label={`${label} type`} k={typeKey} f={f} set={set} options={PARTY_ID_TYPES} />
-      <Field label={`${label} number`} required={required} error={errors[numKey]}>
+      <Field label={numLabel} required={required} error={errors[numKey]}>
         <input
           className={inputCls(!!errors[numKey])}
           value={(f[numKey] as string) || ""}
-          placeholder={isSaId ? "13-digit SA ID" : "Passport / permit number"}
+          placeholder={numPlaceholder}
           onChange={(e) => set(numKey, e.target.value)}
         />
         {v && (
-          <span className={cn("mt-1 block text-xs", v.valid ? "text-emerald-600" : "text-destructive")}>
-            {v.valid
-              ? `Valid · ${dobStr} · ${v.gender} · ${v.citizenship}`
-              : "Checksum doesn't validate — check the number"}
-          </span>
+          v.valid ? (
+            <span className="mt-1 block text-xs text-emerald-600">
+              <span className="block font-medium">Passed Luhn check:</span>
+              {dobStr} · {v.gender} · {v.citizenship}
+            </span>
+          ) : (
+            <span className="mt-1 block text-xs text-destructive">Checksum doesn&apos;t validate — check the number</span>
+          )
         )}
       </Field>
     </>
@@ -240,18 +248,26 @@ export function AddressFields({
 }: Readonly<{ address: PartyAddressInput; onUpdate: (patch: Partial<PartyAddressInput>) => void; requiredLine?: boolean }>) {
   const country = address.country ?? DEFAULT_COUNTRY
   const isSA = country === DEFAULT_COUNTRY
+  // Street number + name are captured separately, but line1 is kept as the combined "12 Main Road" so every
+  // address reader (display, PDFs, lease docs) keeps working off line1 while consumers can use the parts too.
+  const setStreet = (patch: Partial<PartyAddressInput>) => {
+    const num = (patch.streetNumber ?? address.streetNumber ?? "").trim()
+    const name = (patch.streetName ?? address.streetName ?? "").trim()
+    onUpdate({ ...patch, line1: [num, name].filter(Boolean).join(" ") })
+  }
   return (
-    <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-      <Bare label="Street address" required={requiredLine} value={address.line1} onChange={(v) => onUpdate({ line1: v })} placeholder="12 Main Road" autoComplete="address-line1" />
+    <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Bare label="Street number" required={requiredLine} value={address.streetNumber} onChange={(v) => setStreet({ streetNumber: v })} placeholder="12" autoComplete="address-line1" />
+      <Bare label="Street name" required={requiredLine} value={address.streetName} onChange={(v) => setStreet({ streetName: v })} placeholder="Main Road" />
       <Bare label="Address line 2" value={address.line2} onChange={(v) => onUpdate({ line2: v })} placeholder="Optional" autoComplete="address-line2" />
       <Bare label="Suburb" value={address.suburb} onChange={(v) => onUpdate({ suburb: v })} placeholder="Sea Point" autoComplete="address-level3" />
       <Bare label="City" required={requiredLine} value={address.city} onChange={(v) => onUpdate({ city: v })} placeholder="Cape Town" autoComplete="address-level2" />
+      <Bare label="Postal code" value={address.postal} onChange={(v) => onUpdate({ postal: v })} placeholder="8005" autoComplete="postal-code" />
       {isSA ? (
         <BareSelect label="Province" value={address.province ?? ""} onChange={(v) => onUpdate({ province: v })} options={ADDRESS_PROVINCE_OPTIONS} autoComplete="address-level1" />
       ) : (
         <Bare label="Province / state" value={address.province} onChange={(v) => onUpdate({ province: v })} placeholder="e.g. Noord-Holland" autoComplete="address-level1" />
       )}
-      <Bare label="Postal code" value={address.postal} onChange={(v) => onUpdate({ postal: v })} placeholder="8005" autoComplete="postal-code" />
       <BareSelect label="Country" value={country} onChange={(v) => onUpdate({ country: v })} options={COUNTRY_OPTIONS} autoComplete="country-name" />
     </div>
   )

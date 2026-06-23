@@ -17,9 +17,9 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/components/layout/focus-shell.css"
-import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
+import { DetailCard } from "@/components/detail/DetailCard"
 import Image from "next/image"
-import { Phone, Mail, MessageCircle, ShieldCheck, ImageIcon, type LucideIcon } from "lucide-react"
+import { Phone, Mail, MessageCircle, ShieldCheck, type LucideIcon } from "lucide-react"
 import { StepPanel, type ResumeState } from "./StepPanel"
 import { ApplyLoginButton } from "./ApplyLoginButton"
 import { gatewaySSR } from "@/lib/supabase/gateway"
@@ -61,7 +61,7 @@ async function loadResume(
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, dependents_count, income_sources, applicant_addresses, applicant_type, company_info, email_verified_at, draft_step, draft_saved_at, org_id, submitted_at")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, employment_details, dependents_count, dependent_adults_count, dependent_minors_count, income_sources, declared_monthly_obligations_cents, expenses, applicant_addresses, applicant_type, company_info, email_verified_at, draft_step, draft_saved_at, org_id, submitted_at")
     .eq("id", appId).maybeSingle()
   logQueryError("ApplyPreview resume app", appErr)
   // Don't resume a SUBMITTED application (submitted_at set) — only drafts / pre-screens are editable.
@@ -81,7 +81,7 @@ async function loadResume(
 
   const sources = (app.income_sources as ResumeState["incomeSources"] | null) ?? []
   return {
-    applicationId: appId, token, step: (app.draft_step as number | null) ?? 3, savedAt: (app.draft_saved_at as string | null) ?? null,
+    applicationId: appId, token, step: (app.draft_step as number | null) ?? 5, savedAt: (app.draft_saved_at as string | null) ?? null,
     applicantType: (app.applicant_type as ResumeState["applicantType"]) ?? null,
     company: (app.company_info as ResumeState["company"]) ?? null,
     emailVerified: (app.email_verified_at as string | null) != null,
@@ -96,9 +96,14 @@ async function loadResume(
       employment_type: (app.employment_type as string | null) ?? "",
       employer: (app.employer_name as string | null) ?? "",
       start_date: (app.employment_start_date as string | null) ?? "",
+      // branching context restored from the employment_details jsonb (nulls render as empty in the inputs).
+      ...((app.employment_details as Partial<ResumeState["emp"]> | null) ?? {}),
     },
     dependents: (app.dependents_count as number | null) ?? null,
+    dependentAdults: (app.dependent_adults_count as number | null) ?? null,
+    dependentMinors: (app.dependent_minors_count as number | null) ?? null,
     incomeSources: sources,
+    commitments: (app.expenses as ResumeState["commitments"]) ?? [],
     coApplicants: (cos ?? []).map((c) => ({
       firstName: (c.first_name as string | null) ?? "", lastName: (c.last_name as string | null) ?? "",
       email: (c.applicant_email as string | null) ?? "", phone: (c.applicant_phone as string | null) ?? "",
@@ -276,7 +281,6 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
     : false
 
   const title = [property?.address_line1, property?.suburb ?? property?.city].filter(Boolean).join(", ") || property?.name || "This property"
-  const photo = (listing.listing_photos as string[] | null)?.[0] ?? null
   const phone = agentPhone ?? org?.phone ?? null
   const waHref = waLink(phone)
   const enquiryMailto = org?.email
@@ -292,6 +296,36 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
     { label: "Size", value: sizeLabel(unit) },
   ]
 
+  // Full-page shell (the listing space becomes the step rail): a compact listing strip on top, then StepPanel
+  // owns the rail (steps + agent) + form panel. The agent card is passed into the rail.
+  const stripTitle = [property?.name, unit?.unit_number ? `Unit ${unit.unit_number}` : null, property?.suburb ?? property?.city].filter(Boolean).join(" · ") || title
+  const availStr = facts[1]?.value ?? "Now"
+  const agentCard = (
+    <DetailCard title="Your agent" headerAction={orgLogoUrl ? <Image src={orgLogoUrl} alt={org?.name ?? "Agency"} width={112} height={28} className="h-7 w-auto max-w-[112px] object-contain" unoptimized /> : undefined}>
+      {/* Name block (company · agent · function) on the left; photo on the right, sitting below the header logo.
+          Contacts run full width below so a long email never gets squashed by the photo. */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold leading-snug text-[var(--ink)]">{org?.name ?? "Managing agency"}</p>
+            {agentName && <p className="text-sm leading-snug text-[var(--ink)]">{agentName}</p>}
+            <p className="text-xs text-muted-foreground">Rental agent</p>
+          </div>
+          {agentPhoto && (
+            <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-[var(--r-button)] border border-border">
+              <Image src={agentPhoto} alt={agentName ?? "Agent"} fill className="object-cover object-top" unoptimized />
+            </div>
+          )}
+        </div>
+        <div className="space-y-1.5 border-t border-border pt-3">
+          {phone && <ContactLine icon={Phone} href={`tel:${phone.replaceAll(/\s/g, "")}`}>{phone}</ContactLine>}
+          {waHref && <ContactLine icon={MessageCircle} href={waHref}>WhatsApp</ContactLine>}
+          {enquiryMailto && <ContactLine icon={Mail} href={enquiryMailto}>{org?.email}</ContactLine>}
+        </div>
+      </div>
+    </DetailCard>
+  )
+
   return (
     <div className="pleks-public" data-theme="light" style={{ display: "contents" }}>
       <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: "var(--paper)", color: "var(--ink)", colorScheme: "light" }}>
@@ -301,79 +335,43 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
       <div className="relative z-10 flex h-full flex-col">
         {/* Header — backed surface; sits ABOVE the scroll area so a scrollbar can't clip it */}
         <header className="shrink-0 border-b border-[var(--rule)] bg-[var(--paper-raised)]">
-          <div className="mx-auto flex max-w-[1180px] items-center justify-between px-6 py-3">
-            <div className="flex items-center gap-3">
+          <div className="mx-auto flex max-w-[1280px] items-center px-6 py-3">
+            {/* Left zone — same width as the rail, so the unit line below starts in line with the form panel */}
+            <div className="flex shrink-0 items-center gap-3 [@media(min-width:1024px)_and_(min-height:700px)]:w-[300px]">
               <Wordmark style={{ fontSize: 19 }} />
-              <span className="h-4 w-px bg-[var(--rule)]" />
-              <Eyebrow>Rental application</Eyebrow>
+              <span className="h-4 w-px shrink-0 bg-[var(--rule)]" />
+              <span className="hidden shrink-0 sm:inline"><Eyebrow>Rental application for</Eyebrow></span>
             </div>
-            <div className="flex items-center gap-3 sm:gap-4">
-              <span className="hidden items-center gap-1.5 text-[var(--ink-mute)] sm:flex">
-                <ShieldCheck className="size-3.5" />
-                <Eyebrow>Encrypted</Eyebrow>
-              </span>
-              <ApplyLoginButton slug={slug} loggedIn={!!gw} name={prefillName} />
+            {/* Main zone — aligns with the form panel: unit details + price (· separated), account on the right */}
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 [@media(min-width:1024px)_and_(min-height:700px)]:ml-4">
+              <p className="truncate text-sm text-[var(--ink-soft)]">
+                <span className="font-medium text-[var(--ink)]">{stripTitle}</span>
+                <span className="hidden md:inline"> · {formatZAR(listing.asking_rent_cents)} /mo · available {availStr}</span>
+              </p>
+              <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+                <span className="hidden items-center gap-1.5 text-[var(--ink-mute)] sm:flex">
+                  <ShieldCheck className="size-3.5" />
+                  <Eyebrow>Encrypted</Eyebrow>
+                </span>
+                <ApplyLoginButton slug={slug} loggedIn={!!gw} name={prefillName} />
+              </div>
             </div>
           </div>
         </header>
 
         {/* Content area — fills the viewport on desktop (each column scrolls internally); page-scrolls on mobile */}
         <div className="min-h-0 flex-1 overflow-y-auto [@media(min-width:1024px)_and_(min-height:700px)]:overflow-hidden">
-          <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-6 py-4 [@media(min-width:1024px)_and_(min-height:700px)]:h-full [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:flex-row [@media(min-width:1024px)_and_(min-height:700px)]:items-stretch">
-            {/* Left rail — unit card grows to fill */}
-            <aside className="flex w-full flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:w-[360px] [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
-              <div className="flex flex-col lg:flex-1">
-                <DetailCard title={title}>
-                  <div className="flex h-full flex-col">
-                    <div
-                      className="-mx-5 -mt-5 flex min-h-[120px] flex-1 items-center justify-center bg-cover bg-center text-white/70"
-                      style={photo ? { backgroundImage: `url(${photo})` } : { backgroundImage: "linear-gradient(135deg,#9fb8cf 0%,#e7e0d2 55%,#c8ad84 100%)" }}
-                      aria-hidden
-                    >
-                      {!photo && <ImageIcon className="size-8" />}
-                    </div>
-                    <div className="-mx-5 -mb-5 border-t border-border">
-                      <DetailStatGrid stats={facts} />
-                    </div>
-                  </div>
-                </DetailCard>
-              </div>
-
-              <div className="shrink-0">
-                <DetailCard
-                  title="Your agent"
-                  headerAction={orgLogoUrl ? <Image src={orgLogoUrl} alt={org?.name ?? "Agency"} width={112} height={28} className="h-7 w-auto max-w-[112px] object-contain" unoptimized /> : undefined}
-                >
-                  <div className="grid grid-cols-3 items-stretch gap-4">
-                    {/* 2/3 — name + contact details */}
-                    <div className={agentPhoto ? "col-span-2 min-w-0" : "col-span-3 min-w-0"}>
-                      <p className="text-sm font-semibold leading-snug">{org?.name ?? "Managing agency"}</p>
-                      {agentName && <p className="text-xs text-muted-foreground">{agentName} · Rental agent</p>}
-                      <div className="mt-3 space-y-1.5">
-                        {phone && <ContactLine icon={Phone} href={`tel:${phone.replaceAll(/\s/g, "")}`}>{phone}</ContactLine>}
-                        {waHref && <ContactLine icon={MessageCircle} href={waHref}>WhatsApp</ContactLine>}
-                        {enquiryMailto && <ContactLine icon={Mail} href={enquiryMailto}>{org?.email}</ContactLine>}
-                      </div>
-                    </div>
-                    {/* 1/3 — agent photo, full card height */}
-                    {agentPhoto && (
-                      <div className="relative col-span-1 self-stretch overflow-hidden rounded-[var(--r-button)] border border-border">
-                        <Image src={agentPhoto} alt={agentName ?? "Agent"} fill className="object-cover" unoptimized />
-                      </div>
-                    )}
-                  </div>
-                </DetailCard>
-              </div>
-            </aside>
-
-            {/* Right door working panel (client island) */}
+          <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-4 px-6 py-4 [@media(min-width:1024px)_and_(min-height:700px)]:h-full [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
             {alreadyApplied ? (
-              <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
-                <Eyebrow>Already applied</Eyebrow>
-                <h2 className="mt-2 text-lg font-medium text-[var(--ink)]">You&apos;ve already applied for this unit</h2>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">
-                  Your application for this listing is with the agent. There&apos;s nothing more to do — they&apos;ll be in touch about next steps. If you need to change something, contact the agent directly.
-                </p>
+              <div className="flex flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:max-w-2xl">
+                <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
+                  <Eyebrow>Already applied</Eyebrow>
+                  <h2 className="mt-2 text-lg font-medium text-[var(--ink)]">You&apos;ve already applied for this unit</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">
+                    Your application for this listing is with the agent. There&apos;s nothing more to do — they&apos;ll be in touch about next steps. If you need to change something, contact the agent directly.
+                  </p>
+                </div>
+                {agentCard}
               </div>
             ) : (
               <StepPanel
@@ -384,6 +382,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
                 prefill={prefill}
                 resume={resume}
                 verifiedEmail={verifiedEmail}
+                agentCard={agentCard}
               />
             )}
           </div>
