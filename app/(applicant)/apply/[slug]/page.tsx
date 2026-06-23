@@ -21,7 +21,8 @@ import { DetailCard } from "@/components/detail/DetailCard"
 import Image from "next/image"
 import { Phone, Mail, MessageCircle, ShieldCheck, type LucideIcon } from "lucide-react"
 import { StepPanel, type ResumeState } from "./StepPanel"
-import { ApplyLoginButton } from "./ApplyLoginButton"
+import { ApplyLoginButton, ApplyThemeToggle } from "./ApplyLoginButton"
+import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getServerUser } from "@/lib/auth/server"
 import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
@@ -327,8 +328,8 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
   )
 
   return (
-    <div className="pleks-public" data-theme="light" style={{ display: "contents" }}>
-      <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: "var(--paper)", color: "var(--ink)", colorScheme: "light" }}>
+    <PublicThemeProvider>
+      <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: "var(--paper)", color: "var(--ink)" }}>
         {/* Same 4-layer warm backdrop as the login surface (fixed behind content) */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden"><FocusBackdrop /></div>
 
@@ -353,6 +354,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
                   <ShieldCheck className="size-3.5" />
                   <Eyebrow>Encrypted</Eyebrow>
                 </span>
+                <ApplyThemeToggle />
                 <ApplyLoginButton slug={slug} loggedIn={!!gw} name={prefillName} />
               </div>
             </div>
@@ -389,6 +391,6 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
         </div>
       </div>
       </div>
-    </div>
+    </PublicThemeProvider>
   )
 }

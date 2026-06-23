@@ -11,8 +11,27 @@
  */
 
 import { useState } from "react"
-import { LogIn, LogOut, X, CheckCircle2, User } from "lucide-react"
+import { LogIn, LogOut, X, CheckCircle2, User, Moon, Sun } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
+import { usePublicTheme } from "@/app/(public)/PublicThemeProvider"
+
+/** Light/dark toggle for the apply surface — same icon-button language as the portal TopBar (pa-iconbtn +
+ *  Moon/Sun), driven by the public theme context. Sits next to the login affordance in the header. */
+export function ApplyThemeToggle() {
+  const { theme, toggle } = usePublicTheme()
+  const dark = theme === "dark"
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="pa-iconbtn"
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {dark ? <Sun size={15} /> : <Moon size={15} />}
+    </button>
+  )
+}
 
 export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: string; loggedIn?: boolean; name?: string | null }>) {
   const [open, setOpen] = useState(false)
@@ -36,15 +55,15 @@ export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: stri
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-[55]" onClick={() => setMenuOpen(false)} aria-hidden />
-            <div className="absolute right-0 top-[42px] z-[60] min-w-[220px] overflow-hidden rounded-[var(--r-button)] border border-border bg-popover shadow-lg">
-              <div className="border-b border-border px-3 py-2">
-                <p className="text-[13px] font-medium text-foreground">Signed in{name ? ` as ${name}` : ""}</p>
-                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="absolute right-0 top-[42px] z-[60] min-w-[220px] overflow-hidden rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] shadow-lg">
+              <div className="border-b border-[var(--rule)] px-3 py-2">
+                <p className="text-[13px] font-medium text-[var(--ink)]">Signed in{name ? ` as ${name}` : ""}</p>
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--ink-mute)]">
                   <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" /> Your details are auto-filled
                 </p>
               </div>
               <button type="button" onClick={logout}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted">
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-red-600 transition-colors hover:bg-[var(--amber-wash)]">
                 <LogOut size={14} /> Sign out
               </button>
             </div>
