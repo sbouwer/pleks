@@ -196,6 +196,7 @@ const SENSITIVE_TABLES = [
 const PUBLIC_API_ROUTES = [
   "/api/applications/create",
   "/api/applications/save-draft",
+  "/api/applications/resend-link",
   "/api/applications/fake-id-123/verify/send",
   "/api/applications/fake-id-123/verify/check",
   "/api/auth/check-email",

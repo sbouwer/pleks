@@ -28,7 +28,7 @@
 import { useState, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft, ArrowRight, Pencil, Clock } from "lucide-react"
+import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft, ArrowRight, Pencil, Clock, LogIn } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity } from "@/components/parties/partySteps"
@@ -432,16 +432,8 @@ function SubTabs({ activeGroup, step, maxReached, onJumpStep }: Readonly<{ activ
   )
 }
 
-function Cta({ label, onClick, busy, disabled }: Readonly<{ label: string; onClick: () => void; busy?: boolean; disabled?: boolean }>) {
-  return (
-    <ActionButton tone="primary" onClick={onClick} disabled={busy || disabled} className="min-w-[200px] justify-center">
-      {busy ? "Working…" : label}
-    </ActionButton>
-  )
-}
-
-export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, resume, verifiedEmail, agentCard }: Readonly<{
-  slug: string; orgId: string; leaseType: "residential" | "commercial"; askingRentCents: number
+export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, agentCard }: Readonly<{
+  slug: string; orgId: string; listingTitle?: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
   /** the logged-in visitor's account email (already confirmed) — if it matches, skip the email-OTP gate. */
@@ -488,7 +480,10 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   // "Add applicant" from the review (when affordability is short) — invite a co-applicant after the app exists.
   const [addApplicantOpen, setAddApplicantOpen] = useState(false)
   const [newCo, setNewCo] = useState<CoApplicant>(blankCo("co_applicant"))
-  const [invitePending, setInvitePending] = useState(false)
+  // "Begun" = past the "Apply as" landing and into the form panes. The landing captures type + co-applicants +
+  // returning-applicant resume; resuming a saved draft starts already begun. Clicking "Apply as" in the rail
+  // re-opens the landing (begun→false) with the chosen type preserved, so it's navigable to change.
+  const [begun, setBegun] = useState<boolean>(!!resume)
   const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths, resume.form?.idType) : {})
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
@@ -502,41 +497,47 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
    *  in-review amend links.) Route ALL non-forward navigation (Back, rail, sub-tabs) through this. */
   function navTo(to: number) {
     if (to !== STEP_REVIEW) { setScreeningStatus("idle"); setAssessment(null) }
+    setBegun(true)
     setStep(to)
   }
 
-  function pickType(t: ApplicantType) {
+  // Pick an application type on the landing (no navigation — the landing stays until "Begin"). Co-applicant rows
+  // are seeded for multi-party types so the inline capture has a first row; switching to individual clears them.
+  function selectType(t: ApplicantType) {
     setType(t)
-    setStep(0); setMaxReached(0)
-    setCompany({ companyType: "", companyReg: "" })
-    // Every type except "individual" implies more than one party — capture that invite UP FRONT (at type
-    // selection), held now and dispatched once the application exists (at create). guarantor = a non-occupant
-    // backer; couple = a co-applicant who lives here; company = the business (type + reg).
-    if (t === "guarantor") { setCoApplicants([blankCo("guarantor")]); setInvitePending(true) }
-    else if (t === "couple") { setCoApplicants([blankCo("co_applicant")]); setInvitePending(true) }
-    else if (t === "company") { setCoApplicants([]); setInvitePending(true) }
-    else { setCoApplicants([]); setInvitePending(false) }
+    if (t === "guarantor") setCoApplicants((cur) => (cur.length > 0 ? cur : [blankCo("guarantor")]))
+    else if (t === "couple") setCoApplicants((cur) => (cur.length > 0 ? cur : [blankCo("co_applicant")]))
+    else setCoApplicants([]) // individual / company (directors handled later)
   }
 
-  function confirmInvite() {
-    if (type === "company") {
-      if (!company.companyType) { toast.error("Please select the company type."); return }
-    } else {
-      const c = coApplicants[0]
-      if (!c || !coComplete(c)) { toast.error("Add the co-applicant's name, email and ID number."); return }
+  /** Begin (first time) / Continue (re-editing "Apply as"): validate the chosen type + parties, then enter the
+   *  form panes. Invites are held in state and dispatched once the application exists (createApplication). */
+  function beginApplication() {
+    if (!type) { toast.error("Choose how you're applying."); return }
+    if (type === "company" && !company.companyType) { toast.error("Please select the company type."); return }
+    if ((type === "couple" || type === "guarantor") && !(coApplicants[0] && coComplete(coApplicants[0]))) {
+      toast.error("Add the co-applicant's name, email and ID number."); return
     }
-    setInvitePending(false)
-  }
-
-  function backToTypes() {
-    if (applicationId) return // can't change type after the application is created
-    setType(null); setStep(0); setMaxReached(0); setErrors({}); setInvitePending(false)
+    setBegun(true)
+    setMaxReached((m) => Math.max(m, step))
   }
 
   function goBack() {
-    if (step === 0) backToTypes()
+    if (step === 0) setBegun(false) // back from the first form pane → the "Apply as" landing (type preserved)
     else navTo(step - 1)
   }
+
+  // Returning applicant on the landing: re-email their resume link. Anti-enumeration — the endpoint always
+  // answers ok and only sends when a matching draft exists, so the toast is deliberately non-committal.
+  async function resendResumeLink(email: string) {
+    const e = email.trim()
+    if (!e) { toast.error("Enter the email you applied with."); return }
+    try {
+      await fetch("/api/applications/resend-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, email: e }) })
+    } catch { /* swallow — never reveal whether the email has a draft */ }
+    toast.success("If a saved application exists for that email, we've emailed the link to continue.")
+  }
+  function loginToPrefill() { globalThis.location.href = `/login?redirect=${encodeURIComponent(`/apply/${slug}`)}` }
 
   function continueIdentity() {
     const e = validateIdentityCore("individual", form, true)
@@ -810,15 +811,13 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
   const scrollCls = "flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"
-  const footerCls = "flex shrink-0 flex-wrap items-center justify-between gap-3 pb-5 pt-4"
-  const backBtn = "min-w-[200px] justify-center"
-  // Two-level nav state: "Apply as" covers the type-selection + invite stage; the form panes (step 0–5) group
-  // into Personal details / Finances / Documents / Application review via PANE_META.
-  const inWizard = type !== null && !invitePending
+  // Two-level nav state: "Apply as" is the landing (type + parties + returning); the form panes (step 0–7) group
+  // into Personal details / Finances / Documents / Application review via PANE_META. inWizard = past the landing.
+  const inWizard = begun
   const activeGroup = inWizard ? PANE_META[step].group : "Apply as"
   const applyAsDesc = type ? `${TYPE_LABEL[type]} · ${leaseType}` : "Choose how you apply"
   const navStates = computeStepStates(activeGroup, step, maxReached, inWizard, type !== null, !!applicationId, applyAsDesc)
-  const onNav = (t: number | "apply-as") => { if (t === "apply-as") backToTypes(); else navTo(t) }
+  const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t) }
   // The current step's forward action — rendered in the panel header (intermediate = "Next →"; the final
   // review/submit uses the primary style). Back + Save live alongside it; the footer keeps only the disclaimer.
   const navNext = ((): { label: string; onClick: () => void; disabled?: boolean; primary?: boolean } | null => {
@@ -901,23 +900,18 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
           </div>
         )}
 
-        {type === null && (
-          <div className={scrollCls}><Landing onPick={pickType} commercial={commercial} /></div>
+        {!begun && (
+          <div className={scrollCls}>
+            <ApplyAsPane
+              listingTitle={listingTitle} commercial={commercial} type={type} onSelect={selectType}
+              coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} setCompany={setCompany}
+              loggedInEmail={verifiedEmail ?? null} onResend={resendResumeLink} onLogin={loginToPrefill}
+              onBegin={beginApplication} resuming={!!resume} busy={busy}
+            />
+          </div>
         )}
 
-        {type !== null && invitePending && (
-          <>
-            <div className={scrollCls}>
-              <InviteCapture type={type} commercial={commercial} coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} setCompany={setCompany} />
-            </div>
-            <div className={footerCls}>
-              <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={backToTypes} className={backBtn}>Back to application type</ActionButton>
-              <Cta label="Continue" onClick={confirmInvite} busy={busy} />
-            </div>
-          </>
-        )}
-
-        {type !== null && !invitePending && (
+        {begun && type !== null && (
           <>
             <div className={scrollCls}>
               {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} />}
@@ -998,23 +992,152 @@ export function StepPanel({ slug, orgId, leaseType, askingRentCents, prefill, re
   )
 }
 
-// ── Landing — application type cards ──────────────────────────────────────────────
-function Landing({ onPick, commercial }: Readonly<{ onPick: (t: ApplicantType) => void; commercial: boolean }>) {
+// ── Landing ("Apply as") — iconic header + returning + how-it-works + the type cards ──────────────
+function SectionEyebrow({ n, label }: Readonly<{ n: string; label: string }>) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex items-center gap-3">
+      <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--ink-mute)]">{n} · {label}</span>
+      <span aria-hidden className="h-px flex-1 bg-[var(--rule)]" />
+    </div>
+  )
+}
+
+const HOW_IT_WORKS: ReadonlyArray<{ n: string; label: string; desc: string }> = [
+  { n: "1", label: "Apply as", desc: "individual or company" },
+  { n: "2", label: "Personal details", desc: "your identity & contact" },
+  { n: "3", label: "Finances", desc: "income & affordability" },
+  { n: "4", label: "Documents", desc: "upload, read automatically" },
+  { n: "5", label: "Application review", desc: "check & submit" },
+]
+
+function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, setCoApplicants, company, setCompany, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
+  listingTitle?: string; commercial: boolean; type: ApplicantType | null; onSelect: (t: ApplicantType) => void
+  coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
+  company: CompanyInfo; setCompany: (v: CompanyInfo) => void
+  loggedInEmail: string | null; onResend: (email: string) => void; onLogin: () => void
+  onBegin: () => void; resuming: boolean; busy?: boolean
+}>) {
+  const [retEmail, setRetEmail] = useState("")
+  const multi = type === "couple" || type === "guarantor"
+  const { occ, guar } = roleLabels(commercial)
+  const updateCo = (i: number, patch: Partial<CoApplicant>) => setCoApplicants(coApplicants.map((c, j) => (j === i ? { ...c, ...patch } : c)))
+  const addCo = () => setCoApplicants([...coApplicants, blankCo(type === "guarantor" ? "guarantor" : "co_applicant")])
+  const removeCo = (i: number) => setCoApplicants(coApplicants.filter((_, j) => j !== i))
+  const firstPartyLabel = commercial ? "a partner" : "a co-applicant"
+  const addLabel = coApplicants.length > 0 ? "another" : firstPartyLabel
+
+  return (
+    <div className="flex min-h-full flex-col gap-7">
+      {/* Iconic header */}
       <div>
-        <h2 className="text-xl font-medium tracking-[-0.01em] text-[var(--ink)]">How are you applying?</h2>
-        <p className="mt-1 text-sm text-[var(--ink-soft)]">Pick the option that fits — it&apos;s free to start and no credit check runs at this stage.</p>
+        <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]"><span aria-hidden className="inline-block h-0.5 w-4 bg-amber-400" /> Pre-selection application</span>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.01em] text-[var(--ink)]">Apply to rent {listingTitle ?? "this home"}.</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ink-soft)]">A short pre-selection so the agent can shortlist applicants. It&apos;s free, there&apos;s no credit check at this stage, and you can save and finish whenever suits you.</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {typesFor(commercial).map((t) => (
-          <button key={t.id} type="button" onClick={() => onPick(t.id)}
-            className="group flex flex-col items-start gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-left transition-colors hover:border-[var(--amber)]">
-            <span className="flex size-9 items-center justify-center rounded-[var(--r-button)] bg-[var(--amber-wash)] text-[var(--amber-ink)]"><t.icon className="size-5" /></span>
-            <span className="text-sm font-semibold text-[var(--ink)]">{t.title}</span>
-            <span className="text-[13px] leading-snug text-[var(--ink-soft)]">{t.blurb}</span>
-          </button>
-        ))}
+
+      {/* 01 · Returning */}
+      <section className="flex flex-col gap-3">
+        <SectionEyebrow n="01" label="Returning?" />
+        {loggedInEmail ? (
+          <div className="flex items-center gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] px-4 py-3 text-sm">
+            <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+            <span className="text-[var(--ink-soft)]">Signed in as <span className="font-medium text-[var(--ink)]">{loggedInEmail}</span> — your details will pre-fill.</span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 [@media(min-width:560px)]:flex-row [@media(min-width:560px)]:items-end [@media(min-width:560px)]:justify-between">
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5 [@media(min-width:560px)]:max-w-sm">
+              <label htmlFor="resume-email" className="text-xs font-medium text-[var(--ink-soft)]">Already started? Get your continue link emailed again</label>
+              <div className="flex gap-2">
+                <input id="resume-email" type="email" value={retEmail} onChange={(e) => setRetEmail(e.target.value)} placeholder="you@email.com"
+                  className="min-w-0 flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none" />
+                <ActionButton tone="secondary" size="sm" onClick={() => onResend(retEmail)}>Resend</ActionButton>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-[var(--ink-mute)]">
+              <span className="hidden [@media(min-width:560px)]:inline">or</span>
+              <ActionButton tone="secondary" size="sm" icon={<LogIn className="size-4" />} onClick={onLogin}>Log in to pre-fill</ActionButton>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 02 · How it works */}
+      <section className="flex flex-col gap-3">
+        <SectionEyebrow n="02" label="How it works" />
+        <ol className="flex flex-col gap-2.5">
+          {HOW_IT_WORKS.map((s) => (
+            <li key={s.n} className="flex items-center gap-3 text-sm">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-[var(--rule)] text-[11px] font-semibold text-[var(--ink-soft)]">{s.n}</span>
+              <span className="text-[var(--ink)]"><span className="font-medium">{s.label}</span> <span className="text-[var(--ink-mute)]">— {s.desc}</span></span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* 03 · How are you applying */}
+      <section className="flex flex-col gap-3">
+        <SectionEyebrow n="03" label="How are you applying?" />
+        <div className="grid gap-3 sm:grid-cols-2 [@media(min-width:1280px)]:grid-cols-4">
+          {typesFor(commercial).map((c) => {
+            const selected = type === c.id
+            return (
+              <button key={c.id} type="button" onClick={() => onSelect(c.id)}
+                className={`group flex flex-col items-start gap-2 rounded-[var(--r-button)] border bg-[var(--paper-raised)] p-4 text-left transition-colors ${selected ? "border-[var(--amber)] ring-1 ring-[var(--amber)]" : "border-[var(--rule)] hover:border-[var(--amber)]"}`}>
+                <span className={`flex size-9 items-center justify-center rounded-[var(--r-button)] ${selected ? "bg-[var(--amber)] text-[var(--paper)]" : "bg-[var(--amber-wash)] text-[var(--amber-ink)]"}`}><c.icon className="size-5" /></span>
+                <span className="text-sm font-semibold text-[var(--ink)]">{c.title}</span>
+                <span className="text-[13px] leading-snug text-[var(--ink-soft)]">{c.blurb}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Multi-party: inline co-applicant / guarantor capture (each gets their own secure link). */}
+        {multi && (
+          <div className="flex flex-col gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
+            <p className="text-xs leading-relaxed text-[var(--ink-soft)]">Everyone on the application gets their own secure link to consent and load their own documents — we just need each person&apos;s ID number to link them.</p>
+            {coApplicants.map((c, i) => (
+              <div key={i} className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="inline-flex rounded-[var(--r-button)] border border-[var(--rule)] p-0.5 text-xs">
+                    {(["co_applicant", "guarantor"] as const).map((r) => (
+                      <button key={r} type="button" onClick={() => updateCo(i, { role: r })}
+                        className={`rounded-[var(--r-button)] px-2.5 py-1 transition-colors ${c.role === r ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-soft)]"}`}>{r === "co_applicant" ? occ : guar}</button>
+                    ))}
+                  </div>
+                  {coApplicants.length > 1 && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>}
+                </div>
+                <FieldGrid>
+                  <TextField label="First name" value={c.firstName} onChange={(v) => updateCo(i, { firstName: v })} required />
+                  <TextField label="Last name" value={c.lastName} onChange={(v) => updateCo(i, { lastName: v })} />
+                  <TextField label="Email" type="email" value={c.email} onChange={(v) => updateCo(i, { email: v })} required autoComplete="off" />
+                  <TextField label="ID number" value={c.idNumber} onChange={(v) => updateCo(i, { idNumber: v })} required />
+                </FieldGrid>
+              </div>
+            ))}
+            <button type="button" onClick={addCo}
+              className="inline-flex w-fit items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-1.5 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
+              <Plus className="size-4" /> Add {addLabel}
+            </button>
+          </div>
+        )}
+
+        {/* Company: the business on the lease (you sign as a director next). */}
+        {type === "company" && (
+          <div className="flex flex-col gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
+            <FieldGrid>
+              <SelectField label="Company type" value={company.companyType} onChange={(v) => setCompany({ ...company, companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
+              <TextField label="Registration number" value={company.companyReg} onChange={(v) => setCompany({ ...company, companyReg: v })} placeholder="e.g. 2019/123456/07 (if applicable)" />
+            </FieldGrid>
+            <p className="text-xs leading-relaxed text-[var(--ink-soft)]">You&apos;ll add your own details as a director / signatory next; additional directors can be invited from the application.</p>
+          </div>
+        )}
+      </section>
+
+      {/* Begin — bottom-right, same primary action style as Submit. */}
+      <div className="mt-auto flex justify-end pt-3">
+        <ActionButton tone="primary" disabled={busy || !type} onClick={onBegin}>
+          <span className="inline-flex items-center gap-1.5">{resuming ? "Continue" : "Begin your application"} <ArrowRight className="size-4" /></span>
+        </ActionButton>
       </div>
     </div>
   )
@@ -1325,58 +1448,9 @@ function StepExpenses({ dependentAdults, setDependentAdults, dependentMinors, se
   )
 }
 
-// ── Invite capture (at type selection) — the co-applicant / company, captured up front ──
+// Role labels for the inline co-applicant capture (residential vs commercial wording).
 function roleLabels(commercial: boolean) {
   return { occ: commercial ? "On the lease" : "Lives here", guar: commercial ? "Surety" : "Guarantor" }
-}
-function InviteCapture({ type, commercial, coApplicants, setCoApplicants, company, setCompany }: Readonly<{
-  type: ApplicantType; commercial: boolean
-  coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
-  company: CompanyInfo; setCompany: (v: CompanyInfo) => void
-}>) {
-  if (type === "company") {
-    return (
-      <div className="flex flex-col gap-4">
-        <StepHeading title="The company applying" sub="Tell us about the business on the lease — you'll add your own details (as a director/signatory) next." />
-        <FieldGrid>
-          <SelectField label="Company type" value={company.companyType} onChange={(v) => setCompany({ ...company, companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
-          <TextField label="Registration number" value={company.companyReg} onChange={(v) => setCompany({ ...company, companyReg: v })} placeholder="e.g. 2019/123456/07 (if applicable)" />
-        </FieldGrid>
-        <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-xs text-[var(--ink-soft)]">
-          Full company capture (every director/signatory) is being finalised — for now we record the company here and treat you as the contact. You can add director invites at the Applicants step.
-        </p>
-      </div>
-    )
-  }
-  const { occ, guar } = roleLabels(commercial)
-  const isGuar = type === "guarantor"
-  const c = coApplicants[0] ?? blankCo(isGuar ? "guarantor" : "co_applicant")
-  const update = (patch: Partial<CoApplicant>) => setCoApplicants([{ ...c, ...patch }, ...coApplicants.slice(1)])
-  const heading = isGuar
-    ? { title: commercial ? "Your surety" : "Your guarantor", sub: "They back the application financially and get their own secure link to consent + load their own documents." }
-    : { title: "Who's applying with you?", sub: "Your co-applicant gets their own secure link to consent + load their own documents. We need their ID number to link them to this application." }
-  return (
-    <div className="flex flex-col gap-4">
-      <StepHeading title={heading.title} sub={heading.sub} />
-      {!isGuar && (
-        <div className="inline-flex w-fit rounded-[var(--r-button)] border border-[var(--rule)] p-0.5 text-xs">
-          {(["co_applicant", "guarantor"] as const).map((r) => (
-            <button key={r} type="button" onClick={() => update({ role: r })}
-              className={`rounded-[var(--r-button)] px-2.5 py-1 transition-colors ${c.role === r ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-soft)]"}`}>
-              {r === "co_applicant" ? occ : guar}
-            </button>
-          ))}
-        </div>
-      )}
-      <FieldGrid>
-        <TextField label="First name" value={c.firstName} onChange={(v) => update({ firstName: v })} required />
-        <TextField label="Last name" value={c.lastName} onChange={(v) => update({ lastName: v })} />
-        <TextField label="Email" type="email" value={c.email} onChange={(v) => update({ email: v })} required autoComplete="off" />
-        <TextField label="ID number" value={c.idNumber} onChange={(v) => update({ idNumber: v })} required />
-        <TextField label="Mobile" type="tel" value={c.phone} onChange={(v) => update({ phone: v })} span />
-      </FieldGrid>
-    </div>
-  )
 }
 
 // ── Step 4 — Documents (income-driven categories, multi-file) ────────────────────

@@ -379,6 +379,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
               <StepPanel
                 slug={slug}
                 orgId={listing.org_id as string}
+                listingTitle={stripTitle}
                 leaseType={leaseType}
                 askingRentCents={(listing.asking_rent_cents as number) ?? 0}
                 prefill={prefill}
