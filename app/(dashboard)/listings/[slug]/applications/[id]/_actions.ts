@@ -21,19 +21,22 @@ export async function revealIdNumber(applicationId: string): Promise<{ value: st
   if (!gw) return { value: null, error: 'Unauthorized' }
   const { db, orgId, userId } = gw
 
-  // Capability gate — must hold can_view_sensitive_identity_data for this org
-  const { data: cap, error: capErr } = await db
-    .from('user_capabilities')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('org_id', orgId)
-    .eq('capability_name', 'can_view_sensitive_identity_data')
-    .maybeSingle()
-  if (capErr) {
-    console.error('revealIdNumber capability check failed:', capErr.message)
-    return { value: null, error: 'Authorization check failed' }
+  // Capability gate — owner/is_admin (the data controller) are implicit-all; OTHER members must hold the
+  // explicit can_view_sensitive_identity_data grant for this org. The reveal is audited either way (below).
+  if (!gw.isAdmin) {
+    const { data: cap, error: capErr } = await db
+      .from('user_capabilities')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('org_id', orgId)
+      .eq('capability_name', 'can_view_sensitive_identity_data')
+      .maybeSingle()
+    if (capErr) {
+      console.error('revealIdNumber capability check failed:', capErr.message)
+      return { value: null, error: 'Authorization check failed' }
+    }
+    if (!cap) return { value: null, error: 'Capability not granted — contact your Information Officer.' }
   }
-  if (!cap) return { value: null, error: 'Capability not granted — contact your Information Officer.' }
 
   const { data: app, error } = await db
     .from('applications')
@@ -62,22 +65,24 @@ export async function generatePopiaS23Response(
   if (!gw) return { signedUrl: null, expiresAt: null, error: 'Unauthorized' }
   const { db, orgId, userId } = gw
 
-  // Capability gate — must hold can_generate_popia_s23 for this org
-  const { data: cap, error: capErr } = await db
-    .from('user_capabilities')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('org_id', orgId)
-    .eq('capability_name', 'can_generate_popia_s23')
-    .maybeSingle()
-  if (capErr) {
-    console.error('generatePopiaS23Response capability check failed:', capErr.message)
-    return { signedUrl: null, expiresAt: null, error: 'Authorization check failed' }
-  }
-  if (!cap) return {
-    signedUrl: null,
-    expiresAt: null,
-    error: 'Capability not granted — contact your Information Officer.',
+  // Capability gate — owner/is_admin implicit-all; OTHER members must hold can_generate_popia_s23 for this org.
+  if (!gw.isAdmin) {
+    const { data: cap, error: capErr } = await db
+      .from('user_capabilities')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('org_id', orgId)
+      .eq('capability_name', 'can_generate_popia_s23')
+      .maybeSingle()
+    if (capErr) {
+      console.error('generatePopiaS23Response capability check failed:', capErr.message)
+      return { signedUrl: null, expiresAt: null, error: 'Authorization check failed' }
+    }
+    if (!cap) return {
+      signedUrl: null,
+      expiresAt: null,
+      error: 'Capability not granted — contact your Information Officer.',
+    }
   }
 
   // Verify application belongs to this org; resolve subject user via tenant link

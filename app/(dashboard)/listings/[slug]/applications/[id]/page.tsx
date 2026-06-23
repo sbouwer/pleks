@@ -181,8 +181,10 @@ export default async function ApplicationDetailPage({
     db.from("organisations").select("name").eq("id", orgId).single(),
   ])
 
-  const canViewId      = !!idCap
-  const canGenerateS23 = !!s23Cap
+  // owner / is_admin are implicit-all (they're the data controller) — the explicit user_capabilities grant is
+  // the gate for OTHER members. Without this bypass an owner is locked out of their own data with no grant UI.
+  const canViewId      = gw.isAdmin || !!idCap
+  const canGenerateS23 = gw.isAdmin || !!s23Cap
 
   const listing = app.listings as unknown as {
     asking_rent_cents: number
