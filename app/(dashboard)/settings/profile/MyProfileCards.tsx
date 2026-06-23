@@ -13,7 +13,9 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Pencil } from "lucide-react"
 import { DetailCard } from "@/components/detail/DetailCard"
+import { DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import { EditProfileModal, type ProfileStep } from "./EditProfileModal"
+import { ProfilePhotoCard } from "./ProfilePhotoCard"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 
 function EditPencil({ label, onClick }: Readonly<{ label: string; onClick: () => void }>) {
@@ -24,11 +26,11 @@ function EditPencil({ label, onClick }: Readonly<{ label: string; onClick: () =>
   )
 }
 
-function Rows({ rows }: Readonly<{ rows: ReadonlyArray<{ k: string; v: string | null }> }>) {
+function Rows({ rows, fill }: Readonly<{ rows: ReadonlyArray<{ k: string; v: string | null }>; fill?: boolean }>) {
   return (
-    <dl className="divide-y divide-border/60">
+    <dl className={fill ? "flex h-full flex-col divide-y divide-border/60" : "divide-y divide-border/60"}>
       {rows.map((r) => (
-        <div key={r.k} className="flex items-baseline justify-between gap-4 py-2 text-sm">
+        <div key={r.k} className={`flex items-baseline justify-between gap-4 py-2 text-sm ${fill ? "flex-1 items-center" : ""}`}>
           <dt className="shrink-0 text-muted-foreground">{r.k}</dt>
           <dd className={r.v ? "text-right font-medium text-foreground" : "text-right text-muted-foreground/50"}>{r.v || "—"}</dd>
         </div>
@@ -47,7 +49,7 @@ const CHANNEL_LABEL: Record<string, string> = { email: "Email", sms: "SMS", what
 const ADDR_LABEL: Record<string, string> = { physical: "Physical", postal: "Postal", billing: "Billing" }
 const labelOf = (map: Record<string, string>, v: string | null | undefined) => (v ? map[v] ?? v : null)
 
-export function MyProfileCards({ contactId, initialForm }: Readonly<{ contactId: string; initialForm: PartyFormState }>) {
+export function MyProfileCards({ contactId, initialForm, avatarUrl }: Readonly<{ contactId: string; initialForm: PartyFormState; avatarUrl: string | null }>) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [step, setStep] = useState<ProfileStep>("personal")
@@ -58,29 +60,36 @@ export function MyProfileCards({ contactId, initialForm }: Readonly<{ contactId:
   const name = [f.title, f.firstName, f.middleNames, f.lastName, f.suffix].map((x) => x?.trim()).filter(Boolean).join(" ") || null
   const idMasked = f.idNumber?.trim() ? `••••••••••${f.idNumber.trim().slice(-4)}` : null
 
-  const addrRows = (f.addresses ?? [])
-    .map((a) => ({ k: ADDR_LABEL[a.type] ?? a.type, v: line([a.line1, a.line2, a.suburb, a.city, a.province, a.postal, a.country && a.country !== "South Africa" ? a.country : null]) }))
-    .filter((r) => r.v)
-  const addressRows = addrRows.length > 0 ? addrRows : [{ k: "Physical", v: null }]
+  const addrByType = new Map(
+    (f.addresses ?? []).map((a) => [a.type, line([a.line1, a.line2, a.suburb, a.city, a.province, a.postal, a.country && a.country !== "South Africa" ? a.country : null])] as const),
+  )
+  // Always show the three address types as equal, card-filling rows (Physical · Postal · Billing) — value or "—".
+  const addressRows = (["physical", "postal", "billing"] as const).map((t) => ({ k: ADDR_LABEL[t], v: addrByType.get(t) ?? null }))
 
   return (
     <>
-      <DetailCard title="Personal information" headerAction={<EditPencil label="Edit personal information" onClick={() => openAt("personal")} />}>
-        <Rows rows={[
-          { k: "Name", v: name },
-          { k: "Designation", v: f.designation ?? null },
-          { k: "Date of birth", v: f.dob ?? null },
-          { k: "Gender", v: labelOf(GENDER_LABEL, f.gender) },
-          { k: "ID", v: idMasked },
-          { k: "Email", v: f.email ?? null },
-          { k: "Phone", v: f.phone ?? null },
-          { k: "Preferred contact", v: labelOf(CHANNEL_LABEL, f.preferredChannel) },
-        ]} />
-      </DetailCard>
+      <DetailFullWidth>
+        <div className="grid gap-4 md:grid-cols-3">
+          <DetailCard title="Personal information" headerAction={<EditPencil label="Edit personal information" onClick={() => openAt("personal")} />}>
+            <Rows rows={[
+              { k: "Name", v: name },
+              { k: "Designation", v: f.designation ?? null },
+              { k: "Date of birth", v: f.dob ?? null },
+              { k: "Gender", v: labelOf(GENDER_LABEL, f.gender) },
+              { k: "ID", v: idMasked },
+              { k: "Email", v: f.email ?? null },
+              { k: "Phone", v: f.phone ?? null },
+              { k: "Preferred contact", v: labelOf(CHANNEL_LABEL, f.preferredChannel) },
+            ]} />
+          </DetailCard>
 
-      <DetailCard title="Address" headerAction={<EditPencil label="Edit address" onClick={() => openAt("address")} />}>
-        <Rows rows={addressRows} />
-      </DetailCard>
+          <DetailCard title="Address" headerAction={<EditPencil label="Edit address" onClick={() => openAt("address")} />}>
+            <Rows rows={addressRows} fill />
+          </DetailCard>
+
+          <ProfilePhotoCard initialUrl={avatarUrl} />
+        </div>
+      </DetailFullWidth>
 
       <EditProfileModal
         open={editOpen}

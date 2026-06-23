@@ -18,6 +18,7 @@ import { Wordmark } from "@/components/ui/Wordmark"
 import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/components/layout/focus-shell.css"
 import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
+import Image from "next/image"
 import { Phone, Mail, MessageCircle, ShieldCheck, ImageIcon, type LucideIcon } from "lucide-react"
 import { StepPanel, type ResumeState } from "./StepPanel"
 import { ApplyLoginButton } from "./ApplyLoginButton"
@@ -38,7 +39,7 @@ type UnitRow = {
   assigned_agent_id: string | null
   properties: { name: string | null; address_line1: string | null; suburb: string | null; city: string | null; managing_agent_id: string | null; type: string | null } | null
 }
-type OrgRow = { name: string | null; email: string | null; phone: string | null; ppra_ffc_number: string | null }
+type OrgRow = { name: string | null; email: string | null; phone: string | null; ppra_ffc_number: string | null; brand_logo_path: string | null }
 
 // The resume link carries the token in the query string — keep it out of the Referer header sent to any
 // third-party subresource on the page (the token is a bearer capability to a PII-bearing draft).
@@ -195,7 +196,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
 
   const { data: listing, error } = await db
     .from("listings")
-    .select("id, org_id, asking_rent_cents, available_from, pet_friendly, listing_photos, units(unit_number, bedrooms, bathrooms, size_m2, furnished, furnishing_status, parking_bays, assigned_agent_id, properties(name, address_line1, suburb, city, managing_agent_id, type)), organisations(name, email, phone, ppra_ffc_number)")
+    .select("id, org_id, asking_rent_cents, available_from, pet_friendly, listing_photos, units(unit_number, bedrooms, bathrooms, size_m2, furnished, furnishing_status, parking_bays, assigned_agent_id, properties(name, address_line1, suburb, city, managing_agent_id, type)), organisations(name, email, phone, ppra_ffc_number, brand_logo_path)")
     .eq("public_slug", slug)
     .eq("status", "active")
     .maybeSingle()
@@ -216,11 +217,11 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
   const agentId = (unit?.assigned_agent_id ?? property?.managing_agent_id) ?? null
   let agentName: string | null = null
   let agentPhone: string | null = null
-  let agentFfc: string | null = null
+  let agentPhoto: string | null = null
   if (agentId) {
     const { data: agent, error: agentErr } = await db
       .from("user_profiles")
-      .select("full_name, first_name, last_name, phone, ppra_ffc_number")
+      .select("full_name, first_name, last_name, phone, avatar_url")
       .eq("id", agentId)
       .maybeSingle()
     logQueryError("ApplyPreview user_profiles", agentErr)
@@ -228,8 +229,12 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
       || [agent?.first_name, agent?.last_name].filter(Boolean).join(" ").trim()
       || null
     agentPhone = (agent?.phone as string | null) ?? null
-    agentFfc = (agent?.ppra_ffc_number as string | null) ?? null
+    agentPhoto = (agent?.avatar_url as string | null) ?? null
   }
+  // Org logo (public org-assets) for the agent card header.
+  const orgLogoUrl = org?.brand_logo_path
+    ? db.storage.from("org-assets").getPublicUrl(org.brand_logo_path).data.publicUrl
+    : null
 
   // Auth-gated autofill (identity finding §3): if the visitor is logged in, prefill ONLY from their OWN
   // record (session authorises). Identity + address prefill clean; financial/employment are NOT prefilled
@@ -274,7 +279,6 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
   const photo = (listing.listing_photos as string[] | null)?.[0] ?? null
   const phone = agentPhone ?? org?.phone ?? null
   const waHref = waLink(phone)
-  const ffc = org?.ppra_ffc_number ?? null
   const enquiryMailto = org?.email
     ? `mailto:${org.email}?subject=${encodeURIComponent("Property application enquiry, address: " + title)}`
     : null
@@ -338,17 +342,25 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
               <div className="shrink-0">
                 <DetailCard
                   title="Your agent"
-                  headerAction={ffc ? <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-[var(--amber-ink)]">FFC {ffc}</span> : undefined}
+                  headerAction={orgLogoUrl ? <Image src={orgLogoUrl} alt={org?.name ?? "Agency"} width={112} height={28} className="h-7 w-auto max-w-[112px] object-contain" unoptimized /> : undefined}
                 >
-                  <div>
-                    <p className="text-sm font-semibold leading-snug">{org?.name ?? "Managing agency"}</p>
-                    {agentName && <p className="text-xs text-muted-foreground">{agentName} · Rental agent</p>}
-                    {agentFfc && <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.08em] text-[var(--ink-mute)]">FFC {agentFfc}</p>}
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {phone && <ContactLine icon={Phone} href={`tel:${phone.replaceAll(/\s/g, "")}`}>{phone}</ContactLine>}
-                    {waHref && <ContactLine icon={MessageCircle} href={waHref}>WhatsApp</ContactLine>}
-                    {enquiryMailto && <ContactLine icon={Mail} href={enquiryMailto}>{org?.email}</ContactLine>}
+                  <div className="grid grid-cols-3 items-stretch gap-4">
+                    {/* 2/3 — name + contact details */}
+                    <div className={agentPhoto ? "col-span-2 min-w-0" : "col-span-3 min-w-0"}>
+                      <p className="text-sm font-semibold leading-snug">{org?.name ?? "Managing agency"}</p>
+                      {agentName && <p className="text-xs text-muted-foreground">{agentName} · Rental agent</p>}
+                      <div className="mt-3 space-y-1.5">
+                        {phone && <ContactLine icon={Phone} href={`tel:${phone.replaceAll(/\s/g, "")}`}>{phone}</ContactLine>}
+                        {waHref && <ContactLine icon={MessageCircle} href={waHref}>WhatsApp</ContactLine>}
+                        {enquiryMailto && <ContactLine icon={Mail} href={enquiryMailto}>{org?.email}</ContactLine>}
+                      </div>
+                    </div>
+                    {/* 1/3 — agent photo, full card height */}
+                    {agentPhoto && (
+                      <div className="relative col-span-1 self-stretch overflow-hidden rounded-[var(--r-button)] border border-border">
+                        <Image src={agentPhoto} alt={agentName ?? "Agent"} fill className="object-cover" unoptimized />
+                      </div>
+                    )}
                   </div>
                 </DetailCard>
               </div>
