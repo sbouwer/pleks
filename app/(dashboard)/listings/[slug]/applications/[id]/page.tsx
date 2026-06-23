@@ -163,14 +163,7 @@ export default async function ApplicationDetailPage({
     .order("iteration_number", { ascending: false }).limit(1).maybeSingle()
   logQueryError("ApplicationDetailPage screening_evaluation", screeningEvalErr)
 
-  const [{ data: idCap }, { data: s23Cap }, { data: orgRow }] = await Promise.all([
-    db
-      .from("user_capabilities")
-      .select("id")
-      .eq("user_id", gw.userId)
-      .eq("org_id", orgId)
-      .eq("capability_name", "can_view_sensitive_identity_data")
-      .maybeSingle(),
+  const [{ data: s23Cap }, { data: orgRow }] = await Promise.all([
     db
       .from("user_capabilities")
       .select("id")
@@ -181,9 +174,12 @@ export default async function ApplicationDetailPage({
     db.from("organisations").select("name").eq("id", orgId).single(),
   ])
 
-  // owner / is_admin are implicit-all (they're the data controller) — the explicit user_capabilities grant is
-  // the gate for OTHER members. Without this bypass an owner is locked out of their own data with no grant UI.
-  const canViewId      = gw.isAdmin || !!idCap
+  // Viewing/revealing the applicant's ID is a routine, CONSENTED part of the agent's job (POPIA s19 — proportionate,
+  // need-to-know-within-the-tenant). Any org agent who can reach this application may view it — masked by default,
+  // revealed on click, and AUDITED (revealIdNumber). No per-user provisioning (that was gold-plating). A future
+  // org-level "restrict raw-ID viewing to senior staff" setting can re-tighten this opt-in.
+  const canViewId = true
+  // s23 disclosure stays capability-gated — an ELEVATED operation (generating a POPIA s23 record), owner exempt.
   const canGenerateS23 = gw.isAdmin || !!s23Cap
 
   const listing = app.listings as unknown as {

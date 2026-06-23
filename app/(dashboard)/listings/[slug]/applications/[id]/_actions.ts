@@ -3,8 +3,9 @@
  *
  * Auth:   gateway (agent workspace)
  * Data:   reads + decrypts applications.id_number; writes to audit_log
- * Notes:  revealIdNumber is gated by can_view_sensitive_identity_data capability (§8.7).
- *         generatePopiaS23Response is gated by can_generate_popia_s23 capability (§8.7).
+ * Notes:  revealIdNumber is NOT capability-gated — viewing an applicant's ID is a routine, consented agent task
+ *         (POPIA s19 proportionate / need-to-know-within-the-tenant); it's masked-by-default + audited instead.
+ *         generatePopiaS23Response stays gated by can_generate_popia_s23 (an elevated disclosure op; owner exempt).
  *         Handler (lib/popia/handlers/screening.ts) writes its own audit_log entry — no
  *         double-write here; the server action's role is capability gate + org ownership check.
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §8.3–§8.7, §10.8.
@@ -21,23 +22,11 @@ export async function revealIdNumber(applicationId: string): Promise<{ value: st
   if (!gw) return { value: null, error: 'Unauthorized' }
   const { db, orgId, userId } = gw
 
-  // Capability gate — owner/is_admin (the data controller) are implicit-all; OTHER members must hold the
-  // explicit can_view_sensitive_identity_data grant for this org. The reveal is audited either way (below).
-  if (!gw.isAdmin) {
-    const { data: cap, error: capErr } = await db
-      .from('user_capabilities')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('org_id', orgId)
-      .eq('capability_name', 'can_view_sensitive_identity_data')
-      .maybeSingle()
-    if (capErr) {
-      console.error('revealIdNumber capability check failed:', capErr.message)
-      return { value: null, error: 'Authorization check failed' }
-    }
-    if (!cap) return { value: null, error: 'Capability not granted — contact your Information Officer.' }
-  }
-
+  // No per-user capability gate: viewing the applicant's ID is a routine, CONSENTED part of the agent's job
+  // (POPIA s19 — proportionate, need-to-know-within-the-tenant). Reaching here means you're an authenticated agent
+  // in the org that owns this application (the org_id filter below is the boundary). The reveal is masked-by-default
+  // in the UI and AUDITED here. (ADDENDUM_14H §8.7 right-sized — the capability model is reserved for elevated ops
+  // like s23 disclosure / bulk export.)
   const { data: app, error } = await db
     .from('applications')
     .select('id_number, id_type')
