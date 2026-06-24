@@ -23,6 +23,7 @@ import { Phone, Mail, MessageCircle, ShieldCheck, Image as ImageIcon, type Lucid
 import { StepPanel, type ResumeState } from "./StepPanel"
 import { ApplyLoginButton, ApplyThemeToggle } from "./ApplyLoginButton"
 import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
+import { ApplyChromeProvider, ApplyUnitStrip } from "./applyChrome"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getServerUser } from "@/lib/auth/server"
 import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
@@ -347,6 +348,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
 
   return (
     <PublicThemeProvider>
+      <ApplyChromeProvider initial={!!resume}>
       <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: "var(--paper)", color: "var(--ink)" }}>
         {/* Same 4-layer warm backdrop as the login surface (fixed behind content) */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden"><FocusBackdrop /></div>
@@ -361,9 +363,10 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
               <span className="h-4 w-px shrink-0 bg-[var(--rule)]" />
               <span className="hidden shrink-0 sm:inline"><Eyebrow>Rental application</Eyebrow></span>
             </div>
-            {/* Main zone — account controls on the right. The unit details live in the side card (landing) or the
-                panel's unit line (once in the application), so they aren't repeated up here. */}
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-3 [@media(min-width:1024px)_and_(min-height:700px)]:ml-4">
+            {/* Main zone — unit details (ONLY once in the application; the landing shows them in the side card) on
+                the left, account controls on the right. */}
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 [@media(min-width:1024px)_and_(min-height:700px)]:ml-4">
+              <ApplyUnitStrip title={stripTitle} detail={`${formatZAR(listing.asking_rent_cents)}/mo · available ${availStr}`} />
               <div className="flex shrink-0 items-center gap-3 sm:gap-4">
                 <span className="hidden items-center gap-1.5 text-[var(--ink-mute)] sm:flex">
                   <ShieldCheck className="size-3.5" />
@@ -395,7 +398,6 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
                 slug={slug}
                 orgId={listing.org_id as string}
                 listingTitle={stripTitle}
-                unitLine={`${stripTitle} · ${formatZAR(listing.asking_rent_cents)}/mo · available ${availStr}`}
                 listingCard={listingCard}
                 leaseType={leaseType}
                 askingRentCents={(listing.asking_rent_cents as number) ?? 0}
@@ -409,6 +411,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
         </div>
       </div>
       </div>
+      </ApplyChromeProvider>
     </PublicThemeProvider>
   )
 }

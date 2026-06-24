@@ -30,6 +30,7 @@ import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { Plus, X, Upload, FileText, CheckCircle2, Loader2, AlertCircle, ShieldCheck, User, Users, Building2, HandCoins, ArrowLeft, ArrowRight, Pencil, Clock, LogIn } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
+import { useBegun } from "./applyChrome"
 import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity } from "@/components/parties/partySteps"
 import { SectLabel, AddressFields } from "@/components/parties/partyFields"
@@ -432,7 +433,7 @@ function SubTabs({ activeGroup, step, maxReached, onJumpStep }: Readonly<{ activ
   )
 }
 
-export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, agentCard, listingCard, unitLine }: Readonly<{
+export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, agentCard, listingCard }: Readonly<{
   slug: string; orgId: string; listingTitle?: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
@@ -442,8 +443,6 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   agentCard?: ReactNode
   /** the home being applied for — shown in the side column BEFORE begin; replaced by the step rail after. */
   listingCard?: ReactNode
-  /** one-line unit summary — shown atop the panel ONCE in the application (the side card carries it pre-begin). */
-  unitLine?: string
 }>) {
   const commercial = leaseType === "commercial"
   // Resuming a saved draft (the ?app&token link) rehydrates identity/income/employment/docs/co-applicants and
@@ -484,10 +483,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // "Add applicant" from the review (when affordability is short) — invite a co-applicant after the app exists.
   const [addApplicantOpen, setAddApplicantOpen] = useState(false)
   const [newCo, setNewCo] = useState<CoApplicant>(blankCo("co_applicant"))
-  // "Begun" = past the "Apply as" landing and into the form panes. The landing captures type + co-applicants +
-  // returning-applicant resume; resuming a saved draft starts already begun. Clicking "Apply as" in the rail
-  // re-opens the landing (begun→false) with the chosen type preserved, so it's navigable to change.
-  const [begun, setBegun] = useState<boolean>(!!resume)
+  // "Begun" = past the "Apply as" landing and into the form panes. Lifted to a shared context (applyChrome) so the
+  // top-header unit strip can render only once in the application. Resuming a saved draft starts already begun;
+  // clicking "Apply as" in the rail re-opens the landing (begun→false) with the chosen type preserved.
+  const { begun, setBegun } = useBegun()
   const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths, resume.form?.idType) : {})
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
@@ -887,7 +886,6 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
               <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
               <span className="truncate">{activeGroup}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
             </h2>
-            {begun && unitLine && <span className="hidden min-w-0 flex-1 truncate px-2 text-xs text-[var(--ink-mute)] [@media(min-width:1280px)]:block">{unitLine}</span>}
             <div className="flex shrink-0 items-center gap-2">
               {showBackBtn && (
                 <ActionButton tone="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={busy || (step === 0 && !!applicationId)}>Back</ActionButton>
