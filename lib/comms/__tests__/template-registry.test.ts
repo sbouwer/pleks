@@ -25,4 +25,12 @@ describe("subscription email template keys are all in TEMPLATE_REGISTRY", () => 
   it.each(referencedKeys)("getTemplate(%s) does not throw", (key) => {
     expect(() => getTemplate(key)).not.toThrow()
   })
+
+  // The registry exists BECAUSE it throws on an unknown key (that's how "Unknown template key:
+  // subscription.resumed" surfaced at all). Pin the throw, so a refactor that returns undefined instead — which
+  // would make the missing-key guard above silently useless — fails here.
+  it("throws on an unknown key (the guard's whole reason for existing)", () => {
+    expect(() => getTemplate("subscription.totally_made_up_key")).toThrow(/unknown template key/i)
+    expect(() => getTemplate("")).toThrow()
+  })
 })
