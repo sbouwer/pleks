@@ -304,7 +304,6 @@
   "components/units/RoomList.tsx",
   "hooks/useIsMobile.ts",
   "hooks/useMobileHomeBadges.ts",
-  "hooks/useNavBadges.ts",
   "hooks/usePermissions.ts",
   "hooks/useTrustAccount.ts",
   "hooks/useUser.ts",
