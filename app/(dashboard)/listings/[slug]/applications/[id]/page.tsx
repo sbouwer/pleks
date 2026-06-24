@@ -31,7 +31,7 @@ import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STEP1_LABEL: Record<string, string> = {
-  "verify-ready": "Verify-ready", "missing-docs": "Missing docs", "does-not-qualify": "Doesn't qualify", incomplete: "Didn't finish",
+  "verify-ready": "Verify-ready", backstopped: "Qualifies via surety", "missing-docs": "Missing docs", "does-not-qualify": "Doesn't qualify", incomplete: "Didn't finish",
 }
 
 function applicationStatus(stage1: string | null, stage2: string | null): DetailStatus {

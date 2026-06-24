@@ -34,31 +34,80 @@ describe("freeAssessment — guarantor / surety backstop (residual capacity)", (
   const RENT = 900_000 // R9 000; living floor = R3 500/adult (350_000)
   const principal = a({ declaredIncomeCents: 2_000_000 }) // R20k vs R9k = 45% → below on its own merit
 
-  it("strong standalone guarantor backstops the full rent", () => {
+  // THE verdict-locking test: a below-income primary with a covering surety must NOT roll up does-not-qualify.
+  it("primary below + covering surety → rollup BACKSTOPPED, not does-not-qualify", () => {
     const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 2_000_000 })])
-    expect(r.hasGuarantor).toBe(true)
-    expect(r.guarantorBacksRent).toBe(true) // 20k − 0 − 3.5k floor = 16.5k residual ≥ 9k
+    expect(r.affordabilityTier).toBe("below")   // primary fails on its own merit
+    expect(r.guarantorBacksRent).toBe(true)     // 20k − 0 − 3.5k floor = 16.5k residual ≥ 9k
+    expect(r.rollup).toBe("backstopped")        // …so the surety rescues it — the OR-branch reaches the verdict
+    expect(r.rollup).not.toBe("does-not-qualify")
   })
-  it("stretched high-earner guarantor is no security (residual, not a multiple)", () => {
+  it("stretched high-earner guarantor is no security → does-not-qualify (residual, not a multiple)", () => {
     const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 5_000_000, declaredObligationsCents: 4_500_000 })])
     expect(r.guarantorBacksRent).toBe(false) // 50k − 45k − 3.5k = 1.5k residual < 9k, despite the big salary
+    expect(r.rollup).toBe("does-not-qualify")
   })
-  it("two unrelated standalone guarantors do NOT pool — neither covers alone", () => {
+  it("two unrelated standalone guarantors do NOT pool → does-not-qualify", () => {
     const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 1_000_000 }), a({ role: "guarantor", declaredIncomeCents: 1_000_000 })])
     expect(r.guarantorBacksRent).toBe(false) // each: 10k − 3.5k = 6.5k < 9k; no pooling
+    expect(r.rollup).toBe("does-not-qualify")
   })
-  it("joint-&-several guarantors (same suretyGroup) POOL and cover", () => {
+  it("joint-&-several guarantors (same suretyGroup) POOL and cover → backstopped", () => {
     const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "joint-1" }), a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "joint-1" })])
     expect(r.guarantorBacksRent).toBe(true) // 6.5k + 6.5k = 13k pooled ≥ 9k
+    expect(r.rollup).toBe("backstopped")
   })
-  it("no guarantor → hasGuarantor false, no backstop", () => {
+  it("no guarantor + below primary → does-not-qualify", () => {
     const r = freeAssessment(RENT, [principal])
     expect(r.hasGuarantor).toBe(false)
     expect(r.guarantorBacksRent).toBe(false)
+    expect(r.rollup).toBe("does-not-qualify")
   })
-  it("in-community surety → spousal consent required (s15 MPA); ANC does not", () => {
+  it("guarantor doesn't override a primary who ALREADY affords (stays verify-ready, not backstopped)", () => {
+    const r = freeAssessment(RENT, [a({ declaredIncomeCents: 5_000_000 }), a({ role: "guarantor", declaredIncomeCents: 5_000_000 })]) // 9k/50k = 18% within
+    expect(r.affordabilityTier).toBe("within")
+    expect(r.rollup).toBe("verify-ready") // clean pass — not "backstopped"; the surety is just extra security
+  })
+  it("in-community SURETY → spousal consent required (s15 MPA); ANC does not; in-community PRIMARY does NOT trigger", () => {
     expect(freeAssessment(RENT, [principal, a({ role: "guarantor", maritalRegime: "in_community" })]).spousalConsentRequired).toBe(true)
     expect(freeAssessment(RENT, [principal, a({ role: "guarantor", maritalRegime: "out_anc" })]).spousalConsentRequired).toBe(false)
+    // scope is sureties only — an in-community PRIMARY/co-applicant must NOT trip surety consent
+    expect(freeAssessment(RENT, [a({ maritalRegime: "in_community" }), a({ role: "co_applicant", maritalRegime: "in_community" })]).spousalConsentRequired).toBe(false)
+  })
+})
+
+describe("freeAssessment — company verdict (net profit + directors' surety)", () => {
+  const RENT = 900_000 // R9 000
+  const director = a() // the director filling it in (primary)
+
+  it("company net profit covers the rent → strong + verify-ready (turnover not used)", () => {
+    const r = freeAssessment(RENT, [director], { company: { netProfitMonthlyCents: 1_000_000, turnoverMonthlyCents: 8_000_000 } })
+    expect(r.isCompany).toBe(true)
+    expect(r.companyVerdict).toBe("strong") // R10k net ≥ R9k rent
+    expect(r.companyTurnoverMonthlyCents).toBe(8_000_000) // captured as context, not the test
+    expect(r.rollup).toBe("verify-ready")  // company affords on its own → clean pass
+  })
+  it("thin net but directors' combined surety carries it → backstopped (verdict AND rollup)", () => {
+    const r = freeAssessment(RENT, [director,
+      a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "dir" }),
+      a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "dir" }),
+    ], { company: { netProfitMonthlyCents: 500_000 } })
+    expect(r.companyVerdict).toBe("backstopped") // net R5k < R9k, but directors pool 6.5k+6.5k = 13k ≥ 9k
+    expect(r.rollup).toBe("backstopped")
+  })
+  it("thin net and no directors' surety → fail + does-not-qualify", () => {
+    const r = freeAssessment(RENT, [director], { company: { netProfitMonthlyCents: 500_000 } })
+    expect(r.companyVerdict).toBe("fail")
+    expect(r.rollup).toBe("does-not-qualify")
+  })
+  it("high turnover, loss-making net, no surety → fail (turnover is never the number)", () => {
+    const r = freeAssessment(RENT, [director], { company: { netProfitMonthlyCents: 0, turnoverMonthlyCents: 10_000_000 } })
+    expect(r.companyVerdict).toBe("fail")
+    expect(r.rollup).toBe("does-not-qualify")
+  })
+  it("personal applications are not company", () => {
+    expect(freeAssessment(RENT, [director]).isCompany).toBe(false)
+    expect(freeAssessment(RENT, [director]).companyVerdict).toBeNull()
   })
 })
 

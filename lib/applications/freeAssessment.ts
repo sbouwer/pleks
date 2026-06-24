@@ -40,11 +40,14 @@ function suretyUnitsCoverRent(guarantors: FreeApplicantInput[], rentCents: numbe
 }
 
 export type DeclaredAffordabilityTier = "within" | "marginal" | "below" | "no-income"
+export type CompanyVerdict = "strong" | "backstopped" | "fail" // strong=company nets it · backstopped=directors' surety · fail
 export type ReadinessBand = "ready" | "partial" | "incomplete"
 export type Residency = "citizen" | "permanent_resident" | "foreign" | "unknown"
 /** The Step-1 roll-up — an administrative "is this worth a deep scan?" state, the triage-list sort key.
  *  Reds (does-not-qualify, incomplete) sort above amber (missing-docs) above green (verify-ready). */
-export type Step1Status = "verify-ready" | "missing-docs" | "does-not-qualify" | "incomplete"
+// "backstopped" = qualifies VIA a surety / company-directors' surety, not on the applicant's/company's own
+// affordability — a distinct triage state so the agent sees it's surety-carried, not a clean pass.
+export type Step1Status = "verify-ready" | "backstopped" | "missing-docs" | "does-not-qualify" | "incomplete"
 
 /** A required/expected document slot + whether the applicant has uploaded SOMETHING for it (presence, NOT proof
  *  of contents — "uploaded, unverified"). */
@@ -114,6 +117,13 @@ export interface FreeAssessmentResult {
   guarantorBacksRent: boolean          // ≥1 surety UNIT's pooled residual absorbs the FULL rent (standalone
                                        //   guarantors never pool; only declared joint-&-several / spouse units do)
   spousalConsentRequired: boolean      // an in-community surety-giver is present → spousal consent needed (s15 MPA)
+  // Company (juristic) applications — the COMPANY is the payer (net profit, not turnover); the directors are the
+  // surety backstop (their combined residual, via the guarantor units above). null/false for personal applications.
+  isCompany: boolean
+  companyNetMonthlyCents: number | null     // declared net profit ÷ 12 — the payer's real capacity (turnover is NOT this)
+  companyTurnoverMonthlyCents: number | null // declared turnover ÷ 12 — CONTEXT/scale only, never in the affordability test
+  companyAffordsAlone: boolean              // company net profit alone covers the rent
+  companyVerdict: CompanyVerdict | null  // strong=company nets it · backstopped=directors' surety carries · fail
   estimatedMoveInCents: number | null  // deposit + first month's rent
   // Identity (primary) + employment (primary)
   identity: IdentitySignal
@@ -131,6 +141,9 @@ export interface FreeAssessmentOptions {
   depositCents?: number | null         // unit deposit; falls back to 1× rent for the move-in estimate
   leaseTermMonths?: number | null      // listing's lease term — for the contract-end-vs-lease signal; skip if absent
   asOf?: Date                          // for deterministic age/tenure in tests
+  // Present ONLY for a company application — the company is the payer; directors (guarantor-role, joint suretyGroup)
+  // are the backstop. netProfitMonthly is the capacity tested; turnoverMonthly is context/scale only.
+  company?: { netProfitMonthlyCents: number | null; turnoverMonthlyCents?: number | null } | null
 }
 
 /** True only when an SA-ID number fails the Luhn checksum; a passport/other id type is never "invalid" here. */
@@ -227,6 +240,28 @@ function readinessItem(a: FreeApplicantInput, label: string): ReadinessItem {
   return { label, status, missing }
 }
 
+/** The affordability read — ONE line by case. A COMPANY reads off the company verdict (net profit vs rent, with
+ *  directors' surety as the backstop); everyone else off the personal tier, with the guarantor backstop appended
+ *  (companies fold the directors' surety into the verdict, so they skip the standalone guarantor line). */
+function affordabilityRead(r: Omit<FreeAssessmentResult, "interpretations">, ready: boolean, goodMultiple: boolean): Interpretation[] {
+  const out: Interpretation[] = []
+  if (r.isCompany) {
+    if (r.companyVerdict === "strong") out.push({ kind: "positive", text: "The company's declared net profit covers the rent — affordable from its own finances (verified against AFS / bank / SARS at the deep scan)." })
+    else if (r.companyVerdict === "backstopped") out.push({ kind: "caution", text: "The company's declared net profit is thin for the rent, but the directors' combined surety can carry it — a backstopped application leaning on directors' surety." })
+    else out.push({ kind: "action", text: "Neither the company's declared net profit nor the directors' combined surety covers the rent — affordability concern." })
+    return out
+  }
+  if (r.affordabilityTier === "no-income") out.push({ kind: "action", text: "No income declared — can't assess affordability. Capture income before shortlisting." })
+  else if (r.affordabilityTier === "within" && ready && goodMultiple) out.push({ kind: "positive", text: "Strong on paper: affordable and complete. Good candidate for a deep scan." })
+  else if (r.affordabilityTier === "within") out.push({ kind: "positive", text: "Affordable on declared income (within the 30% guideline)." })
+  else if (r.affordabilityTier === "marginal") out.push({ kind: "caution", text: "Slightly over the 30% guideline — affordable if income verifies; a co-applicant or larger deposit would strengthen it." })
+  else if (r.coApplicantDependency) out.push({ kind: "caution", text: "Only affordable on the combined income — single-income risk if one tenant leaves." })
+  else out.push({ kind: "caution", text: "Rent is high relative to declared income — affordability concern." })
+  if (r.hasGuarantor && r.affordabilityTier !== "within" && r.guarantorBacksRent) out.push({ kind: "positive", text: "Backed by a surety whose residual income can absorb the full rent on top of their own commitments." })
+  else if (r.hasGuarantor && !r.guarantorBacksRent) out.push({ kind: "caution", text: "The surety's residual income (after their own commitments and living costs) doesn't cover the full rent — limited additional security." })
+  return out
+}
+
 /** The deterministic interpretation library — plain-English reads keyed to the computed state. Ordered most→least
  *  urgent. Strictly financial + completeness + capacity; never a protected attribute, never an auto-decision. */
 function buildInterpretations(r: Omit<FreeAssessmentResult, "interpretations">): Interpretation[] {
@@ -241,27 +276,9 @@ function buildInterpretations(r: Omit<FreeAssessmentResult, "interpretations">):
     out.push({ kind: "caution", text: "The declared date of birth doesn't match the ID number — worth confirming before relying on it." })
   }
 
-  // Affordability read (one, by tier)
-  if (r.affordabilityTier === "no-income") {
-    out.push({ kind: "action", text: "No income declared — can't assess affordability. Capture income before shortlisting." })
-  } else if (r.affordabilityTier === "within" && ready && goodMultiple) {
-    out.push({ kind: "positive", text: "Strong on paper: affordable and complete. Good candidate for a deep scan." })
-  } else if (r.affordabilityTier === "within") {
-    out.push({ kind: "positive", text: "Affordable on declared income (within the 30% guideline)." })
-  } else if (r.affordabilityTier === "marginal") {
-    out.push({ kind: "caution", text: "Slightly over the 30% guideline — affordable if income verifies; a co-applicant or larger deposit would strengthen it." })
-  } else if (r.coApplicantDependency) {
-    out.push({ kind: "caution", text: "Only affordable on the combined income — single-income risk if one tenant leaves." })
-  } else {
-    out.push({ kind: "caution", text: "Rent is high relative to declared income — affordability concern." })
-  }
+  // Affordability read (one) — company verdict or personal tier + guarantor backstop (extracted helper).
+  out.push(...affordabilityRead(r, ready, goodMultiple))
 
-  // Guarantor / surety backstop — its own read (separate from the applicants' own affordability above).
-  if (r.hasGuarantor && r.affordabilityTier !== "within" && r.guarantorBacksRent) {
-    out.push({ kind: "positive", text: "Backed by a surety whose residual income can absorb the full rent on top of their own commitments." })
-  } else if (r.hasGuarantor && !r.guarantorBacksRent) {
-    out.push({ kind: "caution", text: "The surety's residual income (after their own commitments and living costs) doesn't cover the full rent — limited additional security." })
-  }
   if (r.spousalConsentRequired) {
     out.push({ kind: "action", text: "A surety is married in community of property — the spouse must co-sign the suretyship (s15 MPA). Route the witnessed consent before relying on it." })
   }
@@ -300,11 +317,26 @@ function affordabilityTierOf(combinedIncome: number, ratio: number | null): Decl
 /** The administrative roll-up, reds first: their declared numbers don't work, OR they didn't finish, OR a required
  *  doc is missing, else it's coherent enough to be worth a (paid) deep scan. A sort key + suggestion — never an
  *  auto-decline; ID validity is an agent-only fraud check and is NOT folded in here. */
-function rollupOf(tier: DeclaredAffordabilityTier, allComplete: boolean, allRequiredDocsPresent: boolean): Step1Status {
-  if (tier === "below" || tier === "no-income") return "does-not-qualify"
+type AffordabilityOutcome = "clear" | "backstopped" | "fail" // clear = affords on own merit; backstopped = via surety
+
+function rollupOf(outcome: AffordabilityOutcome, allComplete: boolean, allRequiredDocsPresent: boolean): Step1Status {
+  if (outcome === "fail") return "does-not-qualify"  // neither own affordability nor a covering surety
   if (!allComplete) return "incomplete"
   if (!allRequiredDocsPresent) return "missing-docs"
-  return "verify-ready"
+  return outcome === "backstopped" ? "backstopped" : "verify-ready"
+}
+
+/** Reduce the affordability picture to one outcome the rollup consumes. A COMPANY reads off its verdict (strong→
+ *  clear, backstopped→via directors' surety, fail); a PERSONAL applicant affords clear (within/marginal) or is
+ *  rescued by a covering surety unit (below/no-income + guarantorBacksRent → backstopped), else fails. */
+function affordabilityOutcomeOf(isCompany: boolean, companyVerdict: CompanyVerdict | null, tier: DeclaredAffordabilityTier, guarantorBacksRent: boolean): AffordabilityOutcome {
+  if (isCompany) {
+    if (companyVerdict === "backstopped") return "backstopped"
+    if (companyVerdict === "fail") return "fail"
+    return "clear" // strong
+  }
+  if (tier === "below" || tier === "no-income") return guarantorBacksRent ? "backstopped" : "fail"
+  return "clear" // within / marginal
 }
 
 function buildReadiness(applicants: FreeApplicantInput[]): FreeAssessmentResult["readiness"] {
@@ -366,6 +398,20 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
   // separate from pooling. Surfaced here so the flow can require + route the witnessed consent before submit.
   const spousalConsentRequired = applicants.some((a) => a.role === "guarantor" && a.maritalRegime === "in_community")
 
+  // Company verdict — the company is the PAYER (net profit ÷ 12 vs rent; turnover is context, never the number),
+  // with the directors' combined surety (the guarantor units above) as the backstop. Mirrors the guarantor shape:
+  // company nets it → strong; thin company but directors' surety carries the full rent → backstopped; neither → fail.
+  const isCompany = opts.company != null
+  const companyNetMonthlyCents = isCompany ? (opts.company?.netProfitMonthlyCents ?? null) : null
+  const companyTurnoverMonthlyCents = isCompany ? (opts.company?.turnoverMonthlyCents ?? null) : null
+  const companyAffordsAlone = isCompany && companyNetMonthlyCents != null && rentCents > 0 && companyNetMonthlyCents >= rentCents
+  let companyVerdict: CompanyVerdict | null = null
+  if (isCompany) {
+    if (companyAffordsAlone) companyVerdict = "strong"
+    else if (guarantorBacksRent) companyVerdict = "backstopped" // directors' combined surety carries it
+    else companyVerdict = "fail"
+  }
+
   const depositCents = opts.depositCents ?? (rentCents > 0 ? rentCents : null)
   const estimatedMoveInCents = rentCents > 0 && depositCents != null ? depositCents + rentCents : null
 
@@ -376,7 +422,10 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
   // Documents: the primary's required/expected slots (itemised at /submit by listing what's uploaded).
   const documents = primaryApplicant?.documents ?? []
   const allRequiredDocsPresent = documents.filter((d) => d.required).every((d) => d.present)
-  const rollup = rollupOf(affordabilityTier, readiness.allComplete, allRequiredDocsPresent)
+
+  // Unified affordability outcome → the rollup/verdict. This is where the guarantor/company backstop actually
+  // REACHES the verdict (not just the interpretation reads). See affordabilityOutcomeOf.
+  const rollup = rollupOf(affordabilityOutcomeOf(isCompany, companyVerdict, affordabilityTier, guarantorBacksRent), readiness.allComplete, allRequiredDocsPresent)
 
   const base: Omit<FreeAssessmentResult, "interpretations"> = {
     primaryIncomeCents: primary,
@@ -393,6 +442,11 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
     hasGuarantor,
     guarantorBacksRent,
     spousalConsentRequired,
+    isCompany,
+    companyNetMonthlyCents,
+    companyTurnoverMonthlyCents,
+    companyAffordsAlone,
+    companyVerdict,
     estimatedMoveInCents,
     identity,
     employment,

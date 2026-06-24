@@ -6,7 +6,7 @@
  * uncorroborated→flag 5 with the right prompt, probation, identity, the net-pay SIGNAL (not a to-do).
  */
 import { describe, it, expect } from "vitest"
-import { evaluateRuling, type RulingInput } from "../ruling"
+import { evaluateRuling, RULING_VERSION, type RulingInput } from "../ruling"
 import type { ReconciliationResult } from "@/lib/extraction/types"
 
 const NOW = new Date("2026-06-20T00:00:00Z")
@@ -32,11 +32,12 @@ const flag = (r: ReturnType<typeof evaluateRuling>, id: number) => r.flags.find(
 const lowCorrob = (cents: number) => ({ declaredSources: [{ source_key: "employment", label: "Employment (gross)", declared_monthly_cents: cents, evidenced_monthly_cents: cents, variance_pct: 0, match_confidence: 0.9, status: "corroborated" as const, evidenceDocType: "payslip" as const }] })
 
 describe("evaluateRuling — affordability axis", () => {
-  it("clean ratio + corroborated + recent → within + strong", () => {
+  it("clean ratio + corroborated + recent → within + strong (and NO major flags creep in)", () => {
     const r = evaluateRuling(input())
     expect(r.affordability.tier).toBe("within")
     expect(r.rulingTier).toBe("strong")
     expect(flag(r, 1)).toBeUndefined()
+    expect(r.flags.filter((f) => f.severity === "major")).toHaveLength(0) // a stray major flag can't sneak through
   })
   it("marginal ratio (34%, residual below floor) → marginal + a minor flag, capped to adequate (not strong)", () => {
     const r = evaluateRuling(input({ appliedRentCents: 170_000, declaredMonthlyIncomeCents: 500_000, reconciliation: recon(lowCorrob(500_000)) }))
@@ -188,6 +189,7 @@ describe("evaluateRuling — flag 0b residual-income override", () => {
   it("marginal ratio + residual clears the living floor → residual-override (not blocked)", () => {
     const r = evaluateRuling(marginalOver())
     expect(r.affordability.tier).toBe("residual-override")
+    expect(r.rulingTier).not.toBe("below-threshold") // the whole point of the override: no longer blocked
     expect(flag(r, 0)?.type).toBe("override")
     expect(flag(r, 1)).toBeUndefined()  // affordability concern flag suppressed
   })
@@ -222,5 +224,16 @@ describe("evaluateRuling — corroborated (verified) income dual ratio", () => {
     ] }) }))
     expect(r.affordability.corroboratedIncomeCents).toBe(0)
     expect(r.affordability.corroboratedRatioPct).toBeNull()
+  })
+})
+
+describe("evaluateRuling — determinism + version stamp (POPIA s71 replay)", () => {
+  it("stamps the ruling version on every result", () => {
+    expect(evaluateRuling(input()).rulingVersion).toBe(RULING_VERSION)
+    expect(RULING_VERSION).toBe("ruling.v3") // pin: bump deliberately when the logic changes, never silently
+  })
+  it("is deterministic — same input → identical output (replay defence)", () => {
+    const inp = input({ appliedRentCents: 170_000, declaredMonthlyIncomeCents: 500_000, reconciliation: recon(lowCorrob(500_000)) })
+    expect(evaluateRuling(inp)).toEqual(evaluateRuling(inp))
   })
 })

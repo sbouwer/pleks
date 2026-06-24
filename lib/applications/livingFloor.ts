@@ -37,7 +37,11 @@ export function householdLivingFloorCents(adults: number, minors: number): numbe
 /** Residual monthly capacity to ABSORB new rent on top of one's own life: income − own obligations − own living
  *  floor. The guarantor / surety test — when called, they pay this rent IN ADDITION to their existing bond/rent,
  *  commitments and living costs. NOT an income-to-rent multiple: a high earner who's already stretched has little
- *  residual and is weak security. Defaults to a one-adult floor (their own household ≥ 1). May be negative. */
+ *  residual and is weak security. May be negative.
+ *  KNOWN SIMPLIFICATION: defaults to a ONE-ADULT floor — it does NOT reflect the surety's own dependents (which
+ *  would make them weaker security), because we don't capture a guarantor's household at Step 1. The deep scan can
+ *  pass real adults/minors. Likewise a guarantor who doesn't DECLARE obligations defaults to 0 → looks stronger;
+ *  the capture flow should require guarantors to declare obligations for parity (see the apply Expenses asymmetry). */
 export function residualCapacityCents(incomeCents: number, obligationsCents: number, adults = 1, minors = 0): number {
   return incomeCents - Math.max(0, obligationsCents || 0) - householdLivingFloorCents(adults, minors)
 }

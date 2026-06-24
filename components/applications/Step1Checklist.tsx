@@ -14,6 +14,7 @@ import type { FreeAssessmentResult, Step1Status, Residency } from "@/lib/applica
 
 const ROLLUP: Record<Step1Status, { label: string; cls: string }> = {
   "verify-ready": { label: "Verify-ready", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  backstopped: { label: "Qualifies via surety", cls: "border-amber-200 bg-amber-50 text-amber-700" },
   "missing-docs": { label: "Missing documents", cls: "border-amber-200 bg-amber-50 text-amber-700" },
   "does-not-qualify": { label: "Doesn't qualify · on stated figures", cls: "border-red-200 bg-red-50 text-red-700" },
   incomplete: { label: "Didn't finish", cls: "border-red-200 bg-red-50 text-red-700" },
