@@ -50,8 +50,8 @@ function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon:
   return [
     { id: "individual", icon: User, title: commercial ? "Sole proprietor" : "Just me", blurb: commercial ? "I'm leasing in my own name (sole proprietor)." : "I'll be the only person on the lease." },
     { id: "couple", icon: Users, title: commercial ? "Partners / multiple" : "Couple / multiple", blurb: commercial ? "Two or more partners on the lease together — each gets their own secure link." : "Two or more of us will be on the lease together — each gets their own secure link." },
-    { id: "company", icon: Building2, title: "Company", blurb: "A registered business is leasing, with a director signing surety." },
     { id: "guarantor", icon: HandCoins, title: "On behalf / guarantor", blurb: commercial ? "A surety backs the application but won't be on the lease." : "Someone backs the application financially but won't live here — e.g. a parent for an adult child." },
+    { id: "company", icon: Building2, title: "Company", blurb: "A registered business is leasing, with a director signing surety." },
   ]
 }
 
@@ -509,8 +509,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // are seeded for multi-party types so the inline capture has a first row; switching to individual clears them.
   function selectType(t: ApplicantType) {
     setType(t)
-    if (t === "guarantor") setCoApplicants((cur) => (cur.length > 0 ? cur : [blankCo("guarantor")]))
-    else if (t === "couple") setCoApplicants((cur) => (cur.length > 0 ? cur : [blankCo("co_applicant")]))
+    // The card already says who they are, so force every row's role to match it (no per-row choice).
+    if (t === "guarantor") setCoApplicants((cur) => (cur.length > 0 ? cur.map((c) => ({ ...c, role: "guarantor" as CoRole })) : [blankCo("guarantor")]))
+    else if (t === "couple") setCoApplicants((cur) => (cur.length > 0 ? cur.map((c) => ({ ...c, role: "co_applicant" as CoRole })) : [blankCo("co_applicant")]))
     else setCoApplicants([]) // individual / company (directors handled later)
   }
 
@@ -880,7 +881,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {/* Panel header — mirrors the rail's "Your application" header (amber tick + step · section) so the rule
             continues across the nav and the panel. Shows on the landing too ("Apply as · Pre-selection"). */}
         {(
-          <div className="mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 [@media(min-width:1024px)_and_(min-height:700px)]:-mt-7">
+          <div className="mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 [@media(min-width:1024px)_and_(min-height:700px)]:-mt-6">
             <h2 className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-[var(--ink)]">
               <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
               <span className="truncate">{activeGroup}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
@@ -1022,7 +1023,6 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
 }>) {
   const [retEmail, setRetEmail] = useState("")
   const multi = type === "couple" || type === "guarantor"
-  const { occ, guar } = roleLabels(commercial)
   const updateCo = (i: number, patch: Partial<CoApplicant>) => setCoApplicants(coApplicants.map((c, j) => (j === i ? { ...c, ...patch } : c)))
   const addCo = () => setCoApplicants([...coApplicants, blankCo(type === "guarantor" ? "guarantor" : "co_applicant")])
   const removeCo = (i: number) => setCoApplicants(coApplicants.filter((_, j) => j !== i))
@@ -1089,11 +1089,6 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
             {coApplicants.map((c, i) => (
               <div key={i} className="flex flex-wrap items-center gap-1.5">
-                <select value={c.role} onChange={(e) => updateCo(i, { role: e.target.value as CoRole })}
-                  className="shrink-0 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
-                  <option value="co_applicant">{occ}</option>
-                  <option value="guarantor">{guar}</option>
-                </select>
                 <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
                 <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
                 <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
@@ -1440,10 +1435,6 @@ function StepExpenses({ dependentAdults, setDependentAdults, dependentMinors, se
 
 // Compact bare input for the inline co-applicant rows (placeholders instead of labels → one line per person).
 const CO_INPUT = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none"
-// Role labels for the inline co-applicant capture (residential vs commercial wording).
-function roleLabels(commercial: boolean) {
-  return { occ: commercial ? "On the lease" : "Lives here", guar: commercial ? "Surety" : "Guarantor" }
-}
 
 // ── Step 4 — Documents (income-driven categories, multi-file) ────────────────────
 function docFileIcon(f: DocFile) {

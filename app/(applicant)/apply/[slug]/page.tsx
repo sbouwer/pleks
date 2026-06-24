@@ -179,13 +179,8 @@ function parkingLabel(bays: number | null | undefined): string {
   if (!bays || bays <= 0) return "No parking"
   return `${bays} bay${bays > 1 ? "s" : ""}`
 }
-function sizeLabel(unit: UnitRow | null): string {
-  const parts: string[] = []
-  if (unit?.bedrooms != null) parts.push(`${unit.bedrooms} bed`)
-  if (unit?.bathrooms != null) parts.push(`${unit.bathrooms} bath`)
-  if (unit?.size_m2 != null) parts.push(`${unit.size_m2}m²`)
-  return parts.join(" · ") || "—"
-}
+function numOrDash(n: number | null | undefined): string { return n != null ? String(n) : "—" }
+function areaLabel(m2: number | null | undefined): string { return m2 != null ? `${m2} m²` : "—" }
 /** SA mobile → wa.me link (leading 0 → 27), or null. */
 function waLink(phone: string | null): string | null {
   if (!phone) return null
@@ -289,13 +284,16 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
     ? `mailto:${org.email}?subject=${encodeURIComponent("Property application enquiry, address: " + title)}`
     : null
 
+  // One short value per cell so nothing truncates in the narrow 2-col grid (bed/bath/size were one long line).
   const facts: ReadonlyArray<{ label: string; value: string; tone?: "ok" }> = [
     { label: "Rent / month", value: formatZAR(listing.asking_rent_cents) },
     { label: "Available", value: listing.available_from ? new Date(listing.available_from).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "Now" },
+    { label: "Bedrooms", value: numOrDash(unit?.bedrooms) },
+    { label: "Bathrooms", value: numOrDash(unit?.bathrooms) },
+    { label: "Size", value: areaLabel(unit?.size_m2) },
+    { label: "Parking", value: parkingLabel(unit?.parking_bays) },
     { label: "Furnished", value: furnishLabel(unit) },
     { label: "Pets", value: listing.pet_friendly ? "Allowed" : "Not allowed", ...(listing.pet_friendly ? { tone: "ok" as const } : {}) },
-    { label: "Parking", value: parkingLabel(unit?.parking_bays) },
-    { label: "Size", value: sizeLabel(unit) },
   ]
 
   // Full-page shell (the listing space becomes the step rail): a compact listing strip on top, then StepPanel
