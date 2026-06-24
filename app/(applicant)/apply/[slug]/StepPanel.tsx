@@ -480,6 +480,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
 
   const [coApplicants, setCoApplicants] = useState<CoApplicant[]>(resume?.coApplicants ?? [])
   const [company, setCompany] = useState<CompanyInfo>(resume?.company ?? { companyType: "", companyReg: "" })
+  // Company: is the person filling this in the director/signatory themselves? If so they complete the application
+  // (their Apply-as details pre-fill the personal flow, no invite); if not, the director is invited to do it.
+  const [companyImDirector, setCompanyImDirector] = useState(true)
   // "Add applicant" from the review (when affordability is short) — invite a co-applicant after the app exists.
   const [addApplicantOpen, setAddApplicantOpen] = useState(false)
   const [newCo, setNewCo] = useState<CoApplicant>(blankCo("co_applicant"))
@@ -522,6 +525,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (type === "company" && !company.companyType) { toast.error("Please select the company type."); return }
     if ((type === "couple" || type === "guarantor" || type === "company") && !(coApplicants[0] && coComplete(coApplicants[0]))) {
       toast.error(type === "company" ? "Add the director applying on the company's behalf." : "Add the co-applicant's name, email and ID number."); return
+    }
+    // Company + "it's me": the director IS the primary applicant — carry their Apply-as details into the personal
+    // flow and drop them from the invite list (they complete it here, not via an emailed link).
+    if (type === "company" && companyImDirector && coApplicants[0]) {
+      const me = coApplicants[0]
+      setForm((f) => ({ ...f, firstName: me.firstName || f.firstName, lastName: me.lastName || f.lastName, email: me.email || f.email, idNumber: me.idNumber || f.idNumber }))
+      // NB: the row stays in state (so Back preserves it) — dispatchInvites skips this primary director.
     }
     setBegun(true)
     setMaxReached((m) => Math.max(m, step))
@@ -672,7 +682,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // Send every complete-but-not-yet-invited co-applicant (id_number links them to the application). Called at
   // create (the at-selection invites) and again from the Applicants step (any added there).
   async function dispatchInvites(appId: string) {
-    const pending = coApplicants.filter((c) => !c.invited && coComplete(c))
+    // For "company + it's me", the first director IS the primary applicant — never invite them.
+    const skipPrimaryDirector = type === "company" && companyImDirector
+    const pending = coApplicants.filter((c, i) => !(skipPrimaryDirector && i === 0) && !c.invited && coComplete(c))
     if (pending.length === 0) return
     for (const c of pending) {
       const res = await fetch(`/api/applications/${appId}/co-applicant`, {
@@ -919,6 +931,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
             <ApplyAsPane
               commercial={commercial} type={type} onSelect={selectType}
               coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} setCompany={setCompany}
+              imDirector={companyImDirector} setImDirector={setCompanyImDirector}
               loggedInEmail={verifiedEmail ?? null} onResend={resendResumeLink} onLogin={loginToPrefill}
               onBegin={beginApplication} resuming={!!resume} busy={busy}
             />
@@ -1016,10 +1029,11 @@ function SectionEyebrow({ n, label }: Readonly<{ n: string; label: string }>) {
   )
 }
 
-function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApplicants, company, setCompany, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
+function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApplicants, company, setCompany, imDirector, setImDirector, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
   commercial: boolean; type: ApplicantType | null; onSelect: (t: ApplicantType) => void
   coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
   company: CompanyInfo; setCompany: (v: CompanyInfo) => void
+  imDirector: boolean; setImDirector: (v: boolean) => void
   loggedInEmail: string | null; onResend: (email: string) => void; onLogin: () => void
   onBegin: () => void; resuming: boolean; busy?: boolean
 }>) {
@@ -1033,9 +1047,8 @@ function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApplicants
   if (type === "guarantor") firstPartyLabel = commercial ? "a surety" : "a guarantor"
   else if (type === "company") firstPartyLabel = "a director"
   const addLabel = coApplicants.length > 0 ? "another" : firstPartyLabel
-  const partyNote = type === "company"
-    ? "A company applies through its director(s) — add who signs on its behalf. Each gets their own secure link."
-    : "Each person gets their own secure link to consent & load documents."
+  let partyNote = "Each person gets their own secure link to consent & load documents."
+  if (type === "company") partyNote = imDirector ? "You'll continue to your own details next — no invite needed." : "We'll email the director a secure link to complete the application."
 
   return (
     <div className="flex min-h-full flex-col gap-6">
@@ -1102,7 +1115,15 @@ function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApplicants
                 <input placeholder="Registration number (if any)" value={company.companyReg} onChange={(e) => setCompany({ ...company, companyReg: e.target.value })} className={CO_INPUT} />
               </div>
             )}
-            {type === "company" && <p className="mt-1 text-xs font-medium text-[var(--ink)]">Who&apos;s applying on the company&apos;s behalf?</p>}
+            {type === "company" && (
+              <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-[var(--ink)]">Who&apos;s applying on the company&apos;s behalf?</p>
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--ink-soft)]">
+                  <input type="checkbox" checked={imDirector} onChange={(e) => setImDirector(e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
+                  It&apos;s me — I&apos;ll complete it as the director
+                </label>
+              </div>
+            )}
             {coApplicants.map((c, i) => (
               <div key={i} className="flex flex-wrap items-center gap-1.5">
                 <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
