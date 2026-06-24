@@ -1089,18 +1089,20 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
           })}
         </div>
 
-        {/* Company: the business itself (type + registration) — it applies THROUGH the director(s) captured below. */}
-        {type === "company" && (
-          <FieldGrid>
-            <SelectField label="Company type" value={company.companyType} onChange={(v) => setCompany({ ...company, companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
-            <TextField label="Registration number" value={company.companyReg} onChange={(v) => setCompany({ ...company, companyReg: v })} placeholder="e.g. 2019/123456/07 (if applicable)" />
-          </FieldGrid>
-        )}
-
-        {/* Inline people capture — co-applicants (couple) · guarantors · directors signing on a company's behalf. */}
+        {/* Inline capture — one grey block. Couple → co-applicants · guarantor → guarantors · company → the
+            business (type + reg) PLUS the director(s) signing on its behalf. Compact rows so it doesn't scroll. */}
         {parties && (
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
-            {type === "company" && <p className="text-xs font-medium text-[var(--ink)]">Who&apos;s applying on the company&apos;s behalf?</p>}
+            {type === "company" && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <select value={company.companyType} onChange={(e) => setCompany({ ...company, companyType: e.target.value })}
+                  className="min-w-[120px] flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
+                  {COMPANY_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.value === "" ? "Company type…" : o.label}</option>)}
+                </select>
+                <input placeholder="Registration number (if any)" value={company.companyReg} onChange={(e) => setCompany({ ...company, companyReg: e.target.value })} className={CO_INPUT} />
+              </div>
+            )}
+            {type === "company" && <p className="mt-1 text-xs font-medium text-[var(--ink)]">Who&apos;s applying on the company&apos;s behalf?</p>}
             {coApplicants.map((c, i) => (
               <div key={i} className="flex flex-wrap items-center gap-1.5">
                 <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
