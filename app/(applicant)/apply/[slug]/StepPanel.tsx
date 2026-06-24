@@ -432,14 +432,18 @@ function SubTabs({ activeGroup, step, maxReached, onJumpStep }: Readonly<{ activ
   )
 }
 
-export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, agentCard }: Readonly<{
+export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, agentCard, listingCard, unitLine }: Readonly<{
   slug: string; orgId: string; listingTitle?: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
   /** the logged-in visitor's account email (already confirmed) — if it matches, skip the email-OTP gate. */
   verifiedEmail?: string | null
-  /** the agent card, rendered at the bottom of the desktop step rail (full-page shell). */
+  /** the agent card, rendered at the bottom of the desktop side column (full-page shell). */
   agentCard?: ReactNode
+  /** the home being applied for — shown in the side column BEFORE begin; replaced by the step rail after. */
+  listingCard?: ReactNode
+  /** one-line unit summary — shown atop the panel ONCE in the application (the side card carries it pre-begin). */
+  unitLine?: string
 }>) {
   const commercial = leaseType === "commercial"
   // Resuming a saved draft (the ?app&token link) rehydrates identity/income/employment/docs/co-applicants and
@@ -815,6 +819,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // into Personal details / Finances / Documents / Application review via PANE_META. inWizard = past the landing.
   const inWizard = begun
   const activeGroup = inWizard ? PANE_META[step].group : "Apply as"
+  const headerSub = inWizard ? PANE_META[step].sub : "Pre-selection"
   const applyAsDesc = type ? `${TYPE_LABEL[type]} · ${leaseType}` : "Choose how you apply"
   const navStates = computeStepStates(activeGroup, step, maxReached, inWizard, type !== null, !!applicationId, applyAsDesc)
   const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t) }
@@ -841,20 +846,25 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:h-full [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:flex-row [@media(min-width:1024px)_and_(min-height:700px)]:items-stretch">
-      {/* Desktop step rail — the listing space, transformed into navigation (+ agent at the bottom) */}
+      {/* Desktop side column — the home being applied for BEFORE begin, then the step rail once begun (+ agent
+          anchored at the bottom either way). */}
       <aside className="hidden shrink-0 [@media(min-width:1024px)_and_(min-height:700px)]:flex [@media(min-width:1024px)_and_(min-height:700px)]:w-[300px] [@media(min-width:1024px)_and_(min-height:700px)]:flex-col [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
-        {/* Rail card FILLS the column (fixed outer height → expanding the accordion never shifts the layout). Its
-            BODY scrolls, so on a short viewport the steps stay reachable instead of overflowing out of view. */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card">
-          <div className="flex shrink-0 items-center border-b border-border px-5 py-4">
-            <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
-              <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
-              Your application
-            </h2>
+        {begun ? (
+          /* Rail card FILLS the column (fixed outer height → expanding the accordion never shifts the layout). Its
+             BODY scrolls, so on a short viewport the steps stay reachable instead of overflowing out of view. */
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card">
+            <div className="flex shrink-0 items-center border-b border-border px-5 py-4">
+              <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
+                <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
+                Your application
+              </h2>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2"><StepRail states={navStates} step={step} maxReached={maxReached} onNav={onNav} onJumpStep={navTo} /></div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-2"><StepRail states={navStates} step={step} maxReached={maxReached} onNav={onNav} onJumpStep={navTo} /></div>
-        </div>
-        {/* Agent card — fixed, anchored below the rail. */}
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{listingCard}</div>
+        )}
+        {/* Agent card — fixed, anchored below the side column. */}
         {agentCard && <div className="mt-4 shrink-0">{agentCard}</div>}
       </aside>
 
@@ -868,13 +878,14 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         </div>
 
         {/* Panel header — mirrors the rail's "Your application" header (amber tick + step · section) so the rule
-            continues across the nav and the panel. The pane's own sub-text below serves as the info line. */}
-        {inWizard && (
+            continues across the nav and the panel. Shows on the landing too ("Apply as · Pre-selection"). */}
+        {(
           <div className="mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 [@media(min-width:1024px)_and_(min-height:700px)]:-mt-7">
             <h2 className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-[var(--ink)]">
               <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
-              <span className="truncate">{activeGroup}<span className="font-normal text-[var(--ink-mute)]"> · {PANE_META[step].sub}</span></span>
+              <span className="truncate">{activeGroup}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
             </h2>
+            {begun && unitLine && <span className="hidden min-w-0 flex-1 truncate px-2 text-xs text-[var(--ink-mute)] [@media(min-width:1280px)]:block">{unitLine}</span>}
             <div className="flex shrink-0 items-center gap-2">
               {showBackBtn && (
                 <ActionButton tone="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={busy || (step === 0 && !!applicationId)}>Back</ActionButton>
@@ -1002,14 +1013,6 @@ function SectionEyebrow({ n, label }: Readonly<{ n: string; label: string }>) {
   )
 }
 
-const HOW_IT_WORKS: ReadonlyArray<{ n: string; label: string; desc: string }> = [
-  { n: "1", label: "Apply as", desc: "individual or company" },
-  { n: "2", label: "Personal details", desc: "your identity & contact" },
-  { n: "3", label: "Finances", desc: "income & affordability" },
-  { n: "4", label: "Documents", desc: "upload, read automatically" },
-  { n: "5", label: "Application review", desc: "check & submit" },
-]
-
 function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, setCoApplicants, company, setCompany, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
   listingTitle?: string; commercial: boolean; type: ApplicantType | null; onSelect: (t: ApplicantType) => void
   coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
@@ -1028,10 +1031,9 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
 
   return (
     <div className="flex min-h-full flex-col gap-7">
-      {/* Iconic header */}
+      {/* Intro — the panel header bar above already carries "Apply as · Pre-selection". */}
       <div>
-        <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]"><span aria-hidden className="inline-block h-0.5 w-4 bg-amber-400" /> Pre-selection application</span>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.01em] text-[var(--ink)]">Apply to rent {listingTitle ?? "this home"}.</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-[var(--ink)]">Apply to rent {listingTitle ?? "this home"}.</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ink-soft)]">A short pre-selection so the agent can shortlist applicants. It&apos;s free, there&apos;s no credit check at this stage, and you can save and finish whenever suits you.</p>
       </div>
 
@@ -1044,48 +1046,39 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
             <span className="text-[var(--ink-soft)]">Signed in as <span className="font-medium text-[var(--ink)]">{loggedInEmail}</span> — your details will pre-fill.</span>
           </div>
         ) : (
-          <div className="flex flex-col gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 [@media(min-width:560px)]:flex-row [@media(min-width:560px)]:items-end [@media(min-width:560px)]:justify-between">
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 [@media(min-width:560px)]:max-w-sm">
-              <label htmlFor="resume-email" className="text-xs font-medium text-[var(--ink-soft)]">Already started? Get your continue link emailed again</label>
-              <div className="flex gap-2">
-                <input id="resume-email" type="email" value={retEmail} onChange={(e) => setRetEmail(e.target.value)} placeholder="you@email.com"
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* Continue a saved application */}
+            <div className="flex flex-col gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4">
+              <p className="text-sm font-medium text-[var(--ink)]">Continue a saved application</p>
+              <p className="text-xs leading-relaxed text-[var(--ink-soft)]">Enter your email and we&apos;ll resend the link to pick up where you left off.</p>
+              <div className="mt-auto flex gap-2 pt-2">
+                <input type="email" value={retEmail} onChange={(e) => setRetEmail(e.target.value)} placeholder="you@email.com"
                   className="min-w-0 flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none" />
                 <ActionButton tone="secondary" size="sm" onClick={() => onResend(retEmail)}>Resend</ActionButton>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-[var(--ink-mute)]">
-              <span className="hidden [@media(min-width:560px)]:inline">or</span>
-              <ActionButton tone="secondary" size="sm" icon={<LogIn className="size-4" />} onClick={onLogin}>Log in to pre-fill</ActionButton>
+            {/* Log in to pre-fill */}
+            <div className="flex flex-col gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4">
+              <p className="text-sm font-medium text-[var(--ink)]">Already a Pleks tenant?</p>
+              <p className="text-xs leading-relaxed text-[var(--ink-soft)]">Log in and we&apos;ll pre-fill your details — no need to re-enter everything you&apos;ve told us before.</p>
+              <div className="mt-auto pt-2"><ActionButton tone="secondary" size="sm" icon={<LogIn className="size-4" />} onClick={onLogin}>Log in to pre-fill</ActionButton></div>
             </div>
           </div>
         )}
       </section>
 
-      {/* 02 · How it works */}
+      {/* 02 · How are you applying */}
       <section className="flex flex-col gap-3">
-        <SectionEyebrow n="02" label="How it works" />
-        <ol className="flex flex-col gap-2.5">
-          {HOW_IT_WORKS.map((s) => (
-            <li key={s.n} className="flex items-center gap-3 text-sm">
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-[var(--rule)] text-[11px] font-semibold text-[var(--ink-soft)]">{s.n}</span>
-              <span className="text-[var(--ink)]"><span className="font-medium">{s.label}</span> <span className="text-[var(--ink-mute)]">— {s.desc}</span></span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* 03 · How are you applying */}
-      <section className="flex flex-col gap-3">
-        <SectionEyebrow n="03" label="How are you applying?" />
-        <div className="grid gap-3 sm:grid-cols-2 [@media(min-width:1280px)]:grid-cols-4">
+        <SectionEyebrow n="02" label="How are you applying?" />
+        <div className="grid gap-3 sm:grid-cols-2 [@media(min-width:1024px)_and_(min-height:700px)]:grid-cols-4">
           {typesFor(commercial).map((c) => {
             const selected = type === c.id
             return (
               <button key={c.id} type="button" onClick={() => onSelect(c.id)}
-                className={`group flex flex-col items-start gap-2 rounded-[var(--r-button)] border bg-[var(--paper-raised)] p-4 text-left transition-colors ${selected ? "border-[var(--amber)] ring-1 ring-[var(--amber)]" : "border-[var(--rule)] hover:border-[var(--amber)]"}`}>
-                <span className={`flex size-9 items-center justify-center rounded-[var(--r-button)] ${selected ? "bg-[var(--amber)] text-[var(--paper)]" : "bg-[var(--amber-wash)] text-[var(--amber-ink)]"}`}><c.icon className="size-5" /></span>
-                <span className="text-sm font-semibold text-[var(--ink)]">{c.title}</span>
-                <span className="text-[13px] leading-snug text-[var(--ink-soft)]">{c.blurb}</span>
+                className={`group flex flex-col items-start gap-2 rounded-[var(--r-button)] border bg-[var(--paper-raised)] p-3 text-left transition-colors ${selected ? "border-[var(--amber)] ring-1 ring-[var(--amber)]" : "border-[var(--rule)] hover:border-[var(--amber)]"}`}>
+                <span className={`flex size-8 items-center justify-center rounded-[var(--r-button)] ${selected ? "bg-[var(--amber)] text-[var(--paper)]" : "bg-[var(--amber-wash)] text-[var(--amber-ink)]"}`}><c.icon className="size-[18px]" /></span>
+                <span className="text-sm font-semibold leading-snug text-[var(--ink)]">{c.title}</span>
+                <span className="text-[11px] leading-snug text-[var(--ink-soft)]">{c.blurb}</span>
               </button>
             )
           })}
@@ -1093,31 +1086,28 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
 
         {/* Multi-party: inline co-applicant / guarantor capture (each gets their own secure link). */}
         {multi && (
-          <div className="flex flex-col gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
-            <p className="text-xs leading-relaxed text-[var(--ink-soft)]">Everyone on the application gets their own secure link to consent and load their own documents — we just need each person&apos;s ID number to link them.</p>
+          <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
             {coApplicants.map((c, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex rounded-[var(--r-button)] border border-[var(--rule)] p-0.5 text-xs">
-                    {(["co_applicant", "guarantor"] as const).map((r) => (
-                      <button key={r} type="button" onClick={() => updateCo(i, { role: r })}
-                        className={`rounded-[var(--r-button)] px-2.5 py-1 transition-colors ${c.role === r ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-soft)]"}`}>{r === "co_applicant" ? occ : guar}</button>
-                    ))}
-                  </div>
-                  {coApplicants.length > 1 && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>}
-                </div>
-                <FieldGrid>
-                  <TextField label="First name" value={c.firstName} onChange={(v) => updateCo(i, { firstName: v })} required />
-                  <TextField label="Last name" value={c.lastName} onChange={(v) => updateCo(i, { lastName: v })} />
-                  <TextField label="Email" type="email" value={c.email} onChange={(v) => updateCo(i, { email: v })} required autoComplete="off" />
-                  <TextField label="ID number" value={c.idNumber} onChange={(v) => updateCo(i, { idNumber: v })} required />
-                </FieldGrid>
+              <div key={i} className="flex flex-wrap items-center gap-1.5">
+                <select value={c.role} onChange={(e) => updateCo(i, { role: e.target.value as CoRole })}
+                  className="shrink-0 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
+                  <option value="co_applicant">{occ}</option>
+                  <option value="guarantor">{guar}</option>
+                </select>
+                <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
+                <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
+                <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
+                <input placeholder="ID number" value={c.idNumber} onChange={(e) => updateCo(i, { idNumber: e.target.value })} className={CO_INPUT} />
+                {coApplicants.length > 1 && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="shrink-0 text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>}
               </div>
             ))}
-            <button type="button" onClick={addCo}
-              className="inline-flex w-fit items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] px-3 py-1.5 text-sm font-medium text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)]">
-              <Plus className="size-4" /> Add {addLabel}
-            </button>
+            <div className="flex items-center justify-between gap-2">
+              <button type="button" onClick={addCo}
+                className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
+                <Plus className="size-4" /> Add {addLabel}
+              </button>
+              <span className="text-[11px] text-[var(--ink-mute)]">Each person gets their own secure link to consent &amp; load documents.</span>
+            </div>
           </div>
         )}
 
@@ -1448,6 +1438,8 @@ function StepExpenses({ dependentAdults, setDependentAdults, dependentMinors, se
   )
 }
 
+// Compact bare input for the inline co-applicant rows (placeholders instead of labels → one line per person).
+const CO_INPUT = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none"
 // Role labels for the inline co-applicant capture (residential vs commercial wording).
 function roleLabels(commercial: boolean) {
   return { occ: commercial ? "On the lease" : "Lives here", guar: commercial ? "Surety" : "Guarantor" }

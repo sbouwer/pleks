@@ -17,9 +17,9 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/components/layout/focus-shell.css"
-import { DetailCard } from "@/components/detail/DetailCard"
+import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
 import Image from "next/image"
-import { Phone, Mail, MessageCircle, ShieldCheck, type LucideIcon } from "lucide-react"
+import { Phone, Mail, MessageCircle, ShieldCheck, Image as ImageIcon, type LucideIcon } from "lucide-react"
 import { StepPanel, type ResumeState } from "./StepPanel"
 import { ApplyLoginButton, ApplyThemeToggle } from "./ApplyLoginButton"
 import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
@@ -282,6 +282,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
     : false
 
   const title = [property?.address_line1, property?.suburb ?? property?.city].filter(Boolean).join(", ") || property?.name || "This property"
+  const photo = (listing.listing_photos as string[] | null)?.[0] ?? null
   const phone = agentPhone ?? org?.phone ?? null
   const waHref = waLink(phone)
   const enquiryMailto = org?.email
@@ -327,6 +328,25 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
     </DetailCard>
   )
 
+  // The home being applied for — shown in the side column BEFORE the applicant begins (it becomes the step rail
+  // once they do). The fine-tuned listing card: photo hero + DetailStatGrid of the facts.
+  const listingCard = (
+    <DetailCard title={title}>
+      <div className="flex h-full flex-col">
+        <div
+          className="-mx-5 -mt-5 flex min-h-[120px] flex-1 items-center justify-center bg-cover bg-center text-white/70"
+          style={photo ? { backgroundImage: `url(${photo})` } : { backgroundImage: "linear-gradient(135deg,#9fb8cf 0%,#e7e0d2 55%,#c8ad84 100%)" }}
+          aria-hidden
+        >
+          {!photo && <ImageIcon className="size-8" />}
+        </div>
+        <div className="-mx-5 -mb-5 border-t border-border">
+          <DetailStatGrid stats={facts} />
+        </div>
+      </div>
+    </DetailCard>
+  )
+
   return (
     <PublicThemeProvider>
       <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: "var(--paper)", color: "var(--ink)" }}>
@@ -341,14 +361,11 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
             <div className="flex shrink-0 items-center gap-3 [@media(min-width:1024px)_and_(min-height:700px)]:w-[300px]">
               <Wordmark style={{ fontSize: 19 }} />
               <span className="h-4 w-px shrink-0 bg-[var(--rule)]" />
-              <span className="hidden shrink-0 sm:inline"><Eyebrow>Rental application for</Eyebrow></span>
+              <span className="hidden shrink-0 sm:inline"><Eyebrow>Rental application</Eyebrow></span>
             </div>
-            {/* Main zone — aligns with the form panel: unit details + price (· separated), account on the right */}
-            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 [@media(min-width:1024px)_and_(min-height:700px)]:ml-4">
-              <p className="truncate text-sm text-[var(--ink-soft)]">
-                <span className="font-medium text-[var(--ink)]">{stripTitle}</span>
-                <span className="hidden md:inline"> · {formatZAR(listing.asking_rent_cents)} /mo · available {availStr}</span>
-              </p>
+            {/* Main zone — account controls on the right. The unit details live in the side card (landing) or the
+                panel's unit line (once in the application), so they aren't repeated up here. */}
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-3 [@media(min-width:1024px)_and_(min-height:700px)]:ml-4">
               <div className="flex shrink-0 items-center gap-3 sm:gap-4">
                 <span className="hidden items-center gap-1.5 text-[var(--ink-mute)] sm:flex">
                   <ShieldCheck className="size-3.5" />
@@ -380,6 +397,8 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
                 slug={slug}
                 orgId={listing.org_id as string}
                 listingTitle={stripTitle}
+                unitLine={`${stripTitle} · ${formatZAR(listing.asking_rent_cents)}/mo · available ${availStr}`}
+                listingCard={listingCard}
                 leaseType={leaseType}
                 askingRentCents={(listing.asking_rent_cents as number) ?? 0}
                 prefill={prefill}
