@@ -881,7 +881,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {/* Panel header — mirrors the rail's "Your application" header (amber tick + step · section) so the rule
             continues across the nav and the panel. Shows on the landing too ("Apply as · Pre-selection"). */}
         {(
-          <div className="mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 [@media(min-width:1024px)_and_(min-height:700px)]:-mt-6">
+          <div className={`mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 ${begun ? "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-6" : "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-7"}`}>
             <h2 className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-[var(--ink)]">
               <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
               <span className="truncate">{activeGroup}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
