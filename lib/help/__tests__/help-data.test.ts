@@ -14,6 +14,10 @@ import { APPLICATION_FEE_CENTS, formatZAR } from "@/lib/constants"
 
 const CATEGORY_IDS = new Set(HELP_CATEGORIES.map((c) => c.id))
 const ROLE_IDS = new Set<HelpRole>(HELP_ROLES.map((r) => r.id))
+const ID_SET = new Set(HELP_ENTRIES.map((e) => e.id))
+// Anchor a negative role-scoping assertion on a REAL entry id: if it's renamed/deleted, ".some(id === X) === false"
+// would pass vacuously (the entry it meant to exclude no longer exists). This fails the rename instead.
+const realId = (id: string) => { expect(ID_SET.has(id), `help entry "${id}" no longer exists — the role-scoping assertion below would pass vacuously`).toBe(true); return id }
 
 describe("help corpus integrity", () => {
   it("has entries and unique ids", () => {
@@ -49,13 +53,13 @@ describe("role-scoping (D-HELP-02)", () => {
     const agent = entriesForRole("agent")
     expect(agent.some((e) => e.category === "trust")).toBe(true)       // agent-only topic present
     expect(agent.some((e) => e.roles.includes("agent"))).toBe(true)
-    // a tenant-only entry must not appear for an agent
-    expect(agent.some((e) => e.id === "q-payments-pay-t")).toBe(false)
+    // a tenant-only entry must not appear for an agent (anchored on the entry actually existing)
+    expect(agent.some((e) => e.id === realId("q-payments-pay-t"))).toBe(false)
   })
 
   it("a tenant does not see agent-only entries", () => {
     const tenant = entriesForRole("tenant")
-    expect(tenant.some((e) => e.id === "q-trust-holds-money")).toBe(false)
+    expect(tenant.some((e) => e.id === realId("q-trust-holds-money"))).toBe(false)
     expect(tenant.some((e) => e.id === "q-payments-pay-t")).toBe(true)
   })
 

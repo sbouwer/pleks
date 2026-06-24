@@ -18,6 +18,14 @@ describe("ADDENDUM_57H — non-payment converges on paused (57G canon)", () => {
   const emails = read("lib/subscriptions/emails.tsx")
   const registry = read("lib/comms/template-registry.ts")
 
+  it("the source files under test are present + substantive (so the not.toContain negatives aren't vacuous)", () => {
+    // A source-grep stopgap (no runnable cron harness yet): a missing file throws at read, but a GUTTED file would
+    // make every not.toContain/not.toMatch pass for the wrong reason. Anchor each on a known positive marker.
+    expect(billingCascade).toContain("past_due_since")   // billing-cascade is the real detector
+    expect(emails).toContain("sendPausedAuto")           // emails is the real subscription module
+    expect(registry).toContain("subscription.")          // registry holds the subscription keys
+  })
+
   it("billing-cascade is detector-only: no automated past_due → cancelled transition", () => {
     // 57G sanctions exactly one automated non-payment transition (past_due → paused, owned by dunning).
     expect(billingCascade).not.toMatch(/status:\s*["']cancelled["']/)
