@@ -820,7 +820,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // into Personal details / Finances / Documents / Application review via PANE_META. inWizard = past the landing.
   const inWizard = begun
   const activeGroup = inWizard ? PANE_META[step].group : "Apply as"
-  const headerSub = inWizard ? PANE_META[step].sub : "Pre-selection"
+  // The panel header reads "Group · sub" in the wizard, and "Apply to · {unit}" on the landing (the big heading
+  // was dropped to save vertical space). activeGroup still drives the rail's "Apply as" step name.
+  const headerTitle = inWizard ? activeGroup : "Apply to"
+  const headerSub = inWizard ? PANE_META[step].sub : (listingTitle ?? "this home")
   const applyAsDesc = type ? `${TYPE_LABEL[type]} · ${leaseType}` : "Choose how you apply"
   const navStates = computeStepStates(activeGroup, step, maxReached, inWizard, type !== null, !!applicationId, applyAsDesc)
   const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t) }
@@ -885,7 +888,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         <div className={`mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 ${begun ? "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-6" : "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-[18px]"}`}>
             <h2 className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-[var(--ink)]">
               <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
-              <span className="truncate">{activeGroup}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
+              <span className="truncate">{headerTitle}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
             </h2>
             <div className="flex shrink-0 items-center gap-2">
               {showBackBtn && (
@@ -914,7 +917,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {!begun && (
           <div className={scrollCls}>
             <ApplyAsPane
-              listingTitle={listingTitle} commercial={commercial} type={type} onSelect={selectType}
+              commercial={commercial} type={type} onSelect={selectType}
               coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} setCompany={setCompany}
               loggedInEmail={verifiedEmail ?? null} onResend={resendResumeLink} onLogin={loginToPrefill}
               onBegin={beginApplication} resuming={!!resume} busy={busy}
@@ -1013,8 +1016,8 @@ function SectionEyebrow({ n, label }: Readonly<{ n: string; label: string }>) {
   )
 }
 
-function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, setCoApplicants, company, setCompany, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
-  listingTitle?: string; commercial: boolean; type: ApplicantType | null; onSelect: (t: ApplicantType) => void
+function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApplicants, company, setCompany, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
+  commercial: boolean; type: ApplicantType | null; onSelect: (t: ApplicantType) => void
   coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
   company: CompanyInfo; setCompany: (v: CompanyInfo) => void
   loggedInEmail: string | null; onResend: (email: string) => void; onLogin: () => void
@@ -1035,12 +1038,9 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
     : "Each person gets their own secure link to consent & load documents."
 
   return (
-    <div className="flex min-h-full flex-col gap-7">
-      {/* Intro — the panel header bar above already carries "Apply as · Pre-selection". */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-[var(--ink)]">Apply to rent {listingTitle ?? "this home"}.</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ink-soft)]">A short pre-selection so the agent can shortlist applicants. It&apos;s free, there&apos;s no credit check at this stage, and you can save and finish whenever suits you.</p>
-      </div>
+    <div className="flex min-h-full flex-col gap-6">
+      {/* No large heading — the panel header bar above carries "Apply to · {unit}"; keep just the explanation. */}
+      <p className="text-sm leading-relaxed text-[var(--ink-soft)]">A short pre-selection so the agent can shortlist applicants. It&apos;s free, there&apos;s no credit check at this stage, and you can save and finish whenever suits you.</p>
 
       {/* 01 · Returning */}
       <section className="flex flex-col gap-3">
