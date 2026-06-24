@@ -86,7 +86,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Child maintenance received is earmarked for the child (a reduced dependent cost), not rent-payable income.
   const childMaintenanceCents = incomeSources.filter((s) => s.key === "maintenance").reduce((sum, s) => sum + (s.monthly_cents ?? 0), 0)
   if (positiveIncomeKeys.size === 0 && ((app.gross_monthly_income_cents as number | null) ?? 0) > 0) positiveIncomeKeys.add("employment")
-  const docCats = deriveDocCategories(positiveIncomeKeys, (app.employment_type as string | null) ?? "", app.id_type as string | null)
+  const docCats = deriveDocCategories(positiveIncomeKeys, (app.employment_type as string | null) ?? "", app.id_type as string | null, app.applicant_type as string | null)
   const { data: docFiles, error: docListErr } = await service.storage.from("application-docs").list(`applications/${app.org_id}/${id}`, { limit: 200 })
   logQueryError("submit doc list", docListErr)
   const presentDocKeys = new Set((docFiles ?? []).map((f) => categoryForFilename(f.name, docCats)))

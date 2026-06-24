@@ -307,8 +307,8 @@ function inferType(cos: CoApplicant[]): ApplicantType {
 }
 /** Rebuild docFiles from the paths already in Storage — placeholders (uploaded:true) carry the real storagePath
  *  so they remain removable; the original filename/content is NOT re-rendered (POPIA — show "uploaded", a count). */
-function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { name: string; storagePath: string }[], idType?: string | null): Record<string, DocFile[]> {
-  const cats = deriveDocCategories(incomeKeys(income), employmentType, idType)
+function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { name: string; storagePath: string }[], idType?: string | null, applicantType?: ApplicantType | null): Record<string, DocFile[]> {
+  const cats = deriveDocCategories(incomeKeys(income), employmentType, idType, applicantType)
   const out: Record<string, DocFile[]> = {}
   for (const p of docPaths) {
     const cat = categoryForFilename(p.name, cats)
@@ -487,7 +487,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // top-header unit strip can render only once in the application. Resuming a saved draft starts already begun;
   // clicking "Apply as" in the rail re-opens the landing (begun→false) with the chosen type preserved.
   const { begun, setBegun } = useBegun()
-  const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths, resume.form?.idType) : {})
+  const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths, resume.form?.idType, resume.applicantType ?? inferType(resume.coApplicants)) : {})
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
@@ -802,7 +802,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     }
   }
 
-  const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type, form.idType)
+  const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type, form.idType, type)
   // A required doc is satisfied when uploaded, OR — if it offers an escape ("I don't have a payslip") — when the
   // applicant takes that escape. ID + bank statements have no escape, so they're the true hard uploads.
   const docsReady = docCategories.filter((c) => c.required).every((c) => (docFiles[c.key] ?? []).some((f) => f.uploaded) || (!!c.escapeLabel && !!docEscape[c.key]))

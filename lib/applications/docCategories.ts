@@ -24,8 +24,21 @@ export interface DocCategory {
  *  POPIA-minimal (don't demand a payslip from a self-employed person) + corroboration-aware (require the document
  *  that verifies their specific declaration). The GATE (submit) is just the core few — conditional + optional
  *  slots appear (with a "why") but never block. Co-applicant/guarantor docs are collected via their own invites.
- *  @param idType the primary's ID type ("sa_id"|"passport"|"asylum_permit"|undefined) — foreign → permit slot. */
-export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentType: string, idType?: string | null): DocCategory[] {
+ *  @param idType the primary's ID type ("sa_id"|"passport"|"asylum_permit"|undefined) — foreign → permit slot.
+ *  @param applicantType "company" returns the company doc set (CIPC, AFS, business bank, FICA address); else personal. */
+export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentType: string, idType?: string | null, applicantType?: string | null): DocCategory[] {
+  // ── COMPANY — a business applies through its director(s); the personal income-driven set doesn't apply. ──
+  if (applicantType === "company") {
+    return [
+      { key: "id", label: "Director's ID", hint: "ID or passport of the director signing on the company's behalf.", single: true, required: true, tier: "required" },
+      { key: "cipc_registration", label: "CIPC registration documents", hint: "Your company registration (CoR14.3 / CK / founding statement) showing the directors.", single: false, required: true, tier: "required" },
+      { key: "bank_main", label: "Business bank statements", hint: "6 consecutive months for the company's primary account.", single: false, required: true, tier: "required" },
+      { key: "afs", label: "Annual Financial Statements — last 3 years", hint: "Your 3 most recent AFS.", single: false, required: true, tier: "required", escapeLabel: "We don't have 3 full years", escapeNote: "Upload what you have — fewer years or management accounts is fine; the agent will see the company's age." },
+      { key: "proof_of_address", label: "Proof of business address", hint: "A utility bill or lease in the company's name (FICA).", single: true, required: true, tier: "required" },
+      { key: "other", label: "Other documents", hint: "Anything else that strengthens the application — name each one.", single: false, required: false, tier: "optional", named: true },
+    ]
+  }
+
   const employed = employmentType === "permanent" || employmentType === "contract" || employmentType === "commission" || employmentType === "part_time"
   const variable = employmentType === "commission" || employmentType === "self_employed" || employmentType === "freelance"
   const has = (k: string) => positiveIncomeKeys.has(k)
