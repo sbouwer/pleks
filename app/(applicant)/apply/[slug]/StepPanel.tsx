@@ -508,10 +508,11 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // are seeded for multi-party types so the inline capture has a first row; switching to individual clears them.
   function selectType(t: ApplicantType) {
     setType(t)
-    // The card already says who they are, so force every row's role to match it (no per-row choice).
+    // The card already says who they are, so force every row's role to match it (no per-row choice). Company
+    // applies THROUGH its director(s) — capture them like couple (role co_applicant = the signatory on its behalf).
     if (t === "guarantor") setCoApplicants((cur) => (cur.length > 0 ? cur.map((c) => ({ ...c, role: "guarantor" as CoRole })) : [blankCo("guarantor")]))
-    else if (t === "couple") setCoApplicants((cur) => (cur.length > 0 ? cur.map((c) => ({ ...c, role: "co_applicant" as CoRole })) : [blankCo("co_applicant")]))
-    else setCoApplicants([]) // individual / company (directors handled later)
+    else if (t === "couple" || t === "company") setCoApplicants((cur) => (cur.length > 0 ? cur.map((c) => ({ ...c, role: "co_applicant" as CoRole })) : [blankCo("co_applicant")]))
+    else setCoApplicants([]) // individual
   }
 
   /** Begin (first time) / Continue (re-editing "Apply as"): validate the chosen type + parties, then enter the
@@ -519,8 +520,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   function beginApplication() {
     if (!type) { toast.error("Choose how you're applying."); return }
     if (type === "company" && !company.companyType) { toast.error("Please select the company type."); return }
-    if ((type === "couple" || type === "guarantor") && !(coApplicants[0] && coComplete(coApplicants[0]))) {
-      toast.error("Add the co-applicant's name, email and ID number."); return
+    if ((type === "couple" || type === "guarantor" || type === "company") && !(coApplicants[0] && coComplete(coApplicants[0]))) {
+      toast.error(type === "company" ? "Add the director applying on the company's behalf." : "Add the co-applicant's name, email and ID number."); return
     }
     setBegun(true)
     setMaxReached((m) => Math.max(m, step))
@@ -1020,12 +1021,18 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
   onBegin: () => void; resuming: boolean; busy?: boolean
 }>) {
   const [retEmail, setRetEmail] = useState("")
-  const multi = type === "couple" || type === "guarantor"
+  // couple / guarantor / company all capture people inline; company also captures the business above them.
+  const parties = type === "couple" || type === "guarantor" || type === "company"
   const updateCo = (i: number, patch: Partial<CoApplicant>) => setCoApplicants(coApplicants.map((c, j) => (j === i ? { ...c, ...patch } : c)))
   const addCo = () => setCoApplicants([...coApplicants, blankCo(type === "guarantor" ? "guarantor" : "co_applicant")])
   const removeCo = (i: number) => setCoApplicants(coApplicants.filter((_, j) => j !== i))
-  const firstPartyLabel = commercial ? "a partner" : "a co-applicant"
+  let firstPartyLabel = commercial ? "a partner" : "a co-applicant"
+  if (type === "guarantor") firstPartyLabel = commercial ? "a surety" : "a guarantor"
+  else if (type === "company") firstPartyLabel = "a director"
   const addLabel = coApplicants.length > 0 ? "another" : firstPartyLabel
+  const partyNote = type === "company"
+    ? "A company applies through its director(s) — add who signs on its behalf. Each gets their own secure link."
+    : "Each person gets their own secure link to consent & load documents."
 
   return (
     <div className="flex min-h-full flex-col gap-7">
@@ -1082,9 +1089,18 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
           })}
         </div>
 
-        {/* Multi-party: inline co-applicant / guarantor capture (each gets their own secure link). */}
-        {multi && (
+        {/* Company: the business itself (type + registration) — it applies THROUGH the director(s) captured below. */}
+        {type === "company" && (
+          <FieldGrid>
+            <SelectField label="Company type" value={company.companyType} onChange={(v) => setCompany({ ...company, companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
+            <TextField label="Registration number" value={company.companyReg} onChange={(v) => setCompany({ ...company, companyReg: v })} placeholder="e.g. 2019/123456/07 (if applicable)" />
+          </FieldGrid>
+        )}
+
+        {/* Inline people capture — co-applicants (couple) · guarantors · directors signing on a company's behalf. */}
+        {parties && (
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
+            {type === "company" && <p className="text-xs font-medium text-[var(--ink)]">Who&apos;s applying on the company&apos;s behalf?</p>}
             {coApplicants.map((c, i) => (
               <div key={i} className="flex flex-wrap items-center gap-1.5">
                 <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
@@ -1099,19 +1115,8 @@ function ApplyAsPane({ listingTitle, commercial, type, onSelect, coApplicants, s
                 className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
                 <Plus className="size-4" /> Add {addLabel}
               </button>
-              <span className="text-[11px] text-[var(--ink-mute)]">Each person gets their own secure link to consent &amp; load documents.</span>
+              <span className="text-[11px] text-[var(--ink-mute)]">{partyNote}</span>
             </div>
-          </div>
-        )}
-
-        {/* Company: the business on the lease (you sign as a director next). */}
-        {type === "company" && (
-          <div className="flex flex-col gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
-            <FieldGrid>
-              <SelectField label="Company type" value={company.companyType} onChange={(v) => setCompany({ ...company, companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
-              <TextField label="Registration number" value={company.companyReg} onChange={(v) => setCompany({ ...company, companyReg: v })} placeholder="e.g. 2019/123456/07 (if applicable)" />
-            </FieldGrid>
-            <p className="text-xs leading-relaxed text-[var(--ink-soft)]">You&apos;ll add your own details as a director / signatory next; additional directors can be invited from the application.</p>
           </div>
         )}
       </section>
