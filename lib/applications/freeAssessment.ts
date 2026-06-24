@@ -19,8 +19,25 @@
 import { INCOME_AFFORDABILITY_THRESHOLD, PROBATION_MONTHS, startedWithinProbation } from "@/lib/constants"
 import { validateSAId } from "@/lib/parties/partyValidation"
 import { calculateCombinedAffordability } from "@/lib/screening/combinedAffordability"
+import { residualCapacityCents } from "@/lib/applications/livingFloor"
 
 const MARGINAL_CEILING = 0.35
+
+/** Does ANY surety UNIT's pooled residual absorb the FULL rent? Sureties sharing a suretyGroup pool (declared
+ *  joint-&-several, or in-community spouses auto-grouped at capture); an ungrouped guarantor is its own standalone
+ *  unit. DELIBERATE: standalone guarantors NEVER pool with each other — one strong surety must cover the whole
+ *  rent alone; only a declared joint estate / joint-&-several unit combines. residualCapacity = income − own
+ *  obligations − own living floor (absorb the rent ON TOP of their life), so a stretched high-earner is weak. */
+function suretyUnitsCoverRent(guarantors: FreeApplicantInput[], rentCents: number): boolean {
+  if (rentCents <= 0 || guarantors.length === 0) return false
+  const units = new Map<string, FreeApplicantInput[]>()
+  guarantors.forEach((g, i) => {
+    const key = g.suretyGroup || `solo-${i}`
+    units.set(key, [...(units.get(key) ?? []), g])
+  })
+  return [...units.values()].some((unit) =>
+    unit.reduce((sum, m) => sum + residualCapacityCents(m.declaredIncomeCents, m.declaredObligationsCents ?? 0), 0) >= rentCents)
+}
 
 export type DeclaredAffordabilityTier = "within" | "marginal" | "below" | "no-income"
 export type ReadinessBand = "ready" | "partial" | "incomplete"
@@ -47,6 +64,13 @@ export interface FreeApplicantInput {
   documentsUploaded?: boolean         // any docs at all (co-applicant readiness); undefined = unknown
   documents?: DocSlot[]               // itemised slots (primary) — powers the documents checklist
   complete: boolean                   // finished their part (identity + income + docs + consent)
+  // Matrimonial Property Act context (declared). regime "in_community" → a surety needs spousal consent
+  // (s15(2)(h)) and the spouse's estate pools. Captured for every applicant; load-bearing for surety-givers.
+  maritalStatus?: "single" | "married" | "divorced" | "widowed" | null
+  maritalRegime?: "in_community" | "out_anc" | "out_accrual" | null
+  // Sureties sharing a suretyGroup form ONE pooled unit (married-in-community spouses, auto-grouped at capture;
+  // or guarantors who chose joint & several). An ungrouped guarantor is its own standalone unit.
+  suretyGroup?: string | null
 }
 
 /** Per-party readiness line. PII-safe: labelled by role/index, never by name (free_assessment is stored jsonb). */
@@ -86,6 +110,10 @@ export interface FreeAssessmentResult {
   incomeMultiple: number | null        // combined income ÷ rent (×, 1 dp)
   primaryAloneClears: boolean          // does the primary alone clear the 30% guideline?
   coApplicantDependency: boolean       // affordable only on the combined income (single-income risk)
+  hasGuarantor: boolean                // a guarantor/surety is on the application
+  guarantorBacksRent: boolean          // ≥1 surety UNIT's pooled residual absorbs the FULL rent (standalone
+                                       //   guarantors never pool; only declared joint-&-several / spouse units do)
+  spousalConsentRequired: boolean      // an in-community surety-giver is present → spousal consent needed (s15 MPA)
   estimatedMoveInCents: number | null  // deposit + first month's rent
   // Identity (primary) + employment (primary)
   identity: IdentitySignal
@@ -228,6 +256,16 @@ function buildInterpretations(r: Omit<FreeAssessmentResult, "interpretations">):
     out.push({ kind: "caution", text: "Rent is high relative to declared income — affordability concern." })
   }
 
+  // Guarantor / surety backstop — its own read (separate from the applicants' own affordability above).
+  if (r.hasGuarantor && r.affordabilityTier !== "within" && r.guarantorBacksRent) {
+    out.push({ kind: "positive", text: "Backed by a surety whose residual income can absorb the full rent on top of their own commitments." })
+  } else if (r.hasGuarantor && !r.guarantorBacksRent) {
+    out.push({ kind: "caution", text: "The surety's residual income (after their own commitments and living costs) doesn't cover the full rent — limited additional security." })
+  }
+  if (r.spousalConsentRequired) {
+    out.push({ kind: "action", text: "A surety is married in community of property — the spouse must co-sign the suretyship (s15 MPA). Route the witnessed consent before relying on it." })
+  }
+
   if (r.employment.recentlyStarted) {
     out.push({ kind: "caution", text: `Less than ${PROBATION_MONTHS} months in the current role — employment not yet established.` })
   }
@@ -319,6 +357,15 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
   const hasCoIncome = coIncomes.some((c) => c > 0)
   const coApplicantDependency = hasCoIncome && !primaryAloneClears && ratio != null && ratio <= MARGINAL_CEILING
 
+  // Guarantor backstop — does ANY surety UNIT's pooled residual absorb the FULL rent? (See suretyUnitsCoverRent:
+  // standalone guarantors never pool; only declared units — joint-&-several / in-community spouses — combine.)
+  const guarantors = applicants.filter((a) => a.role === "guarantor")
+  const hasGuarantor = guarantors.length > 0
+  const guarantorBacksRent = suretyUnitsCoverRent(guarantors, rentCents)
+  // s15(2)(h) MPA: an in-community surety-giver needs spousal CONSENT (co-signed via DocuSeal at signing). Validity,
+  // separate from pooling. Surfaced here so the flow can require + route the witnessed consent before submit.
+  const spousalConsentRequired = applicants.some((a) => a.role === "guarantor" && a.maritalRegime === "in_community")
+
   const depositCents = opts.depositCents ?? (rentCents > 0 ? rentCents : null)
   const estimatedMoveInCents = rentCents > 0 && depositCents != null ? depositCents + rentCents : null
 
@@ -343,6 +390,9 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
     incomeMultiple,
     primaryAloneClears,
     coApplicantDependency,
+    hasGuarantor,
+    guarantorBacksRent,
+    spousalConsentRequired,
     estimatedMoveInCents,
     identity,
     employment,

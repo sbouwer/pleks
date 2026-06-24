@@ -33,3 +33,11 @@ export function householdLivingFloorCents(adults: number, minors: number): numbe
   const m = Math.max(0, Math.floor(minors || 0))
   return a * LIVING_FLOOR.perAdultCents + m * LIVING_FLOOR.perMinorCents
 }
+
+/** Residual monthly capacity to ABSORB new rent on top of one's own life: income − own obligations − own living
+ *  floor. The guarantor / surety test — when called, they pay this rent IN ADDITION to their existing bond/rent,
+ *  commitments and living costs. NOT an income-to-rent multiple: a high earner who's already stretched has little
+ *  residual and is weak security. Defaults to a one-adult floor (their own household ≥ 1). May be negative. */
+export function residualCapacityCents(incomeCents: number, obligationsCents: number, adults = 1, minors = 0): number {
+  return incomeCents - Math.max(0, obligationsCents || 0) - householdLivingFloorCents(adults, minors)
+}

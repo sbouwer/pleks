@@ -10,6 +10,11 @@
  * override) × Confidence (is the income recent/complete/own-name/corroborated). Flags 0–8 (§3) are live;
  * 10–13 are a 14L fast-follow. Fixable flags carry a source-type-aware best-evidence prompt (§4); Signal
  * flags are agent-facing (no applicant "make it disappear" to-do).
+ *
+ * DEEP-SCAN FOLLOW-UP (not built): MARITAL CROSS-CHECK — compare the applicant's DECLARED marital status against the
+ * bureau/credit-check-confirmed status. Declared "unmarried" but the check confirms married → raise a SIGNAL flag
+ * (mis-declaration / undisclosed joint estate; bears on s15 surety-consent validity). Declared-then-verified, same
+ * as every other field. See memory project_pleks_marital_surety_consent.
  */
 import { INCOME_AFFORDABILITY_THRESHOLD, startedWithinProbation, PROBATION_MONTHS } from "@/lib/constants"
 import type { ReconciliationResult } from "@/lib/extraction/types"

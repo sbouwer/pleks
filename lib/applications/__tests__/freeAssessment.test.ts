@@ -30,6 +30,38 @@ describe("freeAssessment — combined declared affordability", () => {
   })
 })
 
+describe("freeAssessment — guarantor / surety backstop (residual capacity)", () => {
+  const RENT = 900_000 // R9 000; living floor = R3 500/adult (350_000)
+  const principal = a({ declaredIncomeCents: 2_000_000 }) // R20k vs R9k = 45% → below on its own merit
+
+  it("strong standalone guarantor backstops the full rent", () => {
+    const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 2_000_000 })])
+    expect(r.hasGuarantor).toBe(true)
+    expect(r.guarantorBacksRent).toBe(true) // 20k − 0 − 3.5k floor = 16.5k residual ≥ 9k
+  })
+  it("stretched high-earner guarantor is no security (residual, not a multiple)", () => {
+    const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 5_000_000, declaredObligationsCents: 4_500_000 })])
+    expect(r.guarantorBacksRent).toBe(false) // 50k − 45k − 3.5k = 1.5k residual < 9k, despite the big salary
+  })
+  it("two unrelated standalone guarantors do NOT pool — neither covers alone", () => {
+    const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 1_000_000 }), a({ role: "guarantor", declaredIncomeCents: 1_000_000 })])
+    expect(r.guarantorBacksRent).toBe(false) // each: 10k − 3.5k = 6.5k < 9k; no pooling
+  })
+  it("joint-&-several guarantors (same suretyGroup) POOL and cover", () => {
+    const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "joint-1" }), a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "joint-1" })])
+    expect(r.guarantorBacksRent).toBe(true) // 6.5k + 6.5k = 13k pooled ≥ 9k
+  })
+  it("no guarantor → hasGuarantor false, no backstop", () => {
+    const r = freeAssessment(RENT, [principal])
+    expect(r.hasGuarantor).toBe(false)
+    expect(r.guarantorBacksRent).toBe(false)
+  })
+  it("in-community surety → spousal consent required (s15 MPA); ANC does not", () => {
+    expect(freeAssessment(RENT, [principal, a({ role: "guarantor", maritalRegime: "in_community" })]).spousalConsentRequired).toBe(true)
+    expect(freeAssessment(RENT, [principal, a({ role: "guarantor", maritalRegime: "out_anc" })]).spousalConsentRequired).toBe(false)
+  })
+})
+
 describe("freeAssessment — readiness", () => {
   it("all complete + valid IDs → ready", () => {
     expect(freeAssessment(900_000, [a(), a({ role: "co_applicant" })]).readiness.band).toBe("ready")
