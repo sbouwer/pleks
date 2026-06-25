@@ -32,7 +32,7 @@ import { CheckCircle2, Users, ArrowLeft, ArrowRight, Clock } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { useBegun } from "./applyChrome"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
-import { type CompanyInfo, COMPANY_SUBTABS, CompanySubTabs, StepCompanyDetails } from "./applyCompany"
+import { type CompanyInfo, companySubtabsFor, isJuristicCompanyType, CompanySubTabs, StepCompanyDetails } from "./applyCompany"
 import {
   type ApplicantType, type CoRole, type ScreeningStatus, type SetFn, type DocFile, type CoApplicant, type Emp, type IncomePeriod, type IncomeRow,
   STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW, LAST_DATA_STEP,
@@ -248,9 +248,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // End of the company phase. "It's me" → drop into the personal flow (identity pre-filled at begin). Otherwise
   // save the company + email the director their link, and show a "sent" state (they complete the rest).
   function completeCompanyPhase() {
-    // Identity lives on the first sub-tab — bounce there if it's incomplete so the error points at the right field.
-    if (!company.name?.trim()) { setCompanyStep(0); toast.error("Add the company's registered name."); return }
+    // Identity lives on the first sub-tab — bounce there if it's incomplete. Validate by type: juristic needs a
+    // registered name + registration number; unincorporated (sole prop / partnership) just needs a trading name.
     if (!company.companyType) { setCompanyStep(0); toast.error("Select the company type."); return }
+    if (isJuristicCompanyType(company.companyType)) {
+      if (!company.name?.trim()) { setCompanyStep(0); toast.error("Add the company's registered name."); return }
+      if (!company.companyReg?.trim()) { setCompanyStep(0); toast.error("Add the registration number."); return }
+    } else if (!company.trading?.trim()) { setCompanyStep(0); toast.error("Add the trading name."); return }
     if (companyImDirector) {
       setCompanyDone(true)
       advance(0)
@@ -571,12 +575,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const inWizard = begun
   // Company applications run a short COMPANY PHASE (business details + finances) before the personal flow.
   const companyPhaseActive = begun && type === "company" && !companyDone
+  const companySubtabs = companySubtabsFor(company.companyType) // type-dependent (unincorporated has no Finances)
   const activeGroup = inWizard ? PANE_META[step].group : "Apply as"
   // The panel header reads "Group · sub" in the wizard, "Company · …" during the company phase, and
   // "Apply to · {unit}" on the landing. activeGroup still drives the rail's "Apply as" step name.
   let headerTitle = inWizard ? activeGroup : "Apply to"
   let headerSub = inWizard ? PANE_META[step].sub : (listingTitle ?? "this home")
-  if (companyPhaseActive) { headerTitle = "Company"; headerSub = COMPANY_SUBTABS[companyStep] }
+  if (companyPhaseActive) { headerTitle = "Company"; headerSub = companySubtabs[companyStep] }
   const applyAsDesc = type ? `${TYPE_LABEL[type]} · ${leaseType}` : "Choose how you apply"
   const navStates = computeStepStates(activeGroup, step, maxReached, inWizard, type !== null, !!applicationId, applyAsDesc)
   const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t) }
@@ -585,7 +590,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const navNext = ((): { label: string; onClick: () => void; disabled?: boolean; primary?: boolean } | null => {
     if (!inWizard) return null
     if (companyPhaseActive) {
-      if (companyStep < COMPANY_SUBTABS.length - 1) return { label: "Next", onClick: () => setCompanyStep(companyStep + 1) }
+      if (companyStep < companySubtabs.length - 1) return { label: "Next", onClick: () => setCompanyStep(companyStep + 1) }
       return { label: companyImDirector ? "Continue to your details" : "Send to the director", onClick: completeCompanyPhase, disabled: busy }
     }
     if (step === 0) return { label: "Next", onClick: continueIdentity }
@@ -686,7 +691,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {/* Company phase — a short tabbed sub-flow (info · address · finances) before the personal flow. */}
         {companyPhaseActive && (
           <div className={scrollCls}>
-            <CompanySubTabs step={companyStep} onJump={setCompanyStep} />
+            <CompanySubTabs subtabs={companySubtabs} step={companyStep} onJump={setCompanyStep} />
             <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={companyStep} />
           </div>
         )}
