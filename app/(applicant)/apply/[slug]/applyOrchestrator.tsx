@@ -259,8 +259,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     // The card already says who they are, so force every row's role to match it (no per-row choice). Company
     // applies THROUGH its director(s) — capture them like couple (role co_applicant = the signatory on its behalf).
     if (t === "guarantor") setCoApplicants((cur) => (cur.length > 0 ? cur.map((c) => ({ ...c, role: "guarantor" as CoRole })) : [blankCo("guarantor")]))
-    else if (t === "couple" || t === "company") setCoApplicants((cur) => (cur.length > 0 ? cur.map((c) => ({ ...c, role: "co_applicant" as CoRole })) : [blankCo("co_applicant")]))
-    else setCoApplicants([]) // individual
+    else if (t === "couple") setCoApplicants((cur) => (cur.length > 0 ? cur.map((c) => ({ ...c, role: "co_applicant" as CoRole })) : [blankCo("co_applicant")]))
+    // Company: row 1 = YOU (the form); co-directors/signatories are added as needed. Individual: no co-rows.
+    else setCoApplicants([])
   }
 
   /** Begin (first time) / Continue (re-editing "Apply as"): validate the chosen type + parties, then enter the
@@ -268,15 +269,19 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   function beginApplication() {
     if (!type) { toast.error("Choose how you're applying."); return }
     if (type === "company" && !company.companyType) { toast.error("Please select the company type."); return }
-    if ((type === "couple" || type === "guarantor" || type === "company") && !(coApplicants[0] && coComplete(coApplicants[0]))) {
-      toast.error(type === "company" ? `Add the ${companyRole}'s name, email and ID number.` : "Add the co-applicant's name, email and ID number."); return
+    // Couple / guarantor: the co-person (row 2) needs basics; the primary is YOU (the form), validated in the flow.
+    if ((type === "couple" || type === "guarantor") && !(coApplicants[0] && coComplete(coApplicants[0]))) {
+      toast.error("Add the co-applicant's name, email and ID number."); return
     }
-    // Company + "it's me": the director IS the primary applicant — carry their Apply-as details into the personal
-    // flow and drop them from the invite list (they complete it here, not via an emailed link).
-    if (type === "company" && companyImDirector && coApplicants[0]) {
-      const me = coApplicants[0]
-      setForm((f) => ({ ...f, firstName: me.firstName || f.firstName, lastName: me.lastName || f.lastName, email: me.email || f.email, idNumber: me.idNumber || f.idNumber }))
-      // NB: the row stays in state (so Back preserves it) — dispatchInvites skips this primary director.
+    // Company: YOU are row 1 (the form). If you're the director, you ARE the primary — validate your basics. If
+    // filling on behalf, you're not a party, so the named director (row 2) is who's emailed — validate them.
+    if (type === "company") {
+      if (companyImDirector && !(form.firstName?.trim() && form.email?.trim() && form.idNumber?.trim())) {
+        toast.error(`Add your name, email and ID number as the ${companyRole}.`); return
+      }
+      if (!companyImDirector && !(coApplicants[0] && coComplete(coApplicants[0]))) {
+        toast.error(`Add the ${companyRole}'s name, email and ID number.`); return
+      }
     }
     setBegun(true)
     setMaxReached((m) => Math.max(m, step))
@@ -465,9 +470,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // Send every complete-but-not-yet-invited co-applicant (id_number links them to the application). Called at
   // create (the at-selection invites) and again from the Applicants step (any added there).
   async function dispatchInvites(appId: string) {
-    // For "company + it's me", the first director IS the primary applicant — never invite them.
-    const skipPrimaryDirector = type === "company" && companyImDirector
-    const pending = coApplicants.filter((c, i) => !(skipPrimaryDirector && i === 0) && !c.invited && coComplete(c))
+    // The primary applicant is YOU (the form) — never in coApplicants now — so every complete co-row is invited
+    // (co-applicants, guarantors, co-directors/signatories, or the named director when filling on behalf).
+    const pending = coApplicants.filter((c) => !c.invited && coComplete(c))
     if (pending.length === 0) return
     for (const c of pending) {
       const res = await fetch(`/api/applications/${appId}/co-applicant`, {
