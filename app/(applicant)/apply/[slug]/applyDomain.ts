@@ -22,6 +22,7 @@ export type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | P
 
 export interface DocFile { id: string; name: string; uploading: boolean; uploaded: boolean; storagePath: string | null; detection?: string | null; error?: string | null }
 export interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idNumber: string; role: CoRole; invited: boolean }
+export const blankCo = (role: CoRole): CoApplicant => ({ firstName: "", lastName: "", email: "", phone: "", idNumber: "", role, invited: false })
 
 export type Emp = {
   employment_type: string; employer: string; start_date: string
