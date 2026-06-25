@@ -97,11 +97,15 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
   return (
     <>
       {/* The company TYPE drives the whole flow (sole prop = personal application + trading name; (Pty)/CC = CIPC +
-          AFS; etc.). Reg number, AFS and the rest are captured later, conditional on the type. */}
-      <select value={company.companyType} onChange={(e) => setCompany({ ...company, companyType: e.target.value })}
-        className="w-full rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
-        {COMPANY_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.value === "" ? "Company type…" : o.label}</option>)}
-      </select>
+          AFS; etc.). Reg number, AFS and the rest are captured later, conditional on the type. The trailing gutter
+          matches the rows' delete column so the select's right edge lines up with the Designation cell below. */}
+      <div className="flex items-center gap-1.5">
+        <select value={company.companyType} onChange={(e) => setCompany({ ...company, companyType: e.target.value })}
+          className="min-w-0 flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
+          {COMPANY_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.value === "" ? "Company type…" : o.label}</option>)}
+        </select>
+        <span aria-hidden className="w-5 shrink-0" />
+      </div>
       {company.companyType && (
         <>
           <p className="text-xs font-medium text-[var(--ink)]">{singlePerson ? "Who's the owner?" : "Who's on the company's behalf?"}</p>
@@ -111,7 +115,13 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
             <input placeholder="Last name" value={form.lastName ?? ""} onChange={(e) => set("lastName", e.target.value)} className={CO_INPUT} />
             <input type="email" placeholder="Email" autoComplete="off" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} className={CO_INPUT} />
             <input placeholder="ID number" value={form.idNumber ?? ""} onChange={(e) => set("idNumber", e.target.value)} className={CO_INPUT} />
-            <select value={imDirector ? "party" : "on_behalf"} onChange={(e) => setImDirector(e.target.value === "party")} className={CO_DESIGNATION} aria-label="Your role">
+            <select value={imDirector ? "party" : "on_behalf"} aria-label="Your role" className={CO_DESIGNATION}
+              onChange={(e) => {
+                const party = e.target.value === "party"
+                setImDirector(party)
+                // On behalf → you're not a party, so the named {companyRole} must be captured; drop one in for them.
+                if (!party && coApplicants.length === 0) addCo()
+              }}>
               <option value="party">{singlePerson ? "the owner" : `the ${companyRole}`}</option>
               <option value="on_behalf">On behalf</option>
             </select>
@@ -124,10 +134,12 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
               <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
               <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
               <input placeholder="ID number" value={c.idNumber} onChange={(e) => updateCo(i, { idNumber: e.target.value })} className={CO_INPUT} />
-              <select value={c.designation ?? "director"} onChange={(e) => updateCo(i, { designation: e.target.value })} className={CO_DESIGNATION} aria-label="Designation">
+              {/* Guarantor/surety → the guarantor ROLE (income backstops the rent); everyone else is a co-party. */}
+              <select value={c.designation ?? "director"} onChange={(e) => updateCo(i, { designation: e.target.value, role: e.target.value === "guarantor" ? "guarantor" : "co_applicant" })} className={CO_DESIGNATION} aria-label="Designation">
                 <option value="director">Director</option>
-                <option value="signatory">Signatory</option>
-                <option value="shareholder">Majority shareholder</option>
+                <option value="shareholder">Shareholder</option>
+                <option value="guarantor">Guarantor / surety</option>
+                <option value="other">Other</option>
               </select>
               <span className="flex w-5 shrink-0 items-center justify-center">
                 <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>
@@ -138,7 +150,7 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
               owner must be captured (they're emailed, not you). Partnerships + juristic cos can always add more. */}
           {(!singlePerson || !imDirector) && (
             <button type="button" onClick={addCo} className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
-              <Plus className="size-4" /> Add {singlePerson ? `the ${companyRole}` : `another ${companyRole}`}
+              <Plus className="size-4" /> {singlePerson ? `Add the ${companyRole}` : "Add another person"}
             </button>
           )}
           <span className="text-[11px] text-[var(--ink-mute)]">{imDirector ? "You'll continue to your own details next; anyone else gets their own secure link." : `We'll email the ${companyRole} a secure link to complete the application.`}</span>
@@ -180,7 +192,7 @@ export function ApplyAsPane({ commercial, type, onSelect, form, set, coApplicant
   const companySinglePerson = type === "company" && !companyJuristic && company.companyType !== "partnership"
 
   return (
-    <div className="flex min-h-full flex-col gap-6">
+    <div className="flex min-h-full flex-col gap-4">
       {/* No large heading — the panel header bar above carries "Apply to · {unit}"; keep just the explanation. */}
       <p className="text-sm leading-relaxed text-[var(--ink-soft)]">A short pre-selection so the agent can shortlist applicants. It&apos;s free, there&apos;s no credit check at this stage, and you can save and finish whenever suits you.</p>
 
@@ -246,7 +258,7 @@ export function ApplyAsPane({ commercial, type, onSelect, form, set, coApplicant
       </section>
 
       {/* Begin — bottom-right, same primary action style as Submit. */}
-      <div className="mt-auto flex justify-end pt-3">
+      <div className="mt-auto flex justify-end pt-1">
         <ActionButton tone="primary" disabled={busy || !type} onClick={onBegin}>
           <span className="inline-flex items-center gap-1.5">{resuming ? "Continue" : "Begin your application"} <ArrowRight className="size-4" /></span>
         </ActionButton>
