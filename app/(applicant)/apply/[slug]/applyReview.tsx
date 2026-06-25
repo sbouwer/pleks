@@ -15,6 +15,7 @@ import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { formatZAR, startedWithinProbation } from "@/lib/constants"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { StepHeading } from "./applyShared"
+import { ApplicantRoster, type RosterPerson, type ApplicantCardStatus } from "./applyRoster"
 import { type Emp, type IncomeRow, type CoApplicant, type ScreeningStatus, STEP_DOCUMENTS, employmentLabel, rowMonthlyCents, moneyCents, totalMonthlyCents } from "./applyDomain"
 
 
@@ -30,6 +31,18 @@ function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void;
       <ActionButton tone="primary" size="sm" onClick={onRerun}>Re-check now</ActionButton>
     </div>
   )
+}
+
+/** Roster cards from the per-party readiness (PII-safe, by index — primary first, then co-applicants in order)
+ *  zipped with the client-side names. The live UI may show names; only the stored free_assessment jsonb is PII-safe. */
+function buildRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], assessment: FreeAssessmentResult): RosterPerson[] {
+  return assessment.readiness.items.map((item, i) => {
+    const status: ApplicantCardStatus = item.status === "ok" ? "complete" : "outstanding"
+    if (i === 0) return { name: [form.firstName, form.lastName].filter(Boolean).join(" ") || "You", roleLabel: "Primary applicant", status }
+    const co = coApplicants[i - 1]
+    const name = co ? [co.firstName, co.lastName].filter(Boolean).join(" ") || co.email || "Co-applicant" : "Applicant"
+    return { name, roleLabel: co?.role === "guarantor" ? "Guarantor" : "Co-applicant", status }
+  })
 }
 
 /** Final state — nothing more for the applicant to do; the agent has it. Reached by "Submit to agent". */
@@ -88,9 +101,10 @@ function reviewSummary(a: FreeAssessmentResult): string {
 /** Step-1 FREE assessment — the application review: Completeness (what's done / still to add) + Residual
  *  affordability (income vs commitments + the residual + a tier read; prompts "Add applicant" when short).
  *  Re-runnable for free; the J1 gate (all co-applicants complete) blocks submit. (ADDENDUM_14M funnel) */
-function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onRerun, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
+function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, onAmend, onRerun, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; rosterPersons: RosterPerson[]; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
 
   async function doSubmit() {
     setSubmitting(true)
@@ -102,24 +116,21 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onRerun
 
   const { incompleteCount } = assessment.readiness
   const readyToSubmit = incompleteCount === 0   // J1: someone unfinished → blocked (server enforces too)
+  const isMultiParty = rosterPersons.length > 1
 
-  // Waiting on others — this applicant's part is in, but a joint application can't go to the agent until every
-  // party has finished. Lead with that status rather than nudging toward a submit they can't make yet.
-  if (!readyToSubmit) {
+  // Multi-applicant → the card roster: each party's status, and Review unlocks only when all are green. The
+  // affordability review + submit lives behind the Review button. A single applicant skips straight to it.
+  if (isMultiParty && !reviewing) {
     return (
-      <div className="flex flex-col gap-4">
-        <StepHeading title="Your part is done ✓" sub="Your details, documents and consent are all in." />
-        <div className="rounded-[var(--r-button)] border border-[var(--amber)] bg-[var(--amber-wash)] p-5">
-          <p className="flex items-start gap-2.5 text-sm leading-relaxed text-[var(--amber-ink)]">
-            <Users className="mt-0.5 size-5 shrink-0" />
-            <span>Your application is complete — we&apos;re just waiting on <strong>{incompleteCount}</strong> other {incompleteCount === 1 ? "applicant" : "applicants"} to finish their part. Each has their own link, and nothing goes to the agent until everyone&apos;s done. Come back via your saved link to submit once they&apos;ve finished.</span>
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
-          <p className="text-xs text-[var(--ink-mute)]">Want to change something on your side while you wait? It&apos;s free to re-check.</p>
-          <AmendBar onAmend={onAmend} onRerun={onRerun} />
-        </div>
-      </div>
+      <ApplicantRoster
+        persons={rosterPersons} allGreen={readyToSubmit} outstandingCount={incompleteCount} onReview={() => setReviewing(true)}
+        amendSlot={
+          <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
+            <p className="text-xs text-[var(--ink-mute)]">Want to change something on your side while you wait? It&apos;s free to re-check.</p>
+            <AmendBar onAmend={onAmend} onRerun={onRerun} />
+          </div>
+        }
+      />
     )
   }
 
@@ -302,7 +313,7 @@ export function StepSubmit({ form, emp, income, askingRentCents, consent, setCon
     } catch { toast.error("Could not submit. Please try again."); return false }
   }
 
-  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
+  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} rosterPersons={buildRosterPersons(form, coApplicants, assessment)} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
 
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = totalMonthlyCents(income)
