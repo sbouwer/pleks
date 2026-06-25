@@ -259,11 +259,18 @@ function incomeKeys(income: IncomeRow[]): Set<string> {
 
 interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idNumber: string; role: CoRole; invited: boolean }
 interface CompanyInfo {
+  // Identity — mirrors the canonical add-company global form (components/parties partySteps CompanyInfo →
+  // contacts.company_name/registration_number/vat_number/primary_email/primary_phone). companyType + nature are
+  // apply-specific extras (entity type drives the surety model; nature is context).
   companyType: string; companyReg: string
   name?: string; trading?: string; vat?: string; nature?: string
-  addrLine?: string; suburb?: string; city?: string; postal?: string
+  companyEmail?: string; companyPhone?: string
+  // Business address — a structured 25A address (reuses AddressFields, same UX as the personal flow); its own tab.
+  address?: PartyAddressInput
   annualTurnover?: string; annualProfit?: string
 }
+// The company phase is a short tabbed sub-flow (its own nav, like the main wizard) run before the personal flow.
+const COMPANY_SUBTABS = ["Company information", "Business address", "Finances"] as const
 // "done" = the Step-1 free assessment is ready to show (it's instant — no processing/poll). The deep-scan ruling
 // moved off the applicant flow to the agent's shortlist step (Step 2). (ADDENDUM_14M three-step funnel)
 type ScreeningStatus = "idle" | "done"
@@ -513,6 +520,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // Sequential company flow: the company phase (details + finances) runs BEFORE the personal flow. companyDone
   // flips once it's saved — then the director's personal flow takes over (or the invited director does it).
   const [companyDone, setCompanyDone] = useState(!!resume) // a resumed draft is already past the company phase
+  const [companyStep, setCompanyStep] = useState(0) // sub-tab within the company phase: 0 info · 1 address · 2 finances
   const [companySentToDirector, setCompanySentToDirector] = useState(false)
   // "Add applicant" from the review (when affordability is short) — invite a co-applicant after the app exists.
   const [addApplicantOpen, setAddApplicantOpen] = useState(false)
@@ -569,16 +577,20 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   }
 
   function goBack() {
-    if (type === "company" && !companyDone) setBegun(false) // company phase → back to "Apply as"
-    else if (step === 0) setBegun(false) // back from the first form pane → the "Apply as" landing (type preserved)
+    if (type === "company" && !companyDone) {
+      if (companyStep > 0) { setCompanyStep(companyStep - 1); return } // step back through the company sub-tabs
+      setBegun(false); return // first company tab → back to "Apply as"
+    }
+    if (step === 0) setBegun(false) // back from the first form pane → the "Apply as" landing (type preserved)
     else navTo(step - 1)
   }
 
   // End of the company phase. "It's me" → drop into the personal flow (identity pre-filled at begin). Otherwise
   // save the company + email the director their link, and show a "sent" state (they complete the rest).
   function completeCompanyPhase() {
-    if (!company.name?.trim()) { toast.error("Add the company's registered name."); return }
-    if (!company.companyType) { toast.error("Select the company type."); return }
+    // Identity lives on the first sub-tab — bounce there if it's incomplete so the error points at the right field.
+    if (!company.name?.trim()) { setCompanyStep(0); toast.error("Add the company's registered name."); return }
+    if (!company.companyType) { setCompanyStep(0); toast.error("Select the company type."); return }
     if (companyImDirector) {
       setCompanyDone(true)
       advance(0)
@@ -904,7 +916,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // "Apply to · {unit}" on the landing. activeGroup still drives the rail's "Apply as" step name.
   let headerTitle = inWizard ? activeGroup : "Apply to"
   let headerSub = inWizard ? PANE_META[step].sub : (listingTitle ?? "this home")
-  if (companyPhaseActive) { headerTitle = "Company"; headerSub = "Business details & finances" }
+  if (companyPhaseActive) { headerTitle = "Company"; headerSub = COMPANY_SUBTABS[companyStep] }
   const applyAsDesc = type ? `${TYPE_LABEL[type]} · ${leaseType}` : "Choose how you apply"
   const navStates = computeStepStates(activeGroup, step, maxReached, inWizard, type !== null, !!applicationId, applyAsDesc)
   const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t) }
@@ -912,7 +924,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // review/submit uses the primary style). Back + Save live alongside it; the footer keeps only the disclaimer.
   const navNext = ((): { label: string; onClick: () => void; disabled?: boolean; primary?: boolean } | null => {
     if (!inWizard) return null
-    if (companyPhaseActive) return { label: companyImDirector ? "Continue to your details" : "Send to the director", onClick: completeCompanyPhase, disabled: busy }
+    if (companyPhaseActive) {
+      if (companyStep < COMPANY_SUBTABS.length - 1) return { label: "Next", onClick: () => setCompanyStep(companyStep + 1) }
+      return { label: companyImDirector ? "Continue to your details" : "Send to the director", onClick: completeCompanyPhase, disabled: busy }
+    }
     if (step === 0) return { label: "Next", onClick: continueIdentity }
     if (step === 1) return { label: "Next", onClick: continueAddress }
     if (step === 2) return { label: "Next", onClick: continueEmployment }
@@ -960,7 +975,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {/* Mobile/short: horizontal step bar + sub-tabs (on desktop the rail handles both) */}
         <div className="[@media(min-width:1024px)_and_(min-height:700px)]:hidden">
           <StepBar states={navStates} onNav={onNav} />
-          {inWizard && <SubTabs activeGroup={activeGroup} step={step} maxReached={maxReached} onJumpStep={navTo} />}
+          {inWizard && !companyPhaseActive && <SubTabs activeGroup={activeGroup} step={step} maxReached={maxReached} onJumpStep={navTo} />}
         </div>
 
         {/* Panel header — mirrors the rail's "Your application" header (amber tick + step · section) so the rule
@@ -1008,9 +1023,12 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           </div>
         )}
 
-        {/* Company phase — runs before the personal flow for company applications. */}
+        {/* Company phase — a short tabbed sub-flow (info · address · finances) before the personal flow. */}
         {companyPhaseActive && (
-          <div className={scrollCls}><StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} /></div>
+          <div className={scrollCls}>
+            <CompanySubTabs step={companyStep} onJump={setCompanyStep} />
+            <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={companyStep} />
+          </div>
         )}
 
         {/* "Sent to director" — the filler isn't the director, so they hand off and there's nothing more to do. */}
@@ -1251,42 +1269,59 @@ function StepHeading({ title, sub, subOnly }: Readonly<{ title: string; sub: str
 }
 
 // ── Company phase — business details + annual finances (runs before the personal flow) ────────────
-function StepCompanyDetails({ company, setCompany, imDirector }: Readonly<{ company: CompanyInfo; setCompany: (v: CompanyInfo) => void; imDirector: boolean }>) {
+/** Company-phase sub-tabs (info · address · finances) — mirrors the main wizard's SubTabs; all three reachable. */
+function CompanySubTabs({ step, onJump }: Readonly<{ step: number; onJump: (s: number) => void }>) {
+  return (
+    <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 border-b border-[var(--rule)]">
+      {COMPANY_SUBTABS.map((label, s) => {
+        const cur = s === step
+        return (
+          <button key={label} type="button" disabled={cur} onClick={() => onJump(s)}
+            className={`relative pb-1.5 text-[12px] ${cur ? "font-medium text-[var(--ink)]" : "cursor-pointer text-[var(--ink-mute)] hover:text-[var(--ink)]"}`}>
+            {label}
+            {cur && <span aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 bg-[var(--amber)]" />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function StepCompanyDetails({ company, setCompany, imDirector, companyStep }: Readonly<{ company: CompanyInfo; setCompany: (v: CompanyInfo) => void; imDirector: boolean; companyStep: number }>) {
   const set = (patch: Partial<CompanyInfo>) => setCompany({ ...company, ...patch })
+  const addr: PartyAddressInput = company.address ?? { type: "physical" }
   return (
     <div className="flex flex-col gap-6">
-      <StepHeading title="Company details" sub={imDirector ? "The business applying — you'll add your own director details next." : "The business applying — we'll then email the director to complete their part."} />
-
-      <div className="flex flex-col gap-3">
-        <SectionEyebrow n="01" label="Business" />
-        <FieldGrid>
-          <TextField label="Registered name" value={company.name ?? ""} onChange={(v) => set({ name: v })} required />
-          <TextField label="Trading name (if different)" value={company.trading ?? ""} onChange={(v) => set({ trading: v })} />
-          <SelectField label="Company type" value={company.companyType} onChange={(v) => set({ companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
-          <TextField label="Registration number" value={company.companyReg} onChange={(v) => set({ companyReg: v })} placeholder="e.g. 2019/123456/07" />
-          <TextField label="VAT number (if registered)" value={company.vat ?? ""} onChange={(v) => set({ vat: v })} />
-          <TextField label="Nature of business" value={company.nature ?? ""} onChange={(v) => set({ nature: v })} placeholder="e.g. IT consulting" />
-        </FieldGrid>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <SectionEyebrow n="02" label="Business address" />
-        <FieldGrid>
-          <TextField label="Street address" value={company.addrLine ?? ""} onChange={(v) => set({ addrLine: v })} span />
-          <TextField label="Suburb" value={company.suburb ?? ""} onChange={(v) => set({ suburb: v })} />
-          <TextField label="City" value={company.city ?? ""} onChange={(v) => set({ city: v })} />
-          <TextField label="Postal code" value={company.postal ?? ""} onChange={(v) => set({ postal: v })} />
-        </FieldGrid>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <SectionEyebrow n="03" label="Annual finances" />
-        <FieldGrid>
-          <TextField label="Annual turnover (R)" value={company.annualTurnover ?? ""} onChange={(v) => set({ annualTurnover: v })} placeholder="e.g. 2 400 000" />
-          <TextField label="Annual net profit (R)" value={company.annualProfit ?? ""} onChange={(v) => set({ annualProfit: v })} placeholder="e.g. 600 000" />
-        </FieldGrid>
-        <p className="text-xs text-[var(--ink-soft)]">From your latest AFS — you&apos;ll upload the statements at the documents step.</p>
-      </div>
+      {companyStep === 0 && (
+        <>
+          <StepHeading title="Company information" sub={imDirector ? "The business applying — you'll add your own director details next." : "The business applying — we'll then email the director to complete their part."} />
+          <FieldGrid>
+            <TextField label="Registered name" value={company.name ?? ""} onChange={(v) => set({ name: v })} required />
+            <TextField label="Trading name (if different)" value={company.trading ?? ""} onChange={(v) => set({ trading: v })} />
+            <SelectField label="Company type" value={company.companyType} onChange={(v) => set({ companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
+            <TextField label="CIPC reg. number" value={company.companyReg} onChange={(v) => set({ companyReg: v })} placeholder="e.g. 2019/123456/07" />
+            <TextField label="VAT number (if registered)" value={company.vat ?? ""} onChange={(v) => set({ vat: v })} />
+            <TextField label="Nature of business" value={company.nature ?? ""} onChange={(v) => set({ nature: v })} placeholder="e.g. IT consulting" />
+            <TextField label="Company email" type="email" value={company.companyEmail ?? ""} onChange={(v) => set({ companyEmail: v })} placeholder="info@company.co.za" />
+            <TextField label="Company phone" type="tel" value={company.companyPhone ?? ""} onChange={(v) => set({ companyPhone: v })} placeholder="021 000 0000" />
+          </FieldGrid>
+        </>
+      )}
+      {companyStep === 1 && (
+        <>
+          <StepHeading title="Business address" sub="The company's registered / trading address." />
+          <AddressFields address={addr} onUpdate={(p) => set({ address: { ...addr, ...p } })} />
+        </>
+      )}
+      {companyStep === 2 && (
+        <>
+          <StepHeading title="Annual finances" sub="From your latest AFS — you'll upload the statements at the documents step." />
+          <FieldGrid>
+            <TextField label="Annual turnover (R)" value={company.annualTurnover ?? ""} onChange={(v) => set({ annualTurnover: v })} placeholder="e.g. 2 400 000" />
+            <TextField label="Annual net profit (R)" value={company.annualProfit ?? ""} onChange={(v) => set({ annualProfit: v })} placeholder="e.g. 600 000" />
+          </FieldGrid>
+        </>
+      )}
     </div>
   )
 }
