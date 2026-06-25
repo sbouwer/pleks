@@ -32,7 +32,7 @@ import { CheckCircle2, Users, ArrowLeft, ArrowRight, Clock } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { useBegun } from "./applyChrome"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
-import { type CompanyInfo, COMPANY_SUBTABS, CompanySubTabs, StepCompanyDetails } from "./companySteps"
+import { type CompanyInfo, COMPANY_SUBTABS, CompanySubTabs, StepCompanyDetails } from "./applyCompany"
 import {
   type ApplicantType, type CoRole, type ScreeningStatus, type SetFn, type DocFile, type CoApplicant, type Emp, type IncomePeriod, type IncomeRow,
   STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW, LAST_DATA_STEP,
@@ -41,8 +41,8 @@ import {
   intOrNull, allAmountsEmpty, posOrNull, seedIfEmpty, numStr, rowMonthlyCents, totalMonthlyCents, incomeSourcesPayload, incomeKeys, blankCo,
 } from "./applyDomain"
 import { ApplyAsPane } from "./applyLanding"
-import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./individualSteps"
-import { StepSubmit } from "./reviewStep"
+import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
+import { StepSubmit } from "./applyReview"
 import { PANE_META, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
@@ -57,7 +57,7 @@ const TYPE_LABEL: Record<ApplicantType, string> = { individual: "Individual", co
 
 
 // Income/employment domain (types, catalogs, money helpers) lives in ./applyDomain — shared by both flows.
-// CompanyInfo + the company flow live in ./companySteps (a separate concern — see the apply-flow architecture).
+// CompanyInfo + the company flow live in ./applyCompany (a separate concern — see the apply-flow architecture).
 // "done" = the Step-1 free assessment is ready to show (it's instant — no processing/poll). The deep-scan ruling
 // moved off the applicant flow to the agent's shortlist step (Step 2). (ADDENDUM_14M three-step funnel)
 

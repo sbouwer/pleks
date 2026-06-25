@@ -1,10 +1,10 @@
 "use client"
 
 /**
- * app/(applicant)/apply/[slug]/individualSteps.tsx — the INDIVIDUAL / consumer application flow
+ * app/(applicant)/apply/[slug]/applyIndividual.tsx — the INDIVIDUAL / consumer application flow
  *
  * Notes:  The consumer flow panes (Personal · Address · Employment · Income · Expenses · Documents). A separate
- *         concern from the company flow (companySteps) — never mixed; the orchestrator (StepPanel) sequences +
+ *         concern from the company flow (applyCompany) — never mixed; the orchestrator (StepPanel) sequences +
  *         renders these. Shares only bricks (form fields, AddressFields, IndividualIdentity) + applyDomain helpers.
  */
 import { useState } from "react"

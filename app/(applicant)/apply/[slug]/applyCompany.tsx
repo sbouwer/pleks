@@ -1,11 +1,11 @@
 "use client"
 
 /**
- * app/(applicant)/apply/[slug]/companySteps.tsx — the COMPANY application flow (its own concern)
+ * app/(applicant)/apply/[slug]/applyCompany.tsx — the COMPANY application flow (its own concern)
  *
  * Notes:  Self-contained company flow — a tabbed sub-flow: business identity · address · annual finances. A
  *         company is a DIFFERENT animal from a consumer (different reasoning/weight/rules/outputs), so this never
- *         mixes with individualSteps; the orchestrator sequences company → (the director's) individual flow.
+ *         mixes with applyIndividual; the orchestrator sequences company → (the director's) individual flow.
  *         Shares only bricks + styling (form fields, AddressFields, StepHeading).
  */
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"

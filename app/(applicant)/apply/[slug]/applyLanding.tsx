@@ -11,9 +11,8 @@ import { useState } from "react"
 import { ArrowRight, Building2, CheckCircle2, HandCoins, LogIn, Plus, User, Users, X } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
-import { SectionEyebrow } from "./applyShared"
 import { type ApplicantType, type CoApplicant, blankCo } from "./applyDomain"
-import { type CompanyInfo, COMPANY_TYPE_OPTIONS } from "./companySteps"
+import { type CompanyInfo, COMPANY_TYPE_OPTIONS } from "./applyCompany"
 
 /** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
 function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon: LucideIcon; title: string; blurb: string }> {
@@ -27,6 +26,16 @@ function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon:
 
 // Compact bare input for the inline co-applicant rows on the landing (placeholders instead of labels → one line).
 const CO_INPUT = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none"
+
+// Numbered section divider for the landing's sub-sections (Returning · How are you applying). Landing-only.
+function SectionEyebrow({ n, label }: Readonly<{ n: string; label: string }>) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--ink-mute)]">{n} · {label}</span>
+      <span aria-hidden className="h-px flex-1 bg-[var(--rule)]" />
+    </div>
+  )
+}
 
 export function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApplicants, company, setCompany, imDirector, setImDirector, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
   commercial: boolean; type: ApplicantType | null; onSelect: (t: ApplicantType) => void

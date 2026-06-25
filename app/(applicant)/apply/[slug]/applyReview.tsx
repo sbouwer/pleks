@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * app/(applicant)/apply/[slug]/reviewStep.tsx — the shared Review / submit step
+ * app/(applicant)/apply/[slug]/applyReview.tsx — the shared Review / submit step
  *
  * Notes:  The application-review + submit surface (declared Step-1 free assessment, email verify, submit-to-agent).
  *         Shared bookend for BOTH flows — the orchestrator (StepPanel) renders it last, after the chosen flow.
