@@ -43,7 +43,7 @@ import {
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
 import { StepSubmit } from "./applyReview"
-import { PANE_META, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
+import { PERSONAL_NAV, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
 import {
@@ -581,14 +581,15 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // Company applications run a short COMPANY PHASE (business details + finances) before the personal flow.
   const companyPhaseActive = begun && type === "company" && !companyDone
   const companySubtabs = companySubtabsFor(company.companyType) // type-dependent (unincorporated has no Finances)
-  const activeGroup = inWizard ? PANE_META[step].group : "Apply as"
+  const nav = PERSONAL_NAV // Stage 1: chrome is model-driven; the company machine (its own model) lands in Stage 2.
+  const activeGroup = inWizard ? nav.paneMeta[step].group : "Apply as"
   // The panel header reads "Group · sub" in the wizard, "Company · …" during the company phase, and
   // "Apply to · {unit}" on the landing. activeGroup still drives the rail's "Apply as" step name.
   let headerTitle = inWizard ? activeGroup : "Apply to"
-  let headerSub = inWizard ? PANE_META[step].sub : (listingTitle ?? "this home")
+  let headerSub = inWizard ? nav.paneMeta[step].sub : (listingTitle ?? "this home")
   if (companyPhaseActive) { headerTitle = "Company"; headerSub = companySubtabs[companyStep] }
   const applyAsDesc = type ? `${TYPE_LABEL[type]} · ${leaseType}` : "Choose how you apply"
-  const navStates = computeStepStates(activeGroup, step, maxReached, inWizard, type !== null, !!applicationId, applyAsDesc)
+  const navStates = computeStepStates(nav, { activeGroup, step, maxReached, inWizard, typePicked: type !== null, hasApplication: !!applicationId, applyAsDesc })
   const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t) }
   // The current step's forward action — rendered in the panel header (intermediate = "Next →"; the final
   // review/submit uses the primary style). Back + Save live alongside it; the footer keeps only the disclaimer.
@@ -630,7 +631,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                 Your application
               </h2>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2"><StepRail states={navStates} step={step} maxReached={maxReached} onNav={onNav} onJumpStep={navTo} /></div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2"><StepRail model={nav} states={navStates} step={step} maxReached={maxReached} onNav={onNav} onJumpStep={navTo} /></div>
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{listingCard}</div>
@@ -645,7 +646,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {/* Mobile/short: horizontal step bar + sub-tabs (on desktop the rail handles both) */}
         <div className="[@media(min-width:1024px)_and_(min-height:700px)]:hidden">
           <StepBar states={navStates} onNav={onNav} />
-          {inWizard && !companyPhaseActive && <SubTabs activeGroup={activeGroup} step={step} maxReached={maxReached} onJumpStep={navTo} />}
+          {inWizard && !companyPhaseActive && <SubTabs model={nav} activeGroup={activeGroup} step={step} maxReached={maxReached} onJumpStep={navTo} />}
         </div>
 
         {/* Panel header — mirrors the rail's "Your application" header (amber tick + step · section) so the rule

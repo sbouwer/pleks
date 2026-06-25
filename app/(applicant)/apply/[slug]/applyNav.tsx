@@ -5,29 +5,42 @@
  *
  * Notes:  The two-level navigation model (step groups + panes) and its presentational chrome (StepRail · StepBar ·
  *         SubTabs) + computeStepStates. Pure presentation/derivation owned by the orchestrator's shell; no flow
- *         logic. PANE_META is exported (the orchestrator reads the active group/sub for its panel header).
+ *         logic. Parameterised by a NavModel so the SAME chrome drives the personal flow AND the (copied-and-
+ *         reworked) company flow — the orchestrator picks the model by applicant/company type. Each pane carries a
+ *         `key` so the orchestrator's render/next dispatch is key-driven, not index-bound.
  */
 
-// Top-level wizard steps. "Apply as" is the pre-form type/invite stage (no form-pane index). The form panes
-// (step indices 0–5) each belong to a step + carry a sub-tab label — PANE_META drives the two-level nav. Phase 1
-// is presentation-only: the linear `step` machine + create boundary are unchanged; later phases split panes.
-const STEP_GROUPS = ["Apply as", "Personal details", "Finances", "Documents", "Application review"] as const
-export const PANE_META = [
-  { group: "Personal details",   sub: "Personal information" }, // step 0
-  { group: "Personal details",   sub: "Address" },             // step 1
-  { group: "Finances",           sub: "Employment" },          // step 2
-  { group: "Finances",           sub: "Income" },              // step 3
-  { group: "Finances",           sub: "Expenses" },            // step 4
-  { group: "Documents",          sub: "Required" },            // step 5
-  { group: "Documents",          sub: "Optional" },            // step 6
-  { group: "Application review", sub: "Check & submit" },      // step 7 (applicants are set at "Apply as")
-] as const
-// Boundary indices (STEP_EXPENSES/_DOCUMENTS/_DOCS_OPTIONAL/_REVIEW/LAST_DATA_STEP) live in ./applyDomain.
-const GROUP_PANES: Record<string, number[]> = {}
-PANE_META.forEach((m, i) => {
-  GROUP_PANES[m.group] ??= []
-  GROUP_PANES[m.group].push(i)
-})
+export type PaneMeta = ReadonlyArray<{ group: string; sub: string; key: string }>
+export interface NavModel { stepGroups: readonly string[]; paneMeta: PaneMeta; groupPanes: Record<string, number[]>; stepDesc: Record<string, string> }
+
+/** Build a NavModel — derives the group→pane-indices map from the pane list. "Apply as" is the landing (no pane). */
+export function buildNav(stepGroups: readonly string[], paneMeta: PaneMeta, stepDesc: Record<string, string>): NavModel {
+  const groupPanes: Record<string, number[]> = {}
+  paneMeta.forEach((m, i) => {
+    groupPanes[m.group] ??= []
+    groupPanes[m.group].push(i)
+  })
+  return { stepGroups, paneMeta, groupPanes, stepDesc }
+}
+
+// ── PERSONAL flow (individual / couple / guarantor) ──────────────────────────────────────────────
+const PERSONAL_PANES: PaneMeta = [
+  { group: "Personal details",   sub: "Personal information", key: "personal" },   // step 0
+  { group: "Personal details",   sub: "Address",             key: "address" },     // step 1
+  { group: "Finances",           sub: "Employment",          key: "employment" },  // step 2
+  { group: "Finances",           sub: "Income",              key: "income" },      // step 3
+  { group: "Finances",           sub: "Expenses",            key: "expenses" },    // step 4
+  { group: "Documents",          sub: "Required",            key: "docs-req" },    // step 5
+  { group: "Documents",          sub: "Optional",            key: "docs-opt" },    // step 6
+  { group: "Application review", sub: "Check & submit",      key: "review" },      // step 7
+]
+const PERSONAL_DESC: Record<string, string> = {
+  "Personal details": "Your identity & contact",
+  Finances: "Income & affordability",
+  Documents: "ID, proof of address, payslips",
+  "Application review": "Check & submit",
+}
+export const PERSONAL_NAV = buildNav(["Apply as", "Personal details", "Finances", "Documents", "Application review"], PERSONAL_PANES, PERSONAL_DESC)
 
 function tabClass(done: boolean, cur: boolean): string {
   // NB: don't use `.stoep` here — it sets padding-bottom:4px which overrides the button's pb-2.5 and drops the
@@ -43,39 +56,34 @@ function circleClass(done: boolean, cur: boolean): string {
 }
 
 const ACTIVE_UNDERLINE = "linear-gradient(to right, currentColor 0 55%, var(--amber) 55% 80%, currentColor 80% 100%)"
-const STEP_DESC: Record<string, string> = {
-  "Personal details": "Your identity & contact",
-  Finances: "Income & affordability",
-  Documents: "ID, proof of address, payslips",
-  "Application review": "Check & submit",
-}
 
 export interface StepState { group: string; n: number; cur: boolean; done: boolean; reachable: boolean; desc: string | null; target: number | "apply-as" }
 
 /** Per-step nav state over the linear `step` machine — shared by the desktop rail + the mobile bar. */
-export function computeStepStates(activeGroup: string, step: number, maxReached: number, inWizard: boolean, typePicked: boolean, hasApplication: boolean, applyAsDesc: string | null): StepState[] {
+export function computeStepStates(model: NavModel, opts: Readonly<{ activeGroup: string; step: number; maxReached: number; inWizard: boolean; typePicked: boolean; hasApplication: boolean; applyAsDesc: string | null }>): StepState[] {
+  const { activeGroup, step, maxReached, inWizard, typePicked, hasApplication, applyAsDesc } = opts
   const currentLinear = inWizard ? step : -1
-  return STEP_GROUPS.map((g, gi) => {
+  return model.stepGroups.map((g, gi) => {
     const applyAs = g === "Apply as"
-    const panes = GROUP_PANES[g] ?? []
+    const panes = model.groupPanes[g] ?? []
     const first = applyAs ? -1 : Math.min(...panes)
     const last = applyAs ? -1 : Math.max(...panes)
     const cur = g === activeGroup
     const done = applyAs ? (typePicked && !cur) : (currentLinear > last)
     const reachable = applyAs ? !hasApplication : (inWizard && first <= maxReached)
-    return { group: g, n: gi + 1, cur, done, reachable, desc: applyAs ? applyAsDesc : (STEP_DESC[g] ?? null), target: applyAs ? "apply-as" : first }
+    return { group: g, n: gi + 1, cur, done, reachable, desc: applyAs ? applyAsDesc : (model.stepDesc[g] ?? null), target: applyAs ? "apply-as" : first }
   })
 }
 
 /** Desktop vertical step rail — the "listing space, transformed into navigation". The ACTIVE step auto-expands
  *  its sub-tabs as indented nav items (others stay collapsed). */
-export function StepRail({ states, step, maxReached, onNav, onJumpStep }: Readonly<{
-  states: StepState[]; step: number; maxReached: number; onNav: (t: number | "apply-as") => void; onJumpStep: (s: number) => void
+export function StepRail({ model, states, step, maxReached, onNav, onJumpStep }: Readonly<{
+  model: NavModel; states: StepState[]; step: number; maxReached: number; onNav: (t: number | "apply-as") => void; onJumpStep: (s: number) => void
 }>) {
   return (
     <nav className="flex flex-col gap-1">
       {states.map((s) => {
-        const subPanes = GROUP_PANES[s.group] ?? []
+        const subPanes = model.groupPanes[s.group] ?? []
         const expanded = s.cur && subPanes.length > 1
         return (
           <div key={s.group}>
@@ -95,7 +103,7 @@ export function StepRail({ states, step, maxReached, onNav, onJumpStep }: Readon
                   return (
                     <button key={p} type="button" disabled={pcur || !preachable} onClick={() => onJumpStep(p)}
                       className={`rounded-[var(--r-button)] px-2 py-1 text-left text-[12px] transition-colors ${pcur ? "font-medium text-[var(--ink)]" : "text-[var(--ink-mute)]"} ${preachable && !pcur ? "cursor-pointer hover:text-[var(--ink)]" : "cursor-default"}`}>
-                      {PANE_META[p].sub}
+                      {model.paneMeta[p].sub}
                     </button>
                   )
                 })}
@@ -108,7 +116,7 @@ export function StepRail({ states, step, maxReached, onNav, onJumpStep }: Readon
   )
 }
 
-/** Mobile horizontal step bar (the Phase-1 nav, used below the lg breakpoint). */
+/** Mobile horizontal step bar (used below the lg breakpoint). */
 export function StepBar({ states, onNav }: Readonly<{ states: StepState[]; onNav: (t: number | "apply-as") => void }>) {
   return (
     <div className="flex flex-wrap gap-x-5 gap-y-1 border-b border-[var(--rule)]">
@@ -125,8 +133,8 @@ export function StepBar({ states, onNav }: Readonly<{ states: StepState[]; onNav
 }
 
 /** Sub-tab pills for the active step (top of the form panel). Null when the step has ≤1 pane. */
-export function SubTabs({ activeGroup, step, maxReached, onJumpStep }: Readonly<{ activeGroup: string; step: number; maxReached: number; onJumpStep: (s: number) => void }>) {
-  const subPanes = GROUP_PANES[activeGroup] ?? []
+export function SubTabs({ model, activeGroup, step, maxReached, onJumpStep }: Readonly<{ model: NavModel; activeGroup: string; step: number; maxReached: number; onJumpStep: (s: number) => void }>) {
+  const subPanes = model.groupPanes[activeGroup] ?? []
   if (subPanes.length <= 1) return null
   return (
     <div className="mb-1 flex flex-wrap gap-x-4 gap-y-1 border-b border-[var(--rule)]">
@@ -136,7 +144,7 @@ export function SubTabs({ activeGroup, step, maxReached, onJumpStep }: Readonly<
         return (
           <button key={s} type="button" disabled={cur || !reachable} onClick={() => onJumpStep(s)}
             className={`relative pb-1.5 text-[12px] ${cur ? "font-medium text-[var(--ink)]" : "text-[var(--ink-mute)]"} ${reachable && !cur ? "cursor-pointer hover:text-[var(--ink)]" : "cursor-default"}`}>
-            {PANE_META[s].sub}
+            {model.paneMeta[s].sub}
             {cur && <span aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 bg-[var(--amber)]" />}
           </button>
         )
