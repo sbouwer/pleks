@@ -35,6 +35,8 @@ import type { LucideIcon } from "lucide-react"
 import { IndividualIdentity } from "@/components/parties/partySteps"
 import { SectLabel, AddressFields } from "@/components/parties/partyFields"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
+import { StepHeading, SectionEyebrow } from "./applyShared"
+import { type CompanyInfo, COMPANY_SUBTABS, COMPANY_TYPE_OPTIONS, CompanySubTabs, StepCompanyDetails } from "./companySteps"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
 import { deriveDocCategories, categoryForFilename, type DocCategory } from "@/lib/applications/docCategories"
 import {
@@ -258,32 +260,10 @@ function incomeKeys(income: IncomeRow[]): Set<string> {
 }
 
 interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idNumber: string; role: CoRole; invited: boolean }
-interface CompanyInfo {
-  // Identity — mirrors the canonical add-company global form (components/parties partySteps CompanyInfo →
-  // contacts.company_name/registration_number/vat_number/primary_email/primary_phone). companyType + nature are
-  // apply-specific extras (entity type drives the surety model; nature is context).
-  companyType: string; companyReg: string
-  name?: string; trading?: string; vat?: string; nature?: string
-  companyEmail?: string; companyPhone?: string
-  // Business address — a structured 25A address (reuses AddressFields, same UX as the personal flow); its own tab.
-  address?: PartyAddressInput
-  annualTurnover?: string; annualProfit?: string
-}
-// The company phase is a short tabbed sub-flow (its own nav, like the main wizard) run before the personal flow.
-const COMPANY_SUBTABS = ["Company information", "Business address", "Finances"] as const
+// CompanyInfo + the company flow live in ./companySteps (a separate concern — see the apply-flow architecture).
 // "done" = the Step-1 free assessment is ready to show (it's instant — no processing/poll). The deep-scan ruling
 // moved off the applicant flow to the agent's shortlist step (Step 2). (ADDENDUM_14M three-step funnel)
 type ScreeningStatus = "idle" | "done"
-const COMPANY_TYPE_OPTIONS = [
-  { value: "", label: "Select…" },
-  { value: "pty_ltd", label: "(Pty) Ltd" },
-  { value: "cc", label: "Close Corporation (CC)" },
-  { value: "npc", label: "Non-Profit Company" },
-  { value: "trust", label: "Trust" },
-  { value: "sole_prop", label: "Sole proprietor" },
-  { value: "partnership", label: "Partnership" },
-  { value: "other", label: "Other" },
-]
 const blankCo = (role: CoRole): CoApplicant => ({ firstName: "", lastName: "", email: "", phone: "", idNumber: "", role, invited: false })
 
 /** Apply-only marital/spouse validation (the shared identity validator doesn't cover these). Marital status is
@@ -1123,15 +1103,6 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
 }
 
 // ── Landing ("Apply as") — iconic header + returning + how-it-works + the type cards ──────────────
-function SectionEyebrow({ n, label }: Readonly<{ n: string; label: string }>) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--ink-mute)]">{n} · {label}</span>
-      <span aria-hidden className="h-px flex-1 bg-[var(--rule)]" />
-    </div>
-  )
-}
-
 function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApplicants, company, setCompany, imDirector, setImDirector, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
   commercial: boolean; type: ApplicantType | null; onSelect: (t: ApplicantType) => void
   coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
@@ -1253,75 +1224,6 @@ function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApplicants
           <span className="inline-flex items-center gap-1.5">{resuming ? "Continue" : "Begin your application"} <ArrowRight className="size-4" /></span>
         </ActionButton>
       </div>
-    </div>
-  )
-}
-
-function StepHeading({ title, sub, subOnly }: Readonly<{ title: string; sub: string; subOnly?: boolean }>) {
-  // subOnly = the panel header already shows the title (step · section), so render just the info line.
-  if (subOnly) return <p className="text-sm text-[var(--ink-soft)]">{sub}</p>
-  return (
-    <div>
-      <h2 className="text-xl font-medium tracking-[-0.01em] text-[var(--ink)]">{title}</h2>
-      <p className="mt-1 text-sm text-[var(--ink-soft)]">{sub}</p>
-    </div>
-  )
-}
-
-// ── Company phase — business details + annual finances (runs before the personal flow) ────────────
-/** Company-phase sub-tabs (info · address · finances) — mirrors the main wizard's SubTabs; all three reachable. */
-function CompanySubTabs({ step, onJump }: Readonly<{ step: number; onJump: (s: number) => void }>) {
-  return (
-    <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 border-b border-[var(--rule)]">
-      {COMPANY_SUBTABS.map((label, s) => {
-        const cur = s === step
-        return (
-          <button key={label} type="button" disabled={cur} onClick={() => onJump(s)}
-            className={`relative pb-1.5 text-[12px] ${cur ? "font-medium text-[var(--ink)]" : "cursor-pointer text-[var(--ink-mute)] hover:text-[var(--ink)]"}`}>
-            {label}
-            {cur && <span aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 bg-[var(--amber)]" />}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function StepCompanyDetails({ company, setCompany, imDirector, companyStep }: Readonly<{ company: CompanyInfo; setCompany: (v: CompanyInfo) => void; imDirector: boolean; companyStep: number }>) {
-  const set = (patch: Partial<CompanyInfo>) => setCompany({ ...company, ...patch })
-  const addr: PartyAddressInput = company.address ?? { type: "physical" }
-  return (
-    <div className="flex flex-col gap-6">
-      {companyStep === 0 && (
-        <>
-          <StepHeading title="Company information" sub={imDirector ? "The business applying — you'll add your own director details next." : "The business applying — we'll then email the director to complete their part."} />
-          <FieldGrid>
-            <TextField label="Registered name" value={company.name ?? ""} onChange={(v) => set({ name: v })} required />
-            <TextField label="Trading name (if different)" value={company.trading ?? ""} onChange={(v) => set({ trading: v })} />
-            <SelectField label="Company type" value={company.companyType} onChange={(v) => set({ companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
-            <TextField label="CIPC reg. number" value={company.companyReg} onChange={(v) => set({ companyReg: v })} placeholder="e.g. 2019/123456/07" />
-            <TextField label="VAT number (if registered)" value={company.vat ?? ""} onChange={(v) => set({ vat: v })} />
-            <TextField label="Nature of business" value={company.nature ?? ""} onChange={(v) => set({ nature: v })} placeholder="e.g. IT consulting" />
-            <TextField label="Company email" type="email" value={company.companyEmail ?? ""} onChange={(v) => set({ companyEmail: v })} placeholder="info@company.co.za" />
-            <TextField label="Company phone" type="tel" value={company.companyPhone ?? ""} onChange={(v) => set({ companyPhone: v })} placeholder="021 000 0000" />
-          </FieldGrid>
-        </>
-      )}
-      {companyStep === 1 && (
-        <>
-          <StepHeading title="Business address" sub="The company's registered / trading address." />
-          <AddressFields address={addr} onUpdate={(p) => set({ address: { ...addr, ...p } })} />
-        </>
-      )}
-      {companyStep === 2 && (
-        <>
-          <StepHeading title="Annual finances" sub="From your latest AFS — you'll upload the statements at the documents step." />
-          <FieldGrid>
-            <TextField label="Annual turnover (R)" value={company.annualTurnover ?? ""} onChange={(v) => set({ annualTurnover: v })} placeholder="e.g. 2 400 000" />
-            <TextField label="Annual net profit (R)" value={company.annualProfit ?? ""} onChange={(v) => set({ annualProfit: v })} placeholder="e.g. 600 000" />
-          </FieldGrid>
-        </>
-      )}
     </div>
   )
 }
