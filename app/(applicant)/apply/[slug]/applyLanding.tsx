@@ -50,8 +50,10 @@ function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Reado
         <input type="email" placeholder="Email" autoComplete="off" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} className={CO_INPUT} />
         <input placeholder="ID number" value={form.idNumber ?? ""} onChange={(e) => set("idNumber", e.target.value)} className={CO_INPUT} />
         <span className="inline-flex min-w-[110px] flex-1 items-center gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] px-2 py-1.5 text-xs text-[var(--ink-soft)]">
-          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" /> You · Primary applicant
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" /> You · Applicant
         </span>
+        {/* Empty trailing gutter — matches the co-rows' delete column so all five columns line up. */}
+        <span aria-hidden className="w-5 shrink-0" />
       </div>
       {/* The other people — the Designation column sets each one's role. */}
       {coApplicants.map((c, i) => (
@@ -64,7 +66,9 @@ function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Reado
             <option value="co_applicant">Co-applicant</option>
             <option value="guarantor">Guarantor</option>
           </select>
-          <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="shrink-0 text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>
+          <span className="flex w-5 shrink-0 items-center justify-center">
+            {coApplicants.length > 1 && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>}
+          </span>
         </div>
       ))}
       <div className="flex items-center justify-between gap-2">
@@ -184,9 +188,13 @@ export function ApplyAsPane({ commercial, type, onSelect, form, set, coApplicant
                 {company.companyType && (
                   <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-medium text-[var(--ink)]">{companySinglePerson ? "Who's the owner?" : "Who's applying on the company's behalf?"}</p>
-                    <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--ink-soft)]">
-                      <input type="checkbox" checked={imDirector} onChange={(e) => setImDirector(e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
-                      It&apos;s me — I&apos;m the {companyRole}
+                    <label className="flex items-center gap-1.5 text-xs text-[var(--ink-soft)]">
+                      <span>I&apos;m</span>
+                      <select value={imDirector ? "party" : "on_behalf"} onChange={(e) => setImDirector(e.target.value === "party")}
+                        className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
+                        <option value="party">the {companyRole}</option>
+                        <option value="on_behalf">filling in on behalf</option>
+                      </select>
                     </label>
                   </div>
                 )}
