@@ -23,6 +23,9 @@ export interface CompanyInfo {
   // Business address — a structured 25A address (reuses the AddressFields brick); its own tab.
   address?: PartyAddressInput
   annualTurnover?: string; annualProfit?: string
+  // The filler's own relationship to the company (apply-as "You" row): director / shareholder / guarantor / other
+  // / owner, or on_behalf (an office manager not on the application). Drives imDirector; display/intent only.
+  fillerDesignation?: string
 }
 
 export const COMPANY_TYPE_OPTIONS = [

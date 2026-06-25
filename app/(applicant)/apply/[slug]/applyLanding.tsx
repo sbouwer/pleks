@@ -115,14 +115,23 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
             <input placeholder="Last name" value={form.lastName ?? ""} onChange={(e) => set("lastName", e.target.value)} className={CO_INPUT} />
             <input type="email" placeholder="Email" autoComplete="off" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} className={CO_INPUT} />
             <input placeholder="ID number" value={form.idNumber ?? ""} onChange={(e) => set("idNumber", e.target.value)} className={CO_INPUT} />
-            <select value={imDirector ? "party" : "on_behalf"} aria-label="Your role" className={CO_DESIGNATION}
+            <select value={company.fillerDesignation ?? (singlePerson ? "owner" : "director")} aria-label="Your role" className={CO_DESIGNATION}
               onChange={(e) => {
-                const party = e.target.value === "party"
+                const val = e.target.value
+                setCompany({ ...company, fillerDesignation: val })
+                const party = val !== "on_behalf"
                 setImDirector(party)
                 // On behalf → you're not a party, so the named {companyRole} must be captured; drop one in for them.
                 if (!party && coApplicants.length === 0) addCo()
               }}>
-              <option value="party">{singlePerson ? "the owner" : `the ${companyRole}`}</option>
+              {singlePerson
+                ? <option value="owner">the owner</option>
+                : <>
+                    <option value="director">Director</option>
+                    <option value="shareholder">Shareholder</option>
+                    <option value="guarantor">Guarantor / surety</option>
+                    <option value="other">Other</option>
+                  </>}
               <option value="on_behalf">On behalf</option>
             </select>
             <span aria-hidden className="w-5 shrink-0" />
