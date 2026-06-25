@@ -1,28 +1,23 @@
 "use client"
 
 /**
- * app/(applicant)/apply/[slug]/preview/StepPanel.tsx — the interactive apply wizard (client island)
+ * app/(applicant)/apply/[slug]/applyOrchestrator.tsx — the interactive apply wizard (client island; exports StepPanel)
  *
- * Auth:   public (token-gated prefix) — preview only
- * Notes:  A 4-card LANDING (application type) → a functional grouped wizard wired to the REAL backend
- *         (Personal details · Finances [Employment/Income/Expenses] · Documents [Required/Optional] · Review).
- *         Every type except "Just me" implies >1 party, so the co-applicant/company invite is captured UP
- *         FRONT (an InviteCapture panel right after the landing) and dispatched once the application exists.
- *           Landing — Just me · Couple/multiple · Company · On behalf/guarantor (each a short blurb).
- *           1 Personal details — the applicant (or, for a company, the contact/director) reuses the
- *             add-tenant capture (IndividualIdentity; SA-ID auto-fills DOB+gender).
- *           2 Address — mandatory current address.
- *           3 Finances — employment status + date employed + employer, then an "excel" sources-of-income grid
- *             (Employment gross + rental/maintenance/… + custom), each with a period (expenses to follow)
- *             (month/quarter/annual). The monthly total drives affordability → POST create (also persists
- *             the breakdown to applications.income_sources + employment_start_date; probation is inferred,
- *             and the held at-selection invites are dispatched here once the application id exists).
- *           4 Documents — upload to the application-docs bucket + AI detect (same as the live flow).
- *           5 Applicants — status roster of every party (primary + company + co-applicants), each invited
- *             with email + id_number (links them) → POST /api/applications/[id]/co-applicant; + add another.
- *             Submit unlocks only when every applicant is "green" (information complete).
- *           6 Submit — POPIA consent → POST submit → reveal the pre-screen "application preview".
- *         The server page renders the shell + left cards and passes slug/orgId/rent + agent contact.
+ * Route:  /apply/[slug] (the LIVE wizard — the old /preview redirects here)
+ * Auth:   public applicant flow, token-bound (resume token = app + org + not-submitted)
+ * Notes:  Owns the wizard state + flow sequencing; the view/nav/domain are decomposed out — panes in
+ *         applyIndividual/applyReview/applyCompany, the nav MODEL in applyNav (PERSONAL/SOLEPROP/PTY +
+ *         computeStepStates), the multi-applicant card roster in applyRoster, shared types/helpers in applyDomain,
+ *         the shell chrome in applyChrome. Flow-shape logic (resolveFlow/resolveNavNext/maritalErrors) sits at
+ *         module level to stay under the complexity gate.
+ *           Apply-as landing — Just me · Couple/multiple · On behalf/guarantor · Company (type-driven).
+ *           Flow — Personal · Finances (Employment/Income/Expenses) · Documents · Review; sole-prop prepends a
+ *             Business pane (offset 1); a juristic company runs the company entity panes then the director's flow.
+ *           Multi-applicant — each party signs off (verify email + consent), then a CARD ROSTER gates Review&Submit
+ *             on everyone being green (see project_pleks_apply_multiapplicant_roster).
+ *         Submit: POST /submit runs the zero-AI Step-1 free assessment (declared affordability + readiness; NO deep
+ *         scan/poll — that's the agent shortlist stage). The REAL submission is POST /submit-to-agent (sets
+ *         submitted_at, idempotent). The server page renders the shell + side cards and passes slug/orgId/rent.
  */
 
 import { useState, type ReactNode } from "react"
@@ -282,6 +277,14 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       if (!companyImDirector && !(coApplicants[0] && coComplete(coApplicants[0]))) {
         toast.error(`Add the ${companyRole}'s name, email and ID number.`); return
       }
+      // A company contracts through a signatory — at least one DIRECTOR (owner for a sole prop) must be on the
+      // application to sign. The filler counts unless they set a non-signing role (shareholder / guarantor / other).
+      const SIGNATORY_ROLES = ["director", "owner", "partner"]
+      const fillerSignatory = companyImDirector && (!company.fillerDesignation || SIGNATORY_ROLES.includes(company.fillerDesignation))
+      const coSignatory = coApplicants.some((c) => SIGNATORY_ROLES.includes(c.designation ?? "director"))
+      if (!fillerSignatory && !coSignatory) {
+        toast.error("A director is required to sign on the company's behalf — add a director, or set someone's designation to Director."); return
+      }
     }
     setBegun(true)
     setMaxReached((m) => Math.max(m, step))
@@ -370,7 +373,14 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
   async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
-    if (!form.email) { if (!opts?.silent) { toast.error("Add your email first so we can send you a link to finish later.") } return null }
+    // On-behalf company (an office-manager filler): the PRIMARY natural person is the NAMED director
+    // (coApplicants[0]), not the filler — so the office manager is never recorded as the tenant, and the resume
+    // link goes to the director. Every other path's primary is the filler's own form.
+    const onBehalfCompany = type === "company" && !companyImDirector && !!coApplicants[0]
+    const primary = onBehalfCompany
+      ? { first: coApplicants[0].firstName, last: coApplicants[0].lastName, email: coApplicants[0].email, phone: coApplicants[0].phone, id: coApplicants[0].idNumber }
+      : { first: form.firstName ?? "", last: form.lastName ?? "", email: form.email ?? "", phone: form.phone ?? "", id: form.idNumber ?? "" }
+    if (!primary.email) { if (!opts?.silent) { toast.error("Add your email first so we can send you a link to finish later.") } return null }
     const depA = intOrNull(dependentAdults)
     const depM = intOrNull(dependentMinors)
     const depTotal = (depA ?? 0) + (depM ?? 0)
@@ -383,8 +393,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug, applicationId, token, step: stepToSave, notify: !!opts?.explicit,
-          first_name: form.firstName, last_name: form.lastName, email: form.email, phone: form.phone,
-          id_type: form.idType || "sa_id", id_number: form.idNumber, date_of_birth: form.dob || "",
+          first_name: primary.first, last_name: primary.last, email: primary.email, phone: primary.phone,
+          id_type: form.idType || "sa_id", id_number: primary.id, date_of_birth: onBehalfCompany ? "" : (form.dob || ""),
           employment_type: emp.employment_type, employer_name: emp.employer, employment_start_date: emp.start_date || "",
           employment_details: {
             contract_end_date: emp.contract_end_date || null, job_title: emp.job_title || null,
@@ -470,9 +480,11 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // Send every complete-but-not-yet-invited co-applicant (id_number links them to the application). Called at
   // create (the at-selection invites) and again from the Applicants step (any added there).
   async function dispatchInvites(appId: string) {
-    // The primary applicant is YOU (the form) — never in coApplicants now — so every complete co-row is invited
-    // (co-applicants, guarantors, co-directors/signatories, or the named director when filling on behalf).
-    const pending = coApplicants.filter((c) => !c.invited && coComplete(c))
+    // The primary is the filler's form — EXCEPT on-behalf company, where coApplicants[0] (the named director) IS
+    // the primary (they get the resume link via the draft email), so don't also invite them as a co-applicant.
+    // Everyone else complete is invited (co-applicants, guarantors, other directors/signatories).
+    const skipPrimaryDirector = type === "company" && !companyImDirector
+    const pending = coApplicants.filter((c, i) => !(skipPrimaryDirector && i === 0) && !c.invited && coComplete(c))
     if (pending.length === 0) return
     for (const c of pending) {
       const res = await fetch(`/api/applications/${appId}/co-applicant`, {
