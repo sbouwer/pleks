@@ -11,7 +11,8 @@ import { useState } from "react"
 import { ArrowRight, Building2, CheckCircle2, HandCoins, LogIn, Plus, User, Users, X } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
-import { type ApplicantType, type CoApplicant, blankCo } from "./applyDomain"
+import type { PartyFormState } from "@/lib/parties/partyValidation"
+import { type ApplicantType, type CoApplicant, type CoRole, type SetFn, blankCo } from "./applyDomain"
 import { type CompanyInfo, COMPANY_TYPE_OPTIONS, isJuristicCompanyType } from "./applyCompany"
 
 /** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
@@ -26,6 +27,55 @@ function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon:
 
 // Compact bare input for the inline co-applicant rows on the landing (placeholders instead of labels → one line).
 const CO_INPUT = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none"
+// The 5th "Designation" column — a ghost-prefill cell (dashed, muted) that opens a dropdown of short role titles.
+const CO_DESIGNATION = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:border-solid focus:outline-none"
+
+/** Couple / guarantor inline party capture — 5-column rows (First · Last · Email · ID · Designation). Row 1 is YOU
+ *  (the filler / primary applicant, bound to `form`; you finish your full details next). The other rows are the
+ *  co-applicants / guarantors, whose Designation column sets the role — a co-applicant's income counts toward
+ *  affordability, a guarantor backstops it. Add appends a blank row (designation = the role). */
+function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Readonly<{
+  type: ApplicantType; form: PartyFormState; set: SetFn; coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
+}>) {
+  const updateCo = (i: number, patch: Partial<CoApplicant>) => setCoApplicants(coApplicants.map((c, j) => (j === i ? { ...c, ...patch } : c)))
+  const addCo = () => setCoApplicants([...coApplicants, blankCo(type === "guarantor" ? "guarantor" : "co_applicant")])
+  const removeCo = (i: number) => setCoApplicants(coApplicants.filter((_, j) => j !== i))
+  return (
+    <>
+      <p className="text-xs font-medium text-[var(--ink)]">Who&apos;s on the application?</p>
+      {/* Row 1 — YOU. The primary applicant; you'll finish your full details next. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input placeholder="First name" value={form.firstName ?? ""} onChange={(e) => set("firstName", e.target.value)} className={CO_INPUT} />
+        <input placeholder="Last name" value={form.lastName ?? ""} onChange={(e) => set("lastName", e.target.value)} className={CO_INPUT} />
+        <input type="email" placeholder="Email" autoComplete="off" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} className={CO_INPUT} />
+        <input placeholder="ID number" value={form.idNumber ?? ""} onChange={(e) => set("idNumber", e.target.value)} className={CO_INPUT} />
+        <span className="inline-flex min-w-[110px] flex-1 items-center gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] px-2 py-1.5 text-xs text-[var(--ink-soft)]">
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" /> You · Primary applicant
+        </span>
+      </div>
+      {/* The other people — the Designation column sets each one's role. */}
+      {coApplicants.map((c, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-1.5">
+          <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
+          <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
+          <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
+          <input placeholder="ID number" value={c.idNumber} onChange={(e) => updateCo(i, { idNumber: e.target.value })} className={CO_INPUT} />
+          <select value={c.role} onChange={(e) => updateCo(i, { role: e.target.value as CoRole })} className={CO_DESIGNATION} aria-label="Designation">
+            <option value="co_applicant">Co-applicant</option>
+            <option value="guarantor">Guarantor</option>
+          </select>
+          <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="shrink-0 text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>
+        </div>
+      ))}
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={addCo} className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
+          <Plus className="size-4" /> Add another person
+        </button>
+        <span className="text-[11px] text-[var(--ink-mute)]">Each person gets their own secure link to consent &amp; load documents.</span>
+      </div>
+    </>
+  )
+}
 
 // Numbered section divider for the landing's sub-sections (Returning · How are you applying). Landing-only.
 function SectionEyebrow({ n, label }: Readonly<{ n: string; label: string }>) {
@@ -37,8 +87,9 @@ function SectionEyebrow({ n, label }: Readonly<{ n: string; label: string }>) {
   )
 }
 
-export function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApplicants, company, setCompany, imDirector, setImDirector, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
+export function ApplyAsPane({ commercial, type, onSelect, form, set, coApplicants, setCoApplicants, company, setCompany, imDirector, setImDirector, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
   commercial: boolean; type: ApplicantType | null; onSelect: (t: ApplicantType) => void
+  form: PartyFormState; set: SetFn
   coApplicants: CoApplicant[]; setCoApplicants: (v: CoApplicant[]) => void
   company: CompanyInfo; setCompany: (v: CompanyInfo) => void
   imDirector: boolean; setImDirector: (v: boolean) => void
@@ -117,12 +168,12 @@ export function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApp
           })}
         </div>
 
-        {/* Inline capture — one grey block. Couple → co-applicants · guarantor → guarantors · company → the
-            business (type + reg) PLUS the director(s) signing on its behalf. Compact rows so it doesn't scroll. */}
-        {parties && (
+        {/* Inline capture — one grey block. Couple / guarantor → the people (5-column rows, PersonParties).
+            Company → the business (type) PLUS the director(s) signing on its behalf. */}
+        {parties && type && (
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
-            {type === "company" && (
-              <div className="flex flex-col gap-1">
+            {type === "company" ? (
+              <>
                 {/* The company TYPE is what we need up front — it determines the whole company flow (sole prop =
                     a personal application with a trading name; (Pty)/CC = CIPC reg + AFS; etc.). Reg number, AFS
                     and the rest are captured later, conditional on the type. */}
@@ -130,38 +181,39 @@ export function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApp
                   className="w-full rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
                   {COMPANY_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.value === "" ? "Company type…" : o.label}</option>)}
                 </select>
-              </div>
-            )}
-            {type === "company" && company.companyType && (
-              <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-medium text-[var(--ink)]">{companySinglePerson ? "Who's the owner?" : "Who's applying on the company's behalf?"}</p>
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--ink-soft)]">
-                  <input type="checkbox" checked={imDirector} onChange={(e) => setImDirector(e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
-                  It&apos;s me — I&apos;m the {companyRole}
-                </label>
-              </div>
-            )}
-            {/* The person input(s) drop down once a company type is chosen (for couple/guarantor they show straight away). */}
-            {(type !== "company" || company.companyType) && coApplicants.map((c, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-1.5">
-                <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
-                <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
-                <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
-                <input placeholder="ID number" value={c.idNumber} onChange={(e) => updateCo(i, { idNumber: e.target.value })} className={CO_INPUT} />
-                {coApplicants.length > 1 && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="shrink-0 text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>}
-              </div>
-            ))}
-            {(type !== "company" || company.companyType) && (
-              <div className="flex items-center justify-between gap-2">
-                {/* A sole proprietor is one person — no "add another"; partnerships + juristic cos can add more. */}
-                {!companySinglePerson ? (
-                  <button type="button" onClick={addCo}
-                    className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
-                    <Plus className="size-4" /> Add {addLabel}
-                  </button>
-                ) : <span />}
-                <span className="text-[11px] text-[var(--ink-mute)]">{partyNote}</span>
-              </div>
+                {company.companyType && (
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-[var(--ink)]">{companySinglePerson ? "Who's the owner?" : "Who's applying on the company's behalf?"}</p>
+                    <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--ink-soft)]">
+                      <input type="checkbox" checked={imDirector} onChange={(e) => setImDirector(e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
+                      It&apos;s me — I&apos;m the {companyRole}
+                    </label>
+                  </div>
+                )}
+                {company.companyType && coApplicants.map((c, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-1.5">
+                    <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
+                    <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
+                    <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
+                    <input placeholder="ID number" value={c.idNumber} onChange={(e) => updateCo(i, { idNumber: e.target.value })} className={CO_INPUT} />
+                    {coApplicants.length > 1 && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="shrink-0 text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>}
+                  </div>
+                ))}
+                {company.companyType && (
+                  <div className="flex items-center justify-between gap-2">
+                    {/* A sole proprietor is one person — no "add another"; partnerships + juristic cos can add more. */}
+                    {companySinglePerson ? <span /> : (
+                      <button type="button" onClick={addCo}
+                        className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
+                        <Plus className="size-4" /> Add {addLabel}
+                      </button>
+                    )}
+                    <span className="text-[11px] text-[var(--ink-mute)]">{partyNote}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <PersonParties type={type} form={form} set={set} coApplicants={coApplicants} setCoApplicants={setCoApplicants} />
             )}
           </div>
         )}

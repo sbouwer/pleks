@@ -730,7 +730,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {!begun && (
           <div className={scrollCls}>
             <ApplyAsPane
-              commercial={commercial} type={type} onSelect={selectType}
+              commercial={commercial} type={type} onSelect={selectType} form={form} set={set}
               coApplicants={coApplicants} setCoApplicants={setCoApplicants} company={company} setCompany={setCompany}
               imDirector={companyImDirector} setImDirector={setCompanyImDirector}
               loggedInEmail={verifiedEmail ?? null} onResend={resendResumeLink} onLogin={loginToPrefill}
