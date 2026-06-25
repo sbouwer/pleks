@@ -115,12 +115,14 @@ export function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApp
         {parties && (
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
             {type === "company" && (
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-col gap-1">
+                {/* The company TYPE is what we need up front — it determines the whole company flow (sole prop =
+                    a personal application with a trading name; (Pty)/CC = CIPC reg + AFS; etc.). Reg number, AFS
+                    and the rest are captured later, conditional on the type. */}
                 <select value={company.companyType} onChange={(e) => setCompany({ ...company, companyType: e.target.value })}
-                  className="min-w-[120px] flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
+                  className="w-full rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
                   {COMPANY_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.value === "" ? "Company type…" : o.label}</option>)}
                 </select>
-                <input placeholder="Registration number (if any)" value={company.companyReg} onChange={(e) => setCompany({ ...company, companyReg: e.target.value })} className={CO_INPUT} />
               </div>
             )}
             {type === "company" && (
