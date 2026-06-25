@@ -12,7 +12,7 @@ import { ArrowRight, Building2, CheckCircle2, HandCoins, LogIn, Plus, User, User
 import type { LucideIcon } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { type ApplicantType, type CoApplicant, blankCo } from "./applyDomain"
-import { type CompanyInfo, COMPANY_TYPE_OPTIONS } from "./applyCompany"
+import { type CompanyInfo, COMPANY_TYPE_OPTIONS, isJuristicCompanyType } from "./applyCompany"
 
 /** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
 function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon: LucideIcon; title: string; blurb: string }> {
@@ -51,12 +51,19 @@ export function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApp
   const updateCo = (i: number, patch: Partial<CoApplicant>) => setCoApplicants(coApplicants.map((c, j) => (j === i ? { ...c, ...patch } : c)))
   const addCo = () => setCoApplicants([...coApplicants, blankCo(type === "guarantor" ? "guarantor" : "co_applicant")])
   const removeCo = (i: number) => setCoApplicants(coApplicants.filter((_, j) => j !== i))
+  // Company person role depends on the type: juristic = director, partnership = partner, sole prop/other = owner.
+  const companyJuristic = isJuristicCompanyType(company.companyType)
+  let companyRole = "owner"
+  if (companyJuristic) companyRole = "director"
+  else if (company.companyType === "partnership") companyRole = "partner"
+  // A sole proprietor (or "other") is ONE person — no "add another"; partnerships + juristic cos can have several.
+  const companySinglePerson = type === "company" && !companyJuristic && company.companyType !== "partnership"
   let firstPartyLabel = commercial ? "a partner" : "a co-applicant"
   if (type === "guarantor") firstPartyLabel = commercial ? "a surety" : "a guarantor"
-  else if (type === "company") firstPartyLabel = "a director"
+  else if (type === "company") firstPartyLabel = `a ${companyRole}`
   const addLabel = coApplicants.length > 0 ? "another" : firstPartyLabel
   let partyNote = "Each person gets their own secure link to consent & load documents."
-  if (type === "company") partyNote = imDirector ? "You'll continue to your own details next — no invite needed." : "We'll email the director a secure link to complete the application."
+  if (type === "company") partyNote = imDirector ? "You'll continue to your own details next — no invite needed." : `We'll email the ${companyRole} a secure link to complete the application.`
 
   return (
     <div className="flex min-h-full flex-col gap-6">
@@ -125,16 +132,17 @@ export function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApp
                 </select>
               </div>
             )}
-            {type === "company" && (
+            {type === "company" && company.companyType && (
               <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-medium text-[var(--ink)]">Who&apos;s applying on the company&apos;s behalf?</p>
+                <p className="text-xs font-medium text-[var(--ink)]">{companySinglePerson ? "Who's the owner?" : "Who's applying on the company's behalf?"}</p>
                 <label className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--ink-soft)]">
                   <input type="checkbox" checked={imDirector} onChange={(e) => setImDirector(e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
-                  It&apos;s me — I&apos;ll complete it as the director
+                  It&apos;s me — I&apos;m the {companyRole}
                 </label>
               </div>
             )}
-            {coApplicants.map((c, i) => (
+            {/* The person input(s) drop down once a company type is chosen (for couple/guarantor they show straight away). */}
+            {(type !== "company" || company.companyType) && coApplicants.map((c, i) => (
               <div key={i} className="flex flex-wrap items-center gap-1.5">
                 <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
                 <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
@@ -143,13 +151,18 @@ export function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApp
                 {coApplicants.length > 1 && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="shrink-0 text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>}
               </div>
             ))}
-            <div className="flex items-center justify-between gap-2">
-              <button type="button" onClick={addCo}
-                className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
-                <Plus className="size-4" /> Add {addLabel}
-              </button>
-              <span className="text-[11px] text-[var(--ink-mute)]">{partyNote}</span>
-            </div>
+            {(type !== "company" || company.companyType) && (
+              <div className="flex items-center justify-between gap-2">
+                {/* A sole proprietor is one person — no "add another"; partnerships + juristic cos can add more. */}
+                {!companySinglePerson ? (
+                  <button type="button" onClick={addCo}
+                    className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
+                    <Plus className="size-4" /> Add {addLabel}
+                  </button>
+                ) : <span />}
+                <span className="text-[11px] text-[var(--ink-mute)]">{partyNote}</span>
+              </div>
+            )}
           </div>
         )}
       </section>
