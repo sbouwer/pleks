@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { freeAssessment, type FreeApplicantInput } from "@/lib/applications/freeAssessment"
+import { assembleAssessment, type AssessmentAppRow, type AssessmentCoRow } from "@/lib/applications/assembleAssessment"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
 import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -99,31 +99,18 @@ export async function POST(req: NextRequest, { params }: Props) {
     .eq("primary_application_id", id)
   logQueryError("submit co-applicants", coErr)
 
-  const applicants: FreeApplicantInput[] = [
-    {
-      role: "primary",
-      declaredIncomeCents: (app.gross_monthly_income_cents as number | null) ?? 0,
-      childMaintenanceCents,
-      declaredObligationsCents: (app.declared_monthly_obligations_cents as number | null) ?? null,
-      idType: app.id_type as string | null, idNumber: app.id_number as string | null,
-      declaredDob: (app.date_of_birth as string | null) ?? null,
-      employmentStartDate: (app.employment_start_date as string | null) ?? null,
-      contractEndDate: ((app.employment_details as Record<string, unknown> | null)?.contract_end_date as string | null) ?? null,
-      documentsUploaded: app.documents_submitted === true || !!app.bank_statement_path,
-      documents: primaryDocuments,
-      complete: true,
-    },
-    ...(coRows ?? []).map((c): FreeApplicantInput => ({
-      role: c.role === "guarantor" || c.is_surety_director === true ? "guarantor" : "co_applicant",
-      declaredIncomeCents: (c.gross_monthly_income_cents as number | null) ?? 0,
-      declaredObligationsCents: (c.declared_monthly_obligations_cents as number | null) ?? null,
-      idType: c.id_type as string | null, idNumber: c.id_number as string | null,
-      declaredDob: (c.date_of_birth as string | null) ?? null,
-      documentsUploaded: c.documents_submitted === true,
-      complete: c.stage1_consent_given === true,
-    })),
-  ]
-  const assessment = freeAssessment(rentCents, applicants, { depositCents, leaseTermMonths: (unit?.default_lease_period_months as number | null) ?? null })
+  // Build the FreeApplicantInput set + company options and run the assessment (DB shape → verdict). Extracted to
+  // assembleAssessment so the WIRING is unit-tested, not just the engine. Company net-profit (company_info) +
+  // directors'-surety backstop both reach the verdict here.
+  const assessment = assembleAssessment({
+    rentCents,
+    depositCents,
+    leaseTermMonths: (unit?.default_lease_period_months as number | null) ?? null,
+    app: app as AssessmentAppRow,
+    coRows: (coRows ?? []) as AssessmentCoRow[],
+    primaryDocuments,
+    childMaintenanceCents,
+  })
 
   const now = new Date().toISOString()
   // Store the free assessment + record Stage-1 consent. NO deep scan — it runs at shortlist (Step 2).
