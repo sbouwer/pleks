@@ -620,7 +620,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const emailGateSatisfied = emailVerified || (!!verifiedEmail && !!form.email && form.email.toLowerCase() === verifiedEmail.toLowerCase())
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
-  const scrollCls = "flex-1 py-3 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"
+  // -mr-5 pr-5: bleed the scroll body 20px into the panel's 40px side padding and pad the content back, so the
+  // vertical scrollbar lives in that gutter (between content and border) instead of squashing the wording.
+  const scrollCls = "flex-1 py-3 -mr-5 pr-5 [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0 [@media(min-width:1024px)_and_(min-height:700px)]:overflow-y-auto"
   // Two-level nav state: "Apply as" is the landing (type + parties + returning); the form panes (step 0–7) group
   // into Personal details / Finances / Documents / Application review via PANE_META. inWizard = past the landing.
   const inWizard = begun
