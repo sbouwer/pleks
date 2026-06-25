@@ -88,6 +88,13 @@ export interface PartyFormState {
   emergencyContactName?: string          // next-of-kin — lives on the global contact
   emergencyContactNumber?: string
   emergencyContactRelationship?: string  // e.g. Spouse, Parent
+  maritalStatus?: string                 // single | married | divorced | widowed
+  matrimonialRegime?: string             // in_community | out_anc | out_accrual (only when married)
+  // In-community spouse — must give written consent (s15 MPA). Captured here; consent flow dispatched at save.
+  spouseFirstName?: string
+  spouseLastName?: string
+  spouseIdNumber?: string
+  spouseEmail?: string
   // company
   companyName?: string
   companyReg?: string

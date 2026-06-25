@@ -57,6 +57,15 @@
   );
 }
 
+/* Dark theme: layers 1+2 above hardcode LIGHT oklch stops (0.96/0.94/0.93), which made the backdrop fade to
+   light in dark mode. Re-point them at the theme tokens so the backdrop is anthracite in dark, warm in light. */
+.pleks-public[data-theme="dark"] .fs-bd-gradient {
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-sunk) 100%);
+}
+.pleks-public[data-theme="dark"] .fs-bd-glow {
+  background: radial-gradient(ellipse 70% 50% at 50% 28%, var(--amber-wash) 0%, transparent 70%);
+}
+
 /* ── Content layer (above backdrop) ────────────────────────────────────── */
 .fs-content {
   position: relative; z-index: 1;

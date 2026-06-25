@@ -41,6 +41,20 @@ const GENDER_OPTIONS = [
   { value: "other", label: "Other" },
   { value: "prefer_not_to_say", label: "Prefer not to say" },
 ]
+const MARITAL_STATUS_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "single", label: "Single" },
+  { value: "life_partner", label: "Life partner (unmarried)" }, // applying together, not married → no regime/consent
+  { value: "married", label: "Married" },
+  { value: "divorced", label: "Divorced" },
+  { value: "widowed", label: "Widowed" },
+]
+const MATRIMONIAL_REGIME_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "in_community", label: "In community of property" },
+  { value: "out_anc", label: "Out of community (ANC)" },
+  { value: "out_accrual", label: "Out of community, with accrual" },
+]
 
 const GENDER_LABEL: Record<string, string> = { male: "Male", female: "Female", other: "Other", prefer_not_to_say: "Prefer not to say" }
 const CHANNEL_LABEL: Record<string, string> = { email: "Email", sms: "SMS", whatsapp: "WhatsApp", phone: "Phone call", post: "Post" }
@@ -85,12 +99,29 @@ export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber =
             <TextField label="Last name" k="lastName" f={f} set={set} errors={errors} required placeholder="Smith" />
             <TextField label="Middle name(s)" k="middleNames" f={f} set={set} errors={errors} placeholder="Optional" />
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4">
+          <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-3">
             <SelectField label="Title" k="title" f={f} set={set} options={TITLE_OPTIONS} />
             <TextField label="Initials" k="initials" f={f} set={set} errors={errors} placeholder="J.S." />
             <TextField label="Suffix" k="suffix" f={f} set={set} errors={errors} placeholder="Jr / Sr" />
-            <TextField label="Designation" k="designation" f={f} set={set} errors={errors} placeholder="Dr, CA(SA)" />
           </div>
+          <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-3">
+            <TextField label="Designation" k="designation" f={f} set={set} errors={errors} placeholder="Dr, CA(SA)" />
+            <SelectField label="Marital status" k="maritalStatus" f={f} set={set} options={MARITAL_STATUS_OPTIONS} required errors={errors} />
+            {/* Regime un-greys only once married — it's meaningless otherwise. */}
+            <SelectField label="Matrimonial regime" k="matrimonialRegime" f={f} set={set} options={MATRIMONIAL_REGIME_OPTIONS} disabled={f.maritalStatus !== "married"} required={f.maritalStatus === "married"} errors={errors} />
+          </div>
+          {f.maritalStatus === "married" && f.matrimonialRegime === "in_community" && (
+            <div className="mt-5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
+              <SectLabel n="01a">Spouse (in community of property)</SectLabel>
+              <p className="mb-3 text-xs leading-relaxed text-[var(--ink-soft)]">Married in community of property means the joint estate is bound, so your spouse must consent (s15, Matrimonial Property Act). We&apos;ll email them a secure link to confirm their identity and sign — you can finish, but the application can&apos;t be submitted until they do.</p>
+              <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+                <TextField label="Spouse first name" k="spouseFirstName" f={f} set={set} errors={errors} required placeholder="Jane" />
+                <TextField label="Spouse last name" k="spouseLastName" f={f} set={set} errors={errors} required placeholder="Smith" />
+                <TextField label="Spouse ID number" k="spouseIdNumber" f={f} set={set} errors={errors} required placeholder="ID number" />
+                <TextField label="Spouse email" k="spouseEmail" f={f} set={set} errors={errors} required type="email" placeholder="spouse@email.co.za" />
+              </div>
+            </div>
+          )}
         </section>
         <section>
           <SectLabel n="02">Identity</SectLabel>

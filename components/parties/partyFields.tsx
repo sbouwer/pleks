@@ -96,17 +96,19 @@ export function TextField({
 }
 
 export function SelectField({
-  label, k, f, set, options, span,
+  label, k, f, set, options, span, disabled, required, errors,
 }: Readonly<{
   label: string; k: keyof PartyFormState; f: PartyFormState; set: SetFn
-  options: ReadonlyArray<{ value: string; label: string }>; span?: boolean
+  options: ReadonlyArray<{ value: string; label: string }>; span?: boolean; disabled?: boolean
+  required?: boolean; errors?: PartyErrors
 }>) {
   return (
-    <Field label={label} span={span}>
+    <Field label={label} span={span} required={required} error={errors?.[k]}>
       <select
-        className={cn(inputCls(false), "appearance-none")}
+        className={cn(inputCls(!!errors?.[k]), "appearance-none", disabled && "cursor-not-allowed opacity-50")}
         value={(f[k] as string) || options[0].value}
         onChange={(e) => set(k, e.target.value)}
+        disabled={disabled}
       >
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>

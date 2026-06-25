@@ -589,6 +589,16 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
 
   function continueIdentity() {
     const e = validateIdentityCore("individual", form, true)
+    // Apply-only requirements (the shared validator doesn't know about these). Marital status is mandatory; an
+    // in-community marriage also needs the spouse's details (they must consent — s15 MPA).
+    if (!form.maritalStatus) e.maritalStatus = "Required"
+    if (form.maritalStatus === "married" && !form.matrimonialRegime) e.matrimonialRegime = "Required"
+    if (form.maritalStatus === "married" && form.matrimonialRegime === "in_community") {
+      if (!form.spouseFirstName) e.spouseFirstName = "Required"
+      if (!form.spouseLastName) e.spouseLastName = "Required"
+      if (!form.spouseIdNumber) e.spouseIdNumber = "Required"
+      if (!form.spouseEmail) e.spouseEmail = "Required"
+    }
     setErrors(e)
     if (Object.keys(e).length > 0) { toast.error("Please complete the highlighted fields."); return }
     advance(1)
