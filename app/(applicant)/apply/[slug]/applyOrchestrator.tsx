@@ -32,7 +32,7 @@ import { CheckCircle2, Users, ArrowLeft, ArrowRight, Clock } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { useBegun } from "./applyChrome"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
-import { type CompanyInfo, companySubtabsFor, isJuristicCompanyType, CompanySubTabs, StepCompanyDetails } from "./applyCompany"
+import { type CompanyInfo, isJuristicCompanyType, StepCompanyDetails } from "./applyCompany"
 import {
   type ApplicantType, type CoRole, type ScreeningStatus, type SetFn, type DocFile, type CoApplicant, type Emp, type IncomePeriod, type IncomeRow,
   STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW, LAST_DATA_STEP,
@@ -43,7 +43,7 @@ import {
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
 import { StepSubmit } from "./applyReview"
-import { PERSONAL_NAV, SOLEPROP_NAV, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
+import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_PANES, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
 import {
@@ -88,29 +88,36 @@ const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.tri
 /** Flow selection — which step machine + offset for the applicant/company type (module-level to keep the component
  *  under the complexity gate). Sole prop / partnership = the personal machine + a prepended business-info pane
  *  (offset 1); a juristic company runs the short company phase before the director's personal flow. */
-function resolveFlow(type: ApplicantType | null, companyType: string, begun: boolean, companyDone: boolean, step: number) {
-  const juristic = isJuristicCompanyType(companyType)
-  const soleProp = type === "company" && !juristic
-  const companyPhaseActive = begun && type === "company" && juristic && !companyDone
-  return { soleProp, companyPhaseActive, nav: soleProp ? SOLEPROP_NAV : PERSONAL_NAV, personalStep: soleProp ? step - 1 : step }
+function resolveFlow(type: ApplicantType | null, companyType: string, step: number) {
+  const company = type === "company"
+  const juristic = company && isJuristicCompanyType(companyType)
+  const soleProp = company && !juristic
+  // companyPaneCount = how many entity panes lead the rail before the personal panes: 0 (personal), 1 (sole prop —
+  // a single Business-information pane), PTY_COMPANY_PANES (juristic — the full Company details/finances/documents).
+  let nav = PERSONAL_NAV
+  let companyPaneCount = 0
+  if (soleProp) { nav = SOLEPROP_NAV; companyPaneCount = 1 }
+  else if (juristic) { nav = PTY_NAV; companyPaneCount = PTY_COMPANY_PANES }
+  return { soleProp, juristic, nav, companyPaneCount, personalStep: step - companyPaneCount }
 }
 
 type NavNext = { label: string; onClick: () => void; disabled?: boolean; primary?: boolean } | null
 /** The header forward-action for the current step — extracted from the component to keep it under the complexity
- *  gate. Works for personal AND the sole-prop machine via `personalStep` (= step, offset by the co-info pane). */
+ *  gate. Company entity panes dispatch by `activeKey`; the personal/director panes via `personalStep`. */
 function resolveNavNext(o: Readonly<{
-  inWizard: boolean; companyPhaseActive: boolean; companyStep: number; companySubtabsLen: number; companyImDirector: boolean; companyRole: string
-  soleProp: boolean; step: number; personalStep: number; docsReady: boolean; busy: boolean
-  setCompanyStep: (n: number) => void; completeCompanyPhase: () => void; continueCompanyInfo: () => void
+  inWizard: boolean; activeKey: string | undefined; companyImDirector: boolean; companyRole: string
+  personalStep: number; docsReady: boolean; busy: boolean
+  continueCompanyInfo: () => void; advanceStep: () => void; afterCompanyDocs: () => void; createApplication: () => void
   continueIdentity: () => void; continueAddress: () => void; continueEmployment: () => void; continueIncome: () => void
-  createApplication: () => void; continueDocsRequired: () => void; finishDocuments: () => void
+  continueDocsRequired: () => void; finishDocuments: () => void
 }>): NavNext {
   if (!o.inWizard) return null
-  if (o.companyPhaseActive) {
-    if (o.companyStep < o.companySubtabsLen - 1) return { label: "Next", onClick: () => o.setCompanyStep(o.companyStep + 1) }
-    return { label: o.companyImDirector ? "Continue to your details" : `Send to the ${o.companyRole}`, onClick: o.completeCompanyPhase, disabled: o.busy }
-  }
-  if (o.soleProp && o.step === 0) return { label: "Next", onClick: o.continueCompanyInfo } // the prepended business-info pane
+  // Company ENTITY panes (sole prop has only co-info; juristic has the full set).
+  if (o.activeKey === "co-info") return { label: "Next", onClick: o.continueCompanyInfo }
+  if (o.activeKey === "co-address") return { label: "Next", onClick: o.advanceStep }
+  if (o.activeKey === "co-finances") return { label: "Next", onClick: o.createApplication } // app created here so the company-docs pane can upload
+  if (o.activeKey === "co-docs") return { label: o.companyImDirector ? "Continue to the director" : `Send to the ${o.companyRole}`, onClick: o.afterCompanyDocs, disabled: o.busy }
+  // Personal / director panes (sole prop + the director's private flow reuse these).
   if (o.personalStep === 0) return { label: "Next", onClick: o.continueIdentity }
   if (o.personalStep === 1) return { label: "Next", onClick: o.continueAddress }
   if (o.personalStep === 2) return { label: "Next", onClick: o.continueEmployment }
@@ -213,10 +220,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // Company: is the person filling this in the director/signatory themselves? If so they complete the application
   // (their Apply-as details pre-fill the personal flow, no invite); if not, the director is invited to do it.
   const [companyImDirector, setCompanyImDirector] = useState(true)
-  // Sequential company flow: the company phase (details + finances) runs BEFORE the personal flow. companyDone
-  // flips once it's saved — then the director's personal flow takes over (or the invited director does it).
-  const [companyDone, setCompanyDone] = useState(!!resume) // a resumed draft is already past the company phase
-  const [companyStep, setCompanyStep] = useState(0) // sub-tab within the company phase: 0 info · 1 address · 2 finances
+  // Company flow runs in the main rail (entity panes → the director's private flow). For the OFFICE-MANAGER case
+  // (filler isn't the director), the company entity is completed then the director is emailed → "sent" screen.
   const [companySentToDirector, setCompanySentToDirector] = useState(false)
   // The person standing for the company is a director (juristic), a partner (partnership), or the owner (sole prop) —
   // used in all the company copy/toasts so we never call a sole proprietor a "director".
@@ -278,42 +283,24 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   }
 
   function goBack() {
-    // The JURISTIC company phase has its own sub-tab back; sole prop is a normal step machine (co-info at step 0).
-    if (type === "company" && isJuristicCompanyType(company.companyType) && !companyDone) {
-      if (companyStep > 0) { setCompanyStep(companyStep - 1); return } // step back through the company sub-tabs
-      setBegun(false); return // first company tab → back to "Apply as"
-    }
-    if (step === 0) setBegun(false) // back from the first form pane → the "Apply as" landing (type preserved)
+    if (step === 0) setBegun(false) // back from the first pane (personal info / company info) → the landing
     else navTo(step - 1)
   }
 
-  // End of the company phase. "It's me" → drop into the personal flow (identity pre-filled at begin). Otherwise
-  // save the company + email the director their link, and show a "sent" state (they complete the rest).
-  function completeCompanyPhase() {
-    // Identity lives on the first sub-tab — bounce there if it's incomplete. Validate by type: juristic needs a
-    // registered name + registration number; unincorporated (sole prop / partnership) just needs a trading name.
-    if (!company.companyType) { setCompanyStep(0); toast.error("Select the company type."); return }
-    if (isJuristicCompanyType(company.companyType)) {
-      if (!company.name?.trim()) { setCompanyStep(0); toast.error("Add the company's registered name."); return }
-      if (!company.companyReg?.trim()) { setCompanyStep(0); toast.error("Add the registration number."); return }
-    } else if (!company.trading?.trim()) { setCompanyStep(0); toast.error("Add the trading name."); return }
-    if (companyImDirector) {
-      setCompanyDone(true)
-      advance(0)
-      autosave(0)
-      return
-    }
-    void (async () => {
-      setBusy(true)
-      try {
-        const r = await saveDraft(STEP_DOCUMENTS, { explicit: true })
-        if (!r) return
-        await dispatchInvites(r.id)
-        setCompanySentToDirector(true)
-        toast.success(`Sent to the ${companyRole} to complete the application.`)
-      } finally { setBusy(false) }
-    })()
+  // After the JURISTIC company entity panes, an OFFICE-MANAGER filler (not the director) hands off: save + email the
+  // director their link + show the "sent" state. (The "it's me" director instead continues to the private flow.)
+  async function sendToDirector() {
+    setBusy(true)
+    try {
+      const r = await saveDraft(step + 1, { explicit: true })
+      if (!r) return
+      await dispatchInvites(r.id)
+      setCompanySentToDirector(true)
+      toast.success(`Sent to the ${companyRole} to complete the application.`)
+    } finally { setBusy(false) }
   }
+  // Leaving the company-documents pane: the director-filler continues to their private flow; the office-manager hands off.
+  function afterCompanyDocs() { if (companyImDirector) { advance(step + 1); autosave(step + 1) } else void sendToDirector() }
 
   // Returning applicant on the landing: re-email their resume link. Anti-enumeration — the endpoint always
   // answers ok and only sends when a matching draft exists, so the toast is deliberately non-committal.
@@ -363,10 +350,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     autosave(step + 1)
   }
 
-  // Sole-prop / unincorporated business-info pane (step 0 of that flow) — only the trading name is required;
-  // the owner's identity + income come in the following personal steps.
+  // Company-information pane (step 0 of every company flow). Juristic needs a registered name + registration number;
+  // unincorporated (sole prop / partnership) just needs a trading name (the person's details come in later steps).
   function continueCompanyInfo() {
-    if (!company.trading?.trim()) { toast.error("Add your trading name."); return }
+    if (isJuristicCompanyType(company.companyType)) {
+      if (!company.name?.trim()) { toast.error("Add the company's registered name."); return }
+      if (!company.companyReg?.trim()) { toast.error("Add the registration number."); return }
+    } else if (!company.trading?.trim()) { toast.error("Add your trading name."); return }
     advance(step + 1)
     autosave(step + 1)
   }
@@ -448,9 +438,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   }
 
   async function createApplication() {
-    // Employment status only — a R0 primary (student/dependent) applies with a guarantor whose income is
-    // captured separately, so don't force an income figure here.
-    if (!emp.employment_type) { toast.error("Please select an employment status."); return }
+    // Employment status only — a R0 primary (student/dependent) applies with a guarantor whose income is captured
+    // separately, so don't force an income figure here. JURISTIC company creates from the company entity (leaving
+    // Company finances, before the director's employment is captured) so the employment gate doesn't apply there.
+    if (type !== "company" && !emp.employment_type) { toast.error("Please select an employment status."); return }
     setBusy(true)
     try {
       // On the FIRST create, email the resume link + toast — so the way-back is discoverable proactively, not
@@ -606,10 +597,12 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     }
   }
 
-  // Sole prop / partnership isn't a juristic entity → personal/self-employed docs (not the company CIPC/AFS set).
-  const { soleProp, companyPhaseActive, nav, personalStep } = resolveFlow(type, company.companyType, begun, companyDone, step)
-  const docApplicantType = soleProp ? "individual" : type
+  const { nav, personalStep } = resolveFlow(type, company.companyType, step)
+  // The PERSON's docs (owner/director) are always personal/self-employed (not the company set). The juristic company
+  // has a SEPARATE company-docs pane (CIPC/AFS/bank) — companyDocCategories.
+  const docApplicantType = type === "company" ? "individual" : type
   const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type, form.idType, docApplicantType)
+  const companyDocCategories = deriveDocCategories(new Set<string>(), "", form.idType, "company")
   // A required doc is satisfied when uploaded, OR — if it offers an escape ("I don't have a payslip") — when the
   // applicant takes that escape. ID + bank statements have no escape, so they're the true hard uploads.
   const docsReady = docCategories.filter((c) => c.required).every((c) => (docFiles[c.key] ?? []).some((f) => f.uploaded) || (!!c.escapeLabel && !!docEscape[c.key]))
@@ -626,25 +619,22 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // Two-level nav state: "Apply as" is the landing (type + parties + returning); the form panes (step 0–7) group
   // into Personal details / Finances / Documents / Application review via PANE_META. inWizard = past the landing.
   const inWizard = begun
-  // soleProp / companyPhaseActive / nav / personalStep come from resolveFlow (computed above, near docCategories).
-  const companySubtabs = companySubtabsFor(company.companyType) // juristic company phase sub-tabs
+  // soleProp / juristic / nav / companyPaneCount / personalStep come from resolveFlow (above, near docCategories).
+  const activeKey = inWizard ? nav.paneMeta[step]?.key : undefined // the active pane's key drives render + next dispatch
   const activeGroup = inWizard ? nav.paneMeta[step].group : "Apply as"
-  // The panel header reads "Group · sub" in the wizard, "Company · …" during the company phase, and
-  // "Apply to · {unit}" on the landing. activeGroup still drives the rail's "Apply as" step name.
-  let headerTitle = inWizard ? activeGroup : "Apply to"
-  let headerSub = inWizard ? nav.paneMeta[step].sub : (listingTitle ?? "this home")
-  if (companyPhaseActive) { headerTitle = "Company"; headerSub = companySubtabs[companyStep] }
+  // The panel header reads "Group · sub" in the wizard and "Apply to · {unit}" on the landing.
+  const headerTitle = inWizard ? activeGroup : "Apply to"
+  const headerSub = inWizard ? nav.paneMeta[step].sub : (listingTitle ?? "this home")
   const applyAsDesc = type ? `${TYPE_LABEL[type]} · ${leaseType}` : "Choose how you apply"
   const navStates = computeStepStates(nav, { activeGroup, step, maxReached, inWizard, typePicked: type !== null, hasApplication: !!applicationId, applyAsDesc })
   const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t) }
-  // The current step's forward action — rendered in the panel header (intermediate = "Next →"; the final
-  // review/submit uses the primary style). Resolved by a module helper to keep this component under the complexity
-  // gate. Review has NO header action (its buttons live in the page body) → resolveNavNext returns null there.
+  const advanceStep = () => { advance(step + 1); autosave(step + 1) } // plain "Next" for panes with no validation (co-address)
+  // The current step's forward action (header "Next →"). Resolved by a module helper to keep this component under
+  // the complexity gate. Review has NO header action (its buttons live in the page body) → returns null there.
   const navNext = resolveNavNext({
-    inWizard, companyPhaseActive, companyStep, companySubtabsLen: companySubtabs.length, companyImDirector, companyRole,
-    soleProp, step, personalStep, docsReady, busy,
-    setCompanyStep, completeCompanyPhase, continueCompanyInfo, continueIdentity, continueAddress, continueEmployment,
-    continueIncome, createApplication, continueDocsRequired, finishDocuments,
+    inWizard, activeKey, companyImDirector, companyRole, personalStep, docsReady, busy,
+    continueCompanyInfo, advanceStep, afterCompanyDocs, createApplication,
+    continueIdentity, continueAddress, continueEmployment, continueIncome, continueDocsRequired, finishDocuments,
   })
   const showBackBtn = inWizard
   const showSaveBtn = inWizard && !!form.email && personalStep <= LAST_DATA_STEP && screeningStatus === "idle"
@@ -652,7 +642,11 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // gate. Works for personal AND the sole-prop machine (co-info at step 0, then the personal panes via personalStep).
   function renderFormPane() {
     if (!type) return null // narrows ApplicantType for the panes below (only ever rendered when type is set)
-    if (soleProp && step === 0) return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={0} />
+    // Company ENTITY panes (sole prop has only co-info; juristic has info · address · finances · documents).
+    if (activeKey === "co-info") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={0} />
+    if (activeKey === "co-address") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={1} />
+    if (activeKey === "co-finances") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={2} />
+    if (activeKey === "co-docs") return <StepDocuments tab="required" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
     if (personalStep === 0) return <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} coApplicants={coApplicants} />
     if (personalStep === 1) return <StepAddress form={form} set={set} errors={errors} />
     if (personalStep === 2) return <StepEmployment emp={emp} setEmp={setEmp} />
@@ -697,7 +691,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {/* Mobile/short: horizontal step bar + sub-tabs (on desktop the rail handles both) */}
         <div className="[@media(min-width:1024px)_and_(min-height:700px)]:hidden">
           <StepBar states={navStates} onNav={onNav} />
-          {inWizard && !companyPhaseActive && <SubTabs model={nav} activeGroup={activeGroup} step={step} maxReached={maxReached} onJumpStep={navTo} />}
+          {inWizard && <SubTabs model={nav} activeGroup={activeGroup} step={step} maxReached={maxReached} onJumpStep={navTo} />}
         </div>
 
         {/* Panel header — mirrors the rail's "Your application" header (amber tick + step · section) so the rule
@@ -745,15 +739,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           </div>
         )}
 
-        {/* Company phase — a short tabbed sub-flow (info · address · finances) before the personal flow. */}
-        {companyPhaseActive && (
-          <div className={scrollCls}>
-            <CompanySubTabs subtabs={companySubtabs} step={companyStep} onJump={setCompanyStep} />
-            <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={companyStep} />
-          </div>
-        )}
-
-        {/* "Sent to director" — the filler isn't the director, so they hand off and there's nothing more to do. */}
+        {/* "Sent to director" — an office-manager filler handed the company off; nothing more for them to do. */}
         {companySentToDirector && (
           <div className={scrollCls}>
             <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
@@ -763,7 +749,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           </div>
         )}
 
-        {begun && type !== null && !companyPhaseActive && !companySentToDirector && (
+        {begun && type !== null && !companySentToDirector && (
           <>
             <div className={scrollCls}>{renderFormPane()}</div>
           </>

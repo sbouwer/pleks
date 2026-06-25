@@ -65,6 +65,36 @@ const SOLEPROP_DESC: Record<string, string> = {
 }
 export const SOLEPROP_NAV = buildNav(["Apply as", "Business details", "Finances", "Documents", "Application review"], SOLEPROP_PANES, SOLEPROP_DESC)
 
+// ── JURISTIC company flow (Pty / CC / NPC / Trust) ───────────────────────────────────────────────
+// The COMPANY entity rail (Company details · Company finances · Company documents — the private rail reworked for
+// the entity) THEN the DIRECTOR's private rail (the personal panes, reused verbatim) THEN review. The first 4 panes
+// (PTY_COMPANY_PANES) are the entity; from index 4 the orchestrator renders the personal panes at (step - 4).
+export const PTY_COMPANY_PANES = 4
+const PTY_PANES: PaneMeta = [
+  { group: "Company details",    sub: "Company information", key: "co-info" },     // 0
+  { group: "Company details",    sub: "Business address",   key: "co-address" },  // 1
+  { group: "Company finances",   sub: "Annual finances",    key: "co-finances" }, // 2
+  { group: "Company documents",  sub: "Required",           key: "co-docs" },     // 3
+  { group: "Personal details",   sub: "Personal information", key: "personal" },  // 4  (director — private rail)
+  { group: "Personal details",   sub: "Address",            key: "address" },     // 5
+  { group: "Finances",           sub: "Employment",         key: "employment" },  // 6
+  { group: "Finances",           sub: "Income",             key: "income" },      // 7
+  { group: "Finances",           sub: "Expenses",           key: "expenses" },    // 8
+  { group: "Documents",          sub: "Required",           key: "docs-req" },    // 9
+  { group: "Documents",          sub: "Optional",           key: "docs-opt" },    // 10
+  { group: "Application review", sub: "Check & submit",     key: "review" },      // 11
+]
+const PTY_DESC: Record<string, string> = {
+  "Company details": "The registered entity",
+  "Company finances": "AFS — net profit",
+  "Company documents": "CIPC, AFS, bank",
+  "Personal details": "The director's identity",
+  Finances: "The director's income (surety)",
+  Documents: "Director ID & proof",
+  "Application review": "Check & submit",
+}
+export const PTY_NAV = buildNav(["Apply as", "Company details", "Company finances", "Company documents", "Personal details", "Finances", "Documents", "Application review"], PTY_PANES, PTY_DESC)
+
 function tabClass(done: boolean, cur: boolean): string {
   // NB: don't use `.stoep` here — it sets padding-bottom:4px which overrides the button's pb-2.5 and drops the
   // active label below the others. The active underline is drawn as an absolute element instead (consistent pad).
