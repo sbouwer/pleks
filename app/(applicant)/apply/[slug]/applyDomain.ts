@@ -11,6 +11,13 @@ export type ApplicantType = "individual" | "couple" | "company" | "guarantor"
 export type CoRole = "co_applicant" | "guarantor"
 export type ScreeningStatus = "idle" | "done"
 
+// Step indices into the wizard pane sequence — shared by the orchestrator's nav and the review step's amend links.
+export const STEP_EXPENSES = 4
+export const STEP_DOCUMENTS = 5        // Documents · Required (entry — createApplication lands here)
+export const STEP_DOCS_OPTIONAL = 6    // Documents · Optional
+export const STEP_REVIEW = 7
+export const LAST_DATA_STEP = STEP_DOCS_OPTIONAL // panes 0–6 are data entry (get the panel header); 7 is the review
+
 export type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[] | PartyBankAccountInput[]) => void
 
 export interface DocFile { id: string; name: string; uploading: boolean; uploaded: boolean; storagePath: string | null; detection?: string | null; error?: string | null }
