@@ -91,6 +91,9 @@ export interface PartyFormState {
   maritalStatus?: string                 // single | married | divorced | widowed
   matrimonialRegime?: string             // in_community | out_anc | out_accrual (only when married)
   // In-community spouse — must give written consent (s15 MPA). Captured here; consent flow dispatched at save.
+  // If the spouse is already a co-applicant (couple flow), spouseIsCoApplicant=true and spouseEmail points at them
+  // — no re-capture, no separate consent (they consent via their own application). Else the external fields apply.
+  spouseIsCoApplicant?: boolean
   spouseFirstName?: string
   spouseLastName?: string
   spouseIdNumber?: string

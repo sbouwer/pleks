@@ -96,8 +96,10 @@ async function loadResume(
       maritalStatus: (app.marital_status as string | null) ?? undefined,
       matrimonialRegime: (app.matrimonial_regime as string | null) ?? undefined,
       ...((): Partial<PartyFormState> => {
-        const s = app.spouse_info as { firstName?: string; lastName?: string; idNumber?: string; email?: string } | null
-        return s ? { spouseFirstName: s.firstName, spouseLastName: s.lastName, spouseIdNumber: s.idNumber, spouseEmail: s.email } : {}
+        const s = app.spouse_info as { isCoApplicant?: boolean; firstName?: string; lastName?: string; idNumber?: string; email?: string } | null
+        if (!s) return {}
+        if (s.isCoApplicant) return { spouseIsCoApplicant: true, spouseEmail: s.email }
+        return { spouseIsCoApplicant: false, spouseFirstName: s.firstName, spouseLastName: s.lastName, spouseIdNumber: s.idNumber, spouseEmail: s.email }
       })(),
     },
     emp: {

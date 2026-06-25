@@ -278,6 +278,28 @@ const COMPANY_TYPE_OPTIONS = [
   { value: "other", label: "Other" },
 ]
 const blankCo = (role: CoRole): CoApplicant => ({ firstName: "", lastName: "", email: "", phone: "", idNumber: "", role, invited: false })
+
+/** Apply-only marital/spouse validation (the shared identity validator doesn't cover these). Marital status is
+ *  mandatory; married → regime mandatory; married + in community → the spouse must consent (s15 MPA) — either an
+ *  existing co-applicant (just pick which, if several) or an external spouse whose details we capture. */
+function maritalErrors(form: PartyFormState, coApplicants: CoApplicant[]): PartyErrors {
+  const e: PartyErrors = {}
+  if (!form.maritalStatus) e.maritalStatus = "Required"
+  if (form.maritalStatus === "married" && !form.matrimonialRegime) e.matrimonialRegime = "Required"
+  if (form.maritalStatus === "married" && form.matrimonialRegime === "in_community") {
+    const candidates = coApplicants.filter((c) => c.role === "co_applicant")
+    const spouseIsCo = candidates.length > 0 && (form.spouseIsCoApplicant ?? true)
+    if (spouseIsCo) {
+      if (candidates.length > 1 && !form.spouseEmail) e.spouseEmail = "Select your spouse"
+    } else {
+      if (!form.spouseFirstName) e.spouseFirstName = "Required"
+      if (!form.spouseLastName) e.spouseLastName = "Required"
+      if (!form.spouseIdNumber) e.spouseIdNumber = "Required"
+      if (!form.spouseEmail) e.spouseEmail = "Required"
+    }
+  }
+  return e
+}
 /** "Green" = enough to invite AND link them to the application: a name, an email, and an ID number. */
 const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.trim() && c.idNumber.trim())
 
@@ -588,17 +610,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   function loginToPrefill() { globalThis.location.href = `/login?redirect=${encodeURIComponent(`/apply/${slug}`)}` }
 
   function continueIdentity() {
-    const e = validateIdentityCore("individual", form, true)
-    // Apply-only requirements (the shared validator doesn't know about these). Marital status is mandatory; an
-    // in-community marriage also needs the spouse's details (they must consent — s15 MPA).
-    if (!form.maritalStatus) e.maritalStatus = "Required"
-    if (form.maritalStatus === "married" && !form.matrimonialRegime) e.matrimonialRegime = "Required"
-    if (form.maritalStatus === "married" && form.matrimonialRegime === "in_community") {
-      if (!form.spouseFirstName) e.spouseFirstName = "Required"
-      if (!form.spouseLastName) e.spouseLastName = "Required"
-      if (!form.spouseIdNumber) e.spouseIdNumber = "Required"
-      if (!form.spouseEmail) e.spouseEmail = "Required"
-    }
+    // Apply-only marital/spouse requirements live in maritalErrors (the shared validator doesn't know about them).
+    const e = { ...validateIdentityCore("individual", form, true), ...maritalErrors(form, coApplicants) }
     setErrors(e)
     if (Object.keys(e).length > 0) { toast.error("Please complete the highlighted fields."); return }
     advance(1)
@@ -672,9 +685,14 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           company_info: type === "company" ? company : null,
           marital_status: form.maritalStatus || null,
           matrimonial_regime: form.matrimonialRegime || null,
-          spouse_info: form.maritalStatus === "married" && form.matrimonialRegime === "in_community"
-            ? { firstName: form.spouseFirstName ?? "", lastName: form.spouseLastName ?? "", idNumber: form.spouseIdNumber ?? "", email: form.spouseEmail ?? "" }
-            : null,
+          spouse_info: ((): Record<string, unknown> | null => {
+            if (form.maritalStatus !== "married" || form.matrimonialRegime !== "in_community") return null
+            const candidates = coApplicants.filter((c) => c.role === "co_applicant")
+            const spouseIsCo = candidates.length > 0 && (form.spouseIsCoApplicant ?? true)
+            // Spouse already applying → store the link (their own flow carries identity + consent); else the externals.
+            if (spouseIsCo) return { isCoApplicant: true, email: candidates.length === 1 ? candidates[0].email : (form.spouseEmail ?? "") }
+            return { firstName: form.spouseFirstName ?? "", lastName: form.spouseLastName ?? "", idNumber: form.spouseIdNumber ?? "", email: form.spouseEmail ?? "" }
+          })(),
         }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
@@ -1008,7 +1026,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {begun && type !== null && !companyPhaseActive && !companySentToDirector && (
           <>
             <div className={scrollCls}>
-              {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} />}
+              {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} coApplicants={coApplicants} />}
               {step === 1 && <StepAddress form={form} set={set} errors={errors} />}
               {step === 2 && <StepEmployment emp={emp} setEmp={setEmp} />}
               {step === 3 && <StepIncome income={income} setIncome={setIncome} variable={SELF_EMPLOYED_TYPES.includes(emp.employment_type) || emp.employment_type === "commission"} />}
@@ -1274,7 +1292,9 @@ function StepCompanyDetails({ company, setCompany, imDirector }: Readonly<{ comp
 }
 
 // ── Step 1 — Personal details ────────────────────────────────────────────────────
-function StepPersonal({ type, commercial, form, set, errors }: Readonly<{ type: ApplicantType; commercial: boolean; form: PartyFormState; set: SetFn; errors: PartyErrors }>) {
+function StepPersonal({ type, commercial, form, set, errors, coApplicants }: Readonly<{ type: ApplicantType; commercial: boolean; form: PartyFormState; set: SetFn; errors: PartyErrors; coApplicants: CoApplicant[] }>) {
+  // Spouse candidates for the "my spouse is applying with me" shortcut — co-applicants only (not guarantors).
+  const spouseCandidates = coApplicants.filter((c) => c.role === "co_applicant").map((c) => ({ firstName: c.firstName, lastName: c.lastName, email: c.email }))
   let sub: string
   if (type === "company") sub = "Your own details as the contact for the company (a director/signatory). SA ID auto-fills date of birth and gender."
   else if (type === "guarantor") sub = commercial ? "First, the party who'll occupy the premises. You'll add the surety next." : "First, the person who'll live here (the tenant). You'll add the guarantor next."
@@ -1282,7 +1302,7 @@ function StepPersonal({ type, commercial, form, set, errors }: Readonly<{ type: 
   return (
     <div className="flex flex-col gap-9">
       <p className="text-sm text-[var(--ink-soft)]">{sub}</p>
-      <IndividualIdentity f={form} set={set} errors={errors} fullFica sectioned />
+      <IndividualIdentity f={form} set={set} errors={errors} fullFica sectioned coApplicants={spouseCandidates} />
     </div>
   )
 }

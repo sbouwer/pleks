@@ -73,7 +73,7 @@ function entityBlurb(entity: PartyEntity, fullFica: boolean): string {
 // ── Step 1 — Identity ─────────────────────────────────────────────────────────
 type IdentityBodyProps = Readonly<{ f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean }>
 
-export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber = "01", sectioned = false }: IdentityBodyProps & { stepNumber?: string; sectioned?: boolean }) {
+export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber = "01", sectioned = false, coApplicants = [] }: IdentityBodyProps & { stepNumber?: string; sectioned?: boolean; coApplicants?: ReadonlyArray<{ firstName?: string; lastName?: string; email?: string }> }) {
   // Auto-fill DOB + gender from a valid SA ID — only when empty, so a manual choice (e.g. unlabelled gender) sticks.
   useEffect(() => {
     const v = validateSAId(f.idNumber)
@@ -110,18 +110,45 @@ export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber =
             {/* Regime un-greys only once married — it's meaningless otherwise. */}
             <SelectField label="Matrimonial regime" k="matrimonialRegime" f={f} set={set} options={MATRIMONIAL_REGIME_OPTIONS} disabled={f.maritalStatus !== "married"} required={f.maritalStatus === "married"} errors={errors} />
           </div>
-          {f.maritalStatus === "married" && f.matrimonialRegime === "in_community" && (
-            <div className="mt-5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
-              <SectLabel n="01a">Spouse (in community of property)</SectLabel>
-              <p className="mb-3 text-xs leading-relaxed text-[var(--ink-soft)]">Married in community of property means the joint estate is bound, so your spouse must consent (s15, Matrimonial Property Act). We&apos;ll email them a secure link to confirm their identity and sign — you can finish, but the application can&apos;t be submitted until they do.</p>
-              <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-                <TextField label="Spouse first name" k="spouseFirstName" f={f} set={set} errors={errors} required placeholder="Jane" />
-                <TextField label="Spouse last name" k="spouseLastName" f={f} set={set} errors={errors} required placeholder="Smith" />
-                <TextField label="Spouse ID number" k="spouseIdNumber" f={f} set={set} errors={errors} required placeholder="ID number" />
-                <TextField label="Spouse email" k="spouseEmail" f={f} set={set} errors={errors} required type="email" placeholder="spouse@email.co.za" />
+          {f.maritalStatus === "married" && f.matrimonialRegime === "in_community" && (() => {
+            const hasCoApplicants = coApplicants.length > 0
+            // Default to "spouse is applying with me" when there ARE co-applicants — a married-in-community couple
+            // applying together is the common case, so don't re-ask for the partner you already added.
+            const spouseIsCo = hasCoApplicants && (f.spouseIsCoApplicant ?? true)
+            return (
+              <div className="mt-5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
+                <SectLabel n="01a">Spouse consent (in community of property)</SectLabel>
+                <p className="mb-3 text-xs leading-relaxed text-[var(--ink-soft)]">Married in community of property means the joint estate is bound, so your spouse must consent (s15, Matrimonial Property Act).</p>
+                {hasCoApplicants && (
+                  <label className="mb-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-[var(--ink-soft)]">
+                    <input type="checkbox" checked={spouseIsCo} onChange={(e) => set("spouseIsCoApplicant", e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
+                    My spouse is {coApplicants.length === 1 ? `${coApplicants[0].firstName ?? ""} ${coApplicants[0].lastName ?? ""}`.trim() || "the person" : "one of the people"} applying with me
+                  </label>
+                )}
+                {spouseIsCo ? (
+                  <>
+                    {coApplicants.length > 1 && (
+                      <div className="mb-3 sm:max-w-xs">
+                        <SelectField label="Which applicant is your spouse?" k="spouseEmail" f={f} set={set} required errors={errors}
+                          options={[{ value: "", label: "Select…" }, ...coApplicants.map((c) => ({ value: c.email ?? "", label: `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || (c.email ?? "") }))]} />
+                      </div>
+                    )}
+                    <p className="text-xs leading-relaxed text-[var(--ink-soft)]">No extra step — they consent and verify their identity as part of their own application.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-3 text-xs leading-relaxed text-[var(--ink-soft)]">We&apos;ll email them a secure link to confirm their identity and sign — you can finish, but the application can&apos;t be submitted until they do.</p>
+                    <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <TextField label="Spouse first name" k="spouseFirstName" f={f} set={set} errors={errors} required placeholder="Jane" />
+                      <TextField label="Spouse last name" k="spouseLastName" f={f} set={set} errors={errors} required placeholder="Smith" />
+                      <TextField label="Spouse ID number" k="spouseIdNumber" f={f} set={set} errors={errors} required placeholder="ID number" />
+                      <TextField label="Spouse email" k="spouseEmail" f={f} set={set} errors={errors} required type="email" placeholder="spouse@email.co.za" />
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-          )}
+            )
+          })()}
         </section>
         <section>
           <SectLabel n="02">Identity</SectLabel>
