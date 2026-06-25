@@ -40,21 +40,21 @@ describe("assembleAssessment — DB shape → verdict (the wiring)", () => {
   })
 
   it("company: net profit covers the rent → strong / verify-ready", () => {
-    const r = assess(appRow({ applicant_type: "company", company_info: { annualProfit: "120000", annualTurnover: "5000000" } }))
+    const r = assess(appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", annualProfit: "120000", annualTurnover: "5000000" } }))
     expect(r.isCompany).toBe(true)
     expect(r.companyVerdict).toBe("strong")        // R120k/yr → R10k/mo net ≥ R9k
     expect(r.rollup).toBe("verify-ready")
   })
 
   it("company: thin net + no surety → fail / does-not-qualify (turnover is ignored)", () => {
-    const r = assess(appRow({ applicant_type: "company", company_info: { annualProfit: "12000", annualTurnover: "10000000" } }))
+    const r = assess(appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", annualProfit: "12000", annualTurnover: "10000000" } }))
     expect(r.companyVerdict).toBe("fail")          // R1k/mo net < R9k; the R10m turnover is NOT used
     expect(r.rollup).toBe("does-not-qualify")
   })
 
   it("company: thin net but a director (is_surety_director) covers → backstopped", () => {
     const r = assess(
-      appRow({ applicant_type: "company", company_info: { annualProfit: "12000" } }),
+      appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", annualProfit: "12000" } }),
       [coRow({ is_surety_director: true, gross_monthly_income_cents: 2_000_000 })], // → guarantor role, residual R16.5k ≥ R9k
     )
     expect(r.companyVerdict).toBe("backstopped")
@@ -63,13 +63,22 @@ describe("assembleAssessment — DB shape → verdict (the wiring)", () => {
 
   it("honours surety_group pooling from the DB shape (two thin directors, joint → cover)", () => {
     const r = assess(
-      appRow({ applicant_type: "company", company_info: { annualProfit: "12000" } }),
+      appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", annualProfit: "12000" } }),
       [
         coRow({ is_surety_director: true, gross_monthly_income_cents: 1_000_000, surety_group: "d" }),
         coRow({ is_surety_director: true, gross_monthly_income_cents: 1_000_000, surety_group: "d" }),
       ],
     )
     expect(r.companyVerdict).toBe("backstopped")   // R6.5k + R6.5k pooled ≥ R9k
+  })
+
+  it("sole prop (unincorporated company_info) is NOT a company payer → personal affordability path", () => {
+    // No separate legal person → net profit is irrelevant; the owner's personal income carries the rent. A thin
+    // company net profit (R1k/mo) would FAIL as a juristic company, but here R40k personal income → within.
+    const r = assess(appRow({ applicant_type: "company", gross_monthly_income_cents: 4_000_000, company_info: { companyType: "sole_prop", annualProfit: "12000" } }))
+    expect(r.isCompany).toBe(false)                // sole prop bypasses the company-payer path
+    expect(r.companyVerdict).toBeNull()            // thin net profit must NOT produce a (failing) company verdict
+    expect(r.affordabilityTier).toBe("within")     // R40k personal vs R9k rent = 22.5%
   })
 
   it("honours marital_regime from the DB shape → spousal consent required (s15)", () => {
