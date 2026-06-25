@@ -36,12 +36,10 @@ export const COMPANY_TYPE_OPTIONS = [
   { value: "other", label: "Other" },
 ]
 
-// The company TYPE forks the whole flow. JURISTIC = a separate legal person (CIPC/Master registration + AFS +
-// director/trustee signs surety + company-net-profit affordability). Everything else (sole proprietor, partnership,
-// other) is UNINCORPORATED — the human(s) ARE the applicant: business overlay (trading name + business address +
-// nature) then their own personal flow + personal affordability, signed personally. No CIPC, no AFS, no surety.
-const JURISTIC_COMPANY_TYPES = ["pty_ltd", "cc", "npc", "trust"]
-export const isJuristicCompanyType = (t: string) => JURISTIC_COMPANY_TYPES.includes(t)
+// The company TYPE forks the whole flow — JURISTIC (separate legal person) vs UNINCORPORATED (the human is the
+// applicant). The classifier is the lib SSOT (shared with the assessment engine so the branching can't drift).
+import { isJuristicCompanyType } from "@/lib/applications/companyTypes"
+export { isJuristicCompanyType }
 
 /** The company phase's sub-tabs depend on the type — unincorporated has no AFS/Finances tab (personal income). */
 export function companySubtabsFor(companyType: string): readonly string[] {

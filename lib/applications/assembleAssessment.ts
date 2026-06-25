@@ -12,6 +12,7 @@
  *         consent) — the columns aren't captured yet, so today they arrive undefined (standalone, no consent).
  */
 import { freeAssessment, type FreeApplicantInput, type FreeAssessmentResult, type FreeAssessmentOptions, type DocSlot } from "@/lib/applications/freeAssessment"
+import { isJuristicCompanyType } from "@/lib/applications/companyTypes"
 
 export interface AssessmentAppRow {
   gross_monthly_income_cents?: number | null
@@ -75,9 +76,11 @@ export function assembleAssessment(p: Readonly<{
     })),
   ]
 
-  // Company = the PAYER: net profit ÷ 12 vs rent (turnover is context only). Parsed from the company_info jsonb.
+  // Company = the PAYER only for a JURISTIC entity (net profit ÷ 12 vs rent; turnover is context). A sole prop /
+  // partnership isn't a separate legal person → no company payer; affordability is the owner's PERSONAL income
+  // (captured in the personal flow), so company stays null and the normal personal/residual path applies.
   const ci = p.app.company_info
-  const company: FreeAssessmentOptions["company"] = p.app.applicant_type === "company" && ci
+  const company: FreeAssessmentOptions["company"] = p.app.applicant_type === "company" && ci && isJuristicCompanyType(ci.companyType)
     ? { netProfitMonthlyCents: annualRandsToMonthlyCents(ci.annualProfit), turnoverMonthlyCents: annualRandsToMonthlyCents(ci.annualTurnover) }
     : null
 
