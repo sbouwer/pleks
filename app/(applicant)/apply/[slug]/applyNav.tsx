@@ -42,6 +42,29 @@ const PERSONAL_DESC: Record<string, string> = {
 }
 export const PERSONAL_NAV = buildNav(["Apply as", "Personal details", "Finances", "Documents", "Application review"], PERSONAL_PANES, PERSONAL_DESC)
 
+// ── SOLE-PROP / unincorporated flow ──────────────────────────────────────────────────────────────
+// The personal flow with a "Business information" pane prepended + the first group renamed. The owner IS the
+// applicant (personal affordability), so steps 1+ are exactly the personal panes — the orchestrator renders them by
+// reusing the personal dispatch at (step - 1). Keys match the personal keys so that reuse is direct.
+const SOLEPROP_PANES: PaneMeta = [
+  { group: "Business details",   sub: "Business information", key: "co-info" },    // step 0  (the only new pane)
+  { group: "Business details",   sub: "Personal information", key: "personal" },   // step 1
+  { group: "Business details",   sub: "Address",             key: "address" },     // step 2
+  { group: "Finances",           sub: "Employment",          key: "employment" },  // step 3
+  { group: "Finances",           sub: "Income",              key: "income" },      // step 4
+  { group: "Finances",           sub: "Expenses",            key: "expenses" },    // step 5
+  { group: "Documents",          sub: "Required",            key: "docs-req" },    // step 6
+  { group: "Documents",          sub: "Optional",            key: "docs-opt" },    // step 7
+  { group: "Application review", sub: "Check & submit",      key: "review" },      // step 8
+]
+const SOLEPROP_DESC: Record<string, string> = {
+  "Business details": "Your business & your identity",
+  Finances: "Income & affordability",
+  Documents: "ID, proof of address, statements",
+  "Application review": "Check & submit",
+}
+export const SOLEPROP_NAV = buildNav(["Apply as", "Business details", "Finances", "Documents", "Application review"], SOLEPROP_PANES, SOLEPROP_DESC)
+
 function tabClass(done: boolean, cur: boolean): string {
   // NB: don't use `.stoep` here — it sets padding-bottom:4px which overrides the button's pb-2.5 and drops the
   // active label below the others. The active underline is drawn as an absolute element instead (consistent pad).

@@ -43,7 +43,7 @@ import {
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
 import { StepSubmit } from "./applyReview"
-import { PERSONAL_NAV, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
+import { PERSONAL_NAV, SOLEPROP_NAV, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
 import {
@@ -84,6 +84,42 @@ function maritalErrors(form: PartyFormState, coApplicants: CoApplicant[]): Party
 }
 /** "Green" = enough to invite AND link them to the application: a name, an email, and an ID number. */
 const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.trim() && c.idNumber.trim())
+
+/** Flow selection — which step machine + offset for the applicant/company type (module-level to keep the component
+ *  under the complexity gate). Sole prop / partnership = the personal machine + a prepended business-info pane
+ *  (offset 1); a juristic company runs the short company phase before the director's personal flow. */
+function resolveFlow(type: ApplicantType | null, companyType: string, begun: boolean, companyDone: boolean, step: number) {
+  const juristic = isJuristicCompanyType(companyType)
+  const soleProp = type === "company" && !juristic
+  const companyPhaseActive = begun && type === "company" && juristic && !companyDone
+  return { soleProp, companyPhaseActive, nav: soleProp ? SOLEPROP_NAV : PERSONAL_NAV, personalStep: soleProp ? step - 1 : step }
+}
+
+type NavNext = { label: string; onClick: () => void; disabled?: boolean; primary?: boolean } | null
+/** The header forward-action for the current step — extracted from the component to keep it under the complexity
+ *  gate. Works for personal AND the sole-prop machine via `personalStep` (= step, offset by the co-info pane). */
+function resolveNavNext(o: Readonly<{
+  inWizard: boolean; companyPhaseActive: boolean; companyStep: number; companySubtabsLen: number; companyImDirector: boolean; companyRole: string
+  soleProp: boolean; step: number; personalStep: number; docsReady: boolean; busy: boolean
+  setCompanyStep: (n: number) => void; completeCompanyPhase: () => void; continueCompanyInfo: () => void
+  continueIdentity: () => void; continueAddress: () => void; continueEmployment: () => void; continueIncome: () => void
+  createApplication: () => void; continueDocsRequired: () => void; finishDocuments: () => void
+}>): NavNext {
+  if (!o.inWizard) return null
+  if (o.companyPhaseActive) {
+    if (o.companyStep < o.companySubtabsLen - 1) return { label: "Next", onClick: () => o.setCompanyStep(o.companyStep + 1) }
+    return { label: o.companyImDirector ? "Continue to your details" : `Send to the ${o.companyRole}`, onClick: o.completeCompanyPhase, disabled: o.busy }
+  }
+  if (o.soleProp && o.step === 0) return { label: "Next", onClick: o.continueCompanyInfo } // the prepended business-info pane
+  if (o.personalStep === 0) return { label: "Next", onClick: o.continueIdentity }
+  if (o.personalStep === 1) return { label: "Next", onClick: o.continueAddress }
+  if (o.personalStep === 2) return { label: "Next", onClick: o.continueEmployment }
+  if (o.personalStep === 3) return { label: "Next", onClick: o.continueIncome }
+  if (o.personalStep === STEP_EXPENSES) return { label: "Next", onClick: o.createApplication }
+  if (o.personalStep === STEP_DOCUMENTS) return { label: "Next", onClick: o.continueDocsRequired, disabled: !o.docsReady }
+  if (o.personalStep === STEP_DOCS_OPTIONAL) return { label: "Next", onClick: o.finishDocuments }
+  return null
+}
 
 // ── Resume (save & finish later) ──────────────────────────────────────────────
 export interface ResumeState {
@@ -242,7 +278,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   }
 
   function goBack() {
-    if (type === "company" && !companyDone) {
+    // The JURISTIC company phase has its own sub-tab back; sole prop is a normal step machine (co-info at step 0).
+    if (type === "company" && isJuristicCompanyType(company.companyType) && !companyDone) {
       if (companyStep > 0) { setCompanyStep(companyStep - 1); return } // step back through the company sub-tabs
       setBegun(false); return // first company tab → back to "Apply as"
     }
@@ -295,16 +332,16 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     const e = { ...validateIdentityCore("individual", form, true), ...maritalErrors(form, coApplicants) }
     setErrors(e)
     if (Object.keys(e).length > 0) { toast.error("Please complete the highlighted fields."); return }
-    advance(1)
-    autosave(1)
+    advance(step + 1)
+    autosave(step + 1)
   }
 
   function continueAddress() {
     const e = validateAddressStep(form, true)
     setErrors(e)
     if (Object.keys(e).length > 0) { toast.error("A current address is required."); return }
-    advance(2)
-    autosave(2)
+    advance(step + 1)
+    autosave(step + 1)
   }
 
   // Finances is three sub-tabs: Employment (status/employer/dependents) → Income (sources) → Expenses
@@ -315,15 +352,23 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     // (Re)seed the income grid from the chosen status — but only while nothing has been typed, so changing status
     // (e.g. → unemployed) refreshes the seed instead of leaving a stale "Salary" row, without clobbering entries.
     if (allAmountsEmpty(income)) setIncome(seedIncomeFor(emp.employment_type))
-    advance(3)
-    autosave(3)
+    advance(step + 1)
+    autosave(step + 1)
   }
 
   function continueIncome() {
     // Pre-seed the commitments grid (the common 2–3) on first entry to Expenses, so it opens as a grid.
     seedIfEmpty(commitments, setCommitments, seedCommitments)
-    advance(4)
-    autosave(4)
+    advance(step + 1)
+    autosave(step + 1)
+  }
+
+  // Sole-prop / unincorporated business-info pane (step 0 of that flow) — only the trading name is required;
+  // the owner's identity + income come in the following personal steps.
+  function continueCompanyInfo() {
+    if (!company.trading?.trim()) { toast.error("Add your trading name."); return }
+    advance(step + 1)
+    autosave(step + 1)
   }
 
   // UPSERT the draft (create on first save, update thereafter — keyed on the held applicationId/token). Every
@@ -411,7 +456,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       // On the FIRST create, email the resume link + toast — so the way-back is discoverable proactively, not
       // hidden behind a button. Subsequent passes are silent updates.
       const firstCreate = !applicationId
-      const r = await saveDraft(STEP_DOCUMENTS, firstCreate ? { explicit: true } : undefined)
+      const r = await saveDraft(step + 1, firstCreate ? { explicit: true } : undefined)
       if (!r) return
       void dispatchInvites(r.id)                // fire the held at-selection invites now the application exists
       if (firstCreate) {
@@ -420,7 +465,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           ? `Progress saved — we've emailed a link to ${form.email} to finish later.`
           : "Progress saved — you can finish later.")
       }
-      advance(STEP_DOCUMENTS)
+      advance(step + 1)
     } finally {
       setBusy(false)
     }
@@ -523,8 +568,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       // which enumerates EVERY uploaded file — so multi-file categories flow through with no extra wiring.
       const bankPath = (docFiles["bank_main"] ?? []).find((f) => f.uploaded)?.storagePath ?? null
       await createClient().from("applications").update({ bank_statement_path: bankPath, stage1_status: "documents_submitted" }).eq("id", applicationId)
-      advance(STEP_REVIEW)
-      autosave(STEP_REVIEW) // persist draft_step so a refresh/resume lands back on the review, not Documents
+      advance(step + 1)
+      autosave(step + 1) // persist draft_step so a refresh/resume lands back on the review, not Documents
     } finally {
       setBusy(false)
     }
@@ -532,7 +577,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
 
   // Documents is two sub-tabs: Required (the gating core) → Optional (strengtheners). Required→Optional just
   // advances once the required docs are satisfied; finishDocuments runs leaving Optional → Applicants.
-  function continueDocsRequired() { advance(STEP_DOCS_OPTIONAL); autosave(STEP_DOCS_OPTIONAL) }
+  function continueDocsRequired() { advance(step + 1); autosave(step + 1) }
 
   /** Amend the application (add applicant / upload docs / edit details) → re-enter that step; the user
    *  re-submits to run a fresh screening iteration (the 14M self-improvement loop). */
@@ -561,7 +606,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     }
   }
 
-  const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type, form.idType, type)
+  // Sole prop / partnership isn't a juristic entity → personal/self-employed docs (not the company CIPC/AFS set).
+  const { soleProp, companyPhaseActive, nav, personalStep } = resolveFlow(type, company.companyType, begun, companyDone, step)
+  const docApplicantType = soleProp ? "individual" : type
+  const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type, form.idType, docApplicantType)
   // A required doc is satisfied when uploaded, OR — if it offers an escape ("I don't have a payslip") — when the
   // applicant takes that escape. ID + bank statements have no escape, so they're the true hard uploads.
   const docsReady = docCategories.filter((c) => c.required).every((c) => (docFiles[c.key] ?? []).some((f) => f.uploaded) || (!!c.escapeLabel && !!docEscape[c.key]))
@@ -578,10 +626,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // Two-level nav state: "Apply as" is the landing (type + parties + returning); the form panes (step 0–7) group
   // into Personal details / Finances / Documents / Application review via PANE_META. inWizard = past the landing.
   const inWizard = begun
-  // Company applications run a short COMPANY PHASE (business details + finances) before the personal flow.
-  const companyPhaseActive = begun && type === "company" && !companyDone
-  const companySubtabs = companySubtabsFor(company.companyType) // type-dependent (unincorporated has no Finances)
-  const nav = PERSONAL_NAV // Stage 1: chrome is model-driven; the company machine (its own model) lands in Stage 2.
+  // soleProp / companyPhaseActive / nav / personalStep come from resolveFlow (computed above, near docCategories).
+  const companySubtabs = companySubtabsFor(company.companyType) // juristic company phase sub-tabs
   const activeGroup = inWizard ? nav.paneMeta[step].group : "Apply as"
   // The panel header reads "Group · sub" in the wizard, "Company · …" during the company phase, and
   // "Apply to · {unit}" on the landing. activeGroup still drives the rail's "Apply as" step name.
@@ -592,26 +638,31 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const navStates = computeStepStates(nav, { activeGroup, step, maxReached, inWizard, typePicked: type !== null, hasApplication: !!applicationId, applyAsDesc })
   const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t) }
   // The current step's forward action — rendered in the panel header (intermediate = "Next →"; the final
-  // review/submit uses the primary style). Back + Save live alongside it; the footer keeps only the disclaimer.
-  const navNext = ((): { label: string; onClick: () => void; disabled?: boolean; primary?: boolean } | null => {
-    if (!inWizard) return null
-    if (companyPhaseActive) {
-      if (companyStep < companySubtabs.length - 1) return { label: "Next", onClick: () => setCompanyStep(companyStep + 1) }
-      return { label: companyImDirector ? "Continue to your details" : `Send to the ${companyRole}`, onClick: completeCompanyPhase, disabled: busy }
-    }
-    if (step === 0) return { label: "Next", onClick: continueIdentity }
-    if (step === 1) return { label: "Next", onClick: continueAddress }
-    if (step === 2) return { label: "Next", onClick: continueEmployment }
-    if (step === 3) return { label: "Next", onClick: continueIncome }
-    if (step === STEP_EXPENSES) return { label: "Next", onClick: createApplication }
-    if (step === STEP_DOCUMENTS) return { label: "Next", onClick: continueDocsRequired, disabled: !docsReady }
-    if (step === STEP_DOCS_OPTIONAL) return { label: "Next", onClick: finishDocuments }
-    // Review has NO header action — its "Continue to review" / "Submit" buttons live in the page body. The header
-    // keeps only the Back button.
-    return null
-  })()
+  // review/submit uses the primary style). Resolved by a module helper to keep this component under the complexity
+  // gate. Review has NO header action (its buttons live in the page body) → resolveNavNext returns null there.
+  const navNext = resolveNavNext({
+    inWizard, companyPhaseActive, companyStep, companySubtabsLen: companySubtabs.length, companyImDirector, companyRole,
+    soleProp, step, personalStep, docsReady, busy,
+    setCompanyStep, completeCompanyPhase, continueCompanyInfo, continueIdentity, continueAddress, continueEmployment,
+    continueIncome, createApplication, continueDocsRequired, finishDocuments,
+  })
   const showBackBtn = inWizard
-  const showSaveBtn = inWizard && !!form.email && step <= LAST_DATA_STEP && screeningStatus === "idle"
+  const showSaveBtn = inWizard && !!form.email && personalStep <= LAST_DATA_STEP && screeningStatus === "idle"
+  // The active form pane for the current step — extracted from the JSX to keep the component under the complexity
+  // gate. Works for personal AND the sole-prop machine (co-info at step 0, then the personal panes via personalStep).
+  function renderFormPane() {
+    if (!type) return null // narrows ApplicantType for the panes below (only ever rendered when type is set)
+    if (soleProp && step === 0) return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={0} />
+    if (personalStep === 0) return <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} coApplicants={coApplicants} />
+    if (personalStep === 1) return <StepAddress form={form} set={set} errors={errors} />
+    if (personalStep === 2) return <StepEmployment emp={emp} setEmp={setEmp} />
+    if (personalStep === 3) return <StepIncome income={income} setIncome={setIncome} variable={SELF_EMPLOYED_TYPES.includes(emp.employment_type) || emp.employment_type === "commission"} />
+    if (personalStep === STEP_EXPENSES) return <StepExpenses dependentAdults={dependentAdults} setDependentAdults={setDependentAdults} dependentMinors={dependentMinors} setDependentMinors={setDependentMinors} commitments={commitments} setCommitments={setCommitments} />
+    if (personalStep === STEP_DOCUMENTS) return <StepDocuments tab="required" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
+    if (personalStep === STEP_DOCS_OPTIONAL) return <StepDocuments tab="optional" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
+    if (personalStep === STEP_REVIEW) return <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onRerun={submitApplication} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />
+    return null
+  }
   // Desktop = vertical step rail (left) + form panel; mobile/short = horizontal step bar atop the panel.
   // NB: the [@media …] variant must be written out literally on each class — Tailwind never generates CSS for
   // a variant assembled from a template literal (it only scans complete class strings in source).
@@ -714,16 +765,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
 
         {begun && type !== null && !companyPhaseActive && !companySentToDirector && (
           <>
-            <div className={scrollCls}>
-              {step === 0 && <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} coApplicants={coApplicants} />}
-              {step === 1 && <StepAddress form={form} set={set} errors={errors} />}
-              {step === 2 && <StepEmployment emp={emp} setEmp={setEmp} />}
-              {step === 3 && <StepIncome income={income} setIncome={setIncome} variable={SELF_EMPLOYED_TYPES.includes(emp.employment_type) || emp.employment_type === "commission"} />}
-              {step === STEP_EXPENSES && <StepExpenses dependentAdults={dependentAdults} setDependentAdults={setDependentAdults} dependentMinors={dependentMinors} setDependentMinors={setDependentMinors} commitments={commitments} setCommitments={setCommitments} />}
-              {step === STEP_DOCUMENTS && <StepDocuments tab="required" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />}
-              {step === STEP_DOCS_OPTIONAL && <StepDocuments tab="optional" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />}
-              {step === STEP_REVIEW && <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onRerun={submitApplication} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />}
-            </div>
+            <div className={scrollCls}>{renderFormPane()}</div>
           </>
         )}
 
