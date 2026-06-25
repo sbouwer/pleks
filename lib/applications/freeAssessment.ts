@@ -280,7 +280,13 @@ function buildInterpretations(r: Omit<FreeAssessmentResult, "interpretations">):
   out.push(...affordabilityRead(r, ready, goodMultiple))
 
   if (r.spousalConsentRequired) {
-    out.push({ kind: "action", text: "A surety is married in community of property — the spouse must co-sign the suretyship (s15 MPA). Route the witnessed consent before relying on it." })
+    // s15 MPA: an in-community surety-giver's spouse must consent — but the INSTRUMENT (annexure / witness /
+    // co-surety / acknowledgement) is counsel's drafting choice, executed at signing. Surface it as a CONTINGENCY,
+    // not a co-suretyship, and tailor to whether the security is load-bearing (relied on) or merely additional.
+    const suretyLoadBearing = r.affordabilityTier !== "within" && r.guarantorBacksRent
+    out.push({ kind: "action", text: suretyLoadBearing
+      ? "A surety is married in community of property and this application relies on that surety — spousal consent (s15 MPA) must be executed at signing. Treat the security as CONTINGENT until then."
+      : "A surety is married in community of property — spousal consent (s15 MPA) must be executed at signing. The application stands on the applicant's own merit; treat the surety as additional, contingent security." })
   }
 
   if (r.employment.recentlyStarted) {

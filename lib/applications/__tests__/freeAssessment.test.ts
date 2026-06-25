@@ -74,6 +74,19 @@ describe("freeAssessment — guarantor / surety backstop (residual capacity)", (
     // scope is sureties only — an in-community PRIMARY/co-applicant must NOT trip surety consent
     expect(freeAssessment(RENT, [a({ maritalRegime: "in_community" }), a({ role: "co_applicant", maritalRegime: "in_community" })]).spousalConsentRequired).toBe(false)
   })
+  it("spousal-consent interpretation is CONTINGENT (never co-suretyship) + tailors to load-bearing vs bonus", () => {
+    // load-bearing: primary below + an in-community surety that CARRIES the rent → "relies on … contingent"
+    const carried = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 2_000_000, maritalRegime: "in_community" })])
+    const carriedTxt = carried.interpretations.find((i) => i.kind === "action" && /s15 MPA/.test(i.text))?.text ?? ""
+    expect(carriedTxt).toMatch(/relies on/i)
+    expect(carriedTxt).toMatch(/contingent/i)
+    expect(carriedTxt).not.toMatch(/co-sign/i)   // must NOT bake co-suretyship — instrument is counsel's choice
+    // bonus: primary affords alone + an in-community surety → "own merit … additional", still contingent
+    const bonus = freeAssessment(RENT, [a({ declaredIncomeCents: 5_000_000 }), a({ role: "guarantor", declaredIncomeCents: 5_000_000, maritalRegime: "in_community" })])
+    const bonusTxt = bonus.interpretations.find((i) => i.kind === "action" && /s15 MPA/.test(i.text))?.text ?? ""
+    expect(bonusTxt).toMatch(/own merit/i)
+    expect(bonusTxt).not.toMatch(/co-sign/i)
+  })
 })
 
 describe("freeAssessment — company verdict (net profit + directors' surety)", () => {
