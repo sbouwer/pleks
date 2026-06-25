@@ -63,7 +63,7 @@ export function ApplyAsPane({ commercial, type, onSelect, coApplicants, setCoApp
   else if (type === "company") firstPartyLabel = `a ${companyRole}`
   const addLabel = coApplicants.length > 0 ? "another" : firstPartyLabel
   let partyNote = "Each person gets their own secure link to consent & load documents."
-  if (type === "company") partyNote = imDirector ? "You'll continue to your own details next — no invite needed." : `We'll email the ${companyRole} a secure link to complete the application.`
+  if (type === "company") partyNote = imDirector ? "You'll continue to your own details next." : `We'll email the ${companyRole} a secure link to complete the application.`
 
   return (
     <div className="flex min-h-full flex-col gap-6">
