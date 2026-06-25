@@ -42,11 +42,15 @@ export function Stepper({ labels, current }: Readonly<{ labels: string[]; curren
 }
 
 // ── Section label ("01 · PERSONAL DETAILS") ───────────────────────────────────
+// The rule sits IN LINE after the label (not underneath), with the amber number + a · separator — the canonical
+// section-header rhythm shared across the apply flow, party forms, settings, and the focus-shell landing.
 export function SectLabel({ n, children }: Readonly<{ n?: string; children: React.ReactNode }>) {
   return (
-    <div className="mb-3 flex items-center gap-2 border-b border-border pb-2">
-      {n && <span className="font-mono text-[11px] font-semibold text-primary">{n}</span>}
-      <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{children}</span>
+    <div className="mb-3 flex items-center gap-2">
+      <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+        {n && <><span className="font-mono font-semibold text-primary">{n}</span> · </>}{children}
+      </span>
+      <span aria-hidden className="h-px flex-1 bg-border" />
     </div>
   )
 }

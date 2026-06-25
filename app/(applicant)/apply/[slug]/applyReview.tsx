@@ -165,9 +165,10 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, o
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Affordability — line-item bullets match the bar-chart colours (rent · commitments · left for rent). */}
         <div className="flex flex-col gap-4 rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card p-5">
-          <h3 className="flex items-center justify-between gap-2 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]">
-            <span className="flex items-center gap-2"><span aria-hidden className="inline-block h-0.5 w-4 bg-amber-400" /> Affordability</span>
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal ${badge.cls}`}>{badge.label}</span>
+          <h3 className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]">
+            <span className="shrink-0">Affordability</span>
+            <span aria-hidden className="h-px flex-1 bg-[var(--rule)]" />
+            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal ${badge.cls}`}>{badge.label}</span>
           </h3>
           <dl className="flex flex-col gap-2.5 text-sm">
             <div className="flex justify-between gap-3"><dt className="text-[var(--ink-soft)]">Declared income</dt><dd className="font-medium text-[var(--ink)]">{formatZAR(incomeCents)}</dd></div>
@@ -194,7 +195,7 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, o
 
         {/* Identity & documents — the rest of the declared picture (income lives in the Affordability card). */}
         <div className="flex flex-col gap-4 rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card p-5">
-          <h3 className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]"><span aria-hidden className="inline-block h-0.5 w-4 bg-amber-400" /> Identity &amp; documents</h3>
+          <h3 className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]"><span className="shrink-0">Identity &amp; documents</span><span aria-hidden className="h-px flex-1 bg-[var(--rule)]" /></h3>
           <ul className="flex flex-col gap-2.5 text-sm text-[var(--ink)]">
             <li className="flex items-center gap-2">{identityOk ? <ShieldCheck className="size-4 shrink-0 text-emerald-600" /> : <AlertCircle className="size-4 shrink-0 text-amber-500" />} {idLine}</li>
             {empLabel && <li className="flex items-center gap-2"><User className="size-4 shrink-0 text-[var(--ink-mute)]" /> {empLabel}{tenure ? ` · ${tenure}` : ""}</li>}
@@ -222,7 +223,7 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, o
 
       {/* What happens next — sets the journey, reinforces pre-selection + the consent/credit-check expectation. */}
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
-        <h3 className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]"><span aria-hidden className="inline-block h-0.5 w-4 bg-amber-400" /> What happens next</h3>
+        <h3 className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]"><span className="shrink-0">What happens next</span><span aria-hidden className="h-px flex-1 bg-[var(--rule)]" /></h3>
         <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-soft)]">You submit → if the agent shortlists you, your documents are verified against what you declared → an optional credit check runs only with your explicit consent, and you&apos;ll receive a copy.</p>
       </div>
 

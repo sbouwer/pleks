@@ -12,6 +12,7 @@ import { ArrowRight, Building2, CheckCircle2, HandCoins, LogIn, Plus, User, User
 import type { LucideIcon } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
+import { SectLabel } from "@/components/parties/partyFields"
 import { type ApplicantType, type CoApplicant, type CoRole, type SetFn, blankCo } from "./applyDomain"
 import { type CompanyInfo, COMPANY_TYPE_OPTIONS, isJuristicCompanyType } from "./applyCompany"
 
@@ -169,16 +170,6 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
   )
 }
 
-// Numbered section divider for the landing's sub-sections (Returning · How are you applying). Landing-only.
-function SectionEyebrow({ n, label }: Readonly<{ n: string; label: string }>) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--ink-mute)]">{n} · {label}</span>
-      <span aria-hidden className="h-px flex-1 bg-[var(--rule)]" />
-    </div>
-  )
-}
-
 export function ApplyAsPane({ commercial, type, onSelect, form, set, coApplicants, setCoApplicants, company, setCompany, imDirector, setImDirector, loggedInEmail, onResend, onLogin, onBegin, resuming, busy }: Readonly<{
   commercial: boolean; type: ApplicantType | null; onSelect: (t: ApplicantType) => void
   form: PartyFormState; set: SetFn
@@ -207,7 +198,7 @@ export function ApplyAsPane({ commercial, type, onSelect, form, set, coApplicant
 
       {/* 01 · Returning */}
       <section className="flex flex-col gap-3">
-        <SectionEyebrow n="01" label="Returning?" />
+        <SectLabel n="01">Returning?</SectLabel>
         {loggedInEmail ? (
           <div className="flex items-center gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] px-4 py-3 text-sm">
             <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
@@ -237,7 +228,7 @@ export function ApplyAsPane({ commercial, type, onSelect, form, set, coApplicant
 
       {/* 02 · How are you applying */}
       <section className="flex flex-col gap-3">
-        <SectionEyebrow n="02" label="How are you applying?" />
+        <SectLabel n="02">How are you applying?</SectLabel>
         <div className="grid gap-3 sm:grid-cols-2 [@media(min-width:1024px)_and_(min-height:700px)]:grid-cols-4">
           {typesFor(commercial).map((c) => {
             const selected = type === c.id
