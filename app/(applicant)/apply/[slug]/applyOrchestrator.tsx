@@ -182,6 +182,11 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const [companyDone, setCompanyDone] = useState(!!resume) // a resumed draft is already past the company phase
   const [companyStep, setCompanyStep] = useState(0) // sub-tab within the company phase: 0 info · 1 address · 2 finances
   const [companySentToDirector, setCompanySentToDirector] = useState(false)
+  // The person standing for the company is a director (juristic), a partner (partnership), or the owner (sole prop) —
+  // used in all the company copy/toasts so we never call a sole proprietor a "director".
+  let companyRole = "owner"
+  if (isJuristicCompanyType(company.companyType)) companyRole = "director"
+  else if (company.companyType === "partnership") companyRole = "partner"
   // "Add applicant" from the review (when affordability is short) — invite a co-applicant after the app exists.
   const [addApplicantOpen, setAddApplicantOpen] = useState(false)
   const [newCo, setNewCo] = useState<CoApplicant>(blankCo("co_applicant"))
@@ -223,7 +228,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (!type) { toast.error("Choose how you're applying."); return }
     if (type === "company" && !company.companyType) { toast.error("Please select the company type."); return }
     if ((type === "couple" || type === "guarantor" || type === "company") && !(coApplicants[0] && coComplete(coApplicants[0]))) {
-      toast.error(type === "company" ? "Add the director applying on the company's behalf." : "Add the co-applicant's name, email and ID number."); return
+      toast.error(type === "company" ? `Add the ${companyRole}'s name, email and ID number.` : "Add the co-applicant's name, email and ID number."); return
     }
     // Company + "it's me": the director IS the primary applicant — carry their Apply-as details into the personal
     // flow and drop them from the invite list (they complete it here, not via an emailed link).
@@ -268,7 +273,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         if (!r) return
         await dispatchInvites(r.id)
         setCompanySentToDirector(true)
-        toast.success("Sent to the director to complete the application.")
+        toast.success(`Sent to the ${companyRole} to complete the application.`)
       } finally { setBusy(false) }
     })()
   }
@@ -591,7 +596,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (!inWizard) return null
     if (companyPhaseActive) {
       if (companyStep < companySubtabs.length - 1) return { label: "Next", onClick: () => setCompanyStep(companyStep + 1) }
-      return { label: companyImDirector ? "Continue to your details" : "Send to the director", onClick: completeCompanyPhase, disabled: busy }
+      return { label: companyImDirector ? "Continue to your details" : `Send to the ${companyRole}`, onClick: completeCompanyPhase, disabled: busy }
     }
     if (step === 0) return { label: "Next", onClick: continueIdentity }
     if (step === 1) return { label: "Next", onClick: continueAddress }
@@ -700,8 +705,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {companySentToDirector && (
           <div className={scrollCls}>
             <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
-              <h2 className="flex items-center gap-2 text-lg font-medium text-[var(--ink)]"><CheckCircle2 className="size-5 text-emerald-600" /> Sent to the director</h2>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">We&apos;ve emailed {coApplicants[0]?.email ? <strong className="text-[var(--ink)]">{coApplicants[0].email}</strong> : "the director"} a secure link to complete the application — adding their details, the income picture and consent. You can close this page.</p>
+              <h2 className="flex items-center gap-2 text-lg font-medium text-[var(--ink)]"><CheckCircle2 className="size-5 text-emerald-600" /> Sent to the {companyRole}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">We&apos;ve emailed {coApplicants[0]?.email ? <strong className="text-[var(--ink)]">{coApplicants[0].email}</strong> : `the ${companyRole}`} a secure link to complete the application — adding their details, the income picture and consent. You can close this page.</p>
             </div>
           </div>
         )}
