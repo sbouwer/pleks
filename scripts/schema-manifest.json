@@ -498,7 +498,10 @@
       "dependent_adults_count",
       "dependent_minors_count",
       "expenses",
-      "school_fees_cents"
+      "school_fees_cents",
+      "marital_status",
+      "matrimonial_regime",
+      "spouse_info"
     ],
     "arrears_actions": [
       "id",

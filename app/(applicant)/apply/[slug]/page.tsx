@@ -63,7 +63,7 @@ async function loadResume(
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, employment_details, dependents_count, dependent_adults_count, dependent_minors_count, income_sources, declared_monthly_obligations_cents, expenses, applicant_addresses, applicant_type, company_info, email_verified_at, draft_step, draft_saved_at, org_id, submitted_at")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, employment_details, dependents_count, dependent_adults_count, dependent_minors_count, income_sources, declared_monthly_obligations_cents, expenses, applicant_addresses, applicant_type, company_info, marital_status, matrimonial_regime, spouse_info, email_verified_at, draft_step, draft_saved_at, org_id, submitted_at")
     .eq("id", appId).maybeSingle()
   logQueryError("ApplyPreview resume app", appErr)
   // Don't resume a SUBMITTED application (submitted_at set) — only drafts / pre-screens are editable.
@@ -93,6 +93,12 @@ async function loadResume(
       idType: (app.id_type as string | null) ?? "sa_id", idNumber: (app.id_number as string | null) ?? undefined,
       dob: (app.date_of_birth as string | null) ?? undefined,
       addresses: (app.applicant_addresses as PartyFormState["addresses"]) ?? undefined,
+      maritalStatus: (app.marital_status as string | null) ?? undefined,
+      matrimonialRegime: (app.matrimonial_regime as string | null) ?? undefined,
+      ...((): Partial<PartyFormState> => {
+        const s = app.spouse_info as { firstName?: string; lastName?: string; idNumber?: string; email?: string } | null
+        return s ? { spouseFirstName: s.firstName, spouseLastName: s.lastName, spouseIdNumber: s.idNumber, spouseEmail: s.email } : {}
+      })(),
     },
     emp: {
       employment_type: (app.employment_type as string | null) ?? "",

@@ -670,6 +670,11 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           addresses: form.addresses ?? null,
           applicant_type: type,
           company_info: type === "company" ? company : null,
+          marital_status: form.maritalStatus || null,
+          matrimonial_regime: form.matrimonialRegime || null,
+          spouse_info: form.maritalStatus === "married" && form.matrimonialRegime === "in_community"
+            ? { firstName: form.spouseFirstName ?? "", lastName: form.spouseLastName ?? "", idNumber: form.spouseIdNumber ?? "", email: form.spouseEmail ?? "" }
+            : null,
         }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }

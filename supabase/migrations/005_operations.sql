@@ -3024,3 +3024,14 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependent_adults_count integer
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependent_minors_count integer;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS school_fees_cents bigint;  -- declared child cost (child bucket)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS expenses jsonb;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §39  APPLY MARITAL STATUS + SPOUSE (ADDENDUM_14M apply redesign — Personal details)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Declared on the personal-details step. marital_status (single|life_partner|married|divorced|widowed);
+-- matrimonial_regime (in_community|out_anc|out_accrual) only when married. A married-IN-COMMUNITY applicant's
+-- spouse must consent (s15 Matrimonial Property Act) — spouse_info jsonb holds {firstName,lastName,idNumber,email}
+-- + (later) the consent/verification status that gates submit. Marital regime also feeds the surety-consent engine.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS marital_status text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS matrimonial_regime text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS spouse_info jsonb;

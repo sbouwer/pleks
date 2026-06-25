@@ -40,6 +40,7 @@ interface Body {
   declared_monthly_obligations?: number | null; expenses?: unknown
   addresses?: unknown
   applicant_type?: string; company_info?: unknown
+  marital_status?: string; matrimonial_regime?: string; spouse_info?: unknown
 }
 
 const APPLICANT_TYPES = ["individual", "couple", "company", "guarantor"]
@@ -74,6 +75,9 @@ function draftFields(body: Body) {
     // chosen application type + company details — so resume restores the exact flow (not inferred).
     applicant_type: typeof body.applicant_type === "string" && APPLICANT_TYPES.includes(body.applicant_type) ? body.applicant_type : null,
     company_info: body.company_info && typeof body.company_info === "object" ? body.company_info : null,
+    marital_status: body.marital_status || null,
+    matrimonial_regime: body.matrimonial_regime || null,
+    spouse_info: body.spouse_info && typeof body.spouse_info === "object" ? body.spouse_info : null,
     draft_step: typeof body.step === "number" ? body.step : null,
     draft_saved_at: new Date().toISOString(),
   }
