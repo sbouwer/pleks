@@ -106,7 +106,9 @@ export function ApplicantRoster({ persons, companyCard, allGreen, outstandingCou
       <StepHeading title={title} sub={sub} />
 
       {companyCard}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* Full-width stack so every card matches the company card's width (a single person in a 2-col grid read as a
+          half-width "funny" card). */}
+      <div className="flex flex-col gap-3">
         {persons.map((p) => <PersonCard key={`${p.roleLabel}-${p.name}`} name={p.name} roleLabel={p.roleLabel} status={p.status} />)}
       </div>
 
