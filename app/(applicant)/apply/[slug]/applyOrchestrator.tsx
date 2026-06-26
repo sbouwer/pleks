@@ -799,19 +799,20 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
             continues across the nav and the panel. Shows on the landing too ("Apply as · Pre-selection"). */}
         {/* The side column differs by state — landing = listing DetailCard, wizard = the step-rail card — and
             their headers sit at slightly different heights, so the panel header needs a per-state top offset. */}
-        <div className={`mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 ${begun ? "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-6" : "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-[18px]"}`}>
+        <div className={`relative mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 ${begun ? "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-6" : "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-[18px]"}`}>
             <h2 className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-[var(--ink)]">
               <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
               <span className="truncate">{headerTitle}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
             </h2>
-            {/* TRANSIENT "Saved ✓" — flashes (green, pops in) for ~2.5s after an ACTUAL save (autosave on advance,
-                or the explicit save), then disappears. Sits in the header CENTRE (between the title and the actions,
-                centred by justify-between) so it's noticed and not crammed beside the buttons. Not a permanent badge
-                (that read as "all saved" even after newer un-flushed edits). */}
+            {/* TRANSIENT "Saved ✓" — flashes (green, pops in) for ~2.5s after an ACTUAL save, then disappears.
+                ABSOLUTELY centred on the card width (pb-2.5 aligns it with the title row) so it doesn't drift between
+                pages as the title / action-button widths change. pointer-events-none so it never blocks the buttons. */}
             {justSaved && (
-              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 animate-in fade-in-0 zoom-in-95 duration-300" title="Progress saved just now">
-                <CheckCircle2 className="size-3.5" /> Saved
-              </span>
+              <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center pb-2.5">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 animate-in fade-in-0 zoom-in-95 duration-300" title="Progress saved just now">
+                  <CheckCircle2 className="size-3.5" /> Saved
+                </span>
+              </div>
             )}
             <div className="flex shrink-0 items-center gap-2">
               {showBackBtn && (
