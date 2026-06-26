@@ -33,7 +33,7 @@ import {
   STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW, LAST_DATA_STEP,
   SELF_EMPLOYED_TYPES,
   INCOME_LABEL, seedIncomeFor, COMMITMENT_LABEL, seedCommitments,
-  intOrNull, allAmountsEmpty, posOrNull, seedIfEmpty, numStr, moneyCents, rowMonthlyCents, totalMonthlyCents, incomeSourcesPayload, incomeKeys, blankCo,
+  allAmountsEmpty, seedIfEmpty, numStr, moneyCents, incomeKeys, blankCo,
 } from "./applyDomain"
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
@@ -47,6 +47,7 @@ import {
   type PartyFormState, type PartyErrors,
 } from "@/lib/parties/partyValidation"
 import { isValidEmail, cipcRegError, checkPhone } from "@/lib/validation/contact"
+import { assembleSaveDraftPayload, resolvePrimary } from "./applySaveDraft"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 
 const TYPE_LABEL: Record<ApplicantType, string> = { individual: "Individual", couple: "Couple", company: "Company", guarantor: "With a guarantor" }
@@ -474,58 +475,17 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
   async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
-    // On-behalf company (an office-manager filler): the PRIMARY natural person is the NAMED director
-    // (coApplicants[0]), not the filler — so the office manager is never recorded as the tenant, and the resume
-    // link goes to the director. Every other path's primary is the filler's own form.
-    const onBehalfCompany = type === "company" && !companyImDirector && !!coApplicants[0]
-    const primary = onBehalfCompany
-      ? { first: coApplicants[0].firstName, last: coApplicants[0].lastName, email: coApplicants[0].email, phone: coApplicants[0].phone, id: coApplicants[0].idNumber }
-      : { first: form.firstName ?? "", last: form.lastName ?? "", email: form.email ?? "", phone: form.phone ?? "", id: form.idNumber ?? "" }
+    // Primary-person resolution + the whole request body are pure (applySaveDraft) — the email guard, network call
+    // and state writes stay here. On-behalf company → the named director is primary (see resolvePrimary).
+    const primary = resolvePrimary(type, companyImDirector, coApplicants, form)
     if (!primary.email) { if (!opts?.silent) { toast.error("Add your email first so we can send you a link to finish later.") } return null }
-    const depA = intOrNull(dependentAdults)
-    const depM = intOrNull(dependentMinors)
-    const depTotal = (depA ?? 0) + (depM ?? 0)
-    // School fees are entered as a commitment line but routed to the child bucket (offset by maintenance) — so the
-    // declared obligations the read subtracts EXCLUDE them, and they're passed separately as school_fees.
-    const schoolFeesCents = commitments.filter((r) => r.key === "school_fees").reduce((s, r) => s + rowMonthlyCents(r), 0)
-    const commitMonthly = totalMonthlyCents(commitments) - schoolFeesCents
     try {
       const res = await fetch("/api/applications/save-draft", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug, applicationId, token, step: stepToSave, notify: !!opts?.explicit,
-          first_name: primary.first, last_name: primary.last, email: primary.email, phone: primary.phone,
-          id_type: form.idType || "sa_id", id_number: primary.id, date_of_birth: onBehalfCompany ? "" : (form.dob || ""),
-          employment_type: emp.employment_type, employer_name: emp.employer, employment_start_date: emp.start_date || "",
-          employment_details: {
-            contract_end_date: emp.contract_end_date || null, job_title: emp.job_title || null,
-            employer_contact_name: emp.employer_contact_name || null, employer_contact_detail: emp.employer_contact_detail || null,
-            business_name: emp.business_name || null, business_nature: emp.business_nature || null, trading_since: emp.trading_since || null,
-            registered: emp.registered || null, sars_registered: emp.sars_registered || null,
-          },
-          dependent_adults: depA, dependent_minors: depM, dependents: posOrNull(depTotal),
-          school_fees: posOrNull(schoolFeesCents / 100),
-          // income_sources is the source of truth; gross_monthly_income (rands) is the derived total — the route
-          // re-derives both from income_sources and stores gross_monthly_income_cents (cents).
-          gross_monthly_income: String(totalMonthlyCents(income) / 100),
-          income_sources: incomeSourcesPayload(income),
-          // commitments grid → expenses jsonb; their monthly sum is the declared obligations the read subtracts.
-          declared_monthly_obligations: posOrNull(commitMonthly / 100),
-          expenses: incomeSourcesPayload(commitments),
-          addresses: form.addresses ?? null,
-          applicant_type: type,
-          company_info: type === "company" ? company : null,
-          marital_status: form.maritalStatus || null,
-          matrimonial_regime: form.matrimonialRegime || null,
-          spouse_info: ((): Record<string, unknown> | null => {
-            if (form.maritalStatus !== "married" || form.matrimonialRegime !== "in_community") return null
-            const candidates = coApplicants.filter((c) => c.role === "co_applicant")
-            const spouseIsCo = candidates.length > 0 && (form.spouseIsCoApplicant ?? true)
-            // Spouse already applying → store the link (their own flow carries identity + consent); else the externals.
-            if (spouseIsCo) return { isCoApplicant: true, email: candidates.length === 1 ? candidates[0].email : (form.spouseEmail ?? "") }
-            return { firstName: form.spouseFirstName ?? "", lastName: form.spouseLastName ?? "", idNumber: form.spouseIdNumber ?? "", email: form.spouseEmail ?? "" }
-          })(),
-        }),
+        body: JSON.stringify(assembleSaveDraftPayload({
+          slug, applicationId, token, stepToSave, notify: !!opts?.explicit,
+          type, companyImDirector, coApplicants, form, emp, dependentAdults, dependentMinors, income, commitments, company,
+        })),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
       if (!res.ok || !json.applicationId || !json.token) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
