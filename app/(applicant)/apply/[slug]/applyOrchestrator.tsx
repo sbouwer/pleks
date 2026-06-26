@@ -791,6 +791,15 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
               <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
               <span className="truncate">{headerTitle}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
             </h2>
+            {/* TRANSIENT "Saved ✓" — flashes (green, pops in) for ~2.5s after an ACTUAL save (autosave on advance,
+                or the explicit save), then disappears. Sits in the header CENTRE (between the title and the actions,
+                centred by justify-between) so it's noticed and not crammed beside the buttons. Not a permanent badge
+                (that read as "all saved" even after newer un-flushed edits). */}
+            {justSaved && (
+              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 animate-in fade-in-0 zoom-in-95 duration-300" title="Progress saved just now">
+                <CheckCircle2 className="size-3.5" /> Saved
+              </span>
+            )}
             <div className="flex shrink-0 items-center gap-2">
               {showBackBtn && (
                 <ActionButton tone="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={busy || (step === 0 && !!applicationId)}>Back</ActionButton>
@@ -799,14 +808,6 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                 <ActionButton tone={navNext.primary ? "primary" : "secondary"} size="sm" onClick={navNext.onClick} disabled={busy || navNext.disabled} className="whitespace-nowrap">
                   {navNext.primary ? navNext.label : <span className="inline-flex items-center gap-1.5 whitespace-nowrap">{navNext.label} <ArrowRight className="size-4" /></span>}
                 </ActionButton>
-              )}
-              {/* TRANSIENT "Saved ✓" — flashes for a couple of seconds after an ACTUAL save (autosave on advance, or
-                  the explicit save), then disappears. Not a permanent badge (that read as "all saved" even when
-                  there were newer unsaved edits). The LABELLED "Save & finish later" below is the real email action. */}
-              {justSaved && (
-                <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[var(--ink-mute)]" title="Progress saved just now">
-                  <CheckCircle2 className="size-3.5" /> Saved
-                </span>
               )}
               {showSaveBtn && (
                 <ActionButton tone="secondary" size="sm" icon={<Clock className="size-4" />} onClick={saveAndExit} disabled={busy} className="whitespace-nowrap" title="Save & email a link to finish later">
