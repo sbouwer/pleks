@@ -88,19 +88,27 @@ describe("evaluateCompanyRuling — single director (0a parity)", () => {
 
 describe("evaluateCompanyRuling 0b — director pool, policy + surety state", () => {
   // Two directors @ R800k income each → capacity 450k each (income − floor 350k). Each alone < 700k rent; combined 900k ≥ 700k.
-  const twoMarginal = () => [director(din(800_000), { ref: "primary" }), director(din(800_000), { ref: "co_x" })]
+  const twoMarginal = (state: "intended" | "executed") => [director(din(800_000), { ref: "primary", suretyState: state }), director(din(800_000), { ref: "co_x", suretyState: state })]
 
-  it("§7.7 the dispositive policy selects the aggregation — same residuals, different verdict", () => {
-    const single = evaluateCompanyRuling({ directors: twoMarginal(), company: co(), poolingRule: "strongestSingle" })
-    const combined = evaluateCompanyRuling({ directors: twoMarginal(), company: co(), poolingRule: "combined" })
+  it("§7.7 the dispositive policy selects the aggregation (post-execution) — same residuals, different verdict", () => {
+    const single = evaluateCompanyRuling({ directors: twoMarginal("executed"), company: co(), poolingRule: "strongestSingle" })
+    const combined = evaluateCompanyRuling({ directors: twoMarginal("executed"), company: co(), poolingRule: "combined" })
     expect(single.rulingTier).toBe("below-threshold")        // strongest single 450k < 700k → not backed
     expect(["adequate", "strong"]).toContain(combined.rulingTier) // combined 900k ≥ 700k → backed
   })
 
-  it("§7.2 pool covers where the lead alone doesn't (combined)", () => {
-    const r = evaluateCompanyRuling({ directors: twoMarginal(), company: co(), poolingRule: "combined" })
+  it("§7.2 pool covers where the lead alone doesn't (combined, executed)", () => {
+    const r = evaluateCompanyRuling({ directors: twoMarginal("executed"), company: co(), poolingRule: "combined" })
     expect(r.rulingTier).not.toBe("below-threshold")
     expect(flag(r, 95)?.severity).toBe("positive")           // the pool backs
+  })
+
+  it("§10 combined is GATED on execution — INTENDED sureties collapse to strongestSingle (no unexecuted pooling)", () => {
+    const intended = evaluateCompanyRuling({ directors: twoMarginal("intended"), company: co(), poolingRule: "combined" })
+    expect(intended.rulingTier).toBe("below-threshold")      // configured combined deferred → strongest single 450k < 700k
+    expect(flag(intended, 95)?.title).toMatch(/once all sureties are executed/i)
+    const executed = evaluateCompanyRuling({ directors: twoMarginal("executed"), company: co(), poolingRule: "combined" })
+    expect(["adequate", "strong"]).toContain(executed.rulingTier) // executed → combined applies → backed
   })
 
   it("§7.3 strict continuity: an unconsented surety director is a declared signal, NOT credited", () => {

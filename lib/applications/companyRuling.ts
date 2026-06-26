@@ -119,7 +119,14 @@ export function evaluateCompanyRuling(input: CompanyRulingInput): RulingResult {
   const strongestSingle = verified.length ? Math.max(0, ...verified.map((e) => e.capacityCents)) : 0
   const combined = verified.reduce((s, e) => s + e.capacityCents, 0)
   const suretyGroupPooled = maxGroupCapacity(verified)
-  const rule = input.poolingRule ?? "strongestSingle"
+  const configuredRule = input.poolingRule ?? "strongestSingle"
+  // ⚠ LEGAL-COMPLIANCE GATE (14P §5): combined / suretyGroupPooled rely on the COMBINED security, which only exists
+  // once EVERY credited surety's instrument is EXECUTED. Pre-execution (the deep-scan norm — all "intended") pooling
+  // unexecuted security is the same defect that blocks `combined` pre-execution, so the dispositive rule collapses to
+  // strongestSingle regardless of what the org configured. The configured rule only bites on a post-signing re-scan
+  // (all executed). This lives here, not in the policy default, so unexecuted pooling can't slip through a config.
+  const allExecuted = verified.length > 0 && verified.every((e) => e.d.suretyState === "executed")
+  const rule: PoolingRule = allExecuted ? configuredRule : "strongestSingle"
   const poolByRule: Record<PoolingRule, number> = { strongestSingle, combined, suretyGroupPooled }
   const poolCapacity = poolByRule[rule]
   const backsRent = rentCents > 0 && poolCapacity >= rentCents
@@ -139,7 +146,7 @@ export function evaluateCompanyRuling(input: CompanyRulingInput): RulingResult {
     flags: [
       ...lead.base.flags,
       ...companySignalFlags(input.company, input.companyVerdict, rentCents, backsRent),
-      ...suretyPoolFlags({ strongestSingle, combined, suretyGroupPooled, rule, poolCapacity, rentCents, backsRent, contingent, verified, evaluated }),
+      ...suretyPoolFlags({ strongestSingle, combined, suretyGroupPooled, rule, configuredRule, allExecuted, poolCapacity, rentCents, backsRent, contingent, verified, evaluated }),
     ],
   }
 }
@@ -147,14 +154,18 @@ export function evaluateCompanyRuling(input: CompanyRulingInput): RulingResult {
 /** The directors' surety pool → flags: the three aggregations (transparency), the dispositive read, the contingency,
  *  and a strict-continuity note for declared-but-unverified surety directors. */
 function suretyPoolFlags(p: Readonly<{
-  strongestSingle: number; combined: number; suretyGroupPooled: number; rule: PoolingRule; poolCapacity: number
-  rentCents: number; backsRent: boolean; contingent: boolean; verified: EvaluatedDirector[]; evaluated: EvaluatedDirector[]
+  strongestSingle: number; combined: number; suretyGroupPooled: number; rule: PoolingRule; configuredRule: PoolingRule
+  allExecuted: boolean; poolCapacity: number; rentCents: number; backsRent: boolean; contingent: boolean
+  verified: EvaluatedDirector[]; evaluated: EvaluatedDirector[]
 }>): RulingFlag[] {
   const flags: RulingFlag[] = []
-  // 95 — the surety pool read. All three aggregations stated; the dispositive rule named.
+  // 95 — the surety pool read. All three aggregations stated; the EFFECTIVE rule named. If the org configured a
+  // pooling rule but it's deferred to execution (the legal gate), say so — the agent sees why combined isn't applied.
+  const gated = p.configuredRule !== "strongestSingle" && !p.allExecuted
+  const gateNote = gated ? ` The ${p.configuredRule} rule applies only once all sureties are executed (signed); pre-execution the strongest single is used.` : ""
   flags.push({
     id: 95, key: "company_director_surety_pool", axis: "affordability", severity: p.backsRent ? "positive" : "minor", type: "signal",
-    title: `Directors' verified surety — strongest ${formatZAR(p.strongestSingle)}, combined ${formatZAR(p.combined)}, group ${formatZAR(p.suretyGroupPooled)}/mo; under the ${p.rule} rule it ${p.backsRent ? "backs" : "does not back"} the ${formatZAR(p.rentCents)} rent.`,
+    title: `Directors' verified surety — strongest ${formatZAR(p.strongestSingle)}, combined ${formatZAR(p.combined)}, group ${formatZAR(p.suretyGroupPooled)}/mo; under the ${p.rule} rule it ${p.backsRent ? "backs" : "does not back"} the ${formatZAR(p.rentCents)} rent.${gateNote}`,
     remediation: null,
   })
   // 96 — the backing is CONTINGENT on an unexecuted suretyship instrument (signed at lease signing).
