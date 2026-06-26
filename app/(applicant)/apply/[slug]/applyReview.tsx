@@ -257,7 +257,7 @@ export function VerifyEmail({ applicationId, token, email, verified, onVerified,
       const json = await res.json() as { ok?: boolean; alreadyVerified?: boolean; error?: string }
       if (json.alreadyVerified) { onVerified(); return }
       if (!res.ok) { toast.error(json.error ?? "Could not send the code."); return }
-      setSent(true); toast.success(`Code sent to ${email}`)
+      setSent(true); toast.success(email ? `Code sent to ${email}` : "Code sent — check your email")
     } catch { toast.error("Could not send the code.") } finally { setBusy(false) }
   }
   async function check() {
