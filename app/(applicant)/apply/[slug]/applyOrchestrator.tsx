@@ -494,7 +494,6 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
       if (!res.ok || !json.applicationId || !json.token) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
       setApplicationId(json.applicationId); setToken(json.token)
-      flashSaved() // a real save just landed → flash the transient "Saved ✓" chip
       // Put the resume token in the URL so a refresh / dev hot-reload rehydrates from the saved draft instead of
       // restarting (the draft is on the server; without the token in the URL the page can't find it on reload).
       try { globalThis.history?.replaceState(null, "", `?app=${json.applicationId}&token=${encodeURIComponent(json.token)}`) } catch { /* best-effort */ }
@@ -506,7 +505,12 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // step-advance so additional data is captured as you go — never CREATES a row on plain advance (no draft
   // spam from casual visitors), and never toasts/emails. Best-effort; the next save re-sends full state.
   function autosave(stepToSave: number) {
-    if (applicationId && form.email) void saveDraft(stepToSave, { silent: true })
+    if (!(applicationId && form.email)) return
+    // Always autosave each sub-step (data safety) — but only FLASH the "Saved" chip when a whole STEP GROUP was just
+    // completed (the group changes between the pane left and the pane entered), so the pill tracks visible steps, not
+    // every sub-step. (The create at Finances→Documents flashes from createApplication.)
+    const crossedGroup = nav.paneMeta[stepToSave - 1]?.group !== nav.paneMeta[stepToSave]?.group
+    void saveDraft(stepToSave, { silent: true }).then((r) => { if (r && crossedGroup) flashSaved() })
   }
 
   // Explicit "Save & finish later": persist + email the link, then surface the resume-link modal + mark saved.
@@ -533,6 +537,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       if (!r) return
       void dispatchInvites(r.id)                // fire the held at-selection invites now the application exists
       if (firstCreate) { setSaved(true); setResumeLink(r.url) }
+      flashSaved() // Finances → Documents is a step-group boundary → confirm the save
       advance(step + 1)
     } finally {
       setBusy(false)

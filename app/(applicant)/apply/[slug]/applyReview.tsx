@@ -283,13 +283,15 @@ export function VerifyEmail({ applicationId, token, email, verified, onVerified,
     )
   }
   return (
-    <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
-      <p className="text-sm font-medium text-[var(--ink)]">Verify your email</p>
-      <p className="mt-0.5 text-xs text-[var(--ink-soft)]">We&apos;ll send a 6-digit code to <strong className="text-[var(--ink)]">{email ?? "your email"}</strong> to confirm it&apos;s really you before submitting.</p>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-[var(--ink)]">Verify your email</p>
+        <p className="mt-0.5 text-xs text-[var(--ink-soft)]">We&apos;ll send a 6-digit code to <strong className="text-[var(--ink)]">{email ?? "your email"}</strong> to confirm it&apos;s really you.</p>
+      </div>
       {!sent ? (
-        <ActionButton tone="secondary" size="sm" onClick={send} disabled={busy} className="mt-2">Send code</ActionButton>
+        <ActionButton tone="primary" size="sm" onClick={send} disabled={busy} className="shrink-0">Send code</ActionButton>
       ) : (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="123456" className="w-28 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm tracking-[0.3em]" />
           <ActionButton tone="primary" size="sm" onClick={check} disabled={busy || code.length !== 6}>Verify</ActionButton>
           <button type="button" onClick={send} disabled={busy} className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]">Resend</button>
