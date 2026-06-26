@@ -69,25 +69,28 @@ export function PersonCard({ name, roleLabel, status }: Readonly<{ name: string;
 
 export interface RosterPerson { name: string; roleLabel: string; status: ApplicantCardStatus }
 
-/** The roster screen: the cards + the all-green gate. companyCard is the optional main (company) card on top.
- *  When everyone's green, onReview reveals the affordability review + submit; otherwise it's a waiting state. */
-export function ApplicantRoster({ persons, companyCard, allGreen, outstandingCount, onReview, amendSlot }: Readonly<{
-  persons: RosterPerson[]; companyCard?: React.ReactNode; allGreen: boolean; outstandingCount: number; onReview: () => void; amendSlot?: React.ReactNode
+/** The roster screen: the cards + the gate. companyCard is the optional main (company) card on top. Three footers:
+ *  all green → onReview (affordability review + submit); a NUDGE (onContinueOwn) → the filler has an outstanding OWN
+ *  section to do next (e.g. the director after the company sign-off); otherwise a waiting-on-others state. */
+export function ApplicantRoster({ persons, companyCard, allGreen, outstandingCount, onReview, amendSlot, onContinueOwn, continueLabel }: Readonly<{
+  persons: RosterPerson[]; companyCard?: React.ReactNode; allGreen: boolean; outstandingCount: number; onReview: () => void
+  amendSlot?: React.ReactNode; onContinueOwn?: () => void; continueLabel?: string
 }>) {
+  const nudge = !allGreen && !!onContinueOwn
+  let title = "Your part is done ✓"
+  let sub = "Your details, documents and consent are all in. The application goes to the agent once everyone has finished their part."
+  if (allGreen) { title = "Everyone's done ✓"; sub = "All applicants have completed their details and consented. Review the application and submit it to the agent." }
+  else if (nudge) { title = "Company application complete ✓"; sub = "Now complete your own application — each person on the application has their own card below." }
   return (
     <div className="flex min-h-full flex-col gap-4">
-      <StepHeading
-        title={allGreen ? "Everyone's done ✓" : "Your part is done ✓"}
-        sub={allGreen
-          ? "All applicants have completed their details and consented. Review the application and submit it to the agent."
-          : "Your details, documents and consent are all in. The application goes to the agent once everyone has finished their part."} />
+      <StepHeading title={title} sub={sub} />
 
       {companyCard}
       <div className="grid gap-3 sm:grid-cols-2">
         {persons.map((p) => <PersonCard key={`${p.roleLabel}-${p.name}`} name={p.name} roleLabel={p.roleLabel} status={p.status} />)}
       </div>
 
-      {!allGreen && (
+      {!allGreen && !nudge && (
         <>
           <div className="flex items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">
             <Users className="mt-0.5 size-5 shrink-0 text-[var(--ink-mute)]" />
@@ -100,6 +103,11 @@ export function ApplicantRoster({ persons, companyCard, allGreen, outstandingCou
       {allGreen && (
         <div className="mt-auto flex justify-end pt-3">
           <ActionButton tone="primary" onClick={onReview}>Review application</ActionButton>
+        </div>
+      )}
+      {nudge && onContinueOwn && (
+        <div className="mt-auto flex justify-end pt-3">
+          <ActionButton tone="primary" onClick={onContinueOwn}>{continueLabel ?? "Continue with your application"}</ActionButton>
         </div>
       )}
     </div>

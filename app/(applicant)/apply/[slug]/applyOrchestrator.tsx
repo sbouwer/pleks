@@ -38,6 +38,7 @@ import {
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
 import { StepSubmit } from "./applyReview"
+import { ApplicantRoster, CompanyCard, type RosterPerson } from "./applyRoster"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_PANES, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
@@ -80,6 +81,15 @@ function maritalErrors(form: PartyFormState, coApplicants: CoApplicant[]): Party
 /** "Green" = enough to invite AND link them to the application: a name, an email, and an ID number. */
 const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.trim() && c.idNumber.trim())
 
+/** The company roster's person cards — the director(s): the filler (You) + any co-directors/signatories, all
+ *  "outstanding" at the hub (the company section is signed off; their own personal sections aren't done yet). */
+function buildCompanyRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], companyRole: string): RosterPerson[] {
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+  const filler: RosterPerson = { name: [form.firstName, form.lastName].filter(Boolean).join(" ") || "You", roleLabel: cap(companyRole), status: "outstanding" }
+  const others = coApplicants.map((c): RosterPerson => ({ name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || "Director", roleLabel: cap(c.designation ?? "director"), status: "outstanding" }))
+  return [filler, ...others]
+}
+
 /** Flow selection — which step machine + offset for the applicant/company type (module-level to keep the component
  *  under the complexity gate). Sole prop / partnership = the personal machine + a prepended business-info pane
  *  (offset 1); a juristic company runs the short company phase before the director's personal flow. */
@@ -100,22 +110,36 @@ type NavNext = { label: string; onClick: () => void; disabled?: boolean; primary
 /** The header forward-action for the current step — extracted from the component to keep it under the complexity
  *  gate. Company entity panes dispatch by `activeKey`; the personal/director panes via `personalStep`. */
 function resolveNavNext(o: Readonly<{
-  inWizard: boolean; activeKey: string | undefined; companyImDirector: boolean; companyRole: string
+  inWizard: boolean; atRoster: boolean; activeKey: string | undefined; companyImDirector: boolean; companyRole: string
   personalStep: number; docsReady: boolean; busy: boolean
   continueCompanyInfo: () => void; advanceStep: () => void; afterCompanyReview: () => void; createApplication: () => void
   companyConsent: boolean; emailGateSatisfied: boolean
   continueIdentity: () => void; continueAddress: () => void; continueEmployment: () => void; continueIncome: () => void
   continueDocsRequired: () => void; finishDocuments: () => void
 }>): NavNext {
-  if (!o.inWizard) return null
-  // Company ENTITY panes (sole prop has only co-info; juristic has the full set).
+  if (!o.inWizard || o.atRoster) return null // at the roster hub the forward action lives in the roster body
+  return companyEntityNavNext(o) ?? personalNavNext(o)
+}
+/** Company ENTITY panes (sole prop has only co-info; juristic has the full set ending in the co-review sign-off). */
+function companyEntityNavNext(o: Readonly<{
+  activeKey: string | undefined; companyImDirector: boolean; companyRole: string; busy: boolean
+  companyConsent: boolean; emailGateSatisfied: boolean
+  continueCompanyInfo: () => void; advanceStep: () => void; afterCompanyReview: () => void; createApplication: () => void
+}>): NavNext {
   if (o.activeKey === "co-info") return { label: "Next", onClick: o.continueCompanyInfo }
   if (o.activeKey === "co-address") return { label: "Next", onClick: o.advanceStep }
   if (o.activeKey === "co-finances") return { label: "Next", onClick: o.createApplication } // app created here so the company-docs pane can upload
   if (o.activeKey === "co-docs") return { label: "Next", onClick: o.advanceStep }
   // Company sign-off — verify + consent on the company's behalf, then hand to the director (or email them).
   if (o.activeKey === "co-review") return { label: o.companyImDirector ? "Continue to your application" : `Send to the ${o.companyRole}`, onClick: o.afterCompanyReview, disabled: o.busy || !o.companyConsent || !o.emailGateSatisfied }
-  // Personal / director panes (sole prop + the director's private flow reuse these).
+  return null
+}
+/** Personal / director panes (sole prop + the director's private flow reuse these), dispatched by personalStep. */
+function personalNavNext(o: Readonly<{
+  personalStep: number; docsReady: boolean
+  continueIdentity: () => void; continueAddress: () => void; continueEmployment: () => void; continueIncome: () => void
+  createApplication: () => void; continueDocsRequired: () => void; finishDocuments: () => void
+}>): NavNext {
   if (o.personalStep === 0) return { label: "Next", onClick: o.continueIdentity }
   if (o.personalStep === 1) return { label: "Next", onClick: o.continueAddress }
   if (o.personalStep === 2) return { label: "Next", onClick: o.continueEmployment }
@@ -237,6 +261,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
   const [companyConsent, setCompanyConsent] = useState(false) // the COMPANY applicant's sign-off consent (co-review)
+  const [atRoster, setAtRoster] = useState(false) // the per-applicant roster HUB (after the company sign-off, before the director section)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
 
@@ -295,6 +320,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   }
 
   function goBack() {
+    if (atRoster) { setAtRoster(false); return } // from the roster hub → back to the company sign-off pane
     if (step === 0) setBegun(false) // back from the first pane (personal info / company info) → the landing
     else navTo(step - 1)
   }
@@ -312,9 +338,11 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     } finally { setBusy(false) }
   }
   // Leaving the company-documents pane: the director-filler continues to their private flow; the office-manager hands off.
-  // Company sign-off complete → the director continues to their own section (next pane), or — for an office-manager
-  // filler — the named director is emailed their link. (The roster hub between the two lands in increment B.)
-  function afterCompanyReview() { if (companyImDirector) { advance(step + 1); autosave(step + 1) } else void sendToDirector() }
+  // Company sign-off complete → land on the per-applicant ROSTER hub (Company ✓ · director outstanding). A director
+  // filler then nudges into their own section; an office-manager filler instead emails the named director their link.
+  function afterCompanyReview() { if (companyImDirector) setAtRoster(true); else void sendToDirector() }
+  // The roster nudge — the director leaves the hub to complete their own (personal) section.
+  function continueOwnSection() { setAtRoster(false); advance(step + 1); autosave(step + 1) }
 
   // Returning applicant on the landing: re-email their resume link. Anti-enumeration — the endpoint always
   // answers ok and only sends when a matching draft exists, so the toast is deliberately non-committal.
@@ -636,6 +664,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
   // Email gate satisfied if they verified by OTP OR they're the logged-in owner of this email (already confirmed).
   const emailGateSatisfied = emailVerified || (!!verifiedEmail && !!form.email && form.email.toLowerCase() === verifiedEmail.toLowerCase())
+  const companyRosterPersons = buildCompanyRosterPersons(form, coApplicants, companyRole)
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
   // -mr-5 pr-5: bleed the scroll body 20px into the panel's 40px side padding and pad the content back, so the
@@ -657,7 +686,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // The current step's forward action (header "Next →"). Resolved by a module helper to keep this component under
   // the complexity gate. Review has NO header action (its buttons live in the page body) → returns null there.
   const navNext = resolveNavNext({
-    inWizard, activeKey, companyImDirector, companyRole, personalStep, docsReady, busy,
+    inWizard, atRoster, activeKey, companyImDirector, companyRole, personalStep, docsReady, busy,
     continueCompanyInfo, advanceStep, afterCompanyReview, createApplication, companyConsent, emailGateSatisfied,
     continueIdentity, continueAddress, continueEmployment, continueIncome, continueDocsRequired, finishDocuments,
   })
@@ -775,7 +804,19 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           </div>
         )}
 
-        {begun && type !== null && !companySentToDirector && (
+        {/* Per-applicant ROSTER hub — after the company sign-off, the director nudges into their own section. */}
+        {begun && atRoster && !companySentToDirector && (
+          <div className={scrollCls}>
+            <ApplicantRoster
+              persons={companyRosterPersons}
+              companyCard={<CompanyCard name={company.name || company.trading || "The company"} status="complete" />}
+              allGreen={false} outstandingCount={companyRosterPersons.length} onReview={() => undefined}
+              onContinueOwn={continueOwnSection} continueLabel="Continue with your application"
+            />
+          </div>
+        )}
+
+        {begun && type !== null && !companySentToDirector && !atRoster && (
           <>
             <div className={scrollCls}>{renderFormPane()}</div>
           </>
