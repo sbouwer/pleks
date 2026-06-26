@@ -67,6 +67,17 @@ const AFFORD_BADGE: Record<string, { label: string; cls: string }> = {
   "no-income": { label: "No income", cls: "border-red-200 bg-red-50 text-red-700" },
 }
 const CITIZEN_LABEL: Record<string, string> = { citizen: "SA citizen", permanent_resident: "Permanent resident", foreign: "Foreign national", unknown: "" }
+// Company-verdict copy (the company is the payer + the directors are the surety) — by verdict, no nested ternaries.
+const COMPANY_AFF_CLAUSE: Record<string, string> = {
+  strong: "the company's declared surplus covers the rent",
+  backstopped: "the company's surplus is thin for the rent, but the directors' surety can carry it",
+  fail: "neither the company's surplus nor the directors' surety covers the rent on the figures provided",
+}
+const COMPANY_NOTE: Record<string, string> = {
+  strong: "The company's declared surplus covers the rent on its own figures.",
+  backstopped: "The company's surplus is thin for the rent, but the directors' combined surety can carry it (see the cards below).",
+  fail: "Neither the company's surplus nor the directors' surety covers the rent on the figures provided — an affordability concern.",
+}
 const MARGIN_ADJ: Record<string, string> = { within: "a comfortable margin", marginal: "a tight margin", below: "a thin margin", "no-income": "" }
 function tenureLabel(months: number | null): string | null {
   if (months == null || months <= 0) return null
@@ -83,9 +94,17 @@ function docNote(present: boolean, key: string): string {
 /** The written one-line read for the review — composed from the deterministic facts (declared figures + ID decode
  *  + arithmetic). Scoped to the APPLICATION ("complete on what you provided"), never the outcome. */
 function reviewSummary(a: FreeAssessmentResult): string {
+  const docsAllIn = a.allRequiredDocsPresent
+  // Company: the COMPANY is the payer (surplus vs rent) + the directors are the surety — read off the company
+  // verdict, NOT the signing director's personal ratio (which is the wrong frame for a juristic applicant).
+  if (a.isCompany) {
+    const affClause = COMPANY_AFF_CLAUSE[a.companyVerdict ?? "fail"] ?? COMPANY_AFF_CLAUSE.fail
+    const stabClause = ["the signing director's identity verified", docsAllIn ? "company documents in" : "company documents still to complete"].join(", ")
+    const closing = a.companyVerdict !== "fail" && docsAllIn ? "A complete company application." : "Add the rest to strengthen it."
+    return `On what you've provided: ${affClause}. ${stabClause.charAt(0).toUpperCase()}${stabClause.slice(1)}. ${closing}`
+  }
   const residual = a.randLeftAfterObligationsCents ?? a.randLeftAfterRentCents
   const tenure = tenureLabel(a.employment.tenureMonths)
-  const docsAllIn = a.allRequiredDocsPresent
   const verdictGood = a.affordabilityTier === "within" && a.readiness.band === "ready"
   const affClause = a.declaredRatioPct != null && residual != null
     ? `rent is ${a.declaredRatioPct}% of your declared income, leaving ${formatZAR(residual)}/mo after rent and commitments — ${MARGIN_ADJ[a.affordabilityTier] || "as declared"}`
@@ -95,6 +114,86 @@ function reviewSummary(a: FreeAssessmentResult): string {
   if (verdictGood) closing = "A strong, complete application."
   else if (docsAllIn) closing = "A complete application."
   return `On what you've provided: ${affClause}. ${stabClause.charAt(0).toUpperCase()}${stabClause.slice(1)}. ${closing}`
+}
+
+const COMPANY_BADGE: Record<string, { label: string; cls: string }> = {
+  strong: { label: "Affordable", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  backstopped: { label: "Director-backed", cls: "border-amber-200 bg-amber-50 text-amber-700" },
+  fail: { label: "Concern", cls: "border-red-200 bg-red-50 text-red-700" },
+}
+
+/** Company affordability — the COMPANY is the payer (monthly surplus = money in − out, vs rent); the directors are
+ *  the surety (their cards sit on the roster). Distinct from the personal residual card, which reads the director as
+ *  the tenant — the wrong frame for a juristic applicant. */
+function CompanyAffordabilityCard({ assessment, askingRentCents }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number }>) {
+  const surplus = assessment.companyNetMonthlyCents ?? 0
+  const turnover = assessment.companyTurnoverMonthlyCents ?? 0
+  const verdict = assessment.companyVerdict ?? "fail"
+  const badge = COMPANY_BADGE[verdict] ?? COMPANY_BADGE.fail
+  const afterRent = surplus - askingRentCents
+  const note = COMPANY_NOTE[verdict] ?? COMPANY_NOTE.fail
+  return (
+    <div className="flex flex-col gap-4 rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card p-5">
+      <h3 className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]">
+        <span className="shrink-0">Company affordability</span>
+        <span aria-hidden className="h-px flex-1 bg-[var(--rule)]" />
+        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal ${badge.cls}`}>{badge.label}</span>
+      </h3>
+      <dl className="flex flex-col gap-2.5 text-sm">
+        {turnover > 0 && <div className="flex justify-between gap-3"><dt className="text-[var(--ink-soft)]">Turnover (money in)</dt><dd className="text-[var(--ink-soft)]">{formatZAR(turnover)}</dd></div>}
+        <div className="flex justify-between gap-3"><dt className="text-[var(--ink-soft)]">Monthly surplus (in − out)</dt><dd className="font-medium text-[var(--ink)]">{formatZAR(surplus)}</dd></div>
+        <div className="flex justify-between gap-3"><dt className="flex items-center gap-2 text-[var(--ink-soft)]"><span className="size-2 shrink-0 rounded-full bg-slate-400" /> This rent</dt><dd className="text-[var(--ink-soft)]">− {formatZAR(askingRentCents)}</dd></div>
+      </dl>
+      <div className="flex items-center justify-between gap-3 border-t border-[var(--rule)] pt-3">
+        <span className="text-sm font-medium text-[var(--ink)]">{afterRent >= 0 ? "Surplus after rent" : "Shortfall on the company"}</span>
+        <span className={`text-xl font-semibold ${afterRent >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatZAR(afterRent)}</span>
+      </div>
+      <p className="text-[11px] leading-relaxed text-[var(--ink-mute)]">{note} Verified against the AFS / bank statements at the deep scan.</p>
+    </div>
+  )
+}
+
+/** Personal affordability — the residual card (declared income − commitments − rent → left over). The applicant IS
+ *  the tenant here (couple/guarantor income is already combined in the assessment). */
+function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; onAddApplicant: () => void }>) {
+  const incomeCents = assessment.combinedIncomeCents
+  const oblCents = assessment.declaredObligationsCents
+  const residualCents = assessment.randLeftAfterObligationsCents ?? assessment.randLeftAfterRentCents ?? (incomeCents - askingRentCents - oblCents)
+  const ratioPct = assessment.declaredRatioPct
+  const multiple = assessment.incomeMultiple
+  const badge = AFFORD_BADGE[assessment.affordabilityTier] ?? AFFORD_BADGE["no-income"]
+  const short = assessment.affordabilityTier !== "within" // marginal / below / no-income → prompt "Add applicant"
+  const pct = (n: number) => (incomeCents > 0 ? Math.max(0, Math.min(100, Math.round((n / incomeCents) * 100))) : 0)
+  return (
+    <div className="flex flex-col gap-4 rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card p-5">
+      <h3 className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]">
+        <span className="shrink-0">Affordability</span>
+        <span aria-hidden className="h-px flex-1 bg-[var(--rule)]" />
+        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal ${badge.cls}`}>{badge.label}</span>
+      </h3>
+      <dl className="flex flex-col gap-2.5 text-sm">
+        <div className="flex justify-between gap-3"><dt className="text-[var(--ink-soft)]">Declared income</dt><dd className="font-medium text-[var(--ink)]">{formatZAR(incomeCents)}</dd></div>
+        <div className="flex justify-between gap-3"><dt className="flex items-center gap-2 text-[var(--ink-soft)]"><span className="size-2 shrink-0 rounded-full bg-amber-400" /> Commitments</dt><dd className="text-[var(--ink-soft)]">− {formatZAR(oblCents)}</dd></div>
+        <div className="flex justify-between gap-3"><dt className="flex items-center gap-2 text-[var(--ink-soft)]"><span className="size-2 shrink-0 rounded-full bg-slate-400" /> This rent</dt><dd className="text-[var(--ink-soft)]">− {formatZAR(askingRentCents)}</dd></div>
+      </dl>
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-[var(--paper-sunk)]" aria-hidden>
+        <div className="bg-slate-400" style={{ width: `${pct(askingRentCents)}%` }} />
+        <div className="bg-amber-400" style={{ width: `${pct(oblCents)}%` }} />
+        <div className="bg-emerald-500" style={{ width: `${pct(Math.max(0, residualCents))}%` }} />
+      </div>
+      <div className="flex items-center justify-between gap-3 border-t border-[var(--rule)] pt-3">
+        <span className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]"><span className="size-2 shrink-0 rounded-full bg-emerald-500" /> Left for other expenses</span>
+        <span className={`text-xl font-semibold ${residualCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatZAR(residualCents)}</span>
+      </div>
+      <p className="text-[11px] text-[var(--ink-mute)]">{ratioPct != null ? `Rent is ${ratioPct}% of income` : "Income still to confirm"}{multiple != null ? ` · income covers rent ${multiple}×` : ""}</p>
+      {short && (
+        <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
+          <p className="text-xs leading-relaxed text-[var(--ink-soft)]">{assessment.affordabilityTier === "no-income" ? "No income declared yet." : "Rent is high relative to your declared income."} Adding a co-applicant or guarantor whose income counts would strengthen affordability.</p>
+          <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} className="mt-2" onClick={onAddApplicant}>Add applicant</ActionButton>
+        </div>
+      )}
+    </div>
+  )
 }
 
 /** Step-1 FREE assessment — the application review: Completeness (what's done / still to add) + Residual
@@ -138,18 +237,12 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, c
   // Ready — a structured four-dimension read (Affordability · Identity & stability · Declared income · Documents)
   // topped by a written one-line summary. All declared/unverified, zero-AI. The verdict is scoped to the
   // APPLICATION ("complete and affordable on the figures you provided"), never the outcome — the agent decides.
-  const incomeCents = assessment.combinedIncomeCents
-  const oblCents = assessment.declaredObligationsCents
-  const residualCents = assessment.randLeftAfterObligationsCents ?? assessment.randLeftAfterRentCents ?? (incomeCents - askingRentCents - oblCents)
-  const ratioPct = assessment.declaredRatioPct
-  const multiple = assessment.incomeMultiple
-  const badge = AFFORD_BADGE[assessment.affordabilityTier] ?? AFFORD_BADGE["no-income"]
-  const short = assessment.affordabilityTier !== "within" // marginal / below / no-income → prompt "Add applicant"
-  const pct = (n: number) => (incomeCents > 0 ? Math.max(0, Math.min(100, Math.round((n / incomeCents) * 100))) : 0)
   const identityOk = !assessment.identity.underageCannotSign && assessment.identity.dobMatchesDeclared !== false
   const tenure = tenureLabel(assessment.employment.tenureMonths)
   const empLabel = emp.employment_type ? employmentLabel(emp.employment_type) : null
-  const verdictGood = !short && assessment.readiness.band === "ready"
+  // Company: "good" = company affords OR the directors' surety backs it (verdict ≠ fail); personal: within-ratio.
+  // Both gate on readiness. (The affordability-card figures live in PersonalAffordabilityCard / CompanyAffordabilityCard.)
+  const verdictGood = (assessment.isCompany ? assessment.companyVerdict !== "fail" : assessment.affordabilityTier === "within") && assessment.readiness.band === "ready"
   const idLine = [assessment.identity.residency === "foreign" ? "Passport" : "SA ID verified", assessment.identity.ageYears ? `age ${assessment.identity.ageYears}` : null, CITIZEN_LABEL[assessment.identity.residency]].filter(Boolean).join(" · ")
   const summary = reviewSummary(assessment)
   return (
@@ -165,35 +258,10 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, c
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Affordability — line-item bullets match the bar-chart colours (rent · commitments · left for rent). */}
-        <div className="flex flex-col gap-4 rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card p-5">
-          <h3 className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]">
-            <span className="shrink-0">Affordability</span>
-            <span aria-hidden className="h-px flex-1 bg-[var(--rule)]" />
-            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal ${badge.cls}`}>{badge.label}</span>
-          </h3>
-          <dl className="flex flex-col gap-2.5 text-sm">
-            <div className="flex justify-between gap-3"><dt className="text-[var(--ink-soft)]">Declared income</dt><dd className="font-medium text-[var(--ink)]">{formatZAR(incomeCents)}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="flex items-center gap-2 text-[var(--ink-soft)]"><span className="size-2 shrink-0 rounded-full bg-amber-400" /> Commitments</dt><dd className="text-[var(--ink-soft)]">− {formatZAR(oblCents)}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="flex items-center gap-2 text-[var(--ink-soft)]"><span className="size-2 shrink-0 rounded-full bg-slate-400" /> This rent</dt><dd className="text-[var(--ink-soft)]">− {formatZAR(askingRentCents)}</dd></div>
-          </dl>
-          <div className="flex h-3 w-full overflow-hidden rounded-full bg-[var(--paper-sunk)]" aria-hidden>
-            <div className="bg-slate-400" style={{ width: `${pct(askingRentCents)}%` }} />
-            <div className="bg-amber-400" style={{ width: `${pct(oblCents)}%` }} />
-            <div className="bg-emerald-500" style={{ width: `${pct(Math.max(0, residualCents))}%` }} />
-          </div>
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--rule)] pt-3">
-            <span className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]"><span className="size-2 shrink-0 rounded-full bg-emerald-500" /> Left for other expenses</span>
-            <span className={`text-xl font-semibold ${residualCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatZAR(residualCents)}</span>
-          </div>
-          <p className="text-[11px] text-[var(--ink-mute)]">{ratioPct != null ? `Rent is ${ratioPct}% of income` : "Income still to confirm"}{multiple != null ? ` · income covers rent ${multiple}×` : ""}</p>
-          {short && (
-            <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
-              <p className="text-xs leading-relaxed text-[var(--ink-soft)]">{assessment.affordabilityTier === "no-income" ? "No income declared yet." : "Rent is high relative to your declared income."} Adding a co-applicant or guarantor whose income counts would strengthen affordability.</p>
-              <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} className="mt-2" onClick={onAddApplicant}>Add applicant</ActionButton>
-            </div>
-          )}
-        </div>
+        {/* Company → the company-payer card (surplus vs rent + director surety); personal → the residual card. */}
+        {assessment.isCompany
+          ? <CompanyAffordabilityCard assessment={assessment} askingRentCents={askingRentCents} />
+          : <PersonalAffordabilityCard assessment={assessment} askingRentCents={askingRentCents} onAddApplicant={onAddApplicant} />}
 
         {/* Identity & documents — the rest of the declared picture (income lives in the Affordability card). */}
         <div className="flex flex-col gap-4 rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card p-5">
