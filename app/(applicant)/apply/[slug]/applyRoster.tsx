@@ -72,9 +72,9 @@ export interface RosterPerson { name: string; roleLabel: string; status: Applica
 /** The roster screen: the cards + the gate. companyCard is the optional main (company) card on top. Three footers:
  *  all green → onReview (affordability review + submit); a NUDGE (onContinueOwn) → the filler has an outstanding OWN
  *  section to do next (e.g. the director after the company sign-off); otherwise a waiting-on-others state. */
-export function ApplicantRoster({ persons, companyCard, allGreen, outstandingCount, onReview, amendSlot, onContinueOwn, continueLabel }: Readonly<{
+export function ApplicantRoster({ persons, companyCard, allGreen, outstandingCount, onReview, amendSlot, onContinueOwn, continueLabel, waitingNote }: Readonly<{
   persons: RosterPerson[]; companyCard?: React.ReactNode; allGreen: boolean; outstandingCount: number; onReview: () => void
-  amendSlot?: React.ReactNode; onContinueOwn?: () => void; continueLabel?: string
+  amendSlot?: React.ReactNode; onContinueOwn?: () => void; continueLabel?: string; waitingNote?: React.ReactNode
 }>) {
   const nudge = !allGreen && !!onContinueOwn
   let title = "Your part is done ✓"
@@ -94,7 +94,7 @@ export function ApplicantRoster({ persons, companyCard, allGreen, outstandingCou
         <>
           <div className="flex items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">
             <Users className="mt-0.5 size-5 shrink-0 text-[var(--ink-mute)]" />
-            <span>Waiting on <strong className="text-[var(--ink)]">{outstandingCount}</strong> {outstandingCount === 1 ? "applicant" : "applicants"} to finish. Each has their own secure link, and nothing goes to the agent until everyone&apos;s done — come back via your saved link to submit once they have.</span>
+            <span>{waitingNote ?? <>Waiting on <strong className="text-[var(--ink)]">{outstandingCount}</strong> {outstandingCount === 1 ? "applicant" : "applicants"} to finish. Each has their own secure link, and nothing goes to the agent until everyone&apos;s done — come back via your saved link to submit once they have.</>}</span>
           </div>
           {amendSlot}
         </>

@@ -15,7 +15,7 @@ import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { formatZAR, startedWithinProbation } from "@/lib/constants"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { StepHeading } from "./applyShared"
-import { ApplicantRoster, type RosterPerson, type ApplicantCardStatus } from "./applyRoster"
+import { ApplicantRoster, CompanyCard, type RosterPerson, type ApplicantCardStatus } from "./applyRoster"
 import { type Emp, type IncomeRow, type CoApplicant, type ScreeningStatus, STEP_DOCUMENTS, employmentLabel, rowMonthlyCents, moneyCents, totalMonthlyCents } from "./applyDomain"
 
 
@@ -101,7 +101,7 @@ function reviewSummary(a: FreeAssessmentResult): string {
 /** Step-1 FREE assessment — the application review: Completeness (what's done / still to add) + Residual
  *  affordability (income vs commitments + the residual + a tier read; prompts "Add applicant" when short).
  *  Re-runnable for free; the J1 gate (all co-applicants complete) blocks submit. (ADDENDUM_14M funnel) */
-function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, onAmend, onRerun, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; rosterPersons: RosterPerson[]; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
+function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, companyName, onAmend, onRerun, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; rosterPersons: RosterPerson[]; companyName?: string; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [reviewing, setReviewing] = useState(false)
@@ -116,7 +116,8 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, o
 
   const { incompleteCount } = assessment.readiness
   const readyToSubmit = incompleteCount === 0   // J1: someone unfinished → blocked (server enforces too)
-  const isMultiParty = rosterPersons.length > 1
+  // A company always has ≥2 applicants (the entity + its director[s]), so it shows the roster even with one director.
+  const isMultiParty = rosterPersons.length > 1 || !!companyName
 
   // Multi-applicant → the card roster: each party's status, and Review unlocks only when all are green. The
   // affordability review + submit lives behind the Review button. A single applicant skips straight to it.
@@ -124,6 +125,7 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, o
     return (
       <ApplicantRoster
         persons={rosterPersons} allGreen={readyToSubmit} outstandingCount={incompleteCount} onReview={() => setReviewing(true)}
+        companyCard={companyName ? <CompanyCard name={companyName} status="complete" /> : undefined}
         amendSlot={
           <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
             <p className="text-xs text-[var(--ink-mute)]">Want to change something on your side while you wait? It&apos;s free to re-check.</p>
@@ -297,9 +299,9 @@ export function VerifyEmail({ applicationId, token, email, verified, onVerified 
   )
 }
 
-export function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, applicantsGreen, screeningStatus, assessment, onAmend, onRerun, onContinue, onAddApplicant, applicationId, token, emailVerified, onVerified }: Readonly<{
+export function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, applicantsGreen, screeningStatus, assessment, companyName, onAmend, onRerun, onContinue, onAddApplicant, applicationId, token, emailVerified, onVerified }: Readonly<{
   form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
-  coApplicants: CoApplicant[]; applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null
+  coApplicants: CoApplicant[]; applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null; companyName?: string
   onAmend: (s: number) => void; onRerun: () => void; onContinue: () => void; onAddApplicant: () => void
   applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
 }>) {
@@ -315,7 +317,7 @@ export function StepSubmit({ form, emp, income, askingRentCents, consent, setCon
     } catch { toast.error("Could not submit. Please try again."); return false }
   }
 
-  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} rosterPersons={buildRosterPersons(form, coApplicants, assessment)} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
+  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} rosterPersons={buildRosterPersons(form, coApplicants, assessment)} companyName={companyName} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
 
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = totalMonthlyCents(income)

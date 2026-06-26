@@ -81,12 +81,14 @@ function maritalErrors(form: PartyFormState, coApplicants: CoApplicant[]): Party
 /** "Green" = enough to invite AND link them to the application: a name, an email, and an ID number. */
 const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.trim() && c.idNumber.trim())
 
-/** The company roster's person cards — the director(s): the filler (You) + any co-directors/signatories, all
- *  "outstanding" at the hub (the company section is signed off; their own personal sections aren't done yet). */
-function buildCompanyRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], companyRole: string): RosterPerson[] {
+/** The company roster's person cards — the director(s), all "outstanding" at the hub (the company section is signed
+ *  off; their own personal sections aren't done yet). A director filler (You) leads the list; an office-manager
+ *  filler isn't a party, so only the named directors (coApplicants) show. */
+function buildCompanyRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], companyRole: string, imDirector: boolean): RosterPerson[] {
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-  const filler: RosterPerson = { name: [form.firstName, form.lastName].filter(Boolean).join(" ") || "You", roleLabel: cap(companyRole), status: "outstanding" }
   const others = coApplicants.map((c): RosterPerson => ({ name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || "Director", roleLabel: cap(c.designation ?? "director"), status: "outstanding" }))
+  if (!imDirector) return others
+  const filler: RosterPerson = { name: [form.firstName, form.lastName].filter(Boolean).join(" ") || "You", roleLabel: cap(companyRole), status: "outstanding" }
   return [filler, ...others]
 }
 
@@ -664,7 +666,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
   // Email gate satisfied if they verified by OTP OR they're the logged-in owner of this email (already confirmed).
   const emailGateSatisfied = emailVerified || (!!verifiedEmail && !!form.email && form.email.toLowerCase() === verifiedEmail.toLowerCase())
-  const companyRosterPersons = buildCompanyRosterPersons(form, coApplicants, companyRole)
+  const companyRosterPersons = buildCompanyRosterPersons(form, coApplicants, companyRole, companyImDirector)
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
   // -mr-5 pr-5: bleed the scroll body 20px into the panel's 40px side padding and pad the content back, so the
@@ -709,7 +711,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (personalStep === STEP_EXPENSES) return <StepExpenses dependentAdults={dependentAdults} setDependentAdults={setDependentAdults} dependentMinors={dependentMinors} setDependentMinors={setDependentMinors} commitments={commitments} setCommitments={setCommitments} />
     if (personalStep === STEP_DOCUMENTS) return <StepDocuments tab="required" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
     if (personalStep === STEP_DOCS_OPTIONAL) return <StepDocuments tab="optional" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
-    if (personalStep === STEP_REVIEW) return <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onRerun={submitApplication} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />
+    if (personalStep === STEP_REVIEW) return <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} companyName={type === "company" ? (company.name || company.trading || "The company") : undefined} onAmend={amendAt} onRerun={submitApplication} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />
     return null
   }
   // Desktop = vertical step rail (left) + form panel; mobile/short = horizontal step bar atop the panel.
@@ -794,13 +796,16 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           </div>
         )}
 
-        {/* "Sent to director" — an office-manager filler handed the company off; nothing more for them to do. */}
+        {/* "Sent to director" — an office-manager filler handed the company off: the roster shows Company ✓ + the
+            director outstanding (emailed their link). Nothing more for the office manager to do. */}
         {companySentToDirector && (
           <div className={scrollCls}>
-            <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
-              <h2 className="flex items-center gap-2 text-lg font-medium text-[var(--ink)]"><CheckCircle2 className="size-5 text-emerald-600" /> Sent to the {companyRole}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">We&apos;ve emailed {coApplicants[0]?.email ? <strong className="text-[var(--ink)]">{coApplicants[0].email}</strong> : `the ${companyRole}`} a secure link to complete the application — adding their details, the income picture and consent. You can close this page.</p>
-            </div>
+            <ApplicantRoster
+              persons={companyRosterPersons}
+              companyCard={<CompanyCard name={company.name || company.trading || "The company"} status="complete" />}
+              allGreen={false} outstandingCount={companyRosterPersons.length} onReview={() => undefined}
+              waitingNote={<>We&apos;ve emailed {coApplicants[0]?.email ? <strong className="text-[var(--ink)]">{coApplicants[0].email}</strong> : `the ${companyRole}`} a secure link to complete their personal application. You can close this page.</>}
+            />
           </div>
         )}
 
