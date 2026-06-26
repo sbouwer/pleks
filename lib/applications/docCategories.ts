@@ -27,10 +27,16 @@ export interface DocCategory {
  *  - 1–2 years old → ask for the {age} year(s) that should exist (you can't have 3 yet);
  *  - 3+ years old → the standard last-3-years ask, with an escape (a mature company that can't produce them is a
  *    screening flag downstream — the escape note is deliberately soft here). */
-function afsCategory(companyReg?: string | null): DocCategory {
+/** The company's age in years, from the CIPC registration year (first 4 digits) — null if the reg is absent/odd.
+ *  Shared by the AFS doc slot (how many to ask for) and the screening flag (a mature co that can't produce them). */
+export function companyAgeYears(companyReg?: string | null): number | null {
   const regYear = Number((companyReg ?? "").slice(0, 4))
   const now = new Date().getFullYear()
-  const age = regYear >= 1900 && regYear <= now ? now - regYear : null
+  return regYear >= 1900 && regYear <= now ? now - regYear : null
+}
+
+function afsCategory(companyReg?: string | null): DocCategory {
+  const age = companyAgeYears(companyReg)
   if (age !== null && age <= 0) {
     return { key: "afs", label: "Annual Financial Statements (if available)", hint: "Registered this year, so audited AFS may not exist yet — upload management accounts or recent financials if you have them.", single: false, required: false, tier: "optional" }
   }

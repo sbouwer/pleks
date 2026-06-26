@@ -52,6 +52,27 @@ describe("assembleAssessment — DB shape → verdict (the wiring)", () => {
     expect(r.rollup).toBe("does-not-qualify")
   })
 
+  it("company: net profit covers alone, but existing monthly commitments push the residual below rent → not strong", () => {
+    const r = assess(appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", annualProfit: "120000", annualTurnover: "5000000", monthlyCommitments: "5000" } }))
+    expect(r.companyVerdict).toBe("fail")          // R10k/mo net − R5k commitments = R5k residual < R9k rent
+  })
+
+  it("company: residual still covers the rent after commitments → strong", () => {
+    const r = assess(appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", annualProfit: "240000", monthlyCommitments: "5000" } }))
+    expect(r.companyVerdict).toBe("strong")        // R20k/mo net − R5k = R15k residual ≥ R9k
+  })
+
+  it("company: mature (by CIPC reg year) with the AFS still outstanding → screening flag in the read", () => {
+    const r = assembleAssessment({
+      rentCents: RENT, depositCents: null, leaseTermMonths: 12, childMaintenanceCents: 0,
+      primaryDocuments: [{ key: "afs", label: "AFS", required: true, present: false }],
+      app: appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", annualProfit: "240000", companyReg: "2015/123456/07" } }),
+      coRows: [],
+    })
+    expect(r.companyAgeYears).not.toBeNull()
+    expect(r.interpretations.some((i) => /annual financial statements/i.test(i.text))).toBe(true)
+  })
+
   it("company: thin net but a director (is_surety_director) covers → backstopped", () => {
     const r = assess(
       appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", annualProfit: "12000" } }),

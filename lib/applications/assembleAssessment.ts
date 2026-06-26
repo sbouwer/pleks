@@ -13,6 +13,7 @@
  */
 import { freeAssessment, type FreeApplicantInput, type FreeAssessmentResult, type FreeAssessmentOptions, type DocSlot } from "@/lib/applications/freeAssessment"
 import { isJuristicCompanyType } from "@/lib/applications/companyTypes"
+import { companyAgeYears } from "@/lib/applications/docCategories"
 
 export interface AssessmentAppRow {
   gross_monthly_income_cents?: number | null
@@ -38,6 +39,14 @@ export function annualRandsToMonthlyCents(v: unknown): number | null {
   const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d.]/g, ""))
   if (!Number.isFinite(n) || n <= 0) return null
   return Math.round((n * 100) / 12)
+}
+
+/** A monthly rands figure (e.g. the company's existing commitments) → cents. Null when blank/non-positive. */
+export function monthlyRandsToCents(v: unknown): number | null {
+  if (v == null) return null
+  const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d.]/g, ""))
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.round(n * 100)
 }
 
 export function assembleAssessment(p: Readonly<{
@@ -81,7 +90,7 @@ export function assembleAssessment(p: Readonly<{
   // (captured in the personal flow), so company stays null and the normal personal/residual path applies.
   const ci = p.app.company_info
   const company: FreeAssessmentOptions["company"] = p.app.applicant_type === "company" && ci && isJuristicCompanyType(ci.companyType)
-    ? { netProfitMonthlyCents: annualRandsToMonthlyCents(ci.annualProfit), turnoverMonthlyCents: annualRandsToMonthlyCents(ci.annualTurnover) }
+    ? { netProfitMonthlyCents: annualRandsToMonthlyCents(ci.annualProfit), turnoverMonthlyCents: annualRandsToMonthlyCents(ci.annualTurnover), monthlyCommitmentsCents: monthlyRandsToCents(ci.monthlyCommitments), ageYears: companyAgeYears(ci.companyReg as string | null | undefined) }
     : null
 
   return freeAssessment(p.rentCents, applicants, { depositCents: p.depositCents, leaseTermMonths: p.leaseTermMonths, company })

@@ -122,8 +122,9 @@ export interface FreeAssessmentResult {
   isCompany: boolean
   companyNetMonthlyCents: number | null     // declared net profit ÷ 12 — the payer's real capacity (turnover is NOT this)
   companyTurnoverMonthlyCents: number | null // declared turnover ÷ 12 — CONTEXT/scale only, never in the affordability test
-  companyAffordsAlone: boolean              // company net profit alone covers the rent
+  companyAffordsAlone: boolean              // company net profit alone covers the rent (residual, after commitments)
   companyVerdict: CompanyVerdict | null  // strong=company nets it · backstopped=directors' surety carries · fail
+  companyAgeYears: number | null            // from the CIPC reg year — a mature co (≥3) without AFS is a flag
   estimatedMoveInCents: number | null  // deposit + first month's rent
   // Identity (primary) + employment (primary)
   identity: IdentitySignal
@@ -143,7 +144,7 @@ export interface FreeAssessmentOptions {
   asOf?: Date                          // for deterministic age/tenure in tests
   // Present ONLY for a company application — the company is the payer; directors (guarantor-role, joint suretyGroup)
   // are the backstop. netProfitMonthly is the capacity tested; turnoverMonthly is context/scale only.
-  company?: { netProfitMonthlyCents: number | null; turnoverMonthlyCents?: number | null } | null
+  company?: { netProfitMonthlyCents: number | null; turnoverMonthlyCents?: number | null; monthlyCommitmentsCents?: number | null; ageYears?: number | null } | null
 }
 
 /** True only when an SA-ID number fails the Luhn checksum; a passport/other id type is never "invalid" here. */
@@ -279,6 +280,15 @@ function buildInterpretations(r: Omit<FreeAssessmentResult, "interpretations">):
   // Affordability read (one) — company verdict or personal tier + guarantor backstop (extracted helper).
   out.push(...affordabilityRead(r, ready, goodMultiple))
 
+  // A MATURE company (≥3 years, from the CIPC reg year) that can't produce the AFS it should have is a flag — a
+  // younger company is exempt (its AFS slot was relaxed). Financial completeness, never a protected attribute.
+  if (r.isCompany && (r.companyAgeYears ?? 0) >= 3) {
+    const afs = r.documents.find((d) => d.key === "afs")
+    if (afs?.required && !afs.present) {
+      out.push({ kind: "caution", text: `The company is ~${r.companyAgeYears} years old but no annual financial statements were provided — a company of this age should have them; verify before relying on the declared profit.` })
+    }
+  }
+
   if (r.spousalConsentRequired) {
     // s15 MPA: an in-community surety-giver's spouse must consent — but the INSTRUMENT (annexure / witness /
     // co-surety / acknowledgement) is counsel's drafting choice, executed at signing. Surface it as a CONTINGENCY,
@@ -410,7 +420,11 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
   const isCompany = opts.company != null
   const companyNetMonthlyCents = isCompany ? (opts.company?.netProfitMonthlyCents ?? null) : null
   const companyTurnoverMonthlyCents = isCompany ? (opts.company?.turnoverMonthlyCents ?? null) : null
-  const companyAffordsAlone = isCompany && companyNetMonthlyCents != null && rentCents > 0 && companyNetMonthlyCents >= rentCents
+  // Residual-style: weigh the rent against net profit ÷ 12 LESS the company's existing monthly commitments (other
+  // leases, asset / vehicle finance, loans) — same shape as the personal residual.
+  const companyCommitmentsCents = isCompany ? (opts.company?.monthlyCommitmentsCents ?? 0) : 0
+  const companyResidualMonthlyCents = companyNetMonthlyCents != null ? companyNetMonthlyCents - companyCommitmentsCents : null
+  const companyAffordsAlone = isCompany && companyResidualMonthlyCents != null && rentCents > 0 && companyResidualMonthlyCents >= rentCents
   let companyVerdict: CompanyVerdict | null = null
   if (isCompany) {
     if (companyAffordsAlone) companyVerdict = "strong"
@@ -453,6 +467,7 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
     companyTurnoverMonthlyCents,
     companyAffordsAlone,
     companyVerdict,
+    companyAgeYears: isCompany ? (opts.company?.ageYears ?? null) : null,
     estimatedMoveInCents,
     identity,
     employment,
