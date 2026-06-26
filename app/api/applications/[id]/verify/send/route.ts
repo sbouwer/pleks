@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Too many requests" }, { status: 429 })
   }
   const { id } = await params
-  const body = await req.json().catch(() => ({})) as { token?: string }
+  const body = await req.json().catch(() => ({})) as { token?: string; reverify?: boolean }
   if (!body.token) return NextResponse.json({ error: "Missing token" }, { status: 400 })
   const db = await createServiceClient()
 
@@ -39,7 +39,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   logQueryError("verify/send application", appErr)
   if (!app) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (!app.applicant_email) return NextResponse.json({ error: "No email on this application" }, { status: 400 })
-  if (app.email_verified_at) return NextResponse.json({ ok: true, alreadyVerified: true })
+  // `reverify` forces a fresh code even when already verified — the amend gate ("verify it's you" before editing
+  // personal details via a shared link) must prove the CURRENT holder is the applicant, not honour a past verify.
+  if (app.email_verified_at && !body.reverify) return NextResponse.json({ ok: true, alreadyVerified: true })
 
   const identifier = `appverify:${id}`
   const rl = await checkRateLimit(identifier)

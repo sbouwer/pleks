@@ -240,8 +240,8 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, c
 
 /** Anti-bot email verification — send a 6-digit code to the applicant's email, then confirm it before submit.
  *  Exported so the company sign-off (StepCompanyReview) reuses the same verify widget. */
-export function VerifyEmail({ applicationId, token, email, verified, onVerified }: Readonly<{
-  applicationId: string | null; token: string | null; email?: string; verified: boolean; onVerified: () => void
+export function VerifyEmail({ applicationId, token, email, verified, onVerified, reverify }: Readonly<{
+  applicationId: string | null; token: string | null; email?: string; verified: boolean; onVerified: () => void; reverify?: boolean
 }>) {
   const [sent, setSent] = useState(false)
   const [code, setCode] = useState("")
@@ -252,7 +252,7 @@ export function VerifyEmail({ applicationId, token, email, verified, onVerified 
     setBusy(true)
     try {
       const res = await fetch(`/api/applications/${applicationId}/verify/send`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, reverify }),
       })
       const json = await res.json() as { ok?: boolean; alreadyVerified?: boolean; error?: string }
       if (json.alreadyVerified) { onVerified(); return }

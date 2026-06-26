@@ -37,7 +37,7 @@ import {
 } from "./applyDomain"
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
-import { StepSubmit } from "./applyReview"
+import { StepSubmit, VerifyEmail } from "./applyReview"
 import { ApplicantRoster, CompanyCard, type RosterPerson } from "./applyRoster"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_PANES, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
@@ -80,6 +80,9 @@ function maritalErrors(form: PartyFormState, coApplicants: CoApplicant[]): Party
 }
 /** "Green" = enough to invite AND link them to the application: a name, an email, and an ID number. */
 const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.trim() && c.idNumber.trim())
+
+/** Pane keys that hold PERSONAL details — editing these in a resumed (shared-link) session needs an identity re-verify. */
+const PERSONAL_EDIT_KEYS = new Set(["personal", "address", "employment", "income", "expenses"])
 
 /** The company roster's person cards — the director(s), all "outstanding" at the hub (the company section is signed
  *  off; their own personal sections aren't done yet). A director filler (You) leads the list; an office-manager
@@ -264,6 +267,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const [consent, setConsent] = useState(false)
   const [companyConsent, setCompanyConsent] = useState(false) // the COMPANY applicant's sign-off consent (co-review)
   const [atRoster, setAtRoster] = useState(false) // the per-applicant roster HUB (after the company sign-off, before the director section)
+  // Editing PERSONAL details in a RESUMED session (anyone could hold the shared link) needs a fresh identity check.
+  // Fresh fills are unlocked (they verified at sign-off); a resume starts locked until "verify it's you" passes.
+  const [amendUnlocked, setAmendUnlocked] = useState(!resume)
+  const [amendGateStep, setAmendGateStep] = useState<number | null>(null)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
 
@@ -625,7 +632,12 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
 
   /** Amend the application (add applicant / upload docs / edit details) → re-enter that step; the user
    *  re-submits to run a fresh screening iteration (the 14M self-improvement loop). */
-  function amendAt(toStep: number) { setScreeningStatus("idle"); setAssessment(null); setStep(toStep) }
+  function applyAmend(toStep: number) { setScreeningStatus("idle"); setAssessment(null); setStep(toStep) }
+  function amendAt(toStep: number) {
+    // Editing PERSONAL details (not documents/company) in a still-locked resumed session → "verify it's you" first.
+    if (!amendUnlocked && PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")) { setAmendGateStep(toStep); return }
+    applyAmend(toStep)
+  }
 
   /** Run the Step-1 FREE assessment (zero-AI, instant) and show the result. NO deep scan, NO poll — the deep
    *  scan runs later, at the agent's shortlist step. The assessment can be re-run freely (it's free). */
@@ -885,6 +897,22 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
               <ActionButton tone="secondary" onClick={() => setAddApplicantOpen(false)} disabled={busy}>Cancel</ActionButton>
               <ActionButton tone="primary" icon={<Users className="size-4" />} onClick={confirmAddApplicant} disabled={busy}>Invite applicant</ActionButton>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Identity re-verify gate — before editing personal details from a resumed (shared-link) session, prove it's
+          you with a fresh code (reverify forces one even if the email was verified at sign-off). */}
+      {amendGateStep !== null && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => setAmendGateStep(null)}>
+          <div className="w-full max-w-md rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-[var(--ink)]">Verify it&apos;s you</h3>
+            <p className="mt-1 text-sm leading-relaxed text-[var(--ink-soft)]">Anyone with this link can view the application, so before you edit personal details we&apos;ll send a code to your email to confirm it&apos;s you.</p>
+            <div className="mt-3">
+              <VerifyEmail applicationId={applicationId} token={token} email={form.email} verified={false} reverify
+                onVerified={() => { setAmendUnlocked(true); applyAmend(amendGateStep); setAmendGateStep(null) }} />
+            </div>
+            <div className="mt-4 flex justify-end"><ActionButton tone="secondary" onClick={() => setAmendGateStep(null)} disabled={busy}>Cancel</ActionButton></div>
           </div>
         </div>
       )}
