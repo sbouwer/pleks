@@ -560,22 +560,21 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     } finally { setBusy(false) }
   }
 
+  // The income/expenses section-finish (Income/Expenses → Documents). The draft already exists by now — autosave
+  // CREATES it on the first step (see autosave); this is the gate + the point we fire the held co-applicant invites.
+  // The saveDraft is an upsert, so it still creates as a fallback if autosave somehow hasn't.
   async function createApplication() {
     // Employment status only — a R0 primary (student/dependent) applies with a guarantor whose income is captured
-    // separately, so don't force an income figure here. JURISTIC company creates from the company entity (leaving
-    // Company finances, before the director's employment is captured) so the employment gate doesn't apply there.
+    // separately, so don't force an income figure here. JURISTIC company skips it (the director's employment comes
+    // later, in their own section).
     if (type !== "company" && !emp.employment_type) { toast.error("Please select an employment status."); return }
     setBusy(true)
     try {
-      // Create the draft SILENTLY so document uploads have an application to attach to — DON'T email a resume link
-      // here (that surprised applicants: they didn't ask for it). Emailing the link is the explicit "Save & finish
-      // later" action, available on every step. The quiet "Saved" chip is the only signal.
-      const firstCreate = !applicationId
       const r = await saveDraft(step + 1)
       if (!r) return
-      void dispatchInvites(r.id)                // fire the held at-selection invites now the application exists
-      if (firstCreate) { setSaved(true); setResumeLink(r.url) }
-      flashSaved() // Finances → Documents is a step-group boundary → confirm the save
+      void dispatchInvites(r.id)   // fire the held at-selection invites now the application exists
+      if (!saved) setSaved(true)   // autosave normally flips this on first create; belt-and-braces
+      flashSaved()                 // Income/Expenses → Documents is a step-group boundary → confirm the save
       advance(step + 1)
     } finally {
       setBusy(false)
