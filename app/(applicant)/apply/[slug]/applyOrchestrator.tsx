@@ -186,8 +186,8 @@ function inferType(cos: CoApplicant[]): ApplicantType {
 }
 /** Rebuild docFiles from the paths already in Storage — placeholders (uploaded:true) carry the real storagePath
  *  so they remain removable; the original filename/content is NOT re-rendered (POPIA — show "uploaded", a count). */
-function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { name: string; storagePath: string }[], idType?: string | null, applicantType?: ApplicantType | null): Record<string, DocFile[]> {
-  const cats = deriveDocCategories(incomeKeys(income), employmentType, idType, applicantType)
+function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { name: string; storagePath: string }[], idType?: string | null, applicantType?: ApplicantType | null, companyType?: string | null): Record<string, DocFile[]> {
+  const cats = deriveDocCategories(incomeKeys(income), employmentType, idType, applicantType, companyType)
   const out: Record<string, DocFile[]> = {}
   for (const p of docPaths) {
     const cat = categoryForFilename(p.name, cats)
@@ -273,7 +273,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // top-header unit strip can render only once in the application. Resuming a saved draft starts already begun;
   // clicking "Apply as" in the rail re-opens the landing (begun→false) with the chosen type preserved.
   const { begun, setBegun } = useBegun()
-  const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths, resume.form?.idType, resume.applicantType ?? inferType(resume.coApplicants)) : {})
+  const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths, resume.form?.idType, resume.applicantType ?? inferType(resume.coApplicants), resume.company?.companyType) : {})
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
   const [companyConsent, setCompanyConsent] = useState(false) // the COMPANY applicant's sign-off consent (co-review)
@@ -362,7 +362,12 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // filler then nudges into their own section; an office-manager filler instead emails the named director their link.
   function afterCompanyReview() { if (companyImDirector) setAtRoster(true); else void sendToDirector() }
   // The roster nudge — the director leaves the hub to complete their own (personal) section.
-  function continueOwnSection() { setAtRoster(false); advance(step + 1); autosave(step + 1) }
+  function continueOwnSection() {
+    // The director's private flow: we already know they're a director OF this company — pre-fill their employment
+    // (employed · the company as employer · "Director" as the role) so they don't re-type it. Only empty fields.
+    setEmp((e) => ({ ...e, employment_type: e.employment_type || "permanent", employer: e.employer || company.name || company.trading || "", job_title: e.job_title || "Director" }))
+    setAtRoster(false); advance(step + 1); autosave(step + 1)
+  }
 
   // Returning applicant on the landing: re-email their resume link. Anti-enumeration — the endpoint always
   // answers ok and only sends when a matching draft exists, so the toast is deliberately non-committal.
@@ -690,8 +695,11 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // The PERSON's docs (owner/director) are always personal/self-employed (not the company set). The juristic company
   // has a SEPARATE company-docs pane (CIPC/AFS/bank) — companyDocCategories.
   const docApplicantType = type === "company" ? "individual" : type
-  const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type, form.idType, docApplicantType)
-  const companyDocCategories = deriveDocCategories(new Set<string>(), "", form.idType, "company")
+  // Personal docs: sole prop runs the self-employed set (docApplicantType is "individual"); pass sars_registered so
+  // an un-registered self-employed isn't asked for the SARS doc. The juristic co-docs pane passes the companyType so
+  // the company set (CIPC/AFS/director's ID) is used.
+  const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type, form.idType, docApplicantType, company.companyType, emp.sars_registered)
+  const companyDocCategories = deriveDocCategories(new Set<string>(), "", form.idType, "company", company.companyType)
   // A required doc is satisfied when uploaded, OR — if it offers an escape ("I don't have a payslip") — when the
   // applicant takes that escape. ID + bank statements have no escape, so they're the true hard uploads.
   const docsReady = docCategories.filter((c) => c.required).every((c) => (docFiles[c.key] ?? []).some((f) => f.uploaded) || (!!c.escapeLabel && !!docEscape[c.key]))

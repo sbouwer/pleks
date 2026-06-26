@@ -5,6 +5,8 @@
  * assessment (which checks, server-side, which required slots are actually present). Pure — no AI, no IO.
  * Slots are requested to best support the declared income sources (ADDENDUM_14M §4).
  */
+import { isJuristicCompanyType } from "./companyTypes"
+
 export interface DocCategory {
   key: string
   label: string
@@ -25,10 +27,13 @@ export interface DocCategory {
  *  that verifies their specific declaration). The GATE (submit) is just the core few — conditional + optional
  *  slots appear (with a "why") but never block. Co-applicant/guarantor docs are collected via their own invites.
  *  @param idType the primary's ID type ("sa_id"|"passport"|"asylum_permit"|undefined) — foreign → permit slot.
- *  @param applicantType "company" returns the company doc set (CIPC, AFS, business bank, FICA address); else personal. */
-export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentType: string, idType?: string | null, applicantType?: string | null): DocCategory[] {
-  // ── COMPANY — a business applies through its director(s); the personal income-driven set doesn't apply. ──
-  if (applicantType === "company") {
+ *  @param applicantType "company" + a JURISTIC companyType returns the company doc set (CIPC, AFS, business bank,
+ *         FICA address); a sole prop / partnership is unincorporated → the owner's self-employed personal set.
+ *  @param companyType the company entity type — only a JURISTIC one (pty_ltd/cc/npc/trust) gets the company set.
+ *  @param sarsRegistered "yes"|"no"|undefined — a self-employed applicant who said "no" isn't asked for the SARS doc. */
+export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentType: string, idType?: string | null, applicantType?: string | null, companyType?: string | null, sarsRegistered?: string | null): DocCategory[] {
+  // ── JURISTIC COMPANY — a separate legal person applying through its director(s); the personal set doesn't apply. ──
+  if (applicantType === "company" && isJuristicCompanyType(companyType)) {
     return [
       { key: "id", label: "Director's ID", hint: "ID or passport of the director signing on the company's behalf.", single: true, required: true, tier: "required" },
       { key: "cipc_registration", label: "CIPC registration documents", hint: "Your company registration (CoR14.3 / CK / founding statement) showing the directors.", single: false, required: true, tier: "required" },
@@ -39,8 +44,11 @@ export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentT
     ]
   }
 
-  const employed = employmentType === "permanent" || employmentType === "contract" || employmentType === "commission" || employmentType === "part_time"
-  const variable = employmentType === "commission" || employmentType === "self_employed" || employmentType === "freelance"
+  // An UNINCORPORATED "company" (sole prop / partnership / other) is its self-employed owner(s) — no CIPC/AFS/director.
+  // Default it to self-employed so the right personal set (SARS-if-registered + bank statements) is asked for.
+  const effEmployment = applicantType === "company" ? (employmentType || "self_employed") : employmentType
+  const employed = effEmployment === "permanent" || effEmployment === "contract" || effEmployment === "commission" || effEmployment === "part_time"
+  const variable = effEmployment === "commission" || effEmployment === "self_employed" || effEmployment === "freelance"
   const has = (k: string) => positiveIncomeKeys.has(k)
   const foreign = !!idType && idType !== "sa_id"
 
@@ -51,11 +59,12 @@ export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentT
   // Proof of income — ONE slot, the specific document driven by the employment status they chose.
   if (employed) {
     cats.push({ key: "payslips", label: "Latest payslip", hint: variable ? "Your most recent commission / payslip statement (3 is ideal)." : "Your latest payslip — your 3 most recent is ideal.", single: false, required: true, tier: "required", escapeLabel: "I don't have a payslip", escapeNote: "Without a payslip we lean on your bank statements — your agent will see this." })
-  } else if (employmentType === "self_employed" || employmentType === "freelance") {
-    cats.push({ key: "business_tax", label: "SARS Tax Compliance Status or ITA34", hint: "Proves your self-employed income to SARS — your 6-month statements (below) do the rest.", single: true, required: true, tier: "required", escapeLabel: "I don't have this yet", escapeNote: "Without it we lean on your bank statements — your agent will see this." })
-  } else if (employmentType === "retired") {
+  } else if (effEmployment === "self_employed" || effEmployment === "freelance") {
+    // SARS doc only when they're registered (or haven't said) — a self-employed applicant who told us "no" isn't asked.
+    if (sarsRegistered !== "no") cats.push({ key: "business_tax", label: "SARS Tax Compliance Status or ITA34", hint: "Proves your self-employed income to SARS — your 6-month statements (below) do the rest.", single: true, required: true, tier: "required", escapeLabel: "I don't have this yet", escapeNote: "Without it we lean on your bank statements — your agent will see this." })
+  } else if (effEmployment === "retired") {
     cats.push({ key: "pension_advice", label: "Pension / annuity advice slip", hint: "Your latest pension, annuity or provident-fund advice slip.", single: false, required: true, tier: "required", escapeLabel: "I don't have this", escapeNote: "Without it we lean on your bank statements — your agent will see this." })
-  } else if (employmentType === "grant") {
+  } else if (effEmployment === "grant") {
     cats.push({ key: "grant_proof", label: "SASSA award letter", hint: "Your SASSA grant approval letter or card.", single: false, required: true, tier: "required", escapeLabel: "I don't have this", escapeNote: "Without it we lean on your bank statements — your agent will see this." })
   }
   // Bank statements — always, and the single most important document (income, housing, obligations, recency). No
