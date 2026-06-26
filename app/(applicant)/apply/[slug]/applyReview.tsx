@@ -158,14 +158,15 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, c
   const summary = reviewSummary(assessment)
   return (
     <div className="flex min-h-full flex-col gap-5">
-      {/* Banner — scoped to the APPLICATION, never the outcome. */}
-      <div className={`flex items-start gap-2.5 rounded-[var(--r-button)] border p-4 text-sm leading-relaxed ${verdictGood ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-[var(--amber)] bg-[var(--amber-wash)] text-[var(--amber-ink)]"}`}>
-        {verdictGood ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" /> : <AlertCircle className="mt-0.5 size-5 shrink-0" />}
-        <span><strong>{verdictGood ? "Looks good." : "Almost there."}</strong> {verdictGood ? "Your application is complete and affordable on the figures you provided." : "Complete the flagged items below, or submit and add them when the agent requests."}</span>
+      {/* ONE verdict block, single colour per the score — the headline verdict, a hairline divider, then the written
+          one-line read. Scoped to the APPLICATION, never the outcome. (Merged to save vertical space.) */}
+      <div className={`rounded-[var(--r-button)] border text-sm leading-relaxed ${verdictGood ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-[var(--amber)] bg-[var(--amber-wash)] text-[var(--amber-ink)]"}`}>
+        <p className="flex items-start gap-2.5 px-4 pb-3 pt-4">
+          {verdictGood ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" /> : <AlertCircle className="mt-0.5 size-5 shrink-0" />}
+          <span><strong>{verdictGood ? "Looks good." : "Almost there."}</strong> {verdictGood ? "Your application is complete and affordable on the figures you provided." : "Complete the flagged items below, or submit and add them when the agent requests."}</span>
+        </p>
+        <p className={`border-t px-4 pb-4 pt-3 ${verdictGood ? "border-emerald-200" : "border-[var(--amber)]"}`}>{summary}</p>
       </div>
-
-      {/* Written one-line read (interpretive snippet) */}
-      <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">{summary}</p>
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Affordability — line-item bullets match the bar-chart colours (rent · commitments · left for rent). */}
