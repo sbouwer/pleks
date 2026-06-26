@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { isValidEmail, checkPhone, normalizePhone, formatPhone, isValidCipcReg, emailError, phoneError } from "@/lib/validation/contact"
+import { isValidEmail, checkPhone, normalizePhone, formatPhone, phoneToWhatsApp, isValidCipcReg, cipcRegError, emailError, phoneError } from "@/lib/validation/contact"
 
 describe("isValidEmail", () => {
   it("accepts well-formed addresses", () => {
@@ -30,14 +30,13 @@ describe("checkPhone", () => {
     expect(checkPhone("0027821234567")).toMatchObject({ valid: true, kind: "sa" })
     expect(checkPhone("+2782123456")).toMatchObject({ valid: false, kind: "sa" })
   })
-  it("non-+27 / non-0027 international is FOREIGN (lighter rules)", () => {
-    expect(checkPhone("+15551234567")).toMatchObject({ valid: true, kind: "foreign" })
-    expect(checkPhone("004412345678")).toMatchObject({ valid: true, kind: "foreign" })
-    expect(checkPhone("+1")).toMatchObject({ valid: false, kind: "foreign" }) // too short
+  it("non-+27 international is FOREIGN, validated by that country's plan", () => {
+    expect(checkPhone("+12133734253")).toMatchObject({ valid: true, kind: "foreign", country: "US" }) // LA
+    expect(checkPhone("0012133734253")).toMatchObject({ valid: true, kind: "foreign", country: "US" }) // 00 IDD
+    expect(checkPhone("+1")).toMatchObject({ valid: false }) // too short
   })
-  it("rejects letters, a non-leading +, and numbers that don't start 0 or +", () => {
+  it("rejects letters and numbers with no country context", () => {
     expect(checkPhone("08abc34567")).toMatchObject({ valid: false, kind: "invalid" })
-    expect(checkPhone("082+1234567")).toMatchObject({ valid: false, kind: "invalid" })
     expect(checkPhone("821234567")).toMatchObject({ valid: false, kind: "invalid" })
     expect(phoneError("")).toBe("Required")
     expect(phoneError("", false)).toBeNull()
@@ -51,8 +50,8 @@ describe("normalizePhone → E.164", () => {
     }
   })
   it("foreign: 00 prefix becomes +, + kept", () => {
-    expect(normalizePhone("004412345678")).toBe("+4412345678")
-    expect(normalizePhone("+15551234567")).toBe("+15551234567")
+    expect(normalizePhone("0012133734253")).toBe("+12133734253")
+    expect(normalizePhone("+12133734253")).toBe("+12133734253")
   })
   it("invalid → null", () => {
     expect(normalizePhone("082123")).toBeNull()
@@ -60,22 +59,44 @@ describe("normalizePhone → E.164", () => {
   })
 })
 
-describe("formatPhone (uniform display)", () => {
-  it("groups SA as +27 82 123 4567 and is idempotent", () => {
+describe("formatPhone (uniform, grouped per country)", () => {
+  it("groups SA and is idempotent", () => {
     expect(formatPhone("0821234567")).toBe("+27 82 123 4567")
     expect(formatPhone(formatPhone("0821234567"))).toBe("+27 82 123 4567")
-    expect(formatPhone("021 000 0000")).toBe("+27 21 000 0000") // landline too
   })
-  it("foreign shows E.164; an unparseable value is returned trimmed (never throws)", () => {
-    expect(formatPhone("+15551234567")).toBe("+15551234567")
+  it("groups foreign numbers correctly too; unparseable returned trimmed (never throws)", () => {
+    expect(formatPhone("+12133734253")).toBe("+1 213 373 4253")
     expect(formatPhone("  not-a-number ")).toBe("not-a-number")
   })
 })
 
-describe("isValidCipcReg", () => {
-  it("accepts YYYY/NNNNNN/NN only", () => {
+describe("phoneToWhatsApp", () => {
+  it("returns digits-only E.164 (no +) or null", () => {
+    expect(phoneToWhatsApp("0821234567")).toBe("27821234567")
+    expect(phoneToWhatsApp("+12133734253")).toBe("12133734253")
+    expect(phoneToWhatsApp("nope")).toBeNull()
+  })
+})
+
+describe("isValidCipcReg / cipcRegError", () => {
+  it("accepts a well-formed number and auto-inserts the separators from 12 bare digits", () => {
     expect(isValidCipcReg("2019/123456/07")).toBe(true)
-    for (const r of ["2019/12345/07", "19/123456/07", "2019-123456-07", "2019/123456", "abc/123456/07", ""]) {
+    expect(isValidCipcReg("201912345607")).toBe(true) // separators inferred
+  })
+  it("rejects a bad year and an unknown entity-type code (e.g. 9250/591159/01)", () => {
+    expect(isValidCipcReg("9250/591159/01")).toBe(false)
+    expect(cipcRegError("9250/591159/01")).toMatch(/registration year/)
+    expect(cipcRegError("2019/123456/01")).toMatch(/entity-type code/)
+  })
+  it("enforces the entity-type code matches the company type", () => {
+    expect(isValidCipcReg("2019/123456/07", "pty_ltd")).toBe(true)
+    expect(isValidCipcReg("2019/123456/23", "cc")).toBe(true)
+    expect(isValidCipcReg("2019/123456/08", "npc")).toBe(true)
+    expect(cipcRegError("2019/123456/23", true, "pty_ltd")).toMatch(/ends in \/07/)
+  })
+  it("auto-corrects dash separators, but rejects truly malformed shapes", () => {
+    expect(isValidCipcReg("2019-123456-07")).toBe(true) // dashes → slashes, then valid
+    for (const r of ["2019/12345/07", "2019/123456", "abc/123456/07", ""]) {
       expect(isValidCipcReg(r)).toBe(false)
     }
   })

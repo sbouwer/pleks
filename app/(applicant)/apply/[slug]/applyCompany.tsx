@@ -9,6 +9,7 @@
  *         Shares only bricks + styling (form fields, AddressFields, StepHeading).
  */
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
+import { formatCipcReg } from "@/lib/validation/contact"
 import { AddressFields } from "@/components/parties/partyFields"
 import type { PartyAddressInput } from "@/lib/parties/partyValidation"
 import { StepHeading } from "./applyShared"
@@ -87,7 +88,7 @@ export function StepCompanyDetails({ company, setCompany, imDirector, companySte
                 <TextField label="Registered name" value={company.name ?? ""} onChange={(v) => set({ name: v })} required />
                 <TextField label="Trading name (if different)" value={company.trading ?? ""} onChange={(v) => set({ trading: v })} />
                 <SelectField label="Company type" value={company.companyType} onChange={(v) => set({ companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
-                <TextField label={regLabel} value={company.companyReg} onChange={(v) => set({ companyReg: v })} required placeholder="e.g. 2019/123456/07" />
+                <TextField label={regLabel} value={company.companyReg} onChange={(v) => set({ companyReg: v })} required placeholder="e.g. 2019/123456/07" format={company.companyType === "trust" ? undefined : formatCipcReg} />
                 <TextField label="VAT number (if registered)" value={company.vat ?? ""} onChange={(v) => set({ vat: v })} />
                 <TextField label="Nature of business" value={company.nature ?? ""} onChange={(v) => set({ nature: v })} placeholder="e.g. IT consulting" />
                 <TextField label="Company email" type="email" value={company.companyEmail ?? ""} onChange={(v) => set({ companyEmail: v })} placeholder="info@company.co.za" />

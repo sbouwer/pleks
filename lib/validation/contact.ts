@@ -5,8 +5,12 @@
  * The single source of truth so every surface (apply wizard, party forms, CSV imports, the public contact form)
  * validates identically — import these, never re-roll a regex. Pure + dependency-free (so it's safe to use on the
  * client and the server, and easy to unit-test). Format-only: this checks shape, not deliverability or a live CIPC
- * lookup. For SENDING, normalise SA numbers with normalizePhoneZA (lib/consent/verification.ts).
+ * lookup. Phone parsing/validation/formatting is backed by libphonenumber-js (every country's numbering plan),
+ * with a default region of South Africa so a bare local number (082…) parses.
  */
+// "/max" metadata = the full national-number patterns, so isValid() actually validates the numbering plan (the
+// default "min" metadata only length-checks, which would wrongly pass a 9-digit SA number).
+import { parsePhoneNumberFromString } from "libphonenumber-js/max"
 
 // ── Email ──────────────────────────────────────────────────────────────────────
 // A local part, "@", and a domain with at least one dot + a 2+ char TLD; no spaces. RFC-pragmatic (not full 5322)
@@ -26,36 +30,32 @@ export function emailError(raw: string | null | undefined, required = true): str
 
 // ── Phone ──────────────────────────────────────────────────────────────────────
 export type PhoneKind = "sa" | "foreign" | "invalid"
-export interface PhoneCheck { valid: boolean; kind: PhoneKind; reason?: string }
+export interface PhoneCheck { valid: boolean; kind: PhoneKind; reason?: string; e164?: string; country?: string }
 
 /**
- * Classify + validate a phone number. South African numbers are checked strictly; anything that dials out with a
- * different country code is treated as FOREIGN and only sanity-checked for length (different national rules):
- *  - SA local     0XXXXXXXXX     → exactly 10 digits
- *  - SA E.164     +27XXXXXXXXX   → +27 then 9 digits
- *  - SA 00-prefix 0027XXXXXXXXX  → 0027 then 9 digits
- *  - FOREIGN      + / 00 prefix that ISN'T +27 / 0027 → 8–15 digits (E.164 max)
- * Spaces, dashes, dots and brackets are tolerated (stripped before checking).
+ * Classify + validate a phone number. South African numbers are checked STRICTLY against our own rule (exactly 10
+ * significant digits — local 0XXXXXXXXX, or +27 / 0027 then 9 digits), which is tighter than libphonenumber's
+ * length leniency. Anything dialling out with a different country code is FOREIGN and validated against that
+ * country's real numbering plan via libphonenumber-js. A bare number with no 0 / + prefix is rejected.
  */
 export function checkPhone(raw: string | null | undefined): PhoneCheck {
-  const v = (raw ?? "").replace(/[\s()\-.]/g, "")
+  const v = (raw ?? "").trim()
   if (!v) return { valid: false, kind: "invalid", reason: "Required" }
-  // Only digits, with an optional single leading "+".
-  if (/[^\d+]/.test(v) || (v.includes("+") && !v.startsWith("+"))) {
-    return { valid: false, kind: "invalid", reason: "Use digits only, with an optional leading + for international." }
+  const compact = v.replace(/[\s()\-.]/g, "")
+  if (/[^\d+]/.test(compact) || (compact.includes("+") && !compact.startsWith("+"))) {
+    return { valid: false, kind: "invalid", reason: "Use digits only, with a leading + for international." }
   }
-  if (v.startsWith("+27")) return verdict(/^\+27\d{9}$/.test(v), "sa", "A South African number is +27 then 9 digits.")
-  if (v.startsWith("0027")) return verdict(/^0027\d{9}$/.test(v), "sa", "A South African number is 0027 then 9 digits.")
-  if (v.startsWith("+") || v.startsWith("00")) {
-    const digits = v.replace(/\D/g, "")
-    return verdict(digits.length >= 8 && digits.length <= 15, "foreign", "Enter the full international number, including the country code.")
+  // SA forms: a leading 0 (but not 00), or the +27 / 0027 international prefixes.
+  if (/^0(?!0)/.test(compact) || compact.startsWith("+27") || compact.startsWith("0027")) {
+    const okSA = /^0\d{9}$/.test(compact) || /^\+27\d{9}$/.test(compact) || /^0027\d{9}$/.test(compact)
+    if (!okSA) return { valid: false, kind: "sa", reason: "A South African number is 10 digits (e.g. 082 123 4567)." }
+    return { valid: true, kind: "sa", e164: `+27${compact.replace(/\D/g, "").slice(-9)}`, country: "ZA" }
   }
-  if (v.startsWith("0")) return verdict(/^0\d{9}$/.test(v), "sa", "A South African number is 10 digits (e.g. 082 123 4567).")
-  return { valid: false, kind: "invalid", reason: "Start with 0 for a South African number, or + for an international one." }
-}
-
-function verdict(ok: boolean, kind: PhoneKind, reason: string): PhoneCheck {
-  return ok ? { valid: true, kind } : { valid: false, kind, reason }
+  // Foreign: the 00 international prefix becomes +, then validate against the country's plan.
+  const intl = compact.startsWith("00") ? `+${compact.slice(2)}` : compact
+  const parsed = intl.startsWith("+") ? parsePhoneNumberFromString(intl) : undefined
+  if (parsed?.isValid()) return { valid: true, kind: "foreign", e164: parsed.number, country: parsed.country }
+  return { valid: false, kind: "invalid", reason: "Enter a valid phone number — 10 digits for SA, or +<country code> for international." }
 }
 
 /** Error string for a phone field, or null when valid. */
@@ -65,47 +65,69 @@ export function phoneError(raw: string | null | undefined, required = true): str
   return checkPhone(v).reason ?? null
 }
 
-/**
- * Normalise to a canonical E.164 string for STORAGE (so every saved number has one shape) — or null if invalid.
- *  - SA      → +27XXXXXXXXX  (the last 9 digits are the subscriber number, regardless of 0 / +27 / 0027 entry)
- *  - Foreign → +<countrycode><number>  (the 00 international prefix becomes +)
- */
+/** Normalise to a canonical E.164 string for STORAGE (e.g. +27821234567, +12133734253) — or null if invalid. */
 export function normalizePhone(raw: string | null | undefined): string | null {
   const c = checkPhone(raw)
-  if (!c.valid) return null
-  const v = (raw ?? "").replace(/[\s()\-.]/g, "")
-  if (c.kind === "sa") return `+27${v.replace(/\D/g, "").slice(-9)}`
-  const digits = v.replace(/\D/g, "")
-  return v.startsWith("00") ? `+${digits.slice(2)}` : `+${digits}`
+  return c.valid ? (c.e164 ?? null) : null
 }
 
 /**
- * Format for DISPLAY — uniform across the system. SA numbers group as "+27 82 123 4567"; foreign numbers show in
- * plain E.164 ("+15551234567") since national grouping varies by country (add libphonenumber-js later if needed).
- * An unparseable value is returned trimmed (never throws), so it's safe to wrap any stored/typed string.
+ * Format for DISPLAY — uniform across the system, grouped per the number's own country: "+27 82 123 4567",
+ * "+1 213 373 4253", "+44 20 7946 0958". An unparseable value is returned trimmed (never throws), so it's safe
+ * to wrap any stored/typed string.
  */
 export function formatPhone(raw: string | null | undefined): string {
+  const c = checkPhone(raw)
+  if (!c.valid || !c.e164) return (raw ?? "").trim()
+  const parsed = parsePhoneNumberFromString(c.e164)
+  return parsed ? parsed.formatInternational() : c.e164
+}
+
+/** The full international number as digits only, no "+" — what WhatsApp / wa.me links expect (e.g. 27821234567). */
+export function phoneToWhatsApp(raw: string | null | undefined): string | null {
   const e164 = normalizePhone(raw)
-  if (!e164) return (raw ?? "").trim()
-  if (e164.startsWith("+27") && e164.length === 12) {
-    const n = e164.slice(3)
-    return `+27 ${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5)}`
-  }
-  return e164
+  return e164 ? e164.replace(/\D/g, "") : null
 }
 
 // ── CIPC registration number ─────────────────────────────────────────────────────
-// The standard CIPC company number: YYYY/NNNNNN/NN (Pty / CC / NPC). Trusts use a Master's reference (free-form),
-// so callers should only enforce this for CIPC-registered juristic types.
+// The standard CIPC company number: YYYY/NNNNNN/NN — the first 4 are the registration year and the last 2 are the
+// ENTITY-TYPE code. Trusts use a Master's reference (free-form), so callers only enforce this for CIPC types.
 const CIPC_RX = /^\d{4}\/\d{6}\/\d{2}$/
 
-export function isValidCipcReg(raw: string | null | undefined): boolean {
-  return CIPC_RX.test((raw ?? "").trim())
+/** The last two digits of a CIPC number classify the entity type. (Common codes — not exhaustive.) */
+export const CIPC_ENTITY_CODES: Record<string, string> = {
+  "06": "Public company (Ltd)",
+  "07": "Private company (Pty Ltd)",
+  "08": "Non-profit company (NPC)",
+  "10": "External company",
+  "23": "Close corporation (CC)",
+  "30": "State-owned company (SOC)",
 }
 
-/** Error string for a CIPC reg field, or null when valid. */
-export function cipcRegError(raw: string | null | undefined, required = true): string | null {
-  const v = (raw ?? "").trim()
-  if (!v) return required ? "Required" : null
-  return isValidCipcReg(v) ? null : "Use the CIPC format YYYY/NNNNNN/NN (e.g. 2019/123456/07)."
+/** Our app's company-type values → the CIPC entity code their registration number must end in. */
+const CIPC_CODE_FOR_TYPE: Record<string, string> = { pty_ltd: "07", cc: "23", npc: "08" }
+
+/** Insert the standard separators when the user typed 12 bare digits (idempotent); otherwise return as-is, trimmed. */
+export function formatCipcReg(raw: string | null | undefined): string {
+  const digits = (raw ?? "").replace(/\D/g, "")
+  if (digits.length === 12) return `${digits.slice(0, 4)}/${digits.slice(4, 10)}/${digits.slice(10)}`
+  return (raw ?? "").trim()
+}
+
+/** Error string for a CIPC reg field, or null when valid. Pass companyType to also enforce the entity-type code. */
+export function cipcRegError(raw: string | null | undefined, required = true, companyType?: string | null): string | null {
+  const v = formatCipcReg(raw)
+  if (!v.replace(/\D/g, "")) return required ? "Required" : null
+  if (!CIPC_RX.test(v)) return "Use the CIPC format YYYY/NNNNNN/NN (e.g. 2019/123456/07)."
+  const year = Number(v.slice(0, 4))
+  if (year < 1900 || year > new Date().getFullYear() + 1) return "The first four digits should be the registration year (e.g. 2019)."
+  const code = v.slice(-2)
+  const expected = companyType ? CIPC_CODE_FOR_TYPE[companyType] : undefined
+  if (expected && code !== expected) return `A ${CIPC_ENTITY_CODES[expected]} registration number ends in /${expected}, not /${code}.`
+  if (!expected && !(code in CIPC_ENTITY_CODES)) return `/${code} isn't a recognised CIPC entity-type code.`
+  return null
+}
+
+export function isValidCipcReg(raw: string | null | undefined, companyType?: string | null): boolean {
+  return cipcRegError(raw, true, companyType) === null
 }

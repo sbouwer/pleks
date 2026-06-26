@@ -46,7 +46,7 @@ import {
   validateIdentityCore, validateAddressStep,
   type PartyFormState, type PartyErrors,
 } from "@/lib/parties/partyValidation"
-import { isValidEmail, isValidCipcReg, checkPhone } from "@/lib/validation/contact"
+import { isValidEmail, cipcRegError, checkPhone } from "@/lib/validation/contact"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 
 const TYPE_LABEL: Record<ApplicantType, string> = { individual: "Individual", couple: "Couple", company: "Company", guarantor: "With a guarantor" }
@@ -424,8 +424,12 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (isJuristicCompanyType(company.companyType)) {
       if (!company.name?.trim()) { toast.error("Add the company's registered name."); return }
       if (!company.companyReg?.trim()) { toast.error("Add the registration number."); return }
-      // CIPC format YYYY/NNNNNN/NN — trusts use a free-form Master's reference, so skip the format check for them.
-      if (company.companyType !== "trust" && !isValidCipcReg(company.companyReg)) { toast.error("Use the CIPC format YYYY/NNNNNN/NN (e.g. 2019/123456/07)."); return }
+      // CIPC: format + registration year + entity-type code must match the company type. Trusts use a free-form
+      // Master's reference, so skip the format check for them.
+      if (company.companyType !== "trust") {
+        const regErr = cipcRegError(company.companyReg, true, company.companyType)
+        if (regErr) { toast.error(regErr); return }
+      }
     } else {
       if (!company.trading?.trim()) { toast.error("Add your trading name."); return }
       // Sole prop / unincorporated: the owner IS self-employed and their business IS the trading name — pre-fill the
