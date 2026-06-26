@@ -163,6 +163,7 @@ function companyEntityNavNext(o: Readonly<{
   if (o.activeKey === "co-address") return { label: "Next", onClick: o.advanceStep }
   if (o.activeKey === "co-finances") return { label: "Next", onClick: o.createApplication } // app created here so the company-docs pane can upload
   if (o.activeKey === "co-docs") return { label: "Next", onClick: o.advanceStep }
+  if (o.activeKey === "co-docs-opt") return { label: "Next", onClick: o.advanceStep }
   // Company sign-off — verify + consent on the company's behalf, then hand to the director (or email them).
   if (o.activeKey === "co-review") return { label: o.companyImDirector ? "Continue to your application" : `Send to the ${o.companyRole}`, onClick: o.afterCompanyReview, disabled: o.busy || !o.companyConsent || !o.emailGateSatisfied }
   return null
@@ -733,7 +734,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // an un-registered self-employed isn't asked for the SARS doc. The juristic co-docs pane passes the companyType so
   // the company set (CIPC/AFS/director's ID) is used.
   const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type, form.idType, docApplicantType, company.companyType, emp.sars_registered)
-  const companyDocCategories = deriveDocCategories(new Set<string>(), "", form.idType, "company", company.companyType)
+  const companyDocCategories = deriveDocCategories(new Set<string>(), "", form.idType, "company", company.companyType, undefined, company.companyReg)
   // A required doc is satisfied when uploaded, OR — if it offers an escape ("I don't have a payslip") — when the
   // applicant takes that escape. ID + bank statements have no escape, so they're the true hard uploads.
   const docsReady = docCategories.filter((c) => c.required).every((c) => (docFiles[c.key] ?? []).some((f) => f.uploaded) || (!!c.escapeLabel && !!docEscape[c.key]))
@@ -786,6 +787,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (activeKey === "co-address") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={1} />
     if (activeKey === "co-finances") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={2} />
     if (activeKey === "co-docs") return <StepDocuments tab="required" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
+    if (activeKey === "co-docs-opt") return <StepDocuments tab="optional" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
     if (activeKey === "co-review") return <StepCompanyReview company={company} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={companyConsent} setConsent={setCompanyConsent} imDirector={companyImDirector} companyRole={companyRole} />
     if (personalStep === 0) return <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} coApplicants={coApplicants} />
     if (personalStep === 1) return <StepAddress form={form} set={set} errors={errors} />

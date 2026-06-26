@@ -22,6 +22,27 @@ export interface DocCategory {
   booster?: boolean
 }
 
+/** The AFS slot, scaled to the company's age (derived from the CIPC registration year):
+ *  - registered this year (age ≤ 0) → AFS may not exist yet → OPTIONAL, nudge management accounts;
+ *  - 1–2 years old → ask for the {age} year(s) that should exist (you can't have 3 yet);
+ *  - 3+ years old → the standard last-3-years ask, with an escape (a mature company that can't produce them is a
+ *    screening flag downstream — the escape note is deliberately soft here). */
+function afsCategory(companyReg?: string | null): DocCategory {
+  const regYear = Number((companyReg ?? "").slice(0, 4))
+  const now = new Date().getFullYear()
+  const age = regYear >= 1900 && regYear <= now ? now - regYear : null
+  if (age !== null && age <= 0) {
+    return { key: "afs", label: "Annual Financial Statements (if available)", hint: "Registered this year, so audited AFS may not exist yet — upload management accounts or recent financials if you have them.", single: false, required: false, tier: "optional" }
+  }
+  if (age !== null && age < 3) {
+    const yr = age === 1 ? "1 year" : `${age} years`
+    const sets = age === 1 ? "one set" : `${age} sets`
+    return { key: "afs", label: `Annual Financial Statements — ${yr} available`, hint: `Registered ${yr} ago, so ${sets} should be available — upload what you have.`, single: false, required: true, tier: "required", escapeLabel: "We don't have them yet", escapeNote: "Upload management accounts instead if the AFS aren't finalised — the agent will see the company's age." }
+  }
+  // 3+ years (or unknown reg) — the standard ask.
+  return { key: "afs", label: "Annual Financial Statements — last 3 years", hint: "Your 3 most recent AFS.", single: false, required: true, tier: "required", escapeLabel: "We don't have 3 full years", escapeNote: "Upload what you have — fewer years or management accounts is fine; the agent will see the company's age." }
+}
+
 /** Build the slot list from the applicant's declarations — DRIVEN by employment type, income sources, and ID type.
  *  POPIA-minimal (don't demand a payslip from a self-employed person) + corroboration-aware (require the document
  *  that verifies their specific declaration). The GATE (submit) is just the core few — conditional + optional
@@ -30,15 +51,16 @@ export interface DocCategory {
  *  @param applicantType "company" + a JURISTIC companyType returns the company doc set (CIPC, AFS, business bank,
  *         FICA address); a sole prop / partnership is unincorporated → the owner's self-employed personal set.
  *  @param companyType the company entity type — only a JURISTIC one (pty_ltd/cc/npc/trust) gets the company set.
- *  @param sarsRegistered "yes"|"no"|undefined — a self-employed applicant who said "no" isn't asked for the SARS doc. */
-export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentType: string, idType?: string | null, applicantType?: string | null, companyType?: string | null, sarsRegistered?: string | null): DocCategory[] {
-  // ── JURISTIC COMPANY — a separate legal person applying through its director(s); the personal set doesn't apply. ──
+ *  @param sarsRegistered "yes"|"no"|undefined — a self-employed applicant who said "no" isn't asked for the SARS doc.
+ *  @param companyReg the CIPC registration number — its year scales how many AFS the company should have. */
+export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentType: string, idType?: string | null, applicantType?: string | null, companyType?: string | null, sarsRegistered?: string | null, companyReg?: string | null): DocCategory[] {
+  // ── JURISTIC COMPANY — a separate legal person applying through its director(s); the personal set doesn't apply.
+  // The DIRECTOR's ID lives in the director's OWN (personal) flow, not here — this is the entity's document set. ──
   if (applicantType === "company" && isJuristicCompanyType(companyType)) {
     return [
-      { key: "id", label: "Director's ID", hint: "ID or passport of the director signing on the company's behalf.", single: true, required: true, tier: "required" },
       { key: "cipc_registration", label: "CIPC registration documents", hint: "Your company registration (CoR14.3 / CK / founding statement) showing the directors.", single: false, required: true, tier: "required" },
       { key: "bank_main", label: "Business bank statements", hint: "6 consecutive months for the company's primary account.", single: false, required: true, tier: "required" },
-      { key: "afs", label: "Annual Financial Statements — last 3 years", hint: "Your 3 most recent AFS.", single: false, required: true, tier: "required", escapeLabel: "We don't have 3 full years", escapeNote: "Upload what you have — fewer years or management accounts is fine; the agent will see the company's age." },
+      afsCategory(companyReg),
       { key: "proof_of_address", label: "Proof of business address", hint: "A utility bill or lease in the company's name (FICA).", single: true, required: true, tier: "required" },
       { key: "other", label: "Other documents", hint: "Anything else that strengthens the application — name each one.", single: false, required: false, tier: "optional", named: true },
     ]

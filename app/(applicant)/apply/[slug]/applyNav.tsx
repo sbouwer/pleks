@@ -68,23 +68,24 @@ export const SOLEPROP_NAV = buildNav(["Apply as", "Business details", "Finances"
 // ── JURISTIC company flow (Pty / CC / NPC / Trust) ───────────────────────────────────────────────
 // The COMPANY entity rail (Company details · finances · documents · review/sign-off) THEN — via the per-applicant
 // roster hub — the DIRECTOR's private rail (the personal panes, reused verbatim) THEN review. The first 5 panes
-// (PTY_COMPANY_PANES) are the entity (ending in co-review, the company sign-off); from index 5 the orchestrator
-// renders the personal panes at (step - 5).
-export const PTY_COMPANY_PANES = 5
+// (PTY_COMPANY_PANES) are the entity (ending in co-review, the company sign-off); from that index the orchestrator
+// renders the personal panes at (step - PTY_COMPANY_PANES).
+export const PTY_COMPANY_PANES = 6
 const PTY_PANES: PaneMeta = [
   { group: "Company details",    sub: "Company information", key: "co-info" },     // 0
   { group: "Company details",    sub: "Business address",   key: "co-address" },  // 1
   { group: "Company finances",   sub: "Annual finances",    key: "co-finances" }, // 2
   { group: "Company documents",  sub: "Required",           key: "co-docs" },     // 3
-  { group: "Company review",     sub: "Verify & consent",   key: "co-review" },   // 4  (the company applicant's sign-off)
-  { group: "Personal details",   sub: "Personal information", key: "personal" },  // 5  (director — private rail)
-  { group: "Personal details",   sub: "Address",            key: "address" },     // 6
-  { group: "Finances",           sub: "Employment",         key: "employment" },  // 7
-  { group: "Finances",           sub: "Income",             key: "income" },      // 8
-  { group: "Finances",           sub: "Expenses",           key: "expenses" },    // 9
-  { group: "Documents",          sub: "Required",           key: "docs-req" },    // 10
-  { group: "Documents",          sub: "Optional",           key: "docs-opt" },    // 11
-  { group: "Application review", sub: "Check & submit",     key: "review" },      // 12
+  { group: "Company documents",  sub: "Optional",           key: "co-docs-opt" }, // 4  (other supporting docs)
+  { group: "Company review",     sub: "Verify & consent",   key: "co-review" },   // 5  (the company applicant's sign-off)
+  { group: "Personal details",   sub: "Personal information", key: "personal" },  // 6  (director — private rail)
+  { group: "Personal details",   sub: "Address",            key: "address" },     // 7
+  { group: "Finances",           sub: "Employment",         key: "employment" },  // 8
+  { group: "Finances",           sub: "Income",             key: "income" },      // 9
+  { group: "Finances",           sub: "Expenses",           key: "expenses" },    // 10
+  { group: "Documents",          sub: "Required",           key: "docs-req" },    // 11
+  { group: "Documents",          sub: "Optional",           key: "docs-opt" },    // 12
+  { group: "Application review", sub: "Check & submit",     key: "review" },      // 13
 ]
 const PTY_DESC: Record<string, string> = {
   "Company details": "The registered entity",

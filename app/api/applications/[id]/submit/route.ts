@@ -88,9 +88,10 @@ export async function POST(req: NextRequest, { params }: Props) {
   if (positiveIncomeKeys.size === 0 && ((app.gross_monthly_income_cents as number | null) ?? 0) > 0) positiveIncomeKeys.add("employment")
   // companyType (juristic vs sole prop / partnership) + SARS-registered drive the right doc set — a sole prop gets
   // the self-employed personal set (no CIPC/AFS/"director's ID"), and an un-registered self-employed isn't asked for SARS.
-  const companyType = (app.company_info as { companyType?: string } | null)?.companyType ?? null
+  const companyInfo = app.company_info as { companyType?: string; companyReg?: string } | null
+  const companyType = companyInfo?.companyType ?? null
   const sarsRegistered = (app.employment_details as { sars_registered?: string } | null)?.sars_registered ?? null
-  const docCats = deriveDocCategories(positiveIncomeKeys, (app.employment_type as string | null) ?? "", app.id_type as string | null, app.applicant_type as string | null, companyType, sarsRegistered)
+  const docCats = deriveDocCategories(positiveIncomeKeys, (app.employment_type as string | null) ?? "", app.id_type as string | null, app.applicant_type as string | null, companyType, sarsRegistered, companyInfo?.companyReg ?? null)
   const { data: docFiles, error: docListErr } = await service.storage.from("application-docs").list(`applications/${app.org_id}/${id}`, { limit: 200 })
   logQueryError("submit doc list", docListErr)
   const presentDocKeys = new Set((docFiles ?? []).map((f) => categoryForFilename(f.name, docCats)))

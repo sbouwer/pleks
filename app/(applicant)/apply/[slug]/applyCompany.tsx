@@ -25,6 +25,9 @@ export interface CompanyInfo {
   // Business address — a structured 25A address (reuses the AddressFields brick); its own tab.
   address?: PartyAddressInput
   annualTurnover?: string; annualProfit?: string
+  // Existing monthly debt service (other leases, asset/vehicle finance, loans) — the residual deduction so the new
+  // rent is weighed against what the company already commits (net profit ÷ 12 − this vs rent).
+  monthlyCommitments?: string
   // The filler's own relationship to the company (apply-as "You" row): director / shareholder / guarantor / other
   // / owner, or on_behalf (an office manager not on the application). Drives imDirector; display/intent only.
   fillerDesignation?: string
@@ -123,7 +126,9 @@ export function StepCompanyDetails({ company, setCompany, imDirector, companySte
           <FieldGrid>
             <TextField label="Annual turnover (R)" value={company.annualTurnover ?? ""} onChange={(v) => set({ annualTurnover: v })} placeholder="e.g. 2 400 000" />
             <TextField label="Annual net profit (R)" value={company.annualProfit ?? ""} onChange={(v) => set({ annualProfit: v })} placeholder="e.g. 600 000" />
+            <TextField label="Existing monthly commitments (R)" value={company.monthlyCommitments ?? ""} onChange={(v) => set({ monthlyCommitments: v })} placeholder="e.g. 35 000" span />
           </FieldGrid>
+          <p className="text-xs leading-relaxed text-[var(--ink-soft)]">Other rent, asset / vehicle finance and loan repayments the company already services each month — we weigh the new rent against what&apos;s left (net profit ÷ 12 less these).</p>
         </>
       )}
     </div>
