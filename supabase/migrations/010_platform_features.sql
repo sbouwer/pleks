@@ -2259,7 +2259,7 @@ BEGIN
               -- INSERT ... RETURNING *, which evaluates every SELECT policy on the new row, and Postgres plans
               -- this sub-SELECT as an InitPlan regardless of the bucket_id guard. anon/authenticated can't read
               -- auth.users → "permission denied for table users" broke uploads to EVERY bucket. (drift-fix 2026-06-22)
-              OR lower(pe.subject_email) = lower((auth.jwt() ->> 'email'))
+              OR lower(pe.subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- (SELECT …): initplan once/query, not per row (still the JWT claim, no auth.users read)
             )
             AND pe.expires_at > now()
         )
