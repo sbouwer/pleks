@@ -175,14 +175,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       childMaintenanceCents: ((app as unknown as AppRow).income_sources ?? []).filter((s) => s.key === "maintenance").reduce((sum, s) => sum + (s.monthly_cents ?? 0), 0),
     }
 
-    // ADDENDUM_14O Phase 0a: a JURISTIC company applies through its directors — the deep scan rules on the company
-    // (declared signals) + the VERIFIED lead-director surety, NOT the director's personal tenancy. companyOptionFrom
-    // returns null for non-juristic → the personal path is unchanged. The lead-director call is scoped to adults:1
-    // (§5.4) — co-directors are separate households, not dependents of the lead director.
+    // ADDENDUM_14O/14P: a JURISTIC company applies through its directors — the deep scan rules on the company
+    // (declared signals) + the directors' VERIFIED surety, NOT the director's personal tenancy. companyOptionFrom
+    // returns null for non-juristic → the personal path is unchanged. Each director's call is scoped to adults:1
+    // (§5.4) — co-directors are separate households, not dependents. NB: until the 0b per-subject pipeline lands, only
+    // the lead (primary) is reconciled, so the director set is the lead alone (= 0a behaviour, a pool of one).
     const companyOption = companyOptionFrom((app as unknown as { company_info?: Record<string, unknown> | null }).company_info, (app as unknown as { applicant_type?: string | null }).applicant_type)
     const ruling = companyOption
       ? evaluateCompanyRuling({
-          leadDirector: { ...personalInput, adults: 1 },
+          directors: [{ ref: "primary", input: { ...personalInput, adults: 1 }, suretyState: "intended", consented: true }],
           company: companyOption,
           companyVerdict: ((app as unknown as { free_assessment?: { companyVerdict?: CompanyVerdict } | null }).free_assessment)?.companyVerdict ?? null,
         })
