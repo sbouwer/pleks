@@ -7,6 +7,7 @@
  *         (not in the component) so the same rules drive both the modal UI and any future API guard.
  */
 import type { PartyRole, PartyEntity, PartyRoleConfig } from "./partyConfig"
+import { isValidEmail, emailError, phoneError } from "@/lib/validation/contact"
 
 /** A person under a company contact (ADDENDUM_25A) — first-class contact, role derives from the company. */
 export interface PartyPerson {
@@ -167,6 +168,9 @@ function checkSaId(f: PartyFormState, typeKey: keyof PartyFormState, numKey: key
 
 function validateIndividualIdentity(f: PartyFormState, e: PartyErrors, need: (k: keyof PartyFormState) => void) {
   need("firstName"); need("lastName"); need("email"); need("phone")
+  // Format checks (system-wide SSOT) — only when present, so "Required" isn't overwritten by a format message.
+  if (f.email?.trim() && !isValidEmail(f.email)) e.email = emailError(f.email) ?? "Enter a valid email address."
+  if (f.phone?.trim()) { const pe = phoneError(f.phone); if (pe) e.phone = pe }
   checkSaId(f, "idType", "idNumber", e)
 }
 

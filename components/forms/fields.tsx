@@ -12,6 +12,7 @@
  */
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { formatPhone } from "@/lib/validation/contact"
 
 export type FieldOption = { value: string; label: string }
 
@@ -62,6 +63,7 @@ export function TextField({
         maxLength={maxLength}
         autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={type === "tel" ? (e) => onChange(formatPhone(e.target.value)) : undefined}
       />
     </Field>
   )

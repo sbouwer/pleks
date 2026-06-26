@@ -46,6 +46,7 @@ import {
   validateIdentityCore, validateAddressStep,
   type PartyFormState, type PartyErrors,
 } from "@/lib/parties/partyValidation"
+import { isValidEmail, isValidCipcReg, checkPhone } from "@/lib/validation/contact"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 
 const TYPE_LABEL: Record<ApplicantType, string> = { individual: "Individual", couple: "Couple", company: "Company", guarantor: "With a guarantor" }
@@ -79,7 +80,7 @@ function maritalErrors(form: PartyFormState, coApplicants: CoApplicant[]): Party
   return e
 }
 /** "Green" = enough to invite AND link them to the application: a name, an email, and an ID number. */
-const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.trim() && c.idNumber.trim())
+const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.trim() && isValidEmail(c.email) && c.idNumber.trim())
 
 /** Pane keys that hold PERSONAL details — editing these in a resumed (shared-link) session needs an identity re-verify. */
 const PERSONAL_EDIT_KEYS = new Set(["personal", "address", "employment", "income", "expenses"])
@@ -423,6 +424,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (isJuristicCompanyType(company.companyType)) {
       if (!company.name?.trim()) { toast.error("Add the company's registered name."); return }
       if (!company.companyReg?.trim()) { toast.error("Add the registration number."); return }
+      // CIPC format YYYY/NNNNNN/NN — trusts use a free-form Master's reference, so skip the format check for them.
+      if (company.companyType !== "trust" && !isValidCipcReg(company.companyReg)) { toast.error("Use the CIPC format YYYY/NNNNNN/NN (e.g. 2019/123456/07)."); return }
     } else {
       if (!company.trading?.trim()) { toast.error("Add your trading name."); return }
       // Sole prop / unincorporated: the owner IS self-employed and their business IS the trading name — pre-fill the
@@ -435,6 +438,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         registered: e.registered || (company.companyType === "sole_prop" ? "sole_prop" : e.registered),
       }))
     }
+    // Company contact details are optional, but if given must be valid (same SSOT as everywhere else).
+    if (company.companyEmail?.trim() && !isValidEmail(company.companyEmail)) { toast.error("Enter a valid company email address."); return }
+    if (company.companyPhone?.trim()) { const c = checkPhone(company.companyPhone); if (!c.valid) { toast.error(c.reason ?? "Enter a valid company phone number."); return } }
     advance(step + 1)
     autosave(step + 1)
   }

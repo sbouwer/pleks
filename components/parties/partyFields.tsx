@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { SA_PROVINCES, COUNTRIES, DEFAULT_COUNTRY } from "@/lib/constants"
 import { PARTY_ID_TYPES, COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
 import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson, type PartyAddressInput, type PartyBankAccountInput } from "@/lib/parties/partyValidation"
+import { formatPhone } from "@/lib/validation/contact"
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean) => void
 
@@ -94,6 +95,7 @@ export function TextField({
         value={(f[k] as string) || ""}
         placeholder={placeholder}
         onChange={(e) => set(k, e.target.value)}
+        onBlur={type === "tel" ? (e) => set(k, formatPhone(e.target.value)) : undefined}
       />
     </Field>
   )

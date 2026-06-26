@@ -13,6 +13,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { Resend } from "resend"
 import { headers } from "next/headers"
+import { isValidEmail } from "@/lib/validation/contact"
 
 /**
  * submitContactForm — public contact form server action.
@@ -63,9 +64,6 @@ function rateLimitOk(ip: string): boolean {
   return true
 }
 
-// ── Email validation (RFC-light, good enough for a contact form) ─────────────
-const EMAIL_RX = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,63}$/
-
 export async function submitContactForm(input: ContactFormInput): Promise<ContactFormResult> {
   // ── Honeypot ──
   // The form has a hidden `website` field. Bots often fill every field they see.
@@ -85,7 +83,7 @@ export async function submitContactForm(input: ContactFormInput): Promise<Contac
   if (!name || name.length < 2) {
     return { ok: false, error: "Please tell me your name." }
   }
-  if (!email || !EMAIL_RX.test(email)) {
+  if (!email || !isValidEmail(email)) {
     return { ok: false, error: "That email address doesn't look right." }
   }
   if (name.length > 200 || email.length > 320 || (message?.length ?? 0) > 5000) {
