@@ -20,7 +20,7 @@
  *         submitted_at, idempotent). The server page renders the shell + side cards and passes slug/orgId/rent.
  */
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { CheckCircle2, Users, ArrowLeft, ArrowRight, Clock } from "lucide-react"
@@ -236,7 +236,18 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const [busy, setBusy] = useState(false)
   // `saved` = the applicant has explicitly saved at least once (a resumed draft counts) → the CTA shows a green
   // tick. The save confirmation + copy link live in a modal, not the footer (which always shows the disclaimer).
-  const [saved, setSaved] = useState<boolean>(!!resume)
+  const [saved, setSaved] = useState<boolean>(!!resume) // an application has been created (drives the Save button label)
+  // TRANSIENT "Saved ✓" chip — flashSaved() bumps a tick on each real save; the effect shows the chip for 2.5s then
+  // hides it (cleanup clears a prior timer on a re-save). Effect-driven so we never touch a ref during render.
+  const [justSaved, setJustSaved] = useState(false)
+  const [saveTick, setSaveTick] = useState(0)
+  const flashSaved = () => setSaveTick((t) => t + 1)
+  useEffect(() => {
+    if (saveTick === 0) return
+    setJustSaved(true)
+    const id = setTimeout(() => setJustSaved(false), 2500)
+    return () => clearTimeout(id)
+  }, [saveTick])
   const [resumeLink, setResumeLink] = useState<string | null>(null)
   const [emailed, setEmailed] = useState(false)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
@@ -483,6 +494,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
       if (!res.ok || !json.applicationId || !json.token) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
       setApplicationId(json.applicationId); setToken(json.token)
+      flashSaved() // a real save just landed → flash the transient "Saved ✓" chip
       // Put the resume token in the URL so a refresh / dev hot-reload rehydrates from the saved draft instead of
       // restarting (the draft is on the server; without the token in the URL the page can't find it on reload).
       try { globalThis.history?.replaceState(null, "", `?app=${json.applicationId}&token=${encodeURIComponent(json.token)}`) } catch { /* best-effort */ }
@@ -788,10 +800,11 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                   {navNext.primary ? navNext.label : <span className="inline-flex items-center gap-1.5 whitespace-nowrap">{navNext.label} <ArrowRight className="size-4" /></span>}
                 </ActionButton>
               )}
-              {/* Two distinct things: a QUIET passive status (auto-save reassurance) + a LABELLED action that
-                  actually emails the resume link (the real way back). Don't let the tick masquerade as the action. */}
-              {saved && (
-                <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[var(--ink-mute)]" title="Your progress is saved on our servers">
+              {/* TRANSIENT "Saved ✓" — flashes for a couple of seconds after an ACTUAL save (autosave on advance, or
+                  the explicit save), then disappears. Not a permanent badge (that read as "all saved" even when
+                  there were newer unsaved edits). The LABELLED "Save & finish later" below is the real email action. */}
+              {justSaved && (
+                <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[var(--ink-mute)]" title="Progress saved just now">
                   <CheckCircle2 className="size-3.5" /> Saved
                 </span>
               )}
