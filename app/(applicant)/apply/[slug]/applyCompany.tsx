@@ -14,6 +14,9 @@ import { AddressFields } from "@/components/parties/partyFields"
 import type { PartyAddressInput } from "@/lib/parties/partyValidation"
 import { StepHeading } from "./applyShared"
 import { ConsentVerify } from "./applyReview"
+import { LineItemGrid, TotalLine } from "./applyIndividual"
+import { type IncomeRow, totalMonthlyCents } from "./applyDomain"
+import { formatZAR } from "@/lib/constants"
 
 export interface CompanyInfo {
   // Identity — mirrors the canonical add-company global form (contacts.company_name/registration_number/
@@ -22,15 +25,56 @@ export interface CompanyInfo {
   companyType: string; companyReg: string
   name?: string; trading?: string; vat?: string; nature?: string
   companyEmail?: string; companyPhone?: string
+  vatRegistered?: string         // "yes"|"no" — SARS legitimacy + a turnover sanity-check (Company details step)
+  vatTurnover?: string           // declared annual VAT turnover (rands) — SARS-corroborable cross-check
   // Business address — a structured 25A address (reuses the AddressFields brick); its own tab.
   address?: PartyAddressInput
-  annualTurnover?: string; annualProfit?: string
-  // Existing monthly debt service (other leases, asset/vehicle finance, loans) — the residual deduction so the new
-  // rent is weighed against what the company already commits (net profit ÷ 12 − this vs rent).
-  monthlyCommitments?: string
+  // CASH-FLOW LEDGER (the affordability model): money in / money out as line items (per-line period, like the
+  // personal grids), from which turnover (Σin) and the monthly surplus (Σin − Σout) are DERIVED. Debt service +
+  // owner salary are out-lines (so no separate commitments field, no double-count with the director surety track).
+  ledgerIn?: IncomeRow[]; ledgerOut?: IncomeRow[]
+  // We ask for the MOST RECENT figures (management accounts OR latest AFS — whichever is freshest), reconciled
+  // against the filed AFS at the shortlist check. figuresSource frames the recency; afsYear only matters for an AFS.
+  figuresSource?: string         // "management_accounts"|"latest_afs"|"estimate"
+  afsYear?: string               // (AFS only) financial year the figures are from → staleness vs today
+  premisesMove?: string          // "relocate"|"additional" — gates the premises-rent demonstrated-payment read
+  // Deprecated flat fields (pre-ledger) — kept ONLY for backward-compatible resume + engine fallback on old drafts.
+  annualTurnover?: string; annualProfit?: string; monthlyCommitments?: string
   // The filler's own relationship to the company (apply-as "You" row): director / shareholder / guarantor / other
   // / owner, or on_behalf (an office manager not on the application). Drives imDirector; display/intent only.
   fillerDesignation?: string
+}
+
+// The ledger catalogs (mirror the personal INCOME/COMMITMENT catalogs). "premises_rent" is a fixed key so the
+// engine can find the current-rent line for the relocate demonstrated-payment read.
+export const COMPANY_IN_CATALOG = [{ group: "Money in", sources: [{ key: "trading_income", label: "Trading income" }, { key: "other_income", label: "Other income" }, { key: "other", label: "Other…" }] }]
+export const COMPANY_OUT_CATALOG = [{ group: "Money out", sources: [
+  { key: "salaries", label: "Salaries & wages" }, { key: "premises_rent", label: "Premises rent" },
+  { key: "vehicle_asset", label: "Vehicle / asset finance" }, { key: "loan_repayments", label: "Loan repayments" },
+  { key: "operating_costs", label: "Operating costs" }, { key: "other", label: "Other…" },
+] }]
+const DEFAULT_LEDGER_IN: IncomeRow[] = [{ key: "trading_income", label: "Trading income", amount: "", period: "annual" }]
+const DEFAULT_LEDGER_OUT: IncomeRow[] = [
+  { key: "salaries", label: "Salaries & wages", amount: "", period: "annual" },
+  { key: "operating_costs", label: "Operating costs", amount: "", period: "annual" },
+]
+const PREMISES_MOVE_OPTIONS = [
+  { value: "relocate", label: "Relocating — this rent replaces the premises above" },
+  { value: "additional", label: "Additional space — the rent above continues too" },
+]
+const VAT_REGISTERED_OPTIONS = [{ value: "", label: "Select…" }, { value: "no", label: "Not VAT-registered" }, { value: "yes", label: "VAT-registered" }]
+const FIGURES_SOURCE_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "management_accounts", label: "Recent management accounts" },
+  { value: "latest_afs", label: "Latest annual financial statements (AFS)" },
+  { value: "estimate", label: "My best estimate" },
+]
+
+/** AFS financial-year options for staleness — this year back a few, plus "older". Built at render (client). */
+function afsYearOptions(): { value: string; label: string }[] {
+  const now = new Date().getFullYear()
+  const years = [0, 1, 2, 3].map((d) => ({ value: String(now - d), label: String(now - d) }))
+  return [{ value: "", label: "Select…" }, ...years, { value: "older", label: `${now - 4} or older` }]
 }
 
 export const COMPANY_TYPE_OPTIONS = [
@@ -80,6 +124,12 @@ export function StepCompanyDetails({ company, setCompany, imDirector, companySte
   const juristic = isJuristicCompanyType(company.companyType)
   const regLabel = company.companyType === "trust" ? "Master's reference no." : "CIPC reg. number"
   const continueNote = imDirector ? "You'll add your own director details next." : "We'll then email the director to complete their part."
+  // Cash-flow ledger (seeded if untouched) + derived figures for the summary.
+  const ledgerIn = company.ledgerIn ?? DEFAULT_LEDGER_IN
+  const ledgerOut = company.ledgerOut ?? DEFAULT_LEDGER_OUT
+  const turnoverMonthly = totalMonthlyCents(ledgerIn)
+  const surplusMonthly = turnoverMonthly - totalMonthlyCents(ledgerOut)
+  const hasPremisesRent = ledgerOut.some((r) => r.key === "premises_rent")
   return (
     <div className="flex flex-col gap-6">
       {companyStep === 0 && (
@@ -92,8 +142,10 @@ export function StepCompanyDetails({ company, setCompany, imDirector, companySte
                 <TextField label="Trading name (if different)" value={company.trading ?? ""} onChange={(v) => set({ trading: v })} />
                 <SelectField label="Company type" value={company.companyType} onChange={(v) => set({ companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
                 <TextField label={regLabel} value={company.companyReg} onChange={(v) => set({ companyReg: v })} required placeholder="e.g. 2019/123456/07" format={company.companyType === "trust" ? undefined : formatCipcReg} />
-                <TextField label="VAT number (if registered)" value={company.vat ?? ""} onChange={(v) => set({ vat: v })} />
                 <TextField label="Nature of business" value={company.nature ?? ""} onChange={(v) => set({ nature: v })} placeholder="e.g. IT consulting" />
+                <SelectField label="VAT registered?" value={company.vatRegistered ?? ""} onChange={(v) => set({ vatRegistered: v })} options={VAT_REGISTERED_OPTIONS} />
+                {company.vatRegistered === "yes" && <TextField label="VAT number" value={company.vat ?? ""} onChange={(v) => set({ vat: v })} placeholder="4xxxxxxxxx" />}
+                {company.vatRegistered === "yes" && <TextField label="VAT turnover (annual, R)" value={company.vatTurnover ?? ""} onChange={(v) => set({ vatTurnover: v })} placeholder="e.g. 2 400 000" />}
                 <TextField label="Company email" type="email" value={company.companyEmail ?? ""} onChange={(v) => set({ companyEmail: v })} placeholder="info@company.co.za" />
                 <TextField label="Company phone" type="tel" value={company.companyPhone ?? ""} onChange={(v) => set({ companyPhone: v })} placeholder="021 000 0000" />
               </FieldGrid>
@@ -122,13 +174,23 @@ export function StepCompanyDetails({ company, setCompany, imDirector, companySte
       )}
       {companyStep === 2 && juristic && (
         <>
-          <StepHeading title="Annual finances" sub="From your latest AFS — you'll upload the statements at the documents step. Net profit is the affordability figure (turnover is context); director surety backs it." />
+          <StepHeading title="Company finances" sub="Your most recent figures — management accounts or your latest AFS, whichever is freshest. Pick the period for each line; we convert to monthly. The surplus is what we weigh the rent against, and we reconcile these against your filed AFS at the shortlist check." />
           <FieldGrid>
-            <TextField label="Annual turnover (R)" value={company.annualTurnover ?? ""} onChange={(v) => set({ annualTurnover: v })} placeholder="e.g. 2 400 000" />
-            <TextField label="Annual net profit (R)" value={company.annualProfit ?? ""} onChange={(v) => set({ annualProfit: v })} placeholder="e.g. 600 000" />
-            <TextField label="Existing monthly commitments (R)" value={company.monthlyCommitments ?? ""} onChange={(v) => set({ monthlyCommitments: v })} placeholder="e.g. 35 000" span />
+            <SelectField label="Source of these figures" value={company.figuresSource ?? ""} onChange={(v) => set({ figuresSource: v })} options={FIGURES_SOURCE_OPTIONS} />
+            {company.figuresSource === "latest_afs" && <SelectField label="AFS financial year" value={company.afsYear ?? ""} onChange={(v) => set({ afsYear: v })} options={afsYearOptions()} />}
           </FieldGrid>
-          <p className="text-xs leading-relaxed text-[var(--ink-soft)]">Other rent, asset / vehicle finance and loan repayments the company already services each month — we weigh the new rent against what&apos;s left (net profit ÷ 12 less these).</p>
+          <LineItemGrid rows={ledgerIn} setRows={(r) => set({ ledgerIn: r })} catalog={COMPANY_IN_CATALOG} headerLabel="Money in" addLabel="Add an income line" emptyLabel="Add each income stream the company earns." defaultPeriod="annual" />
+          <LineItemGrid rows={ledgerOut} setRows={(r) => set({ ledgerOut: r })} catalog={COMPANY_OUT_CATALOG} headerLabel="Money out" addLabel="Add a cost line" emptyLabel="Add the company's costs — salaries, rent, finance, loans, operating costs." defaultPeriod="annual" />
+          {hasPremisesRent && (
+            <SelectField label="The premises rent above is for…" value={company.premisesMove ?? "relocate"} onChange={(v) => set({ premisesMove: v })} options={PREMISES_MOVE_OPTIONS} />
+          )}
+          <div className="border-t border-[var(--rule)] pt-3 text-sm">
+            <TotalLine label="Turnover (money in)" cents={turnoverMonthly} />
+            <TotalLine label="Monthly surplus (in − out)" cents={surplusMonthly} strong={false} />
+            {turnoverMonthly > 0 && (
+              <p className="mt-1.5 text-[11px] text-[var(--ink-mute)]">Cash surplus ratio {Math.round((surplusMonthly / turnoverMonthly) * 100)}% — what&apos;s left after costs (including owner salary &amp; debt service).</p>
+            )}
+          </div>
         </>
       )}
     </div>
@@ -152,6 +214,11 @@ export function StepCompanyReview({ company, applicationId, token, emailVerified
   consent: boolean; setConsent: (v: boolean) => void; imDirector: boolean; companyRole: string
 }>) {
   const regLabel = company.companyType === "trust" ? "Master's reference" : "CIPC registration"
+  const ledgerIn = company.ledgerIn ?? []
+  const ledgerOut = company.ledgerOut ?? []
+  const hasLedger = ledgerIn.length > 0 || ledgerOut.length > 0
+  const turnoverMo = totalMonthlyCents(ledgerIn)
+  const surplusMo = turnoverMo - totalMonthlyCents(ledgerOut)
   return (
     <div className="flex flex-col gap-6">
       <StepHeading title="Company review & consent" sub={imDirector ? "Confirm the company's details, verify your email and consent — then you'll continue to your own director application." : `Confirm the company's details, verify your email and consent — then we'll email the ${companyRole} to complete their personal application.`} />
@@ -161,8 +228,17 @@ export function StepCompanyReview({ company, applicationId, token, emailVerified
         <CoReviewLine k={regLabel} v={company.companyReg || "—"} />
         {company.vat ? <CoReviewLine k="VAT number" v={company.vat} /> : null}
         {company.nature ? <CoReviewLine k="Nature of business" v={company.nature} /> : null}
-        <CoReviewLine k="Annual turnover" v={company.annualTurnover ? `R ${company.annualTurnover}` : "—"} />
-        <CoReviewLine k="Annual net profit" v={company.annualProfit ? `R ${company.annualProfit}` : "—"} />
+        {hasLedger ? (
+          <>
+            <CoReviewLine k="Turnover (monthly)" v={formatZAR(turnoverMo)} />
+            <CoReviewLine k="Monthly surplus" v={formatZAR(surplusMo)} />
+          </>
+        ) : (
+          <>
+            <CoReviewLine k="Annual turnover" v={company.annualTurnover ? `R ${company.annualTurnover}` : "—"} />
+            <CoReviewLine k="Annual net profit" v={company.annualProfit ? `R ${company.annualProfit}` : "—"} />
+          </>
+        )}
       </div>
       <ConsentVerify applicationId={applicationId} token={token} email={company.companyEmail} verified={emailVerified} onVerified={onVerified} consent={consent} setConsent={setConsent}>
         I&apos;m authorised to apply on behalf of the company, and I consent to Pleks processing the company&apos;s information for this rental pre-selection (no credit check at this stage).

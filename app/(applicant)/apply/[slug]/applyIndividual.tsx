@@ -163,23 +163,26 @@ export function StepEmployment({ emp, setEmp }: Readonly<{ emp: Emp; setEmp: (v:
 // removable rows (label · R-amount · period), an empty-state, and a grouped "+ Add" picker. Speculative rows are
 // desktop-only-until-used. Grows from a seed + picker — never a wall of empty rows (kind to a budget Android).
 const PICKER_CHIP = "rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1 text-xs text-[var(--ink-soft)] transition-colors hover:border-[var(--amber)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--rule)] disabled:hover:text-[var(--ink-soft)]"
-function LineItemGrid({ rows, setRows, catalog, headerLabel, addLabel, emptyLabel }: Readonly<{
+export function LineItemGrid({ rows, setRows, catalog, headerLabel, addLabel, emptyLabel, defaultPeriod = "month" }: Readonly<{
   rows: IncomeRow[]; setRows: (v: IncomeRow[]) => void
   catalog: { group: string; sources: { key: string; label: string }[] }[]
   headerLabel: string; addLabel: string; emptyLabel: string
+  /** Period a freshly-added row starts on — personal grids default to "month"; the company ledger to "annual"
+   *  (the applicant is transcribing annual AFS figures, so fewer flips + fewer monthly-vs-annual entry errors). */
+  defaultPeriod?: IncomePeriod
 }>) {
   const [pickerOpen, setPickerOpen] = useState(false)
   function removeRow(i: number) { setRows(rows.filter((_, idx) => idx !== i)) }
   function updateRow(i: number, patch: Partial<IncomeRow>) { setRows(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r)) }
   function addSource(s: { key: string; label: string }) {
-    // Keep the picker OPEN — most families add several at once; chips disable as they're added, close via the toggle.
-    if (s.key === "other") { setRows([...rows, { key: `other_${rows.length}`, label: "", amount: "", period: "month", custom: true }]); return }
+    // Keep the picker OPEN — most applicants add several at once; chips disable as they're added, close via the toggle.
+    if (s.key === "other") { setRows([...rows, { key: `other_${rows.length}`, label: "", amount: "", period: defaultPeriod, custom: true }]); return }
     const idx = rows.findIndex((r) => r.key === s.key)
     if (idx >= 0) { // a hidden speculative row → reveal it rather than duplicate
       if (rows[idx].speculative) setRows(rows.map((r, j) => (j === idx ? { ...r, speculative: false } : r)))
       return
     }
-    setRows([...rows, { key: s.key, label: s.label, amount: "", period: "month" }])
+    setRows([...rows, { key: s.key, label: s.label, amount: "", period: defaultPeriod }])
   }
   return (
     <div>
@@ -242,7 +245,7 @@ function LineItemGrid({ rows, setRows, catalog, headerLabel, addLabel, emptyLabe
 
 // A "R left · number right" summary line (matches the grid's Amount column). The amount is always bold; `strong`
 // also bolds the label + "monthly" (totals), while a soft label + muted R reads as a derived figure (residual).
-function TotalLine({ label, cents, strong = true }: Readonly<{ label: string; cents: number; strong?: boolean }>) {
+export function TotalLine({ label, cents, strong = true }: Readonly<{ label: string; cents: number; strong?: boolean }>) {
   const sideCls = strong ? "font-semibold text-[var(--ink)]" : "text-[var(--ink-soft)]"
   return (
     <div className="flex items-center gap-2">

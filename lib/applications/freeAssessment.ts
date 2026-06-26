@@ -16,7 +16,7 @@
  *     gets a recommendation rather than numbers to assemble.
  * NOT a confidence score — nothing is verified until the deep scan. Surfaces + sorts; never auto-decides.
  */
-import { INCOME_AFFORDABILITY_THRESHOLD, PROBATION_MONTHS, startedWithinProbation } from "@/lib/constants"
+import { INCOME_AFFORDABILITY_THRESHOLD, PROBATION_MONTHS, startedWithinProbation, formatZAR } from "@/lib/constants"
 import { validateSAId } from "@/lib/parties/partyValidation"
 import { calculateCombinedAffordability } from "@/lib/screening/combinedAffordability"
 import { residualCapacityCents } from "@/lib/applications/livingFloor"
@@ -144,7 +144,14 @@ export interface FreeAssessmentOptions {
   asOf?: Date                          // for deterministic age/tenure in tests
   // Present ONLY for a company application — the company is the payer; directors (guarantor-role, joint suretyGroup)
   // are the backstop. netProfitMonthly is the capacity tested; turnoverMonthly is context/scale only.
-  company?: { netProfitMonthlyCents: number | null; turnoverMonthlyCents?: number | null; monthlyCommitmentsCents?: number | null; ageYears?: number | null } | null
+  company?: {
+    netProfitMonthlyCents: number | null; turnoverMonthlyCents?: number | null; monthlyCommitmentsCents?: number | null; ageYears?: number | null
+    // Ledger-derived context (for the interpretive reads, not the verdict): owner salary out-line (the cash-extraction
+    // ratio is computed BEFORE this so a salaried owner isn't flagged low-margin), the premises-rent out-line +
+    // whether it's a relocate (demonstrated payment) or additional space, and the AFS financial year (staleness).
+    ownerCompMonthlyCents?: number | null; premisesRentMonthlyCents?: number | null; premisesMove?: string | null
+    figuresSource?: string | null; afsYear?: string | null  // recency: AFS = history/confidence; recent = consistency
+  } | null
 }
 
 /** True only when an SA-ID number fails the Luhn checksum; a passport/other id type is never "invalid" here. */
@@ -260,6 +267,49 @@ function affordabilityRead(r: Omit<FreeAssessmentResult, "interpretations">, rea
   else out.push({ kind: "caution", text: "Rent is high relative to declared income — affordability concern." })
   if (r.hasGuarantor && r.affordabilityTier !== "within" && r.guarantorBacksRent) out.push({ kind: "positive", text: "Backed by a surety whose residual income can absorb the full rent on top of their own commitments." })
   else if (r.hasGuarantor && !r.guarantorBacksRent) out.push({ kind: "caution", text: "The surety's residual income (after their own commitments and living costs) doesn't cover the full rent — limited additional security." })
+  return out
+}
+
+function afsStaleYears(afsYear?: string | null): number | null {
+  if (!afsYear) return null
+  if (afsYear === "older") return 4
+  const y = Number(afsYear)
+  return Number.isFinite(y) ? new Date().getFullYear() - y : null
+}
+
+/** Extra company reads (interpretive, never the verdict) from the cash-flow ledger: a loss; the owner-managed case
+ *  (thin surplus rescued by a salary out-line → points to the director track); a thin cash-extraction ratio computed
+ *  BEFORE owner comp (so a salaried owner isn't mislabelled low-margin — rule 3 must not fight the owner-managed
+ *  read); the RELOCATE-only premises-rent demonstrated payment; and figures-staleness from the AFS year. */
+function companyLedgerReads(co: NonNullable<FreeAssessmentOptions["company"]>, r: Omit<FreeAssessmentResult, "interpretations">, rentCents: number): Interpretation[] {
+  const out: Interpretation[] = []
+  const surplus = r.companyNetMonthlyCents ?? 0
+  const turnover = r.companyTurnoverMonthlyCents ?? 0
+  const ownerComp = co.ownerCompMonthlyCents ?? 0
+  const premisesRent = co.premisesRentMonthlyCents ?? 0
+  if (surplus < 0) {
+    out.push({ kind: "caution", text: "The company is running at a loss on its declared figures — affordability rests on the directors' surety, verified against the AFS at the deep scan." })
+  } else if (ownerComp > 0 && surplus < rentCents && surplus + ownerComp >= rentCents) {
+    out.push({ kind: "caution", text: `The company's surplus is thin because ${formatZAR(ownerComp)}/mo is drawn as owner salary — the capacity sits on the director's side (their surety), which is the figure to weigh.` })
+  }
+  // Cash-extraction ratio computed PRE owner comp — a salaried owner-managed co must not read as a low-margin business.
+  if (turnover > 0 && (surplus + ownerComp) / turnover < 0.05) {
+    out.push({ kind: "caution", text: "Even before owner drawings, the company keeps very little of its turnover — a thin operating margin worth verifying against the AFS." })
+  }
+  // Demonstrated payment — ONLY when RELOCATING (the existing rent goes away, replaced by the new one).
+  if (co.premisesMove === "relocate" && premisesRent > 0 && rentCents > 0 && premisesRent >= rentCents) {
+    out.push({ kind: "positive", text: `The company already pays ${formatZAR(premisesRent)}/mo in premises rent and is relocating — more than the ${formatZAR(rentCents)} applied, so it's affordable by demonstrated payment (verified from the bank statements at the deep scan).` })
+  }
+  // Recency read by source — AFS gives HISTORY (confidence / track record); recent figures give CONSISTENCY (current
+  // performance). Either way the deep scan reconciles the declared figures against the filed AFS.
+  if (co.figuresSource === "management_accounts") {
+    out.push({ kind: "positive", text: "Recent management-account figures — current performance for consistency, reconciled against the filed AFS (the track record) at the shortlist check." })
+  } else if (co.figuresSource === "estimate") {
+    out.push({ kind: "caution", text: "Declared estimate — verified against the AFS and bank statements at the deep scan." })
+  } else {
+    const stale = afsStaleYears(co.afsYear)
+    if (stale != null && stale >= 2) out.push({ kind: "caution", text: `These AFS figures are from a financial year about ${stale} years old — confirm current consistency against recent bank statements / management accounts at the deep scan.` })
+  }
   return out
 }
 
@@ -477,5 +527,7 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
     rollup,
   }
 
-  return { ...base, interpretations: buildInterpretations(base) }
+  const interpretations = buildInterpretations(base)
+  if (isCompany && opts.company) interpretations.push(...companyLedgerReads(opts.company, base, rentCents))
+  return { ...base, interpretations }
 }

@@ -33,7 +33,7 @@ import {
   STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW, LAST_DATA_STEP,
   SELF_EMPLOYED_TYPES,
   INCOME_LABEL, seedIncomeFor, COMMITMENT_LABEL, seedCommitments,
-  intOrNull, allAmountsEmpty, posOrNull, seedIfEmpty, numStr, rowMonthlyCents, totalMonthlyCents, incomeSourcesPayload, incomeKeys, blankCo,
+  intOrNull, allAmountsEmpty, posOrNull, seedIfEmpty, numStr, moneyCents, rowMonthlyCents, totalMonthlyCents, incomeSourcesPayload, incomeKeys, blankCo,
 } from "./applyDomain"
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
@@ -144,6 +144,7 @@ function resolveNavNext(o: Readonly<{
   inWizard: boolean; atRoster: boolean; activeKey: string | undefined; companyImDirector: boolean; companyRole: string
   personalStep: number; docsReady: boolean; busy: boolean
   continueCompanyInfo: () => void; advanceStep: () => void; afterCompanyReview: () => void; createApplication: () => void
+  continueCompanyFinances: () => void
   companyConsent: boolean; emailGateSatisfied: boolean
   continueIdentity: () => void; continueAddress: () => void; continueEmployment: () => void; continueIncome: () => void
   continueDocsRequired: () => void; finishDocuments: () => void
@@ -156,10 +157,11 @@ function companyEntityNavNext(o: Readonly<{
   activeKey: string | undefined; companyImDirector: boolean; companyRole: string; busy: boolean
   companyConsent: boolean; emailGateSatisfied: boolean
   continueCompanyInfo: () => void; advanceStep: () => void; afterCompanyReview: () => void; createApplication: () => void
+  continueCompanyFinances: () => void
 }>): NavNext {
   if (o.activeKey === "co-info") return { label: "Next", onClick: o.continueCompanyInfo }
   if (o.activeKey === "co-address") return { label: "Next", onClick: o.advanceStep }
-  if (o.activeKey === "co-finances") return { label: "Next", onClick: o.createApplication } // app created here so the company-docs pane can upload
+  if (o.activeKey === "co-finances") return { label: "Next", onClick: o.continueCompanyFinances } // completeness gate → create
   if (o.activeKey === "co-docs") return { label: "Next", onClick: o.advanceStep }
   if (o.activeKey === "co-docs-opt") return { label: "Next", onClick: o.advanceStep }
   // Company sign-off — verify + consent on the company's behalf, then hand to the director (or email them).
@@ -560,6 +562,14 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     } finally { setBusy(false) }
   }
 
+  // Company finances completeness gate (Company finances → Documents): the surplus is meaningless without income, so
+  // require ≥1 money-in line with an amount (money-out may legitimately be empty for a debt-free company).
+  function continueCompanyFinances() {
+    const hasIncome = (company.ledgerIn ?? []).some((r) => moneyCents(r.amount) > 0)
+    if (!hasIncome) { toast.error("Add at least one money-in line with an amount."); return }
+    void createApplication()
+  }
+
   // The income/expenses section-finish (Income/Expenses → Documents). The draft already exists by now — autosave
   // CREATES it on the first step (see autosave); this is the gate + the point we fire the held co-applicant invites.
   // The saveDraft is an upsert, so it still creates as a fallback if autosave somehow hasn't.
@@ -770,7 +780,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // the complexity gate. Review has NO header action (its buttons live in the page body) → returns null there.
   const navNext = resolveNavNext({
     inWizard, atRoster, activeKey, companyImDirector, companyRole, personalStep, docsReady, busy,
-    continueCompanyInfo, advanceStep, afterCompanyReview, createApplication, companyConsent, emailGateSatisfied,
+    continueCompanyInfo, advanceStep, afterCompanyReview, createApplication, continueCompanyFinances, companyConsent, emailGateSatisfied,
     continueIdentity, continueAddress, continueEmployment, continueIncome, continueDocsRequired, finishDocuments,
   })
   const showBackBtn = inWizard

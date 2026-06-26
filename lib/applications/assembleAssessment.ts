@@ -49,6 +49,46 @@ export function monthlyRandsToCents(v: unknown): number | null {
   return Math.round(n * 100)
 }
 
+// ── Cash-flow ledger (company finances) — sum {amount, period} rows to monthly cents ────────────────
+const LEDGER_DIVISOR: Record<string, number> = { month: 1, quarter: 3, annual: 12 }
+function ledgerLineMonthlyCents(r: unknown): number {
+  const row = (r ?? {}) as { amount?: unknown; period?: unknown }
+  const n = typeof row.amount === "number" ? row.amount : parseFloat(String(row.amount ?? "").replace(/[^\d.]/g, ""))
+  if (!Number.isFinite(n) || n <= 0) return 0
+  return Math.round((n * 100) / (LEDGER_DIVISOR[String(row.period ?? "month")] ?? 1))
+}
+export function ledgerMonthlyCents(rows: unknown): number {
+  return Array.isArray(rows) ? rows.reduce((s: number, r) => s + ledgerLineMonthlyCents(r), 0) : 0
+}
+function ledgerKeyMonthlyCents(rows: unknown, key: string): number {
+  return Array.isArray(rows) ? rows.filter((r) => (r as { key?: unknown })?.key === key).reduce((s: number, r) => s + ledgerLineMonthlyCents(r), 0) : 0
+}
+
+/** Build the freeAssessment company option from company_info: the CASH-FLOW LEDGER when present (surplus = Σin − Σout,
+ *  turnover = Σin, debt + owner salary already netted in the out-lines), else the deprecated flat fields (fallback
+ *  for resumed pre-ledger drafts). null for a non-juristic / non-company applicant. */
+function companyOptionFrom(ci: AssessmentAppRow["company_info"], applicantType: string | null | undefined): FreeAssessmentOptions["company"] {
+  if (!(applicantType === "company" && ci && isJuristicCompanyType(ci.companyType))) return null
+  const ageYears = companyAgeYears(ci.companyReg as string | null | undefined)
+  const lin = ci.ledgerIn, lout = ci.ledgerOut
+  const hasLedger = (Array.isArray(lin) && lin.length > 0) || (Array.isArray(lout) && lout.length > 0)
+  if (hasLedger) {
+    const turnover = ledgerMonthlyCents(lin)
+    return {
+      netProfitMonthlyCents: turnover - ledgerMonthlyCents(lout), // surplus is the affordability capacity
+      turnoverMonthlyCents: turnover,
+      monthlyCommitmentsCents: 0,                                 // out-lines already net it — don't double-subtract
+      ownerCompMonthlyCents: ledgerKeyMonthlyCents(lout, "salaries"),
+      premisesRentMonthlyCents: ledgerKeyMonthlyCents(lout, "premises_rent"),
+      premisesMove: (ci.premisesMove as string | null) ?? null,
+      figuresSource: (ci.figuresSource as string | null) ?? null,
+      afsYear: (ci.afsYear as string | null) ?? null,
+      ageYears,
+    }
+  }
+  return { netProfitMonthlyCents: annualRandsToMonthlyCents(ci.annualProfit), turnoverMonthlyCents: annualRandsToMonthlyCents(ci.annualTurnover), monthlyCommitmentsCents: monthlyRandsToCents(ci.monthlyCommitments), ageYears }
+}
+
 export function assembleAssessment(p: Readonly<{
   rentCents: number
   depositCents: number | null
@@ -85,13 +125,9 @@ export function assembleAssessment(p: Readonly<{
     })),
   ]
 
-  // Company = the PAYER only for a JURISTIC entity (net profit ÷ 12 vs rent; turnover is context). A sole prop /
-  // partnership isn't a separate legal person → no company payer; affordability is the owner's PERSONAL income
-  // (captured in the personal flow), so company stays null and the normal personal/residual path applies.
-  const ci = p.app.company_info
-  const company: FreeAssessmentOptions["company"] = p.app.applicant_type === "company" && ci && isJuristicCompanyType(ci.companyType)
-    ? { netProfitMonthlyCents: annualRandsToMonthlyCents(ci.annualProfit), turnoverMonthlyCents: annualRandsToMonthlyCents(ci.annualTurnover), monthlyCommitmentsCents: monthlyRandsToCents(ci.monthlyCommitments), ageYears: companyAgeYears(ci.companyReg as string | null | undefined) }
-    : null
+  // Company = the PAYER only for a JURISTIC entity (cash-flow surplus vs rent; sole prop / partnership isn't a
+  // separate legal person → no company payer, the owner's PERSONAL income carries it). See companyOptionFrom.
+  const company = companyOptionFrom(p.app.company_info, p.app.applicant_type)
 
   return freeAssessment(p.rentCents, applicants, { depositCents: p.depositCents, leaseTermMonths: p.leaseTermMonths, company })
 }

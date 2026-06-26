@@ -93,6 +93,47 @@ describe("assembleAssessment — DB shape → verdict (the wiring)", () => {
     expect(r.companyVerdict).toBe("backstopped")   // R6.5k + R6.5k pooled ≥ R9k
   })
 
+  // ── Cash-flow ledger (surplus = Σin − Σout) — the current company model; flat fields above are the fallback. ──
+  const inRow = (amount: string, key = "trading_income") => ({ key, label: key, amount, period: "annual" })
+  const outRow = (amount: string, key = "operating_costs") => ({ key, label: key, amount, period: "annual" })
+
+  it("ledger: surplus (in − out) covers the rent → strong", () => {
+    const r = assess(appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", ledgerIn: [inRow("360000")], ledgerOut: [outRow("120000")] } }))
+    expect(r.companyVerdict).toBe("strong")        // R30k/mo in − R10k out = R20k surplus ≥ R9k
+    expect(r.companyNetMonthlyCents).toBe(2_000_000)
+  })
+
+  it("ledger: thin surplus rescued by a director surety → backstopped + owner-managed read (no double-count)", () => {
+    const r = assess(
+      appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", ledgerIn: [inRow("360000")], ledgerOut: [outRow("336000", "salaries")] } }),
+      [coRow({ is_surety_director: true, gross_monthly_income_cents: 2_000_000 })],
+    )
+    expect(r.companyVerdict).toBe("backstopped")   // R30k in − R28k salary = R2k surplus < R9k; director surety carries
+    expect(r.interpretations.some((i) => /drawn as owner salary/i.test(i.text))).toBe(true)
+    expect(r.interpretations.some((i) => /thin operating margin/i.test(i.text))).toBe(false) // ratio computed PRE owner comp
+  })
+
+  it("ledger: out > in → loss read", () => {
+    const r = assess(appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", ledgerIn: [inRow("120000")], ledgerOut: [outRow("240000")] } }))
+    expect(r.companyNetMonthlyCents).toBe(-1_000_000) // R10k in − R20k out
+    expect(r.interpretations.some((i) => /running at a loss/i.test(i.text))).toBe(true)
+  })
+
+  it("ledger: premises rent ≥ applied rent AND relocating → demonstrated-payment read", () => {
+    const r = assess(appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", premisesMove: "relocate", ledgerIn: [inRow("120000")], ledgerOut: [outRow("144000", "premises_rent")] } }))
+    expect(r.interpretations.some((i) => /demonstrated payment/i.test(i.text))).toBe(true) // pays R12k, relocating, > R9k
+  })
+
+  it("ledger: same premises rent but ADDITIONAL space → NO demonstrated-payment read (would over-credit)", () => {
+    const r = assess(appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", premisesMove: "additional", ledgerIn: [inRow("120000")], ledgerOut: [outRow("144000", "premises_rent")] } }))
+    expect(r.interpretations.some((i) => /demonstrated payment/i.test(i.text))).toBe(false)
+  })
+
+  it("ledger: recent management-account figures → consistency read (reconciled vs AFS history at shortlist)", () => {
+    const r = assess(appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", figuresSource: "management_accounts", ledgerIn: [inRow("360000")], ledgerOut: [outRow("120000")] } }))
+    expect(r.interpretations.some((i) => /consistency/i.test(i.text))).toBe(true)
+  })
+
   it("sole prop (unincorporated company_info) is NOT a company payer → personal affordability path", () => {
     // No separate legal person → net profit is irrelevant; the owner's personal income carries the rent. A thin
     // company net profit (R1k/mo) would FAIL as a juristic company, but here R40k personal income → within.
