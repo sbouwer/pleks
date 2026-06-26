@@ -407,7 +407,18 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (isJuristicCompanyType(company.companyType)) {
       if (!company.name?.trim()) { toast.error("Add the company's registered name."); return }
       if (!company.companyReg?.trim()) { toast.error("Add the registration number."); return }
-    } else if (!company.trading?.trim()) { toast.error("Add your trading name."); return }
+    } else {
+      if (!company.trading?.trim()) { toast.error("Add your trading name."); return }
+      // Sole prop / unincorporated: the owner IS self-employed and their business IS the trading name — pre-fill the
+      // employment step from the business info so they don't re-type it (only seed empty fields; don't clobber edits).
+      setEmp((e) => ({
+        ...e,
+        employment_type: e.employment_type || "self_employed",
+        business_name: e.business_name || company.trading || "",
+        business_nature: e.business_nature || company.nature || "",
+        registered: e.registered || (company.companyType === "sole_prop" ? "sole_prop" : e.registered),
+      }))
+    }
     advance(step + 1)
     autosave(step + 1)
   }
@@ -502,18 +513,14 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (type !== "company" && !emp.employment_type) { toast.error("Please select an employment status."); return }
     setBusy(true)
     try {
-      // On the FIRST create, email the resume link + toast — so the way-back is discoverable proactively, not
-      // hidden behind a button. Subsequent passes are silent updates.
+      // Create the draft SILENTLY so document uploads have an application to attach to — DON'T email a resume link
+      // here (that surprised applicants: they didn't ask for it). Emailing the link is the explicit "Save & finish
+      // later" action, available on every step. The quiet "Saved" chip is the only signal.
       const firstCreate = !applicationId
-      const r = await saveDraft(step + 1, firstCreate ? { explicit: true } : undefined)
+      const r = await saveDraft(step + 1)
       if (!r) return
       void dispatchInvites(r.id)                // fire the held at-selection invites now the application exists
-      if (firstCreate) {
-        setSaved(true); setResumeLink(r.url); setEmailed(r.emailed)
-        toast.success(r.emailed
-          ? `Progress saved — we've emailed a link to ${form.email} to finish later.`
-          : "Progress saved — you can finish later.")
-      }
+      if (firstCreate) { setSaved(true); setResumeLink(r.url) }
       advance(step + 1)
     } finally {
       setBusy(false)

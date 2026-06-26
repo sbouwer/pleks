@@ -98,7 +98,7 @@ export function StepCompanyDetails({ company, setCompany, imDirector, companySte
             <>
               <StepHeading title="Business information" sub={`Your business details. ${imDirector ? "You'll add your own details and income next — that's what we assess." : "We'll then email the owner to complete their part."}`} />
               <FieldGrid>
-                <TextField label="Trading name" value={company.trading ?? ""} onChange={(v) => set({ trading: v })} required placeholder="e.g. DW Plumbing" />
+                <TextField label="Trading name" value={company.trading ?? ""} onChange={(v) => set({ trading: v })} required placeholder="e.g. Plumbing & Sons" />
                 <SelectField label="Business type" value={company.companyType} onChange={(v) => set({ companyType: v })} required options={COMPANY_TYPE_OPTIONS} />
                 <TextField label="VAT number (if registered)" value={company.vat ?? ""} onChange={(v) => set({ vat: v })} />
                 <TextField label="Nature of business" value={company.nature ?? ""} onChange={(v) => set({ nature: v })} placeholder="e.g. IT consulting" />
