@@ -12,6 +12,7 @@ import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
 import { AddressFields } from "@/components/parties/partyFields"
 import type { PartyAddressInput } from "@/lib/parties/partyValidation"
 import { StepHeading } from "./applyShared"
+import { VerifyEmail } from "./applyReview"
 
 export interface CompanyInfo {
   // Identity — mirrors the canonical add-company global form (contacts.company_name/registration_number/
@@ -124,6 +125,44 @@ export function StepCompanyDetails({ company, setCompany, imDirector, companySte
           </FieldGrid>
         </>
       )}
+    </div>
+  )
+}
+
+function CoReviewLine({ k, v }: Readonly<{ k: string; v: string }>) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b border-[var(--rule)] py-1.5 last:border-0">
+      <span className="shrink-0 text-[var(--ink-mute)]">{k}</span>
+      <span className="text-right font-medium text-[var(--ink)]">{v}</span>
+    </div>
+  )
+}
+
+/** The COMPANY applicant's sign-off — the last pane of the company section. Confirm the entity, verify the email and
+ *  consent on the company's behalf. After this the per-applicant roster takes over (the director then does their own
+ *  section). consent + email-verified gate the forward action (the orchestrator). */
+export function StepCompanyReview({ company, applicationId, token, emailVerified, onVerified, consent, setConsent, imDirector, companyRole }: Readonly<{
+  company: CompanyInfo; applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
+  consent: boolean; setConsent: (v: boolean) => void; imDirector: boolean; companyRole: string
+}>) {
+  const regLabel = company.companyType === "trust" ? "Master's reference" : "CIPC registration"
+  return (
+    <div className="flex flex-col gap-6">
+      <StepHeading title="Company review & consent" sub={imDirector ? "Confirm the company's details, verify your email and consent — then you'll continue to your own director application." : `Confirm the company's details, verify your email and consent — then we'll email the ${companyRole} to complete their personal application.`} />
+      <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4 text-sm">
+        <CoReviewLine k="Registered name" v={company.name || "—"} />
+        {company.trading ? <CoReviewLine k="Trading as" v={company.trading} /> : null}
+        <CoReviewLine k={regLabel} v={company.companyReg || "—"} />
+        {company.vat ? <CoReviewLine k="VAT number" v={company.vat} /> : null}
+        {company.nature ? <CoReviewLine k="Nature of business" v={company.nature} /> : null}
+        <CoReviewLine k="Annual turnover" v={company.annualTurnover ? `R ${company.annualTurnover}` : "—"} />
+        <CoReviewLine k="Annual net profit" v={company.annualProfit ? `R ${company.annualProfit}` : "—"} />
+      </div>
+      <VerifyEmail applicationId={applicationId} token={token} email={company.companyEmail} verified={emailVerified} onVerified={onVerified} />
+      <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3.5 text-sm leading-relaxed text-[var(--ink-soft)]">
+        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--amber)]" />
+        I&apos;m authorised to apply on behalf of the company, and I consent to Pleks processing the company&apos;s information for this rental pre-selection (no credit check at this stage).
+      </label>
     </div>
   )
 }

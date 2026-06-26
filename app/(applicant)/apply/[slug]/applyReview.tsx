@@ -236,8 +236,9 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, o
   )
 }
 
-/** Anti-bot email verification — send a 6-digit code to the applicant's email, then confirm it before submit. */
-function VerifyEmail({ applicationId, token, email, verified, onVerified }: Readonly<{
+/** Anti-bot email verification — send a 6-digit code to the applicant's email, then confirm it before submit.
+ *  Exported so the company sign-off (StepCompanyReview) reuses the same verify widget. */
+export function VerifyEmail({ applicationId, token, email, verified, onVerified }: Readonly<{
   applicationId: string | null; token: string | null; email?: string; verified: boolean; onVerified: () => void
 }>) {
   const [sent, setSent] = useState(false)

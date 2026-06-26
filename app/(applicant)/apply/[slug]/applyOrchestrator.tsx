@@ -27,7 +27,7 @@ import { CheckCircle2, Users, ArrowLeft, ArrowRight, Clock } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { useBegun } from "./applyChrome"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
-import { type CompanyInfo, isJuristicCompanyType, StepCompanyDetails } from "./applyCompany"
+import { type CompanyInfo, isJuristicCompanyType, StepCompanyDetails, StepCompanyReview } from "./applyCompany"
 import {
   type ApplicantType, type CoRole, type ScreeningStatus, type SetFn, type DocFile, type CoApplicant, type Emp, type IncomePeriod, type IncomeRow,
   STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW, LAST_DATA_STEP,
@@ -102,7 +102,8 @@ type NavNext = { label: string; onClick: () => void; disabled?: boolean; primary
 function resolveNavNext(o: Readonly<{
   inWizard: boolean; activeKey: string | undefined; companyImDirector: boolean; companyRole: string
   personalStep: number; docsReady: boolean; busy: boolean
-  continueCompanyInfo: () => void; advanceStep: () => void; afterCompanyDocs: () => void; createApplication: () => void
+  continueCompanyInfo: () => void; advanceStep: () => void; afterCompanyReview: () => void; createApplication: () => void
+  companyConsent: boolean; emailGateSatisfied: boolean
   continueIdentity: () => void; continueAddress: () => void; continueEmployment: () => void; continueIncome: () => void
   continueDocsRequired: () => void; finishDocuments: () => void
 }>): NavNext {
@@ -111,7 +112,9 @@ function resolveNavNext(o: Readonly<{
   if (o.activeKey === "co-info") return { label: "Next", onClick: o.continueCompanyInfo }
   if (o.activeKey === "co-address") return { label: "Next", onClick: o.advanceStep }
   if (o.activeKey === "co-finances") return { label: "Next", onClick: o.createApplication } // app created here so the company-docs pane can upload
-  if (o.activeKey === "co-docs") return { label: o.companyImDirector ? "Continue to the director" : `Send to the ${o.companyRole}`, onClick: o.afterCompanyDocs, disabled: o.busy }
+  if (o.activeKey === "co-docs") return { label: "Next", onClick: o.advanceStep }
+  // Company sign-off — verify + consent on the company's behalf, then hand to the director (or email them).
+  if (o.activeKey === "co-review") return { label: o.companyImDirector ? "Continue to your application" : `Send to the ${o.companyRole}`, onClick: o.afterCompanyReview, disabled: o.busy || !o.companyConsent || !o.emailGateSatisfied }
   // Personal / director panes (sole prop + the director's private flow reuse these).
   if (o.personalStep === 0) return { label: "Next", onClick: o.continueIdentity }
   if (o.personalStep === 1) return { label: "Next", onClick: o.continueAddress }
@@ -233,6 +236,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths, resume.form?.idType, resume.applicantType ?? inferType(resume.coApplicants)) : {})
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
+  const [companyConsent, setCompanyConsent] = useState(false) // the COMPANY applicant's sign-off consent (co-review)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
 
@@ -308,7 +312,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     } finally { setBusy(false) }
   }
   // Leaving the company-documents pane: the director-filler continues to their private flow; the office-manager hands off.
-  function afterCompanyDocs() { if (companyImDirector) { advance(step + 1); autosave(step + 1) } else void sendToDirector() }
+  // Company sign-off complete → the director continues to their own section (next pane), or — for an office-manager
+  // filler — the named director is emailed their link. (The roster hub between the two lands in increment B.)
+  function afterCompanyReview() { if (companyImDirector) { advance(step + 1); autosave(step + 1) } else void sendToDirector() }
 
   // Returning applicant on the landing: re-email their resume link. Anti-enumeration — the endpoint always
   // answers ok and only sends when a matching draft exists, so the toast is deliberately non-committal.
@@ -652,7 +658,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   // the complexity gate. Review has NO header action (its buttons live in the page body) → returns null there.
   const navNext = resolveNavNext({
     inWizard, activeKey, companyImDirector, companyRole, personalStep, docsReady, busy,
-    continueCompanyInfo, advanceStep, afterCompanyDocs, createApplication,
+    continueCompanyInfo, advanceStep, afterCompanyReview, createApplication, companyConsent, emailGateSatisfied,
     continueIdentity, continueAddress, continueEmployment, continueIncome, continueDocsRequired, finishDocuments,
   })
   const showBackBtn = inWizard
@@ -666,6 +672,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (activeKey === "co-address") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={1} />
     if (activeKey === "co-finances") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={2} />
     if (activeKey === "co-docs") return <StepDocuments tab="required" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
+    if (activeKey === "co-review") return <StepCompanyReview company={company} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={companyConsent} setConsent={setCompanyConsent} imDirector={companyImDirector} companyRole={companyRole} />
     if (personalStep === 0) return <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} coApplicants={coApplicants} />
     if (personalStep === 1) return <StepAddress form={form} set={set} errors={errors} />
     if (personalStep === 2) return <StepEmployment emp={emp} setEmp={setEmp} />
