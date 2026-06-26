@@ -7,7 +7,7 @@
  *         Shared bookend for BOTH flows — the orchestrator (StepPanel) renders it last, after the chosen flow.
  *         Owns its own helpers; shares only bricks + applyDomain.
  */
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { toast } from "sonner"
 import { AlertCircle, Building2, CheckCircle2, Pencil, ShieldCheck, Upload, User, Users } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
@@ -301,6 +301,24 @@ export function VerifyEmail({ applicationId, token, email, verified, onVerified,
   )
 }
 
+/** The per-applicant sign-off block — email verification + a consent checkbox — shared by the company sign-off
+ *  (StepCompanyReview) and the personal review (StepSubmit) so the gate looks/behaves identically; the consent
+ *  WORDING differs per applicant, so it's passed as children (#4 of the redundancy cleanup). */
+export function ConsentVerify({ applicationId, token, email, verified, onVerified, reverify, consent, setConsent, children }: Readonly<{
+  applicationId: string | null; token: string | null; email?: string; verified: boolean; onVerified: () => void; reverify?: boolean
+  consent: boolean; setConsent: (v: boolean) => void; children: ReactNode
+}>) {
+  return (
+    <>
+      <VerifyEmail applicationId={applicationId} token={token} email={email} verified={verified} onVerified={onVerified} reverify={reverify} />
+      <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
+        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--amber)]" />
+        <span className="text-[13px] leading-relaxed text-[var(--ink-soft)]"><ShieldCheck className="mr-1 inline size-3.5 text-[var(--ink-mute)]" />{children}</span>
+      </label>
+    </>
+  )
+}
+
 export function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, applicantsGreen, screeningStatus, assessment, companyName, onAmend, onRerun, onContinue, onAddApplicant, applicationId, token, emailVerified, onVerified }: Readonly<{
   form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
   coApplicants: CoApplicant[]; applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null; companyName?: string
@@ -340,14 +358,9 @@ export function StepSubmit({ form, emp, income, askingRentCents, consent, setCon
         <Row k="Rent-to-income" v={ratio != null ? `${ratio}%` : "—"} />
         {others.length > 0 && <Row k="Others" v={others.map((c) => c.role === "guarantor" ? "guarantor" : "co-applicant").join(", ")} />}
       </div>
-      <VerifyEmail applicationId={applicationId} token={token} email={form.email} verified={emailVerified} onVerified={onVerified} />
-      <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
-        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 accent-[var(--amber)]" />
-        <span className="text-[13px] leading-relaxed text-[var(--ink-soft)]">
-          <ShieldCheck className="mr-1 inline size-3.5 text-[var(--ink-mute)]" />
-          I consent to Pleks processing the information and documents I&apos;ve provided — including automated (AI) analysis of my uploaded documents — to pre-screen this application (POPIA). No credit check or bureau enquiry runs at this stage; that only happens later if I&apos;m shortlisted and I consent again.
-        </span>
-      </label>
+      <ConsentVerify applicationId={applicationId} token={token} email={form.email} verified={emailVerified} onVerified={onVerified} consent={consent} setConsent={setConsent}>
+        I consent to Pleks processing the information and documents I&apos;ve provided — including automated (AI) analysis of my uploaded documents — to pre-screen this application (POPIA). No credit check or bureau enquiry runs at this stage; that only happens later if I&apos;m shortlisted and I consent again.
+      </ConsentVerify>
       {/* Continue pinned to the BOTTOM of the card (mt-auto), bottom-right — the header keeps only Back. */}
       <div className="mt-auto flex justify-end pt-3">
         <ActionButton tone="primary" onClick={onContinue} disabled={!consent || !applicantsGreen || !emailVerified}>Continue to review</ActionButton>

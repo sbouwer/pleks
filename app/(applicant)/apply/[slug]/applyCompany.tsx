@@ -13,7 +13,7 @@ import { formatCipcReg } from "@/lib/validation/contact"
 import { AddressFields } from "@/components/parties/partyFields"
 import type { PartyAddressInput } from "@/lib/parties/partyValidation"
 import { StepHeading } from "./applyShared"
-import { VerifyEmail } from "./applyReview"
+import { ConsentVerify } from "./applyReview"
 
 export interface CompanyInfo {
   // Identity — mirrors the canonical add-company global form (contacts.company_name/registration_number/
@@ -164,11 +164,9 @@ export function StepCompanyReview({ company, applicationId, token, emailVerified
         <CoReviewLine k="Annual turnover" v={company.annualTurnover ? `R ${company.annualTurnover}` : "—"} />
         <CoReviewLine k="Annual net profit" v={company.annualProfit ? `R ${company.annualProfit}` : "—"} />
       </div>
-      <VerifyEmail applicationId={applicationId} token={token} email={company.companyEmail} verified={emailVerified} onVerified={onVerified} />
-      <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3.5 text-sm leading-relaxed text-[var(--ink-soft)]">
-        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--amber)]" />
+      <ConsentVerify applicationId={applicationId} token={token} email={company.companyEmail} verified={emailVerified} onVerified={onVerified} consent={consent} setConsent={setConsent}>
         I&apos;m authorised to apply on behalf of the company, and I consent to Pleks processing the company&apos;s information for this rental pre-selection (no credit check at this stage).
-      </label>
+      </ConsentVerify>
     </div>
   )
 }
