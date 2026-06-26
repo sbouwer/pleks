@@ -49,13 +49,14 @@ export interface CompanyInfo {
 // engine can find the current-rent line for the relocate demonstrated-payment read.
 export const COMPANY_IN_CATALOG = [{ group: "Money in", sources: [{ key: "trading_income", label: "Trading income" }, { key: "other_income", label: "Other income" }, { key: "other", label: "Other…" }] }]
 export const COMPANY_OUT_CATALOG = [{ group: "Money out", sources: [
-  { key: "salaries", label: "Salaries & wages" }, { key: "premises_rent", label: "Premises rent" },
-  { key: "vehicle_asset", label: "Vehicle / asset finance" }, { key: "loan_repayments", label: "Loan repayments" },
-  { key: "operating_costs", label: "Operating costs" }, { key: "other", label: "Other…" },
+  { key: "owner_remuneration", label: "Director / owner remuneration" }, { key: "salaries", label: "Staff salaries & wages" },
+  { key: "premises_rent", label: "Premises rent" }, { key: "vehicle_asset", label: "Vehicle / asset finance" },
+  { key: "loan_repayments", label: "Loan repayments" }, { key: "operating_costs", label: "Operating costs" },
+  { key: "other", label: "Other…" },
 ] }]
 const DEFAULT_LEDGER_IN: IncomeRow[] = [{ key: "trading_income", label: "Trading income", amount: "", period: "annual" }]
 const DEFAULT_LEDGER_OUT: IncomeRow[] = [
-  { key: "salaries", label: "Salaries & wages", amount: "", period: "annual" },
+  { key: "owner_remuneration", label: "Director / owner remuneration", amount: "", period: "annual" },
   { key: "operating_costs", label: "Operating costs", amount: "", period: "annual" },
 ]
 const PREMISES_MOVE_OPTIONS = [
@@ -181,6 +182,7 @@ export function StepCompanyDetails({ company, setCompany, imDirector, companySte
           </FieldGrid>
           <LineItemGrid rows={ledgerIn} setRows={(r) => set({ ledgerIn: r })} catalog={COMPANY_IN_CATALOG} headerLabel="Money in" addLabel="Add an income line" emptyLabel="Add each income stream the company earns." defaultPeriod="annual" />
           <LineItemGrid rows={ledgerOut} setRows={(r) => set({ ledgerOut: r })} catalog={COMPANY_OUT_CATALOG} headerLabel="Money out" addLabel="Add a cost line" emptyLabel="Add the company's costs — salaries, rent, finance, loans, operating costs." defaultPeriod="annual" />
+          <p className="text-[11px] leading-relaxed text-[var(--ink-mute)]">Keep your own drawings on the <span className="text-[var(--ink-soft)]">Director / owner remuneration</span> line, separate from staff salaries — we use it both for the company&apos;s true surplus and for your own capacity as a director (no double-count).</p>
           {hasPremisesRent && (
             <SelectField label="The premises rent above is for…" value={company.premisesMove ?? "relocate"} onChange={(v) => set({ premisesMove: v })} options={PREMISES_MOVE_OPTIONS} />
           )}

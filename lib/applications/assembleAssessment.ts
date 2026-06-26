@@ -78,7 +78,7 @@ function companyOptionFrom(ci: AssessmentAppRow["company_info"], applicantType: 
       netProfitMonthlyCents: turnover - ledgerMonthlyCents(lout), // surplus is the affordability capacity
       turnoverMonthlyCents: turnover,
       monthlyCommitmentsCents: 0,                                 // out-lines already net it — don't double-subtract
-      ownerCompMonthlyCents: ledgerKeyMonthlyCents(lout, "salaries"),
+      ownerCompMonthlyCents: ledgerKeyMonthlyCents(lout, "owner_remuneration"), // owner drawings ONLY — staff salaries stay out of the add-back
       premisesRentMonthlyCents: ledgerKeyMonthlyCents(lout, "premises_rent"),
       premisesMove: (ci.premisesMove as string | null) ?? null,
       figuresSource: (ci.figuresSource as string | null) ?? null,

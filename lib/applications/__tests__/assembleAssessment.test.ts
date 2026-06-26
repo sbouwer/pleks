@@ -103,14 +103,24 @@ describe("assembleAssessment — DB shape → verdict (the wiring)", () => {
     expect(r.companyNetMonthlyCents).toBe(2_000_000)
   })
 
-  it("ledger: thin surplus rescued by a director surety → backstopped + owner-managed read (no double-count)", () => {
+  it("ledger: thin surplus from OWNER drawings + director surety → backstopped + owner-managed read", () => {
     const r = assess(
-      appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", ledgerIn: [inRow("360000")], ledgerOut: [outRow("336000", "salaries")] } }),
+      appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", ledgerIn: [inRow("360000")], ledgerOut: [outRow("336000", "owner_remuneration")] } }),
       [coRow({ is_surety_director: true, gross_monthly_income_cents: 2_000_000 })],
     )
-    expect(r.companyVerdict).toBe("backstopped")   // R30k in − R28k salary = R2k surplus < R9k; director surety carries
+    expect(r.companyVerdict).toBe("backstopped")   // R30k in − R28k owner drawings = R2k surplus < R9k; surety carries
     expect(r.interpretations.some((i) => /drawn as owner salary/i.test(i.text))).toBe(true)
     expect(r.interpretations.some((i) => /thin operating margin/i.test(i.text))).toBe(false) // ratio computed PRE owner comp
+  })
+
+  it("ledger: thin surplus from STAFF payroll (not owner drawings) does NOT trip the owner-managed read", () => {
+    const r = assess(
+      appRow({ applicant_type: "company", company_info: { companyType: "pty_ltd", ledgerIn: [inRow("360000")], ledgerOut: [outRow("336000", "salaries"), outRow("12000", "owner_remuneration")] } }),
+      [coRow({ is_surety_director: true, gross_monthly_income_cents: 2_000_000 })],
+    )
+    // R30k in − R28k STAFF − R1k owner = R1k surplus; ownerComp is only the R1k owner line → add-back stays < rent.
+    expect(r.interpretations.some((i) => /drawn as owner salary/i.test(i.text))).toBe(false)
+    expect(r.companyVerdict).toBe("backstopped")   // still carried by the director surety
   })
 
   it("ledger: out > in → loss read", () => {
