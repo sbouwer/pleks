@@ -2015,13 +2015,17 @@ CREATE POLICY "org_screening_artifacts" ON screening_artifacts
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
+-- The immutability latch MUST be RESTRICTIVE: permissive policies OR together, so a permissive USING(false) sitting
+-- beside the permissive org "FOR ALL" policy is a no-op (org-true OR false = true → update/delete allowed). RESTRICTIVE
+-- policies AND with the permissive result (org-true AND false = false), so they actually block. (Service-role bypasses
+-- RLS, so the legitimate purge still deletes; this hardens the anon/authenticated path — defence-in-depth.)
 DROP POLICY IF EXISTS "screening_artifacts_no_update" ON screening_artifacts;
 CREATE POLICY "screening_artifacts_no_update" ON screening_artifacts
-  FOR UPDATE USING (false) WITH CHECK (false);
+  AS RESTRICTIVE FOR UPDATE USING (false) WITH CHECK (false);
 
 DROP POLICY IF EXISTS "screening_artifacts_no_delete" ON screening_artifacts;
 CREATE POLICY "screening_artifacts_no_delete" ON screening_artifacts
-  FOR DELETE USING (false);
+  AS RESTRICTIVE FOR DELETE USING (false);
 
 -- ── v_application_screening_lines: orchestration view ────────────────────────
 -- ADDENDUM_00M Phase 1: security_invoker so the caller's RLS applies (the view no longer runs as
