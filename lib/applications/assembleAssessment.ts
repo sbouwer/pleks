@@ -67,7 +67,7 @@ function ledgerKeyMonthlyCents(rows: unknown, key: string): number {
 /** Build the freeAssessment company option from company_info: the CASH-FLOW LEDGER when present (surplus = Σin − Σout,
  *  turnover = Σin, debt + owner salary already netted in the out-lines), else the deprecated flat fields (fallback
  *  for resumed pre-ledger drafts). null for a non-juristic / non-company applicant. */
-function companyOptionFrom(ci: AssessmentAppRow["company_info"], applicantType: string | null | undefined): FreeAssessmentOptions["company"] {
+export function companyOptionFrom(ci: AssessmentAppRow["company_info"], applicantType: string | null | undefined): FreeAssessmentOptions["company"] {
   if (!(applicantType === "company" && ci && isJuristicCompanyType(ci.companyType))) return null
   const ageYears = companyAgeYears(ci.companyReg as string | null | undefined)
   const lin = ci.ledgerIn, lout = ci.ledgerOut

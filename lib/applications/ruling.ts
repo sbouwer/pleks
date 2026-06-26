@@ -53,6 +53,12 @@ export interface RulingResult {
      *  Shown beside the declared ratio so phantom uncorroborated income can't visually carry affordability, and
      *  the base figure for flag 0b's residual override. (ADDENDUM_14M #3) */
     corroboratedIncomeCents: number; corroboratedRatioPct: number | null
+    /** Read-only PUBLISH of two values already computed for the flag-0b residual override (no decision path uses
+     *  these — they are not consumed inside evaluateRuling). Exposed so the company sibling (companyRuling.ts, 14O)
+     *  can read the lead-director surety outcome (backsRent = corroboratedIncomeCents>0 && residualCents>=living
+     *  FloorCents) WITHOUT recomputing. ADDITIVE / non-behavioural — RULING_VERSION is NOT bumped; the §8a snapshot
+     *  gate proves the personal engine's tiers/flags are byte-identical. residualCents = corroborated − rent − obligations. */
+    residualCents: number; livingFloorCents: number
   }
   confidence: { tier: ConfidenceTier }
   flags: RulingFlag[]
@@ -269,7 +275,7 @@ export function evaluateRuling(input: RulingInput): RulingResult {
   return {
     rulingVersion: RULING_VERSION,
     rulingTier,
-    affordability: { ratioPct, tier: effectiveTier, demonstratedHousingCents: demonstrated, corroboratedIncomeCents, corroboratedRatioPct },
+    affordability: { ratioPct, tier: effectiveTier, demonstratedHousingCents: demonstrated, corroboratedIncomeCents, corroboratedRatioPct, residualCents, livingFloorCents },
     confidence: { tier: confidence },
     flags,
   }

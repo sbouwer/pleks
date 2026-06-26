@@ -19,6 +19,8 @@ import { runPipeline } from "@/lib/extraction/pipeline"
 import { reconcile } from "@/lib/extraction/reconciler"
 import { slotTypeForFilename } from "@/lib/extraction/slotType"
 import { evaluateRuling } from "@/lib/applications/ruling"
+import { companyOptionFrom } from "@/lib/applications/assembleAssessment"
+import { evaluateCompanyRuling, type CompanyVerdict } from "@/lib/applications/companyRuling"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { RECONCILER_VERSION, type DeclaredContext, type Document, type ReconciliationResult } from "@/lib/extraction/types"
@@ -111,7 +113,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("org_id, listing_id, co_applicants_count, dependents_count, dependent_adults_count, dependent_minors_count, school_fees_cents, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, employment_start_date, income_sources, stage1_consent_given, listings(asking_rent_cents, units(properties(type)))")
+    .select("org_id, listing_id, co_applicants_count, dependents_count, dependent_adults_count, dependent_minors_count, school_fees_cents, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, employment_start_date, income_sources, stage1_consent_given, applicant_type, company_info, free_assessment, listings(asking_rent_cents, units(properties(type)))")
     .eq("id", id).single()
   logQueryError("screen applications", appErr)
   if (!app) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -158,7 +160,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       reconciliation = reconcile([], declared, new Date())
     }
 
-    const ruling = evaluateRuling({
+    const personalInput = {
       appliedRentCents,
       declaredMonthlyIncomeCents: app.gross_monthly_income_cents ?? 0,
       employmentType: app.employment_type,
@@ -171,7 +173,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       schoolFeesCents: (app as unknown as AppRow).school_fees_cents ?? 0,
       // Child maintenance received — excluded from rent-payable income, offsets the child bucket (floor + fees).
       childMaintenanceCents: ((app as unknown as AppRow).income_sources ?? []).filter((s) => s.key === "maintenance").reduce((sum, s) => sum + (s.monthly_cents ?? 0), 0),
-    })
+    }
+
+    // ADDENDUM_14O Phase 0a: a JURISTIC company applies through its directors — the deep scan rules on the company
+    // (declared signals) + the VERIFIED lead-director surety, NOT the director's personal tenancy. companyOptionFrom
+    // returns null for non-juristic → the personal path is unchanged. The lead-director call is scoped to adults:1
+    // (§5.4) — co-directors are separate households, not dependents of the lead director.
+    const companyOption = companyOptionFrom((app as unknown as { company_info?: Record<string, unknown> | null }).company_info, (app as unknown as { applicant_type?: string | null }).applicant_type)
+    const ruling = companyOption
+      ? evaluateCompanyRuling({
+          leadDirector: { ...personalInput, adults: 1 },
+          company: companyOption,
+          companyVerdict: ((app as unknown as { free_assessment?: { companyVerdict?: CompanyVerdict } | null }).free_assessment)?.companyVerdict ?? null,
+        })
+      : evaluateRuling(personalInput)
 
     const iteration = await persistEvaluation(db, { orgId: app.org_id, appId: id, ruling, reconciliation, fraudSignals, declared, unitType, applicantCount, docCount: docs.length })
     await db.from("applications").update({ stage1_status: "pre_screen_complete" }).eq("id", id)
