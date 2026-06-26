@@ -34,10 +34,13 @@ function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void;
 }
 
 /** Roster cards from the per-party readiness (PII-safe, by index — primary first, then co-applicants in order)
- *  zipped with the client-side names. The live UI may show names; only the stored free_assessment jsonb is PII-safe. */
+ *  zipped with the client-side names. The live UI may show names; only the stored free_assessment jsonb is PII-safe.
+ *  Card status = the applicant's SIGN-OFF (consent given), matching the all-green submit gate — NOT full readiness.
+ *  An applicant who's done their section + consented is "complete" even with optional docs still to add (those
+ *  surface in the affordability review, behind Review — not as an outstanding card). */
 function buildRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], assessment: FreeAssessmentResult): RosterPerson[] {
   return assessment.readiness.items.map((item, i) => {
-    const status: ApplicantCardStatus = item.status === "ok" ? "complete" : "outstanding"
+    const status: ApplicantCardStatus = item.missing.includes("consent") ? "outstanding" : "complete"
     if (i === 0) return { name: [form.firstName, form.lastName].filter(Boolean).join(" ") || "You", roleLabel: "Primary applicant", status }
     const co = coApplicants[i - 1]
     const name = co ? [co.firstName, co.lastName].filter(Boolean).join(" ") || co.email || "Co-applicant" : "Applicant"
