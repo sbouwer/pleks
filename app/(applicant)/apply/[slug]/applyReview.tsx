@@ -15,7 +15,7 @@ import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { formatZAR, startedWithinProbation } from "@/lib/constants"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { StepHeading } from "./applyShared"
-import { ApplicantRoster, CompanyCard, type RosterPerson, type ApplicantCardStatus } from "./applyRoster"
+import { ApplicantRoster, CompanyCard, buildRosterPersons, type RosterPerson } from "./applyRoster"
 import { type Emp, type IncomeRow, type CoApplicant, type ScreeningStatus, STEP_DOCUMENTS, employmentLabel, rowMonthlyCents, moneyCents, totalMonthlyCents } from "./applyDomain"
 
 
@@ -33,18 +33,14 @@ function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void;
   )
 }
 
-/** Roster cards from the per-party readiness (PII-safe, by index — primary first, then co-applicants in order)
- *  zipped with the client-side names. The live UI may show names; only the stored free_assessment jsonb is PII-safe.
- *  Card status = the applicant's SIGN-OFF (consent given), matching the all-green submit gate — NOT full readiness.
- *  An applicant who's done their section + consented is "complete" even with optional docs still to add (those
- *  surface in the affordability review, behind Review — not as an outstanding card). */
-function buildRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], assessment: FreeAssessmentResult): RosterPerson[] {
-  return assessment.readiness.items.map((item, i) => {
-    const status: ApplicantCardStatus = item.missing.includes("consent") ? "outstanding" : "complete"
-    if (i === 0) return { name: [form.firstName, form.lastName].filter(Boolean).join(" ") || "You", roleLabel: "Primary applicant", status }
-    const co = coApplicants[i - 1]
-    const name = co ? [co.firstName, co.lastName].filter(Boolean).join(" ") || co.email || "Co-applicant" : "Applicant"
-    return { name, roleLabel: co?.role === "guarantor" ? "Guarantor" : "Co-applicant", status }
+/** Review roster cards — the shared builder (#3) with the review's status source: an applicant's card is "complete"
+ *  once they've SIGNED OFF (consent given, per the stored PII-safe readiness), matching the all-green submit gate —
+ *  NOT full readiness (optional docs still to add surface behind Review, not as an outstanding card). */
+function reviewRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], assessment: FreeAssessmentResult): RosterPerson[] {
+  return buildRosterPersons(form, coApplicants, {
+    statusAt: (i) => assessment.readiness.items[i]?.missing.includes("consent") ? "outstanding" : "complete",
+    fillerRole: "Primary applicant",
+    coRole: (c) => (c.role === "guarantor" ? "Guarantor" : "Co-applicant"),
   })
 }
 
@@ -323,7 +319,7 @@ export function StepSubmit({ form, emp, income, askingRentCents, consent, setCon
     } catch { toast.error("Could not submit. Please try again."); return false }
   }
 
-  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} rosterPersons={buildRosterPersons(form, coApplicants, assessment)} companyName={companyName} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
+  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} rosterPersons={reviewRosterPersons(form, coApplicants, assessment)} companyName={companyName} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
 
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = totalMonthlyCents(income)

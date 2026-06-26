@@ -69,6 +69,26 @@ export function PersonCard({ name, roleLabel, status }: Readonly<{ name: string;
 
 export interface RosterPerson { name: string; roleLabel: string; status: ApplicantCardStatus }
 
+type RosterFiller = { firstName?: string | null; lastName?: string | null }
+type RosterCo = { firstName?: string | null; lastName?: string | null; email?: string | null; designation?: string | null; role?: string | null }
+
+/** ONE builder for the roster's person cards, used at BOTH moments (the company sign-off hub and the final review)
+ *  so card assembly — name extraction, ordering, the filler-first rule — lives in a single place and can't drift.
+ *  The caller supplies the status source (hub → all "outstanding"; review → per-applicant sign-off readiness) and
+ *  the role labels. Indices are filler=0, then co-applicants in order. */
+export function buildRosterPersons(
+  form: RosterFiller,
+  coApplicants: ReadonlyArray<RosterCo>,
+  opts: Readonly<{ statusAt: (index: number) => ApplicantCardStatus; fillerRole: string; coRole: (c: RosterCo) => string; includeFiller?: boolean }>,
+): RosterPerson[] {
+  const name = (f?: string | null, l?: string | null, fallback = "Applicant") => [f, l].filter(Boolean).join(" ") || fallback
+  const includeFiller = opts.includeFiller ?? true
+  const out: RosterPerson[] = []
+  if (includeFiller) out.push({ name: name(form.firstName, form.lastName, "You"), roleLabel: opts.fillerRole, status: opts.statusAt(0) })
+  coApplicants.forEach((c, i) => out.push({ name: name(c.firstName, c.lastName, c.email || "Applicant"), roleLabel: opts.coRole(c), status: opts.statusAt(includeFiller ? i + 1 : i) }))
+  return out
+}
+
 /** The roster screen: the cards + the gate. companyCard is the optional main (company) card on top. Three footers:
  *  all green → onReview (affordability review + submit); a NUDGE (onContinueOwn) → the filler has an outstanding OWN
  *  section to do next (e.g. the director after the company sign-off); otherwise a waiting-on-others state. */

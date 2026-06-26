@@ -38,7 +38,7 @@ import {
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
 import { StepSubmit, VerifyEmail } from "./applyReview"
-import { ApplicantRoster, CompanyCard, type RosterPerson } from "./applyRoster"
+import { ApplicantRoster, CompanyCard, buildRosterPersons, type RosterPerson } from "./applyRoster"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, StepRail, StepBar, SubTabs, type NavModel } from "./applyNav"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
@@ -89,11 +89,9 @@ const PERSONAL_EDIT_KEYS = new Set(["personal", "address", "employment", "income
  *  off; their own personal sections aren't done yet). A director filler (You) leads the list; an office-manager
  *  filler isn't a party, so only the named directors (coApplicants) show. */
 function buildCompanyRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], companyRole: string, imDirector: boolean): RosterPerson[] {
+  // The sign-off hub: everyone is still "outstanding" (the company card carries the ✓). Shared builder (#3).
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-  const others = coApplicants.map((c): RosterPerson => ({ name: [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || "Director", roleLabel: cap(c.designation ?? "director"), status: "outstanding" }))
-  if (!imDirector) return others
-  const filler: RosterPerson = { name: [form.firstName, form.lastName].filter(Boolean).join(" ") || "You", roleLabel: cap(companyRole), status: "outstanding" }
-  return [filler, ...others]
+  return buildRosterPersons(form, coApplicants, { statusAt: () => "outstanding", fillerRole: cap(companyRole), coRole: (c) => cap(c.designation ?? "director"), includeFiller: imDirector })
 }
 
 /** Flow selection — which step machine + offset for the applicant/company type (module-level to keep the component
