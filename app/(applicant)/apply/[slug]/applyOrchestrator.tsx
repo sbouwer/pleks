@@ -39,7 +39,7 @@ import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
 import { StepSubmit, VerifyEmail } from "./applyReview"
 import { ApplicantRoster, CompanyCard, type RosterPerson } from "./applyRoster"
-import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_PANES, computeStepStates, StepRail, StepBar, SubTabs } from "./applyNav"
+import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, StepRail, StepBar, SubTabs, type NavModel } from "./applyNav"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
 import {
@@ -110,6 +110,17 @@ function resolveFlow(type: ApplicantType | null, companyType: string, step: numb
   if (soleProp) { nav = SOLEPROP_NAV; companyPaneCount = 1 }
   else if (juristic) { nav = PTY_NAV; companyPaneCount = PTY_COMPANY_PANES }
   return { soleProp, juristic, nav, companyPaneCount, personalStep: step - companyPaneCount }
+}
+
+/** The RAIL display is phase-scoped (the LOCKED roster model): a juristic company shows ONLY its company section
+ *  during the company phase (and at the roster hub), then ONLY the director's own section once past the sign-off.
+ *  The underlying `step`/`nav` machine is untouched — this just picks which rail to draw + the offset to map it. */
+function resolveRail(juristic: boolean, nav: NavModel, step: number, companyPaneCount: number, maxReached: number): { railNav: NavModel; railOffset: number; railStep: number; railMaxReached: number } {
+  const directorPhase = juristic && step >= companyPaneCount
+  const railOffset = directorPhase ? companyPaneCount : 0
+  let railNav = nav
+  if (juristic) railNav = directorPhase ? PTY_DIRECTOR_NAV : PTY_COMPANY_NAV
+  return { railNav, railOffset, railStep: step - railOffset, railMaxReached: Math.max(0, maxReached - railOffset) }
 }
 
 type NavNext = { label: string; onClick: () => void; disabled?: boolean; primary?: boolean } | null
@@ -251,6 +262,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   }, [saveTick])
   const [resumeLink, setResumeLink] = useState<string | null>(null)
   const [emailed, setEmailed] = useState(false)
+  const [creatingDraft, setCreatingDraft] = useState(false) // guards the autosave create-on-demand race (one at a time)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
   const [emailVerified, setEmailVerified] = useState<boolean>(resume?.emailVerified ?? false)
 
@@ -446,7 +458,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (company.companyEmail?.trim() && !isValidEmail(company.companyEmail)) { toast.error("Enter a valid company email address."); return }
     if (company.companyPhone?.trim()) { const c = checkPhone(company.companyPhone); if (!c.valid) { toast.error(c.reason ?? "Enter a valid company phone number."); return } }
     advance(step + 1)
-    autosave(step + 1)
+    autosave(step + 1) // autosave creates the draft on demand (we have the filler's email) → persists from here on
   }
 
   // UPSERT the draft (create on first save, update thereafter — keyed on the held applicationId/token). Every
@@ -516,16 +528,20 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     } catch { if (!opts?.silent) { toast.error("Could not save your progress.") } return null }
   }
 
-  // Per-step autosave: once a draft EXISTS (explicit save or the Income create), silently UPDATE it on every
-  // step-advance so additional data is captured as you go — never CREATES a row on plain advance (no draft
-  // spam from casual visitors), and never toasts/emails. Best-effort; the next save re-sends full state.
+  // Per-sub-step autosave (universal — individuals AND companies): silently persist on EVERY step-advance so nothing
+  // is lost as you go. CREATES the draft on demand the first time (as soon as we have an email), then UPDATES it —
+  // so progress is recoverable from the very first step, not only after some later create point. Never toasts/emails.
   function autosave(stepToSave: number) {
-    if (!(applicationId && form.email)) return
+    if (!applicationId && (!form.email || creatingDraft)) return // need an email to create; one create at a time
+    const firstCreate = !applicationId
+    if (firstCreate) setCreatingDraft(true)
     // Always autosave each sub-step (data safety) — but only FLASH the "Saved" chip when a whole STEP GROUP was just
-    // completed (the group changes between the pane left and the pane entered), so the pill tracks visible steps, not
-    // every sub-step. (The create at Finances→Documents flashes from createApplication.)
+    // completed (the group changes between the pane left and the pane entered), so the pill tracks visible steps.
     const crossedGroup = nav.paneMeta[stepToSave - 1]?.group !== nav.paneMeta[stepToSave]?.group
-    void saveDraft(stepToSave, { silent: true }).then((r) => { if (r && crossedGroup) flashSaved() })
+    void saveDraft(stepToSave, { silent: true }).then((r) => {
+      if (firstCreate) { setCreatingDraft(false); if (r) setSaved(true) }
+      if (r && crossedGroup) flashSaved()
+    })
   }
 
   // Explicit "Save & finish later": persist + email the link, then surface the resume-link modal + mark saved.
@@ -701,7 +717,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     }
   }
 
-  const { nav, personalStep } = resolveFlow(type, company.companyType, step)
+  const { nav, personalStep, juristic, companyPaneCount } = resolveFlow(type, company.companyType, step)
   // The PERSON's docs (owner/director) are always personal/self-employed (not the company set). The juristic company
   // has a SEPARATE company-docs pane (CIPC/AFS/bank) — companyDocCategories.
   const docApplicantType = type === "company" ? "individual" : type
@@ -736,8 +752,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   const headerTitle = inWizard ? activeGroup : "Apply to"
   const headerSub = inWizard ? nav.paneMeta[step].sub : (listingTitle ?? "this home")
   const applyAsDesc = type ? `${TYPE_LABEL[type]} · ${leaseType}` : "Choose how you apply"
-  const navStates = computeStepStates(nav, { activeGroup, step, maxReached, inWizard, typePicked: type !== null, hasApplication: !!applicationId, applyAsDesc })
-  const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t) }
+  // JURISTIC = TWO distinct rails (the LOCKED roster model — company is a card, not a phase): show ONLY the company
+  // section during the company phase (and at the roster hub), then ONLY the director's own section once they're past
+  // the sign-off. `nav` stays the full machine (dispatch/render); the RAIL display is phase-scoped + offset.
+  const { railNav, railOffset, railStep, railMaxReached } = resolveRail(juristic, nav, step, companyPaneCount, maxReached)
+  const navStates = computeStepStates(railNav, { activeGroup, step: railStep, maxReached: railMaxReached, inWizard, typePicked: type !== null, hasApplication: !!applicationId, applyAsDesc })
+  const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t + railOffset) }
+  const onJumpRail = (t: number) => navTo(t + railOffset)
   const advanceStep = () => { advance(step + 1); autosave(step + 1) } // plain "Next" for panes with no validation (co-address)
   // The current step's forward action (header "Next →"). Resolved by a module helper to keep this component under
   // the complexity gate. Review has NO header action (its buttons live in the page body) → returns null there.
@@ -787,7 +808,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                 Your application
               </h2>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2"><StepRail model={nav} states={navStates} step={step} maxReached={maxReached} onNav={onNav} onJumpStep={navTo} /></div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2"><StepRail model={railNav} states={navStates} step={railStep} maxReached={railMaxReached} onNav={onNav} onJumpStep={onJumpRail} /></div>
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{listingCard}</div>
@@ -802,7 +823,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {/* Mobile/short: horizontal step bar + sub-tabs (on desktop the rail handles both) */}
         <div className="[@media(min-width:1024px)_and_(min-height:700px)]:hidden">
           <StepBar states={navStates} onNav={onNav} />
-          {inWizard && <SubTabs model={nav} activeGroup={activeGroup} step={step} maxReached={maxReached} onJumpStep={navTo} />}
+          {inWizard && <SubTabs model={railNav} activeGroup={activeGroup} step={railStep} maxReached={railMaxReached} onJumpStep={onJumpRail} />}
         </div>
 
         {/* Panel header — mirrors the rail's "Your application" header (amber tick + step · section) so the rule

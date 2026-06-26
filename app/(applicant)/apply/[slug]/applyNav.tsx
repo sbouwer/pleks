@@ -98,6 +98,23 @@ const PTY_DESC: Record<string, string> = {
 }
 export const PTY_NAV = buildNav(["Apply as", "Company details", "Company finances", "Company documents", "Company review", "Personal details", "Finances", "Documents", "Application review"], PTY_PANES, PTY_DESC)
 
+// The juristic flow is TWO distinct rails, not one (the LOCKED roster model: the company is a card on a roster, not a
+// phase in one linear list). The orchestrator drives a single linear `step` over PTY_PANES for render/dispatch, but
+// shows ONLY the relevant section's rail: the COMPANY rail during the company phase (ending at the sign-off), then —
+// once the director is nudged off the roster into their own private application — the DIRECTOR rail (a fresh personal
+// flow, no company steps). These two slice PTY_PANES so the keys/order stay identical to the underlying machine.
+const PTY_COMPANY_DESC: Record<string, string> = {
+  "Company details": PTY_DESC["Company details"], "Company finances": PTY_DESC["Company finances"],
+  "Company documents": PTY_DESC["Company documents"], "Company review": PTY_DESC["Company review"],
+}
+export const PTY_COMPANY_NAV = buildNav(["Apply as", "Company details", "Company finances", "Company documents", "Company review"], PTY_PANES.slice(0, PTY_COMPANY_PANES), PTY_COMPANY_DESC)
+
+const PTY_DIRECTOR_DESC: Record<string, string> = {
+  "Personal details": PTY_DESC["Personal details"], Finances: PTY_DESC.Finances,
+  Documents: PTY_DESC.Documents, "Application review": PTY_DESC["Application review"],
+}
+export const PTY_DIRECTOR_NAV = buildNav(["Apply as", "Personal details", "Finances", "Documents", "Application review"], PTY_PANES.slice(PTY_COMPANY_PANES), PTY_DIRECTOR_DESC)
+
 function tabClass(done: boolean, cur: boolean): string {
   // NB: don't use `.stoep` here — it sets padding-bottom:4px which overrides the button's pb-2.5 and drops the
   // active label below the others. The active underline is drawn as an absolute element instead (consistent pad).
