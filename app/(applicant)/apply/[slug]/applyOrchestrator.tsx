@@ -123,6 +123,22 @@ function resolveRail(juristic: boolean, nav: NavModel, step: number, companyPane
   return { railNav, railOffset, railStep: step - railOffset, railMaxReached: Math.max(0, maxReached - railOffset) }
 }
 
+/** Reuse what's already declared about the company when seeding the filler's employment (fills EMPTIES only): a
+ *  juristic director is EMPLOYED by the company as a "Director"; an unincorporated owner (sole prop / partnership) is
+ *  SELF-EMPLOYED and their business IS the trading name. ONE place so the two flows can't drift apart. */
+function prefillEmploymentFromCompany(company: CompanyInfo, e: Emp): Emp {
+  if (isJuristicCompanyType(company.companyType)) {
+    return { ...e, employment_type: e.employment_type || "permanent", employer: e.employer || company.name || company.trading || "", job_title: e.job_title || "Director" }
+  }
+  return {
+    ...e,
+    employment_type: e.employment_type || "self_employed",
+    business_name: e.business_name || company.trading || "",
+    business_nature: e.business_nature || company.nature || "",
+    registered: e.registered || (company.companyType === "sole_prop" ? "sole_prop" : e.registered),
+  }
+}
+
 type NavNext = { label: string; onClick: () => void; disabled?: boolean; primary?: boolean } | null
 /** The header forward-action for the current step — extracted from the component to keep it under the complexity
  *  gate. Company entity panes dispatch by `activeKey`; the personal/director panes via `personalStep`. */
@@ -376,9 +392,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   function afterCompanyReview() { if (companyImDirector) setAtRoster(true); else void sendToDirector() }
   // The roster nudge — the director leaves the hub to complete their own (personal) section.
   function continueOwnSection() {
-    // The director's private flow: we already know they're a director OF this company — pre-fill their employment
-    // (employed · the company as employer · "Director" as the role) so they don't re-type it. Only empty fields.
-    setEmp((e) => ({ ...e, employment_type: e.employment_type || "permanent", employer: e.employer || company.name || company.trading || "", job_title: e.job_title || "Director" }))
+    // The director's private flow — reuse what we know about the company (shared prefill helper, see #1).
+    setEmp((e) => prefillEmploymentFromCompany(company, e))
     setAtRoster(false); advance(step + 1); autosave(step + 1)
   }
 
@@ -444,15 +459,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       }
     } else {
       if (!company.trading?.trim()) { toast.error("Add your trading name."); return }
-      // Sole prop / unincorporated: the owner IS self-employed and their business IS the trading name — pre-fill the
-      // employment step from the business info so they don't re-type it (only seed empty fields; don't clobber edits).
-      setEmp((e) => ({
-        ...e,
-        employment_type: e.employment_type || "self_employed",
-        business_name: e.business_name || company.trading || "",
-        business_nature: e.business_nature || company.nature || "",
-        registered: e.registered || (company.companyType === "sole_prop" ? "sole_prop" : e.registered),
-      }))
+      // Unincorporated: reuse the business info to seed the owner's (self-employed) employment (shared helper, #1).
+      setEmp((e) => prefillEmploymentFromCompany(company, e))
     }
     // Company contact details are optional, but if given must be valid (same SSOT as everywhere else).
     if (company.companyEmail?.trim() && !isValidEmail(company.companyEmail)) { toast.error("Enter a valid company email address."); return }
