@@ -44,6 +44,10 @@ export interface CompanyInfo {
   // The filler's own relationship to the company (apply-as "You" row): director / shareholder / guarantor / other
   // / owner, or on_behalf (an office manager not on the application). Drives imDirector; display/intent only.
   fillerDesignation?: string
+  // ON-BEHALF accountability — when an office manager (not a director) completes the company section, record WHO
+  // attested authority: their name, function and contact. (The director themselves completes their own part via
+  // their link; this is the authorised submitter on the company's behalf.) Captured on the company sign-off.
+  fillerName?: string; fillerFunction?: string; fillerPhone?: string; fillerEmail?: string
 }
 
 // The ledger catalogs (mirror the personal INCOME/COMMITMENT catalogs). "premises_rent" is a fixed key so the
@@ -212,8 +216,8 @@ function CoReviewLine({ k, v }: Readonly<{ k: string; v: string }>) {
 /** The COMPANY applicant's sign-off — the last pane of the company section. Confirm the entity, verify the email and
  *  consent on the company's behalf. After this the per-applicant roster takes over (the director then does their own
  *  section). consent + email-verified gate the forward action (the orchestrator). */
-export function StepCompanyReview({ company, signOffEmail, applicationId, token, emailVerified, onVerified, consent, setConsent, imDirector, companyRole, onContinue, busy }: Readonly<{
-  company: CompanyInfo; applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
+export function StepCompanyReview({ company, setCompany, signOffEmail, applicationId, token, emailVerified, onVerified, consent, setConsent, imDirector, companyRole, onContinue, busy }: Readonly<{
+  company: CompanyInfo; setCompany: (c: CompanyInfo) => void; applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
   /** The email the OTP actually goes to — the application's applicant_email (the director / on-behalf primary), NOT
    *  the optional company contact email. Display must match what's sent or it reads "Code sent to undefined". */
   signOffEmail?: string
@@ -249,6 +253,19 @@ export function StepCompanyReview({ company, signOffEmail, applicationId, token,
           </>
         )}
       </div>
+      {/* On-behalf accountability: when an office manager (not a director) completes this, record who attested
+          authority — name, function and contact. (The named director still completes their own part via their link.) */}
+      {!imDirector && (
+        <div className="flex flex-col gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
+          <p className="text-sm font-medium text-[var(--ink)]">Who&apos;s completing this on the company&apos;s behalf?</p>
+          <FieldGrid>
+            <TextField label="Your name" value={company.fillerName ?? ""} onChange={(v) => setCompany({ ...company, fillerName: v })} />
+            <TextField label="Your function" value={company.fillerFunction ?? ""} onChange={(v) => setCompany({ ...company, fillerFunction: v })} placeholder="e.g. Office manager, Accountant" />
+            <TextField label="Your email" type="email" value={company.fillerEmail ?? ""} onChange={(v) => setCompany({ ...company, fillerEmail: v })} />
+            <TextField label="Your phone" type="tel" value={company.fillerPhone ?? ""} onChange={(v) => setCompany({ ...company, fillerPhone: v })} />
+          </FieldGrid>
+        </div>
+      )}
       <ConsentVerify applicationId={applicationId} token={token} email={signOffEmail} verified={emailVerified} onVerified={onVerified} consent={consent} setConsent={setConsent}>
         I&apos;m authorised to apply on behalf of the company, and I consent to Pleks processing the company&apos;s information for this rental pre-selection (no credit check at this stage).
       </ConsentVerify>
