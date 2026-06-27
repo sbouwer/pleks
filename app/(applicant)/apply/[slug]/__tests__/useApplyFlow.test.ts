@@ -12,7 +12,7 @@ import type { PartyFormState } from "@/lib/parties/partyValidation"
 
 const form = (over: Partial<PartyFormState> = {}): PartyFormState => ({ idType: "sa_id", firstName: "Di", lastName: "Rector", ...over } as PartyFormState)
 const co = (over: Partial<CoApplicant> = {}): CoApplicant => ({ firstName: "Sue", lastName: "Se", email: "sue@co.za", phone: "", idNumber: "", role: "co_applicant", designation: "director", invited: false, ...over })
-const base = { type: "company" as const, isJuristic: true, companyName: "Acme (Pty) Ltd", companyStarted: false, companySignedOff: false, companyEdited: false, form: form(), coApplicants: [] as CoApplicant[], companyRole: "director", imDirector: true, selfSectionDone: false, selfStarted: false, selfEdited: false, appCreated: false }
+const base = { type: "company" as const, isJuristic: true, companyName: "Acme (Pty) Ltd", companyStarted: false, companySignedOff: false, companyEdited: false, form: form(), coApplicants: [] as CoApplicant[], companyRole: "director", imDirector: true, selfSectionDone: false, selfStarted: false, selfEdited: false, emailVerified: true, appCreated: false }
 
 describe("buildStatusMenuData — juristic company", () => {
   it("company card status tracks started → signed off → updated", () => {
@@ -27,6 +27,13 @@ describe("buildStatusMenuData — juristic company", () => {
     expect(buildStatusMenuData(base).persons.find((p) => p.id === "self")).toMatchObject({ name: "Di Rector", canOpen: true, status: "not_started" })
     expect(buildStatusMenuData({ ...base, selfStarted: true }).persons.find((p) => p.id === "self")?.status).toBe("in_progress")
     expect(buildStatusMenuData({ ...base, selfSectionDone: true }).persons.find((p) => p.id === "self")?.status).toBe("completed")
+  })
+
+  it("self card reads Verify email on first landing (before email verified), then Started once entered", () => {
+    expect(buildStatusMenuData({ ...base, emailVerified: false }).persons.find((p) => p.id === "self")?.status).toBe("verify_email")
+    // verified but not yet entered → Not started; entered → Started application
+    expect(buildStatusMenuData({ ...base, emailVerified: true }).persons.find((p) => p.id === "self")?.status).toBe("not_started")
+    expect(buildStatusMenuData({ ...base, emailVerified: false, selfStarted: true }).persons.find((p) => p.id === "self")?.status).toBe("in_progress")
   })
 
   it("self card flips to Updated application once edited after completion", () => {

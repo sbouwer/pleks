@@ -68,11 +68,17 @@ function cardStatusOf(done: boolean, started: boolean): CardStatus {
   if (done) return "completed"
   return started ? "in_progress" : "not_started"
 }
-/** An openable (self OR company) card: Completed → Updated application once edited after completion (the review-then-
- *  edit loop, §8-9); else in-progress/not-started by whether it's been opened. */
+/** The COMPANY card: Completed → Updated application once edited after sign-off; else in-progress/not-started. */
 function editableCardStatus(done: boolean, edited: boolean, started: boolean): CardStatus {
   if (done) return edited ? "updated" : "completed"
   return cardStatusOf(false, started)
+}
+/** The filler's own (self) card. Adds the FIRST-landing state: before they verify their email it reads "Verify
+ *  email" (the unlock); verifying + entering their section makes it "Started application"; then Completed/Updated. */
+function selfCardStatus(done: boolean, edited: boolean, started: boolean, emailVerified: boolean): CardStatus {
+  if (done) return edited ? "updated" : "completed"
+  if (started) return "in_progress"
+  return emailVerified ? "not_started" : "verify_email"
 }
 /** A co-applicant card from the live tri-state poll: Completed (consented) → Started application (clicked their
  *  link) → Invitation sent (emailed, app exists) → Not started (pre-create). */
@@ -89,7 +95,7 @@ export function buildStatusMenuData(o: Readonly<{
   type: ApplicantType | null; isJuristic: boolean
   companyName: string; companyStarted: boolean; companySignedOff: boolean; companyEdited: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
-  selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
+  selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; emailVerified: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
 }>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
   const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -101,7 +107,7 @@ export function buildStatusMenuData(o: Readonly<{
   const includeSelf = o.isJuristic ? o.imDirector : true
   if (includeSelf) {
     const selfRole = o.isJuristic ? cap(o.companyRole) : "Applicant"
-    const selfStatus = editableCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted)
+    const selfStatus = selfCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted, o.emailVerified)
     persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: selfRole, status: selfStatus, canOpen: true })
   }
   o.coApplicants.forEach((c, i) => {
@@ -227,6 +233,9 @@ export interface ResumeState {
   incomeSources: { key: string; label: string; amount_cents: number; period: string }[]
   commitments?: { key: string; label: string; amount_cents: number; period: string }[]
   coApplicants: CoApplicant[]; docPaths: { name: string; storagePath: string }[]
+  /** the filler had already finished their own section (documents submitted) before this resume — so the hub shows
+   *  their card as Completed, not "Started application". */
+  selfDone?: boolean
 }
 /** Rebuild an editable line-item grid (income or commitments) from a persisted source list — one row per stored
  *  item (the grid grows from the seed + picker). A key not in the given catalog is a custom "other" row.
@@ -250,7 +259,14 @@ function inferType(cos: CoApplicant[]): ApplicantType {
 /** Rebuild docFiles from the paths already in Storage — placeholders (uploaded:true) carry the real storagePath
  *  so they remain removable; the original filename/content is NOT re-rendered (POPIA — show "uploaded", a count). */
 function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { name: string; storagePath: string }[], idType?: string | null, applicantType?: ApplicantType | null, companyType?: string | null): Record<string, DocFile[]> {
-  const cats = deriveDocCategories(incomeKeys(income), employmentType, idType, applicantType, companyType)
+  // A juristic company stores BOTH the company-section docs (CIPC/AFS/business bank) AND the director's PERSONAL docs
+  // (id, payslips, bank) in the same flat prefix. Match against the UNION of both category sets — otherwise the
+  // director's id/payslips don't match the company-only keys and wrongly land in "Other" on resume.
+  const juristic = applicantType === "company" && isJuristicCompanyType(companyType ?? "")
+  const personalApplicantType = applicantType === "company" ? "individual" : applicantType
+  const personalCats = deriveDocCategories(incomeKeys(income), employmentType, idType, personalApplicantType, companyType)
+  const companyCats = juristic ? deriveDocCategories(new Set<string>(), "", idType, "company", companyType) : []
+  const cats = [...companyCats, ...personalCats]
   const out: Record<string, DocFile[]> = {}
   for (const p of docPaths) {
     const cat = categoryForFilename(p.name, cats)
@@ -346,15 +362,14 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const [atRoster, setAtRoster] = useState<boolean>(resumeCompany)
   const [companyStarted, setCompanyStarted] = useState<boolean>(resumeCompany && resumeStep > 0)
   const [companySignedOff, setCompanySignedOff] = useState<boolean>(resumeCompany && resumeStep >= PTY_COMPANY_PANES)
-  const [selfSectionDone, setSelfSectionDone] = useState(false)
+  const [selfSectionDone, setSelfSectionDone] = useState(resume?.selfDone === true)
   // The filler re-opened their OWN completed section to edit it (the review-then-edit loop, ADDENDUM_14Q §8-9) → the
   // self card reads "Updated application" instead of "Completed" until they re-submit.
   const [selfEdited, setSelfEdited] = useState(false)
   // Same for the COMPANY card — re-editing the company section after sign-off flips it to "Updated application".
   const [companyEdited, setCompanyEdited] = useState(false)
-  // Editing PERSONAL details in a RESUMED session (anyone could hold the shared link) needs a fresh identity check.
-  // Fresh fills are unlocked (they verified at sign-off); a resume starts locked until "verify it's you" passes.
-  const [amendUnlocked, setAmendUnlocked] = useState(!resume)
+  // The email-OTP gate step (the "verify your email" modal target) — set when an unverified filler tries to start/
+  // edit their section; null when no gate is open. Email verify is once-off (email_verified_at persists on resume).
   const [amendGateStep, setAmendGateStep] = useState<number | null>(null)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
@@ -486,12 +501,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       const target = isJuristicCompany ? companyPaneCount : 0
       if (isJuristicCompany) setEmp((e) => prefillEmploymentFromCompany(company, e))
       if (selfSectionDone) setSelfEdited(true) // re-opening a completed section = an edit → card reads "Updated application"
-      // You must verify your email BEFORE starting your own section (the unlock — invited co-applicants auto-pass via
-      // their link). A resumed shared-link session re-verifies before editing personal panes. Both routes use the
-      // same email-OTP gate; on success it unlocks + opens the section.
-      const personalPane = PERSONAL_EDIT_KEYS.has(nav.paneMeta[target]?.key ?? "")
-      const needsVerify = !emailGateSatisfied || (!amendUnlocked && personalPane)
-      if (needsVerify) { setAmendGateStep(target); return }
+      // Verify email ONCE before starting your own section (the unlock — invited co-applicants auto-pass via their
+      // link). Once verified, email_verified_at persists across resumes, so we never re-ask.
+      if (!emailGateSatisfied) { setAmendGateStep(target); return }
       navTo(target)
     }
     else if (id === "review") {
@@ -776,8 +788,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     const editKey = nav.paneMeta[toStep]?.key ?? ""
     if (selfSectionDone && PERSONAL_EDIT_KEYS.has(editKey)) setSelfEdited(true)
     if (companySignedOff && COMPANY_EDIT_KEYS.has(editKey)) setCompanyEdited(true)
-    // Editing PERSONAL details (not documents/company) in a still-locked resumed session → "verify it's you" first.
-    if (!amendUnlocked && PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")) { setAmendGateStep(toStep); return }
+    // Verify email once before editing personal details (only if not already verified — never on every resume).
+    if (!emailGateSatisfied && PERSONAL_EDIT_KEYS.has(editKey)) { setAmendGateStep(toStep); return }
     applyAmend(toStep)
   }
 
@@ -830,7 +842,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
     type, isJuristic: isJuristicCompany, companyName: company.name || company.trading || "The company",
     companyStarted, companySignedOff, companyEdited, form, coApplicants, companyRole, imDirector: companyImDirector,
-    selfSectionDone, selfStarted, selfEdited, appCreated: !!applicationId, coStatusByEmail,
+    selfSectionDone, selfStarted, selfEdited, emailVerified: emailGateSatisfied, appCreated: !!applicationId, coStatusByEmail,
   })
   // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).
   const isMultiParty = isJuristicCompany || coApplicants.length > 0
@@ -886,7 +898,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, emailVerified, setEmailVerified,
     coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
     addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, setBegun, docFiles, docEscape, setDocEscape,
-    consent, setConsent, companyConsent, setCompanyConsent, atRoster, setAmendUnlocked, amendGateStep, setAmendGateStep,
+    consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
     // handlers
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,

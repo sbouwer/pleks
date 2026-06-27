@@ -12,10 +12,10 @@
  *         cards regardless of name length or open/locked affordance. The all-green gate is an affordance — submit
  *         re-validates server-side (CD cross-cutting B).
  */
-import { Building2, CheckCircle2, Clock, Circle, ChevronRight, User, Lock, Send, RefreshCw } from "lucide-react"
+import { Building2, CheckCircle2, Clock, Circle, ChevronRight, User, Lock, Send, RefreshCw, Mail } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 
-export type CardStatus = "not_started" | "invitation_sent" | "in_progress" | "completed" | "updated"
+export type CardStatus = "not_started" | "verify_email" | "invitation_sent" | "in_progress" | "completed" | "updated"
 
 /** A person applicant card on the hub (director / surety / co-applicant). `id` is the open-target the hub dispatches
  *  ("self" for the filler's own card, "co_{id}" for a co-applicant). canOpen = the filler holds credentials to it. */
@@ -28,6 +28,7 @@ const DONE_STATES = new Set<CardStatus>(["completed", "updated"])
 
 const STATUS_LABEL: Record<CardStatus, string> = {
   not_started: "Not started",
+  verify_email: "Verify email",
   invitation_sent: "Invitation sent",
   in_progress: "Started application",
   completed: "Completed",
@@ -35,12 +36,13 @@ const STATUS_LABEL: Record<CardStatus, string> = {
 }
 /** The action verb for an openable card, by status — the hub is where you ACT (CD §8.1). */
 const OPEN_LABEL: Record<CardStatus, string> = {
-  not_started: "Start", invitation_sent: "Start", in_progress: "Continue", completed: "Review", updated: "Review",
+  not_started: "Start", verify_email: "Verify & start", invitation_sent: "Start", in_progress: "Continue", completed: "Review", updated: "Review",
 }
 
 function StatusPill({ status }: Readonly<{ status: CardStatus }>) {
   const base = "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold"
   if (status === "completed") return <span className={`${base} border-emerald-200 bg-emerald-50 text-emerald-700`}><CheckCircle2 className="size-3.5" /> {STATUS_LABEL.completed}</span>
+  if (status === "verify_email") return <span className={`${base} border-[var(--amber)] bg-[var(--amber-wash)] text-[var(--amber-ink)]`}><Mail className="size-3.5" /> {STATUS_LABEL.verify_email}</span>
   if (status === "updated") return <span className={`${base} border-blue-200 bg-blue-50 text-blue-700`}><RefreshCw className="size-3.5" /> {STATUS_LABEL.updated}</span>
   if (status === "in_progress") return <span className={`${base} border-[var(--amber)] bg-[var(--amber-wash)] text-[var(--amber-ink)]`}><Clock className="size-3.5" /> {STATUS_LABEL.in_progress}</span>
   if (status === "invitation_sent") return <span className={`${base} border-[var(--rule)] bg-[var(--paper)] text-[var(--ink-mute)]`}><Send className="size-3.5" /> {STATUS_LABEL.invitation_sent}</span>

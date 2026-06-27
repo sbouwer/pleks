@@ -57,7 +57,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, setEmailVerified,
     coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
     addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, docFiles, docEscape, setDocEscape,
-    consent, setConsent, companyConsent, setCompanyConsent, atRoster, setAmendUnlocked, amendGateStep, setAmendGateStep,
+    consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
@@ -286,7 +286,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
             <p className="mt-1 text-sm leading-relaxed text-[var(--ink-soft)]">We&apos;ll send a code to your email to confirm it&apos;s you before you start (or edit) your part of the application.</p>
             <div className="mt-3">
               <VerifyEmail applicationId={applicationId} token={token} email={form.email} verified={false} reverify
-                onVerified={() => { setEmailVerified(true); setAmendUnlocked(true); applyAmend(amendGateStep); setAmendGateStep(null) }} />
+                onVerified={() => { setEmailVerified(true); applyAmend(amendGateStep); setAmendGateStep(null) }} />
             </div>
             <div className="mt-4 flex justify-end"><ActionButton tone="secondary" onClick={() => setAmendGateStep(null)} disabled={busy}>Cancel</ActionButton></div>
           </div>

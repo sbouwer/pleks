@@ -64,7 +64,7 @@ async function loadResume(
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, employment_details, dependents_count, dependent_adults_count, dependent_minors_count, income_sources, declared_monthly_obligations_cents, expenses, applicant_addresses, applicant_type, company_info, marital_status, matrimonial_regime, spouse_info, email_verified_at, draft_step, draft_saved_at, org_id, submitted_at")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, employment_details, dependents_count, dependent_adults_count, dependent_minors_count, income_sources, declared_monthly_obligations_cents, expenses, applicant_addresses, applicant_type, company_info, marital_status, matrimonial_regime, spouse_info, email_verified_at, draft_step, draft_saved_at, stage1_status, org_id, submitted_at")
     .eq("id", appId).maybeSingle()
   logQueryError("ApplyPreview resume app", appErr)
   // Don't resume a SUBMITTED application (submitted_at set) — only drafts / pre-screens are editable.
@@ -121,6 +121,9 @@ async function loadResume(
       idNumber: decryptIdNumber(c.id_number as string | null) ?? "", role: (c.role as "co_applicant" | "guarantor") ?? "co_applicant", invited: true,
     })),
     docPaths,
+    // The filler finished their own section (documents_submitted) before this resume → the hub shows their card as
+    // Completed, not "Started application". (Submitted apps aren't resumable — guarded above.)
+    selfDone: (app.stage1_status as string | null) === "documents_submitted",
   }
 }
 
