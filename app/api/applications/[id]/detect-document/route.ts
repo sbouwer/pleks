@@ -15,6 +15,7 @@ import { createClient } from "@supabase/supabase-js"
 import { createMessage } from "@/lib/ai/client"
 import { isProtectedPdf } from "@/lib/extraction/uploadValidator"
 import { decryptProtectedPdf } from "@/lib/extraction/pdfDecrypt"
+import { registerApplicationDocument } from "@/lib/applications/documentRegistry"
 
 function getServiceClient() {
   return createClient(
@@ -41,6 +42,11 @@ export async function POST(req: NextRequest, { params }: Props) {
   const { id } = await params
   const body = await req.json() as { path: string; docKey: string }
   const service = getServiceClient()
+
+  // Register in the doc→subject registry (14P 0b) — the applicant uploads as 'primary'. orgId is the 2nd path
+  // segment (applications/{orgId}/{appId}/…). Best-effort (the loader is storage-complete + defaults primary).
+  const orgId = body.path.split("/")[1]
+  if (orgId) await registerApplicationDocument(service, { orgId, applicationId: id, subjectRef: "primary", storagePath: body.path, documentType: body.docKey, uploadedBy: "applicant" })
 
   // Download file from storage
   const { data: fileData, error } = await service.storage

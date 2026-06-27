@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { validateUpload } from "@/lib/extraction/uploadValidator"
 import { createServiceClient } from "@/lib/supabase/server"
+import { registerApplicationDocument } from "@/lib/applications/documentRegistry"
 
 export async function POST(
   req: NextRequest,
@@ -51,6 +52,10 @@ export async function POST(
     if (uploadError) {
       return NextResponse.json({ error: "Storage upload failed" }, { status: 500 })
     }
+
+    // Register in the doc→subject registry (14P 0b). The agent uploads for the primary applicant; co/director
+    // agent uploads (a subject param) come with §5b. Best-effort — the loader is storage-complete + defaults primary.
+    await registerApplicationDocument(db, { orgId, applicationId, subjectRef: "primary", storagePath, documentType: docKey, uploadedBy: gw.userId })
 
     return NextResponse.json({ ok: true, storagePath, format: validation.format })
   } catch (err) {

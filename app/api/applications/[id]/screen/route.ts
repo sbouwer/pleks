@@ -21,6 +21,7 @@ import { slotTypeForFilename } from "@/lib/extraction/slotType"
 import { evaluateRuling } from "@/lib/applications/ruling"
 import { companyOptionFrom } from "@/lib/applications/assembleAssessment"
 import { decryptIdNumber } from "@/lib/crypto/idNumber"
+import { getApplicationDocumentSubjects } from "@/lib/applications/documentRegistry"
 import { evaluateCompanyRuling, type CompanyVerdict } from "@/lib/applications/companyRuling"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
@@ -39,19 +40,28 @@ function mimeFromName(name: string): string {
   return "application/octet-stream"
 }
 
-/** Enumerate + download every uploaded doc for the application (no join table — list the storage prefix). */
+/** Enumerate + download every uploaded doc for the application. STORAGE-complete (never drops a file); the
+ *  application_documents registry (14P 0b) supplies each file's subjectRef — defaulting to 'primary' for an
+ *  unregistered/legacy file (transitional, until registration is universal). Logs a count of any drift. */
 async function loadDocuments(db: Db, orgId: string, appId: string): Promise<Document[]> {
   const prefix = `applications/${orgId}/${appId}`
   const { data: files, error } = await db.storage.from(BUCKET).list(prefix)
   logQueryError("screen storage.list", error)
   if (!files || files.length === 0) return []
+  const subjects = await getApplicationDocumentSubjects(db, appId) // storage_path → subject_ref
   const docs: Document[] = []
+  let unregistered = 0
   for (const f of files) {
     if (!f.name || f.name.startsWith(".")) continue
-    const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(`${prefix}/${f.name}`)
+    const path = `${prefix}/${f.name}`
+    const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(path)
     if (dlErr || !blob) { logQueryError("screen storage.download", dlErr); continue }
-    docs.push({ path: `${prefix}/${f.name}`, filename: f.name, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(f.name), slotType: slotTypeForFilename(f.name) })
+    const subjectRef = subjects.get(path)
+    if (!subjectRef) unregistered++
+    docs.push({ path, filename: f.name, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(f.name), slotType: slotTypeForFilename(f.name), subjectRef: subjectRef ?? "primary" })
   }
+  // Drift observability (14P §3 — never a silent skip): a stored file with no registry row defaulted to 'primary'.
+  if (unregistered > 0) console.warn(`[screen] ${unregistered} document(s) for ${appId} not in application_documents — defaulted to subject 'primary'.`)
   return docs
 }
 
