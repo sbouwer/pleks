@@ -22,6 +22,7 @@ import { evaluateRuling } from "@/lib/applications/ruling"
 import { companyOptionFrom } from "@/lib/applications/assembleAssessment"
 import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { getApplicationDocumentSubjects } from "@/lib/applications/documentRegistry"
+import { resolvePoolingRule } from "@/lib/screening/screeningPolicy"
 import { evaluateCompanyRuling, type CompanyVerdict, type DirectorSurety } from "@/lib/applications/companyRuling"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
@@ -252,8 +253,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (companyOption) {
       const primaryDirector: DirectorSurety = { ref: "primary", input: { ...personalInput, adults: 1 }, suretyState: "intended", consented: true }
       const directors = await loadCompanyDirectorSet(db, id, appliedRentCents, now, reconcileSubject, primaryDirector)
+      const poolingRule = await resolvePoolingRule(db, app.org_id) // 14P 0b.4 — the org's dispositive rule (default conservative)
       ruling = evaluateCompanyRuling({
-        directors, company: companyOption,
+        directors, company: companyOption, poolingRule,
         companyVerdict: ((app as unknown as { free_assessment?: { companyVerdict?: CompanyVerdict } | null }).free_assessment)?.companyVerdict ?? null,
       })
     } else {
