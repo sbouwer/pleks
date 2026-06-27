@@ -19,6 +19,8 @@ import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFo
 import { Check, AlertTriangle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { DepositInterestConfig } from "@/components/deposits/DepositInterestConfig"
+import { getCompanyPoolingRule, setCompanyPoolingRule } from "./screeningPolicyActions"
+import type { PoolingRule } from "@/lib/applications/companyRuling"
 
 const SCOPE_OPTIONS = [
   { value: "own_only", label: "Private landlord — I manage my own properties" },
@@ -31,6 +33,12 @@ const PPRA_OPTIONS = [
   { value: "pending", label: "Registration in progress" },
   { value: "not_registered", label: "Not registered" },
   { value: "unknown", label: "Not specified" },
+]
+
+const POOLING_OPTIONS: { value: PoolingRule; label: string }[] = [
+  { value: "strongestSingle", label: "Strongest single director (most conservative — default)" },
+  { value: "combined", label: "Combined — pool every verified director's surety" },
+  { value: "suretyGroupPooled", label: "Pool within a surety group" },
 ]
 
 const PROPERTY_TYPE_OPTIONS = [
@@ -237,6 +245,45 @@ function PPRASection({
   )
 }
 
+function PoolingRuleSection({
+  value,
+  onChange,
+  saving,
+  dirty,
+  onSave,
+}: Readonly<{
+  value: PoolingRule
+  onChange: (v: PoolingRule) => void
+  saving: boolean
+  dirty: boolean
+  onSave: () => void
+}>) {
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-lg">Company surety pooling</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          For a company application backed by more than one director, how their <strong className="text-foreground">verified</strong> surety is pooled toward the rent. The conservative default is safest. Combined / group pooling only ever apply once every suretyship is <strong className="text-foreground">signed</strong> — the screening engine enforces that legal bound regardless of this setting (pre-signing it always falls back to the strongest single director).
+        </p>
+        <Select value={value} onValueChange={(v) => onChange((v ?? "strongestSingle") as PoolingRule)}>
+          <SelectTrigger className="w-full max-w-sm">
+            <SelectValue>{POOLING_OPTIONS.find((o) => o.value === value)?.label}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {POOLING_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <ActionButton tone="primary" disabled={saving || !dirty} onClick={onSave}>
+          {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
+          Save
+        </ActionButton>
+      </CardContent>
+    </Card>
+  )
+}
+
 function AddAccountForm({
   isPractitioner,
   orgId,
@@ -405,6 +452,9 @@ export function ComplianceSettingsClient() {
   const [savingScope, setSavingScope] = useState(false)
   const [savingTypes, setSavingTypes] = useState(false)
   const [savingPpra, setSavingPpra] = useState(false)
+  const [poolingRule, setPoolingRule] = useState<PoolingRule>("strongestSingle")
+  const [savedPoolingRule, setSavedPoolingRule] = useState<PoolingRule>("strongestSingle")
+  const [savingPooling, setSavingPooling] = useState(false)
 
   useEffect(() => {
     if (!orgId) return
@@ -431,6 +481,8 @@ export function ComplianceSettingsClient() {
         if (error) { console.error("bank_accounts fetch:", error.message); return }
         setAccounts((data ?? []) as BankAccount[])
       })
+    // Pooling rule resolves server-side (latest immutable screening-policy version) — RLS-safe action, not a client query.
+    getCompanyPoolingRule().then((rule) => { setPoolingRule(rule); setSavedPoolingRule(rule) })
   }, [orgId])
 
   async function saveScope() {
@@ -465,6 +517,15 @@ export function ComplianceSettingsClient() {
     setSavingPpra(false)
     if (error) { toast.error("Failed to save PPRA status"); return }
     toast.success("PPRA status saved")
+  }
+
+  async function savePooling() {
+    setSavingPooling(true)
+    const r = await setCompanyPoolingRule(poolingRule)
+    setSavingPooling(false)
+    if (!r.ok) { toast.error(r.error ?? "Failed to save pooling rule"); return }
+    setSavedPoolingRule(poolingRule)
+    toast.success("Screening policy saved")
   }
 
   if (!org || !orgId) return null
@@ -520,6 +581,14 @@ export function ComplianceSettingsClient() {
           />
         </CardContent>
       </Card>
+
+      <PoolingRuleSection
+        value={poolingRule}
+        onChange={setPoolingRule}
+        saving={savingPooling}
+        dirty={poolingRule !== savedPoolingRule}
+        onSave={savePooling}
+      />
     </div>
   )
 }
