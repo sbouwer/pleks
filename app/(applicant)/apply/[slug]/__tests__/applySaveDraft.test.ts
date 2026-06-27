@@ -35,9 +35,9 @@ describe("resolveSpouseInfo", () => {
     expect(resolveSpouseInfo(form({ maritalStatus: "single" }), [])).toBeNull()
     expect(resolveSpouseInfo(form({ maritalStatus: "married", matrimonialRegime: "out_community" }), [])).toBeNull()
   })
-  it("in community + spouse is the sole co-applicant → link by that co-applicant's email", () => {
-    const r = resolveSpouseInfo(form({ maritalStatus: "married", matrimonialRegime: "in_community" }), [co({ email: "spouse@x.za" })])
-    expect(r).toEqual({ isCoApplicant: true, email: "spouse@x.za" })
+  it("in community + spouse is the sole co-applicant → link by that co-applicant's ID number (email secondary)", () => {
+    const r = resolveSpouseInfo(form({ maritalStatus: "married", matrimonialRegime: "in_community" }), [co({ email: "spouse@x.za", idNumber: "9001015800087" })])
+    expect(r).toEqual({ isCoApplicant: true, idNumber: "9001015800087", email: "spouse@x.za" })
   })
   it("in community + external spouse → captured details", () => {
     const r = resolveSpouseInfo(form({ maritalStatus: "married", matrimonialRegime: "in_community", spouseIsCoApplicant: false, spouseFirstName: "Sue", spouseLastName: "Se", spouseIdNumber: "9", spouseEmail: "sue@x.za" }), [])

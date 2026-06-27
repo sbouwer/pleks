@@ -33,7 +33,12 @@ export function resolveSpouseInfo(form: PartyFormState, coApplicants: ReadonlyAr
   if (form.maritalStatus !== "married" || form.matrimonialRegime !== "in_community") return null
   const candidates = coApplicants.filter((c) => c.role === "co_applicant")
   const spouseIsCo = candidates.length > 0 && (form.spouseIsCoApplicant ?? true)
-  if (spouseIsCo) return { isCoApplicant: true, email: candidates.length === 1 ? candidates[0].email : (form.spouseEmail ?? "") }
+  if (spouseIsCo) {
+    // Link the spouse by ID NUMBER — the match key for symmetric auto-fill + the consistency checks (14M spouse-
+    // linking amendment); email is a secondary hint only (a spouse may apply under a different address).
+    const chosen = candidates.length === 1 ? candidates[0] : candidates.find((c) => c.email === form.spouseEmail)
+    return { isCoApplicant: true, idNumber: chosen?.idNumber ?? "", email: chosen?.email ?? form.spouseEmail ?? "" }
+  }
   return { firstName: form.spouseFirstName ?? "", lastName: form.spouseLastName ?? "", idNumber: form.spouseIdNumber ?? "", email: form.spouseEmail ?? "" }
 }
 

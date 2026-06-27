@@ -32,7 +32,7 @@ export function StepPersonal({ type, commercial, form, set, errors, coApplicants
   return (
     <div className="flex flex-col gap-9">
       <p className="text-sm text-[var(--ink-soft)]">{sub}</p>
-      <IndividualIdentity f={form} set={set} errors={errors} fullFica sectioned coApplicants={spouseCandidates} />
+      <IndividualIdentity f={form} set={set} errors={errors} fullFica sectioned coApplicants={spouseCandidates} suggestSpouseIsCo={type !== "company"} />
     </div>
   )
 }

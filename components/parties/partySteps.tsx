@@ -73,7 +73,7 @@ function entityBlurb(entity: PartyEntity, fullFica: boolean): string {
 // ── Step 1 — Identity ─────────────────────────────────────────────────────────
 type IdentityBodyProps = Readonly<{ f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean }>
 
-export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber = "01", sectioned = false, coApplicants = [] }: IdentityBodyProps & { stepNumber?: string; sectioned?: boolean; coApplicants?: ReadonlyArray<{ firstName?: string; lastName?: string; email?: string }> }) {
+export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber = "01", sectioned = false, coApplicants = [], suggestSpouseIsCo = true }: IdentityBodyProps & { stepNumber?: string; sectioned?: boolean; coApplicants?: ReadonlyArray<{ firstName?: string; lastName?: string; email?: string }>; suggestSpouseIsCo?: boolean }) {
   // Auto-fill DOB + gender from a valid SA ID — only when empty, so a manual choice (e.g. unlabelled gender) sticks.
   useEffect(() => {
     const v = validateSAId(f.idNumber)
@@ -112,9 +112,10 @@ export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber =
           </div>
           {f.maritalStatus === "married" && f.matrimonialRegime === "in_community" && (() => {
             const hasCoApplicants = coApplicants.length > 0
-            // Default to "spouse is applying with me" when there ARE co-applicants — a married-in-community couple
-            // applying together is the common case, so don't re-ask for the partner you already added.
-            const spouseIsCo = hasCoApplicants && (f.spouseIsCoApplicant ?? true)
+            // Default to "spouse is applying with me" only when we SUGGEST it (residential couple — the common case);
+            // for a company the co-applicants are co-directors, not presumed spouses, so default off (14M spouse-
+            // linking amendment §2). The option stays available either way.
+            const spouseIsCo = hasCoApplicants && (f.spouseIsCoApplicant ?? suggestSpouseIsCo)
             return (
               <div className="mt-5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
                 <SectLabel n="01a">Spouse consent (in community of property)</SectLabel>
