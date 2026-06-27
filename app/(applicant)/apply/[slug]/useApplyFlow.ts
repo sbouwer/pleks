@@ -364,7 +364,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const resumeStep = resume?.step ?? 0
   const [atRoster, setAtRoster] = useState<boolean>(resumeCompany)
   const [companyStarted, setCompanyStarted] = useState<boolean>(resumeCompany && resumeStep > 0)
-  const [companySignedOff, setCompanySignedOff] = useState<boolean>(resumeCompany && resumeStep >= PTY_COMPANY_PANES)
+  // Prefer the EXPLICIT persisted flag (survives an edit moving the cursor back); fall back to the draft_step
+  // heuristic for drafts saved before signedOff was persisted.
+  const [companySignedOff, setCompanySignedOff] = useState<boolean>(resume?.company?.signedOff === true || (resumeCompany && resumeStep >= PTY_COMPANY_PANES))
   const [selfSectionDone, setSelfSectionDone] = useState(resume?.selfDone === true)
   // The filler re-opened their OWN completed section to edit it (the review-then-edit loop, ADDENDUM_14Q §8-9) → the
   // self card reads "Updated application" instead of "Completed" until they re-submit.
@@ -482,7 +484,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   async function sendToDirector() {
     setBusy(true)
     try {
-      const r = await saveDraft(step + 1, { explicit: true })
+      setCompany((c) => ({ ...c, signedOff: true }))
+      const r = await saveDraft(step + 1, { explicit: true, companySignedOff: true })
       if (!r) return
       await dispatchInvites(r.id)
       // The company section is signed off + the director emailed → land on the status hub (company ✓, director
@@ -496,7 +499,17 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // Leaving the company-documents pane: the director-filler continues to their private flow; the office-manager hands off.
   // Company sign-off complete → land on the per-applicant ROSTER hub (Company ✓ · director outstanding). A director
   // filler then nudges into their own section; an office-manager filler instead emails the named director their link.
-  function afterCompanyReview() { if (companyImDirector) { setCompanySignedOff(true); setAtRoster(true) } else void sendToDirector() }
+  async function afterCompanyReview() {
+    if (!companyImDirector) { void sendToDirector(); return }
+    // Director sign-off: persist company_info.signedOff (the flag survives a later edit moving the cursor back) so
+    // the hub reads Completed on resume — then nudge the director into their own section.
+    setBusy(true)
+    try {
+      setCompany((c) => ({ ...c, signedOff: true }))
+      await saveDraft(step, { silent: true, companySignedOff: true })
+      setCompanySignedOff(true); setAtRoster(true)
+    } finally { setBusy(false) }
+  }
   /** Whether opening/editing a personal pane needs the email-OTP gate. Verify ONCE before starting (the unlock).
    *  Re-verify (once per session) ONLY before editing an already-COMPLETED section in a multi-party NON-company
    *  application (couple/guarantor — the link is shared, so confirm it's really them). Individual, company, and
@@ -609,7 +622,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // UPSERT the draft (create on first save, update thereafter — keyed on the held applicationId/token). Every
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
-  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean; documentsSubmitted?: boolean; consentGiven?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
+  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean; documentsSubmitted?: boolean; consentGiven?: boolean; companySignedOff?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
     // Primary-person resolution + the whole request body are pure (applySaveDraft) — the email guard, network call
     // and state writes stay here. On-behalf company → the named director is primary (see resolvePrimary).
     const primary = resolvePrimary(type, companyImDirector, coApplicants, form)
@@ -620,7 +633,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
         body: JSON.stringify({ ...assembleSaveDraftPayload({
           slug, applicationId, token, stepToSave, notify: !!opts?.explicit,
           type, companyImDirector, coApplicants, form, emp, dependentAdults, dependentMinors, income, commitments, company,
-        }), documentsSubmitted: opts?.documentsSubmitted, consentGiven: opts?.consentGiven }),
+        }), documentsSubmitted: opts?.documentsSubmitted, consentGiven: opts?.consentGiven, companySignedOff: opts?.companySignedOff }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
       if (!res.ok || !json.applicationId || !json.token) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }

@@ -47,6 +47,9 @@ interface Body {
   documentsSubmitted?: boolean
   /** the filler gave POPIA consent at their section sign-off (per-member consent) — record it server-side, once. */
   consentGiven?: boolean
+  /** the company section was signed off (co-review complete) — persist company_info.signedOff so the hub reads
+   *  Completed on resume even after an edit moves the cursor back. */
+  companySignedOff?: boolean
 }
 
 const APPLICANT_TYPES = ["individual", "couple", "company", "guarantor"]
@@ -172,6 +175,10 @@ export async function POST(req: NextRequest) {
     // The filler finished their own section → mark documents_submitted (server-side; the unauthenticated applicant
     // can't reliably set it via the browser client). This is what the hub + resume read as "Completed".
     if (body.documentsSubmitted) updateFields.stage1_status = "documents_submitted"
+    // Company sign-off → persist company_info.signedOff so the hub reads Completed on resume even after an edit
+    // moves the draft_step cursor back into the company panes (the heuristic can't tell edited from unfinished).
+    if (body.companySignedOff && fields.company_info && typeof fields.company_info === "object")
+      updateFields.company_info = { ...(fields.company_info as Record<string, unknown>), signedOff: true }
     if (body.consentGiven) Object.assign(updateFields, await recordSectionConsent(db, body.applicationId, body.email, getClientIp(req)))
     if (body.email) Object.assign(updateFields, await applyEmailChange(db, body.applicationId, body.email))
     const { error: upErr } = await db.from("applications").update(updateFields).eq("id", body.applicationId)

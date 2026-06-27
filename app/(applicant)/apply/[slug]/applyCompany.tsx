@@ -48,6 +48,9 @@ export interface CompanyInfo {
   // attested authority: their name, function and contact. (The director themselves completes their own part via
   // their link; this is the authorised submitter on the company's behalf.) Captured on the company sign-off.
   fillerName?: string; fillerFunction?: string; fillerPhone?: string; fillerEmail?: string
+  // The company section was signed off (co-review complete). Persisted here so the hub shows Completed on RESUME even
+  // after the cursor is moved back by an edit — the draft_step heuristic alone can't tell "edited" from "unfinished".
+  signedOff?: boolean
 }
 
 // The ledger catalogs (mirror the personal INCOME/COMMITMENT catalogs). "premises_rent" is a fixed key so the
