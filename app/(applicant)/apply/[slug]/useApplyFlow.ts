@@ -204,8 +204,8 @@ function companyEntityNavNext(o: Readonly<{
   if (o.activeKey === "co-finances") return { label: "Next", onClick: o.continueCompanyFinances } // completeness gate → create
   if (o.activeKey === "co-docs") return { label: "Next", onClick: o.advanceStep }
   if (o.activeKey === "co-docs-opt") return { label: "Next", onClick: o.advanceStep }
-  // Company sign-off — verify + consent on the company's behalf, then hand to the director (or email them).
-  if (o.activeKey === "co-review") return { label: o.companyImDirector ? "Continue to your application" : `Send to the ${o.companyRole}`, onClick: o.afterCompanyReview, disabled: o.busy || !o.companyConsent || !o.emailGateSatisfied }
+  // Company sign-off (co-review): its primary action lives in the pane itself (bottom-right), like the other
+  // consent/review panes — NOT in the top nav. So no header navNext here.
   return null
 }
 /** Personal / director panes (sole prop + the director's private flow reuse these), dispatched by personalStep. */
@@ -917,7 +917,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     screeningStatus, assessment,
     // handlers
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
-    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
+    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview,
     // derived
     nav, personalStep, juristic, docApplicantType, docCategories, companyDocCategories, docsReady, applicantsGreen,
     emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, disclaimer, scrollCls,

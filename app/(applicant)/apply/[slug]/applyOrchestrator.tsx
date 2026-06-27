@@ -60,7 +60,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep, setEditReverified,
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
-    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
+    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview,
     personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied,
     statusMenuCompany, statusMenuPersons, canSubmit, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
@@ -77,7 +77,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (activeKey === "co-finances") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={2} />
     if (activeKey === "co-docs") return <StepDocuments tab="required" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
     if (activeKey === "co-docs-opt") return <StepDocuments tab="optional" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
-    if (activeKey === "co-review") return <StepCompanyReview company={company} signOffEmail={(type === "company" && !companyImDirector && coApplicants[0]) ? coApplicants[0].email : form.email} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={companyConsent} setConsent={setCompanyConsent} imDirector={companyImDirector} companyRole={companyRole} />
+    if (activeKey === "co-review") return <StepCompanyReview company={company} signOffEmail={(type === "company" && !companyImDirector && coApplicants[0]) ? coApplicants[0].email : form.email} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={companyConsent} setConsent={setCompanyConsent} imDirector={companyImDirector} companyRole={companyRole} onContinue={afterCompanyReview} busy={busy} />
     if (personalStep === 0) return <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} coApplicants={coApplicants} />
     if (personalStep === 1) return <StepAddress form={form} set={set} errors={errors} />
     if (personalStep === 2) return <StepEmployment emp={emp} setEmp={setEmp} />
