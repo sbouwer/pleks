@@ -60,20 +60,35 @@ async function loadDocuments(db: Db, orgId: string, appId: string): Promise<Docu
     docs.push({ path, filename, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(filename), slotType: slotTypeForFilename(filename), subjectRef })
     seen.add(path)
   }
-  // 2. Storage-complete fallback: ROOT files not in the registry (legacy/unregistered) → 'primary'.
+  // 2. Storage-complete fallback for UNregistered files (registration failed) — never silently dropped (§3). A root
+  //    file → 'primary'; a file inside a co_{id}/ subfolder → that subject (path-derived), so a registration-failed
+  //    co-doc is still analysed + attributed correctly, and counted as drift.
   const { data: files, error } = await db.storage.from(BUCKET).list(prefix)
   logQueryError("screen storage.list", error)
   let unregistered = 0
-  for (const f of files ?? []) {
-    if (!f.name || f.name.startsWith(".") || f.id === null) continue // skip folder entries (co_{id}/) — handled via the registry
-    const path = `${prefix}/${f.name}`
-    if (seen.has(path)) continue
+  const addUnregistered = async (path: string, filename: string, subjectRef: string) => {
+    if (seen.has(path)) return
     const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(path)
-    if (dlErr || !blob) { logQueryError("screen storage.download", dlErr); continue }
-    docs.push({ path, filename: f.name, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(f.name), slotType: slotTypeForFilename(f.name), subjectRef: "primary" })
+    if (dlErr || !blob) { logQueryError("screen storage.download", dlErr); return }
+    docs.push({ path, filename, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(filename), slotType: slotTypeForFilename(filename), subjectRef })
     unregistered++
   }
-  if (missing > 0 || unregistered > 0) console.warn(`[screen] ${appId}: ${missing} registry row(s) with a missing object, ${unregistered} unregistered file(s) → 'primary' (14P §3 drift).`)
+  for (const f of files ?? []) {
+    if (!f.name || f.name.startsWith(".")) continue
+    if (f.id === null) {
+      // A subject subfolder (co_{id}/) — list it; any file not in the registry is attributed by the folder name.
+      if (!f.name.startsWith("co_")) continue
+      const { data: subFiles, error: subErr } = await db.storage.from(BUCKET).list(`${prefix}/${f.name}`)
+      logQueryError("screen storage.list (co subfolder)", subErr)
+      for (const sf of subFiles ?? []) {
+        if (!sf.name || sf.name.startsWith(".") || sf.id === null) continue
+        await addUnregistered(`${prefix}/${f.name}/${sf.name}`, sf.name, f.name)
+      }
+      continue
+    }
+    await addUnregistered(`${prefix}/${f.name}`, f.name, "primary")
+  }
+  if (missing > 0 || unregistered > 0) console.warn(`[screen] ${appId}: ${missing} registry row(s) with a missing object, ${unregistered} unregistered file(s) loaded by path-derived subject (14P §3 drift).`)
   return docs
 }
 
@@ -231,10 +246,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // 14P 0b.3 — per-subject reconcile: partition the extracted docs by subjectRef (registry attribution) and
-    // reconcile each subject against ITS OWN declared income. Today every doc is 'primary' (co-doc upload is 0b.5),
-    // so a co-director with no docs reconciles declared-only (corroboratedIncome 0 → not credited → flag 97). The
-    // reconciler ALGORITHM is unchanged (RECONCILER_VERSION stable); the orchestration is captured by the 0b
-    // company-ruling version in ruling_version (§4 — bump the orchestration, not the reconciler).
+    // reconcile each subject against ITS OWN declared income. A director who has uploaded docs (0b.5, co_{id}/
+    // subfolder) reconciles against them → corroborated → credited; one with no docs reconciles declared-only
+    // (corroboratedIncome 0 → not credited → flag 97). The reconciler ALGORITHM is unchanged (RECONCILER_VERSION
+    // stable); the orchestration is captured by the 0b company-ruling version in ruling_version (§4).
     const now = new Date()
     const subjectOf = new Map(docs.map((d) => [d.path, d.subjectRef ?? "primary"]))
     const reconcileSubject = (ref: string, declaredCtx: DeclaredContext): ReconciliationResult =>
