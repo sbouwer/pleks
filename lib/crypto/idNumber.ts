@@ -1,11 +1,11 @@
 /**
- * lib/crypto/idNumber.ts — FILL: one-line purpose
+ * lib/crypto/idNumber.ts — SA ID number helpers: validation, deterministic hashing, and at-rest encryption.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  hashIdNumber = deterministic SHA-256(normalised + salt) — the LOOKUP/dedup key (id_number_hash), computed
+ *         from the RAW value. encryptIdNumber/decryptIdNumber = AES-256-GCM at-rest (apply flow). The ciphertext is
+ *         NON-deterministic (random IV), so anything that MATCHES on id_number must decrypt first — never compare
+ *         ciphertext. decrypt is tolerant (raw/legacy passes through). encrypt/decrypt + isEncrypted live in
+ *         ./encryption; the deterministic key here is hashIdNumber, not the ciphertext.
  */
 import { createHash } from "crypto"
 import { encrypt, decrypt, isEncrypted } from "./encryption"
