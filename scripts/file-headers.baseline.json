@@ -122,7 +122,6 @@
   "app/(public)/svgs/VaultDoorSVG.tsx",
   "app/(public)/wo/[workOrderNumber]/ContractorTrackingClient.tsx",
   "app/(supplier)/supplier/account/security/page.tsx",
-  "app/(supplier)/supplier/jobs/[requestId]/JobStatusActions.tsx",
   "app/(tenant)/tenant/account/actions.ts",
   "app/(tenant)/tenant/account/security/page.tsx",
   "app/(tenant)/tenant/maintenance/new/actions.ts",
