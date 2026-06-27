@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -18,6 +19,9 @@ function getServiceClient() {
 interface Props { params: Promise<{ id: string }> }
 
 export async function GET(req: NextRequest, { params }: Props) {
+  if (!rateLimit(`co-status:${getClientIp(req)}`, { limit: 60, windowMs: 60_000 })) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 })
+  }
   const { id } = await params
   const token = new URL(req.url).searchParams.get("token")
   const service = getServiceClient()

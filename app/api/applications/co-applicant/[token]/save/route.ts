@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -20,6 +21,9 @@ function getServiceClient() {
 interface Props { params: Promise<{ token: string }> }
 
 export async function POST(req: NextRequest, { params }: Props) {
+  if (!rateLimit(`co-applicant-save:${getClientIp(req)}`, { limit: 20, windowMs: 60_000 })) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 })
+  }
   const { token } = await params
   const service = getServiceClient()
   const body = await req.json().catch(() => ({})) as {

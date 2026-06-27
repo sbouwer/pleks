@@ -199,6 +199,8 @@ const PUBLIC_API_ROUTES = [
   "/api/applications/resend-link",
   "/api/applications/fake-id-123/verify/send",
   "/api/applications/fake-id-123/verify/check",
+  "/api/applications/co-applicant/fake-token-123/save",
+  "/api/applications/fake-id-123/co-status",
   "/api/auth/check-email",
   "/api/waitlist",
   "/api/unsubscribe/fake-token-123",
