@@ -53,7 +53,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
 }>) {
   const f = useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail })
   const {
-    commercial, type, step, form, set, errors, emp, setEmp, income, setIncome,
+    commercial, type, form, set, errors, emp, setEmp, income, setIncome,
     dependentAdults, setDependentAdults, dependentMinors, setDependentMinors, commitments, setCommitments,
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, setEmailVerified,
     coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companySentToDirector, companyRole,
@@ -62,8 +62,8 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
-    personalStep, juristic, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied, companyRosterPersons,
-    statusMenuCompany, statusMenuPersons, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
+    personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied, companyRosterPersons,
+    statusMenuCompany, statusMenuPersons, isMultiParty, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
   } = f
 
@@ -145,12 +145,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
               </div>
             )}
             <div className="flex shrink-0 items-center gap-2">
-              {/* Persistent return to the status-menu hub from within a company sub-flow (ADDENDUM_14Q §4). */}
-              {juristic && companyImDirector && inWizard && !atRoster && (
+              {/* Persistent return to the status hub from within a sub-flow — multi-party only (ADDENDUM_14Q §4);
+                  a solo applicant returns via Back at the first step. */}
+              {isMultiParty && inWizard && !atRoster && (
                 <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} onClick={backToMenu} disabled={busy} className="whitespace-nowrap">All applicants</ActionButton>
               )}
               {showBackBtn && (
-                <ActionButton tone="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={busy || (step === 0 && !!applicationId)}>Back</ActionButton>
+                <ActionButton tone="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={busy}>Back</ActionButton>
               )}
               {navNext && (
                 <ActionButton tone={navNext.primary ? "primary" : "secondary"} size="sm" onClick={navNext.onClick} disabled={busy || navNext.disabled} className="whitespace-nowrap">

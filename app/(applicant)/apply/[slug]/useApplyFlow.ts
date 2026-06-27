@@ -80,22 +80,33 @@ function cardStatusOf(done: boolean, started: boolean): CardStatus {
  *  the filler's self card is openable; co-applicants are status-only (they complete via their own link). Pure so the
  *  card/status/credential mapping is unit-testable. */
 export function buildStatusMenuData(o: Readonly<{
+  type: ApplicantType | null; isJuristic: boolean
   companyName: string; companyStarted: boolean; companySignedOff: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
   selfSectionDone: boolean; selfStarted: boolean
-}>): { company: StatusMenuCompany; persons: StatusMenuPerson[] } {
+}>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
   const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-  const company: StatusMenuCompany = { name: o.companyName, status: cardStatusOf(o.companySignedOff, o.companyStarted), canOpen: true }
+  // Company card only for a juristic company (the only flow that applies THROUGH an entity).
+  const company: StatusMenuCompany | null = o.isJuristic ? { name: o.companyName, status: cardStatusOf(o.companySignedOff, o.companyStarted), canOpen: true } : null
   const persons: StatusMenuPerson[] = []
-  if (o.imDirector) {
-    persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: cap(o.companyRole), status: cardStatusOf(o.selfSectionDone, o.selfStarted), canOpen: true })
+  // The filler's own card. A juristic office-manager (not a director) has no personal card; everyone else does.
+  const includeSelf = o.isJuristic ? o.imDirector : true
+  if (includeSelf) {
+    const selfRole = o.isJuristic ? cap(o.companyRole) : "Applicant"
+    persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: selfRole, status: cardStatusOf(o.selfSectionDone, o.selfStarted), canOpen: true })
   }
   o.coApplicants.forEach((c, i) => {
-    const role = cap(c.designation ?? "director")
+    const role = coRoleLabel(o.type, c, cap)
     persons.push({ id: `co_${i}`, name: name(c.firstName, c.lastName, c.email || "Applicant"), roleLabel: role, status: "not_started", canOpen: false, statusOnlyNote: `${role} — invited, completes via their own link` })
   })
   return { company, persons }
+}
+/** A co-applicant card's role label by flow type (company → their designation; guarantor → Guarantor; couple → Co-applicant). */
+function coRoleLabel(type: ApplicantType | null, c: CoApplicant, cap: (s: string) => string): string {
+  if (type === "company") return cap(c.designation ?? "director")
+  if (type === "guarantor") return "Guarantor"
+  return "Co-applicant"
 }
 
 /** Flow selection — which step machine + offset for the applicant/company type (module-level to keep the hook
@@ -380,16 +391,16 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     }
     setBegun(true)
     setMaxReached((m) => Math.max(m, step))
-    if (isJuristicCompany) setAtRoster(true) // juristic company → land on the status-menu hub, not straight into the section
+    setAtRoster(true) // EVERY flow lands on the "Your application status" hub (ADDENDUM_14Q universal landing)
   }
 
   function goBack() {
-    if (atRoster) { setBegun(false); return } // the status menu is the home → Back exits to the landing (Apply as)
-    // Company sub-flows return to the hub at their first step (company section start, or the director-section start),
-    // never into another applicant's steps.
-    if (isJuristicCompany && companyImDirector && (step === 0 || step === companyPaneCount)) { setAtRoster(true); return }
-    if (step === 0) setBegun(false) // back from the first pane (personal info / company info) → the landing
-    else navTo(step - 1)
+    if (atRoster) { setBegun(false); return } // the status hub is the home → Back exits to the landing (Apply as)
+    // A sub-flow's first step returns to the hub (never the landing, never another applicant). For a juristic company
+    // the director-section start (step === companyPaneCount) also returns to the hub.
+    if (step === 0) { setAtRoster(true); return }
+    if (isJuristicCompany && step === companyPaneCount) { setAtRoster(true); return }
+    navTo(step - 1)
   }
 
   // After the JURISTIC company entity panes, an OFFICE-MANAGER filler (not the director) hands off: save + email the
@@ -412,8 +423,13 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // (personal) section, reusing what we know about the company (shared prefill, #1); "review" → the application
   // Review & Submit. navTo clears the hub flag + sets the step.
   function onOpenCard(id: string) {
-    if (id === "company") { setCompanyStarted(true); navTo(0) }
-    else if (id === "self") { setEmp((e) => prefillEmploymentFromCompany(company, e)); navTo(companyPaneCount) }
+    if (id === "company") { setCompanyStarted(true); navTo(0) } // juristic only — opens the company section
+    else if (id === "self") {
+      // The filler's own section. For a juristic company the director's personal flow starts after the company panes
+      // and reuses what we know about the company (prefill, #1); every other flow's section starts at step 0.
+      if (isJuristicCompany) { setEmp((e) => prefillEmploymentFromCompany(company, e)); navTo(companyPaneCount) }
+      else navTo(0)
+    }
     else if (id === "review") { const t = companyPaneCount + STEP_REVIEW; setMaxReached((m) => Math.max(m, t)); navTo(t) }
   }
   function backToMenu() { setAtRoster(true) } // the persistent "← All applicants" return
@@ -669,16 +685,11 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       // which enumerates EVERY uploaded file — so multi-file categories flow through with no extra wiring.
       const bankPath = (docFiles["bank_main"] ?? []).find((f) => f.uploaded)?.storagePath ?? null
       await createClient().from("applications").update({ bank_statement_path: bankPath, stage1_status: "documents_submitted" }).eq("id", applicationId)
-      if (isJuristicCompany && companyImDirector) {
-        // The director's own section is done → back to the status-menu hub (the self card flips to Completed). The
-        // application Review & Submit lives on the hub now, not at the end of this linear flow.
-        setSelfSectionDone(true)
-        setAtRoster(true)
-        autosave(step)
-      } else {
-        advance(step + 1)
-        autosave(step + 1) // persist draft_step so a refresh/resume lands back on the review, not Documents
-      }
+      // The applicant's own section is done → back to the status hub (their self card flips to Completed). The
+      // application Review & Submit lives on the hub now (every flow), not at the end of a linear walk.
+      setSelfSectionDone(true)
+      setAtRoster(true)
+      autosave(step)
     } finally {
       setBusy(false)
     }
@@ -742,11 +753,14 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const companyRosterPersons = buildCompanyRosterPersons(form, coApplicants, companyRole, companyImDirector)
   // The "Your application status" hub cards (ADDENDUM_14Q increment 2 — company applications). selfStarted = the
   // director has entered their own (post-company) section at least once.
-  const selfStarted = maxReached > companyPaneCount
+  const selfStart = isJuristicCompany ? companyPaneCount : 0
+  const selfStarted = maxReached > selfStart
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
-    companyName: company.name || company.trading || "The company",
+    type, isJuristic: isJuristicCompany, companyName: company.name || company.trading || "The company",
     companyStarted, companySignedOff, form, coApplicants, companyRole, imDirector: companyImDirector, selfSectionDone, selfStarted,
   })
+  // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).
+  const isMultiParty = isJuristicCompany || coApplicants.length > 0
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
   // -mr-5 pr-5: bleed the scroll body 20px into the panel's 40px side padding and pad the content back, so the
@@ -793,8 +807,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
     // derived
     nav, personalStep, juristic, docApplicantType, docCategories, companyDocCategories, docsReady, applicantsGreen,
-    emailGateSatisfied, companyRosterPersons, statusMenuCompany, statusMenuPersons, disclaimer, scrollCls, inWizard,
-    activeKey, activeGroup, headerTitle, headerSub, railNav, railStep, railMaxReached, navStates, onNav, onJumpRail,
-    navNext, showBackBtn, showSaveBtn, askingRentCents,
+    emailGateSatisfied, companyRosterPersons, statusMenuCompany, statusMenuPersons, isMultiParty, disclaimer, scrollCls,
+    inWizard, activeKey, activeGroup, headerTitle, headerSub, railNav, railStep, railMaxReached, navStates, onNav,
+    onJumpRail, navNext, showBackBtn, showSaveBtn, askingRentCents,
   }
 }
