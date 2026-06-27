@@ -73,7 +73,7 @@ export function buildStatusMenuData(o: Readonly<{
   type: ApplicantType | null; isJuristic: boolean
   companyName: string; companyStarted: boolean; companySignedOff: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
-  selfSectionDone: boolean; selfStarted: boolean
+  selfSectionDone: boolean; selfStarted: boolean; coStatusByEmail?: Record<string, boolean>
 }>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
   const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -88,7 +88,8 @@ export function buildStatusMenuData(o: Readonly<{
   }
   o.coApplicants.forEach((c, i) => {
     const role = coRoleLabel(o.type, c, cap)
-    persons.push({ id: `co_${i}`, name: name(c.firstName, c.lastName, c.email || "Applicant"), roleLabel: role, status: "not_started", canOpen: false, statusOnlyNote: `${role} — invited, completes via their own link` })
+    const done = o.coStatusByEmail?.[c.email] === true // live server status (best-effort); else not yet done
+    persons.push({ id: `co_${i}`, name: name(c.firstName, c.lastName, c.email || "Applicant"), roleLabel: role, status: done ? "completed" : "not_started", canOpen: false, statusOnlyNote: `${role} — invited, completes via their own link` })
   })
   return { company, persons }
 }
@@ -324,6 +325,18 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const [amendGateStep, setAmendGateStep] = useState<number | null>(null)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
+  // Live co-applicant completion (ADDENDUM_14Q) — the server is authoritative; we poll it when the filler is on the
+  // status hub so a co's card flips to Completed once THEY finish their own per-link session. Keyed by email.
+  const [coStatusByEmail, setCoStatusByEmail] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    if (!applicationId || !token || !atRoster || coApplicants.length === 0) return
+    let cancelled = false
+    void fetch(`/api/applications/${applicationId}/co-status?token=${encodeURIComponent(token)}`)
+      .then((r) => r.json() as Promise<{ coApplicants?: { email: string; completed: boolean }[] }>)
+      .then((j) => { if (!cancelled && j.coApplicants) setCoStatusByEmail(Object.fromEntries(j.coApplicants.map((c) => [c.email, c.completed]))) })
+      .catch(() => { /* hub status is best-effort */ })
+    return () => { cancelled = true }
+  }, [applicationId, token, atRoster, coApplicants.length])
 
   function advance(to: number) { setStep(to); setMaxReached((m) => Math.max(m, to)) }
 
@@ -747,7 +760,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const selfStarted = maxReached > selfStart
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
     type, isJuristic: isJuristicCompany, companyName: company.name || company.trading || "The company",
-    companyStarted, companySignedOff, form, coApplicants, companyRole, imDirector: companyImDirector, selfSectionDone, selfStarted,
+    companyStarted, companySignedOff, form, coApplicants, companyRole, imDirector: companyImDirector, selfSectionDone, selfStarted, coStatusByEmail,
   })
   // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).
   const isMultiParty = isJuristicCompany || coApplicants.length > 0

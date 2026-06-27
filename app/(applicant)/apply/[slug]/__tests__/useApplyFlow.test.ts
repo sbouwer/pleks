@@ -62,4 +62,10 @@ describe("buildStatusMenuData — universal hub (non-company)", () => {
     const r = buildStatusMenuData({ ...personal, type: "guarantor", coApplicants: [co({ role: "guarantor" })] })
     expect(r.persons.find((p) => p.id === "co_0")).toMatchObject({ roleLabel: "Guarantor", canOpen: false })
   })
+
+  it("live co-status flips a co card to Completed once the server says they're done (ADDENDUM_14Q hub)", () => {
+    const args = { ...personal, type: "couple" as const, coApplicants: [co({ email: "sue@co.za", role: "co_applicant" })] }
+    expect(buildStatusMenuData(args).persons.find((p) => p.id === "co_0")?.status).toBe("not_started")
+    expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": true } }).persons.find((p) => p.id === "co_0")?.status).toBe("completed")
+  })
 })
