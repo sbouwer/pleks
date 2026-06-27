@@ -5,16 +5,38 @@
  * Auth:   getSupplierSession (Supabase-auth contractor — ADDENDUM_00M)
  * Data:   maintenance_requests (joins tenant_view) + quotes + photos via service; the request is
  *         scoped to session.contractorId so a supplier can only open their OWN assigned jobs.
+ * Notes:  Canon DetailPageLayout + DetailCard (door style) — presentation only.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailCard } from "@/components/detail/DetailCard"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { formatZAR } from "@/lib/constants"
 import { JobStatusActions } from "./JobStatusActions"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+
+const STATUS_LABELS: Record<string, string> = {
+  pending_quote: "Quote requested",
+  quote_submitted: "Quote submitted",
+  quote_approved: "Quote approved",
+  quote_rejected: "Quote rejected",
+  work_order_sent: "New — acknowledge",
+  acknowledged: "Acknowledged",
+  in_progress: "In progress",
+  pending_completion: "Completion pending",
+  completed: "Completed",
+  closed: "Closed",
+}
+
+function jobStatus(s: string): DetailStatus {
+  const label = STATUS_LABELS[s] ?? s.replace(/_/g, " ")
+  if (["completed", "closed", "quote_approved"].includes(s)) return { kind: "occupied", label }
+  if (["quote_rejected"].includes(s)) return { kind: "flag", label }
+  if (["work_order_sent", "pending_quote", "pending_completion"].includes(s)) return { kind: "vacant", label }
+  return { kind: "neutral", label }
+}
 
 export default async function ContractorJobDetailPage({
   params,
@@ -68,117 +90,107 @@ export default async function ContractorJobDetailPage({
   const tenantPhotos = (photos ?? []).filter((p) => p.photo_phase === "before")
   const latestQuote = (quotes ?? [])[0]
 
-  const urgencyColors: Record<string, string> = {
-    emergency: "bg-red-100 text-red-700",
-    urgent: "bg-amber-100 text-amber-700",
-    routine: "bg-blue-100 text-blue-700",
-  }
+  const facts: DetailFact[] = [
+    { k: "Property", v: `${unit?.unit_number ?? ""}, ${prop?.name ?? prop?.address_line1 ?? ""}` },
+  ]
+  if (job.work_order_number) facts.push({ k: "Ref", v: job.work_order_number, mono: true })
+  if (job.category) facts.push({ k: "Category", v: job.category })
+  if (job.scheduled_date) facts.push({ k: "Scheduled", v: new Date(job.scheduled_date).toLocaleDateString("en-ZA") })
+  if (job.estimated_cost_cents) facts.push({ k: "Estimate", v: formatZAR(job.estimated_cost_cents), mono: true })
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/supplier/jobs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-          &larr; Back to jobs
-        </Link>
-        <div className="flex items-center gap-3 mt-2">
-          <h1 className="font-heading text-xl flex-1">{job.title}</h1>
-          <Badge className={urgencyColors[job.urgency ?? "routine"] ?? ""} variant="secondary">
-            {job.urgency ?? "routine"}
-          </Badge>
-        </div>
-        {job.work_order_number && (
-          <p className="text-xs font-mono text-muted-foreground mt-1">{job.work_order_number}</p>
-        )}
-      </div>
-
+    <DetailPageLayout
+      category="Jobs"
+      backHref="/supplier/jobs"
+      title={job.title}
+      status={jobStatus(job.status)}
+      badge={job.urgency ? (
+        <span className="rounded-[var(--r-button)] border border-border px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.07em] capitalize text-muted-foreground">
+          {job.urgency}
+        </span>
+      ) : undefined}
+      facts={facts}
+    >
       {/* Property & contact */}
-      <Card>
-        <CardContent className="pt-4 space-y-3">
+      <DetailCard title="Property & contact">
+        <div className="space-y-3 text-sm">
           <div>
             <p className="text-xs text-muted-foreground">Property</p>
-            <p className="text-sm font-medium">{unit?.unit_number}, {prop?.name ?? prop?.address_line1}, {prop?.city}</p>
+            <p className="font-medium text-foreground">{unit?.unit_number}, {prop?.name ?? prop?.address_line1}, {prop?.city}</p>
           </div>
           {tenant && (
             <div>
               <p className="text-xs text-muted-foreground">Tenant</p>
-              <p className="text-sm">{tenant.first_name} {tenant.last_name} — {tenant.phone}</p>
+              <p className="text-foreground">{tenant.first_name} {tenant.last_name} — {tenant.phone}</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </DetailCard>
 
       {/* Job description */}
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Job Description</CardTitle></CardHeader>
-        <CardContent>
-          <p className="text-sm whitespace-pre-wrap">{job.description}</p>
-          <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
-            <span>Category: {job.category}</span>
-            {job.estimated_cost_cents && <span>Estimate: {formatZAR(job.estimated_cost_cents)}</span>}
-          </div>
-        </CardContent>
-      </Card>
+      <DetailCard title="Job description">
+        <p className="whitespace-pre-wrap text-sm text-foreground">{job.description}</p>
+        <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
+          <span>Category: {job.category}</span>
+          {job.estimated_cost_cents && <span>Estimate: {formatZAR(job.estimated_cost_cents)}</span>}
+        </div>
+      </DetailCard>
 
       {/* Tenant photos */}
       {tenantPhotos.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Photos from tenant</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2">
-              {tenantPhotos.map((p) => (
-                <div key={p.id} className="aspect-square rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground">
-                  Photo
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <DetailCard title="Photos from tenant">
+          <div className="grid grid-cols-2 gap-2">
+            {tenantPhotos.map((p) => (
+              <div key={p.id} className="flex aspect-square items-center justify-center rounded-[var(--r-button)] bg-muted text-xs text-muted-foreground">
+                Photo
+              </div>
+            ))}
+          </div>
+        </DetailCard>
       )}
 
       {/* Access instructions */}
       {(job.access_instructions || job.special_instructions) && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Instructions</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
+        <DetailCard title="Instructions">
+          <div className="space-y-2 text-sm">
             {job.access_instructions && (
               <div>
                 <p className="text-xs text-muted-foreground">Access</p>
-                <p className="text-sm">{job.access_instructions}</p>
+                <p className="text-foreground">{job.access_instructions}</p>
               </div>
             )}
             {job.special_instructions && (
               <div>
                 <p className="text-xs text-muted-foreground">Special instructions</p>
-                <p className="text-sm">{job.special_instructions}</p>
+                <p className="text-foreground">{job.special_instructions}</p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </DetailCard>
       )}
 
       {/* Quote status */}
       {latestQuote && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Quote</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">{formatZAR(latestQuote.total_incl_vat_cents)}</p>
-                <p className="text-xs text-muted-foreground capitalize">{latestQuote.status}</p>
-              </div>
-              {latestQuote.status === "rejected" && latestQuote.rejection_reason && (
-                <p className="text-xs text-red-600">Reason: {latestQuote.rejection_reason}</p>
-              )}
+        <DetailCard title="Quote">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">{formatZAR(latestQuote.total_incl_vat_cents)}</p>
+              <p className="text-xs capitalize text-muted-foreground">{latestQuote.status}</p>
             </div>
-          </CardContent>
-        </Card>
+            {latestQuote.status === "rejected" && latestQuote.rejection_reason && (
+              <p className="text-xs text-destructive">Reason: {latestQuote.rejection_reason}</p>
+            )}
+          </div>
+        </DetailCard>
       )}
 
       {/* Actions */}
-      <JobStatusActions
-        requestId={requestId}
-        status={job.status}
-      />
-    </div>
+      <DetailFullWidth>
+        <JobStatusActions
+          requestId={requestId}
+          status={job.status}
+        />
+      </DetailFullWidth>
+    </DetailPageLayout>
   )
 }

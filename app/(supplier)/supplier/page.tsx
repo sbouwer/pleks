@@ -4,15 +4,22 @@
  * Route:  /supplier
  * Auth:   getSupplierSession (Supabase-auth contractor — ADDENDUM_00M)
  * Data:   maintenance_requests + supplier_invoices via service, scoped to session.contractorId
+ * Notes:  Canon ResourcePageHeader + DetailCard (door style) — presentation only.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { ActionButton } from "@/components/ui/actions"
-import { Badge } from "@/components/ui/badge"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+
+function urgencyTone(u: string): string {
+  if (u === "emergency") return "border-destructive/30 bg-destructive/10 text-destructive"
+  if (u === "urgent") return "border-warning/30 bg-warning/10 text-warning"
+  return "border-info/30 bg-info/10 text-info"
+}
 
 export default async function ContractorDashboard() {
   const session = await getSupplierSession()
@@ -43,95 +50,64 @@ export default async function ContractorDashboard() {
     .eq("status", "pending")
     logQueryError("ContractorDashboard supplier_invoices", pendingInvoicesError)
 
-  const urgencyColors: Record<string, string> = {
-    emergency: "bg-red-100 text-red-700",
-    urgent: "bg-amber-100 text-amber-700",
-    routine: "bg-blue-100 text-blue-700",
-  }
+  const stats = [
+    { label: "New jobs", value: newJobs.length },
+    { label: "Quotes pending", value: quotesPending.length },
+    { label: "In progress", value: inProgress.length },
+    { label: "Invoices due", value: pendingInvoices?.length ?? 0 },
+  ]
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl">Welcome back, {contractorName}</h1>
-      </div>
+    <div className="space-y-4">
+      <ResourcePageHeader eyebrow="Supplier" title={`Welcome back, ${contractorName}`} headline="Your jobs at a glance" />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">New jobs</p>
-            <p className="font-heading text-xl">{newJobs.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Quotes pending</p>
-            <p className="font-heading text-xl">{quotesPending.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">In progress</p>
-            <p className="font-heading text-xl">{inProgress.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Invoices due</p>
-            <p className="font-heading text-xl">{pendingInvoices?.length ?? 0}</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-[var(--r-button)] border border-border bg-card px-4 py-3">
+            <p className="text-xs text-muted-foreground">{s.label}</p>
+            <p className="font-heading text-xl text-foreground">{s.value}</p>
+          </div>
+        ))}
       </div>
 
       {/* Needs action */}
       {newJobs.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Needs Action</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <DetailCard title="Needs action">
+          <div className="space-y-3">
             {newJobs.slice(0, 5).map((job) => {
               const prop = job.properties as unknown as { name: string } | null
               const unit = job.units as unknown as { unit_number: string } | null
               return (
-                <div key={job.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
-                  <div>
-                    <p className="text-sm font-medium">{job.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {unit?.unit_number}, {prop?.name}
-                    </p>
+                <div key={job.id} className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-border p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">{job.title}</p>
+                    <p className="text-xs text-muted-foreground">{unit?.unit_number}, {prop?.name}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={urgencyColors[job.urgency ?? "routine"] ?? ""} variant="secondary">
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className={`rounded-[var(--r-button)] border px-2 py-0.5 text-xs capitalize ${urgencyTone(job.urgency ?? "routine")}`}>
                       {job.urgency ?? "routine"}
-                    </Badge>
+                    </span>
                     <ActionButton asChild tone="secondary" size="sm">
-                      <Link href={`/supplier/jobs/${job.id}`}>
-                        View
-                      </Link>
+                      <Link href={`/supplier/jobs/${job.id}`}>View</Link>
                     </ActionButton>
                   </div>
                 </div>
               )
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </DetailCard>
       )}
 
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3">
         <ActionButton asChild tone="secondary" className="h-12">
-          <Link href="/supplier/jobs">
-            All Jobs
-          </Link>
+          <Link href="/supplier/jobs">All jobs</Link>
         </ActionButton>
         <ActionButton asChild tone="secondary" className="h-12">
-          <Link href="/supplier/invoices">
-            Invoices
-          </Link>
+          <Link href="/supplier/invoices">Invoices</Link>
         </ActionButton>
       </div>
     </div>
   )
 }
-
