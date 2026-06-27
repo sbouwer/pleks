@@ -147,7 +147,7 @@ export function StepEmployment({ emp, setEmp }: Readonly<{ emp: Emp; setEmp: (v:
               <SelectField label="Registered?" value={emp.registered ?? ""} onChange={(v) => set({ registered: v })} options={REGISTERED_OPTIONS} />
               <SelectField label="SARS-registered?" value={emp.sars_registered ?? ""} onChange={(v) => set({ sars_registered: v })} options={YESNO_OPTIONS} />
             </FieldGrid>
-            <p className={HINT_INFO}>At the deep scan we&apos;ll ask for 6 months&apos; business and personal bank statements, plus your SARS Tax Compliance Status or ITA34 if registered.</p>
+            <p className={HINT_INFO}>If you&apos;re shortlisted we&apos;ll ask for 6 months&apos; business and personal bank statements, plus your SARS Tax Compliance Status or ITA34 if registered.</p>
           </>
         )}
 

@@ -111,7 +111,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
               <ApplyNavRail
-                overviewActive={atRoster} onOverview={backToMenu} inSubFlow={begun && !atRoster}
+                overviewActive={atRoster} onOverview={backToMenu} inSubFlow={begun && !atRoster && !onReviewStep}
                 reviewActive={onReviewStep} reviewEnabled={reviewUnlocked} showReview={canSubmit}
                 onReview={() => onOpenCard("review")}
                 model={railNav} states={navStates} step={railStep} maxReached={railMaxReached} onNav={onNav} onJumpStep={onJumpRail}

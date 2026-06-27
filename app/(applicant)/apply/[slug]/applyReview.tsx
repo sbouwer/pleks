@@ -126,7 +126,7 @@ function CompanyAffordabilityCard({ assessment, askingRentCents }: Readonly<{ as
         <span className="text-sm font-medium text-[var(--ink)]">{afterRent >= 0 ? "Surplus after rent" : "Shortfall on the company"}</span>
         <span className={`text-xl font-semibold ${afterRent >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatZAR(afterRent)}</span>
       </div>
-      <p className="text-[11px] leading-relaxed text-[var(--ink-mute)]">{note} Verified against the AFS / bank statements at the deep scan.</p>
+      <p className="text-[11px] leading-relaxed text-[var(--ink-mute)]">{note} The declared figures will be verified against the documents you&apos;ve provided.</p>
     </div>
   )
 }
