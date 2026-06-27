@@ -11,31 +11,33 @@ const person = (over: Partial<StatusMenuPerson> = {}): StatusMenuPerson => ({ id
 const company = (over: Partial<StatusMenuCompany> = {}): StatusMenuCompany => ({ name: "Acme (Pty) Ltd", status: "completed", canOpen: true, ...over })
 
 describe("summariseStatus", () => {
-  it("all cards completed → allGreen, nothing outstanding", () => {
-    const r = summariseStatus(company(), [person(), person({ id: "co_1", name: "Di" })])
-    expect(r.allGreen).toBe(true)
-    expect(r.outstanding).toEqual([])
+  it("the filler's own openable cards done → fillerReady (status-only co's don't block)", () => {
+    const r = summariseStatus(company(), [person(), person({ id: "co_1", name: "Di", canOpen: false, status: "not_started" })])
+    expect(r.fillerReady).toBe(true)               // company + self done; the co completes via their own link
+    expect(r.mine).toEqual([])
+    expect(r.others).toEqual(["Di"])               // surfaced for transparency, not a gate
   })
 
-  it("an outstanding person blocks the gate and is named", () => {
-    const r = summariseStatus(null, [person(), person({ id: "co_1", name: "Di Rector", status: "in_progress" })])
-    expect(r.allGreen).toBe(false)
-    expect(r.outstanding).toEqual([{ name: "Di Rector", viaOwnLink: false }])
+  it("the filler's own section unfinished blocks the gate and is named", () => {
+    const r = summariseStatus(null, [person({ status: "in_progress", name: "You Self" })])
+    expect(r.fillerReady).toBe(false)
+    expect(r.mine).toEqual(["You Self"])
   })
 
-  it("a status-only (cannot-open) outstanding party is flagged viaOwnLink — the filler can't fix it", () => {
+  it("a status-only co-applicant NEVER blocks the filler (server gates the everyone-check)", () => {
     const r = summariseStatus(null, [person(), person({ id: "co_2", name: "Sue", status: "not_started", canOpen: false })])
-    expect(r.outstanding).toEqual([{ name: "Sue", viaOwnLink: true }])
+    expect(r.fillerReady).toBe(true)
+    expect(r.others).toEqual(["Sue"])
   })
 
-  it("an incomplete company card blocks the gate too", () => {
+  it("an incomplete company card (openable) blocks the gate", () => {
     const r = summariseStatus(company({ status: "in_progress" }), [person()])
-    expect(r.allGreen).toBe(false)
-    expect(r.outstanding[0]).toMatchObject({ name: "Acme (Pty) Ltd", viaOwnLink: false })
+    expect(r.fillerReady).toBe(false)
+    expect(r.mine).toEqual(["Acme (Pty) Ltd"])
   })
 
-  it("no company (couple/guarantor) → gate rests on the people only", () => {
-    expect(summariseStatus(null, [person(), person({ id: "co_1" })]).allGreen).toBe(true)
-    expect(summariseStatus(undefined, [person({ status: "not_started" })]).allGreen).toBe(false)
+  it("solo individual → ready iff their one card is done", () => {
+    expect(summariseStatus(null, [person()]).fillerReady).toBe(true)
+    expect(summariseStatus(undefined, [person({ status: "not_started" })]).fillerReady).toBe(false)
   })
 })

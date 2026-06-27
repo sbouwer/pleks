@@ -29,7 +29,6 @@ import { type CoRole, SELF_EMPLOYED_TYPES, STEP_EXPENSES, STEP_DOCUMENTS, STEP_D
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
 import { StepSubmit, VerifyEmail } from "./applyReview"
-import { ApplicantRoster, CompanyCard } from "./applyRoster"
 import { ApplicationStatusMenu } from "./applyStatusMenu"
 import { StepRail, StepBar, SubTabs } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
@@ -56,14 +55,14 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     commercial, type, form, set, errors, emp, setEmp, income, setIncome,
     dependentAdults, setDependentAdults, dependentMinors, setDependentMinors, commitments, setCommitments,
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, setEmailVerified,
-    coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companySentToDirector, companyRole,
+    coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
     addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, docFiles, docEscape, setDocEscape,
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, setAmendUnlocked, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
-    personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied, companyRosterPersons,
-    statusMenuCompany, statusMenuPersons, isMultiParty, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
+    personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied,
+    statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
   } = f
 
@@ -186,22 +185,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           </div>
         )}
 
-        {/* "Sent to director" — an office-manager filler handed the company off: the roster shows Company ✓ + the
-            director outstanding (emailed their link). Nothing more for the office manager to do. */}
-        {companySentToDirector && (
-          <div className={scrollCls}>
-            <ApplicantRoster
-              persons={companyRosterPersons}
-              companyCard={<CompanyCard name={company.name || company.trading || "The company"} status="complete" />}
-              allGreen={false} outstandingCount={companyRosterPersons.length} onReview={() => undefined}
-              waitingNote={<>We&apos;ve emailed {coApplicants[0]?.email ? <strong className="text-[var(--ink)]">{coApplicants[0].email}</strong> : `the ${companyRole}`} a secure link to complete their personal application. You can close this page.</>}
-            />
-          </div>
-        )}
-
-        {/* "Your application status" hub (ADDENDUM_14Q) — the persistent home for a company application: open a card
-            to complete it, return here on save/sign-off, Review & Submit once every card is green. */}
-        {begun && atRoster && !companySentToDirector && (
+        {/* "Your application status" hub (ADDENDUM_14Q) — the persistent home for EVERY application: open a card to
+            complete it, return here on save/sign-off, Review & Submit once every card is green. An office-manager who
+            has handed the company off lands here too (company ✓, director status-only; submit isn't theirs to press). */}
+        {begun && atRoster && (
           <div className={scrollCls}>
             <ApplicationStatusMenu
               unitTitle={listingTitle ?? "this home"}
@@ -210,14 +197,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
               onOpen={onOpenCard}
               onSubmit={() => onOpenCard("review")}
               busy={busy}
+              canSubmit={canSubmit}
             />
           </div>
         )}
 
-        {begun && type !== null && !companySentToDirector && !atRoster && (
-          <>
-            <div className={scrollCls}>{renderFormPane()}</div>
-          </>
+        {begun && type !== null && !atRoster && (
+          <div className={scrollCls}>{renderFormPane()}</div>
         )}
 
         {/* Footer — the disclaimer only (nav buttons live in the panel header now), pinned to the bottom. The

@@ -27,7 +27,6 @@ import {
 } from "@/lib/parties/partyValidation"
 import { isValidEmail, cipcRegError, checkPhone } from "@/lib/validation/contact"
 import { assembleSaveDraftPayload, resolvePrimary } from "./applySaveDraft"
-import { buildRosterPersons, type RosterPerson } from "./applyRoster"
 import type { StatusMenuCompany, StatusMenuPerson, CardStatus } from "./applyStatusMenu"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, type NavModel } from "./applyNav"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
@@ -60,15 +59,6 @@ const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.tri
 
 /** Pane keys that hold PERSONAL details — editing these in a resumed (shared-link) session needs an identity re-verify. */
 const PERSONAL_EDIT_KEYS = new Set(["personal", "address", "employment", "income", "expenses"])
-
-/** The company roster's person cards — the director(s), all "outstanding" at the hub (the company section is signed
- *  off; their own personal sections aren't done yet). A director filler (You) leads the list; an office-manager
- *  filler isn't a party, so only the named directors (coApplicants) show. */
-function buildCompanyRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], companyRole: string, imDirector: boolean): RosterPerson[] {
-  // The sign-off hub: everyone is still "outstanding" (the company card carries the ✓). Shared builder (#3).
-  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-  return buildRosterPersons(form, coApplicants, { statusAt: () => "outstanding", fillerRole: cap(companyRole), coRole: (c) => cap(c.designation ?? "director"), includeFiller: imDirector })
-}
 
 /** A hub card's 3-state status from its done/started flags (avoids a nested ternary at each call site). */
 function cardStatusOf(done: boolean, started: boolean): CardStatus {
@@ -300,9 +290,6 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // Company: is the person filling this in the director/signatory themselves? If so they complete the application
   // (their Apply-as details pre-fill the personal flow, no invite); if not, the director is invited to do it.
   const [companyImDirector, setCompanyImDirector] = useState(true)
-  // Company flow runs in the main rail (entity panes → the director's private flow). For the OFFICE-MANAGER case
-  // (filler isn't the director), the company entity is completed then the director is emailed → "sent" screen.
-  const [companySentToDirector, setCompanySentToDirector] = useState(false)
   // The person standing for the company is a director (juristic), a partner (partnership), or the owner (sole prop) —
   // used in all the company copy/toasts so we never call a sole proprietor a "director".
   let companyRole = "owner"
@@ -411,7 +398,11 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       const r = await saveDraft(step + 1, { explicit: true })
       if (!r) return
       await dispatchInvites(r.id)
-      setCompanySentToDirector(true)
+      // The company section is signed off + the director emailed → land on the status hub (company ✓, director
+      // status-only "completes via their own link"). The office manager can't do more here, so submit is theirs to
+      // see disabled, not to press (canSubmit false).
+      setCompanySignedOff(true)
+      setAtRoster(true)
       toast.success(`Sent to the ${companyRole} to complete the application.`)
     } finally { setBusy(false) }
   }
@@ -750,9 +741,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
   // Email gate satisfied if they verified by OTP OR they're the logged-in owner of this email (already confirmed).
   const emailGateSatisfied = emailVerified || (!!verifiedEmail && !!form.email && form.email.toLowerCase() === verifiedEmail.toLowerCase())
-  const companyRosterPersons = buildCompanyRosterPersons(form, coApplicants, companyRole, companyImDirector)
-  // The "Your application status" hub cards (ADDENDUM_14Q increment 2 — company applications). selfStarted = the
-  // director has entered their own (post-company) section at least once.
+  // The "Your application status" hub cards (ADDENDUM_14Q). selfStarted = the applicant has entered their own section
+  // (post-company for a director) at least once.
   const selfStart = isJuristicCompany ? companyPaneCount : 0
   const selfStarted = maxReached > selfStart
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
@@ -761,6 +751,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   })
   // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).
   const isMultiParty = isJuristicCompany || coApplicants.length > 0
+  // Submit is the primary/signatory's act (CD cross-cutting A): a juristic office-manager (not a director) never
+  // presses it — the named director submits via their own link.
+  const canSubmit = !(isJuristicCompany && !companyImDirector)
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
   // -mr-5 pr-5: bleed the scroll body 20px into the panel's 40px side padding and pad the content back, so the
@@ -798,7 +791,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     commercial, type, step, form, set, errors, emp, setEmp, income, setIncome,
     dependentAdults, setDependentAdults, dependentMinors, setDependentMinors, commitments, setCommitments,
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, emailVerified, setEmailVerified,
-    coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companySentToDirector, companyRole,
+    coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
     addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, setBegun, docFiles, docEscape, setDocEscape,
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, setAmendUnlocked, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
@@ -807,7 +800,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
     // derived
     nav, personalStep, juristic, docApplicantType, docCategories, companyDocCategories, docsReady, applicantsGreen,
-    emailGateSatisfied, companyRosterPersons, statusMenuCompany, statusMenuPersons, isMultiParty, disclaimer, scrollCls,
+    emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, disclaimer, scrollCls,
     inWizard, activeKey, activeGroup, headerTitle, headerSub, railNav, railStep, railMaxReached, navStates, onNav,
     onJumpRail, navNext, showBackBtn, showSaveBtn, askingRentCents,
   }

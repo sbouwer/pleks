@@ -80,15 +80,21 @@ function MenuCard({ icon, name, sub, status, canOpen, statusOnlyNote, onOpen, sq
   )
 }
 
-/** Who is not yet Completed — for the gated-submit message. Status-only outstanding parties are flagged so the UI can
- *  say "completes via their own link" (the filler can't fix them). Pure so it's unit-testable. */
+/** The hub's submit affordance. The filler can only complete THEIR OWN (openable) cards, so Review & Submit unlocks
+ *  on those (`fillerReady`); status-only parties (co-applicants/directors) complete via their own links and are the
+ *  server's everyone-gate at submit-to-agent (CD cross-cutting B), surfaced here only as `others` for transparency.
+ *  Pure so it's unit-testable. */
 export function summariseStatus(company: StatusMenuCompany | null | undefined, persons: ReadonlyArray<StatusMenuPerson>): {
-  allGreen: boolean; outstanding: { name: string; viaOwnLink: boolean }[]
+  fillerReady: boolean; mine: string[]; others: string[]
 } {
-  const outstanding: { name: string; viaOwnLink: boolean }[] = []
-  if (company && company.status !== "completed") outstanding.push({ name: company.name, viaOwnLink: !company.canOpen })
-  for (const p of persons) if (p.status !== "completed") outstanding.push({ name: p.name, viaOwnLink: !p.canOpen })
-  return { allGreen: outstanding.length === 0, outstanding }
+  const mine: string[] = []   // the filler's own openable cards not yet completed
+  const others: string[] = [] // status-only cards (each completes via their own link)
+  if (company) { if (company.canOpen) { if (company.status !== "completed") mine.push(company.name) } else others.push(company.name) }
+  for (const p of persons) {
+    if (p.canOpen) { if (p.status !== "completed") mine.push(p.name) }
+    else others.push(p.name)
+  }
+  return { fillerReady: mine.length === 0, mine, others }
 }
 
 export function ApplicationStatusMenu({ unitTitle, company, persons, onOpen, onSubmit, busy, canSubmit = true }: Readonly<{
@@ -101,7 +107,7 @@ export function ApplicationStatusMenu({ unitTitle, company, persons, onOpen, onS
   /** the current filler may press Submit (the primary/signatory owns it — CD cross-cutting A). */
   canSubmit?: boolean
 }>) {
-  const { allGreen, outstanding } = summariseStatus(company, persons)
+  const { fillerReady, mine, others } = summariseStatus(company, persons)
   return (
     <div className="flex min-h-full flex-col gap-4">
       {/* Header — "status" must not read as view-only; the subhead makes "tap your card to complete" obvious (CD §8.1). */}
@@ -122,28 +128,26 @@ export function ApplicationStatusMenu({ unitTitle, company, persons, onOpen, onS
         ))}
       </div>
 
-      {/* Review & Submit — application-level primary (not an applicant card). Gated until every card is Completed; when
-          gated it NAMES who's outstanding + who owns it, so a filler blocked by a co-applicant they can't complete for
-          sees why (CD §8.5). The gate is an affordance — submit re-validates server-side (CD cross-cutting B). */}
+      {/* Review & Submit — application-level primary (not an applicant card). It unlocks once the FILLER's own cards
+          are done (`fillerReady`); status-only parties complete via their own links and are the server's everyone-gate
+          at submit-to-agent (CD cross-cutting B), surfaced here only as a note. If the filler still has their own
+          section to finish, that's what's named (CD §8.5). */}
       <div className="mt-auto flex flex-col gap-3 pt-3">
-        {!allGreen && (
+        {!fillerReady && (
           <div className="flex items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">
             <Clock className="mt-0.5 size-5 shrink-0 text-[var(--ink-mute)]" />
-            <span>
-              Waiting on{" "}
-              {outstanding.map((o, i) => (
-                <span key={o.name}>
-                  {i > 0 && (i === outstanding.length - 1 ? " and " : ", ")}
-                  <strong className="text-[var(--ink)]">{o.name}</strong>{o.viaOwnLink ? " (completes via their own link)" : ""}
-                </span>
-              ))}
-              {" "}to finish. Nothing goes to the agent until everyone&apos;s done.
-            </span>
+            <span>Finish <strong className="text-[var(--ink)]">{mine.join(", ")}</strong> to continue.</span>
+          </div>
+        )}
+        {fillerReady && others.length > 0 && (
+          <div className="flex items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">
+            <Clock className="mt-0.5 size-5 shrink-0 text-[var(--ink-mute)]" />
+            <span><strong className="text-[var(--ink)]">{others.join(", ")}</strong> {others.length === 1 ? "completes" : "complete"} via their own link — the application only goes to the agent once everyone&apos;s done.</span>
           </div>
         )}
         {canSubmit && (
           <div className="flex justify-end">
-            <ActionButton tone="primary" icon={<Send className="size-4" />} onClick={onSubmit} disabled={!allGreen || busy}>
+            <ActionButton tone="primary" icon={<Send className="size-4" />} onClick={onSubmit} disabled={!fillerReady || busy}>
               Review &amp; submit
             </ActionButton>
           </div>
