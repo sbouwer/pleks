@@ -431,8 +431,12 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     else if (id === "self") {
       // The filler's own section. For a juristic company the director's personal flow starts after the company panes
       // and reuses what we know about the company (prefill, #1); every other flow's section starts at step 0.
-      if (isJuristicCompany) { setEmp((e) => prefillEmploymentFromCompany(company, e)); navTo(companyPaneCount) }
-      else navTo(0)
+      const target = isJuristicCompany ? companyPaneCount : 0
+      if (isJuristicCompany) setEmp((e) => prefillEmploymentFromCompany(company, e))
+      // Opening a PERSONAL section from a still-locked resumed (shared-link) session → "verify it's you" first
+      // (ADDENDUM_14Q §4 / increment 3c). Mirrors amendAt — the hub is the other door into the same personal panes.
+      if (!amendUnlocked && PERSONAL_EDIT_KEYS.has(nav.paneMeta[target]?.key ?? "")) { setAmendGateStep(target); return }
+      navTo(target)
     }
     else if (id === "review") { const t = companyPaneCount + STEP_REVIEW; setMaxReached((m) => Math.max(m, t)); navTo(t) }
   }
@@ -705,7 +709,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
 
   /** Amend the application (add applicant / upload docs / edit details) → re-enter that step; the user
    *  re-submits to run a fresh screening iteration (the 14M self-improvement loop). */
-  function applyAmend(toStep: number) { setScreeningStatus("idle"); setAssessment(null); setStep(toStep) }
+  function applyAmend(toStep: number) { setScreeningStatus("idle"); setAssessment(null); setAtRoster(false); setStep(toStep) }
   function amendAt(toStep: number) {
     // Editing PERSONAL details (not documents/company) in a still-locked resumed session → "verify it's you" first.
     if (!amendUnlocked && PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")) { setAmendGateStep(toStep); return }
