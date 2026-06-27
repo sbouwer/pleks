@@ -97,9 +97,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       {/* Desktop side column — the home being applied for BEFORE begin, then the step rail once begun (+ agent
           anchored at the bottom either way). */}
       <aside className="hidden shrink-0 [@media(min-width:1024px)_and_(min-height:700px)]:flex [@media(min-width:1024px)_and_(min-height:700px)]:w-[300px] [@media(min-width:1024px)_and_(min-height:700px)]:flex-col [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
-        {begun ? (
-          /* Rail card FILLS the column (fixed outer height → expanding the accordion never shifts the layout). Its
-             BODY scrolls, so on a short viewport the steps stay reachable instead of overflowing out of view. */
+        {begun && !atRoster ? (
+          /* The step rail is SCOPED to the current sub-flow (ADDENDUM_14Q §4) — shown only inside a sub-flow, not on
+             the status hub (the hub shows the listing context instead). Rail card FILLS the column (fixed outer height
+             → expanding the accordion never shifts the layout); its BODY scrolls so steps stay reachable when short. */
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card">
             <div className="flex shrink-0 items-center border-b border-border px-5 py-4">
               <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
@@ -119,21 +120,28 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       <main className="flex min-w-0 flex-1 flex-col [@media(min-width:1024px)_and_(min-height:700px)]:h-full [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
       <div className="fs-panel mb-1.5 flex flex-1 flex-col [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0" style={{ maxWidth: "none", width: "100%" }}>
 
-        {/* Mobile/short: horizontal step bar + sub-tabs (on desktop the rail handles both) */}
-        <div className="[@media(min-width:1024px)_and_(min-height:700px)]:hidden">
-          <StepBar states={navStates} onNav={onNav} />
-          {inWizard && <SubTabs model={railNav} activeGroup={activeGroup} step={railStep} maxReached={railMaxReached} onJumpStep={onJumpRail} />}
-        </div>
+        {/* Mobile/short: horizontal step bar + sub-tabs (on desktop the rail handles both) — scoped to a sub-flow,
+            hidden on the status hub (ADDENDUM_14Q §4). */}
+        {!atRoster && (
+          <div className="[@media(min-width:1024px)_and_(min-height:700px)]:hidden">
+            <StepBar states={navStates} onNav={onNav} />
+            {inWizard && <SubTabs model={railNav} activeGroup={activeGroup} step={railStep} maxReached={railMaxReached} onJumpStep={onJumpRail} />}
+          </div>
+        )}
 
         {/* Panel header — mirrors the rail's "Your application" header (amber tick + step · section) so the rule
             continues across the nav and the panel. Shows on the landing too ("Apply as · Pre-selection"). */}
         {/* The side column differs by state — landing = listing DetailCard, wizard = the step-rail card — and
             their headers sit at slightly different heights, so the panel header needs a per-state top offset. */}
         <div className={`relative mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 ${begun ? "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-6" : "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-[18px]"}`}>
-            <h2 className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-[var(--ink)]">
-              <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
-              <span className="truncate">{headerTitle}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
-            </h2>
+            {/* On the status hub the menu carries its own heading, so suppress the panel title there (avoid the
+                double "Your application status"); the action buttons row stays for Save & finish later. */}
+            {!atRoster ? (
+              <h2 className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-[var(--ink)]">
+                <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
+                <span className="truncate">{headerTitle}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
+              </h2>
+            ) : <span />}
             {/* TRANSIENT "Saved ✓" — flashes (green, pops in) for ~2.5s after an ACTUAL save, then disappears.
                 ABSOLUTELY centred on the card width (pb-2.5 aligns it with the title row) so it doesn't drift between
                 pages as the title / action-button widths change. pointer-events-none so it never blocks the buttons. */}
