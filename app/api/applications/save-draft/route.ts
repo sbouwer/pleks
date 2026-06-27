@@ -42,6 +42,9 @@ interface Body {
   addresses?: unknown
   applicant_type?: string; company_info?: unknown
   marital_status?: string; matrimonial_regime?: string; spouse_info?: unknown
+  /** the filler finished their own section (documents) — set stage1_status server-side (the applicant isn't authed,
+   *  so a browser-client table write is unreliable under RLS). Drives the hub's "Completed" + resume restore. */
+  documentsSubmitted?: boolean
 }
 
 const APPLICANT_TYPES = ["individual", "couple", "company", "guarantor"]
@@ -137,6 +140,9 @@ export async function POST(req: NextRequest) {
     // If the applicant changed their email, persist it AND invalidate any prior email verification (the
     // anti-bot gate must re-verify the new address — else verify A, switch to B, submit B unverified).
     const updateFields: Record<string, unknown> = { ...fields }
+    // The filler finished their own section → mark documents_submitted (server-side; the unauthenticated applicant
+    // can't reliably set it via the browser client). This is what the hub + resume read as "Completed".
+    if (body.documentsSubmitted) updateFields.stage1_status = "documents_submitted"
     if (body.email) {
       const { data: cur, error: curErr } = await db.from("applications").select("applicant_email").eq("id", body.applicationId).maybeSingle()
       logQueryError("save-draft current email", curErr)

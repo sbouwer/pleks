@@ -605,7 +605,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // UPSERT the draft (create on first save, update thereafter — keyed on the held applicationId/token). Every
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
-  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
+  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean; documentsSubmitted?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
     // Primary-person resolution + the whole request body are pure (applySaveDraft) — the email guard, network call
     // and state writes stay here. On-behalf company → the named director is primary (see resolvePrimary).
     const primary = resolvePrimary(type, companyImDirector, coApplicants, form)
@@ -613,10 +613,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     try {
       const res = await fetch("/api/applications/save-draft", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(assembleSaveDraftPayload({
+        body: JSON.stringify({ ...assembleSaveDraftPayload({
           slug, applicationId, token, stepToSave, notify: !!opts?.explicit,
           type, companyImDirector, coApplicants, form, emp, dependentAdults, dependentMinors, income, commitments, company,
-        })),
+        }), documentsSubmitted: opts?.documentsSubmitted }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
       if (!res.ok || !json.applicationId || !json.token) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
@@ -777,15 +777,18 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     if (!applicationId) return
     setBusy(true)
     try {
-      // Back-compat: store the first main bank-statement path. The real extraction is the /screen pipeline,
-      // which enumerates EVERY uploaded file — so multi-file categories flow through with no extra wiring.
+      // Persist completion through the SERVER (save-draft, service client) — the unauthenticated applicant can't
+      // reliably set stage1_status via the browser client under RLS, which is why "Completed" was lost on resume.
+      // This also saves the latest fields + extends the token. bank_statement_path is best-effort back-compat
+      // (the /screen pipeline enumerates EVERY uploaded file regardless).
       const bankPath = (docFiles["bank_main"] ?? []).find((f) => f.uploaded)?.storagePath ?? null
-      await createClient().from("applications").update({ bank_statement_path: bankPath, stage1_status: "documents_submitted" }).eq("id", applicationId)
+      const r = await saveDraft(step, { silent: true, documentsSubmitted: true })
+      if (!r) { toast.error("Could not save — please try again."); return }
+      void createClient().from("applications").update({ bank_statement_path: bankPath }).eq("id", applicationId)
       // The applicant's own section is done → back to the status hub (their self card flips to Completed). The
       // application Review & Submit lives on the hub now (every flow), not at the end of a linear walk.
       setSelfSectionDone(true)
       setAtRoster(true)
-      autosave(step)
     } finally {
       setBusy(false)
     }
