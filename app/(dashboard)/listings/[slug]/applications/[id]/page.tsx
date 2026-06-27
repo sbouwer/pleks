@@ -114,7 +114,7 @@ export default async function ApplicationDetailPage({
     .from("applications")
     .select(`
       id, org_id, assigned_user_id, assigned_team_id, first_name, last_name, applicant_email, applicant_phone,
-      id_type, id_number, marital_status, matrimonial_regime, spouse_info, addresses, employment_type, employer_name,
+      id_type, id_number, marital_status, matrimonial_regime, spouse_info, applicant_addresses, employment_type, employer_name,
       gross_monthly_income_cents, income_sources, bank_statement_extracted,
       applicant_nationality_type, is_foreign_national,
       permit_type, permit_expiry_date, tpn_listing_limited,
@@ -278,7 +278,7 @@ export default async function ApplicationDetailPage({
     { ref: "primary", name: name || "the applicant", idNumber: app.id_number as string | null,
       maritalStatus: app.marital_status as string | null, matrimonialRegime: app.matrimonial_regime as string | null,
       spouseInfo: app.spouse_info as { isCoApplicant?: boolean; idNumber?: string | null; email?: string | null } | null,
-      addressKey: addressKey(app.addresses) },
+      addressKey: addressKey(app.applicant_addresses) },
     (coApplicants ?? []).map((c) => ({
       ref: `co_${c.id}`, name: [c.first_name, c.last_name].filter(Boolean).join(" ") || "a co-applicant",
       idNumber: c.id_number as string | null,
