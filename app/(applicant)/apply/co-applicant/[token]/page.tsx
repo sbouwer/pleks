@@ -20,7 +20,7 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
 
   const { data: co, error } = await service
     .from("application_co_applicants")
-    .select("id, first_name, last_name, id_type, id_number, applicant_email, applicant_phone, role, marital_status, matrimonial_regime, current_address, spouse_info, stage1_consent_given, access_token_expires, declined_at, primary_application_id")
+    .select("id, org_id, first_name, last_name, id_type, id_number, applicant_email, applicant_phone, role, marital_status, matrimonial_regime, current_address, spouse_info, stage1_consent_given, access_token_expires, declined_at, primary_application_id")
     .eq("access_token", token).is("declined_at", null).maybeSingle()
   logQueryError("co-applicant page load", error)
   if (!co) notFound()
@@ -62,6 +62,9 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
   return (
     <CoApplicantSession
       token={token}
+      orgId={co.org_id as string}
+      applicationId={co.primary_application_id as string}
+      coId={co.id as string}
       expired={expired}
       alreadyDone={co.stage1_consent_given === true}
       co={{

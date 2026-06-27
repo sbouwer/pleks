@@ -15,12 +15,15 @@ import { CheckCircle2, Clock } from "lucide-react"
 import { IndividualIdentity } from "@/components/parties/partySteps"
 import { ActionButton } from "@/components/ui/actions"
 import { validateIdentityCore, validateAddressStep, type PartyFormState, type PartyErrors } from "@/lib/parties/partyValidation"
-import { StepAddress, StepEmployment, StepIncome, StepExpenses } from "../../[slug]/applyIndividual"
+import { StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "../../[slug]/applyIndividual"
 import {
-  type Emp, type IncomeRow, SELF_EMPLOYED_TYPES,
+  type Emp, type IncomeRow, type DocFile, SELF_EMPLOYED_TYPES,
   seedIncomeFor, seedCommitments, allAmountsEmpty, intOrNull, posOrNull,
-  rowMonthlyCents, totalMonthlyCents, incomeSourcesPayload,
+  rowMonthlyCents, totalMonthlyCents, incomeSourcesPayload, incomeKeys,
 } from "../../[slug]/applyDomain"
+import { createClient } from "@/lib/supabase/client"
+import { validateUpload } from "@/lib/extraction/uploadValidator"
+import { deriveDocCategories } from "@/lib/applications/docCategories"
 
 export interface SpouseCandidate { firstName: string; lastName: string; email: string; idNumber: string }
 export interface CoPrefill { maritalStatus: string | null; matrimonialRegime: string | null; spouseIsCoApplicant: boolean | null; linkedAsSpouse: boolean }
@@ -34,8 +37,8 @@ function Shell({ children }: Readonly<{ children: React.ReactNode }>) {
   )
 }
 
-export function CoApplicantSession({ token, expired, alreadyDone, co, prefill, primaryCandidate, primaryName, unitLabel }: Readonly<{
-  token: string; expired: boolean; alreadyDone: boolean
+export function CoApplicantSession({ token, orgId, applicationId, coId, expired, alreadyDone, co, prefill, primaryCandidate, primaryName, unitLabel }: Readonly<{
+  token: string; orgId: string; applicationId: string; coId: string; expired: boolean; alreadyDone: boolean
   co: CoData; prefill: CoPrefill; primaryCandidate: SpouseCandidate | null; primaryName: string; unitLabel: string
 }>) {
   const [form, setForm] = useState<PartyFormState>({
@@ -59,6 +62,49 @@ export function CoApplicantSession({ token, expired, alreadyDone, co, prefill, p
   // Seed the income grid from the chosen employment status (only while nothing's typed) + the common commitments once.
   useEffect(() => { if (emp.employment_type) setIncome((cur) => (allAmountsEmpty(cur) ? seedIncomeFor(emp.employment_type) : cur)) }, [emp.employment_type])
   useEffect(() => { setCommitments((c) => (c.length === 0 ? seedCommitments() : c)) }, [])
+
+  // Documents (14P 0b.5) — the director's own docs upload to their co_{coId}/ subfolder, isolated from the primary's
+  // (no flat-path collision) and registered to THIS subject (detect-document infers it from the co_ path). Optional
+  // at Step 1 (declared is enough); uploading is how the director's surety gets VERIFIED + credited in the pool.
+  const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>({})
+  const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
+  const docCategories = deriveDocCategories(incomeKeys(income), emp.employment_type, form.idType, "individual", undefined, emp.sars_registered)
+
+  async function uploadDoc(categoryKey: string, file: File | null, single: boolean) {
+    if (!file) return
+    const fileId = `${categoryKey}_${crypto.randomUUID().slice(0, 8)}`
+    const entry: DocFile = { id: fileId, name: file.name, uploading: true, uploaded: false, storagePath: null }
+    setDocFiles((prev) => ({ ...prev, [categoryKey]: single ? [entry] : [...(prev[categoryKey] ?? []), entry] }))
+    const patch = (p: Partial<DocFile>) => setDocFiles((prev) => ({ ...prev, [categoryKey]: (prev[categoryKey] ?? []).map((f) => f.id === fileId ? { ...f, ...p } : f) }))
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const check = validateUpload(file.name, file.type, bytes)
+    if (!check.valid) { patch({ uploading: false, error: check.userMessage ?? "File not accepted." }); toast.error(check.userMessage?.split("\n")[0] ?? "File not accepted."); return }
+    try {
+      const supabase = createClient()
+      const ext = file.name.split(".").pop() ?? "pdf"
+      const path = `applications/${orgId}/${applicationId}/co_${coId}/${single ? categoryKey : fileId}.${ext}`
+      const { error: upErr } = await supabase.storage.from("application-docs").upload(path, file, { upsert: true })
+      if (upErr) throw upErr
+      try {
+        const res = await fetch(`/api/applications/${applicationId}/detect-document`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, docKey: categoryKey }) })
+        if (res.status === 422) {
+          const b = await res.json().catch(() => ({})) as { message?: string }
+          const msg = b.message ?? "This file is password-protected — please upload an unprotected version."
+          try { await supabase.storage.from("application-docs").remove([path]) } catch { /* best-effort */ }
+          patch({ uploading: false, error: msg }); toast.error(msg); return
+        }
+      } catch { /* detection non-fatal */ }
+      patch({ uploading: false, uploaded: true, storagePath: path })
+    } catch (err) { patch({ uploading: false, error: err instanceof Error ? err.message : "Upload failed" }) }
+  }
+  async function removeDoc(categoryKey: string, fileId: string) {
+    const f = (docFiles[categoryKey] ?? []).find((x) => x.id === fileId)
+    setDocFiles((prev) => ({ ...prev, [categoryKey]: (prev[categoryKey] ?? []).filter((x) => x.id !== fileId) }))
+    if (f?.storagePath) { try { await createClient().storage.from("application-docs").remove([f.storagePath]) } catch { /* best-effort */ } }
+  }
+  function renameDoc(categoryKey: string, fileId: string, name: string) {
+    setDocFiles((prev) => ({ ...prev, [categoryKey]: (prev[categoryKey] ?? []).map((f) => f.id === fileId ? { ...f, name } : f) }))
+  }
 
   if (expired) return (
     <Shell><div className="flex flex-col items-center gap-3 py-8 text-center">
@@ -143,6 +189,8 @@ export function CoApplicantSession({ token, expired, alreadyDone, co, prefill, p
       <StepEmployment emp={emp} setEmp={setEmp} />
       <StepIncome income={income} setIncome={setIncome} variable={SELF_EMPLOYED_TYPES.includes(emp.employment_type) || emp.employment_type === "commission"} />
       <StepExpenses dependentAdults={dependentAdults} setDependentAdults={setDependentAdults} dependentMinors={dependentMinors} setDependentMinors={setDependentMinors} commitments={commitments} setCommitments={setCommitments} />
+
+      <StepDocuments tab="required" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
 
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-3.5 accent-[var(--amber)]" />

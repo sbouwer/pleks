@@ -41,28 +41,39 @@ function mimeFromName(name: string): string {
   return "application/octet-stream"
 }
 
-/** Enumerate + download every uploaded doc for the application. STORAGE-complete (never drops a file); the
- *  application_documents registry (14P 0b) supplies each file's subjectRef — defaulting to 'primary' for an
- *  unregistered/legacy file (transitional, until registration is universal). Logs a count of any drift. */
+/** Enumerate + download every uploaded doc for the application — REGISTRY-DRIVEN (14P 0b.5): each registered doc
+ *  is downloaded wherever it lives (root for the primary, co_{id}/ subfolder for a director — subfolders isolate a
+ *  co's bank_main from the primary's, fixing the flat-path collision) with its registry subjectRef. A storage-
+ *  complete fallback also loads any ROOT file NOT in the registry as 'primary' (legacy/unregistered). Drift (a
+ *  registry row whose object is missing, or an unregistered file) is logged, never silently skipped (§3). */
 async function loadDocuments(db: Db, orgId: string, appId: string): Promise<Document[]> {
   const prefix = `applications/${orgId}/${appId}`
+  const subjects = await getApplicationDocumentSubjects(db, appId) // storage_path → subject_ref (authoritative)
+  const docs: Document[] = []
+  const seen = new Set<string>()
+  let missing = 0
+  // 1. Registered docs (root OR co_{id}/ subfolder) — registry attribution.
+  for (const [path, subjectRef] of subjects) {
+    const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(path)
+    if (dlErr || !blob) { missing++; continue }
+    const filename = path.split("/").pop() ?? path
+    docs.push({ path, filename, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(filename), slotType: slotTypeForFilename(filename), subjectRef })
+    seen.add(path)
+  }
+  // 2. Storage-complete fallback: ROOT files not in the registry (legacy/unregistered) → 'primary'.
   const { data: files, error } = await db.storage.from(BUCKET).list(prefix)
   logQueryError("screen storage.list", error)
-  if (!files || files.length === 0) return []
-  const subjects = await getApplicationDocumentSubjects(db, appId) // storage_path → subject_ref
-  const docs: Document[] = []
   let unregistered = 0
-  for (const f of files) {
-    if (!f.name || f.name.startsWith(".")) continue
+  for (const f of files ?? []) {
+    if (!f.name || f.name.startsWith(".") || f.id === null) continue // skip folder entries (co_{id}/) — handled via the registry
     const path = `${prefix}/${f.name}`
+    if (seen.has(path)) continue
     const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(path)
     if (dlErr || !blob) { logQueryError("screen storage.download", dlErr); continue }
-    const subjectRef = subjects.get(path)
-    if (!subjectRef) unregistered++
-    docs.push({ path, filename: f.name, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(f.name), slotType: slotTypeForFilename(f.name), subjectRef: subjectRef ?? "primary" })
+    docs.push({ path, filename: f.name, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(f.name), slotType: slotTypeForFilename(f.name), subjectRef: "primary" })
+    unregistered++
   }
-  // Drift observability (14P §3 — never a silent skip): a stored file with no registry row defaulted to 'primary'.
-  if (unregistered > 0) console.warn(`[screen] ${unregistered} document(s) for ${appId} not in application_documents — defaulted to subject 'primary'.`)
+  if (missing > 0 || unregistered > 0) console.warn(`[screen] ${appId}: ${missing} registry row(s) with a missing object, ${unregistered} unregistered file(s) → 'primary' (14P §3 drift).`)
   return docs
 }
 

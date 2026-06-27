@@ -43,10 +43,12 @@ export async function POST(req: NextRequest, { params }: Props) {
   const body = await req.json() as { path: string; docKey: string }
   const service = getServiceClient()
 
-  // Register in the doc→subject registry (14P 0b) — the applicant uploads as 'primary'. orgId is the 2nd path
-  // segment (applications/{orgId}/{appId}/…). Best-effort (the loader is storage-complete + defaults primary).
-  const orgId = body.path.split("/")[1]
-  if (orgId) await registerApplicationDocument(service, { orgId, applicationId: id, subjectRef: "primary", storagePath: body.path, documentType: body.docKey, uploadedBy: "applicant" })
+  // Register in the doc→subject registry (14P 0b). Infer the SUBJECT from the path: applications/{org}/{app}/[co_{id}/]
+  // {file} — a 'co_{id}/' segment means a director's own doc (0b.5), else the primary applicant. orgId = 2nd segment.
+  const segs = body.path.split("/")
+  const orgId = segs[1]
+  const subjectRef = segs[3]?.startsWith("co_") ? segs[3] : "primary"
+  if (orgId) await registerApplicationDocument(service, { orgId, applicationId: id, subjectRef, storagePath: body.path, documentType: body.docKey, uploadedBy: subjectRef === "primary" ? "applicant" : subjectRef })
 
   // Download file from storage
   const { data: fileData, error } = await service.storage
