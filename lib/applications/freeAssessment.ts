@@ -39,6 +39,20 @@ function suretyUnitsCoverRent(guarantors: FreeApplicantInput[], rentCents: numbe
     unit.reduce((sum, m) => sum + residualCapacityCents(m.declaredIncomeCents, m.declaredObligationsCents ?? 0), 0) >= rentCents)
 }
 
+/** The STRONGEST surety unit's pooled residual capacity (0 if none) — the same pooling as suretyUnitsCoverRent, but
+ *  returning the best unit's amount rather than a bool. Lets a caller distinguish none (0) / partial (<rent) / full
+ *  (≥rent) cover — e.g. the company-card's director-surety context line. */
+function bestSuretyUnitResidualCents(guarantors: FreeApplicantInput[]): number {
+  if (guarantors.length === 0) return 0
+  const units = new Map<string, FreeApplicantInput[]>()
+  guarantors.forEach((g, i) => {
+    const key = g.suretyGroup || `solo-${i}`
+    units.set(key, [...(units.get(key) ?? []), g])
+  })
+  return Math.max(0, ...[...units.values()].map((unit) =>
+    unit.reduce((sum, m) => sum + residualCapacityCents(m.declaredIncomeCents, m.declaredObligationsCents ?? 0), 0)))
+}
+
 export type DeclaredAffordabilityTier = "within" | "marginal" | "below" | "no-income"
 export type CompanyVerdict = "strong" | "backstopped" | "fail" // strong=company nets it · backstopped=directors' surety · fail
 export type ReadinessBand = "ready" | "partial" | "incomplete"
@@ -116,6 +130,8 @@ export interface FreeAssessmentResult {
   hasGuarantor: boolean                // a guarantor/surety is on the application
   guarantorBacksRent: boolean          // ≥1 surety UNIT's pooled residual absorbs the FULL rent (standalone
                                        //   guarantors never pool; only declared joint-&-several / spouse units do)
+  guarantorBestResidualCents: number   // the STRONGEST surety unit's pooled residual (0 if none) — none/partial/full
+                                       //   read for the company director-surety context line
   spousalConsentRequired: boolean      // an in-community surety-giver is present → spousal consent needed (s15 MPA)
   // Company (juristic) applications — the COMPANY is the payer (net profit, not turnover); the directors are the
   // surety backstop (their combined residual, via the guarantor units above). null/false for personal applications.
@@ -460,6 +476,7 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
   const guarantors = applicants.filter((a) => a.role === "guarantor")
   const hasGuarantor = guarantors.length > 0
   const guarantorBacksRent = suretyUnitsCoverRent(guarantors, rentCents)
+  const guarantorBestResidualCents = bestSuretyUnitResidualCents(guarantors)
   // s15(2)(h) MPA: an in-community surety-giver needs spousal CONSENT (co-signed via DocuSeal at signing). Validity,
   // separate from pooling. Surfaced here so the flow can require + route the witnessed consent before submit.
   const spousalConsentRequired = applicants.some((a) => a.role === "guarantor" && a.maritalRegime === "in_community")
@@ -511,6 +528,7 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
     coApplicantDependency,
     hasGuarantor,
     guarantorBacksRent,
+    guarantorBestResidualCents,
     spousalConsentRequired,
     isCompany,
     companyNetMonthlyCents,

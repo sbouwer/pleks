@@ -9,13 +9,12 @@
  */
 import { useState, type ReactNode } from "react"
 import { toast } from "sonner"
-import { AlertCircle, Building2, CheckCircle2, Pencil, ShieldCheck, User, Users } from "lucide-react"
+import { AlertCircle, Building2, CheckCircle2, Loader2, Pencil, ShieldCheck, User, Users } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
-import { formatZAR, startedWithinProbation } from "@/lib/constants"
-import type { PartyFormState } from "@/lib/parties/partyValidation"
+import { formatZAR } from "@/lib/constants"
 import { StepHeading } from "./applyShared"
-import { type Emp, type IncomeRow, type CoApplicant, type ScreeningStatus, employmentLabel, rowMonthlyCents, moneyCents, totalMonthlyCents } from "./applyDomain"
+import { type Emp, type ScreeningStatus, employmentLabel } from "./applyDomain"
 
 
 // ── Step 6 — Submit → instant Step-1 FREE assessment (declared affordability + readiness; zero-AI) ───────────
@@ -100,6 +99,17 @@ const COMPANY_BADGE: Record<string, { label: string; cls: string }> = {
   fail: { label: "Concern", cls: "border-red-200 bg-red-50 text-red-700" },
 }
 
+/** The director-surety backstop in one line — three reads by the strongest surety unit's residual vs the rent:
+ *  full cover (good), partial (some but < rent), or none (0). Context, never a fail — the company may stand alone. */
+function DirectorSuretyLine({ residualCents, rentCents }: Readonly<{ residualCents: number; rentCents: number }>) {
+  const cls = "rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-[11px] leading-relaxed text-[var(--ink-soft)]"
+  if (rentCents > 0 && residualCents >= rentCents)
+    return <p className={cls}>The directors&apos; declared surety also covers the rent on its own — a solid personal backstop behind the company figures.</p>
+  if (residualCents > 0)
+    return <p className={cls}>The directors&apos; declared surety is partial — it doesn&apos;t fully cover the rent on its own, so the company carries most of it. Your agent may ask for additional director surety.</p>
+  return <p className={cls}>The directors declared no personal surety — affordability rests on the company&apos;s figures alone. Your agent may ask a director to stand surety.</p>
+}
+
 /** Company affordability — the COMPANY is the payer (monthly surplus = money in − out, vs rent); the directors are
  *  the surety (their cards sit on the roster). Distinct from the personal residual card, which reads the director as
  *  the tenant — the wrong frame for a juristic applicant. */
@@ -127,6 +137,9 @@ function CompanyAffordabilityCard({ assessment, askingRentCents }: Readonly<{ as
         <span className={`text-xl font-semibold ${afterRent >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatZAR(afterRent)}</span>
       </div>
       <p className="text-[11px] leading-relaxed text-[var(--ink-mute)]">{note} The declared figures will be verified against the documents you&apos;ve provided.</p>
+      {/* Director-surety context (not a fail) — the strength of the personal backstop behind the company figures.
+          Three reads: full cover (good), partial, or none. */}
+      <DirectorSuretyLine residualCents={assessment.guarantorBestResidualCents} rentCents={askingRentCents} />
     </div>
   )
 }
@@ -353,11 +366,11 @@ export function ConsentVerify({ applicationId, token, email, verified, onVerifie
   )
 }
 
-export function StepSubmit({ form, emp, income, askingRentCents, coApplicants, applicantsGreen, screeningStatus, assessment, onAmend, onContinue, onAddApplicant, applicationId, token }: Readonly<{
-  form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number
-  coApplicants: CoApplicant[]; applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null
+export function StepSubmit({ emp, askingRentCents, applicantsGreen, screeningStatus, assessment, onAmend, onContinue, onAddApplicant, applicationId, token, busy }: Readonly<{
+  emp: Emp; askingRentCents: number
+  applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null
   onAmend: (s: number) => void; onContinue: () => void; onAddApplicant: () => void
-  applicationId: string | null; token: string | null
+  applicationId: string | null; token: string | null; busy?: boolean
 }>) {
   // The REAL submission — only when the applicant reviews the pre-screen and chooses to send it to the agent.
   async function submitToAgent(): Promise<boolean> {
@@ -373,38 +386,23 @@ export function StepSubmit({ form, emp, income, askingRentCents, coApplicants, a
 
   if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
 
-  const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
-  const incomeCents = totalMonthlyCents(income)
-  const namedSources = income.filter((r) => moneyCents(r.amount) > 0)
-  const ratio = incomeCents > 0 ? Math.round((askingRentCents / incomeCents) * 100) : null
-  const probation = startedWithinProbation(emp.start_date)
-  const others = coApplicants.filter((c) => c.email.trim())
+  // Not done yet — the assessment auto-runs when the review opens (consent is per-section, so there's no consent
+  // gate here). Show a brief "preparing" state while it computes; if it isn't running (idle / a failed run), offer a
+  // retry so the applicant is never stranded.
   return (
-    <div className="flex min-h-full flex-col gap-4">
-      <StepHeading title="Application review" sub="A quick check of what you provided — see your review and submit. (Consent was given when you completed your section.)" />
-      <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm">
-        <Row k="Applicant" v={name} />
-        <Row k="Email" v={form.email ?? "—"} />
-        <Row k="Employment" v={emp.employment_type ? employmentLabel(emp.employment_type) : "—"} />
-        {emp.start_date && <Row k="Employed since" v={probation ? `${emp.start_date} · possible probation` : emp.start_date} />}
-        <Row k="Total income" v={incomeCents > 0 ? formatZAR(incomeCents) + " /mo" : "—"} />
-        {namedSources.map((r) => <Row key={r.key} k={`— ${r.label || "Other"}`} v={`${formatZAR(rowMonthlyCents(r))} /mo`} />)}
-        <Row k="Rent-to-income" v={ratio != null ? `${ratio}%` : "—"} />
-        {others.length > 0 && <Row k="Others" v={others.map((c) => c.role === "guarantor" ? "guarantor" : "co-applicant").join(", ")} />}
-      </div>
-      {/* Consent is captured per section now — the review just runs the assessment. */}
-      <div className="mt-auto flex justify-end pt-3">
-        <ActionButton tone="primary" onClick={onContinue} disabled={!applicantsGreen}>See my review</ActionButton>
-      </div>
+    <div className="flex min-h-full flex-col items-center justify-center gap-4 py-20 text-center">
+      {busy ? (
+        <>
+          <Loader2 className="size-6 animate-spin text-[var(--amber)]" />
+          <p className="text-sm text-[var(--ink-soft)]">Preparing your review…</p>
+        </>
+      ) : (
+        <>
+          <p className="max-w-sm text-sm text-[var(--ink-soft)]">{applicantsGreen ? "Ready when you are — let's look at your review." : "Finish the outstanding sections first to see your review."}</p>
+          <ActionButton tone="primary" onClick={onContinue} disabled={!applicantsGreen}>See my review</ActionButton>
+        </>
+      )}
     </div>
   )
 }
 
-function Row({ k, v }: Readonly<{ k: string; v: string }>) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-[var(--rule)] py-2 last:border-0">
-      <span className="shrink-0 text-[var(--ink-mute)]">{k}</span>
-      <span className="text-right font-medium text-[var(--ink)]">{v}</span>
-    </div>
-  )
-}

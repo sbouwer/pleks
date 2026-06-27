@@ -93,7 +93,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         </ConsentVerify>
       </div>
     )
-    if (personalStep === STEP_REVIEW) return <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} coApplicants={coApplicants} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} />
+    if (personalStep === STEP_REVIEW) return <StepSubmit emp={emp} askingRentCents={askingRentCents} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} busy={busy} />
     return null
   }
   // Desktop = vertical step rail (left) + form panel; mobile/short = horizontal step bar atop the panel.

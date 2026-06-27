@@ -526,9 +526,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     }
     else if (id === "review") {
       const t = companyPaneCount + STEP_REVIEW; setMaxReached((m) => Math.max(m, t)); navTo(t)
-      // Re-check EVERY time the review is opened (once consented + verified) — never a stale cached assessment. The
-      // first time, consent isn't given yet → the review shows the consent screen, whose Continue runs the check.
-      if (consent && emailGateSatisfied) void submitApplication()
+      // Land STRAIGHT on the assessment — consent is captured per section now, so there's no consent screen to gate
+      // on. The free assessment re-runs idempotently on every open (never a stale cached read); the pane shows a
+      // brief "preparing" state while it computes, then the result.
+      void submitApplication()
     }
   }
   function backToMenu() { setAtRoster(true) } // the persistent "← All applicants" return
