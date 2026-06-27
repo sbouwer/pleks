@@ -3039,3 +3039,18 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS expenses jsonb;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS marital_status text;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS matrimonial_regime text;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS spouse_info jsonb;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §40  CO-APPLICANT PER-LINK SECTION (ADDENDUM_14Q §10 — the co-applicant's own session)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- A co-applicant completes their OWN section via their invite link (/apply/co-applicant/[token]), persisting here
+-- (NOT on applications). section_data jsonb holds the whole section (identity snapshot, income_sources, expenses,
+-- employment_details, dependants, addresses) — mirrors the apply flow's jsonb persistence. The few fields the agent
+-- detail + the screening/affordability + the 14M marital-consistency flags must QUERY are promoted to columns:
+-- marital_status / matrimonial_regime / current_address / spouse_info. stage1_consent_given (already present) is set
+-- when the co signs off — that's the J1 submit gate + the 14Q hub's live co-status.
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS section_data jsonb;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS marital_status text;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS matrimonial_regime text;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS current_address jsonb;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS spouse_info jsonb;

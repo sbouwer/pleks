@@ -173,7 +173,12 @@
       "decided_by",
       "decision_stage",
       "role",
-      "declared_monthly_obligations_cents"
+      "declared_monthly_obligations_cents",
+      "section_data",
+      "marital_status",
+      "matrimonial_regime",
+      "current_address",
+      "spouse_info"
     ],
     "application_directors": [
       "id",
