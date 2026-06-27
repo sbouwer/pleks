@@ -14,7 +14,7 @@ import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { decryptIdNumber, decryptSpouseInfo } from "@/lib/crypto/idNumber"
+import { decryptIdNumber, decryptDob, decryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/components/layout/focus-shell.css"
@@ -92,7 +92,7 @@ async function loadResume(
       firstName: (app.first_name as string | null) ?? undefined, lastName: (app.last_name as string | null) ?? undefined,
       email: (app.applicant_email as string | null) ?? undefined, phone: (app.applicant_phone as string | null) ?? undefined,
       idType: (app.id_type as string | null) ?? "sa_id", idNumber: decryptIdNumber(app.id_number as string | null) ?? undefined,
-      dob: (app.date_of_birth as string | null) ?? undefined,
+      dob: decryptDob(app.date_of_birth as string | null) ?? undefined,
       addresses: (app.applicant_addresses as PartyFormState["addresses"]) ?? undefined,
       maritalStatus: (app.marital_status as string | null) ?? undefined,
       matrimonialRegime: (app.matrimonial_regime as string | null) ?? undefined,

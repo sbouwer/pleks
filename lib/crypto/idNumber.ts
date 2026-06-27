@@ -33,6 +33,11 @@ export function decryptIdNumber(stored: string | null | undefined): string | nul
   return isEncrypted(v) ? decrypt(v) : v
 }
 
+// date_of_birth is encrypted at rest with the SAME generic string crypto (its column was widened date→text because
+// AES-GCM ciphertext can't live in a date column). Aliases for call-site clarity; tolerant decrypt as above.
+export const encryptDob = encryptIdNumber
+export const decryptDob = decryptIdNumber
+
 /** spouse_info jsonb carries an `idNumber` (the linked spouse's ID) — encrypt/decrypt JUST that field, leaving the
  *  rest of the object intact. Encrypt before store; decrypt at the read boundary before matching/display. */
 export function encryptSpouseInfo(si: Record<string, unknown> | null | undefined): Record<string, unknown> | null {

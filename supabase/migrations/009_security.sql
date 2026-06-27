@@ -297,3 +297,21 @@ WITH CHECK (
   OR org_id IN (SELECT org_id FROM user_orgs
                 WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
 );
+
+-- ═══════════════════════════════════════════════════════════════
+-- PART E: applicant date_of_birth → text (at-rest encryption follow-up to id_number encryption)
+-- ═══════════════════════════════════════════════════════════════
+-- The apply flow encrypts applicant PII at rest (AES-GCM). Ciphertext is a STRING, not a date — so the
+-- date_of_birth columns must be text to hold it. The applicant dob is a stored SNAPSHOT (parsed in JS for the
+-- id-vs-declared consistency read, never compared in SQL), so widening the type is safe; the app validates the
+-- format and the engine decrypts before parsing. Runs after §007 (applications.date_of_birth) + §005
+-- (application_co_applicants.date_of_birth). Idempotent: only ALTER while still `date`.
+DO $$
+BEGIN
+  IF (SELECT data_type FROM information_schema.columns WHERE table_name = 'applications' AND column_name = 'date_of_birth') = 'date' THEN
+    ALTER TABLE applications ALTER COLUMN date_of_birth TYPE text USING date_of_birth::text;
+  END IF;
+  IF (SELECT data_type FROM information_schema.columns WHERE table_name = 'application_co_applicants' AND column_name = 'date_of_birth') = 'date' THEN
+    ALTER TABLE application_co_applicants ALTER COLUMN date_of_birth TYPE text USING date_of_birth::text;
+  END IF;
+END $$;
