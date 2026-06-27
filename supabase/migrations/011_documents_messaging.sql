@@ -1153,3 +1153,33 @@ BEGIN
   CREATE POLICY "application_docs_select" ON storage.objects FOR SELECT TO anon, authenticated
     USING (bucket_id = 'application-docs' AND (storage.foldername(name))[1] = 'applications');
 END $DOLLAR$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §23  ADDENDUM_14P 0b: application_documents registry — system truth for doc→SUBJECT attribution
+--   Per-subject reconciliation (primary vs each director/co-applicant) makes "this document belongs to this
+--   subject" a first-class relationship that earns a row, not just a storage path. The registry is the loader's
+--   source of truth (queried filtered org_id + deleted_at IS NULL); storage stays FLAT for now — foldering is a
+--   later storage-layout/RLS-isolation change, the subject_ref column is the attribution. Writes are service-side
+--   (the public upload paths use the service client); org members read their own org's rows.
+-- ═══════════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS application_documents (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id         uuid NOT NULL,
+  application_id uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  subject_ref    text NOT NULL,                       -- 'primary' | 'co_{application_co_applicants.id}'
+  storage_path   text NOT NULL,                       -- where the bytes live (application-docs bucket)
+  document_type  text,                                -- slot/category: payslip, bank_statement, sa_id, …
+  uploaded_by    text,                                -- which token/subject uploaded it (lineage)
+  uploaded_at    timestamptz NOT NULL DEFAULT now(),
+  deleted_at     timestamptz                          -- soft-delete (reassign / mistake / consent withdrawal)
+);
+-- Deliberately NO unique on (application_id, subject_ref, document_type): multi-doc slots (payslips) legitimately
+-- have many rows; single-slot replacement soft-deletes the prior row instead.
+CREATE INDEX IF NOT EXISTS idx_application_documents_app ON application_documents(application_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_application_documents_subject ON application_documents(application_id, subject_ref) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_application_documents_org ON application_documents(org_id);
+
+ALTER TABLE application_documents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Org members view application documents" ON application_documents;
+CREATE POLICY "Org members view application documents" ON application_documents
+  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));

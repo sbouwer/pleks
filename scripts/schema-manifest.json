@@ -197,6 +197,17 @@
       "cipc_match_confidence",
       "created_at"
     ],
+    "application_documents": [
+      "id",
+      "org_id",
+      "application_id",
+      "subject_ref",
+      "storage_path",
+      "document_type",
+      "uploaded_by",
+      "uploaded_at",
+      "deleted_at"
+    ],
     "application_guarantors": [
       "id",
       "org_id",
