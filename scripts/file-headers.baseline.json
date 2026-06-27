@@ -132,7 +132,6 @@
   "app/(tenant)/tenant/account/page.tsx",
   "app/(tenant)/tenant/account/security/page.tsx",
   "app/(tenant)/tenant/lease/page.tsx",
-  "app/(tenant)/tenant/maintenance/[requestId]/page.tsx",
   "app/(tenant)/tenant/maintenance/new/MaintenanceNewForm.tsx",
   "app/(tenant)/tenant/maintenance/new/actions.ts",
   "app/(tenant)/tenant/maintenance/new/page.tsx",

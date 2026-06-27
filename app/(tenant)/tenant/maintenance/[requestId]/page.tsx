@@ -1,18 +1,17 @@
 /**
- * app/(tenant)/tenant/maintenance/[requestId]/page.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/maintenance/[requestId]/page.tsx — tenant portal: one maintenance request detail
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenant/maintenance/[requestId]
+ * Auth:   getTenantSession (redirects to /login); the request is scoped to the tenant + org
+ * Data:   maintenance_requests (+ contractor_view, contractor_updates) via the service client
+ * Notes:  Read-only detail. Canon DetailPageLayout + DetailCard (door style) — presentation only.
  */
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
-import { Badge } from "@/components/ui/badge"
-import { StatusBadge } from "@/components/shared/StatusBadge"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailCard } from "@/components/detail/DetailCard"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const URGENCY_LABEL: Record<string, string> = {
@@ -20,19 +19,6 @@ const URGENCY_LABEL: Record<string, string> = {
   urgent: "🟠 Urgent",
   routine: "🟡 Routine",
   cosmetic: "⚪ Cosmetic",
-}
-
-const STATUS_MAP: Record<string, "pending" | "active" | "completed" | "arrears"> = {
-  pending_review: "pending",
-  approved: "active",
-  work_order_sent: "active",
-  acknowledged: "active",
-  in_progress: "active",
-  pending_completion: "active",
-  completed: "completed",
-  closed: "completed",
-  rejected: "arrears",
-  cancelled: "arrears",
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -46,6 +32,28 @@ const STATUS_LABEL: Record<string, string> = {
   closed: "Closed",
   rejected: "Rejected",
   cancelled: "Cancelled",
+}
+
+/** Maintenance lifecycle → header status pill: green when resolved, red when refused, amber while live. */
+function detailStatus(status: string): DetailStatus {
+  const label = STATUS_LABEL[status] ?? status
+  if (status === "completed" || status === "closed") return { kind: "occupied", label }
+  if (status === "rejected" || status === "cancelled") return { kind: "flag", label }
+  if (status === "pending_review") return { kind: "neutral", label }
+  return { kind: "vacant", label }
+}
+
+function fmtDate(d: string): string {
+  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+}
+
+function Row({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium text-foreground">{value}</span>
+    </div>
+  )
 }
 
 export default async function PortalMaintenanceDetailPage({
@@ -93,114 +101,76 @@ export default async function PortalMaintenanceDetailPage({
     .order("created_at", { ascending: true })
     logQueryError("PortalMaintenanceDetailPage contractor_updates", updatesError)
 
+  const facts: DetailFact[] = []
+  if (req.work_order_number) facts.push({ k: "Ref", v: req.work_order_number, mono: true })
+  if (req.category) facts.push({ k: "Category", v: req.category.replaceAll("_", " ") })
+  if (req.urgency) facts.push({ k: "Urgency", v: URGENCY_LABEL[req.urgency] ?? req.urgency })
+  facts.push({ k: "Logged", v: fmtDate(req.created_at) })
+
   return (
-    <div>
-      <div className="mb-6">
-        <p className="text-sm text-muted-foreground mb-1">
-          <Link href="/tenant/maintenance" className="hover:text-foreground">Maintenance</Link> &rsaquo; Request
-        </p>
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="font-heading text-2xl">{req.title}</h1>
-          <StatusBadge status={STATUS_MAP[req.status] ?? "pending"} />
+    <DetailPageLayout
+      category="Maintenance"
+      backHref="/tenant/maintenance"
+      title={req.title}
+      status={detailStatus(req.status)}
+      facts={facts}
+    >
+      <DetailCard title="Issue description">
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{req.description}</p>
+      </DetailCard>
+
+      <DetailCard title="Status">
+        <div className="space-y-2 text-sm">
+          <Row label="Current status" value={STATUS_LABEL[req.status] ?? req.status} />
+          {contractorName && <Row label="Assigned to" value={contractorName} />}
+          {req.scheduled_date && <Row label="Scheduled" value={fmtDate(req.scheduled_date)} />}
+          {req.completed_at && <Row label="Completed" value={fmtDate(req.completed_at)} />}
         </div>
-        {req.work_order_number && (
-          <p className="text-sm text-muted-foreground mt-1">Ref: {req.work_order_number}</p>
+        {req.completion_notes && (
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="mb-1 text-xs text-muted-foreground">Resolution</p>
+            <p className="text-sm leading-relaxed text-foreground">{req.completion_notes}</p>
+          </div>
         )}
-      </div>
+      </DetailCard>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        {/* Details */}
-        <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Issue description</p>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{req.description}</p>
-          <div className="flex flex-wrap gap-2 text-xs">
-            {req.category && (
-              <Badge variant="secondary" className="capitalize">{req.category.replaceAll("_", " ")}</Badge>
-            )}
-            {req.urgency && (
-              <Badge variant="outline">{URGENCY_LABEL[req.urgency] ?? req.urgency}</Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Logged {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
-          </p>
-        </div>
-
-        {/* Status + assignment */}
-        <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Status</p>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Current status</span>
-              <span className="font-medium">{STATUS_LABEL[req.status] ?? req.status}</span>
-            </div>
-            {contractorName && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Assigned to</span>
-                <span>{contractorName}</span>
-              </div>
-            )}
-            {req.scheduled_date && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Scheduled</span>
-                <span>{new Date(req.scheduled_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}</span>
-              </div>
-            )}
-            {req.completed_at && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Completed</span>
-                <span>{new Date(req.completed_at).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}</span>
-              </div>
-            )}
-          </div>
-          {req.completion_notes && (
-            <div className="pt-2 border-t border-border/60">
-              <p className="text-xs text-muted-foreground mb-1">Resolution</p>
-              <p className="text-sm leading-relaxed">{req.completion_notes}</p>
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* Timeline */}
       {(updates ?? []).length > 0 && (
-        <div className="mt-4 rounded-xl border border-border/60 bg-card px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-4">Timeline</p>
-          <div className="space-y-4">
-            <div className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <div className="h-2 w-2 rounded-full bg-brand mt-1 shrink-0" />
-                <div className="flex-1 w-px bg-border/60 mt-1" />
-              </div>
-              <div className="pb-4">
-                <p className="text-sm font-medium">Reported</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
-                </p>
-              </div>
-            </div>
-            {(updates ?? []).map((u, i) => (
-              <div key={u.id} className="flex gap-3">
+        <DetailFullWidth>
+          <DetailCard title="Timeline">
+            <div className="space-y-4">
+              <div className="flex gap-3">
                 <div className="flex flex-col items-center">
-                  <div className="h-2 w-2 rounded-full bg-info mt-1 shrink-0" />
-                  {i < (updates ?? []).length - 1 && <div className="flex-1 w-px bg-border/60 mt-1" />}
+                  <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+                  <div className="mt-1 w-px flex-1 bg-border" />
                 </div>
                 <div className="pb-4">
-                  <p className="text-sm font-medium capitalize">
-                    {u.new_status.replaceAll("_", " ")}
-                  </p>
-                  {u.notes && <p className="text-sm text-muted-foreground mt-0.5">{u.notes}</p>}
+                  <p className="text-sm font-medium text-foreground">Reported</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(u.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                    {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
                   </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+              {(updates ?? []).map((u, i) => (
+                <div key={u.id} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-muted-foreground/50" />
+                    {i < (updates ?? []).length - 1 && <div className="mt-1 w-px flex-1 bg-border" />}
+                  </div>
+                  <div className="pb-4">
+                    <p className="text-sm font-medium capitalize text-foreground">
+                      {u.new_status.replaceAll("_", " ")}
+                    </p>
+                    {u.notes && <p className="mt-0.5 text-sm text-muted-foreground">{u.notes}</p>}
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(u.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </DetailCard>
+        </DetailFullWidth>
       )}
-    </div>
+    </DetailPageLayout>
   )
 }
