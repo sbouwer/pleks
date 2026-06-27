@@ -22,10 +22,10 @@ import { evaluateRuling } from "@/lib/applications/ruling"
 import { companyOptionFrom } from "@/lib/applications/assembleAssessment"
 import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { getApplicationDocumentSubjects } from "@/lib/applications/documentRegistry"
-import { evaluateCompanyRuling, type CompanyVerdict } from "@/lib/applications/companyRuling"
+import { evaluateCompanyRuling, type CompanyVerdict, type DirectorSurety } from "@/lib/applications/companyRuling"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
-import { RECONCILER_VERSION, type DeclaredContext, type Document, type ReconciliationResult } from "@/lib/extraction/types"
+import { RECONCILER_VERSION, type DeclaredContext, type Document, type ReconciliationResult, type PipelineDocumentResult } from "@/lib/extraction/types"
 import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -63,6 +63,55 @@ async function loadDocuments(db: Db, orgId: string, appId: string): Promise<Docu
   // Drift observability (14P §3 — never a silent skip): a stored file with no registry row defaulted to 'primary'.
   if (unregistered > 0) console.warn(`[screen] ${unregistered} document(s) for ${appId} not in application_documents — defaulted to subject 'primary'.`)
   return docs
+}
+
+/** The company's surety-director SET (14P 0b.3): the primary (lead) + each co-applicant standing surety. Each
+ *  director reconciles against ITS OWN declared income + docs (per-subject), scoped to adults:1 (§5.4 — co-directors
+ *  are separate households). A director with no docs reconciles declared-only → not credited (strict model, flag 97);
+ *  the engine pools only the VERIFIED residuals under the dispositive rule + the execution gate. */
+async function loadCompanyDirectorSet(
+  db: Db, appId: string, appliedRentCents: number, now: Date,
+  reconcileSubject: (ref: string, declaredCtx: DeclaredContext) => ReconciliationResult,
+  primaryDirector: DirectorSurety,
+): Promise<DirectorSurety[]> {
+  const { data: cos, error } = await db
+    .from("application_co_applicants")
+    .select("id, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, section_data, stage1_consent_given")
+    .eq("primary_application_id", appId).eq("is_surety_director", true)
+  logQueryError("screen co-directors", error)
+  const directors: DirectorSurety[] = [primaryDirector]
+  for (const c of cos ?? []) {
+    const sd = (c.section_data ?? {}) as {
+      income_sources?: Array<{ key: string; label: string; monthly_cents?: number }>
+      employment_details?: { start_date?: string | null }
+      dependants?: { adults?: number | null; minors?: number | null; school_fees?: number | null }
+    }
+    const declared: DeclaredContext = {
+      appliedRentCents,
+      applicant: { fullName: [c.first_name, c.last_name].filter(Boolean).join(" ") || undefined, idNumber: decryptIdNumber(c.id_number as string | null) ?? undefined },
+      incomeSources: (sd.income_sources ?? []).map((s) => ({ key: s.key, label: s.label, monthly_cents: s.monthly_cents ?? 0 })),
+    }
+    directors.push({
+      ref: `co_${c.id}`,
+      input: {
+        appliedRentCents,
+        declaredMonthlyIncomeCents: (c.gross_monthly_income_cents as number | null) ?? 0,
+        employmentType: (c.employment_type as string | null) ?? null,
+        employmentStartDate: sd.employment_details?.start_date ?? null,
+        reconciliation: reconcileSubject(`co_${c.id}`, declared),
+        now,
+        adults: 1,                                       // §5.4 — each director is their own household
+        adultDependents: sd.dependants?.adults ?? 0,
+        minorDependents: sd.dependants?.minors ?? 0,
+        schoolFeesCents: Math.round((sd.dependants?.school_fees ?? 0) * 100),
+        childMaintenanceCents: 0,
+      },
+      suretyState: "intended",                           // pre-execution at deep-scan time (signed at BUILD_69)
+      suretyGroup: null,                                 // no surety_group column today → each director is its own group
+      consented: c.stage1_consent_given === true,
+    })
+  }
+  return directors
 }
 
 interface AppRow {
@@ -157,7 +206,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // token context with no agent cookie/membership, so getOrgTier's cookie-client fallback returns "owner" and
     // silently skips AI extraction even for paid orgs. Capability gates must use the canonical tier.
     const tier = await getOrgTierCanonical(app.org_id)
-    let reconciliation: ReconciliationResult
+    let extracted: PipelineDocumentResult[] = []
     let fraudSignals: unknown[] = []
     const docs = await loadDocuments(db, app.org_id, id)
     if (hasFeature(tier, "ai_full") && docs.length > 0 && process.env.ANTHROPIC_API_KEY) {
@@ -165,11 +214,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         { unitType, applicantCount, documents: docs, declared, metadata: { source: "production", orgId: app.org_id, applicationId: id } },
         { orgId: app.org_id, suppressLogging: false, harnessMode: false },
       )
-      reconciliation = result.reconciliation
+      extracted = result.documents
       fraudSignals = result.fraudSignals
-    } else {
-      reconciliation = reconcile([], declared, new Date())
     }
+
+    // 14P 0b.3 — per-subject reconcile: partition the extracted docs by subjectRef (registry attribution) and
+    // reconcile each subject against ITS OWN declared income. Today every doc is 'primary' (co-doc upload is 0b.5),
+    // so a co-director with no docs reconciles declared-only (corroboratedIncome 0 → not credited → flag 97). The
+    // reconciler ALGORITHM is unchanged (RECONCILER_VERSION stable); the orchestration is captured by the 0b
+    // company-ruling version in ruling_version (§4 — bump the orchestration, not the reconciler).
+    const now = new Date()
+    const subjectOf = new Map(docs.map((d) => [d.path, d.subjectRef ?? "primary"]))
+    const reconcileSubject = (ref: string, declaredCtx: DeclaredContext): ReconciliationResult =>
+      reconcile(extracted.filter((r) => (subjectOf.get(r.path) ?? "primary") === ref), declaredCtx, now)
+    const reconciliation = reconcileSubject("primary", declared)
 
     const personalInput = {
       appliedRentCents,
@@ -177,7 +235,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       employmentType: app.employment_type,
       employmentStartDate: app.employment_start_date,
       reconciliation,
-      now: new Date(),
+      now,
       adults: applicantCount,                          // earner adults (applicant + co-applicants)
       adultDependents: (app as unknown as AppRow).dependent_adults_count ?? 0,
       minorDependents: (app as unknown as AppRow).dependent_minors_count ?? (app as unknown as AppRow).dependents_count ?? 0,
@@ -187,18 +245,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // ADDENDUM_14O/14P: a JURISTIC company applies through its directors — the deep scan rules on the company
-    // (declared signals) + the directors' VERIFIED surety, NOT the director's personal tenancy. companyOptionFrom
-    // returns null for non-juristic → the personal path is unchanged. Each director's call is scoped to adults:1
-    // (§5.4) — co-directors are separate households, not dependents. NB: until the 0b per-subject pipeline lands, only
-    // the lead (primary) is reconciled, so the director set is the lead alone (= 0a behaviour, a pool of one).
+    // (declared signals) + the directors' VERIFIED surety POOL, NOT the director's personal tenancy. companyOptionFrom
+    // returns null for non-juristic → the personal path is unchanged. Each director is scoped to adults:1 (§5.4).
     const companyOption = companyOptionFrom((app as unknown as { company_info?: Record<string, unknown> | null }).company_info, (app as unknown as { applicant_type?: string | null }).applicant_type)
-    const ruling = companyOption
-      ? evaluateCompanyRuling({
-          directors: [{ ref: "primary", input: { ...personalInput, adults: 1 }, suretyState: "intended", consented: true }],
-          company: companyOption,
-          companyVerdict: ((app as unknown as { free_assessment?: { companyVerdict?: CompanyVerdict } | null }).free_assessment)?.companyVerdict ?? null,
-        })
-      : evaluateRuling(personalInput)
+    let ruling: ReturnType<typeof evaluateRuling>
+    if (companyOption) {
+      const primaryDirector: DirectorSurety = { ref: "primary", input: { ...personalInput, adults: 1 }, suretyState: "intended", consented: true }
+      const directors = await loadCompanyDirectorSet(db, id, appliedRentCents, now, reconcileSubject, primaryDirector)
+      ruling = evaluateCompanyRuling({
+        directors, company: companyOption,
+        companyVerdict: ((app as unknown as { free_assessment?: { companyVerdict?: CompanyVerdict } | null }).free_assessment)?.companyVerdict ?? null,
+      })
+    } else {
+      ruling = evaluateRuling(personalInput)
+    }
 
     const iteration = await persistEvaluation(db, { orgId: app.org_id, appId: id, ruling, reconciliation, fraudSignals, declared, unitType, applicantCount, docCount: docs.length })
     await db.from("applications").update({ stage1_status: "pre_screen_complete" }).eq("id", id)
