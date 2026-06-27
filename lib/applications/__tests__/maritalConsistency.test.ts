@@ -5,7 +5,7 @@
  * spouse-as-applicant) for the agent + deep scan. Match key = ID number.
  */
 import { describe, it, expect } from "vitest"
-import { maritalConsistencyFlags, type MaritalParty } from "../maritalConsistency"
+import { maritalConsistencyFlags, addressKey, type MaritalParty } from "../maritalConsistency"
 
 const primary = (over: Partial<MaritalParty> = {}): MaritalParty => ({ ref: "primary", name: "Alex", idNumber: "ID_A", maritalStatus: "married", matrimonialRegime: "in_community", spouseInfo: { isCoApplicant: true, idNumber: "ID_B" }, addressKey: "12 oak st", ...over })
 const co = (over: Partial<MaritalParty> = {}): MaritalParty => ({ ref: "co_1", name: "Bo", idNumber: "ID_B", maritalStatus: "married", matrimonialRegime: "in_community", addressKey: "12 oak st", ...over })
@@ -46,5 +46,21 @@ describe("maritalConsistencyFlags", () => {
   it("flags are always non-blocking signals (minor)", () => {
     const fs = maritalConsistencyFlags(primary(), [co({ maritalStatus: "single", addressKey: "99 elm rd" })])
     expect(fs.every((f) => f.type === "signal" && f.severity === "minor")).toBe(true)
+  })
+})
+
+describe("addressKey", () => {
+  it("normalises a physical address to a comparable key (case/space-insensitive)", () => {
+    const a = [{ type: "physical", line1: "12 Oak  St", suburb: "Rondebosch", city: "Cape Town", postal: "7700" }]
+    const b = [{ type: "physical", line1: "12 oak st", suburb: "rondebosch", city: "cape town", postal: "7700" }]
+    expect(addressKey(a)).toBe(addressKey(b))
+  })
+  it("different addresses → different keys; empty/null → null", () => {
+    expect(addressKey([{ type: "physical", line1: "12 Oak St", city: "Cape Town" }])).not.toBe(addressKey([{ type: "physical", line1: "99 Elm Rd", city: "Cape Town" }]))
+    expect(addressKey(null)).toBeNull()
+    expect(addressKey([])).toBeNull()
+  })
+  it("prefers the physical address + accepts a single object", () => {
+    expect(addressKey({ type: "physical", line1: "1 A St", city: "Jhb" })).toBe(addressKey([{ type: "postal", line1: "PO Box 9" }, { type: "physical", line1: "1 a st", city: "jhb" }]))
   })
 })

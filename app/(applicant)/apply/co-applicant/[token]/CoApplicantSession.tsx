@@ -14,7 +14,8 @@ import { toast } from "sonner"
 import { CheckCircle2, Clock } from "lucide-react"
 import { IndividualIdentity } from "@/components/parties/partySteps"
 import { ActionButton } from "@/components/ui/actions"
-import { validateIdentityCore, type PartyFormState, type PartyErrors } from "@/lib/parties/partyValidation"
+import { validateIdentityCore, validateAddressStep, type PartyFormState, type PartyErrors } from "@/lib/parties/partyValidation"
+import { StepAddress } from "../../[slug]/applyIndividual"
 
 export interface SpouseCandidate { firstName: string; lastName: string; email: string; idNumber: string }
 export interface CoPrefill { maritalStatus: string | null; matrimonialRegime: string | null; spouseIsCoApplicant: boolean | null; linkedAsSpouse: boolean }
@@ -66,7 +67,7 @@ export function CoApplicantSession({ token, expired, alreadyDone, co, prefill, p
   }
 
   async function submit() {
-    const e = validateIdentityCore("individual", form, true)
+    const e = { ...validateIdentityCore("individual", form, true), ...validateAddressStep(form, true) }
     setErrors(e)
     if (Object.keys(e).length > 0) { toast.error("Please complete the highlighted fields."); return }
     if (!consent) { toast.error("Please tick the consent box to continue."); return }
@@ -106,6 +107,8 @@ export function CoApplicantSession({ token, expired, alreadyDone, co, prefill, p
       )}
 
       <IndividualIdentity f={form} set={set} errors={errors} fullFica sectioned coApplicants={primaryCandidate ? [primaryCandidate] : []} suggestSpouseIsCo={false} />
+
+      <StepAddress form={form} set={set} errors={errors} />
 
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-3.5 accent-[var(--amber)]" />

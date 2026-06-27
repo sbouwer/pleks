@@ -7,6 +7,19 @@
  * submit-to-agent J1 gate), then persisted as screening signals so they ride into triage + the deep scan.
  */
 import { type RulingFlag } from "./ruling"
+import type { PartyAddressInput } from "@/lib/parties/partyValidation"
+
+/** Normalise an address (a PartyAddressInput[] or a single one) to a comparable key for the divergence check (flag
+ *  16). Uses the physical address; null when there's nothing to compare. Pure. */
+export function addressKey(addresses: unknown): string | null {
+  if (!addresses) return null
+  const arr = (Array.isArray(addresses) ? addresses : [addresses]) as PartyAddressInput[]
+  const a = arr.find((x) => x?.type === "physical") ?? arr[0]
+  if (!a) return null
+  const street = a.line1 || [a.streetNumber, a.streetName].filter(Boolean).join(" ")
+  const parts = [street, a.suburb, a.city, a.postal].map((s) => (s ?? "").toString().toLowerCase().replace(/\s+/g, " ").trim()).filter(Boolean)
+  return parts.length ? parts.join("|") : null
+}
 
 export interface MaritalParty {
   ref: string                 // "primary" | "co_{id}"

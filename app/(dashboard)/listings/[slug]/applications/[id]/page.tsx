@@ -28,7 +28,7 @@ import { ScreeningRulingCard, type ScreeningEvaluationRow } from "./_components/
 import { DocumentsCard } from "./_components/DocumentsCard"
 import { FreeAssessmentCard } from "./_components/FreeAssessmentCard"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
-import { maritalConsistencyFlags } from "@/lib/applications/maritalConsistency"
+import { maritalConsistencyFlags, addressKey } from "@/lib/applications/maritalConsistency"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STEP1_LABEL: Record<string, string> = {
@@ -114,7 +114,7 @@ export default async function ApplicationDetailPage({
     .from("applications")
     .select(`
       id, org_id, assigned_user_id, assigned_team_id, first_name, last_name, applicant_email, applicant_phone,
-      id_type, id_number, marital_status, matrimonial_regime, spouse_info, employment_type, employer_name,
+      id_type, id_number, marital_status, matrimonial_regime, spouse_info, addresses, employment_type, employer_name,
       gross_monthly_income_cents, income_sources, bank_statement_extracted,
       applicant_nationality_type, is_foreign_national,
       permit_type, permit_expiry_date, tpn_listing_limited,
@@ -145,7 +145,7 @@ export default async function ApplicationDetailPage({
   const { data: coApplicants, error: coApplicantsError } = await db
     .from("application_co_applicants")
     .select(`
-      id, first_name, last_name, id_type, id_number, co_applicant_index, marital_status, matrimonial_regime,
+      id, first_name, last_name, id_type, id_number, co_applicant_index, marital_status, matrimonial_regime, current_address,
       role, is_surety_director, gross_monthly_income_cents, employment_type, employer_name,
       identity_match_status, employer_verification_status,
       salary_reconciliation_status, document_consistency_status,
@@ -277,11 +277,13 @@ export default async function ApplicationDetailPage({
   const maritalFlags = maritalConsistencyFlags(
     { ref: "primary", name: name || "the applicant", idNumber: app.id_number as string | null,
       maritalStatus: app.marital_status as string | null, matrimonialRegime: app.matrimonial_regime as string | null,
-      spouseInfo: app.spouse_info as { isCoApplicant?: boolean; idNumber?: string | null; email?: string | null } | null },
+      spouseInfo: app.spouse_info as { isCoApplicant?: boolean; idNumber?: string | null; email?: string | null } | null,
+      addressKey: addressKey(app.addresses) },
     (coApplicants ?? []).map((c) => ({
       ref: `co_${c.id}`, name: [c.first_name, c.last_name].filter(Boolean).join(" ") || "a co-applicant",
       idNumber: c.id_number as string | null,
       maritalStatus: c.marital_status as string | null, matrimonialRegime: c.matrimonial_regime as string | null,
+      addressKey: addressKey(c.current_address),
     })),
   )
 
