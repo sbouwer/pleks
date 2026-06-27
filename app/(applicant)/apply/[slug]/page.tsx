@@ -14,7 +14,7 @@ import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { decryptIdNumber } from "@/lib/crypto/idNumber"
+import { decryptIdNumber, decryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/components/layout/focus-shell.css"
@@ -97,7 +97,7 @@ async function loadResume(
       maritalStatus: (app.marital_status as string | null) ?? undefined,
       matrimonialRegime: (app.matrimonial_regime as string | null) ?? undefined,
       ...((): Partial<PartyFormState> => {
-        const s = app.spouse_info as { isCoApplicant?: boolean; firstName?: string; lastName?: string; idNumber?: string; email?: string } | null
+        const s = decryptSpouseInfo(app.spouse_info as Record<string, unknown> | null) as { isCoApplicant?: boolean; firstName?: string; lastName?: string; idNumber?: string; email?: string } | null
         if (!s) return {}
         if (s.isCoApplicant) return { spouseIsCoApplicant: true, spouseEmail: s.email }
         return { spouseIsCoApplicant: false, spouseFirstName: s.firstName, spouseLastName: s.lastName, spouseIdNumber: s.idNumber, spouseEmail: s.email }

@@ -15,7 +15,7 @@ import { createClient } from "@supabase/supabase-js"
 import { randomBytes } from "crypto"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { parseIncomeSources } from "@/lib/applications/incomeSources"
-import { encryptIdNumber } from "@/lib/crypto/idNumber"
+import { encryptIdNumber, encryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { sendApplicationResumeLink } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -78,7 +78,7 @@ function draftFields(body: Body) {
     company_info: body.company_info && typeof body.company_info === "object" ? body.company_info : null,
     marital_status: body.marital_status || null,
     matrimonial_regime: body.matrimonial_regime || null,
-    spouse_info: body.spouse_info && typeof body.spouse_info === "object" ? body.spouse_info : null,
+    spouse_info: encryptSpouseInfo(body.spouse_info as Record<string, unknown> | null), // encrypt the spouse's id at rest
     draft_step: typeof body.step === "number" ? body.step : null,
     draft_saved_at: new Date().toISOString(),
   }

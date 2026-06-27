@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
-import { encryptIdNumber, hashIdNumber } from "@/lib/crypto/idNumber"
+import { encryptIdNumber, hashIdNumber, encryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest, { params }: Props) {
     first_name: body.firstName ?? null, last_name: body.lastName ?? null,
     id_type: body.idType || "sa_id", id_number: encryptIdNumber(body.idNumber), id_number_hash: body.idNumber ? hashIdNumber(body.idNumber) : null, date_of_birth: body.dob || null,
     marital_status: body.maritalStatus || null, matrimonial_regime: body.matrimonialRegime || null,
-    current_address: body.currentAddress ?? null, spouse_info: body.spouseInfo ?? null,
+    current_address: body.currentAddress ?? null, spouse_info: encryptSpouseInfo(body.spouseInfo as Record<string, unknown> | null),
     employment_type: body.employmentType || null, employer_name: body.employerName || null,
     gross_monthly_income_cents: body.grossMonthlyIncomeCents ?? null,
     declared_monthly_obligations_cents: body.declaredMonthlyObligationsCents ?? null,

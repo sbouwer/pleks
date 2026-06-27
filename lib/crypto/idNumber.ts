@@ -33,6 +33,19 @@ export function decryptIdNumber(stored: string | null | undefined): string | nul
   return isEncrypted(v) ? decrypt(v) : v
 }
 
+/** spouse_info jsonb carries an `idNumber` (the linked spouse's ID) — encrypt/decrypt JUST that field, leaving the
+ *  rest of the object intact. Encrypt before store; decrypt at the read boundary before matching/display. */
+export function encryptSpouseInfo(si: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!si || typeof si !== "object") return null
+  const id = si.idNumber
+  return typeof id === "string" && id ? { ...si, idNumber: encryptIdNumber(id) } : { ...si }
+}
+export function decryptSpouseInfo(si: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!si || typeof si !== "object") return null
+  const id = si.idNumber
+  return typeof id === "string" && id ? { ...si, idNumber: decryptIdNumber(id) } : { ...si }
+}
+
 export function validateSAIdNumber(id: string): {
   valid: boolean
   dob?: Date

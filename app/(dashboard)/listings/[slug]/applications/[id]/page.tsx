@@ -29,7 +29,7 @@ import { DocumentsCard } from "./_components/DocumentsCard"
 import { FreeAssessmentCard } from "./_components/FreeAssessmentCard"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { maritalConsistencyFlags, addressKey } from "@/lib/applications/maritalConsistency"
-import { decryptIdNumber } from "@/lib/crypto/idNumber"
+import { decryptIdNumber, decryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STEP1_LABEL: Record<string, string> = {
@@ -278,7 +278,7 @@ export default async function ApplicationDetailPage({
   const maritalFlags = maritalConsistencyFlags(
     { ref: "primary", name: name || "the applicant", idNumber: decryptIdNumber(app.id_number as string | null),
       maritalStatus: app.marital_status as string | null, matrimonialRegime: app.matrimonial_regime as string | null,
-      spouseInfo: app.spouse_info as { isCoApplicant?: boolean; idNumber?: string | null; email?: string | null } | null,
+      spouseInfo: decryptSpouseInfo(app.spouse_info as Record<string, unknown> | null) as { isCoApplicant?: boolean; idNumber?: string | null; email?: string | null } | null,
       addressKey: addressKey(app.applicant_addresses) },
     (coApplicants ?? []).map((c) => ({
       ref: `co_${c.id}`, name: [c.first_name, c.last_name].filter(Boolean).join(" ") || "a co-applicant",

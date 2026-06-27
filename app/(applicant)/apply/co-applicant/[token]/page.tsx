@@ -11,7 +11,7 @@
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { decryptIdNumber } from "@/lib/crypto/idNumber"
+import { decryptIdNumber, decryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { CoApplicantSession, type CoPrefill, type SpouseCandidate } from "./CoApplicantSession"
 
 export default async function CoApplicantPage({ params }: Readonly<{ params: Promise<{ token: string }> }>) {
@@ -38,13 +38,13 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
   const unit = listing?.units
   const unitLabel = [unit?.unit_number, unit?.properties?.name].filter(Boolean).join(" · ") || "this home"
 
-  // id_number is encrypted at rest → decrypt at this read boundary before any matching/display (encrypted values
-  // never compare equal — random IV). spouse_info.idNumber is stored raw, so it matches the decrypted co id directly.
+  // id_number (column) + spouse_info.idNumber are encrypted at rest → decrypt BOTH at this read boundary before any
+  // matching/display (encrypted values never compare equal — random IV). primarySpouse is decrypted below.
   const coId = decryptIdNumber(co.id_number as string | null)
   const primaryId = decryptIdNumber(app?.id_number as string | null)
 
   // Symmetric prefill (14M §1): the primary declared THIS co as their in-community spouse → pre-fill the marriage.
-  const primarySpouse = app?.spouse_info as { isCoApplicant?: boolean; idNumber?: string | null } | null
+  const primarySpouse = decryptSpouseInfo(app?.spouse_info as Record<string, unknown> | null) as { isCoApplicant?: boolean; idNumber?: string | null } | null
   const linkedAsSpouse = !!primarySpouse?.isCoApplicant && !!primarySpouse.idNumber && primarySpouse.idNumber === coId
   const primaryName = [app?.first_name, app?.last_name].filter(Boolean).join(" ") || "the main applicant"
   const primaryCandidate: SpouseCandidate | null = primaryId
