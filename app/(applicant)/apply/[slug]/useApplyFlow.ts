@@ -368,6 +368,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const [selfEdited, setSelfEdited] = useState(false)
   // Same for the COMPANY card — re-editing the company section after sign-off flips it to "Updated application".
   const [companyEdited, setCompanyEdited] = useState(false)
+  // Re-verify identity ONCE per session before editing an already-COMPLETED section in a multi-party (non-company)
+  // application (couple/guarantor — the link is shared). Set true after that re-verify; resets on resume (new session).
+  // Individual / company / not-yet-completed apps verify once and never re-verify here.
+  const [editReverified, setEditReverified] = useState(false)
   // The email-OTP gate step (the "verify your email" modal target) — set when an unverified filler tries to start/
   // edit their section; null when no gate is open. Email verify is once-off (email_verified_at persists on resume).
   const [amendGateStep, setAmendGateStep] = useState<number | null>(null)
@@ -490,6 +494,17 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // Company sign-off complete → land on the per-applicant ROSTER hub (Company ✓ · director outstanding). A director
   // filler then nudges into their own section; an office-manager filler instead emails the named director their link.
   function afterCompanyReview() { if (companyImDirector) { setCompanySignedOff(true); setAtRoster(true) } else void sendToDirector() }
+  /** Whether opening/editing a personal pane needs the email-OTP gate. Verify ONCE before starting (the unlock).
+   *  Re-verify (once per session) ONLY before editing an already-COMPLETED section in a multi-party NON-company
+   *  application (couple/guarantor — the link is shared, so confirm it's really them). Individual, company, and
+   *  not-yet-completed apps never re-verify (email_verified_at persists). */
+  function gateNeedsVerify(toStep: number): boolean {
+    if (!emailGateSatisfied) return true // never verified → first-time verify
+    const personalPane = PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")
+    const completedMultiPartyEdit = selfSectionDone && !isJuristicCompany && coApplicants.length > 0
+    return personalPane && completedMultiPartyEdit && !editReverified
+  }
+
   // Open a card from the status-menu hub. The company card → the company section; "self" → the director's own
   // (personal) section, reusing what we know about the company (shared prefill, #1); "review" → the application
   // Review & Submit. navTo clears the hub flag + sets the step.
@@ -501,9 +516,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       const target = isJuristicCompany ? companyPaneCount : 0
       if (isJuristicCompany) setEmp((e) => prefillEmploymentFromCompany(company, e))
       if (selfSectionDone) setSelfEdited(true) // re-opening a completed section = an edit → card reads "Updated application"
-      // Verify email ONCE before starting your own section (the unlock — invited co-applicants auto-pass via their
-      // link). Once verified, email_verified_at persists across resumes, so we never re-ask.
-      if (!emailGateSatisfied) { setAmendGateStep(target); return }
+      // Verify email ONCE before starting (the unlock). Re-verify (once/session) ONLY before editing an already-
+      // COMPLETED section in a multi-party non-company app (couple/guarantor — shared link). See gateNeedsVerify.
+      if (gateNeedsVerify(target)) { setAmendGateStep(target); return }
       navTo(target)
     }
     else if (id === "review") {
@@ -788,8 +803,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     const editKey = nav.paneMeta[toStep]?.key ?? ""
     if (selfSectionDone && PERSONAL_EDIT_KEYS.has(editKey)) setSelfEdited(true)
     if (companySignedOff && COMPANY_EDIT_KEYS.has(editKey)) setCompanyEdited(true)
-    // Verify email once before editing personal details (only if not already verified — never on every resume).
-    if (!emailGateSatisfied && PERSONAL_EDIT_KEYS.has(editKey)) { setAmendGateStep(toStep); return }
+    // Verify (first time) / re-verify (completed multi-party edit) before editing personal details — see gateNeedsVerify.
+    if (gateNeedsVerify(toStep)) { setAmendGateStep(toStep); return }
     applyAmend(toStep)
   }
 
@@ -898,7 +913,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, emailVerified, setEmailVerified,
     coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
     addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, setBegun, docFiles, docEscape, setDocEscape,
-    consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep,
+    consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep, setEditReverified,
     screeningStatus, assessment,
     // handlers
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
