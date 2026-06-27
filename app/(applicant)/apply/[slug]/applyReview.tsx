@@ -15,7 +15,6 @@ import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { formatZAR, startedWithinProbation } from "@/lib/constants"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { StepHeading } from "./applyShared"
-import { ApplicantRoster, CompanyCard, buildRosterPersons, type RosterPerson } from "./applyRoster"
 import { type Emp, type IncomeRow, type CoApplicant, type ScreeningStatus, STEP_DOCUMENTS, employmentLabel, rowMonthlyCents, moneyCents, totalMonthlyCents } from "./applyDomain"
 
 
@@ -31,17 +30,6 @@ function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void;
       <ActionButton tone="primary" size="sm" onClick={onRerun}>Re-check now</ActionButton>
     </div>
   )
-}
-
-/** Review roster cards — the shared builder (#3) with the review's status source: an applicant's card is "complete"
- *  once they've SIGNED OFF (consent given, per the stored PII-safe readiness), matching the all-green submit gate —
- *  NOT full readiness (optional docs still to add surface behind Review, not as an outstanding card). */
-function reviewRosterPersons(form: PartyFormState, coApplicants: CoApplicant[], assessment: FreeAssessmentResult): RosterPerson[] {
-  return buildRosterPersons(form, coApplicants, {
-    statusAt: (i) => assessment.readiness.items[i]?.missing.includes("consent") ? "outstanding" : "complete",
-    fillerRole: "Primary applicant",
-    coRole: (c) => (c.role === "guarantor" ? "Guarantor" : "Co-applicant"),
-  })
 }
 
 /** Final state — nothing more for the applicant to do; the agent has it. Reached by "Submit to agent". */
@@ -199,10 +187,9 @@ function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant
 /** Step-1 FREE assessment — the application review: Completeness (what's done / still to add) + Residual
  *  affordability (income vs commitments + the residual + a tier read; prompts "Add applicant" when short).
  *  Re-runnable for free; the J1 gate (all co-applicants complete) blocks submit. (ADDENDUM_14M funnel) */
-function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, companyName, onAmend, onRerun, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; rosterPersons: RosterPerson[]; companyName?: string; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
+function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onRerun, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [reviewing, setReviewing] = useState(false)
 
   async function doSubmit() {
     setSubmitting(true)
@@ -211,28 +198,8 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, c
     else setSubmitting(false)
   }
   if (done) return <HandoffView />
-
-  const { incompleteCount } = assessment.readiness
-  const readyToSubmit = incompleteCount === 0   // J1: someone unfinished → blocked (server enforces too)
-  // A company always has ≥2 applicants (the entity + its director[s]), so it shows the roster even with one director.
-  const isMultiParty = rosterPersons.length > 1 || !!companyName
-
-  // Multi-applicant → the card roster: each party's status, and Review unlocks only when all are green. The
-  // affordability review + submit lives behind the Review button. A single applicant skips straight to it.
-  if (isMultiParty && !reviewing) {
-    return (
-      <ApplicantRoster
-        persons={rosterPersons} allGreen={readyToSubmit} outstandingCount={incompleteCount} onReview={() => setReviewing(true)}
-        companyCard={companyName ? <CompanyCard name={companyName} status="complete" /> : undefined}
-        amendSlot={
-          <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
-            <p className="text-xs text-[var(--ink-mute)]">Want to change something on your side while you wait? It&apos;s free to re-check.</p>
-            <AmendBar onAmend={onAmend} onRerun={onRerun} />
-          </div>
-        }
-      />
-    )
-  }
+  // The applicant ROSTER lives only on the overview hub now (one overview page) — the review goes straight to the
+  // assessment summary + submit. Editing is via the overview / the AmendBar below.
 
   // Ready — a structured four-dimension read (Affordability · Identity & stability · Declared income · Documents)
   // topped by a written one-line summary. All declared/unverified, zero-AI. The verdict is scoped to the
@@ -290,6 +257,14 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, rosterPersons, c
           </div>
         </div>
       </div>
+
+      {/* Something to change? Edit your details/documents (or go back to the overview to edit any card), then re-check. */}
+      {!verdictGood && (
+        <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
+          <p className="text-xs text-[var(--ink-mute)]">Want to change something before you submit? Edit your details or documents, then re-check — it&apos;s free.</p>
+          <AmendBar onAmend={onAmend} onRerun={onRerun} />
+        </div>
+      )}
 
       {/* What happens next — sets the journey, reinforces pre-selection + the consent/credit-check expectation. */}
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
@@ -387,9 +362,9 @@ export function ConsentVerify({ applicationId, token, email, verified, onVerifie
   )
 }
 
-export function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, applicantsGreen, screeningStatus, assessment, companyName, onAmend, onRerun, onContinue, onAddApplicant, applicationId, token, emailVerified, onVerified }: Readonly<{
+export function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, applicantsGreen, screeningStatus, assessment, onAmend, onRerun, onContinue, onAddApplicant, applicationId, token, emailVerified, onVerified }: Readonly<{
   form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
-  coApplicants: CoApplicant[]; applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null; companyName?: string
+  coApplicants: CoApplicant[]; applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null
   onAmend: (s: number) => void; onRerun: () => void; onContinue: () => void; onAddApplicant: () => void
   applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
 }>) {
@@ -405,7 +380,7 @@ export function StepSubmit({ form, emp, income, askingRentCents, consent, setCon
     } catch { toast.error("Could not submit. Please try again."); return false }
   }
 
-  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} rosterPersons={reviewRosterPersons(form, coApplicants, assessment)} companyName={companyName} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
+  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
 
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = totalMonthlyCents(income)

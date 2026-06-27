@@ -24,7 +24,7 @@ import { toast } from "sonner"
 import { CheckCircle2, Users, ArrowLeft, ArrowRight, Clock } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
-import { isJuristicCompanyType, StepCompanyDetails, StepCompanyReview } from "./applyCompany"
+import { StepCompanyDetails, StepCompanyReview } from "./applyCompany"
 import { type CoRole, SELF_EMPLOYED_TYPES, STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW } from "./applyDomain"
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
@@ -62,7 +62,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
     personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied,
-    statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
+    statusMenuCompany, statusMenuPersons, canSubmit, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
     reviewUnlocked, onReviewStep,
   } = f
@@ -85,7 +85,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (personalStep === STEP_EXPENSES) return <StepExpenses dependentAdults={dependentAdults} setDependentAdults={setDependentAdults} dependentMinors={dependentMinors} setDependentMinors={setDependentMinors} commitments={commitments} setCommitments={setCommitments} />
     if (personalStep === STEP_DOCUMENTS) return <StepDocuments tab="required" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
     if (personalStep === STEP_DOCS_OPTIONAL) return <StepDocuments tab="optional" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
-    if (personalStep === STEP_REVIEW) return <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} companyName={type === "company" && isJuristicCompanyType(company.companyType) ? (company.name || company.trading || "The company") : undefined} onAmend={amendAt} onRerun={submitApplication} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />
+    if (personalStep === STEP_REVIEW) return <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onRerun={submitApplication} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />
     return null
   }
   // Desktop = vertical step rail (left) + form panel; mobile/short = horizontal step bar atop the panel.
@@ -160,10 +160,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
               </div>
             )}
             <div className="flex shrink-0 items-center gap-2">
-              {/* Persistent return to the status hub from within a sub-flow — multi-party only (ADDENDUM_14Q §4);
-                  a solo applicant returns via Back at the first step. */}
-              {isMultiParty && inWizard && !atRoster && (
-                <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} onClick={backToMenu} disabled={busy} className="whitespace-nowrap">All applicants</ActionButton>
+              {/* Return to the overview hub from within a section — MOBILE/short only (desktop has the persistent
+                  "Application overview" item in the left rail, so the header button would be redundant there). */}
+              {inWizard && !atRoster && (
+                <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} onClick={backToMenu} disabled={busy} className="whitespace-nowrap [@media(min-width:1024px)_and_(min-height:700px)]:hidden">Overview</ActionButton>
               )}
               {showBackBtn && (
                 <ActionButton tone="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={busy}>Back</ActionButton>

@@ -435,7 +435,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   }
 
   function goBack() {
-    if (atRoster) { setBegun(false); return } // the status hub is the home → Back exits to the landing (Apply as)
+    if (atRoster) return // the status hub IS the home — there's no Back to "Apply as" (one-time landing)
+    // The review summary is reached FROM the overview (Review & submit), so Back returns there — not a step back into
+    // documents. (This is the constant-nav model: overview ⇄ review, with the steps only while editing.)
+    if (nav.paneMeta[step]?.key === "review") { setAtRoster(true); return }
     // A sub-flow's first step returns to the hub (never the landing, never another applicant). For a juristic company
     // the director-section start (step === companyPaneCount) also returns to the hub.
     if (step === 0) { setAtRoster(true); return }

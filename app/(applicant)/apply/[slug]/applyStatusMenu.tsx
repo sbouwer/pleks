@@ -41,18 +41,20 @@ const OPEN_LABEL: Record<CardStatus, string> = {
 function StatusPill({ status }: Readonly<{ status: CardStatus }>) {
   const base = "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold"
   if (status === "completed") return <span className={`${base} border-emerald-200 bg-emerald-50 text-emerald-700`}><CheckCircle2 className="size-3.5" /> {STATUS_LABEL.completed}</span>
-  if (status === "updated") return <span className={`${base} border-[var(--amber)] bg-[var(--amber-wash)] text-[var(--amber-ink)]`}><RefreshCw className="size-3.5" /> {STATUS_LABEL.updated}</span>
+  if (status === "updated") return <span className={`${base} border-blue-200 bg-blue-50 text-blue-700`}><RefreshCw className="size-3.5" /> {STATUS_LABEL.updated}</span>
   if (status === "in_progress") return <span className={`${base} border-[var(--amber)] bg-[var(--amber-wash)] text-[var(--amber-ink)]`}><Clock className="size-3.5" /> {STATUS_LABEL.in_progress}</span>
   if (status === "invitation_sent") return <span className={`${base} border-[var(--rule)] bg-[var(--paper)] text-[var(--ink-mute)]`}><Send className="size-3.5" /> {STATUS_LABEL.invitation_sent}</span>
   return <span className={`${base} border-[var(--rule)] bg-[var(--paper)] text-[var(--ink-mute)]`}><Circle className="size-3.5" /> {STATUS_LABEL.not_started}</span>
 }
 function cardTone(status: CardStatus): string {
   if (status === "completed") return "border-emerald-200 bg-emerald-50"
-  if (status === "updated") return "border-[var(--amber)] bg-[var(--amber-wash)]"
+  if (status === "updated") return "border-blue-200 bg-blue-50"
   return "border-[var(--rule)] bg-[var(--paper-sunk)]"
 }
 function iconTone(status: CardStatus): string {
-  return DONE_STATES.has(status) ? "bg-emerald-100 text-emerald-700" : "border border-[var(--rule)] bg-[var(--paper)] text-[var(--ink-mute)]"
+  if (status === "completed") return "bg-emerald-100 text-emerald-700"
+  if (status === "updated") return "bg-blue-100 text-blue-700"
+  return "border border-[var(--rule)] bg-[var(--paper)] text-[var(--ink-mute)]"
 }
 
 /** One hub card. Layout is a fixed column grid — [icon] [name/sub (flex)] [pill (fixed)] [affordance (fixed)] — so
