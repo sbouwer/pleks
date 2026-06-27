@@ -132,8 +132,6 @@
   "app/(tenant)/tenant/maintenance/new/MaintenanceNewForm.tsx",
   "app/(tenant)/tenant/maintenance/new/actions.ts",
   "app/(tenant)/tenant/maintenance/new/page.tsx",
-  "app/(tenant)/tenant/maintenance/page.tsx",
-  "app/(tenant)/tenant/payments/page.tsx",
   "app/api/admin/org-clause/route.ts",
   "app/api/admin/orgs/[orgId]/custom-template/route.ts",
   "app/api/admin/prime-rate/route.ts",
