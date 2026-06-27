@@ -12,8 +12,9 @@ import { ReportIssueLink } from "./_components/ReportIssueLink"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { DetailCard } from "@/components/detail/DetailCard"
 import {
-  FileText, CreditCard, Wrench, ClipboardCheck,
   AlertTriangle, CheckCircle2, Clock, Phone, Bell,
 } from "lucide-react"
 import { getTemplate } from "@/lib/comms/template-registry"
@@ -160,27 +161,24 @@ export default async function PortalDashboard() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="font-heading text-3xl">Welcome back, {tenantName.split(" ")[0]}</h1>
-        {property && (
-          <p className="text-sm text-muted-foreground mt-1">
-            {property.name} · {unit?.unit_number}
-            {property.address_line1 && ` · ${property.address_line1}`}
-          </p>
-        )}
-      </div>
+      <ResourcePageHeader
+        eyebrow="Tenant"
+        title={`Welcome back, ${tenantName.split(" ")[0]}`}
+        headline={property ? `${property.name} · ${unit?.unit_number ?? ""}` : "Your home"}
+        sub={property?.address_line1 ?? undefined}
+      />
 
       {unreadMandatoryCount > 0 && (
         <Link
           href="/tenant/communications"
-          className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-4 hover:bg-amber-100 transition-colors"
+          className="mb-4 flex items-center gap-3 rounded-[var(--r-button)] border border-warning/30 bg-warning/10 px-4 py-3 transition-colors hover:bg-warning/15"
         >
-          <Bell className="h-5 w-5 text-amber-600 shrink-0" />
+          <Bell className="h-5 w-5 shrink-0 text-warning" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-800">
+            <p className="text-sm font-semibold text-foreground">
               You have {unreadMandatoryCount} unread notice{unreadMandatoryCount > 1 ? "s" : ""} that require your attention.
             </p>
-            <p className="text-xs text-amber-700">Review now →</p>
+            <p className="text-xs text-muted-foreground">Review now →</p>
           </div>
         </Link>
       )}
@@ -188,9 +186,9 @@ export default async function PortalDashboard() {
       {emergencyPhone && (
         <a
           href={`tel:${emergencyPhone}`}
-          className="flex items-center gap-3 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 mb-4 hover:bg-destructive/10 transition-colors"
+          className="mb-4 flex items-center gap-3 rounded-[var(--r-button)] border border-destructive/20 bg-destructive/5 px-4 py-3 transition-colors hover:bg-destructive/10"
         >
-          <Phone className="h-5 w-5 text-destructive shrink-0" />
+          <Phone className="h-5 w-5 shrink-0 text-destructive" />
           <div>
             <p className="text-sm font-semibold text-destructive">Emergency? Call {emergencyPhone}</p>
             <p className="text-xs text-muted-foreground">{emergencyContactName ?? "After-hours & weekends"}</p>
@@ -198,107 +196,92 @@ export default async function PortalDashboard() {
         </a>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
         {/* Lease summary */}
-        <Link href="/tenant/lease" className="block">
-          <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-2 hover:border-brand/40 transition-colors h-full">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-              <FileText className="h-3.5 w-3.5" />
-              My Lease
+        <Link href="/tenant/lease" className="block h-full">
+          <DetailCard title="My lease">
+            <div className="space-y-1">
+              <p className="font-semibold text-foreground">{property?.name ?? "Property"}</p>
+              <p className="text-sm text-muted-foreground">
+                {lease.start_date && new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                {lease.end_date && ` – ${new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`}
+              </p>
+              {lease.monthly_rent_cents && (
+                <p className="text-sm font-medium text-foreground">{formatZAR(lease.monthly_rent_cents)}/month</p>
+              )}
             </div>
-            <p className="font-semibold">{property?.name ?? "Property"}</p>
-            <p className="text-sm text-muted-foreground">
-              {lease.start_date && new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
-              {lease.end_date && ` – ${new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`}
-            </p>
-            {lease.monthly_rent_cents && (
-              <p className="text-sm font-medium">{formatZAR(lease.monthly_rent_cents)}/month</p>
-            )}
-          </div>
+          </DetailCard>
         </Link>
 
         {/* Next payment / outstanding */}
-        <Link href="/tenant/payments" className="block">
-          <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-2 hover:border-brand/40 transition-colors h-full">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-              <CreditCard className="h-3.5 w-3.5" />
-              Payments
-            </div>
+        <Link href="/tenant/payments" className="block h-full">
+          <DetailCard title="Payments">
             {invoice ? (
-              <>
+              <div className="space-y-2">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Outstanding balance</p>
-                    <p className={`text-xl font-heading ${balanceClass(invoice.balance_cents)}`}>
+                    <p className={`font-heading text-xl ${balanceClass(invoice.balance_cents)}`}>
                       {formatZAR(invoice.balance_cents ?? 0)}
                     </p>
                   </div>
                   {invoice.status === "overdue" && (
-                    <AlertTriangle className="h-5 w-5 text-danger shrink-0 mt-1" />
+                    <AlertTriangle className="mt-1 h-5 w-5 shrink-0 text-destructive" />
                   )}
                   {invoice.status !== "overdue" && invoice.balance_cents != null && invoice.balance_cents <= 0 && (
-                    <CheckCircle2 className="h-5 w-5 text-success shrink-0 mt-1" />
+                    <CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-success" />
                   )}
                 </div>
                 {daysUntilDue !== null && daysUntilDue >= 0 && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" />
                     Due {daysUntilDue === 0 ? "today" : `in ${daysUntilDue} days`}
                     {invoice.payment_reference && ` · Ref: ${invoice.payment_reference}`}
                   </p>
                 )}
-              </>
+              </div>
             ) : (
-              <p className="text-sm text-success flex items-center gap-1.5">
+              <p className="flex items-center gap-1.5 text-sm text-success">
                 <CheckCircle2 className="h-4 w-4" /> Account clear
               </p>
             )}
-          </div>
+          </DetailCard>
         </Link>
 
         {/* Upcoming inspection */}
-        <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-2">
-          <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-            <ClipboardCheck className="h-3.5 w-3.5" />
-            Next Inspection
-          </div>
+        <DetailCard title="Next inspection">
           {inspection ? (
-            <>
-              <p className="font-medium capitalize">{inspection.inspection_type.replaceAll("_", " ")} inspection</p>
+            <div className="space-y-1">
+              <p className="font-medium capitalize text-foreground">{inspection.inspection_type.replaceAll("_", " ")} inspection</p>
               <p className="text-sm text-muted-foreground">
                 {new Date(inspection.scheduled_date).toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })}
               </p>
-            </>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">No inspections scheduled</p>
           )}
-        </div>
+        </DetailCard>
 
         {/* Recent maintenance */}
-        <Link href="/tenant/maintenance" className="block">
-          <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-2 hover:border-brand/40 transition-colors h-full">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-                <Wrench className="h-3.5 w-3.5" />
-                Maintenance
-              </div>
-              <ReportIssueLink />
+        <DetailCard
+          title="Maintenance"
+          action={{ label: "All requests", href: "/tenant/maintenance" }}
+          headerAction={<ReportIssueLink />}
+        >
+          {maintenance.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No requests logged</p>
+          ) : (
+            <div className="space-y-2">
+              {maintenance.map((m) => (
+                <div key={m.id} className="flex items-center justify-between gap-2">
+                  <p className="flex-1 truncate text-sm text-foreground">{m.title}</p>
+                  <StatusBadge status={MAINTENANCE_STATUS_MAP[m.status] ?? "pending"} />
+                </div>
+              ))}
             </div>
-            {maintenance.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No requests logged</p>
-            ) : (
-              <div className="space-y-2 mt-1">
-                {maintenance.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between gap-2">
-                    <p className="text-sm truncate flex-1">{m.title}</p>
-                    <StatusBadge status={MAINTENANCE_STATUS_MAP[m.status] ?? "pending"} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Link>
+          )}
+        </DetailCard>
 
       </div>
     </div>

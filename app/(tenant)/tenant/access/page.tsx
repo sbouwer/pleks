@@ -26,8 +26,8 @@ export default async function PortalAccessPage({
   if (!token) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
-        <div className="text-center max-w-sm">
-          <p className="text-lg font-semibold mb-2">Invalid portal link</p>
+        <div className="max-w-sm rounded-[var(--r-button)] border border-border bg-card px-6 py-8 text-center">
+          <p className="mb-2 text-lg font-semibold text-foreground">Invalid portal link</p>
           <p className="text-sm text-muted-foreground">
             This link is missing a valid access token. Please use the link sent by your agent.
           </p>
@@ -49,8 +49,8 @@ export default async function PortalAccessPage({
   if (error || !tokenRecord) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
-        <div className="text-center max-w-sm">
-          <p className="text-lg font-semibold mb-2">Link expired or invalid</p>
+        <div className="max-w-sm rounded-[var(--r-button)] border border-border bg-card px-6 py-8 text-center">
+          <p className="mb-2 text-lg font-semibold text-foreground">Link expired or invalid</p>
           <p className="text-sm text-muted-foreground">
             This portal link has expired or been revoked. Please ask your agent to send a new link.
           </p>

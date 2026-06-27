@@ -1,11 +1,10 @@
 /**
- * app/(tenant)/tenant/lease/page.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/lease/page.tsx — tenant portal: the tenant's active lease overview
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenant/lease
+ * Auth:   getTenantSession (redirects to /login); lease/unit/org all come from the session
+ * Data:   units (+ properties) via the service client; deposit balance computed from the movement ledger
+ * Notes:  Read-only. Canon DetailPageLayout + DetailCard (door style) — presentation only.
  */
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -13,8 +12,10 @@ import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { computeDepositBalance } from "@/lib/deposits/depositBalance"
 import { formatZAR } from "@/lib/constants"
-import { Badge } from "@/components/ui/badge"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { ActionButton } from "@/components/ui/actions"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { FileText, Download } from "lucide-react"
 
 function termRemaining(endDate: string | null) {
@@ -28,6 +29,25 @@ function termRemaining(endDate: string | null) {
     return `${days} day${days === 1 ? "" : "s"} remaining`
   }
   return `${months} month${months === 1 ? "" : "s"} remaining`
+}
+
+function leaseStatus(s: string): DetailStatus {
+  if (s === "active" || s === "month_to_month") return { kind: "occupied", label: s.replaceAll("_", " ") }
+  if (s === "notice") return { kind: "vacant", label: "Notice period" }
+  return { kind: "neutral", label: s.replaceAll("_", " ") }
+}
+
+function fmtDate(d: string): string {
+  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+}
+
+function Row({ label, value, tone }: Readonly<{ label: string; value: string; tone?: "ok" }>) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={tone === "ok" ? "text-right font-medium text-success" : "text-right font-medium text-foreground"}>{value}</span>
+    </div>
+  )
 }
 
 export default async function PortalLeasePage() {
@@ -55,138 +75,86 @@ export default async function PortalLeasePage() {
 
   const hasDocument = lease.generated_doc_path || lease.external_document_path
 
+  const facts: DetailFact[] = []
+  if (lease.monthly_rent_cents) facts.push({ k: "Monthly rent", v: formatZAR(lease.monthly_rent_cents), mono: true })
+  if (lease.deposit_cents) facts.push({ k: "Deposit", v: formatZAR(lease.deposit_cents), mono: true })
+  if (lease.end_date) facts.push({ k: "Term", v: termRemaining(lease.end_date) ?? "—" })
+
   return (
-    <div>
-      <h1 className="font-heading text-3xl mb-6">My Lease</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        {/* Property */}
-        <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Property</p>
-          <div>
-            <p className="font-semibold">{property?.name ?? "—"}</p>
+    <DetailPageLayout
+      category="Home"
+      backHref="/tenant"
+      title="My lease"
+      status={leaseStatus(lease.status)}
+      facts={facts}
+    >
+      <DetailCard title="Property">
+        <div>
+          <p className="font-semibold text-foreground">{property?.name ?? "—"}</p>
+          <p className="text-sm text-muted-foreground">
+            Unit {unit?.unit_number ?? "—"}
+            {unit?.floor != null && `, Floor ${unit.floor}`}
+          </p>
+          {property?.address_line1 && (
             <p className="text-sm text-muted-foreground">
-              Unit {unit?.unit_number ?? "—"}
-              {unit?.floor != null && `, Floor ${unit.floor}`}
+              {property.address_line1}
+              {property.suburb && `, ${property.suburb}`}
+              {property.city && `, ${property.city}`}
             </p>
-            {property?.address_line1 && (
-              <p className="text-sm text-muted-foreground">
-                {property.address_line1}
-                {property.suburb && `, ${property.suburb}`}
-                {property.city && `, ${property.city}`}
-              </p>
-            )}
-          </div>
+          )}
         </div>
+      </DetailCard>
 
-        {/* Lease terms */}
-        <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Lease terms</p>
+      <DetailCard title="Lease terms">
+        <div className="space-y-2 text-sm">
+          <Row label="Type" value={(lease.lease_type?.replaceAll("_", " ") ?? "Residential")} />
+          {lease.start_date && <Row label="Start date" value={fmtDate(lease.start_date)} />}
+          {lease.end_date && <Row label="End date" value={fmtDate(lease.end_date)} />}
+          {lease.end_date && <Row label="Term" value={termRemaining(lease.end_date) ?? "—"} />}
+        </div>
+      </DetailCard>
+
+      <DetailCard title="Financials">
+        <div className="space-y-2 text-sm">
+          {lease.monthly_rent_cents && <Row label="Monthly rent" value={formatZAR(lease.monthly_rent_cents)} />}
+          {lease.payment_due_day && (
+            <Row label="Payment due" value={`${lease.payment_due_day === 1 ? "1st" : `${lease.payment_due_day}th`} of each month`} />
+          )}
+          {lease.deposit_cents && <Row label="Deposit held" value={formatZAR(lease.deposit_cents)} />}
+          {depositBalance != null && <Row label="Deposit (incl. interest)" value={formatZAR(depositBalance)} tone="ok" />}
+        </div>
+      </DetailCard>
+
+      {(lease.escalation_rate || lease.next_escalation_date) && (
+        <DetailCard title="Escalation">
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Type</span>
-              <span className="capitalize">{lease.lease_type?.replaceAll("_", " ") ?? "Residential"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Status</span>
-              <Badge variant="outline" className="capitalize">{lease.status}</Badge>
-            </div>
-            {lease.start_date && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Start date</span>
-                <span>{new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}</span>
-              </div>
-            )}
-            {lease.end_date && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">End date</span>
-                <span>{new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}</span>
-              </div>
-            )}
-            {lease.end_date && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Term</span>
-                <span className="font-medium">{termRemaining(lease.end_date)}</span>
-              </div>
-            )}
+            {lease.escalation_rate && <Row label="Annual increase" value={`${lease.escalation_rate}%`} />}
+            {lease.next_escalation_date && <Row label="Next review" value={fmtDate(lease.next_escalation_date)} />}
           </div>
-        </div>
-
-        {/* Financials */}
-        <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Financials</p>
-          <div className="space-y-2 text-sm">
-            {lease.monthly_rent_cents && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Monthly rent</span>
-                <span className="font-semibold">{formatZAR(lease.monthly_rent_cents)}</span>
-              </div>
-            )}
-            {lease.payment_due_day && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Payment due</span>
-                <span>
-                  {lease.payment_due_day === 1 ? "1st" : `${lease.payment_due_day}th`} of each month
-                </span>
-              </div>
-            )}
-            {lease.deposit_cents && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Deposit held</span>
-                <span>{formatZAR(lease.deposit_cents)}</span>
-              </div>
-            )}
-            {depositBalance != null && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Deposit (incl. interest)</span>
-                <span className="text-success font-medium">{formatZAR(depositBalance)}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Escalation */}
-        {(lease.escalation_rate || lease.next_escalation_date) && (
-          <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Escalation</p>
-            <div className="space-y-2 text-sm">
-              {lease.escalation_rate && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Annual increase</span>
-                  <span>{lease.escalation_rate}%</span>
-                </div>
-              )}
-              {lease.next_escalation_date && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Next review</span>
-                  <span>{new Date(lease.next_escalation_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-      </div>
-
-      {/* Document download */}
-      {hasDocument && (
-        <div className="mt-4 rounded-xl border border-border/60 bg-card px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">Signed lease agreement</p>
-              <p className="text-xs text-muted-foreground">PDF document</p>
-            </div>
-          </div>
-          <ActionButton asChild tone="secondary" size="sm">
-            <Link href={`/api/portal/lease/${leaseId}/download`}>
-              <Download className="h-4 w-4 mr-1.5" />
-              Download
-            </Link>
-          </ActionButton>
-        </div>
+        </DetailCard>
       )}
-    </div>
+
+      {hasDocument && (
+        <DetailFullWidth>
+          <DetailCard title="Lease document">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Signed lease agreement</p>
+                  <p className="text-xs text-muted-foreground">PDF document</p>
+                </div>
+              </div>
+              <ActionButton asChild tone="secondary" size="sm">
+                <Link href={`/api/portal/lease/${leaseId}/download`}>
+                  <Download className="mr-1.5 h-4 w-4" />
+                  Download
+                </Link>
+              </ActionButton>
+            </div>
+          </DetailCard>
+        </DetailFullWidth>
+      )}
+    </DetailPageLayout>
   )
 }

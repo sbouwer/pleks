@@ -12,9 +12,9 @@ import Link from "next/link"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { listControllersForSubject } from "@/lib/popia/requests"
 import { SovereignDataBadge } from "@/components/popia/SovereignDataBadge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { ActionButton } from "@/components/ui/actions"
-import { Badge } from "@/components/ui/badge"
 import { ChevronRight, ExternalLink } from "lucide-react"
 
 export default async function SupplierPrivacyPage() {
@@ -42,70 +42,60 @@ export default async function SupplierPrivacyPage() {
   )
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Your data &amp; privacy</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Exercise your POPIA rights against each organisation that holds data about you.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <ResourcePageHeader
+        eyebrow="Supplier"
+        title="Your data & privacy"
+        headline="Your POPIA rights, held by you"
+        sub="Exercise your POPIA rights against each organisation that holds data about you."
+      />
 
       <div className="space-y-3">
         {supplierControllers.map((ctrl) => (
-          <Card key={`${ctrl.type}-${ctrl.org_id ?? "pleks"}`} className="w-full">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-medium">{ctrl.org_name}</CardTitle>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {ctrl.type === "pleks_rp"
-                      ? "Pleks — Responsible Party for your account"
-                      : "Supplier — agency data"}
-                  </p>
-                </div>
-                <Badge variant="outline" className="text-xs">Supplier</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pb-3">
-              <p className="text-xs text-muted-foreground mb-3">
-                {ctrl.data_categories.join(" · ")}
-              </p>
-              {ctrl.org_id && (
-                <ActionButton asChild tone="secondary" size="sm" className="h-7 text-xs">
-                  <Link href={`/supplier/privacy/requests/new?org=${ctrl.org_id}`}>
-                    Open request <ChevronRight className="size-3 ml-1" />
-                  </Link>
-                </ActionButton>
-              )}
-            </CardContent>
-          </Card>
+          <DetailCard
+            key={`${ctrl.type}-${ctrl.org_id ?? "pleks"}`}
+            title={ctrl.org_name}
+            headerAction={
+              <span className="rounded-[var(--r-button)] border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.07em] text-muted-foreground">
+                Supplier
+              </span>
+            }
+          >
+            <p className="mb-1 text-xs capitalize text-muted-foreground">
+              {ctrl.type === "pleks_rp"
+                ? "Pleks — Responsible Party for your account"
+                : "Supplier — agency data"}
+            </p>
+            <p className="mb-3 text-xs text-muted-foreground">{ctrl.data_categories.join(" · ")}</p>
+            {ctrl.org_id && (
+              <ActionButton asChild tone="secondary" size="sm">
+                <Link href={`/supplier/privacy/requests/new?org=${ctrl.org_id}`}>
+                  Open request <ChevronRight className="ml-1 size-3" />
+                </Link>
+              </ActionButton>
+            )}
+          </DetailCard>
         ))}
       </div>
 
       <SovereignDataBadge variant="subject" agencyName="your agency" />
 
       {recentRequests.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Previous requests</CardTitle>
-          </CardHeader>
-          <CardContent className="divide-y">
+        <DetailCard title="Previous requests" flush>
+          <div className="divide-y divide-border">
             {recentRequests.map((r) => (
-              <div
-                key={r.id}
-                className="flex items-center justify-between py-2"
-              >
+              <div key={r.id} className="flex items-center justify-between px-5 py-3">
                 <div>
-                  <p className="text-sm capitalize">{r.request_type.replace("_", " ")}</p>
+                  <p className="text-sm capitalize text-foreground">{r.request_type.replace("_", " ")}</p>
                   <p className="text-xs text-muted-foreground">
                     {new Date(r.submitted_at).toLocaleDateString("en-ZA")}
                   </p>
                 </div>
-                <Badge variant="outline" className="text-xs capitalize">{r.status}</Badge>
+                <span className="rounded-[var(--r-button)] border border-border px-2 py-0.5 text-xs capitalize text-muted-foreground">{r.status}</span>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </DetailCard>
       )}
 
       <div className="grid grid-cols-2 gap-3">

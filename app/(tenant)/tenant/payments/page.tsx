@@ -1,18 +1,33 @@
 /**
- * app/(tenant)/tenant/payments/page.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/payments/page.tsx — tenant portal: rent account (balance, EFT details, payment history)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenant/payments
+ * Auth:   getTenantSession (redirects to /login); scoped to the lease + org
+ * Data:   rent_invoices (latest open), payments (history), bank_accounts (trust) via the service client
+ * Notes:  Hybrid overview (summary cards + history list) — canon ResourcePageHeader + DetailCard. Not a pure
+ *         list/detail page, so it keeps a bespoke body adopting the canon primitives. Presentation only.
  */
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
-import { CheckCircle2, AlertTriangle, Building2, Download } from "lucide-react"
-import Link from "next/link"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { DetailCard } from "@/components/detail/DetailCard"
+import { CheckCircle2, AlertTriangle, Download } from "lucide-react"
+
+function fmtDate(d: string): string {
+  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+}
+
+function Row({ label, value, mono }: Readonly<{ label: string; value: string; mono?: boolean }>) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={mono ? "text-right font-mono text-foreground" : "text-right font-medium text-foreground"}>{value}</span>
+    </div>
+  )
+}
 
 export default async function PortalPaymentsPage() {
   const session = await getTenantSession()
@@ -51,107 +66,90 @@ export default async function PortalPaymentsPage() {
   const payments = paymentsRes.data ?? []
   const bank = bankRes.data
 
+  const headline = invoice ? `${formatZAR(invoice.balance_cents ?? 0)} due` : "Account clear — no amounts due"
+
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-6">Payments</h1>
+      <ResourcePageHeader
+        eyebrow="Tenant"
+        title="Payments"
+        headline={headline}
+        sub="Your rent account, EFT details and payment history."
+      />
 
-      {/* Current balance + EFT details */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div className="rounded-xl border border-border/60 bg-card px-5 py-5 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Current balance</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <DetailCard title="Current balance">
           {invoice ? (
-            <>
+            <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <AlertTriangle className={`h-5 w-5 shrink-0 ${invoice.status === "overdue" ? "text-danger" : "text-warning"}`} />
-                <p className={`text-2xl font-heading ${invoice.status === "overdue" ? "text-danger" : ""}`}>
+                <AlertTriangle className={invoice.status === "overdue" ? "h-5 w-5 shrink-0 text-destructive" : "h-5 w-5 shrink-0 text-warning"} />
+                <p className={invoice.status === "overdue" ? "font-heading text-2xl text-destructive" : "font-heading text-2xl text-foreground"}>
                   {formatZAR(invoice.balance_cents ?? 0)}
                 </p>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Due: {new Date(invoice.due_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
-              </p>
+              <p className="text-sm text-muted-foreground">Due: {fmtDate(invoice.due_date)}</p>
               {invoice.payment_reference && (
-                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                  <p className="text-xs text-muted-foreground mb-0.5">Use this reference for EFT</p>
-                  <p className="text-sm font-mono font-semibold">{invoice.payment_reference}</p>
+                <div className="rounded-[var(--r-button)] bg-muted/50 px-3 py-2">
+                  <p className="mb-0.5 text-xs text-muted-foreground">Use this reference for EFT</p>
+                  <p className="font-mono text-sm font-semibold text-foreground">{invoice.payment_reference}</p>
                 </div>
               )}
-            </>
+            </div>
           ) : (
             <div className="flex items-center gap-2 text-success">
               <CheckCircle2 className="h-5 w-5" />
               <p className="font-medium">Account clear — no amounts due</p>
             </div>
           )}
-        </div>
+        </DetailCard>
 
         {bank && (
-          <div className="rounded-xl border border-border/60 bg-card px-5 py-5 space-y-3">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
-              <Building2 className="h-3.5 w-3.5" />
-              EFT banking details
-            </div>
+          <DetailCard title="EFT banking details">
             <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Bank</span>
-                <span className="font-medium">{bank.bank_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Account holder</span>
-                <span>{bank.account_holder}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Account number</span>
-                <span className="font-mono">{bank.account_number}</span>
-              </div>
-              {bank.branch_code && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Branch code</span>
-                  <span className="font-mono">{bank.branch_code}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Account type</span>
-                <span className="capitalize">{bank.account_type}</span>
-              </div>
+              <Row label="Bank" value={bank.bank_name} />
+              <Row label="Account holder" value={bank.account_holder} />
+              <Row label="Account number" value={bank.account_number} mono />
+              {bank.branch_code && <Row label="Branch code" value={bank.branch_code} mono />}
+              <Row label="Account type" value={bank.account_type} />
             </div>
-          </div>
+          </DetailCard>
         )}
       </div>
 
-      {/* Payment history */}
-      <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
-        <div className="px-5 py-3 border-b border-border/60 flex items-center justify-between">
-          <p className="text-sm font-semibold">Payment history</p>
-          <Link
-            href={`/api/portal/statement`}
-            target="_blank"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Download className="h-3 w-3" /> Download statement
-          </Link>
-        </div>
-        {payments.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground">No payment records yet.</p>
-        ) : (
-          <div className="divide-y divide-border/60">
-            {payments.map((p) => (
-              <div key={p.id} className="flex items-center justify-between px-5 py-3">
-                <div>
-                  <p className="text-sm font-medium">
-                    {p.reference ?? "Rental payment"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(p.payment_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
-                    {p.payment_method && ` · ${p.payment_method.replaceAll("_", " ")}`}
-                    {p.reference && ` · Ref: ${p.reference}`}
-                  </p>
+      <div className="mt-4">
+        <DetailCard
+          title="Payment history"
+          flush
+          headerAction={
+            <Link
+              href="/api/portal/statement"
+              target="_blank"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Download className="h-3 w-3" /> Download statement
+            </Link>
+          }
+        >
+          {payments.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-muted-foreground">No payment records yet.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {payments.map((p) => (
+                <div key={p.id} className="flex items-center justify-between px-5 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{p.reference ?? "Rental payment"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(p.payment_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                      {p.payment_method && ` · ${p.payment_method.replaceAll("_", " ")}`}
+                      {p.reference && ` · Ref: ${p.reference}`}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-success">{formatZAR(p.amount_cents)}</p>
                 </div>
-                <p className="text-sm font-semibold text-success">{formatZAR(p.amount_cents)}</p>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </DetailCard>
       </div>
     </div>
   )
