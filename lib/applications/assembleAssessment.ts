@@ -14,6 +14,7 @@
 import { freeAssessment, type FreeApplicantInput, type FreeAssessmentResult, type FreeAssessmentOptions, type DocSlot } from "@/lib/applications/freeAssessment"
 import { isJuristicCompanyType } from "@/lib/applications/companyTypes"
 import { companyAgeYears } from "@/lib/applications/docCategories"
+import { decryptIdNumber } from "@/lib/crypto/idNumber"
 
 export interface AssessmentAppRow {
   gross_monthly_income_cents?: number | null
@@ -104,7 +105,7 @@ export function assembleAssessment(p: Readonly<{
       declaredIncomeCents: p.app.gross_monthly_income_cents ?? 0,
       childMaintenanceCents: p.childMaintenanceCents,
       declaredObligationsCents: p.app.declared_monthly_obligations_cents ?? null,
-      idType: p.app.id_type ?? null, idNumber: p.app.id_number ?? null,
+      idType: p.app.id_type ?? null, idNumber: decryptIdNumber(p.app.id_number ?? null),
       declaredDob: p.app.date_of_birth ?? null,
       employmentStartDate: p.app.employment_start_date ?? null,
       contractEndDate: (p.app.employment_details?.contract_end_date as string | null) ?? null,
@@ -116,7 +117,7 @@ export function assembleAssessment(p: Readonly<{
       role: c.role === "guarantor" || c.is_surety_director === true ? "guarantor" : "co_applicant",
       declaredIncomeCents: c.gross_monthly_income_cents ?? 0,
       declaredObligationsCents: c.declared_monthly_obligations_cents ?? null,
-      idType: c.id_type ?? null, idNumber: c.id_number ?? null,
+      idType: c.id_type ?? null, idNumber: decryptIdNumber(c.id_number ?? null),
       declaredDob: c.date_of_birth ?? null,
       documentsUploaded: c.documents_submitted === true,
       complete: c.stage1_consent_given === true,

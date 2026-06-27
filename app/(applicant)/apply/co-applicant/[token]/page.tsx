@@ -11,6 +11,7 @@
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { CoApplicantSession, type CoPrefill, type SpouseCandidate } from "./CoApplicantSession"
 
 export default async function CoApplicantPage({ params }: Readonly<{ params: Promise<{ token: string }> }>) {
@@ -37,12 +38,17 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
   const unit = listing?.units
   const unitLabel = [unit?.unit_number, unit?.properties?.name].filter(Boolean).join(" · ") || "this home"
 
+  // id_number is encrypted at rest → decrypt at this read boundary before any matching/display (encrypted values
+  // never compare equal — random IV). spouse_info.idNumber is stored raw, so it matches the decrypted co id directly.
+  const coId = decryptIdNumber(co.id_number as string | null)
+  const primaryId = decryptIdNumber(app?.id_number as string | null)
+
   // Symmetric prefill (14M §1): the primary declared THIS co as their in-community spouse → pre-fill the marriage.
   const primarySpouse = app?.spouse_info as { isCoApplicant?: boolean; idNumber?: string | null } | null
-  const linkedAsSpouse = !!primarySpouse?.isCoApplicant && !!primarySpouse.idNumber && primarySpouse.idNumber === (co.id_number as string | null)
+  const linkedAsSpouse = !!primarySpouse?.isCoApplicant && !!primarySpouse.idNumber && primarySpouse.idNumber === coId
   const primaryName = [app?.first_name, app?.last_name].filter(Boolean).join(" ") || "the main applicant"
-  const primaryCandidate: SpouseCandidate | null = app?.id_number
-    ? { firstName: (app.first_name as string | null) ?? "", lastName: (app.last_name as string | null) ?? "", email: "", idNumber: app.id_number as string }
+  const primaryCandidate: SpouseCandidate | null = primaryId
+    ? { firstName: (app?.first_name as string | null) ?? "", lastName: (app?.last_name as string | null) ?? "", email: "", idNumber: primaryId }
     : null
 
   // Already-saved marital (resume) takes precedence over the symmetric prefill.
@@ -60,7 +66,7 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
       alreadyDone={co.stage1_consent_given === true}
       co={{
         firstName: (co.first_name as string | null) ?? "", lastName: (co.last_name as string | null) ?? "",
-        idType: (co.id_type as string | null) ?? "sa_id", idNumber: (co.id_number as string | null) ?? "",
+        idType: (co.id_type as string | null) ?? "sa_id", idNumber: coId ?? "",
         email: (co.applicant_email as string | null) ?? "", phone: (co.applicant_phone as string | null) ?? "",
         currentAddress: (co.current_address as Record<string, unknown> | null) ?? null,
       }}

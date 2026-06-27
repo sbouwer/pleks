@@ -14,6 +14,7 @@ import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/components/layout/focus-shell.css"
@@ -90,7 +91,7 @@ async function loadResume(
     form: {
       firstName: (app.first_name as string | null) ?? undefined, lastName: (app.last_name as string | null) ?? undefined,
       email: (app.applicant_email as string | null) ?? undefined, phone: (app.applicant_phone as string | null) ?? undefined,
-      idType: (app.id_type as string | null) ?? "sa_id", idNumber: (app.id_number as string | null) ?? undefined,
+      idType: (app.id_type as string | null) ?? "sa_id", idNumber: decryptIdNumber(app.id_number as string | null) ?? undefined,
       dob: (app.date_of_birth as string | null) ?? undefined,
       addresses: (app.applicant_addresses as PartyFormState["addresses"]) ?? undefined,
       maritalStatus: (app.marital_status as string | null) ?? undefined,
@@ -117,7 +118,7 @@ async function loadResume(
     coApplicants: (cos ?? []).map((c) => ({
       firstName: (c.first_name as string | null) ?? "", lastName: (c.last_name as string | null) ?? "",
       email: (c.applicant_email as string | null) ?? "", phone: (c.applicant_phone as string | null) ?? "",
-      idNumber: (c.id_number as string | null) ?? "", role: (c.role as "co_applicant" | "guarantor") ?? "co_applicant", invited: true,
+      idNumber: decryptIdNumber(c.id_number as string | null) ?? "", role: (c.role as "co_applicant" | "guarantor") ?? "co_applicant", invited: true,
     })),
     docPaths,
   }

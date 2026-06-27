@@ -15,6 +15,7 @@ import { createClient } from "@supabase/supabase-js"
 import { randomBytes } from "crypto"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { parseIncomeSources } from "@/lib/applications/incomeSources"
+import { encryptIdNumber } from "@/lib/crypto/idNumber"
 import { sendApplicationResumeLink } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -59,7 +60,7 @@ function draftFields(body: Body) {
     first_name: body.first_name ?? null, last_name: body.last_name ?? null, applicant_phone: body.phone ?? null,
     // id_type + employment_type carry DB CHECK constraints — an empty string (saving before they're picked)
     // would VIOLATE the check, so coerce ""→null (NULL passes the check; a partial draft is allowed).
-    id_type: body.id_type || null, id_number: body.id_number ?? null, date_of_birth: body.date_of_birth || null,
+    id_type: body.id_type || null, id_number: encryptIdNumber(body.id_number), date_of_birth: body.date_of_birth || null,
     employment_type: body.employment_type || null, employer_name: body.employer_name ?? null,
     employment_start_date: body.employment_start_date || null,
     employment_details: body.employment_details && typeof body.employment_details === "object" ? body.employment_details : null,

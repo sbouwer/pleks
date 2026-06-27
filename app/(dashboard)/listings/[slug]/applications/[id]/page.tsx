@@ -29,6 +29,7 @@ import { DocumentsCard } from "./_components/DocumentsCard"
 import { FreeAssessmentCard } from "./_components/FreeAssessmentCard"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { maritalConsistencyFlags, addressKey } from "@/lib/applications/maritalConsistency"
+import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STEP1_LABEL: Record<string, string> = {
@@ -275,13 +276,13 @@ export default async function ApplicationDetailPage({
   // the agent always sees the current picture and no person-naming flags are stored (free_assessment is PII-safe).
   // Flag 17 (external spouse's ID matches a party) fires today; 15/16 follow once co-applicants persist marital data.
   const maritalFlags = maritalConsistencyFlags(
-    { ref: "primary", name: name || "the applicant", idNumber: app.id_number as string | null,
+    { ref: "primary", name: name || "the applicant", idNumber: decryptIdNumber(app.id_number as string | null),
       maritalStatus: app.marital_status as string | null, matrimonialRegime: app.matrimonial_regime as string | null,
       spouseInfo: app.spouse_info as { isCoApplicant?: boolean; idNumber?: string | null; email?: string | null } | null,
       addressKey: addressKey(app.applicant_addresses) },
     (coApplicants ?? []).map((c) => ({
       ref: `co_${c.id}`, name: [c.first_name, c.last_name].filter(Boolean).join(" ") || "a co-applicant",
-      idNumber: c.id_number as string | null,
+      idNumber: decryptIdNumber(c.id_number as string | null),
       maritalStatus: c.marital_status as string | null, matrimonialRegime: c.matrimonial_regime as string | null,
       addressKey: addressKey(c.current_address),
     })),

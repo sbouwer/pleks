@@ -18,6 +18,7 @@ import { randomBytes } from "crypto"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { encryptIdNumber } from "@/lib/crypto/idNumber"
 import { parseIncomeSources } from "@/lib/applications/incomeSources"
 
 function getServiceClient() {
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
       applicant_email: body.email,
       applicant_phone: body.phone,
       id_type: body.id_type,
-      id_number: body.id_number,
+      id_number: encryptIdNumber(body.id_number), // PII encrypted at rest (decrypt at the read boundary)
       date_of_birth: body.date_of_birth || null,
       nationality: body.nationality || null,
       permit_type: body.permit_type || null,

@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
+import { encryptIdNumber, hashIdNumber } from "@/lib/crypto/idNumber"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   // is also raw at this stage; broader applicant-PII-at-rest item, not introduced here). Don't diverge the co path.
   const { error: updErr } = await service.from("application_co_applicants").update({
     first_name: body.firstName ?? null, last_name: body.lastName ?? null,
-    id_type: body.idType || "sa_id", id_number: body.idNumber ?? null, date_of_birth: body.dob || null,
+    id_type: body.idType || "sa_id", id_number: encryptIdNumber(body.idNumber), id_number_hash: body.idNumber ? hashIdNumber(body.idNumber) : null, date_of_birth: body.dob || null,
     marital_status: body.maritalStatus || null, matrimonial_regime: body.matrimonialRegime || null,
     current_address: body.currentAddress ?? null, spouse_info: body.spouseInfo ?? null,
     employment_type: body.employmentType || null, employer_name: body.employerName || null,

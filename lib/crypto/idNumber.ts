@@ -8,11 +8,29 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { createHash } from "crypto"
+import { encrypt, decrypt, isEncrypted } from "./encryption"
 
 export function hashIdNumber(idNumber: string): string {
   const normalised = idNumber.replace(/\s/g, "").toUpperCase()
   const salt = process.env.ID_NUMBER_HASH_SALT || "pleks-default-salt"
   return createHash("sha256").update(normalised + salt).digest("hex")
+}
+
+/** Encrypt an ID number for storage (AES-256-GCM). null/empty → null; already-encrypted → unchanged (idempotent).
+ *  The deterministic lookup/dedup key is `id_number_hash` (hashIdNumber on the RAW value) — compute that from the
+ *  RAW input, never from the ciphertext (AES-GCM uses a random IV → ciphertext is non-deterministic, can't match). */
+export function encryptIdNumber(raw: string | null | undefined): string | null {
+  const v = (raw ?? "").trim()
+  if (!v) return null
+  return isEncrypted(v) ? v : encrypt(v)
+}
+
+/** Decrypt a stored ID number. null/empty → null. TOLERANT: a value that isn't ciphertext (legacy/raw, or a
+ *  fake-data row) passes through unchanged — so a mixed table never throws and matching/display stay correct. */
+export function decryptIdNumber(stored: string | null | undefined): string | null {
+  const v = stored ?? null
+  if (!v) return null
+  return isEncrypted(v) ? decrypt(v) : v
 }
 
 export function validateSAIdNumber(id: string): {

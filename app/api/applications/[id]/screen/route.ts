@@ -20,6 +20,7 @@ import { reconcile } from "@/lib/extraction/reconciler"
 import { slotTypeForFilename } from "@/lib/extraction/slotType"
 import { evaluateRuling } from "@/lib/applications/ruling"
 import { companyOptionFrom } from "@/lib/applications/assembleAssessment"
+import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { evaluateCompanyRuling, type CompanyVerdict } from "@/lib/applications/companyRuling"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
@@ -66,7 +67,7 @@ interface AppRow {
 function buildDeclared(app: AppRow, appliedRentCents: number): DeclaredContext {
   return {
     appliedRentCents,
-    applicant: { fullName: [app.first_name, app.last_name].filter(Boolean).join(" ") || undefined, idNumber: app.id_number ?? undefined },
+    applicant: { fullName: [app.first_name, app.last_name].filter(Boolean).join(" ") || undefined, idNumber: decryptIdNumber(app.id_number as string | null) ?? undefined },
     incomeSources: (app.income_sources ?? []).map((s) => ({ key: s.key, label: s.label, monthly_cents: s.monthly_cents })),
   }
 }
