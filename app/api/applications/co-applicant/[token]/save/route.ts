@@ -30,6 +30,8 @@ export async function POST(req: NextRequest, { params }: Props) {
     firstName?: string; lastName?: string; idType?: string; idNumber?: string; dob?: string
     maritalStatus?: string; matrimonialRegime?: string
     currentAddress?: unknown; spouseInfo?: unknown; sectionData?: unknown
+    employmentType?: string; employerName?: string
+    grossMonthlyIncomeCents?: number | null; declaredMonthlyObligationsCents?: number | null
     consent?: boolean; consentIp?: string | null
   }
 
@@ -51,6 +53,9 @@ export async function POST(req: NextRequest, { params }: Props) {
     id_type: body.idType || "sa_id", id_number: body.idNumber ?? null, date_of_birth: body.dob || null,
     marital_status: body.maritalStatus || null, matrimonial_regime: body.matrimonialRegime || null,
     current_address: body.currentAddress ?? null, spouse_info: body.spouseInfo ?? null,
+    employment_type: body.employmentType || null, employer_name: body.employerName || null,
+    gross_monthly_income_cents: body.grossMonthlyIncomeCents ?? null,
+    declared_monthly_obligations_cents: body.declaredMonthlyObligationsCents ?? null,
     section_data: body.sectionData ?? null,
     stage1_consent_given: true, stage1_consent_given_at: now, stage1_consent_ip: body.consentIp ?? null,
   }).eq("id", co.id)

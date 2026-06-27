@@ -9,13 +9,18 @@
  *         marital flags). If the primary linked this co as their in-community spouse, the marriage is pre-filled to
  *         confirm (14M §1). Income + documents are a later increment.
  */
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { CheckCircle2, Clock } from "lucide-react"
 import { IndividualIdentity } from "@/components/parties/partySteps"
 import { ActionButton } from "@/components/ui/actions"
 import { validateIdentityCore, validateAddressStep, type PartyFormState, type PartyErrors } from "@/lib/parties/partyValidation"
-import { StepAddress } from "../../[slug]/applyIndividual"
+import { StepAddress, StepEmployment, StepIncome, StepExpenses } from "../../[slug]/applyIndividual"
+import {
+  type Emp, type IncomeRow, SELF_EMPLOYED_TYPES,
+  seedIncomeFor, seedCommitments, allAmountsEmpty, intOrNull, posOrNull,
+  rowMonthlyCents, totalMonthlyCents, incomeSourcesPayload,
+} from "../../[slug]/applyDomain"
 
 export interface SpouseCandidate { firstName: string; lastName: string; email: string; idNumber: string }
 export interface CoPrefill { maritalStatus: string | null; matrimonialRegime: string | null; spouseIsCoApplicant: boolean | null; linkedAsSpouse: boolean }
@@ -45,6 +50,16 @@ export function CoApplicantSession({ token, expired, alreadyDone, co, prefill, p
   const [done, setDone] = useState(alreadyDone)
   const set = (k: keyof PartyFormState, v: PartyFormState[keyof PartyFormState]) => setForm((p) => ({ ...p, [k]: v }))
 
+  // Finances (the co's own declared income/obligations — feeds combined affordability, ADDENDUM_14Q §10 inc 2).
+  const [emp, setEmp] = useState<Emp>({ employment_type: "", employer: "", start_date: "" })
+  const [income, setIncome] = useState<IncomeRow[]>([])
+  const [commitments, setCommitments] = useState<IncomeRow[]>([])
+  const [dependentAdults, setDependentAdults] = useState("")
+  const [dependentMinors, setDependentMinors] = useState("")
+  // Seed the income grid from the chosen employment status (only while nothing's typed) + the common commitments once.
+  useEffect(() => { if (emp.employment_type) setIncome((cur) => (allAmountsEmpty(cur) ? seedIncomeFor(emp.employment_type) : cur)) }, [emp.employment_type])
+  useEffect(() => { setCommitments((c) => (c.length === 0 ? seedCommitments() : c)) }, [])
+
   if (expired) return (
     <Shell><div className="flex flex-col items-center gap-3 py-8 text-center">
       <Clock className="size-10 text-[var(--ink-mute)]" />
@@ -70,7 +85,12 @@ export function CoApplicantSession({ token, expired, alreadyDone, co, prefill, p
     const e = { ...validateIdentityCore("individual", form, true), ...validateAddressStep(form, true) }
     setErrors(e)
     if (Object.keys(e).length > 0) { toast.error("Please complete the highlighted fields."); return }
+    if (!emp.employment_type) { toast.error("Please select your employment status."); return }
     if (!consent) { toast.error("Please tick the consent box to continue."); return }
+    // School fees are a child-earmarked cost (excluded from the declared obligations the read subtracts).
+    const schoolFeesCents = commitments.filter((r) => r.key === "school_fees").reduce((s, r) => s + rowMonthlyCents(r), 0)
+    const depA = intOrNull(dependentAdults)
+    const depM = intOrNull(dependentMinors)
     setBusy(true)
     try {
       const res = await fetch(`/api/applications/co-applicant/${token}/save`, {
@@ -80,7 +100,17 @@ export function CoApplicantSession({ token, expired, alreadyDone, co, prefill, p
           maritalStatus: form.maritalStatus, matrimonialRegime: form.matrimonialRegime,
           currentAddress: form.addresses ?? null,
           spouseInfo: resolveSpouse(),
-          sectionData: { addresses: form.addresses ?? null, marital: { maritalStatus: form.maritalStatus ?? null, matrimonialRegime: form.matrimonialRegime ?? null } },
+          employmentType: emp.employment_type, employerName: emp.employer,
+          grossMonthlyIncomeCents: totalMonthlyCents(income),
+          declaredMonthlyObligationsCents: totalMonthlyCents(commitments) - schoolFeesCents,
+          sectionData: {
+            addresses: form.addresses ?? null,
+            marital: { maritalStatus: form.maritalStatus ?? null, matrimonialRegime: form.matrimonialRegime ?? null },
+            employment_details: { ...emp },
+            income_sources: incomeSourcesPayload(income),
+            expenses: incomeSourcesPayload(commitments),
+            dependants: { adults: depA, minors: depM, school_fees: posOrNull(schoolFeesCents / 100) },
+          },
           consent: true,
         }),
       })
@@ -109,6 +139,10 @@ export function CoApplicantSession({ token, expired, alreadyDone, co, prefill, p
       <IndividualIdentity f={form} set={set} errors={errors} fullFica sectioned coApplicants={primaryCandidate ? [primaryCandidate] : []} suggestSpouseIsCo={false} />
 
       <StepAddress form={form} set={set} errors={errors} />
+
+      <StepEmployment emp={emp} setEmp={setEmp} />
+      <StepIncome income={income} setIncome={setIncome} variable={SELF_EMPLOYED_TYPES.includes(emp.employment_type) || emp.employment_type === "commission"} />
+      <StepExpenses dependentAdults={dependentAdults} setDependentAdults={setDependentAdults} dependentMinors={dependentMinors} setDependentMinors={setDependentMinors} commitments={commitments} setCommitments={setCommitments} />
 
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-3.5 accent-[var(--amber)]" />
