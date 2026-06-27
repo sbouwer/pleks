@@ -60,14 +60,17 @@ const coComplete = (c: CoApplicant) => Boolean(c.firstName.trim() && c.email.tri
 
 /** Pane keys that hold PERSONAL details — editing these in a resumed (shared-link) session needs an identity re-verify. */
 const PERSONAL_EDIT_KEYS = new Set(["personal", "address", "employment", "income", "expenses"])
+/** Pane keys that hold COMPANY-section details — editing these after sign-off flips the company card to "Updated". */
+const COMPANY_EDIT_KEYS = new Set(["co-info", "co-address", "co-finances", "co-docs", "co-docs-opt"])
 
 /** A hub card's 3-state status from its done/started flags (avoids a nested ternary at each call site). */
 function cardStatusOf(done: boolean, started: boolean): CardStatus {
   if (done) return "completed"
   return started ? "in_progress" : "not_started"
 }
-/** The filler's own card: Completed → Updated application once edited after completion (the review-then-edit loop). */
-function selfCardStatus(done: boolean, edited: boolean, started: boolean): CardStatus {
+/** An openable (self OR company) card: Completed → Updated application once edited after completion (the review-then-
+ *  edit loop, §8-9); else in-progress/not-started by whether it's been opened. */
+function editableCardStatus(done: boolean, edited: boolean, started: boolean): CardStatus {
   if (done) return edited ? "updated" : "completed"
   return cardStatusOf(false, started)
 }
@@ -84,20 +87,21 @@ function coCardStatus(live: string | undefined, appCreated: boolean): CardStatus
  *  card/status/credential mapping is unit-testable. */
 export function buildStatusMenuData(o: Readonly<{
   type: ApplicantType | null; isJuristic: boolean
-  companyName: string; companyStarted: boolean; companySignedOff: boolean
+  companyName: string; companyStarted: boolean; companySignedOff: boolean; companyEdited: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
   selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
 }>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
   const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-  // Company card only for a juristic company (the only flow that applies THROUGH an entity).
-  const company: StatusMenuCompany | null = o.isJuristic ? { name: o.companyName, status: cardStatusOf(o.companySignedOff, o.companyStarted), canOpen: true } : null
+  // Company card only for a juristic company (the only flow that applies THROUGH an entity). Edited-after-sign-off →
+  // "Updated application" (same review-then-edit loop as the self card).
+  const company: StatusMenuCompany | null = o.isJuristic ? { name: o.companyName, status: editableCardStatus(o.companySignedOff, o.companyEdited, o.companyStarted), canOpen: true } : null
   const persons: StatusMenuPerson[] = []
   // The filler's own card. A juristic office-manager (not a director) has no personal card; everyone else does.
   const includeSelf = o.isJuristic ? o.imDirector : true
   if (includeSelf) {
     const selfRole = o.isJuristic ? cap(o.companyRole) : "Applicant"
-    const selfStatus = selfCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted)
+    const selfStatus = editableCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted)
     persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: selfRole, status: selfStatus, canOpen: true })
   }
   o.coApplicants.forEach((c, i) => {
@@ -346,6 +350,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // The filler re-opened their OWN completed section to edit it (the review-then-edit loop, ADDENDUM_14Q §8-9) → the
   // self card reads "Updated application" instead of "Completed" until they re-submit.
   const [selfEdited, setSelfEdited] = useState(false)
+  // Same for the COMPANY card — re-editing the company section after sign-off flips it to "Updated application".
+  const [companyEdited, setCompanyEdited] = useState(false)
   // Editing PERSONAL details in a RESUMED session (anyone could hold the shared link) needs a fresh identity check.
   // Fresh fills are unlocked (they verified at sign-off); a resume starts locked until "verify it's you" passes.
   const [amendUnlocked, setAmendUnlocked] = useState(!resume)
@@ -473,7 +479,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // (personal) section, reusing what we know about the company (shared prefill, #1); "review" → the application
   // Review & Submit. navTo clears the hub flag + sets the step.
   function onOpenCard(id: string) {
-    if (id === "company") { setCompanyStarted(true); navTo(0) } // juristic only — opens the company section
+    if (id === "company") { if (companySignedOff) { setCompanyEdited(true) } setCompanyStarted(true); navTo(0) } // juristic only — opens the company section (re-open after sign-off = an edit)
     else if (id === "self") {
       // The filler's own section. For a juristic company the director's personal flow starts after the company panes
       // and reuses what we know about the company (prefill, #1); every other flow's section starts at step 0.
@@ -488,7 +494,12 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       if (needsVerify) { setAmendGateStep(target); return }
       navTo(target)
     }
-    else if (id === "review") { const t = companyPaneCount + STEP_REVIEW; setMaxReached((m) => Math.max(m, t)); navTo(t) }
+    else if (id === "review") {
+      const t = companyPaneCount + STEP_REVIEW; setMaxReached((m) => Math.max(m, t)); navTo(t)
+      // Re-check EVERY time the review is opened (once consented + verified) — never a stale cached assessment. The
+      // first time, consent isn't given yet → the review shows the consent screen, whose Continue runs the check.
+      if (consent && emailGateSatisfied) void submitApplication()
+    }
   }
   function backToMenu() { setAtRoster(true) } // the persistent "← All applicants" return
 
@@ -761,8 +772,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
    *  re-submits to run a fresh screening iteration (the 14M self-improvement loop). */
   function applyAmend(toStep: number) { setScreeningStatus("idle"); setAssessment(null); setAtRoster(false); setStep(toStep) }
   function amendAt(toStep: number) {
-    // Editing a personal pane after the section's done = an edit → the self card reads "Updated application".
-    if (selfSectionDone && PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")) setSelfEdited(true)
+    // Editing a section after it's done = an edit → that card reads "Updated application" (self OR company).
+    const editKey = nav.paneMeta[toStep]?.key ?? ""
+    if (selfSectionDone && PERSONAL_EDIT_KEYS.has(editKey)) setSelfEdited(true)
+    if (companySignedOff && COMPANY_EDIT_KEYS.has(editKey)) setCompanyEdited(true)
     // Editing PERSONAL details (not documents/company) in a still-locked resumed session → "verify it's you" first.
     if (!amendUnlocked && PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")) { setAmendGateStep(toStep); return }
     applyAmend(toStep)
@@ -816,7 +829,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const selfStarted = maxReached > selfStart
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
     type, isJuristic: isJuristicCompany, companyName: company.name || company.trading || "The company",
-    companyStarted, companySignedOff, form, coApplicants, companyRole, imDirector: companyImDirector,
+    companyStarted, companySignedOff, companyEdited, form, coApplicants, companyRole, imDirector: companyImDirector,
     selfSectionDone, selfStarted, selfEdited, appCreated: !!applicationId, coStatusByEmail,
   })
   // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).

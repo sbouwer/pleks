@@ -9,28 +9,18 @@
  */
 import { useState, type ReactNode } from "react"
 import { toast } from "sonner"
-import { AlertCircle, Building2, CheckCircle2, Pencil, ShieldCheck, Upload, User, Users } from "lucide-react"
+import { AlertCircle, Building2, CheckCircle2, Pencil, ShieldCheck, User, Users } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { formatZAR, startedWithinProbation } from "@/lib/constants"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { StepHeading } from "./applyShared"
-import { type Emp, type IncomeRow, type CoApplicant, type ScreeningStatus, STEP_DOCUMENTS, employmentLabel, rowMonthlyCents, moneyCents, totalMonthlyCents } from "./applyDomain"
+import { type Emp, type IncomeRow, type CoApplicant, type ScreeningStatus, employmentLabel, rowMonthlyCents, moneyCents, totalMonthlyCents } from "./applyDomain"
 
 
 // ── Step 6 — Submit → instant Step-1 FREE assessment (declared affordability + readiness; zero-AI) ───────────
 // The deep-scan ruling UI (ProcessingView/RulingView/poll) was removed here: the applicant no longer triggers an
 // AI deep scan at submit. That runs later, on the agent's shortlist (Step 2). (ADDENDUM_14M three-step funnel)
-
-function AmendBar({ onAmend, onRerun }: Readonly<{ onAmend: (s: number) => void; onRerun: () => void }>) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <ActionButton tone="secondary" size="sm" icon={<Upload className="size-4" />} onClick={() => onAmend(STEP_DOCUMENTS)}>Upload documents</ActionButton>
-      <ActionButton tone="secondary" size="sm" icon={<Pencil className="size-4" />} onClick={() => onAmend(0)}>Edit details</ActionButton>
-      <ActionButton tone="primary" size="sm" onClick={onRerun}>Re-check now</ActionButton>
-    </div>
-  )
-}
 
 /** Final state — nothing more for the applicant to do; the agent has it. Reached by "Submit to agent". */
 function HandoffView() {
@@ -187,7 +177,7 @@ function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant
 /** Step-1 FREE assessment — the application review: Completeness (what's done / still to add) + Residual
  *  affordability (income vs commitments + the residual + a tier read; prompts "Add applicant" when short).
  *  Re-runnable for free; the J1 gate (all co-applicants complete) blocks submit. (ADDENDUM_14M funnel) */
-function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onRerun, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend: (s: number) => void; onRerun: () => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
+function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend: (s: number) => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -258,11 +248,12 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onRerun
         </div>
       </div>
 
-      {/* Something to change? Edit your details/documents (or go back to the overview to edit any card), then re-check. */}
+      {/* Something to change? One line — edit your details (or go back to the overview to edit any card). Re-opening
+          the review re-checks automatically, so there's no manual "re-check" here. */}
       {!verdictGood && (
-        <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
-          <p className="text-xs text-[var(--ink-mute)]">Want to change something before you submit? Edit your details or documents, then re-check — it&apos;s free.</p>
-          <AmendBar onAmend={onAmend} onRerun={onRerun} />
+        <div className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
+          <p className="text-xs text-[var(--ink-mute)]">Want to change something before you submit?</p>
+          <ActionButton tone="secondary" size="sm" icon={<Pencil className="size-4" />} onClick={() => onAmend(0)} className="shrink-0">Edit details</ActionButton>
         </div>
       )}
 
@@ -362,10 +353,10 @@ export function ConsentVerify({ applicationId, token, email, verified, onVerifie
   )
 }
 
-export function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, applicantsGreen, screeningStatus, assessment, onAmend, onRerun, onContinue, onAddApplicant, applicationId, token, emailVerified, onVerified }: Readonly<{
+export function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, applicantsGreen, screeningStatus, assessment, onAmend, onContinue, onAddApplicant, applicationId, token, emailVerified, onVerified }: Readonly<{
   form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
   coApplicants: CoApplicant[]; applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null
-  onAmend: (s: number) => void; onRerun: () => void; onContinue: () => void; onAddApplicant: () => void
+  onAmend: (s: number) => void; onContinue: () => void; onAddApplicant: () => void
   applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
 }>) {
   // The REAL submission — only when the applicant reviews the pre-screen and chooses to send it to the agent.
@@ -380,7 +371,7 @@ export function StepSubmit({ form, emp, income, askingRentCents, consent, setCon
     } catch { toast.error("Could not submit. Please try again."); return false }
   }
 
-  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onRerun={onRerun} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
+  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
 
   const name = [form.firstName, form.lastName].filter(Boolean).join(" ") || "—"
   const incomeCents = totalMonthlyCents(income)

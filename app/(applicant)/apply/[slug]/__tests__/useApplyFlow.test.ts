@@ -12,13 +12,15 @@ import type { PartyFormState } from "@/lib/parties/partyValidation"
 
 const form = (over: Partial<PartyFormState> = {}): PartyFormState => ({ idType: "sa_id", firstName: "Di", lastName: "Rector", ...over } as PartyFormState)
 const co = (over: Partial<CoApplicant> = {}): CoApplicant => ({ firstName: "Sue", lastName: "Se", email: "sue@co.za", phone: "", idNumber: "", role: "co_applicant", designation: "director", invited: false, ...over })
-const base = { type: "company" as const, isJuristic: true, companyName: "Acme (Pty) Ltd", companyStarted: false, companySignedOff: false, form: form(), coApplicants: [] as CoApplicant[], companyRole: "director", imDirector: true, selfSectionDone: false, selfStarted: false, selfEdited: false, appCreated: false }
+const base = { type: "company" as const, isJuristic: true, companyName: "Acme (Pty) Ltd", companyStarted: false, companySignedOff: false, companyEdited: false, form: form(), coApplicants: [] as CoApplicant[], companyRole: "director", imDirector: true, selfSectionDone: false, selfStarted: false, selfEdited: false, appCreated: false }
 
 describe("buildStatusMenuData — juristic company", () => {
-  it("company card status tracks started → signed off", () => {
+  it("company card status tracks started → signed off → updated", () => {
     expect(buildStatusMenuData(base).company?.status).toBe("not_started")
     expect(buildStatusMenuData({ ...base, companyStarted: true }).company?.status).toBe("in_progress")
     expect(buildStatusMenuData({ ...base, companyStarted: true, companySignedOff: true }).company?.status).toBe("completed")
+    // re-edited after sign-off → Updated application (same loop as the self card)
+    expect(buildStatusMenuData({ ...base, companySignedOff: true, companyEdited: true }).company?.status).toBe("updated")
   })
 
   it("director-filler gets an openable self card whose status tracks their own section", () => {
