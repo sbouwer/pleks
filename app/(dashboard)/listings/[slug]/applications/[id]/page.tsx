@@ -28,6 +28,7 @@ import { ScreeningRulingCard, type ScreeningEvaluationRow } from "./_components/
 import { DocumentsCard } from "./_components/DocumentsCard"
 import { FreeAssessmentCard } from "./_components/FreeAssessmentCard"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
+import { maritalConsistencyFlags } from "@/lib/applications/maritalConsistency"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STEP1_LABEL: Record<string, string> = {
@@ -113,7 +114,7 @@ export default async function ApplicationDetailPage({
     .from("applications")
     .select(`
       id, org_id, assigned_user_id, assigned_team_id, first_name, last_name, applicant_email, applicant_phone,
-      id_type, id_number, employment_type, employer_name,
+      id_type, id_number, marital_status, matrimonial_regime, spouse_info, employment_type, employer_name,
       gross_monthly_income_cents, income_sources, bank_statement_extracted,
       applicant_nationality_type, is_foreign_national,
       permit_type, permit_expiry_date, tpn_listing_limited,
@@ -144,7 +145,7 @@ export default async function ApplicationDetailPage({
   const { data: coApplicants, error: coApplicantsError } = await db
     .from("application_co_applicants")
     .select(`
-      id, first_name, last_name, id_type, co_applicant_index,
+      id, first_name, last_name, id_type, id_number, co_applicant_index,
       role, is_surety_director, gross_monthly_income_cents, employment_type, employer_name,
       identity_match_status, employer_verification_status,
       salary_reconciliation_status, document_consistency_status,
@@ -270,6 +271,19 @@ export default async function ApplicationDetailPage({
     incomeCents: c.gross_monthly_income_cents as number | null,
   }))
 
+  // Marital-consistency signals (ADDENDUM_14M spouse-linking) — computed LIVE from the loaded application data, so
+  // the agent always sees the current picture and no person-naming flags are stored (free_assessment is PII-safe).
+  // Flag 17 (external spouse's ID matches a party) fires today; 15/16 follow once co-applicants persist marital data.
+  const maritalFlags = maritalConsistencyFlags(
+    { ref: "primary", name: name || "the applicant", idNumber: app.id_number as string | null,
+      maritalStatus: app.marital_status as string | null, matrimonialRegime: app.matrimonial_regime as string | null,
+      spouseInfo: app.spouse_info as { isCoApplicant?: boolean; idNumber?: string | null; email?: string | null } | null },
+    (coApplicants ?? []).map((c) => ({
+      ref: `co_${c.id}`, name: [c.first_name, c.last_name].filter(Boolean).join(" ") || "a co-applicant",
+      idNumber: c.id_number as string | null,
+    })),
+  )
+
   const applicantPanel = (
     <>
       {app.is_foreign_national && (
@@ -284,6 +298,21 @@ export default async function ApplicationDetailPage({
       )}
 
       <ApplicantsCard applicationId={id} canViewId={canViewId} primary={primaryParty} others={otherParties} />
+
+      {maritalFlags.length > 0 && (
+        <DetailFullWidth>
+          <DetailCard title="Marital consistency — verify">
+            <ul className="flex flex-col gap-2">
+              {maritalFlags.map((f) => (
+                <li key={f.id} className="flex items-start gap-2 rounded-[var(--r-button)] border border-[var(--amber)] bg-[var(--amber-wash)] p-3 text-sm leading-relaxed text-[var(--ink-soft)]">
+                  <span className="mt-0.5 inline-block size-1.5 shrink-0 rounded-full bg-[var(--amber)]" />
+                  <span>{f.title}</span>
+                </li>
+              ))}
+            </ul>
+          </DetailCard>
+        </DetailFullWidth>
+      )}
 
       <DocumentsCard applicationId={id} incomeKeys={incomeKeys} employmentType={(app.employment_type as string | null) ?? ""} canViewId={canViewId} />
 
