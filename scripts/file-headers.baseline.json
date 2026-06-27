@@ -327,7 +327,6 @@
   "lib/comms/templates/maintenance/critical-incident-scheme.tsx",
   "lib/contractors/quoteApproval.ts",
   "lib/crypto/encryption.ts",
-  "lib/crypto/idNumber.ts",
   "lib/dashboard/activityFeed.ts",
   "lib/dashboard/feesDue.ts",
   "lib/dashboard/leaseExpiry.ts",
