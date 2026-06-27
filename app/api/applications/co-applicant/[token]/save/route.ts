@@ -48,6 +48,22 @@ export async function POST(req: NextRequest, { params }: Props) {
   if (!body.firstName?.trim() || !body.idNumber?.trim()) return NextResponse.json({ error: "Your name and ID number are required." }, { status: 400 })
 
   const now = new Date().toISOString()
+  // POPIA: record this co-applicant's own consent FIRST — the audit record is the point, so never set
+  // stage1_consent_given without it. A failed write SURFACES (don't silently mark consented). Scope covers the
+  // Step-2 AI document analysis, like the primary. (Idempotent enough: a retry after an update failure appends a
+  // second consent event — acceptable for an append-only audit; far better than consent set with no record.)
+  const { error: consentErr } = await service.from("consent_log").insert({
+    org_id: co.org_id as string,
+    subject_email: co.applicant_email as string,
+    consent_type: "popia_application", consent_given: true,
+    ip_address: body.consentIp ?? null,
+    metadata: { application_id: co.primary_application_id as string, co_applicant_id: co.id as string, scope: "stage1_prescreen_and_ai_document_analysis" },
+  })
+  logQueryError("co-applicant consent_log", consentErr)
+  if (consentErr) return NextResponse.json({ error: "Could not record your consent. Please try again." }, { status: 500 })
+
+  // id_number is stored as given (no encryption) — PARITY with the primary applicant flow (applications.id_number
+  // is also raw at this stage; broader applicant-PII-at-rest item, not introduced here). Don't diverge the co path.
   const { error: updErr } = await service.from("application_co_applicants").update({
     first_name: body.firstName ?? null, last_name: body.lastName ?? null,
     id_type: body.idType || "sa_id", id_number: body.idNumber ?? null, date_of_birth: body.dob || null,
@@ -61,15 +77,6 @@ export async function POST(req: NextRequest, { params }: Props) {
   }).eq("id", co.id)
   logQueryError("co-applicant save update", updErr)
   if (updErr) return NextResponse.json({ error: "Could not save your details. Please try again." }, { status: 500 })
-
-  // POPIA: record this co-applicant's own consent (scope covers the Step-2 AI document analysis, like the primary).
-  await service.from("consent_log").insert({
-    org_id: co.org_id as string,
-    subject_email: co.applicant_email as string,
-    consent_type: "popia_application", consent_given: true,
-    ip_address: body.consentIp ?? null,
-    metadata: { application_id: co.primary_application_id as string, co_applicant_id: co.id as string, scope: "stage1_prescreen_and_ai_document_analysis" },
-  })
 
   return NextResponse.json({ ok: true })
 }
