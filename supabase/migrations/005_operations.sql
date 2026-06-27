@@ -3054,3 +3054,7 @@ ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS marital_status te
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS matrimonial_regime text;
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS current_address jsonb;
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS spouse_info jsonb;
+-- "Started application" signal for the 14Q hub: set when the co-applicant first OPENS their invite link (clicked
+-- through to start), distinct from stage1_consent_given (finished + consented). Lets the hub show a co card as
+-- Invitation sent → Started application → Completed.
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS started_at timestamptz;

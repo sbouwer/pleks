@@ -71,9 +71,11 @@ function selfCardStatus(done: boolean, edited: boolean, started: boolean): CardS
   if (done) return edited ? "updated" : "completed"
   return cardStatusOf(false, started)
 }
-/** A co-applicant card: Completed (live poll) → else Invitation sent once the app exists (they've been emailed). */
-function coCardStatus(done: boolean, appCreated: boolean): CardStatus {
-  if (done) return "completed"
+/** A co-applicant card from the live tri-state poll: Completed (consented) → Started application (clicked their
+ *  link) → Invitation sent (emailed, app exists) → Not started (pre-create). */
+function coCardStatus(live: string | undefined, appCreated: boolean): CardStatus {
+  if (live === "completed") return "completed"
+  if (live === "started") return "in_progress" // "Started application"
   return appCreated ? "invitation_sent" : "not_started"
 }
 
@@ -84,7 +86,7 @@ export function buildStatusMenuData(o: Readonly<{
   type: ApplicantType | null; isJuristic: boolean
   companyName: string; companyStarted: boolean; companySignedOff: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
-  selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; appCreated: boolean; coStatusByEmail?: Record<string, boolean>
+  selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
 }>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
   const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -100,8 +102,8 @@ export function buildStatusMenuData(o: Readonly<{
   }
   o.coApplicants.forEach((c, i) => {
     const role = coRoleLabel(o.type, c, cap)
-    const done = o.coStatusByEmail?.[c.email] === true // live server status (best-effort); else not yet done
-    const coStatus = coCardStatus(done, o.appCreated)
+    const live = o.coStatusByEmail?.[c.email] // live server tri-state (invited/started/completed); best-effort
+    const coStatus = coCardStatus(live, o.appCreated)
     persons.push({ id: `co_${i}`, name: name(c.firstName, c.lastName, c.email || "Applicant"), roleLabel: role, status: coStatus, canOpen: false, statusOnlyNote: `${role} — invited, completes via their own link` })
   })
   return { company, persons }
@@ -350,15 +352,16 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const [amendGateStep, setAmendGateStep] = useState<number | null>(null)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
-  // Live co-applicant completion (ADDENDUM_14Q) — the server is authoritative; we poll it when the filler is on the
-  // status hub so a co's card flips to Completed once THEY finish their own per-link session. Keyed by email.
-  const [coStatusByEmail, setCoStatusByEmail] = useState<Record<string, boolean>>({})
+  // Live co-applicant status (ADDENDUM_14Q) — the server is authoritative; we poll it on the hub so a co's card
+  // flips Invitation sent → Started application → Completed as THEY progress their own per-link session. Keyed by
+  // email; value is the tri-state ("invited" | "started" | "completed").
+  const [coStatusByEmail, setCoStatusByEmail] = useState<Record<string, string>>({})
   useEffect(() => {
     if (!applicationId || !token || !atRoster || coApplicants.length === 0) return
     let cancelled = false
     void fetch(`/api/applications/${applicationId}/co-status?token=${encodeURIComponent(token)}`)
-      .then((r) => r.json() as Promise<{ coApplicants?: { email: string; completed: boolean }[] }>)
-      .then((j) => { if (!cancelled && j.coApplicants) setCoStatusByEmail(Object.fromEntries(j.coApplicants.map((c) => [c.email, c.completed]))) })
+      .then((r) => r.json() as Promise<{ coApplicants?: { email: string; status?: string; completed?: boolean }[] }>)
+      .then((j) => { if (!cancelled && j.coApplicants) setCoStatusByEmail(Object.fromEntries(j.coApplicants.map((c) => [c.email, c.status ?? (c.completed ? "completed" : "invited")]))) })
       .catch(() => { /* hub status is best-effort */ })
     return () => { cancelled = true }
   }, [applicationId, token, atRoster, coApplicants.length])

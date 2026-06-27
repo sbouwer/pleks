@@ -178,7 +178,8 @@
       "marital_status",
       "matrimonial_regime",
       "current_address",
-      "spouse_info"
+      "spouse_info",
+      "started_at"
     ],
     "application_directors": [
       "id",

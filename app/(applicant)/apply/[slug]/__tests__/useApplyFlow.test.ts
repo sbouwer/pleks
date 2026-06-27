@@ -69,16 +69,18 @@ describe("buildStatusMenuData — universal hub (non-company)", () => {
     expect(r.persons.find((p) => p.id === "co_0")).toMatchObject({ roleLabel: "Guarantor", canOpen: false })
   })
 
-  it("live co-status flips a co card to Completed once the server says they're done (ADDENDUM_14Q hub)", () => {
+  it("live co-status tri-state: invited → Started application → Completed (ADDENDUM_14Q hub)", () => {
     const args = { ...personal, type: "couple" as const, coApplicants: [co({ email: "sue@co.za", role: "co_applicant" })] }
     expect(buildStatusMenuData(args).persons.find((p) => p.id === "co_0")?.status).toBe("not_started")
-    expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": true } }).persons.find((p) => p.id === "co_0")?.status).toBe("completed")
+    expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": "started" } }).persons.find((p) => p.id === "co_0")?.status).toBe("in_progress")
+    expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": "completed" } }).persons.find((p) => p.id === "co_0")?.status).toBe("completed")
   })
 
   it("once the application exists, an un-started co reads Invitation sent (they've been emailed their link)", () => {
     const args = { ...personal, type: "couple" as const, coApplicants: [co({ email: "sue@co.za", role: "co_applicant" })], appCreated: true }
     expect(buildStatusMenuData(args).persons.find((p) => p.id === "co_0")?.status).toBe("invitation_sent")
-    // still flips to Completed via the live poll
-    expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": true } }).persons.find((p) => p.id === "co_0")?.status).toBe("completed")
+    // started/completed from the live poll override the invitation-sent default
+    expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": "started" } }).persons.find((p) => p.id === "co_0")?.status).toBe("in_progress")
+    expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": "completed" } }).persons.find((p) => p.id === "co_0")?.status).toBe("completed")
   })
 })

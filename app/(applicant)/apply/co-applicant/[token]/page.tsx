@@ -20,12 +20,18 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
 
   const { data: co, error } = await service
     .from("application_co_applicants")
-    .select("id, org_id, first_name, last_name, id_type, id_number, applicant_email, applicant_phone, role, marital_status, matrimonial_regime, current_address, spouse_info, stage1_consent_given, access_token_expires, declined_at, primary_application_id")
+    .select("id, org_id, first_name, last_name, id_type, id_number, applicant_email, applicant_phone, role, marital_status, matrimonial_regime, current_address, spouse_info, stage1_consent_given, started_at, access_token_expires, declined_at, primary_application_id")
     .eq("access_token", token).is("declined_at", null).maybeSingle()
   logQueryError("co-applicant page load", error)
   if (!co) notFound()
 
   const expired = !!co.access_token_expires && new Date(co.access_token_expires as string) < new Date()
+
+  // "Started application" signal for the 14Q hub: they clicked through their invite link → mark started_at once
+  // (until they consent). Fire-and-forget so it never blocks render. The hub poll reads this as "Started application".
+  if (!expired && co.stage1_consent_given !== true && !co.started_at) {
+    void service.from("application_co_applicants").update({ started_at: new Date().toISOString() }).eq("id", co.id as string)
+  }
 
   const { data: app, error: appErr } = await service
     .from("applications")

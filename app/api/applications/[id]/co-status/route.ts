@@ -35,15 +35,22 @@ export async function GET(req: NextRequest, { params }: Props) {
 
   const { data: rows, error } = await service
     .from("application_co_applicants")
-    .select("applicant_email, first_name, last_name, co_applicant_index, stage1_consent_given")
+    .select("applicant_email, first_name, last_name, co_applicant_index, stage1_consent_given, started_at")
     .eq("primary_application_id", id)
     .order("co_applicant_index", { ascending: true })
   logQueryError("co-status load", error)
 
-  const coApplicants = (rows ?? []).map((c) => ({
-    email: (c.applicant_email as string | null) ?? "",
-    name: [c.first_name, c.last_name].filter(Boolean).join(" ") || null,
-    completed: c.stage1_consent_given === true,
-  }))
+  // Tri-state for the 14Q hub: completed (consented) → started (clicked their link) → invited (emailed, not opened).
+  const coApplicants = (rows ?? []).map((c) => {
+    let status: "invited" | "started" | "completed" = "invited"
+    if (c.stage1_consent_given === true) status = "completed"
+    else if (c.started_at) status = "started"
+    return {
+      email: (c.applicant_email as string | null) ?? "",
+      name: [c.first_name, c.last_name].filter(Boolean).join(" ") || null,
+      completed: status === "completed", // back-compat for any older reader
+      status,
+    }
+  })
   return NextResponse.json({ coApplicants })
 }
