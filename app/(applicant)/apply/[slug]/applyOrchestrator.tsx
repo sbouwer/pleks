@@ -30,7 +30,7 @@ import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
 import { StepSubmit, VerifyEmail } from "./applyReview"
 import { ApplicationStatusMenu } from "./applyStatusMenu"
-import { StepRail, StepBar, SubTabs } from "./applyNav"
+import { StepBar, SubTabs, ApplyNavRail } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { useApplyFlow, type ResumeState } from "./useApplyFlow"
 
@@ -64,6 +64,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied,
     statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
+    reviewUnlocked, onReviewStep,
   } = f
 
   // The active form pane for the current step — kept here (it's render). Works for personal AND the sole-prop
@@ -96,10 +97,11 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       {/* Desktop side column — the home being applied for BEFORE begin, then the step rail once begun (+ agent
           anchored at the bottom either way). */}
       <aside className="hidden shrink-0 [@media(min-width:1024px)_and_(min-height:700px)]:flex [@media(min-width:1024px)_and_(min-height:700px)]:w-[300px] [@media(min-width:1024px)_and_(min-height:700px)]:flex-col [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
-        {begun && !atRoster ? (
-          /* The step rail is SCOPED to the current sub-flow (ADDENDUM_14Q §4) — shown only inside a sub-flow, not on
-             the status hub (the hub shows the listing context instead). Rail card FILLS the column (fixed outer height
-             → expanding the accordion never shifts the layout); its BODY scrolls so steps stay reachable when short. */
+        {begun ? (
+          /* The CONSTANT nav (ADDENDUM_14Q resequence): "Application overview" + "Review & submit" frame the current
+             sub-flow's step rail (steps show only while editing a card). Same on the hub and inside a section — no
+             "Apply as" return. Rail card FILLS the column (fixed outer height → expanding never shifts layout); its
+             BODY scrolls so items stay reachable when short. */
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card">
             <div className="flex shrink-0 items-center border-b border-border px-5 py-4">
               <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
@@ -107,7 +109,14 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                 Your application
               </h2>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2"><StepRail model={railNav} states={navStates} step={railStep} maxReached={railMaxReached} onNav={onNav} onJumpStep={onJumpRail} /></div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              <ApplyNavRail
+                overviewActive={atRoster} onOverview={backToMenu} inSubFlow={begun && !atRoster}
+                reviewActive={onReviewStep} reviewEnabled={reviewUnlocked} showReview={canSubmit}
+                onReview={() => onOpenCard("review")}
+                model={railNav} states={navStates} step={railStep} maxReached={railMaxReached} onNav={onNav} onJumpStep={onJumpRail}
+              />
+            </div>
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{listingCard}</div>
@@ -133,14 +142,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {/* The side column differs by state — landing = listing DetailCard, wizard = the step-rail card — and
             their headers sit at slightly different heights, so the panel header needs a per-state top offset. */}
         <div className={`relative mb-3 flex items-center justify-between gap-3 border-b border-[var(--rule)] pb-2.5 ${begun ? "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-6" : "[@media(min-width:1024px)_and_(min-height:700px)]:-mt-[18px]"}`}>
-            {/* On the status hub the menu carries its own heading, so suppress the panel title there (avoid the
-                double "Your application status"); the action buttons row stays for Save & finish later. */}
-            {!atRoster ? (
-              <h2 className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-[var(--ink)]">
-                <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
-                <span className="truncate">{headerTitle}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
-              </h2>
-            ) : <span />}
+            {/* The amber-tick panel header shows in EVERY phase (hub · section · landing) so the rule continues across
+                the nav and panel. On the hub it reads "Application overview · {unit}" (the menu body drops its own
+                heading to a one-line hint to avoid a double title). */}
+            <h2 className="flex min-w-0 items-center gap-2.5 text-[15px] font-semibold tracking-tight text-[var(--ink)]">
+              <span aria-hidden className="inline-block h-0.5 w-4 shrink-0 bg-amber-400" />
+              <span className="truncate">{headerTitle}<span className="font-normal text-[var(--ink-mute)]"> · {headerSub}</span></span>
+            </h2>
             {/* TRANSIENT "Saved ✓" — flashes (green, pops in) for ~2.5s after an ACTUAL save, then disappears.
                 ABSOLUTELY centred on the card width (pb-2.5 aligns it with the title row) so it doesn't drift between
                 pages as the title / action-button widths change. pointer-events-none so it never blocks the buttons. */}
@@ -268,16 +276,17 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         </div>
       )}
 
-      {/* Identity re-verify gate — before editing personal details from a resumed (shared-link) session, prove it's
-          you with a fresh code (reverify forces one even if the email was verified at sign-off). */}
+      {/* Email-verify gate — confirm it's you before you START your own section (the unlock) or EDIT personal details
+          from a resumed (shared-link) session. Reverify forces a fresh code even if verified earlier. On success it
+          marks the email verified (so Review & Submit never re-asks) and opens the section. */}
       {amendGateStep !== null && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => setAmendGateStep(null)}>
           <div className="w-full max-w-md rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-[var(--ink)]">Verify it&apos;s you</h3>
-            <p className="mt-1 text-sm leading-relaxed text-[var(--ink-soft)]">Anyone with this link can view the application, so before you edit personal details we&apos;ll send a code to your email to confirm it&apos;s you.</p>
+            <h3 className="text-base font-semibold text-[var(--ink)]">Verify your email to continue</h3>
+            <p className="mt-1 text-sm leading-relaxed text-[var(--ink-soft)]">We&apos;ll send a code to your email to confirm it&apos;s you before you start (or edit) your part of the application.</p>
             <div className="mt-3">
               <VerifyEmail applicationId={applicationId} token={token} email={form.email} verified={false} reverify
-                onVerified={() => { setAmendUnlocked(true); applyAmend(amendGateStep); setAmendGateStep(null) }} />
+                onVerified={() => { setEmailVerified(true); setAmendUnlocked(true); applyAmend(amendGateStep); setAmendGateStep(null) }} />
             </div>
             <div className="mt-4 flex justify-end"><ActionButton tone="secondary" onClick={() => setAmendGateStep(null)} disabled={busy}>Cancel</ActionButton></div>
           </div>

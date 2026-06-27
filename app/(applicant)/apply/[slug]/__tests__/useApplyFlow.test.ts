@@ -12,7 +12,7 @@ import type { PartyFormState } from "@/lib/parties/partyValidation"
 
 const form = (over: Partial<PartyFormState> = {}): PartyFormState => ({ idType: "sa_id", firstName: "Di", lastName: "Rector", ...over } as PartyFormState)
 const co = (over: Partial<CoApplicant> = {}): CoApplicant => ({ firstName: "Sue", lastName: "Se", email: "sue@co.za", phone: "", idNumber: "", role: "co_applicant", designation: "director", invited: false, ...over })
-const base = { type: "company" as const, isJuristic: true, companyName: "Acme (Pty) Ltd", companyStarted: false, companySignedOff: false, form: form(), coApplicants: [] as CoApplicant[], companyRole: "director", imDirector: true, selfSectionDone: false, selfStarted: false }
+const base = { type: "company" as const, isJuristic: true, companyName: "Acme (Pty) Ltd", companyStarted: false, companySignedOff: false, form: form(), coApplicants: [] as CoApplicant[], companyRole: "director", imDirector: true, selfSectionDone: false, selfStarted: false, selfEdited: false, appCreated: false }
 
 describe("buildStatusMenuData — juristic company", () => {
   it("company card status tracks started → signed off", () => {
@@ -25,6 +25,12 @@ describe("buildStatusMenuData — juristic company", () => {
     expect(buildStatusMenuData(base).persons.find((p) => p.id === "self")).toMatchObject({ name: "Di Rector", canOpen: true, status: "not_started" })
     expect(buildStatusMenuData({ ...base, selfStarted: true }).persons.find((p) => p.id === "self")?.status).toBe("in_progress")
     expect(buildStatusMenuData({ ...base, selfSectionDone: true }).persons.find((p) => p.id === "self")?.status).toBe("completed")
+  })
+
+  it("self card flips to Updated application once edited after completion", () => {
+    expect(buildStatusMenuData({ ...base, selfSectionDone: true, selfEdited: true }).persons.find((p) => p.id === "self")?.status).toBe("updated")
+    // edited flag is moot until the section is done
+    expect(buildStatusMenuData({ ...base, selfSectionDone: false, selfEdited: true }).persons.find((p) => p.id === "self")?.status).toBe("not_started")
   })
 
   it("co-directors are status-only (completes via their own link), never openable by the filler", () => {
@@ -66,6 +72,13 @@ describe("buildStatusMenuData — universal hub (non-company)", () => {
   it("live co-status flips a co card to Completed once the server says they're done (ADDENDUM_14Q hub)", () => {
     const args = { ...personal, type: "couple" as const, coApplicants: [co({ email: "sue@co.za", role: "co_applicant" })] }
     expect(buildStatusMenuData(args).persons.find((p) => p.id === "co_0")?.status).toBe("not_started")
+    expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": true } }).persons.find((p) => p.id === "co_0")?.status).toBe("completed")
+  })
+
+  it("once the application exists, an un-started co reads Invitation sent (they've been emailed their link)", () => {
+    const args = { ...personal, type: "couple" as const, coApplicants: [co({ email: "sue@co.za", role: "co_applicant" })], appCreated: true }
+    expect(buildStatusMenuData(args).persons.find((p) => p.id === "co_0")?.status).toBe("invitation_sent")
+    // still flips to Completed via the live poll
     expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": true } }).persons.find((p) => p.id === "co_0")?.status).toBe("completed")
   })
 })

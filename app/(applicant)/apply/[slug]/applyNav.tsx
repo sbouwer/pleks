@@ -10,6 +10,8 @@
  *         `key` so the orchestrator's render/next dispatch is key-driven, not index-bound.
  */
 
+import { LayoutGrid, Send } from "lucide-react"
+
 export type PaneMeta = ReadonlyArray<{ group: string; sub: string; key: string }>
 export interface NavModel { stepGroups: readonly string[]; paneMeta: PaneMeta; groupPanes: Record<string, number[]>; stepDesc: Record<string, string> }
 
@@ -187,6 +189,53 @@ export function StepRail({ model, states, step, maxReached, onNav, onJumpStep }:
         )
       })}
     </nav>
+  )
+}
+
+/** A non-numbered nav leaf (icon + label + desc) matching the StepRail item grammar — used for the constant
+ *  "Application overview" and "Review & submit" items that frame the step rail. */
+function NavLeaf({ icon, label, desc, active, disabled, onClick }: Readonly<{
+  icon: React.ReactNode; label: string; desc?: string; active: boolean; disabled?: boolean; onClick: () => void
+}>) {
+  const interactive = !active && !disabled
+  return (
+    <button type="button" disabled={active || disabled} onClick={onClick}
+      className={`flex w-full items-start gap-3 rounded-[var(--r-button)] border-l-2 px-3 py-2.5 text-left transition-colors ${active ? "border-[var(--amber)] bg-[var(--paper-sunk)]" : "border-transparent"} ${interactive ? "cursor-pointer hover:bg-[var(--paper-sunk)]/60" : "cursor-default"} ${disabled && !active ? "opacity-50" : ""}`}>
+      <span className={`mt-px flex size-[22px] shrink-0 items-center justify-center rounded-[var(--r-button)] ${active ? "border-[1.5px] border-[var(--amber)] text-[var(--amber-ink)]" : "border-[1.5px] border-[var(--rule-strong)] text-[var(--ink-mute)]"}`}>{icon}</span>
+      <span className="min-w-0">
+        <span className={`block text-sm leading-tight ${active ? "font-medium text-[var(--ink)]" : "text-[var(--ink-soft)]"}`}>{label}</span>
+        {desc && <span className="mt-0.5 block text-[11px] leading-tight text-[var(--ink-mute)]">{desc}</span>}
+      </span>
+    </button>
+  )
+}
+
+/** The CONSTANT left nav for an in-progress application (ADDENDUM_14Q resequence): "Application overview" (the hub) ·
+ *  the current sub-flow's step rail (only while editing a card) · "Review & submit" (gated on the filler's own cards).
+ *  No "Apply as" — that's a one-time landing with no return. */
+export function ApplyNavRail({
+  overviewActive, onOverview, inSubFlow, reviewActive, reviewEnabled, showReview, onReview,
+  model, states, step, maxReached, onNav, onJumpStep,
+}: Readonly<{
+  overviewActive: boolean; onOverview: () => void; inSubFlow: boolean
+  reviewActive: boolean; reviewEnabled: boolean; showReview: boolean; onReview: () => void
+  model: NavModel; states: StepState[]; step: number; maxReached: number
+  onNav: (t: number | "apply-as") => void; onJumpStep: (s: number) => void
+}>) {
+  return (
+    <div className="flex flex-col gap-1">
+      <NavLeaf icon={<LayoutGrid className="size-3.5" />} label="Application overview" desc="All applicants & status" active={overviewActive} onClick={onOverview} />
+      {inSubFlow && states.length > 0 && (
+        <div className="my-1 ml-[10px] border-l border-[var(--rule)] pl-2">
+          <StepRail model={model} states={states} step={step} maxReached={maxReached} onNav={onNav} onJumpStep={onJumpStep} />
+        </div>
+      )}
+      {showReview && (
+        <NavLeaf icon={<Send className="size-3.5" />} label="Review & submit"
+          desc={reviewEnabled ? "Check & submit" : "Finish your part to unlock"}
+          active={reviewActive} disabled={!reviewEnabled} onClick={onReview} />
+      )}
+    </div>
   )
 }
 

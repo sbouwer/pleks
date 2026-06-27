@@ -1,24 +1,21 @@
 "use client"
 
 /**
- * app/(applicant)/apply/[slug]/applyStatusMenu.tsx — "Your application status" hub (ADDENDUM_14Q increment 1)
+ * app/(applicant)/apply/[slug]/applyStatusMenu.tsx — "Your application status" hub (ADDENDUM_14Q)
  *
- * Notes:  The persistent home for a MULTI-PARTY application (couple · guarantor · company): one card per applicant —
- *         the company card on top, person cards under — each with a 3-state status (Not started / In progress /
- *         Completed) and EITHER a credential-gated open/edit action (the filler may do their own card + the company
+ * Notes:  The persistent home for EVERY application: one card per applicant — the company card on top, person cards
+ *         under — each with a status (Invitation sent / Not started / Started application / Completed / Updated
+ *         application) and EITHER a credential-gated open/edit action (the filler may do their own card + the company
  *         card) OR a status-only note ("invited — completes via their own link"). Review & Submit is an
- *         application-level primary here, enabled only when every card is Completed; when gated it NAMES who's
- *         outstanding (CD §8.5) since a filler can be blocked by a co-applicant they cannot complete for.
- *           This is the presentational hub only — the view-state wiring (ApplyView) + the per-card status/credential
- *         source come in increment 2. It reuses the roster's door-card grammar; the transient ApplicantRoster is
- *         retired once this is the hub (increment 6). The all-green gate is an affordance — submit re-validates
- *         server-side (CD cross-cutting B).
+ *         application-level primary, enabled once the FILLER's own cards are done; when gated it NAMES who's
+ *         outstanding (CD §8.5). The status pill sits in a FIXED-WIDTH column so the pills line up across stacked
+ *         cards regardless of name length or open/locked affordance. The all-green gate is an affordance — submit
+ *         re-validates server-side (CD cross-cutting B).
  */
-import { Building2, CheckCircle2, Clock, Circle, ChevronRight, User, Lock, Send } from "lucide-react"
+import { Building2, CheckCircle2, Clock, Circle, ChevronRight, User, Lock, Send, RefreshCw } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
-import { StepHeading } from "./applyShared"
 
-export type CardStatus = "not_started" | "in_progress" | "completed"
+export type CardStatus = "not_started" | "invitation_sent" | "in_progress" | "completed" | "updated"
 
 /** A person applicant card on the hub (director / surety / co-applicant). `id` is the open-target the hub dispatches
  *  ("self" for the filler's own card, "co_{id}" for a co-applicant). canOpen = the filler holds credentials to it. */
@@ -26,30 +23,41 @@ export interface StatusMenuPerson { id: string; name: string; roleLabel: string;
 /** The company applicant card (the main applicant). canOpen = the filler is an entitled director/owner. */
 export interface StatusMenuCompany { name: string; status: CardStatus; canOpen: boolean }
 
-const STATUS_LABEL: Record<CardStatus, string> = { not_started: "Not started", in_progress: "In progress", completed: "Completed" }
+/** A card counts as "done for submit" once completed — OR updated (edited after completion; still ready to submit). */
+const DONE_STATES = new Set<CardStatus>(["completed", "updated"])
+
+const STATUS_LABEL: Record<CardStatus, string> = {
+  not_started: "Not started",
+  invitation_sent: "Invitation sent",
+  in_progress: "Started application",
+  completed: "Completed",
+  updated: "Updated application",
+}
 /** The action verb for an openable card, by status — the hub is where you ACT (CD §8.1). */
-const OPEN_LABEL: Record<CardStatus, string> = { not_started: "Start", in_progress: "Continue", completed: "Review" }
+const OPEN_LABEL: Record<CardStatus, string> = {
+  not_started: "Start", invitation_sent: "Start", in_progress: "Continue", completed: "Review", updated: "Review",
+}
 
 function StatusPill({ status }: Readonly<{ status: CardStatus }>) {
-  if (status === "completed") return (
-    <span className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700"><CheckCircle2 className="size-3.5" /> {STATUS_LABEL.completed}</span>
-  )
-  if (status === "in_progress") return (
-    <span className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--amber)] bg-[var(--amber-wash)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--amber-ink)]"><Clock className="size-3.5" /> {STATUS_LABEL.in_progress}</span>
-  )
-  return (
-    <span className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--ink-mute)]"><Circle className="size-3.5" /> {STATUS_LABEL.not_started}</span>
-  )
+  const base = "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold"
+  if (status === "completed") return <span className={`${base} border-emerald-200 bg-emerald-50 text-emerald-700`}><CheckCircle2 className="size-3.5" /> {STATUS_LABEL.completed}</span>
+  if (status === "updated") return <span className={`${base} border-[var(--amber)] bg-[var(--amber-wash)] text-[var(--amber-ink)]`}><RefreshCw className="size-3.5" /> {STATUS_LABEL.updated}</span>
+  if (status === "in_progress") return <span className={`${base} border-[var(--amber)] bg-[var(--amber-wash)] text-[var(--amber-ink)]`}><Clock className="size-3.5" /> {STATUS_LABEL.in_progress}</span>
+  if (status === "invitation_sent") return <span className={`${base} border-[var(--rule)] bg-[var(--paper)] text-[var(--ink-mute)]`}><Send className="size-3.5" /> {STATUS_LABEL.invitation_sent}</span>
+  return <span className={`${base} border-[var(--rule)] bg-[var(--paper)] text-[var(--ink-mute)]`}><Circle className="size-3.5" /> {STATUS_LABEL.not_started}</span>
 }
 function cardTone(status: CardStatus): string {
-  return status === "completed" ? "border-emerald-200 bg-emerald-50" : "border-[var(--rule)] bg-[var(--paper-sunk)]"
+  if (status === "completed") return "border-emerald-200 bg-emerald-50"
+  if (status === "updated") return "border-[var(--amber)] bg-[var(--amber-wash)]"
+  return "border-[var(--rule)] bg-[var(--paper-sunk)]"
 }
 function iconTone(status: CardStatus): string {
-  return status === "completed" ? "bg-emerald-100 text-emerald-700" : "border border-[var(--rule)] bg-[var(--paper)] text-[var(--ink-mute)]"
+  return DONE_STATES.has(status) ? "bg-emerald-100 text-emerald-700" : "border border-[var(--rule)] bg-[var(--paper)] text-[var(--ink-mute)]"
 }
 
-/** One hub card. Openable → a clickable button (whole card) with the status-appropriate verb + chevron; otherwise a
- *  static card with a lock + the status-only note. `square` gives the company card a square icon (vs round persons). */
+/** One hub card. Layout is a fixed column grid — [icon] [name/sub (flex)] [pill (fixed)] [affordance (fixed)] — so
+ *  the status pills align vertically down a stack of cards no matter the name length or open/locked trailing action.
+ *  Openable → the whole card is a button (status verb + chevron); otherwise a static card with a lock. */
 function MenuCard({ icon, name, sub, status, canOpen, statusOnlyNote, onOpen, square }: Readonly<{
   icon: React.ReactNode; name: string; sub: string; status: CardStatus; canOpen: boolean; statusOnlyNote?: string
   onOpen?: () => void; square?: boolean
@@ -60,22 +68,23 @@ function MenuCard({ icon, name, sub, status, canOpen, statusOnlyNote, onOpen, sq
       <span className={`flex shrink-0 items-center justify-center ${iconRadius} ${iconTone(status)}`}>{icon}</span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-[var(--ink)]">{name}</p>
-        <p className="text-xs text-[var(--ink-mute)]">{canOpen ? sub : (statusOnlyNote ?? sub)}</p>
+        <p className="truncate text-xs text-[var(--ink-mute)]">{canOpen ? sub : (statusOnlyNote ?? sub)}</p>
       </div>
-      <StatusPill status={status} />
+      {/* Fixed-width pill column → pills line up across stacked cards. */}
+      <div className="flex w-[150px] shrink-0 justify-end"><StatusPill status={status} /></div>
     </>
   )
   if (canOpen && onOpen) return (
     <button type="button" onClick={onOpen} aria-label={`${OPEN_LABEL[status]} — ${name}`}
       className={`group flex w-full items-center gap-3 rounded-[var(--r-button)] border p-4 text-left transition-colors hover:border-[var(--amber)] ${cardTone(status)}`}>
       {body}
-      <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-[var(--ink-soft)] group-hover:text-[var(--amber-ink)]">{OPEN_LABEL[status]} <ChevronRight className="size-4" /></span>
+      <span className="flex w-[84px] shrink-0 items-center justify-end gap-1 text-xs font-semibold text-[var(--ink-soft)] group-hover:text-[var(--amber-ink)]">{OPEN_LABEL[status]} <ChevronRight className="size-4" /></span>
     </button>
   )
   return (
     <div className={`flex items-center gap-3 rounded-[var(--r-button)] border p-4 ${cardTone(status)}`}>
       {body}
-      <Lock className="size-4 shrink-0 text-[var(--ink-mute)]" aria-label="Completed via their own link" />
+      <span className="flex w-[84px] shrink-0 items-center justify-end"><Lock className="size-4 text-[var(--ink-mute)]" aria-label="Completed via their own link" /></span>
     </div>
   )
 }
@@ -83,15 +92,15 @@ function MenuCard({ icon, name, sub, status, canOpen, statusOnlyNote, onOpen, sq
 /** The hub's submit affordance. The filler can only complete THEIR OWN (openable) cards, so Review & Submit unlocks
  *  on those (`fillerReady`); status-only parties (co-applicants/directors) complete via their own links and are the
  *  server's everyone-gate at submit-to-agent (CD cross-cutting B), surfaced here only as `others` for transparency.
- *  Pure so it's unit-testable. */
+ *  A card is "ready" once completed OR updated (edited after completion). Pure so it's unit-testable. */
 export function summariseStatus(company: StatusMenuCompany | null | undefined, persons: ReadonlyArray<StatusMenuPerson>): {
   fillerReady: boolean; mine: string[]; others: string[]
 } {
-  const mine: string[] = []   // the filler's own openable cards not yet completed
+  const mine: string[] = []   // the filler's own openable cards not yet done
   const others: string[] = [] // status-only cards (each completes via their own link)
-  if (company) { if (company.canOpen) { if (company.status !== "completed") mine.push(company.name) } else others.push(company.name) }
+  if (company) { if (company.canOpen) { if (!DONE_STATES.has(company.status)) mine.push(company.name) } else others.push(company.name) }
   for (const p of persons) {
-    if (p.canOpen) { if (p.status !== "completed") mine.push(p.name) }
+    if (p.canOpen) { if (!DONE_STATES.has(p.status)) mine.push(p.name) }
     else others.push(p.name)
   }
   return { fillerReady: mine.length === 0, mine, others }
@@ -110,8 +119,8 @@ export function ApplicationStatusMenu({ unitTitle, company, persons, onOpen, onS
   const { fillerReady, mine, others } = summariseStatus(company, persons)
   return (
     <div className="flex min-h-full flex-col gap-4">
-      {/* Header — "status" must not read as view-only; the subhead makes "tap your card to complete" obvious (CD §8.1). */}
-      <StepHeading title={`Your application status — ${unitTitle}`} sub="Tap a card to complete that applicant's part. The application goes to the agent once everyone is done." />
+      {/* The panel header carries the title (amber tick) — here we just orient the applicant on what to do. */}
+      <p className="text-sm leading-relaxed text-[var(--ink-soft)]">Tap a card to complete that applicant&apos;s part for <span className="font-medium text-[var(--ink)]">{unitTitle}</span>. The application goes to the agent once everyone is done.</p>
 
       {company && (
         <MenuCard square icon={<Building2 className="size-5" />} name={company.name} sub="Company — main applicant"
@@ -121,7 +130,7 @@ export function ApplicationStatusMenu({ unitTitle, company, persons, onOpen, onS
 
       <div className="flex flex-col gap-3">
         {persons.map((p) => (
-          <MenuCard key={p.id} icon={p.status === "completed" ? <CheckCircle2 className="size-5" /> : <User className="size-5" />}
+          <MenuCard key={p.id} square icon={DONE_STATES.has(p.status) ? <CheckCircle2 className="size-5" /> : <User className="size-5" />}
             name={p.name} sub={p.roleLabel} status={p.status} canOpen={p.canOpen}
             statusOnlyNote={p.statusOnlyNote ?? `${p.roleLabel} — invited, completes via their own link`}
             onOpen={() => onOpen(p.id)} />

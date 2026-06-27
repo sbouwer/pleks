@@ -28,6 +28,7 @@ import {
 import { isValidEmail, cipcRegError, checkPhone } from "@/lib/validation/contact"
 import { assembleSaveDraftPayload, resolvePrimary } from "./applySaveDraft"
 import type { StatusMenuCompany, StatusMenuPerson, CardStatus } from "./applyStatusMenu"
+import { summariseStatus } from "./applyStatusMenu"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, type NavModel } from "./applyNav"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 
@@ -65,6 +66,16 @@ function cardStatusOf(done: boolean, started: boolean): CardStatus {
   if (done) return "completed"
   return started ? "in_progress" : "not_started"
 }
+/** The filler's own card: Completed → Updated application once edited after completion (the review-then-edit loop). */
+function selfCardStatus(done: boolean, edited: boolean, started: boolean): CardStatus {
+  if (done) return edited ? "updated" : "completed"
+  return cardStatusOf(false, started)
+}
+/** A co-applicant card: Completed (live poll) → else Invitation sent once the app exists (they've been emailed). */
+function coCardStatus(done: boolean, appCreated: boolean): CardStatus {
+  if (done) return "completed"
+  return appCreated ? "invitation_sent" : "not_started"
+}
 
 /** The "Your application status" hub cards (ADDENDUM_14Q increment 2). The company card carries its own progress;
  *  the filler's self card is openable; co-applicants are status-only (they complete via their own link). Pure so the
@@ -73,7 +84,7 @@ export function buildStatusMenuData(o: Readonly<{
   type: ApplicantType | null; isJuristic: boolean
   companyName: string; companyStarted: boolean; companySignedOff: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
-  selfSectionDone: boolean; selfStarted: boolean; coStatusByEmail?: Record<string, boolean>
+  selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; appCreated: boolean; coStatusByEmail?: Record<string, boolean>
 }>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
   const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -84,12 +95,14 @@ export function buildStatusMenuData(o: Readonly<{
   const includeSelf = o.isJuristic ? o.imDirector : true
   if (includeSelf) {
     const selfRole = o.isJuristic ? cap(o.companyRole) : "Applicant"
-    persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: selfRole, status: cardStatusOf(o.selfSectionDone, o.selfStarted), canOpen: true })
+    const selfStatus = selfCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted)
+    persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: selfRole, status: selfStatus, canOpen: true })
   }
   o.coApplicants.forEach((c, i) => {
     const role = coRoleLabel(o.type, c, cap)
     const done = o.coStatusByEmail?.[c.email] === true // live server status (best-effort); else not yet done
-    persons.push({ id: `co_${i}`, name: name(c.firstName, c.lastName, c.email || "Applicant"), roleLabel: role, status: done ? "completed" : "not_started", canOpen: false, statusOnlyNote: `${role} — invited, completes via their own link` })
+    const coStatus = coCardStatus(done, o.appCreated)
+    persons.push({ id: `co_${i}`, name: name(c.firstName, c.lastName, c.email || "Applicant"), roleLabel: role, status: coStatus, canOpen: false, statusOnlyNote: `${role} — invited, completes via their own link` })
   })
   return { company, persons }
 }
@@ -141,6 +154,15 @@ function prefillEmploymentFromCompany(company: CompanyInfo, e: Emp): Emp {
     business_nature: e.business_nature || company.nature || "",
     registered: e.registered || (company.companyType === "sole_prop" ? "sole_prop" : e.registered),
   }
+}
+
+/** The amber-tick panel-header text per phase: hub ("Application overview · {unit}") · section ("Group · sub") ·
+ *  landing ("Apply to · {unit}"). Module-level so the hook stays under the cognitive-complexity gate. */
+function resolvePanelHeader(o: Readonly<{ atRoster: boolean; inWizard: boolean; activeGroup: string; paneSub: string; listingTitle?: string }>): { title: string; sub: string } {
+  const home = o.listingTitle ?? "this home"
+  if (o.atRoster) return { title: "Application overview", sub: home }
+  if (o.inWizard) return { title: o.activeGroup, sub: o.paneSub }
+  return { title: "Apply to", sub: home }
 }
 
 type NavNext = { label: string; onClick: () => void; disabled?: boolean; primary?: boolean } | null
@@ -319,6 +341,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const [companyStarted, setCompanyStarted] = useState<boolean>(resumeCompany && resumeStep > 0)
   const [companySignedOff, setCompanySignedOff] = useState<boolean>(resumeCompany && resumeStep >= PTY_COMPANY_PANES)
   const [selfSectionDone, setSelfSectionDone] = useState(false)
+  // The filler re-opened their OWN completed section to edit it (the review-then-edit loop, ADDENDUM_14Q §8-9) → the
+  // self card reads "Updated application" instead of "Completed" until they re-submit.
+  const [selfEdited, setSelfEdited] = useState(false)
   // Editing PERSONAL details in a RESUMED session (anyone could hold the shared link) needs a fresh identity check.
   // Fresh fills are unlocked (they verified at sign-off); a resume starts locked until "verify it's you" passes.
   const [amendUnlocked, setAmendUnlocked] = useState(!resume)
@@ -362,9 +387,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     else setCoApplicants([])
   }
 
-  /** Begin (first time) / Continue (re-editing "Apply as"): validate the chosen type + parties, then enter the
-   *  form panes. Invites are held in state and dispatched once the application exists (createApplication). */
-  function beginApplication() {
+  /** Begin: validate the chosen type + parties, CREATE the application now (create-on-begin), dispatch the
+   *  co-applicant invites so they immediately read "Invitation sent" + can start via their link, then land on the
+   *  status hub. Apply-as is a ONE-TIME landing — there's no nav back to it once the application exists. */
+  async function beginApplication() {
     if (!type) { toast.error("Choose how you're applying."); return }
     if (type === "company" && !company.companyType) { toast.error("Please select the company type."); return }
     // Couple / guarantor: the co-person (row 2) needs basics; the primary is YOU (the form), validated in the flow.
@@ -389,9 +415,23 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
         toast.error("A director is required to sign on the company's behalf — add a director, or set someone's designation to Director."); return
       }
     }
-    setBegun(true)
-    setMaxReached((m) => Math.max(m, step))
-    setAtRoster(true) // EVERY flow lands on the "Your application status" hub (ADDENDUM_14Q universal landing)
+    setBusy(true)
+    try {
+      // Create-on-begin: the application row exists from the moment you land on the hub, so co-applicants are
+      // invited immediately (their card → "Invitation sent") and the self can verify their email to start. Without
+      // an applicationId yet, autosave would still create it later — but the hub needs it NOW for invites + verify.
+      if (!applicationId) {
+        const r = await saveDraft(step)
+        if (!r) return // saveDraft toasts (it needs the primary's email — always captured on Apply as)
+        void dispatchInvites(r.id)
+        setSaved(true)
+      }
+      setBegun(true)
+      setMaxReached((m) => Math.max(m, step))
+      setAtRoster(true) // EVERY flow lands on the "Your application status" hub (ADDENDUM_14Q universal landing)
+    } finally {
+      setBusy(false)
+    }
   }
 
   function goBack() {
@@ -433,9 +473,13 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       // and reuses what we know about the company (prefill, #1); every other flow's section starts at step 0.
       const target = isJuristicCompany ? companyPaneCount : 0
       if (isJuristicCompany) setEmp((e) => prefillEmploymentFromCompany(company, e))
-      // Opening a PERSONAL section from a still-locked resumed (shared-link) session → "verify it's you" first
-      // (ADDENDUM_14Q §4 / increment 3c). Mirrors amendAt — the hub is the other door into the same personal panes.
-      if (!amendUnlocked && PERSONAL_EDIT_KEYS.has(nav.paneMeta[target]?.key ?? "")) { setAmendGateStep(target); return }
+      if (selfSectionDone) setSelfEdited(true) // re-opening a completed section = an edit → card reads "Updated application"
+      // You must verify your email BEFORE starting your own section (the unlock — invited co-applicants auto-pass via
+      // their link). A resumed shared-link session re-verifies before editing personal panes. Both routes use the
+      // same email-OTP gate; on success it unlocks + opens the section.
+      const personalPane = PERSONAL_EDIT_KEYS.has(nav.paneMeta[target]?.key ?? "")
+      const needsVerify = !emailGateSatisfied || (!amendUnlocked && personalPane)
+      if (needsVerify) { setAmendGateStep(target); return }
       navTo(target)
     }
     else if (id === "review") { const t = companyPaneCount + STEP_REVIEW; setMaxReached((m) => Math.max(m, t)); navTo(t) }
@@ -711,6 +755,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
    *  re-submits to run a fresh screening iteration (the 14M self-improvement loop). */
   function applyAmend(toStep: number) { setScreeningStatus("idle"); setAssessment(null); setAtRoster(false); setStep(toStep) }
   function amendAt(toStep: number) {
+    // Editing a personal pane after the section's done = an edit → the self card reads "Updated application".
+    if (selfSectionDone && PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")) setSelfEdited(true)
     // Editing PERSONAL details (not documents/company) in a still-locked resumed session → "verify it's you" first.
     if (!amendUnlocked && PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")) { setAmendGateStep(toStep); return }
     applyAmend(toStep)
@@ -764,13 +810,18 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const selfStarted = maxReached > selfStart
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
     type, isJuristic: isJuristicCompany, companyName: company.name || company.trading || "The company",
-    companyStarted, companySignedOff, form, coApplicants, companyRole, imDirector: companyImDirector, selfSectionDone, selfStarted, coStatusByEmail,
+    companyStarted, companySignedOff, form, coApplicants, companyRole, imDirector: companyImDirector,
+    selfSectionDone, selfStarted, selfEdited, appCreated: !!applicationId, coStatusByEmail,
   })
   // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).
   const isMultiParty = isJuristicCompany || coApplicants.length > 0
   // Submit is the primary/signatory's act (CD cross-cutting A): a juristic office-manager (not a director) never
   // presses it — the named director submits via their own link.
   const canSubmit = !(isJuristicCompany && !companyImDirector)
+  // The persistent "Review / submit" nav item: unlocked once the filler's own cards are done (fillerReady) and submit
+  // is theirs to press (canSubmit). The hub re-derives the same fillerReady internally; this exposes it for the rail.
+  const { fillerReady: reviewFillerReady } = summariseStatus(statusMenuCompany, statusMenuPersons)
+  const reviewUnlocked = reviewFillerReady && canSubmit
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
   // -mr-5 pr-5: bleed the scroll body 20px into the panel's 40px side padding and pad the content back, so the
@@ -781,15 +832,21 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const inWizard = begun
   const activeKey = inWizard ? nav.paneMeta[step]?.key : undefined // the active pane's key drives render + next dispatch
   const activeGroup = inWizard ? nav.paneMeta[step].group : "Apply as"
-  // The panel header reads "Group · sub" in the wizard and "Apply to · {unit}" on the landing.
-  const headerTitle = inWizard ? activeGroup : "Apply to"
-  const headerSub = inWizard ? nav.paneMeta[step].sub : (listingTitle ?? "this home")
+  // The amber-tick panel header is present in every phase (hub · section · landing) so its rule continues the nav's.
+  const { title: headerTitle, sub: headerSub } = resolvePanelHeader({ atRoster, inWizard, activeGroup, paneSub: nav.paneMeta[step]?.sub ?? "", listingTitle })
   const applyAsDesc = type ? `${TYPE_LABEL[type]} · ${leaseType}` : "Choose how you apply"
   // JURISTIC = TWO distinct rails (the LOCKED roster model — company is a card, not a phase): show ONLY the company
   // section during the company phase (and at the roster hub), then ONLY the director's own section once they're past
   // the sign-off. `nav` stays the full machine (dispatch/render); the RAIL display is phase-scoped + offset.
   const { railNav, railOffset, railStep, railMaxReached } = resolveRail(juristic, nav, step, companyPaneCount, maxReached)
+  // The constant nav is "Application overview · {steps when editing} · Review & submit" (ADDENDUM_14Q resequence).
+  // So the step rail drops "Apply as" (a one-time landing, no return) AND "Application review" (now the dedicated
+  // persistent Review item), leaving only the data groups — renumbered from 1.
   const navStates = computeStepStates(railNav, { activeGroup, step: railStep, maxReached: railMaxReached, inWizard, typePicked: type !== null, hasApplication: !!applicationId, applyAsDesc })
+    .filter((s) => s.group !== "Apply as" && s.group !== "Application review")
+    .map((s, i) => ({ ...s, n: i + 1 }))
+  // On the review summary pane (reached via the persistent Review item / the hub's Review & submit), not in a data step.
+  const onReviewStep = inWizard && !atRoster && activeKey === "review"
   const onNav = (t: number | "apply-as") => { if (t === "apply-as") setBegun(false); else navTo(t + railOffset) }
   const onJumpRail = (t: number) => navTo(t + railOffset)
   const advanceStep = () => { advance(step + 1); autosave(step + 1) } // plain "Next" for panes with no validation (co-address)
@@ -819,6 +876,6 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     nav, personalStep, juristic, docApplicantType, docCategories, companyDocCategories, docsReady, applicantsGreen,
     emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, disclaimer, scrollCls,
     inWizard, activeKey, activeGroup, headerTitle, headerSub, railNav, railStep, railMaxReached, navStates, onNav,
-    onJumpRail, navNext, showBackBtn, showSaveBtn, askingRentCents,
+    onJumpRail, navNext, showBackBtn, showSaveBtn, askingRentCents, reviewUnlocked, onReviewStep,
   }
 }
