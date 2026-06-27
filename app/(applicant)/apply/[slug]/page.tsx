@@ -121,9 +121,10 @@ async function loadResume(
       idNumber: decryptIdNumber(c.id_number as string | null) ?? "", role: (c.role as "co_applicant" | "guarantor") ?? "co_applicant", invited: true,
     })),
     docPaths,
-    // The filler finished their own section (documents_submitted) before this resume → the hub shows their card as
-    // Completed, not "Started application". (Submitted apps aren't resumable — guarded above.)
-    selfDone: (app.stage1_status as string | null) === "documents_submitted",
+    // The filler finished their own section before this resume → the hub shows their card as Completed, not
+    // "Started application". documents_submitted = section done; pre_screen_complete = they also ran the review
+    // assessment (/submit advances the status). Both mean "their part is done". (Submitted apps aren't resumable.)
+    selfDone: ["documents_submitted", "pre_screen_complete"].includes((app.stage1_status as string | null) ?? ""),
   }
 }
 

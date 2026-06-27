@@ -353,11 +353,11 @@ export function ConsentVerify({ applicationId, token, email, verified, onVerifie
   )
 }
 
-export function StepSubmit({ form, emp, income, askingRentCents, consent, setConsent, coApplicants, applicantsGreen, screeningStatus, assessment, onAmend, onContinue, onAddApplicant, applicationId, token, emailVerified, onVerified }: Readonly<{
-  form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number; consent: boolean; setConsent: (v: boolean) => void
+export function StepSubmit({ form, emp, income, askingRentCents, coApplicants, applicantsGreen, screeningStatus, assessment, onAmend, onContinue, onAddApplicant, applicationId, token }: Readonly<{
+  form: PartyFormState; emp: Emp; income: IncomeRow[]; askingRentCents: number
   coApplicants: CoApplicant[]; applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null
   onAmend: (s: number) => void; onContinue: () => void; onAddApplicant: () => void
-  applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
+  applicationId: string | null; token: string | null
 }>) {
   // The REAL submission — only when the applicant reviews the pre-screen and chooses to send it to the agent.
   async function submitToAgent(): Promise<boolean> {
@@ -381,7 +381,7 @@ export function StepSubmit({ form, emp, income, askingRentCents, consent, setCon
   const others = coApplicants.filter((c) => c.email.trim())
   return (
     <div className="flex min-h-full flex-col gap-4">
-      <StepHeading title="Application review" sub="Confirm your email and give consent to continue — then you'll see your review and can submit. Everyone on the application consents and verifies on their own link." />
+      <StepHeading title="Application review" sub="A quick check of what you provided — see your review and submit. (Consent was given when you completed your section.)" />
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm">
         <Row k="Applicant" v={name} />
         <Row k="Email" v={form.email ?? "—"} />
@@ -392,12 +392,9 @@ export function StepSubmit({ form, emp, income, askingRentCents, consent, setCon
         <Row k="Rent-to-income" v={ratio != null ? `${ratio}%` : "—"} />
         {others.length > 0 && <Row k="Others" v={others.map((c) => c.role === "guarantor" ? "guarantor" : "co-applicant").join(", ")} />}
       </div>
-      <ConsentVerify applicationId={applicationId} token={token} email={form.email} verified={emailVerified} onVerified={onVerified} consent={consent} setConsent={setConsent}>
-        I consent to Pleks processing the information and documents I&apos;ve provided — including automated (AI) analysis of my uploaded documents — to pre-screen this application (POPIA). No credit check or bureau enquiry runs at this stage; that only happens later if I&apos;m shortlisted and I consent again.
-      </ConsentVerify>
-      {/* Continue pinned to the BOTTOM of the card (mt-auto), bottom-right — the header keeps only Back. */}
+      {/* Consent is captured per section now — the review just runs the assessment. */}
       <div className="mt-auto flex justify-end pt-3">
-        <ActionButton tone="primary" onClick={onContinue} disabled={!consent || !applicantsGreen || !emailVerified}>Continue to review</ActionButton>
+        <ActionButton tone="primary" onClick={onContinue} disabled={!applicantsGreen}>See my review</ActionButton>
       </div>
     </div>
   )

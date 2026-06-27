@@ -28,7 +28,7 @@ import { StepCompanyDetails, StepCompanyReview } from "./applyCompany"
 import { type CoRole, SELF_EMPLOYED_TYPES, STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW } from "./applyDomain"
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
-import { StepSubmit, VerifyEmail } from "./applyReview"
+import { StepSubmit, VerifyEmail, ConsentVerify } from "./applyReview"
 import { ApplicationStatusMenu } from "./applyStatusMenu"
 import { StepBar, SubTabs, ApplyNavRail } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
@@ -84,8 +84,16 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (personalStep === 3) return <StepIncome income={income} setIncome={setIncome} variable={SELF_EMPLOYED_TYPES.includes(emp.employment_type) || emp.employment_type === "commission"} />
     if (personalStep === STEP_EXPENSES) return <StepExpenses dependentAdults={dependentAdults} setDependentAdults={setDependentAdults} dependentMinors={dependentMinors} setDependentMinors={setDependentMinors} commitments={commitments} setCommitments={setCommitments} />
     if (personalStep === STEP_DOCUMENTS) return <StepDocuments tab="required" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
-    if (personalStep === STEP_DOCS_OPTIONAL) return <StepDocuments tab="optional" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
-    if (personalStep === STEP_REVIEW) return <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} consent={consent} setConsent={setConsent} coApplicants={coApplicants} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} />
+    if (personalStep === STEP_DOCS_OPTIONAL) return (
+      <div className="flex flex-col gap-6">
+        <StepDocuments tab="optional" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
+        {/* SECTION sign-off — consent is captured here (per member), so the application Review is consent-free. */}
+        <ConsentVerify applicationId={applicationId} token={token} email={form.email} verified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={consent} setConsent={setConsent}>
+          I consent to Pleks processing the information and documents I&apos;ve provided — including automated (AI) analysis of my uploaded documents — to pre-screen this application (POPIA). No credit check or bureau enquiry runs at this stage; that only happens later if I&apos;m shortlisted and I consent again.
+        </ConsentVerify>
+      </div>
+    )
+    if (personalStep === STEP_REVIEW) return <StepSubmit form={form} emp={emp} income={income} askingRentCents={askingRentCents} coApplicants={coApplicants} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} />
     return null
   }
   // Desktop = vertical step rail (left) + form panel; mobile/short = horizontal step bar atop the panel.

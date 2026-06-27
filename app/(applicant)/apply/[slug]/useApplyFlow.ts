@@ -182,7 +182,7 @@ type NavNext = { label: string; onClick: () => void; disabled?: boolean; primary
  *  gate. Company entity panes dispatch by `activeKey`; the personal/director panes via `personalStep`. */
 function resolveNavNext(o: Readonly<{
   inWizard: boolean; atRoster: boolean; activeKey: string | undefined; companyImDirector: boolean; companyRole: string
-  personalStep: number; docsReady: boolean; busy: boolean
+  personalStep: number; docsReady: boolean; busy: boolean; consent: boolean
   continueCompanyInfo: () => void; advanceStep: () => void; afterCompanyReview: () => void; createApplication: () => void
   continueCompanyFinances: () => void
   companyConsent: boolean; emailGateSatisfied: boolean
@@ -210,7 +210,7 @@ function companyEntityNavNext(o: Readonly<{
 }
 /** Personal / director panes (sole prop + the director's private flow reuse these), dispatched by personalStep. */
 function personalNavNext(o: Readonly<{
-  personalStep: number; docsReady: boolean
+  personalStep: number; docsReady: boolean; consent: boolean
   continueIdentity: () => void; continueAddress: () => void; continueEmployment: () => void; continueIncome: () => void
   createApplication: () => void; continueDocsRequired: () => void; finishDocuments: () => void
 }>): NavNext {
@@ -220,7 +220,8 @@ function personalNavNext(o: Readonly<{
   if (o.personalStep === 3) return { label: "Next", onClick: o.continueIncome }
   if (o.personalStep === STEP_EXPENSES) return { label: "Next", onClick: o.createApplication }
   if (o.personalStep === STEP_DOCUMENTS) return { label: "Next", onClick: o.continueDocsRequired, disabled: !o.docsReady }
-  if (o.personalStep === STEP_DOCS_OPTIONAL) return { label: "Next", onClick: o.finishDocuments }
+  // Documents (optional) is the SECTION sign-off — consent is captured here, so "Complete my part" gates on it.
+  if (o.personalStep === STEP_DOCS_OPTIONAL) return { label: "Complete my part", onClick: o.finishDocuments, disabled: !o.consent, primary: true }
   return null
 }
 
@@ -352,7 +353,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const { begun, setBegun } = useBegun()
   const [docFiles, setDocFiles] = useState<Record<string, DocFile[]>>(resume && resumedIncome ? seedDocFiles(resumedIncome, resume.emp.employment_type, resume.docPaths, resume.form?.idType, resume.applicantType ?? inferType(resume.coApplicants), resume.company?.companyType) : {})
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
-  const [consent, setConsent] = useState(false)
+  // The filler's POPIA consent — captured at THEIR section sign-off (the documents pane), not the shared review.
+  // Restored true on resuming an already-completed section (they consented then).
+  const [consent, setConsent] = useState(resume?.selfDone === true)
   const [companyConsent, setCompanyConsent] = useState(false) // the COMPANY applicant's sign-off consent (co-review)
   // The "Your application status" menu is the hub for a COMPANY application (ADDENDUM_14Q): you arrive here after
   // apply-as, open a card (company / your own section), and return here on save/sign-off. A resumed company draft
@@ -605,7 +608,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // UPSERT the draft (create on first save, update thereafter — keyed on the held applicationId/token). Every
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
-  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean; documentsSubmitted?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
+  async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean; documentsSubmitted?: boolean; consentGiven?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
     // Primary-person resolution + the whole request body are pure (applySaveDraft) — the email guard, network call
     // and state writes stay here. On-behalf company → the named director is primary (see resolvePrimary).
     const primary = resolvePrimary(type, companyImDirector, coApplicants, form)
@@ -616,7 +619,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
         body: JSON.stringify({ ...assembleSaveDraftPayload({
           slug, applicationId, token, stepToSave, notify: !!opts?.explicit,
           type, companyImDirector, coApplicants, form, emp, dependentAdults, dependentMinors, income, commitments, company,
-        }), documentsSubmitted: opts?.documentsSubmitted }),
+        }), documentsSubmitted: opts?.documentsSubmitted, consentGiven: opts?.consentGiven }),
       })
       const json = await res.json() as { applicationId?: string; token?: string; resumeUrl?: string; emailed?: boolean; error?: string }
       if (!res.ok || !json.applicationId || !json.token) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
@@ -775,6 +778,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
 
   async function finishDocuments() {
     if (!applicationId) return
+    if (!consent) { toast.error("Please tick the consent box to complete your part."); return }
     setBusy(true)
     try {
       // Persist completion through the SERVER (save-draft, service client) — the unauthenticated applicant can't
@@ -782,7 +786,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       // This also saves the latest fields + extends the token. bank_statement_path is best-effort back-compat
       // (the /screen pipeline enumerates EVERY uploaded file regardless).
       const bankPath = (docFiles["bank_main"] ?? []).find((f) => f.uploaded)?.storagePath ?? null
-      const r = await saveDraft(step, { silent: true, documentsSubmitted: true })
+      const r = await saveDraft(step, { silent: true, documentsSubmitted: true, consentGiven: true })
       if (!r) { toast.error("Could not save — please try again."); return }
       void createClient().from("applications").update({ bank_statement_path: bankPath }).eq("id", applicationId)
       // The applicant's own section is done → back to the status hub (their self card flips to Completed). The
@@ -902,7 +906,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // The current step's forward action (header "Next →"). Review has NO header action (its buttons live in the page
   // body) → returns null there.
   const navNext = resolveNavNext({
-    inWizard, atRoster, activeKey, companyImDirector, companyRole, personalStep, docsReady, busy,
+    inWizard, atRoster, activeKey, companyImDirector, companyRole, personalStep, docsReady, busy, consent,
     continueCompanyInfo, advanceStep, afterCompanyReview, createApplication, continueCompanyFinances, companyConsent, emailGateSatisfied,
     continueIdentity, continueAddress, continueEmployment, continueIncome, continueDocsRequired, finishDocuments,
   })

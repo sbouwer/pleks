@@ -118,25 +118,14 @@ export async function POST(req: NextRequest, { params }: Props) {
   })
 
   const now = new Date().toISOString()
-  // Store the free assessment + record Stage-1 consent. NO deep scan — it runs at shortlist (Step 2).
+  // Store the free assessment. NO deep scan — it runs at shortlist (Step 2). POPIA consent is NOT recorded here:
+  // each applicant consents at their own SECTION sign-off (the filler via save-draft, co-applicants via their link,
+  // the company at co-review) — ADDENDUM_14Q. The review is consent-free; re-running it never re-logs consent.
   const { error: updErr } = await service.from("applications").update({
     stage1_status: "pre_screen_complete",
-    stage1_consent_given: true,
-    stage1_consent_given_at: now,
-    stage1_consent_ip: body.consentIp ?? null,
     free_assessment: { ...assessment, assessedAt: now },
   }).eq("id", id)
   logQueryError("submit free_assessment update", updErr)
-
-  // POPIA: record consent — scope covers the Step-2 AI document analysis (P1h), so the deep scan at shortlist
-  // is consented now (no gap when it turns on).
-  await service.from("consent_log").insert({
-    org_id: app.org_id as string,
-    subject_email: (tokenRow.applicant_email as string | null) ?? (app.applicant_email as string),
-    consent_type: "popia_application", consent_given: true,
-    ip_address: body.consentIp ?? null,
-    metadata: { application_id: id, scope: "stage1_prescreen_and_ai_document_analysis" },
-  })
 
   return NextResponse.json({ ok: true, freeAssessment: assessment })
 }

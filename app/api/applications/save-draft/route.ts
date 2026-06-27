@@ -45,12 +45,41 @@ interface Body {
   /** the filler finished their own section (documents) — set stage1_status server-side (the applicant isn't authed,
    *  so a browser-client table write is unreliable under RLS). Drives the hub's "Completed" + resume restore. */
   documentsSubmitted?: boolean
+  /** the filler gave POPIA consent at their section sign-off (per-member consent) — record it server-side, once. */
+  consentGiven?: boolean
 }
 
 const APPLICANT_TYPES = ["individual", "couple", "company", "guarantor"]
 
 const resumeUrl = (req: NextRequest, slug: string, id: string, token: string) =>
   `${req.nextUrl.origin}/apply/${slug}?app=${id}&token=${encodeURIComponent(token)}`
+
+/** Record the filler's POPIA consent at their SECTION sign-off (per-member consent, ADDENDUM_14Q) — once. Returns the
+ *  applications fields to set; writes the consent_log row. Guarded so re-finishing an edited section never duplicates.
+ *  Scope matches /submit (covers the Step-2 AI document analysis, so the deep scan at shortlist is consented now). */
+async function recordSectionConsent(db: Db, applicationId: string, bodyEmail: string | undefined, ip: string | null): Promise<Record<string, unknown>> {
+  const { data: capp, error } = await db.from("applications").select("org_id, applicant_email, stage1_consent_given").eq("id", applicationId).maybeSingle()
+  logQueryError("save-draft consent load", error)
+  if (!capp || capp.stage1_consent_given === true) return {}
+  const { error: clErr } = await db.from("consent_log").insert({
+    org_id: capp.org_id as string,
+    subject_email: (capp.applicant_email as string | null) ?? bodyEmail ?? null,
+    consent_type: "popia_application", consent_given: true,
+    ip_address: ip,
+    metadata: { application_id: applicationId, scope: "stage1_prescreen_and_ai_document_analysis" },
+  })
+  logQueryError("save-draft consent_log", clErr)
+  return { stage1_consent_given: true, stage1_consent_given_at: new Date().toISOString(), stage1_consent_ip: ip }
+}
+
+/** If the applicant changed their email, persist it AND invalidate any prior email verification (the anti-bot gate
+ *  must re-verify the new address — else verify A, switch to B, submit B unverified). Returns fields to set. */
+async function applyEmailChange(db: Db, applicationId: string, bodyEmail: string): Promise<Record<string, unknown>> {
+  const { data: cur, error } = await db.from("applications").select("applicant_email").eq("id", applicationId).maybeSingle()
+  logQueryError("save-draft current email", error)
+  if (cur && bodyEmail !== cur.applicant_email) return { applicant_email: bodyEmail, email_verified_at: null }
+  return {}
+}
 
 /** Map the partial body → the application columns we persist (only what's filled). */
 function draftFields(body: Body) {
@@ -143,14 +172,8 @@ export async function POST(req: NextRequest) {
     // The filler finished their own section → mark documents_submitted (server-side; the unauthenticated applicant
     // can't reliably set it via the browser client). This is what the hub + resume read as "Completed".
     if (body.documentsSubmitted) updateFields.stage1_status = "documents_submitted"
-    if (body.email) {
-      const { data: cur, error: curErr } = await db.from("applications").select("applicant_email").eq("id", body.applicationId).maybeSingle()
-      logQueryError("save-draft current email", curErr)
-      if (cur && body.email !== cur.applicant_email) {
-        updateFields.applicant_email = body.email
-        updateFields.email_verified_at = null
-      }
-    }
+    if (body.consentGiven) Object.assign(updateFields, await recordSectionConsent(db, body.applicationId, body.email, getClientIp(req)))
+    if (body.email) Object.assign(updateFields, await applyEmailChange(db, body.applicationId, body.email))
     const { error: upErr } = await db.from("applications").update(updateFields).eq("id", body.applicationId)
     logQueryError("save-draft update", upErr)
     const { error: extErr } = await db.from("application_tokens").update({ expires_at: expiresAt }).eq("token", body.token)
