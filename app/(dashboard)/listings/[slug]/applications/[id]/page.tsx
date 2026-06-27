@@ -145,7 +145,7 @@ export default async function ApplicationDetailPage({
   const { data: coApplicants, error: coApplicantsError } = await db
     .from("application_co_applicants")
     .select(`
-      id, first_name, last_name, id_type, id_number, co_applicant_index,
+      id, first_name, last_name, id_type, id_number, co_applicant_index, marital_status, matrimonial_regime,
       role, is_surety_director, gross_monthly_income_cents, employment_type, employer_name,
       identity_match_status, employer_verification_status,
       salary_reconciliation_status, document_consistency_status,
@@ -281,6 +281,7 @@ export default async function ApplicationDetailPage({
     (coApplicants ?? []).map((c) => ({
       ref: `co_${c.id}`, name: [c.first_name, c.last_name].filter(Boolean).join(" ") || "a co-applicant",
       idNumber: c.id_number as string | null,
+      maritalStatus: c.marital_status as string | null, matrimonialRegime: c.matrimonial_regime as string | null,
     })),
   )
 
