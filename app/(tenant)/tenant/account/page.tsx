@@ -1,15 +1,15 @@
 /**
- * app/(tenant)/tenant/account/page.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/account/page.tsx — tenant portal: account (identity + editable contact details)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenant/account
+ * Auth:   getTenantSession (redirects to /login); contact scoped to the tenant + org
+ * Data:   tenants → contacts (+ contact_phones/emails) via the service client
+ * Notes:  Canon DetailPageLayout shell; the editable form lives in PortalAccountClient.
  */
 import { redirect } from "next/navigation"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import { PortalAccountClient } from "./PortalAccountClient"
 
 export default async function PortalAccountPage() {
@@ -50,18 +50,19 @@ export default async function PortalAccountPage() {
   if (!contact) redirect("/tenant")
 
   return (
-    <div>
-      <h1 className="font-heading text-3xl mb-6">Account</h1>
-      <PortalAccountClient
-        contactId={contact.id}
-        orgId={orgId}
-        firstName={contact.first_name}
-        lastName={contact.last_name}
-        companyName={contact.company_name}
-        idNumber={contact.id_number}
-        phones={contact.contact_phones ?? []}
-        emails={contact.contact_emails ?? []}
-      />
-    </div>
+    <DetailPageLayout category="Home" backHref="/tenant" title="Account" facts={[]}>
+      <DetailFullWidth>
+        <PortalAccountClient
+          contactId={contact.id}
+          orgId={orgId}
+          firstName={contact.first_name}
+          lastName={contact.last_name}
+          companyName={contact.company_name}
+          idNumber={contact.id_number}
+          phones={contact.contact_phones ?? []}
+          emails={contact.contact_emails ?? []}
+        />
+      </DetailFullWidth>
+    </DetailPageLayout>
   )
 }
