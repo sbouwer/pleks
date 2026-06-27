@@ -28,6 +28,7 @@ import {
 import { isValidEmail, cipcRegError, checkPhone } from "@/lib/validation/contact"
 import { assembleSaveDraftPayload, resolvePrimary } from "./applySaveDraft"
 import { buildRosterPersons, type RosterPerson } from "./applyRoster"
+import type { StatusMenuCompany, StatusMenuPerson, CardStatus } from "./applyStatusMenu"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, type NavModel } from "./applyNav"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 
@@ -67,6 +68,34 @@ function buildCompanyRosterPersons(form: PartyFormState, coApplicants: CoApplica
   // The sign-off hub: everyone is still "outstanding" (the company card carries the ✓). Shared builder (#3).
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
   return buildRosterPersons(form, coApplicants, { statusAt: () => "outstanding", fillerRole: cap(companyRole), coRole: (c) => cap(c.designation ?? "director"), includeFiller: imDirector })
+}
+
+/** A hub card's 3-state status from its done/started flags (avoids a nested ternary at each call site). */
+function cardStatusOf(done: boolean, started: boolean): CardStatus {
+  if (done) return "completed"
+  return started ? "in_progress" : "not_started"
+}
+
+/** The "Your application status" hub cards (ADDENDUM_14Q increment 2). The company card carries its own progress;
+ *  the filler's self card is openable; co-applicants are status-only (they complete via their own link). Pure so the
+ *  card/status/credential mapping is unit-testable. */
+export function buildStatusMenuData(o: Readonly<{
+  companyName: string; companyStarted: boolean; companySignedOff: boolean
+  form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
+  selfSectionDone: boolean; selfStarted: boolean
+}>): { company: StatusMenuCompany; persons: StatusMenuPerson[] } {
+  const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+  const company: StatusMenuCompany = { name: o.companyName, status: cardStatusOf(o.companySignedOff, o.companyStarted), canOpen: true }
+  const persons: StatusMenuPerson[] = []
+  if (o.imDirector) {
+    persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: cap(o.companyRole), status: cardStatusOf(o.selfSectionDone, o.selfStarted), canOpen: true })
+  }
+  o.coApplicants.forEach((c, i) => {
+    const role = cap(c.designation ?? "director")
+    persons.push({ id: `co_${i}`, name: name(c.firstName, c.lastName, c.email || "Applicant"), roleLabel: role, status: "not_started", canOpen: false, statusOnlyNote: `${role} — invited, completes via their own link` })
+  })
+  return { company, persons }
 }
 
 /** Flow selection — which step machine + offset for the applicant/company type (module-level to keep the hook
@@ -268,6 +297,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   let companyRole = "owner"
   if (isJuristicCompanyType(company.companyType)) companyRole = "director"
   else if (company.companyType === "partnership") companyRole = "partner"
+  // Only a JURISTIC company applies through directors and gets the status-menu hub. Sole prop / partnership are
+  // unincorporated → they run the linear personal flow (a single applicant), no menu.
+  const isJuristicCompany = type === "company" && isJuristicCompanyType(company.companyType)
   // "Add applicant" from the review (when affordability is short) — invite a co-applicant after the app exists.
   const [addApplicantOpen, setAddApplicantOpen] = useState(false)
   const [newCo, setNewCo] = useState<CoApplicant>(blankCo("co_applicant"))
@@ -279,7 +311,15 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const [docEscape, setDocEscape] = useState<Record<string, boolean>>({})
   const [consent, setConsent] = useState(false)
   const [companyConsent, setCompanyConsent] = useState(false) // the COMPANY applicant's sign-off consent (co-review)
-  const [atRoster, setAtRoster] = useState(false) // the per-applicant roster HUB (after the company sign-off, before the director section)
+  // The "Your application status" menu is the hub for a COMPANY application (ADDENDUM_14Q): you arrive here after
+  // apply-as, open a card (company / your own section), and return here on save/sign-off. A resumed company draft
+  // lands on the menu too. (Couple/guarantor/individual still run linearly — their menu is a later increment.)
+  const resumeCompany = !!resume && resume.applicantType === "company" && isJuristicCompanyType(resume.company?.companyType ?? "")
+  const resumeStep = resume?.step ?? 0
+  const [atRoster, setAtRoster] = useState<boolean>(resumeCompany)
+  const [companyStarted, setCompanyStarted] = useState<boolean>(resumeCompany && resumeStep > 0)
+  const [companySignedOff, setCompanySignedOff] = useState<boolean>(resumeCompany && resumeStep >= PTY_COMPANY_PANES)
+  const [selfSectionDone, setSelfSectionDone] = useState(false)
   // Editing PERSONAL details in a RESUMED session (anyone could hold the shared link) needs a fresh identity check.
   // Fresh fills are unlocked (they verified at sign-off); a resume starts locked until "verify it's you" passes.
   const [amendUnlocked, setAmendUnlocked] = useState(!resume)
@@ -295,6 +335,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   function navTo(to: number) {
     if (to !== STEP_REVIEW) { setScreeningStatus("idle"); setAssessment(null) }
     setBegun(true)
+    setAtRoster(false) // navigating into a pane leaves the status-menu hub
     setStep(to)
   }
 
@@ -339,10 +380,14 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     }
     setBegun(true)
     setMaxReached((m) => Math.max(m, step))
+    if (isJuristicCompany) setAtRoster(true) // juristic company → land on the status-menu hub, not straight into the section
   }
 
   function goBack() {
-    if (atRoster) { setAtRoster(false); return } // from the roster hub → back to the company sign-off pane
+    if (atRoster) { setBegun(false); return } // the status menu is the home → Back exits to the landing (Apply as)
+    // Company sub-flows return to the hub at their first step (company section start, or the director-section start),
+    // never into another applicant's steps.
+    if (isJuristicCompany && companyImDirector && (step === 0 || step === companyPaneCount)) { setAtRoster(true); return }
     if (step === 0) setBegun(false) // back from the first pane (personal info / company info) → the landing
     else navTo(step - 1)
   }
@@ -362,13 +407,16 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // Leaving the company-documents pane: the director-filler continues to their private flow; the office-manager hands off.
   // Company sign-off complete → land on the per-applicant ROSTER hub (Company ✓ · director outstanding). A director
   // filler then nudges into their own section; an office-manager filler instead emails the named director their link.
-  function afterCompanyReview() { if (companyImDirector) setAtRoster(true); else void sendToDirector() }
-  // The roster nudge — the director leaves the hub to complete their own (personal) section.
-  function continueOwnSection() {
-    // The director's private flow — reuse what we know about the company (shared prefill helper, see #1).
-    setEmp((e) => prefillEmploymentFromCompany(company, e))
-    setAtRoster(false); advance(step + 1); autosave(step + 1)
+  function afterCompanyReview() { if (companyImDirector) { setCompanySignedOff(true); setAtRoster(true) } else void sendToDirector() }
+  // Open a card from the status-menu hub. The company card → the company section; "self" → the director's own
+  // (personal) section, reusing what we know about the company (shared prefill, #1); "review" → the application
+  // Review & Submit. navTo clears the hub flag + sets the step.
+  function onOpenCard(id: string) {
+    if (id === "company") { setCompanyStarted(true); navTo(0) }
+    else if (id === "self") { setEmp((e) => prefillEmploymentFromCompany(company, e)); navTo(companyPaneCount) }
+    else if (id === "review") { const t = companyPaneCount + STEP_REVIEW; setMaxReached((m) => Math.max(m, t)); navTo(t) }
   }
+  function backToMenu() { setAtRoster(true) } // the persistent "← All applicants" return
 
   // Returning applicant on the landing: re-email their resume link. Anti-enumeration — the endpoint always
   // answers ok and only sends when a matching draft exists, so the toast is deliberately non-committal.
@@ -621,8 +669,16 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       // which enumerates EVERY uploaded file — so multi-file categories flow through with no extra wiring.
       const bankPath = (docFiles["bank_main"] ?? []).find((f) => f.uploaded)?.storagePath ?? null
       await createClient().from("applications").update({ bank_statement_path: bankPath, stage1_status: "documents_submitted" }).eq("id", applicationId)
-      advance(step + 1)
-      autosave(step + 1) // persist draft_step so a refresh/resume lands back on the review, not Documents
+      if (isJuristicCompany && companyImDirector) {
+        // The director's own section is done → back to the status-menu hub (the self card flips to Completed). The
+        // application Review & Submit lives on the hub now, not at the end of this linear flow.
+        setSelfSectionDone(true)
+        setAtRoster(true)
+        autosave(step)
+      } else {
+        advance(step + 1)
+        autosave(step + 1) // persist draft_step so a refresh/resume lands back on the review, not Documents
+      }
     } finally {
       setBusy(false)
     }
@@ -684,6 +740,13 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // Email gate satisfied if they verified by OTP OR they're the logged-in owner of this email (already confirmed).
   const emailGateSatisfied = emailVerified || (!!verifiedEmail && !!form.email && form.email.toLowerCase() === verifiedEmail.toLowerCase())
   const companyRosterPersons = buildCompanyRosterPersons(form, coApplicants, companyRole, companyImDirector)
+  // The "Your application status" hub cards (ADDENDUM_14Q increment 2 — company applications). selfStarted = the
+  // director has entered their own (post-company) section at least once.
+  const selfStarted = maxReached > companyPaneCount
+  const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
+    companyName: company.name || company.trading || "The company",
+    companyStarted, companySignedOff, form, coApplicants, companyRole, imDirector: companyImDirector, selfSectionDone, selfStarted,
+  })
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
   // -mr-5 pr-5: bleed the scroll body 20px into the panel's 40px side padding and pad the content back, so the
@@ -713,7 +776,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     continueCompanyInfo, advanceStep, afterCompanyReview, createApplication, continueCompanyFinances, companyConsent, emailGateSatisfied,
     continueIdentity, continueAddress, continueEmployment, continueIncome, continueDocsRequired, finishDocuments,
   })
-  const showBackBtn = inWizard
+  const showBackBtn = inWizard && !atRoster // the status menu is the home — no Back there
   const showSaveBtn = inWizard && !!form.email && personalStep <= LAST_DATA_STEP && screeningStatus === "idle"
 
   return {
@@ -726,12 +789,12 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, setAmendUnlocked, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
     // handlers
-    selectType, beginApplication, goBack, continueOwnSection, resendResumeLink, loginToPrefill, saveAndExit,
+    selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
     // derived
     nav, personalStep, juristic, docApplicantType, docCategories, companyDocCategories, docsReady, applicantsGreen,
-    emailGateSatisfied, companyRosterPersons, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle,
-    headerSub, railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
-    askingRentCents,
+    emailGateSatisfied, companyRosterPersons, statusMenuCompany, statusMenuPersons, disclaimer, scrollCls, inWizard,
+    activeKey, activeGroup, headerTitle, headerSub, railNav, railStep, railMaxReached, navStates, onNav, onJumpRail,
+    navNext, showBackBtn, showSaveBtn, askingRentCents,
   }
 }

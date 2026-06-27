@@ -30,6 +30,7 @@ import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
 import { StepSubmit, VerifyEmail } from "./applyReview"
 import { ApplicantRoster, CompanyCard } from "./applyRoster"
+import { ApplicationStatusMenu } from "./applyStatusMenu"
 import { StepRail, StepBar, SubTabs } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { useApplyFlow, type ResumeState } from "./useApplyFlow"
@@ -59,10 +60,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, docFiles, docEscape, setDocEscape,
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, setAmendUnlocked, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
-    selectType, beginApplication, goBack, continueOwnSection, resendResumeLink, loginToPrefill, saveAndExit,
+    selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication,
-    personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied, companyRosterPersons,
-    disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
+    personalStep, juristic, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied, companyRosterPersons,
+    statusMenuCompany, statusMenuPersons, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
   } = f
 
@@ -144,6 +145,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
               </div>
             )}
             <div className="flex shrink-0 items-center gap-2">
+              {/* Persistent return to the status-menu hub from within a company sub-flow (ADDENDUM_14Q §4). */}
+              {juristic && companyImDirector && inWizard && !atRoster && (
+                <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} onClick={backToMenu} disabled={busy} className="whitespace-nowrap">All applicants</ActionButton>
+              )}
               {showBackBtn && (
                 <ActionButton tone="secondary" size="sm" icon={<ArrowLeft className="size-4" />} onClick={goBack} disabled={busy || (step === 0 && !!applicationId)}>Back</ActionButton>
               )}
@@ -185,14 +190,17 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
           </div>
         )}
 
-        {/* Per-applicant ROSTER hub — after the company sign-off, the director nudges into their own section. */}
+        {/* "Your application status" hub (ADDENDUM_14Q) — the persistent home for a company application: open a card
+            to complete it, return here on save/sign-off, Review & Submit once every card is green. */}
         {begun && atRoster && !companySentToDirector && (
           <div className={scrollCls}>
-            <ApplicantRoster
-              persons={companyRosterPersons}
-              companyCard={<CompanyCard name={company.name || company.trading || "The company"} status="complete" />}
-              allGreen={false} outstandingCount={companyRosterPersons.length} onReview={() => undefined}
-              onContinueOwn={continueOwnSection} continueLabel="Continue with your application"
+            <ApplicationStatusMenu
+              unitTitle={listingTitle ?? "this home"}
+              company={statusMenuCompany}
+              persons={statusMenuPersons}
+              onOpen={onOpenCard}
+              onSubmit={() => onOpenCard("review")}
+              busy={busy}
             />
           </div>
         )}
