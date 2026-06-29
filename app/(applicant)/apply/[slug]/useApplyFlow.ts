@@ -96,6 +96,8 @@ export function buildStatusMenuData(o: Readonly<{
   companyName: string; companyStarted: boolean; companySignedOff: boolean; companyEdited: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
   selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; emailVerified: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
+  /** 14R §5: a co peer sees ONLY their own card — never the company card or the roster of other peers (POPIA). */
+  isCo?: boolean
 }>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
   const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -110,6 +112,8 @@ export function buildStatusMenuData(o: Readonly<{
     const selfStatus = selfCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted, o.emailVerified)
     persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: selfRole, status: selfStatus, canOpen: true })
   }
+  // POPIA (14R §5): a co peer's hub is just their own card — never the company card or the other peers' roster.
+  if (o.isCo) return { company: null, persons }
   o.coApplicants.forEach((c, i) => {
     const role = coRoleLabel(o.type, c, cap)
     const live = o.coStatusByEmail?.[c.email] // live server tri-state (invited/started/completed); best-effort
@@ -913,7 +917,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
     type, isJuristic: isJuristicCompany, companyName: company.name || company.trading || "The company",
     companyStarted, companySignedOff, companyEdited, form, coApplicants, companyRole, imDirector: companyImDirector,
-    selfSectionDone, selfStarted, selfEdited, emailVerified: emailGateSatisfied, appCreated: !!applicationId, coStatusByEmail,
+    selfSectionDone, selfStarted, selfEdited, emailVerified: emailGateSatisfied, appCreated: !!applicationId, coStatusByEmail, isCo,
   })
   // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).
   const isMultiParty = isJuristicCompany || coApplicants.length > 0

@@ -93,3 +93,22 @@ describe("buildStatusMenuData — universal hub (non-company)", () => {
     expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": "completed" } }).persons.find((p) => p.id === "co_0")?.status).toBe("completed")
   })
 })
+
+describe("buildStatusMenuData — co peer view (14R §5: self-only hub, POPIA)", () => {
+  const personal = { ...base, isJuristic: false }
+  // A couple application with another peer present — a co peer must NOT see that peer (or the company card).
+  const coView = { ...personal, type: "couple" as const, isCo: true, form: form({ firstName: "Co", lastName: "Peer" }), coApplicants: [co({ firstName: "Other", email: "other@x.za", role: "co_applicant" })], appCreated: true }
+
+  it("shows ONLY the co's own card — no company, no roster of other peers", () => {
+    const r = buildStatusMenuData(coView)
+    expect(r.company).toBeNull()
+    expect(r.persons).toHaveLength(1)
+    expect(r.persons[0]).toMatchObject({ id: "self", canOpen: true })
+    expect(r.persons.some((p) => p.id.startsWith("co_"))).toBe(false)
+  })
+
+  it("the co's own card never shows verify_email (token-as-proof, §3)", () => {
+    expect(buildStatusMenuData({ ...coView, emailVerified: true }).persons[0]?.status).toBe("not_started")
+    expect(buildStatusMenuData({ ...coView, selfSectionDone: true }).persons[0]?.status).toBe("completed")
+  })
+})
