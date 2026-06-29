@@ -280,6 +280,16 @@ function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { n
   return out
 }
 
+/** Submit affordances (14R §4): the lead/signatory submits via the affordability review; a co peer submits from
+ *  the hub once their own section is done (the server re-checks every peer is green). Module-level to keep
+ *  useApplyFlow under the cognitive-complexity gate. */
+function resolveSubmit(o: Readonly<{ isCo: boolean; selfSectionDone: boolean; isJuristicCompany: boolean; companyImDirector: boolean }>): { canSubmit: boolean; canCoSubmit: boolean } {
+  return {
+    canSubmit: !o.isCo && !(o.isJuristicCompany && !o.companyImDirector),
+    canCoSubmit: o.isCo && o.selfSectionDone,
+  }
+}
+
 /** Who this session belongs to (ADDENDUM_14R full-peer). Absent / isLead → the lead (the applications row, the
  *  default — every existing caller). A co peer passes isLead:false + their co row id; that forces the hub entry,
  *  the token-as-proof gate bypass (the access token IS the email proof), the co-scoped doc path, no-submit
@@ -401,6 +411,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const [amendGateStep, setAmendGateStep] = useState<number | null>(null)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
+  const [coSubmitted, setCoSubmitted] = useState(false) // 14R: a co peer has submitted the application to the agent
   // Live co-applicant status (ADDENDUM_14Q) — the server is authoritative; we poll it on the hub so a co's card
   // flips Invitation sent → Started application → Completed as THEY progress their own per-link session. Keyed by
   // email; value is the tri-state ("invited" | "started" | "completed").
@@ -891,6 +902,26 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     }
   }
 
+  // 14R §4 peer submit — a co submits the WHOLE application to the agent directly from the hub (NOT via the
+  // affordability review, which a co never sees — POPIA §5). The server re-validates the all-green gate; a 409
+  // means someone's still busy ("waiting on N"). The lead submits via the review's "Submit to agent" as before.
+  async function submitToAgent() {
+    if (!applicationId || !token) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/applications/${applicationId}/submit-to-agent`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
+      })
+      const json = await res.json() as { ok?: boolean; error?: string; code?: string }
+      if (!res.ok || !json.ok) { toast.error(json.error ?? "Could not submit your application."); return }
+      setCoSubmitted(true)
+    } catch {
+      toast.error("Could not submit your application.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const { nav, personalStep, juristic, companyPaneCount } = resolveFlow(type, company.companyType, step)
   // The PERSON's docs (owner/director) are always personal/self-employed (not the company set). The juristic company
   // has a SEPARATE company-docs pane (CIPC/AFS/bank) — companyDocCategories.
@@ -923,7 +954,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const isMultiParty = isJuristicCompany || coApplicants.length > 0
   // Submit is the primary/signatory's act (CD cross-cutting A): a juristic office-manager (not a director) never
   // presses it — the named director submits via their own link.
-  const canSubmit = !isCo && !(isJuristicCompany && !companyImDirector) // a co peer completes their card; peer-submit is Phase 3 (14R §4)
+  // The lead/signatory submits via the affordability review; a co peer submits straight from the hub once their own
+  // section is done (server re-validates all-green). Never the review for a co — POPIA §5. (See resolveSubmit.)
+  const { canSubmit, canCoSubmit } = resolveSubmit({ isCo, selfSectionDone, isJuristicCompany, companyImDirector })
   // The persistent "Review / submit" nav item: unlocked once the filler's own cards are done (fillerReady) and submit
   // is theirs to press (canSubmit). The hub re-derives the same fillerReady internally; this exposes it for the rail.
   const { fillerReady: reviewFillerReady } = summariseStatus(statusMenuCompany, statusMenuPersons)
@@ -977,10 +1010,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     screeningStatus, assessment,
     // handlers
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
-    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview, finishDocuments,
+    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, submitToAgent, afterCompanyReview, finishDocuments,
     // derived
     nav, personalStep, juristic, docApplicantType, docCategories, companyDocCategories, docsReady, applicantsGreen,
-    emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, disclaimer, scrollCls,
+    emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, canCoSubmit, coSubmitted, disclaimer, scrollCls,
     inWizard, activeKey, activeGroup, headerTitle, headerSub, railNav, railStep, railMaxReached, navStates, onNav,
     onJumpRail, navNext, showBackBtn, showSaveBtn, askingRentCents, reviewUnlocked, onReviewStep,
   }

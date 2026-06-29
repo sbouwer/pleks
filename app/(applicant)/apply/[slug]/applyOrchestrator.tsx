@@ -63,9 +63,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep, setEditReverified,
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
-    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview, finishDocuments,
+    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, submitToAgent, afterCompanyReview, finishDocuments,
     personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied,
-    statusMenuCompany, statusMenuPersons, canSubmit, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
+    statusMenuCompany, statusMenuPersons, canSubmit, canCoSubmit, coSubmitted, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
     reviewUnlocked, onReviewStep,
   } = f
@@ -213,15 +213,34 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
             has handed the company off lands here too (company ✓, director status-only; submit isn't theirs to press). */}
         {begun && atRoster && (
           <div className={scrollCls}>
-            <ApplicationStatusMenu
-              unitTitle={listingTitle ?? "this home"}
-              company={statusMenuCompany}
-              persons={statusMenuPersons}
-              onOpen={onOpenCard}
-              onSubmit={() => onOpenCard("review")}
-              busy={busy}
-              canSubmit={canSubmit}
-            />
+            {coSubmitted ? (
+              /* 14R §4 — a co peer has submitted the application to the agent. Terminal confirmation (the co never
+                 sees the affordability review — POPIA §5). */
+              <div className="flex flex-col items-center gap-3 py-12 text-center">
+                <h2 className="text-xl font-semibold text-[var(--ink)]">Application submitted ✓</h2>
+                <p className="max-w-md text-sm leading-relaxed text-[var(--ink-soft)]">Thanks — your details and consent are recorded, and the application has gone to the agent. You can close this page.</p>
+              </div>
+            ) : (
+              <>
+                <ApplicationStatusMenu
+                  unitTitle={listingTitle ?? "this home"}
+                  company={statusMenuCompany}
+                  persons={statusMenuPersons}
+                  onOpen={onOpenCard}
+                  onSubmit={() => onOpenCard("review")}
+                  busy={busy}
+                  canSubmit={canSubmit}
+                />
+                {/* A co peer submits the whole application straight from the hub once their own part is done; the
+                    server re-checks every peer is green (a 409 → "waiting on N"). No affordability review (POPIA §5). */}
+                {canCoSubmit && (
+                  <div className="mt-4 flex flex-col items-stretch gap-1.5 border-t border-[var(--rule)] pt-4">
+                    <ActionButton tone="primary" onClick={submitToAgent} disabled={busy}>Submit application to the agent</ActionButton>
+                    <p className="text-center text-xs text-[var(--ink-soft)]">Everyone on the application must have finished their part — we&apos;ll check before it&apos;s sent.</p>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
