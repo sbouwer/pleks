@@ -37,7 +37,7 @@ describe("detectFraudSignals", () => {
   it("does not flag a clean PDF", () => {
     const bytes = enc("%PDF-1.4\n<< /Producer (FNB Statement Generator) >>\n%%EOF")
     const signals = detectFraudSignals([doc("statement.pdf", { format: "pdf", bytes })], [])
-    expect(signals.length).toBe(0)
+    expect(signals).toHaveLength(0)
   })
 
   it("flags low extraction confidence as info", () => {
