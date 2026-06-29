@@ -199,7 +199,7 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "{{primaryApplicantName}} has included you as a co-applicant on their rental application for **{{unitLabel}}** at {{propertyName}}." },
       { type: "heading", text: "What you need to do" },
-      { type: "paragraph", text: "Click the button below to complete your portion of the joint application. This includes your personal details, income, and consent to a credit check." },
+      { type: "paragraph", text: "Click the button below to complete your portion of the joint application. This includes your personal details, income, and your consent to pre-screen the application (POPIA). No credit check runs at this stage." },
       { type: "cta", label: "Complete your co-applicant details", href: "{{inviteUrl}}" },
       { type: "paragraph", text: "This link is personal to you — do not share it." },
       { type: "popiaSlot" },
