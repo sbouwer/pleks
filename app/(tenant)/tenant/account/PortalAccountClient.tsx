@@ -1,19 +1,17 @@
 "use client"
 
 /**
- * app/(tenant)/tenant/account/PortalAccountClient.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/account/PortalAccountClient.tsx — editable tenant contact details (name/ID read-only)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   rendered inside the tenant portal (session-guarded layout); writes via updatePortalContactDetails
+ * Data:   contact phones/emails passed from the server page; primary phone/email are editable
+ * Notes:  Canon DetailCard + forms/fields (door style). Name + ID are agent-managed, shown masked.
  */
 
 import { useState } from "react"
 import { ActionButton } from "@/components/ui/actions"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { DetailCard } from "@/components/detail/DetailCard"
+import { TextField } from "@/components/forms/fields"
 import { toast } from "sonner"
 import { updatePortalContactDetails } from "./actions"
 
@@ -72,55 +70,30 @@ export function PortalAccountClient({
   const displayName = companyName || `${firstName ?? ""} ${lastName ?? ""}`.trim() || "—"
 
   return (
-    <div className="max-w-lg space-y-6">
-
-      {/* Read-only identity */}
-      <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Identity</p>
+    <div className="max-w-lg space-y-4">
+      <DetailCard title="Identity">
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">Name</span>
-            <span className="font-medium">{displayName}</span>
+            <span className="text-right font-medium text-foreground">{displayName}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">ID number</span>
-            <span className="font-mono">{maskId(idNumber)}</span>
+            <span className="font-mono text-foreground">{maskId(idNumber)}</span>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Name and ID are managed by your agent.</p>
-      </div>
+        <p className="mt-3 text-xs text-muted-foreground">Name and ID are managed by your agent.</p>
+      </DetailCard>
 
-      {/* Editable contact details */}
-      <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Contact details</p>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">Phone number</Label>
-          <Input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            type="tel"
-            placeholder="+27 XX XXX XXXX"
-            className="text-sm"
-          />
+      <DetailCard title="Contact details">
+        <div className="space-y-4">
+          <TextField label="Phone number" value={phone} onChange={setPhone} type="tel" placeholder="+27 XX XXX XXXX" />
+          <TextField label="Email address" value={email} onChange={setEmail} type="email" placeholder="you@example.com" />
+          <ActionButton tone="primary" size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </ActionButton>
         </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">Email address</Label>
-          <Input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            placeholder="you@example.com"
-            className="text-sm"
-          />
-        </div>
-
-        <ActionButton tone="primary" size="sm" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save changes"}
-        </ActionButton>
-      </div>
-
+      </DetailCard>
     </div>
   )
 }

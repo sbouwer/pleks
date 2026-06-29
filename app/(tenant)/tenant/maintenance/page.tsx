@@ -1,19 +1,20 @@
 /**
- * app/(tenant)/tenant/maintenance/page.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/maintenance/page.tsx — tenant portal: maintenance request list
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenant/maintenance
+ * Auth:   getTenantSession (redirects to /login); scoped to the tenant + org
+ * Data:   maintenance_requests (latest 50) via the service client
+ * Notes:  Canon ResourcePageHeader + ListCard rows / EmptyResourceState (door style) — presentation only.
  */
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ListCard } from "@/components/ui/resource-list"
 import { ActionButton } from "@/components/ui/actions"
 import { StatusBadge } from "@/components/shared/StatusBadge"
-import { EmptyState } from "@/components/shared/EmptyState"
 import { Wrench, Plus } from "lucide-react"
 
 const STATUS_MAP: Record<string, "pending" | "active" | "completed" | "arrears"> = {
@@ -60,51 +61,60 @@ export default async function PortalMaintenancePage() {
   if (error) console.error("fetchMaintenancePortal failed:", error.message)
   const list = requests ?? []
 
+  const reportBtn = (
+    <ActionButton asChild tone="primary" size="sm">
+      <Link href="/tenant/maintenance/new"><Plus className="mr-1.5 h-4 w-4" />Report issue</Link>
+    </ActionButton>
+  )
+
+  if (list.length === 0) {
+    return (
+      <EmptyResourceState
+        eyebrow="Tenant"
+        title="Maintenance"
+        headline="No requests yet"
+        headerSub="Report a maintenance issue and your agent will be notified."
+        emptyTitle="No maintenance requests"
+        emptySub="Use the button below to report a maintenance issue. Your agent will be notified."
+        icon={<Wrench className="h-6 w-6" />}
+        headerAction={reportBtn}
+        heroAction={reportBtn}
+      />
+    )
+  }
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-heading text-3xl">Maintenance</h1>
-          <p className="text-sm text-muted-foreground">{list.length} request{list.length === 1 ? "" : "s"}</p>
-        </div>
-        <ActionButton asChild tone="primary">
-          <Link href="/tenant/maintenance/new">
-            <Plus className="h-4 w-4 mr-1.5" />
-            Report issue
-          </Link>
-        </ActionButton>
-      </div>
-
-      {list.length === 0 ? (
-        <EmptyState
-          icon={<Wrench className="h-8 w-8 text-muted-foreground" />}
-          title="No maintenance requests"
-          description="Use the button above to report a maintenance issue. Your agent will be notified."
-        />
-      ) : (
-        <div className="space-y-2">
+      <ResourcePageHeader
+        eyebrow="Tenant"
+        title="Maintenance"
+        headline={`${list.length} request${list.length === 1 ? "" : "s"}`}
+        action={reportBtn}
+      />
+      <ListCard>
+        <div className="divide-y divide-border">
           {list.map((req) => (
-            <Link key={req.id} href={`/tenant/maintenance/${req.id}`}>
-              <div className="rounded-xl border border-border/60 bg-card px-5 py-4 hover:border-brand/40 transition-colors cursor-pointer">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{req.title}</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {req.category && <span className="capitalize">{req.category.replaceAll("_", " ")} · </span>}
-                      {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
-                      {req.work_order_number && ` · ${req.work_order_number}`}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <StatusBadge status={STATUS_MAP[req.status] ?? "pending"} />
-                    <p className="text-xs text-muted-foreground">{STATUS_LABEL[req.status] ?? req.status}</p>
-                  </div>
-                </div>
+            <Link
+              key={req.id}
+              href={`/tenant/maintenance/${req.id}`}
+              className="flex items-start justify-between gap-3 px-5 py-4 transition-colors hover:bg-muted/40"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-foreground">{req.title}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {req.category && <span className="capitalize">{req.category.replaceAll("_", " ")} · </span>}
+                  {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                  {req.work_order_number && ` · ${req.work_order_number}`}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <StatusBadge status={STATUS_MAP[req.status] ?? "pending"} />
+                <p className="text-xs text-muted-foreground">{STATUS_LABEL[req.status] ?? req.status}</p>
               </div>
             </Link>
           ))}
         </div>
-      )}
+      </ListCard>
     </div>
   )
 }

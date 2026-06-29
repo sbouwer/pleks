@@ -4,15 +4,17 @@
  * Route:  /tenant/communications
  * Auth:   getTenantSession (token-gated tenant portal)
  * Data:   communication_log via service client, filtered by tenant_id
- * Notes:  BUILD_63 Phase 8 (§9.1). Mandatory comms show a badge and link to the detail page.
- *         Only comms sent after the tenant_id fix (BUILD_63 §14) will appear here.
+ * Notes:  BUILD_63 Phase 8 (§9.1). Mandatory comms show a "Notice" chip and link to the detail page.
+ *         Canon ResourcePageHeader + ListCard rows / EmptyResourceState (door style) — presentation only.
  */
 
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
-import { Badge } from "@/components/ui/badge"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ListCard } from "@/components/ui/resource-list"
 import { getTemplate } from "@/lib/comms/template-registry"
 import { Mail, MessageSquare, AlertTriangle, CheckCircle2, XCircle } from "lucide-react"
 
@@ -41,10 +43,10 @@ const CHANNEL_ICONS: Record<string, typeof Mail> = {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; icon: typeof CheckCircle2; className: string }> = {
-  sent:      { label: "Sent",      icon: CheckCircle2, className: "text-blue-600" },
-  delivered: { label: "Delivered", icon: CheckCircle2, className: "text-green-600" },
-  read:      { label: "Read",      icon: CheckCircle2, className: "text-green-700" },
-  failed:    { label: "Failed",    icon: XCircle,      className: "text-red-600" },
+  sent:      { label: "Sent",      icon: CheckCircle2, className: "text-muted-foreground" },
+  delivered: { label: "Delivered", icon: CheckCircle2, className: "text-success" },
+  read:      { label: "Read",      icon: CheckCircle2, className: "text-success" },
+  failed:    { label: "Failed",    icon: XCircle,      className: "text-destructive" },
   logged:    { label: "Logged",    icon: CheckCircle2, className: "text-muted-foreground" },
 }
 
@@ -68,20 +70,30 @@ export default async function CommunicationsPage() {
 
   const rows = comms ?? []
 
+  if (rows.length === 0) {
+    return (
+      <EmptyResourceState
+        eyebrow="Tenant"
+        title="Communications"
+        headline="Nothing on record yet"
+        headerSub="All notices and messages sent to you by your managing agent."
+        emptyTitle="No communications on record yet"
+        emptySub="Notices and messages your managing agent sends you will appear here."
+        icon={<Mail className="h-6 w-6" />}
+      />
+    )
+  }
+
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="font-heading text-2xl">Communications</h1>
-        <p className="text-sm text-muted-foreground mt-1">All notices and messages sent to you by your managing agent.</p>
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="rounded-xl border border-border/60 bg-card px-5 py-10 text-center">
-          <Mail className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">No communications on record yet.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
+      <ResourcePageHeader
+        eyebrow="Tenant"
+        title="Communications"
+        headline={`${rows.length} message${rows.length === 1 ? "" : "s"}`}
+        sub="All notices and messages sent to you by your managing agent."
+      />
+      <ListCard>
+        <div className="divide-y divide-border">
           {rows.map((comm) => {
             const mandatory = isTemplateMandatory(comm.template_key as string | null)
             const label = templateLabel(comm.template_key as string | null)
@@ -93,30 +105,30 @@ export default async function CommunicationsPage() {
               <Link
                 key={comm.id}
                 href={`/tenant/communications/${comm.id}`}
-                className="flex items-start gap-4 rounded-xl border border-border/60 bg-card px-4 py-3 hover:border-brand/40 transition-colors"
+                className="flex items-start gap-4 px-5 py-4 transition-colors hover:bg-muted/40"
               >
-                <ChannelIcon className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium truncate">{(comm.subject as string) || label}</p>
+                <ChannelIcon className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-medium text-foreground">{(comm.subject as string) || label}</p>
                     {mandatory && (
-                      <Badge className="bg-amber-100 text-amber-700 text-xs shrink-0">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-[var(--r-button)] border border-warning/30 bg-warning/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-warning">
+                        <AlertTriangle className="h-3 w-3" />
                         Notice
-                      </Badge>
+                      </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
                   {comm.body && (
-                    <p className="text-xs text-muted-foreground mt-1 truncate">{comm.body as string}</p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{comm.body as string}</p>
                   )}
                 </div>
-                <div className="text-right shrink-0">
+                <div className="shrink-0 text-right">
                   <div className={`flex items-center gap-1 text-xs ${status.className}`}>
                     <StatusIcon className="h-3 w-3" />
                     {status.label}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {new Date(comm.created_at as string).toLocaleDateString("en-ZA", {
                       day: "numeric",
                       month: "short",
@@ -128,7 +140,7 @@ export default async function CommunicationsPage() {
             )
           })}
         </div>
-      )}
+      </ListCard>
     </div>
   )
 }

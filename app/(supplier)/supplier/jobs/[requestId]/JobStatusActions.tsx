@@ -1,21 +1,19 @@
 ﻿"use client"
 
 /**
- * app/(supplier)/supplier/jobs/[requestId]/JobStatusActions.tsx — FILL: one-line purpose
+ * app/(supplier)/supplier/jobs/[requestId]/JobStatusActions.tsx — supplier job status-transition actions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   rendered inside the session-guarded supplier portal; status writes go via the browser client
+ * Data:   maintenance_requests status updates; the completion report sets pending_completion + notes
+ * Notes:  Canon DetailCard + forms/fields + ActionButton (door style) — presentation only.
  */
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ActionButton } from "@/components/ui/actions"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { TextareaField } from "@/components/forms/fields"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
@@ -98,23 +96,23 @@ export function JobStatusActions({ requestId, status }: JobStatusActionsProps) {
               Mark Complete
             </ActionButton>
           ) : (
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Completion Report</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <Textarea
+            <DetailCard title="Completion report">
+              <div className="space-y-3">
+                <TextareaField
+                  label="What was done"
                   value={completionNotes}
-                  onChange={(e) => setCompletionNotes(e.target.value)}
+                  onChange={setCompletionNotes}
                   placeholder="Describe the work completed..."
                   rows={4}
                 />
                 <div className="flex gap-3">
                   <ActionButton tone="primary" className="flex-1" onClick={handleComplete} disabled={submitting}>
-                    {submitting ? "Submitting..." : "Submit Completion"}
+                    {submitting ? "Submitting..." : "Submit completion"}
                   </ActionButton>
                   <ActionButton tone="secondary" onClick={() => setShowCompletion(false)}>Cancel</ActionButton>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </DetailCard>
           )}
         </>
       )}

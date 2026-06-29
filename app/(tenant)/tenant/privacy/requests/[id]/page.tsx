@@ -4,15 +4,17 @@
  * Route:  /tenant/privacy/requests/:id
  * Auth:   Tenant portal session + subject ownership check
  * Data:   data_subject_requests (SELECT), popia_exports (SELECT for download link)
+ * Notes:  Canon DetailPageLayout + DetailCard (door style) — presentation only.
  */
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { DetailPageLayout } from "@/components/detail/DetailPageLayout"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { ActionButton } from "@/components/ui/actions"
-import { ChevronLeft, ExternalLink } from "lucide-react"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
+import { ExternalLink } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STATUS_LABELS: Record<string, string> = {
@@ -25,14 +27,11 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 }
 
-const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  new: "secondary",
-  verifying_identity: "secondary",
-  under_review: "secondary",
-  approved: "default",
-  rejected: "destructive",
-  completed: "default",
-  cancelled: "outline",
+function reqStatus(s: string): DetailStatus {
+  const label = STATUS_LABELS[s] ?? s
+  if (s === "approved" || s === "completed") return { kind: "occupied", label }
+  if (s === "rejected") return { kind: "flag", label }
+  return { kind: "neutral", label }
 }
 
 export default async function RequestDetailPage({ params }: Readonly<{ params: Promise<{ id: string }> }>) {
@@ -64,83 +63,74 @@ export default async function RequestDetailPage({ params }: Readonly<{ params: P
   const sla = new Date(request.sla_deadline)
   const isOverdue = sla < new Date() && !["completed", "rejected", "cancelled"].includes(request.status)
 
+  const facts: DetailFact[] = [
+    { k: "Submitted", v: new Date(request.submitted_at).toLocaleDateString("en-ZA") },
+    { k: "SLA deadline", v: sla.toLocaleDateString("en-ZA") },
+  ]
+
   return (
-    <div className="max-w-lg mx-auto py-8 px-4 space-y-6">
-      <div className="flex items-center gap-3">
-        <ActionButton asChild tone="secondary" className="size-8">
-          <Link href="/tenant/privacy/requests">
-            <ChevronLeft className="size-4" />
+    <DetailPageLayout
+      category="Privacy"
+      backHref="/tenant/privacy/requests"
+      title={`${request.request_type.replaceAll("_", " ")} request`}
+      status={reqStatus(request.status)}
+      badge={isOverdue ? (
+        <span className="inline-flex items-center rounded-[var(--r-button)] border border-destructive/30 bg-destructive/10 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-destructive">
+          Overdue
+        </span>
+      ) : undefined}
+      facts={facts}
+      actions={request.export_id ? (
+        <ActionButton asChild tone="primary" size="sm">
+          <Link href={`/api/popia/request/${request.id}/download`}>
+            Download your data export <ExternalLink className="ml-2 size-4" />
           </Link>
         </ActionButton>
-        <div>
-          <h1 className="text-lg font-semibold capitalize">
-            {request.request_type.replaceAll("_", " ")} request
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Submitted {new Date(request.submitted_at).toLocaleDateString("en-ZA")}
-          </p>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm">Status</CardTitle>
-            <Badge variant={STATUS_VARIANTS[request.status] ?? "outline"}>
-              {STATUS_LABELS[request.status] ?? request.status}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between">
+      ) : undefined}
+    >
+      <DetailCard title="Request status">
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">SLA deadline</span>
-            <span className={isOverdue ? "text-destructive font-medium" : ""}>
-              {sla.toLocaleDateString("en-ZA")}
-              {isOverdue && " — overdue"}
+            <span className={isOverdue ? "text-right font-medium text-destructive" : "text-right font-medium text-foreground"}>
+              {sla.toLocaleDateString("en-ZA")}{isOverdue && " — overdue"}
             </span>
           </div>
           {request.resolution_notes && (
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Resolution notes</p>
-              <p>{request.resolution_notes}</p>
+            <div className="pt-1">
+              <p className="mb-0.5 text-xs text-muted-foreground">Resolution notes</p>
+              <p className="text-foreground">{request.resolution_notes}</p>
             </div>
           )}
           {request.resolution_legal_basis && (
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Legal basis</p>
-              <p>{request.resolution_legal_basis}</p>
+            <div className="pt-1">
+              <p className="mb-0.5 text-xs text-muted-foreground">Legal basis</p>
+              <p className="text-foreground">{request.resolution_legal_basis}</p>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {request.export_id && (
-        <ActionButton asChild tone="primary" className="w-full">
-          <Link href={`/api/popia/request/${request.id}/download`}>
-            Download your data export <ExternalLink className="size-4 ml-2" />
-          </Link>
-        </ActionButton>
-      )}
+        </div>
+      </DetailCard>
 
       {request.status === "rejected" && (
-        <div className="text-xs text-muted-foreground space-y-1 p-3 border rounded-md">
-          <p className="font-medium">Your right to escalate</p>
-          <p>
-            If you believe this rejection is incorrect, you may complain to the Information Regulator
-            of South Africa at{" "}
-            <span className="font-mono">complaints.IR@justice.gov.za</span>
-            {" "}or{" "}
-            <a
-              href="https://www.justice.gov.za/inforeg/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline inline-flex items-center gap-0.5"
-            >
-              www.justice.gov.za/inforeg <ExternalLink className="size-3" />
-            </a>
-          </p>
-        </div>
+        <DetailCard title="Your right to escalate">
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              If you believe this rejection is incorrect, you may complain to the Information Regulator
+              of South Africa at{" "}
+              <span className="font-mono">complaints.IR@justice.gov.za</span>
+              {" "}or{" "}
+              <a
+                href="https://www.justice.gov.za/inforeg/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 underline"
+              >
+                www.justice.gov.za/inforeg <ExternalLink className="size-3" />
+              </a>
+            </p>
+          </div>
+        </DetailCard>
       )}
-    </div>
+    </DetailPageLayout>
   )
 }

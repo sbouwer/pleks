@@ -1,17 +1,17 @@
 /**
- * app/(landlord)/landlord/maintenance/[id]/page.tsx — FILL: one-line purpose
+ * app/(landlord)/landlord/maintenance/[id]/page.tsx — landlord portal: one maintenance request detail
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlord/maintenance/[id]
+ * Auth:   getLandlordSession (token-gated); verifies the property's landlord_id matches
+ * Data:   maintenance_requests (+ unit/property, contractor_view, contractor_updates) via the service client
+ * Notes:  Canon DetailPageLayout + DetailCard (door style). Approval card shown when status = pending_landlord.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import { notFound } from "next/navigation"
-import Link from "next/link"
-import { ChevronLeft } from "lucide-react"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailCard } from "@/components/detail/DetailCard"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { formatZAR } from "@/lib/constants"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -37,6 +37,14 @@ const STATUS_DISPLAY: Record<string, string> = {
   pending_completion: "Awaiting agent sign-off",
   completed: "Completed",
   closed: "Closed",
+}
+
+function mStatus(s: string): DetailStatus {
+  const label = STATUS_DISPLAY[s] ?? s.replace(/_/g, " ")
+  if (["completed", "closed"].includes(s)) return { kind: "occupied", label }
+  if (["rejected", "landlord_rejected"].includes(s)) return { kind: "flag", label }
+  if (s === "pending_landlord") return { kind: "vacant", label }
+  return { kind: "neutral", label }
 }
 
 export default async function LandlordMaintenanceDetailPage({ params }: Props) {
@@ -75,134 +83,113 @@ export default async function LandlordMaintenanceDetailPage({ params }: Props) {
     .order("created_at", { ascending: true })
     logQueryError("LandlordMaintenanceDetailPage contractor_updates", updatesError)
 
-  return (
-    <div className="max-w-2xl space-y-6">
-      {/* Breadcrumb */}
-      <div>
-        <Link href="/landlord/maintenance" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-3">
-          <ChevronLeft className="h-3.5 w-3.5" /> Maintenance
-        </Link>
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="font-heading text-2xl">{req.title}</h1>
-          {req.urgency && (() => {
-            let urgencyClass: string
-            if (req.urgency === "emergency") { urgencyClass = "text-danger" }
-            else if (req.urgency === "urgent") { urgencyClass = "text-warning" }
-            else { urgencyClass = "text-muted-foreground" }
-            return (
-              <span className={`text-xs font-bold shrink-0 mt-1 ${urgencyClass}`}>
-                {URGENCY_LABEL[req.urgency]}
-              </span>
-            )
-          })()}
-        </div>
-        <p className="text-muted-foreground text-sm mt-1">
-          {unit.unit_number}, {unit.properties.name}
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Status: {STATUS_DISPLAY[req.status] ?? req.status.replace(/_/g, " ")}
-        </p>
-      </div>
+  const facts: DetailFact[] = [{ k: "Property", v: `${unit.unit_number}, ${unit.properties.name}` }]
+  if (req.urgency) facts.push({ k: "Urgency", v: URGENCY_LABEL[req.urgency] ?? req.urgency })
+  if (req.category) facts.push({ k: "Category", v: req.category.replace(/_/g, " ") })
 
+  return (
+    <DetailPageLayout
+      category="Maintenance"
+      backHref="/landlord/maintenance"
+      title={req.title}
+      status={mStatus(req.status)}
+      facts={facts}
+    >
       {/* Approval card */}
       {req.status === "pending_landlord" && (
-        <div className="rounded-xl border border-warning/30 bg-warning/5 px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3">Your approval is needed</p>
-          <LandlordMaintenanceCard req={req} showApproveActions />
-        </div>
+        <DetailFullWidth>
+          <DetailCard title="Your approval is needed">
+            <LandlordMaintenanceCard req={req} showApproveActions />
+          </DetailCard>
+        </DetailFullWidth>
       )}
 
       {/* Details */}
-      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-4 text-sm">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Details</p>
-        {req.description && (
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">Description</p>
-            <p className="leading-relaxed whitespace-pre-wrap">{req.description}</p>
-          </div>
-        )}
-        {req.category && (
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">Category</p>
-            <p className="capitalize">{req.category.replace(/_/g, " ")}</p>
-          </div>
-        )}
-        {req.ai_triage_notes && (
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">AI assessment</p>
-            <p className="text-muted-foreground">{req.ai_triage_notes}</p>
-          </div>
-        )}
-        {req.access_instructions && (
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">Access</p>
-            <p>{req.access_instructions}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Contractor & cost */}
-      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-3 text-sm">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Contractor & cost</p>
-        {contractorName ? (
-          <div>
-            <p className="font-medium">{contractorName}</p>
-            {contractor?.phone && <p className="text-muted-foreground">{contractor.phone}</p>}
-          </div>
-        ) : (
-          <p className="text-muted-foreground">No contractor assigned yet</p>
-        )}
-        {req.estimated_cost_cents && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Estimated</span>
-            <span>{formatZAR(req.estimated_cost_cents)}</span>
-          </div>
-        )}
-        {req.quoted_cost_cents && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Quoted</span>
-            <span>{formatZAR(req.quoted_cost_cents)}</span>
-          </div>
-        )}
-        {req.actual_cost_cents && (
-          <div className="flex justify-between font-medium">
-            <span className="text-muted-foreground">Final cost</span>
-            <span>{formatZAR(req.actual_cost_cents)}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Completion notes */}
-      {req.completion_notes && (
-        <div className="rounded-xl border border-success/20 bg-success/5 px-5 py-4 space-y-2 text-sm">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Completion report</p>
-          <p className="leading-relaxed">{req.completion_notes}</p>
-        </div>
-      )}
-
-      {/* Timeline */}
-      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Timeline</p>
-        <div className="space-y-2.5">
-          <div className="flex items-center gap-3 text-sm">
-            <div className="w-2 h-2 rounded-full bg-brand shrink-0" />
-            <span>Logged — {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>
-          </div>
-          {(updates ?? []).map((u, i) => (
-            <div key={i} className="flex items-center gap-3 text-sm text-muted-foreground">
-              <div className="w-2 h-2 rounded-full bg-info shrink-0" />
-              <span className="capitalize">{u.new_status.replace(/_/g, " ")}{u.notes ? ` — ${u.notes}` : ""}</span>
-              <span className="text-xs ml-auto">{new Date(u.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}</span>
+      <DetailCard title="Details">
+        <div className="space-y-4 text-sm">
+          {req.description && (
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">Description</p>
+              <p className="whitespace-pre-wrap leading-relaxed text-foreground">{req.description}</p>
             </div>
-          ))}
-          {req.completed_at && (
-            <div className="flex items-center gap-3 text-sm">
-              <div className="w-2 h-2 rounded-full bg-success shrink-0" />
-              <span>Completed — {new Date(req.completed_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>
+          )}
+          {req.category && (
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">Category</p>
+              <p className="capitalize text-foreground">{req.category.replace(/_/g, " ")}</p>
+            </div>
+          )}
+          {req.ai_triage_notes && (
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">AI assessment</p>
+              <p className="text-muted-foreground">{req.ai_triage_notes}</p>
+            </div>
+          )}
+          {req.access_instructions && (
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">Access</p>
+              <p className="text-foreground">{req.access_instructions}</p>
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </DetailCard>
+
+      {/* Contractor & cost */}
+      <DetailCard title="Contractor & cost">
+        <div className="space-y-3 text-sm">
+          {contractorName ? (
+            <div>
+              <p className="font-medium text-foreground">{contractorName}</p>
+              {contractor?.phone && <p className="text-muted-foreground">{contractor.phone}</p>}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">No contractor assigned yet</p>
+          )}
+          {req.estimated_cost_cents && (
+            <div className="flex justify-between"><span className="text-muted-foreground">Estimated</span><span className="text-foreground">{formatZAR(req.estimated_cost_cents)}</span></div>
+          )}
+          {req.quoted_cost_cents && (
+            <div className="flex justify-between"><span className="text-muted-foreground">Quoted</span><span className="text-foreground">{formatZAR(req.quoted_cost_cents)}</span></div>
+          )}
+          {req.actual_cost_cents && (
+            <div className="flex justify-between font-medium"><span className="text-muted-foreground">Final cost</span><span className="text-foreground">{formatZAR(req.actual_cost_cents)}</span></div>
+          )}
+        </div>
+      </DetailCard>
+
+      {/* Completion notes */}
+      {req.completion_notes && (
+        <DetailFullWidth>
+          <DetailCard title="Completion report">
+            <p className="text-sm leading-relaxed text-foreground">{req.completion_notes}</p>
+          </DetailCard>
+        </DetailFullWidth>
+      )}
+
+      {/* Timeline */}
+      <DetailFullWidth>
+        <DetailCard title="Timeline">
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-3 text-sm">
+              <div className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+              <span className="text-foreground">Logged — {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>
+            </div>
+            {(updates ?? []).map((u, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm text-muted-foreground">
+                <div className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/50" />
+                <span className="capitalize">{u.new_status.replace(/_/g, " ")}{u.notes ? ` — ${u.notes}` : ""}</span>
+                <span className="ml-auto text-xs">{new Date(u.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}</span>
+              </div>
+            ))}
+            {req.completed_at && (
+              <div className="flex items-center gap-3 text-sm">
+                <div className="h-2 w-2 shrink-0 rounded-full bg-success" />
+                <span className="text-foreground">Completed — {new Date(req.completed_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>
+              </div>
+            )}
+          </div>
+        </DetailCard>
+      </DetailFullWidth>
+    </DetailPageLayout>
   )
 }

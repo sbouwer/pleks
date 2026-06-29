@@ -71,7 +71,7 @@ export default async function DataExportPage() {
       </div>
 
       {/* Print-friendly export */}
-      <div className="rounded-xl border border-border bg-card p-6 space-y-6 print:border-0 print:shadow-none print:p-0">
+      <div className="space-y-6 rounded-[var(--r-button)] border border-border bg-card p-6 print:border-0 print:p-0 print:shadow-none">
         <div className="border-b pb-4">
           <h2 className="font-semibold text-lg">Pleks — Tenant Communications Record</h2>
           <p className="text-sm text-muted-foreground mt-1">
