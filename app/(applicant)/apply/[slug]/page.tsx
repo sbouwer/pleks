@@ -315,7 +315,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
   const stripTitle = [property?.name, unit?.unit_number ? `Unit ${unit.unit_number}` : null, property?.suburb ?? property?.city].filter(Boolean).join(" · ") || title
   const availStr = facts[1]?.value ?? "Now"
   const agentCard = (
-    <DetailCard title="Your agent" headerAction={orgLogoUrl ? <Image src={orgLogoUrl} alt={org?.name ?? "Agency"} width={112} height={28} className="h-7 w-auto max-w-[112px] object-contain" unoptimized /> : undefined}>
+    <DetailCard title="Your agent" headerAction={orgLogoUrl ? <Image src={orgLogoUrl} alt={org?.name ?? "Agency"} width={112} height={28} className="h-7 w-auto max-w-20 object-contain" unoptimized /> : undefined}>
       {/* Name block (company · agent · function) on the left; photo on the right, sitting below the header logo.
           Contacts run full width below so a long email never gets squashed by the photo. */}
       <div className="flex flex-col gap-3">
