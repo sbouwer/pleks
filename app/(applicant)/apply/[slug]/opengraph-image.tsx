@@ -11,8 +11,6 @@ import { ImageResponse } from "next/og"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 
-/* eslint-disable @next/next/no-img-element -- ImageResponse (Satori) renders raw <img> only; next/image isn't available in an OG image route. */
-
 export const runtime = "nodejs"
 export const alt = "Rental application — Pleks"
 export const size = { width: 1200, height: 630 }
