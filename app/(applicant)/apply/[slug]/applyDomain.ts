@@ -23,7 +23,7 @@ export type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | P
 export interface DocFile { id: string; name: string; uploading: boolean; uploaded: boolean; storagePath: string | null; detection?: string | null; error?: string | null }
 // `designation` is the apply-as Designation column's free label for COMPANY co-people (director / signatory /
 // shareholder) — display/intent only; affordability still keys off `role` (+ is_surety_director server-side).
-export interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idNumber: string; role: CoRole; invited: boolean; designation?: string }
+export interface CoApplicant { firstName: string; lastName: string; email: string; phone: string; idType?: string; idNumber: string; role: CoRole; invited: boolean; designation?: string }
 export const blankCo = (role: CoRole): CoApplicant => ({ firstName: "", lastName: "", email: "", phone: "", idNumber: "", role, invited: false })
 
 export type Emp = {

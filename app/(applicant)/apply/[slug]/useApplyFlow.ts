@@ -296,7 +296,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
 
   // Seed identity from the resumed draft (else the logged-in user's own record; financial/employment stay empty
   // for a fresh start but rehydrate on resume).
-  const [form, setForm] = useState<PartyFormState>({ idType: "sa_id", ...(prefill ?? {}), ...(resume?.form ?? {}) })
+  // No hardcoded idType — the apply-as IdentityField starts as the "Identity" dropdown (SA ID / Passport / Permit)
+  // and morphs into the chosen input, so a foreign applicant is captured correctly instead of silently defaulting to
+  // an SA ID. Prefill/resume supply the type when known; saveDraft falls back to "sa_id" only if still unset.
+  const [form, setForm] = useState<PartyFormState>({ ...(prefill ?? {}), ...(resume?.form ?? {}) })
   const [errors, setErrors] = useState<PartyErrors>({})
   const [emp, setEmp] = useState<Emp>(resume?.emp ?? { employment_type: "", employer: "", start_date: "" })
   const [income, setIncome] = useState<IncomeRow[]>(resumedIncome ?? [])
@@ -711,7 +714,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     for (const c of pending) {
       const res = await fetch(`/api/applications/${appId}/co-applicant`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ first_name: c.firstName, last_name: c.lastName, email: c.email, phone: c.phone, id_number: c.idNumber, id_type: "sa_id", role: c.role }),
+        body: JSON.stringify({ first_name: c.firstName, last_name: c.lastName, email: c.email, phone: c.phone, id_number: c.idNumber, id_type: c.idType || "sa_id", role: c.role }),
       })
       if (!res.ok) toast.error(`Could not invite ${c.email}`)
     }
@@ -726,7 +729,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       if (applicationId) {
         const res = await fetch(`/api/applications/${applicationId}/co-applicant`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ first_name: newCo.firstName, last_name: newCo.lastName, email: newCo.email, phone: newCo.phone, id_number: newCo.idNumber, id_type: "sa_id", role: newCo.role }),
+          body: JSON.stringify({ first_name: newCo.firstName, last_name: newCo.lastName, email: newCo.email, phone: newCo.phone, id_number: newCo.idNumber, id_type: newCo.idType || "sa_id", role: newCo.role }),
         })
         if (!res.ok) { toast.error("Could not invite the applicant. Please try again."); return }
       }

@@ -12,6 +12,7 @@ import { ArrowRight, Building2, CheckCircle2, HandCoins, LogIn, Plus, User, User
 import type { LucideIcon } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
+import { PARTY_ID_TYPES } from "@/lib/parties/partyConfig"
 import { SectLabel } from "@/components/parties/partyFields"
 import { type ApplicantType, type CoApplicant, type CoRole, type SetFn, blankCo } from "./applyDomain"
 import { type CompanyInfo, COMPANY_TYPE_OPTIONS, isJuristicCompanyType } from "./applyCompany"
@@ -31,6 +32,43 @@ const CO_INPUT = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-[
 // The 5th "Designation" column — a ghost-prefill cell (dashed, muted) that opens a dropdown of short role titles.
 const CO_DESIGNATION = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:border-solid focus:outline-none"
 
+// Short chip labels for the chosen type (PARTY_ID_TYPES carries the canonical values + long labels — same SSOT the
+// personal step's IdField uses, so a type picked here matches there).
+const ID_CHIP_LABEL: Record<string, string> = { sa_id: "SA ID", passport: "Passport", asylum_permit: "Permit" }
+
+/** Single-column identity control — an "Identity" dropdown that MORPHS into the chosen type's number input, so a
+ *  foreign applicant picks Passport / Permit instead of being silently recorded under an SA ID. The leading type
+ *  chip switches back to the dropdown (clearing the number, since formats differ). Same footprint as the sibling
+ *  inputs so the row's five columns stay aligned. The morph also enforces "pick a type before you can type a number". */
+function IdentityField({ idType, idNumber, onType, onNumber }: Readonly<{
+  idType: string | undefined; idNumber: string; onType: (t: string) => void; onNumber: (v: string) => void
+}>) {
+  // ONE outer box for BOTH states (same flex sizing as the sibling inputs) so the column width never changes when it
+  // morphs: a native <select> is sized to its widest option, so without a shared wrapper the dropdown would be wider
+  // than the number input. The inner select/input are borderless + min-w-0 so the wrapper alone owns the width.
+  const wrap = "flex min-w-[110px] flex-1 items-center overflow-hidden rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] focus-within:border-[var(--amber)]"
+  if (!idType) return (
+    <span className={wrap}>
+      <select aria-label="Identity document type" value="" onChange={(e) => onType(e.target.value)}
+        className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none">
+        <option value="" disabled>Identity…</option>
+        {PARTY_ID_TYPES.map((t) => <option key={t.value} value={t.value}>{ID_CHIP_LABEL[t.value] ?? t.label}</option>)}
+      </select>
+    </span>
+  )
+  const chip = ID_CHIP_LABEL[idType] ?? "ID"
+  return (
+    <span className={wrap}>
+      <button type="button" onClick={() => { onNumber(""); onType("") }} title="Change identity type"
+        className="shrink-0 self-stretch border-r border-[var(--rule)] bg-[var(--paper-sunk)] px-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
+        {chip}
+      </button>
+      <input aria-label={`${chip} number`} placeholder="Number" value={idNumber} onChange={(e) => onNumber(e.target.value)}
+        className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-xs text-[var(--ink)] focus:outline-none" />
+    </span>
+  )
+}
+
 /** Couple / guarantor inline party capture — 5-column rows (First · Last · Email · ID · Designation). Row 1 is YOU
  *  (the filler / primary applicant, bound to `form`; you finish your full details next). The other rows are the
  *  co-applicants / guarantors, whose Designation column sets the role — a co-applicant's income counts toward
@@ -49,7 +87,7 @@ function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Reado
         <input placeholder="First name" value={form.firstName ?? ""} onChange={(e) => set("firstName", e.target.value)} className={CO_INPUT} />
         <input placeholder="Last name" value={form.lastName ?? ""} onChange={(e) => set("lastName", e.target.value)} className={CO_INPUT} />
         <input type="email" placeholder="Email" autoComplete="off" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} className={CO_INPUT} />
-        <input placeholder="ID number" value={form.idNumber ?? ""} onChange={(e) => set("idNumber", e.target.value)} className={CO_INPUT} />
+        <IdentityField idType={form.idType} idNumber={form.idNumber ?? ""} onType={(t) => set("idType", t)} onNumber={(v) => set("idNumber", v)} />
         <span className="inline-flex min-w-[110px] flex-1 items-center gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] px-2 py-1.5 text-xs text-[var(--ink-soft)]">
           <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" /> You · Applicant
         </span>
@@ -62,7 +100,7 @@ function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Reado
           <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
           <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
           <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
-          <input placeholder="ID number" value={c.idNumber} onChange={(e) => updateCo(i, { idNumber: e.target.value })} className={CO_INPUT} />
+          <IdentityField idType={c.idType} idNumber={c.idNumber} onType={(t) => updateCo(i, { idType: t })} onNumber={(v) => updateCo(i, { idNumber: v })} />
           <select value={c.role} onChange={(e) => updateCo(i, { role: e.target.value as CoRole })} className={CO_DESIGNATION} aria-label="Designation">
             <option value="co_applicant">Co-applicant</option>
             <option value="guarantor">Guarantor</option>
@@ -115,7 +153,7 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
             <input placeholder="First name" value={form.firstName ?? ""} onChange={(e) => set("firstName", e.target.value)} className={CO_INPUT} />
             <input placeholder="Last name" value={form.lastName ?? ""} onChange={(e) => set("lastName", e.target.value)} className={CO_INPUT} />
             <input type="email" placeholder="Email" autoComplete="off" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} className={CO_INPUT} />
-            <input placeholder="ID number" value={form.idNumber ?? ""} onChange={(e) => set("idNumber", e.target.value)} className={CO_INPUT} />
+            <IdentityField idType={form.idType} idNumber={form.idNumber ?? ""} onType={(t) => set("idType", t)} onNumber={(v) => set("idNumber", v)} />
             <select value={company.fillerDesignation ?? (singlePerson ? "owner" : "director")} aria-label="Your role" className={CO_DESIGNATION}
               onChange={(e) => {
                 const val = e.target.value
@@ -143,7 +181,7 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
               <input placeholder="First name" value={c.firstName} onChange={(e) => updateCo(i, { firstName: e.target.value })} className={CO_INPUT} />
               <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
               <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
-              <input placeholder="ID number" value={c.idNumber} onChange={(e) => updateCo(i, { idNumber: e.target.value })} className={CO_INPUT} />
+              <IdentityField idType={c.idType} idNumber={c.idNumber} onType={(t) => updateCo(i, { idType: t })} onNumber={(v) => updateCo(i, { idNumber: v })} />
               {/* Guarantor/surety → the guarantor ROLE (income backstops the rent); everyone else is a co-party. */}
               <select value={c.designation ?? "director"} onChange={(e) => updateCo(i, { designation: e.target.value, role: e.target.value === "guarantor" ? "guarantor" : "co_applicant" })} className={CO_DESIGNATION} aria-label="Designation">
                 <option value="director">Director</option>
