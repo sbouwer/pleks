@@ -23,6 +23,12 @@ const eslintConfig = defineConfig([
       "sonarjs/void-use":                      "off",
     },
   },
+  {
+    // Test files legitimately assert exact, deterministic float values (e.g. expect(rate).toBe(0.15)). The
+    // no-floating-point-equality rule targets production comparison bugs, not test assertions — scope it off here.
+    files: ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
+    rules: { "sonarjs/no-floating-point-equality": "off" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
