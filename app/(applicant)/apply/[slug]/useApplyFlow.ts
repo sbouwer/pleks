@@ -294,7 +294,13 @@ function resolveSubmit(o: Readonly<{ isCo: boolean; selfSectionDone: boolean; is
  *  default — every existing caller). A co peer passes isLead:false + their co row id; that forces the hub entry,
  *  the token-as-proof gate bypass (the access token IS the email proof), the co-scoped doc path, no-submit
  *  (Phase 3 wires peer submit), and routes writes to the co save endpoint (sub-step 2). */
-export interface ApplyActor { isLead: boolean; coId?: string }
+export interface ApplyActor {
+  isLead: boolean; coId?: string
+  /** 14R §4: how many OTHER peers (lead + other cos) haven't finished their section — a load-time snapshot the co
+   *  page computes from the adapter. >0 → the co's submit is held ("waiting on N"); 0 → enabled. A count, not names
+   *  (POPIA-safe; named "waiting on {names}" is Phase 4). The server re-checks all-green regardless. */
+  peersIncomplete?: number
+}
 /** Default actor — the lead. Lets every existing caller omit `actor` and keeps `isCo` a single negation. */
 const LEAD_ACTOR: ApplyActor = { isLead: true }
 
@@ -1013,7 +1019,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, submitToAgent, afterCompanyReview, finishDocuments,
     // derived
     nav, personalStep, juristic, docApplicantType, docCategories, companyDocCategories, docsReady, applicantsGreen,
-    emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, canCoSubmit, coSubmitted, disclaimer, scrollCls,
+    emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, canCoSubmit, coSubmitted, coPeersIncomplete: actor.peersIncomplete ?? 0, disclaimer, scrollCls,
     inWizard, activeKey, activeGroup, headerTitle, headerSub, railNav, railStep, railMaxReached, navStates, onNav,
     onJumpRail, navNext, showBackBtn, showSaveBtn, askingRentCents, reviewUnlocked, onReviewStep,
   }

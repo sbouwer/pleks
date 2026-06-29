@@ -80,6 +80,9 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
   const applicants = await getApplicants(service, appId)
   const coUniform = applicants.find((a) => a.ref === `co_${co.id}`)
   if (!coUniform) notFound()
+  // How many OTHER peers (lead + other cos) haven't finished — a load-time snapshot that holds the co's submit
+  // until everyone's green (14R §4). A count, not names (POPIA-safe); the server re-checks all-green at submit.
+  const peersIncomplete = applicants.filter((a) => a.ref !== coUniform.ref && a.status !== "completed").length
 
   // The co's own document folder (subject-isolated under co_{coId}/) → resume's docPaths.
   const docPrefix = `applications/${co.org_id}/${appId}/co_${co.id}`
@@ -132,7 +135,7 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
           leaseType={leaseType}
           askingRentCents={listing?.asking_rent_cents ?? 0}
           resume={resume}
-          actor={{ isLead: false, coId: co.id as string }}
+          actor={{ isLead: false, coId: co.id as string, peersIncomplete }}
           verifiedEmail={null}
           agentCard={agentCard}
         />

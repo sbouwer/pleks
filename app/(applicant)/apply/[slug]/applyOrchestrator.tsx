@@ -65,7 +65,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
     confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, submitToAgent, afterCompanyReview, finishDocuments,
     personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied,
-    statusMenuCompany, statusMenuPersons, canSubmit, canCoSubmit, coSubmitted, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
+    statusMenuCompany, statusMenuPersons, canSubmit, canCoSubmit, coSubmitted, coPeersIncomplete, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
     reviewUnlocked, onReviewStep,
   } = f
@@ -231,12 +231,19 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                   busy={busy}
                   canSubmit={canSubmit}
                 />
-                {/* A co peer submits the whole application straight from the hub once their own part is done; the
-                    server re-checks every peer is green (a 409 → "waiting on N"). No affordability review (POPIA §5). */}
+                {/* A co peer submits the whole application straight from the hub once EVERYONE's part is done (no
+                    affordability review — POPIA §5). Until then the action is held with a "waiting on N" note rather
+                    than offered-then-bounced; the server re-checks all-green regardless. */}
                 {canCoSubmit && (
                   <div className="mt-4 flex flex-col items-stretch gap-1.5 border-t border-[var(--rule)] pt-4">
-                    <ActionButton tone="primary" onClick={submitToAgent} disabled={busy}>Submit application to the agent</ActionButton>
-                    <p className="text-center text-xs text-[var(--ink-soft)]">Everyone on the application must have finished their part — we&apos;ll check before it&apos;s sent.</p>
+                    {coPeersIncomplete > 0 ? (
+                      <div className="flex items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">
+                        <Clock className="mt-0.5 size-5 shrink-0 text-[var(--ink-mute)]" />
+                        <span>Your part is in. Waiting for {coPeersIncomplete} other applicant{coPeersIncomplete === 1 ? "" : "s"} to finish — the application goes to the agent once everyone&apos;s done.</span>
+                      </div>
+                    ) : (
+                      <ActionButton tone="primary" onClick={submitToAgent} disabled={busy}>Submit application to the agent</ActionButton>
+                    )}
                   </div>
                 )}
               </>
