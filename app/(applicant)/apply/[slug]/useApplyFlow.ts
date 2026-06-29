@@ -26,7 +26,7 @@ import {
   type PartyFormState, type PartyErrors,
 } from "@/lib/parties/partyValidation"
 import { isValidEmail, cipcRegError, checkPhone } from "@/lib/validation/contact"
-import { assembleSaveDraftPayload, resolvePrimary } from "./applySaveDraft"
+import { assembleSaveDraftPayload, assembleCoSaveBody, resolvePrimary } from "./applySaveDraft"
 import type { StatusMenuCompany, StatusMenuPerson, CardStatus } from "./applyStatusMenu"
 import { summariseStatus } from "./applyStatusMenu"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, type NavModel } from "./applyNav"
@@ -640,6 +640,19 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
   async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean; documentsSubmitted?: boolean; consentGiven?: boolean; companySignedOff?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
+    // 14R: a co peer persists through their OWN endpoint (their access token = credential), not the lead's
+    // save-draft. The draft already exists (resume) so there's nothing to create — just patch the co row. A
+    // consentGiven call (finishDocuments) is the final sign-off (records consent); otherwise an autosave (draft).
+    if (isCo) {
+      if (!token || !applicationId) return null
+      const coBody = assembleCoSaveBody({ form, emp, dependentAdults, dependentMinors, income, commitments, spouseCandidates: coApplicants, final: opts?.consentGiven === true })
+      try {
+        const res = await fetch(`/api/applications/co-applicant/${token}/save`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(coBody) })
+        const json = await res.json() as { ok?: boolean; error?: string }
+        if (!res.ok || !json.ok) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
+        return { id: applicationId, url: null, emailed: false }
+      } catch { if (!opts?.silent) { toast.error("Could not save your progress.") } return null }
+    }
     // Primary-person resolution + the whole request body are pure (applySaveDraft) — the email guard, network call
     // and state writes stay here. On-behalf company → the named director is primary (see resolvePrimary).
     const primary = resolvePrimary(type, companyImDirector, coApplicants, form)
@@ -822,7 +835,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       const bankPath = (docFiles["bank_main"] ?? []).find((f) => f.uploaded)?.storagePath ?? null
       const r = await saveDraft(step, { silent: true, documentsSubmitted: true, consentGiven: true })
       if (!r) { toast.error("Could not save — please try again."); return }
-      void createClient().from("applications").update({ bank_statement_path: bankPath }).eq("id", applicationId)
+      // bank_statement_path lives on the applications row (the lead) — a co's bank doc is registered under their own
+      // co_{coId}/ folder + row, and the /screen pipeline enumerates every file regardless, so skip this for a co.
+      if (!isCo) void createClient().from("applications").update({ bank_statement_path: bankPath }).eq("id", applicationId)
       // The applicant's own section is done → back to the status hub (their self card flips to Completed). The
       // application Review & Submit lives on the hub now (every flow), not at the end of a linear walk.
       setSelfSectionDone(true)
