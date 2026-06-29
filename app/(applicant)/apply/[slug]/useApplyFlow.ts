@@ -276,16 +276,28 @@ function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { n
   return out
 }
 
+/** Who this session belongs to (ADDENDUM_14R full-peer). Absent / isLead → the lead (the applications row, the
+ *  default — every existing caller). A co peer passes isLead:false + their co row id; that forces the hub entry,
+ *  the token-as-proof gate bypass (the access token IS the email proof), the co-scoped doc path, no-submit
+ *  (Phase 3 wires peer submit), and routes writes to the co save endpoint (sub-step 2). */
+export interface ApplyActor { isLead: boolean; coId?: string }
+/** Default actor — the lead. Lets every existing caller omit `actor` and keeps `isCo` a single negation. */
+const LEAD_ACTOR: ApplyActor = { isLead: true }
+
 export interface UseApplyFlowProps {
   slug: string; orgId: string; listingTitle?: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
   verifiedEmail?: string | null
+  actor?: ApplyActor
 }
 
 /** The apply wizard state machine. Returns all state, setters, handlers and derived values the render shell needs. */
-export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail }: UseApplyFlowProps) {
+export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, actor = LEAD_ACTOR }: UseApplyFlowProps) {
   const commercial = leaseType === "commercial"
+  // 14R: a co peer (isLead:false) runs the SAME machine as the lead with three divergences — enter at the hub, never
+  // re-verify (token-as-proof), never submit (Phase 2). The lead (default actor) is unchanged.
+  const isCo = !actor.isLead
   // Resuming a saved draft (the ?app&token link) rehydrates identity/income/employment/docs/co-applicants and
   // drops the applicant back on the step they left. Address isn't persisted by the apply flow, so it re-enters.
   const resumedIncome = resume ? rebuildRows(resume.incomeSources, INCOME_LABEL) : null
@@ -365,7 +377,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // lands on the menu too. (Couple/guarantor/individual still run linearly — their menu is a later increment.)
   const resumeCompany = !!resume && resume.applicantType === "company" && isJuristicCompanyType(resume.company?.companyType ?? "")
   const resumeStep = resume?.step ?? 0
-  const [atRoster, setAtRoster] = useState<boolean>(resumeCompany)
+  const [atRoster, setAtRoster] = useState<boolean>(resumeCompany || isCo) // a co peer enters at the hub / their own card (14R)
   const [companyStarted, setCompanyStarted] = useState<boolean>(resumeCompany && resumeStep > 0)
   // Prefer the EXPLICIT persisted flag (survives an edit moving the cursor back); fall back to the draft_step
   // heuristic for drafts saved before signedOff was persisted.
@@ -390,14 +402,15 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // email; value is the tri-state ("invited" | "started" | "completed").
   const [coStatusByEmail, setCoStatusByEmail] = useState<Record<string, string>>({})
   useEffect(() => {
-    if (!applicationId || !token || !atRoster || coApplicants.length === 0) return
+    // A co holds an access-token (not an application_tokens token) + sees only their own card → never polls co-status.
+    if (isCo || !applicationId || !token || !atRoster || coApplicants.length === 0) return
     let cancelled = false
     void fetch(`/api/applications/${applicationId}/co-status?token=${encodeURIComponent(token)}`)
       .then((r) => r.json() as Promise<{ coApplicants?: { email: string; status?: string; completed?: boolean }[] }>)
       .then((j) => { if (!cancelled && j.coApplicants) setCoStatusByEmail(Object.fromEntries(j.coApplicants.map((c) => [c.email, c.status ?? (c.completed ? "completed" : "invited")]))) })
       .catch(() => { /* hub status is best-effort */ })
     return () => { cancelled = true }
-  }, [applicationId, token, atRoster, coApplicants.length])
+  }, [applicationId, token, atRoster, coApplicants.length, isCo])
 
   function advance(to: number) { setStep(to); setMaxReached((m) => Math.max(m, to)) }
 
@@ -518,6 +531,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
    *  application (couple/guarantor — the link is shared, so confirm it's really them). Individual, company, and
    *  not-yet-completed apps never re-verify (email_verified_at persists). */
   function gateNeedsVerify(toStep: number): boolean {
+    if (isCo) return false // a token-authed co never re-verifies — the access token IS the email proof (14R §3)
     if (!emailGateSatisfied) return true // never verified → first-time verify
     const personalPane = PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")
     const completedMultiPartyEdit = selfSectionDone && !isJuristicCompany && coApplicants.length > 0
@@ -643,7 +657,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       setApplicationId(json.applicationId); setToken(json.token)
       // Put the resume token in the URL so a refresh / dev hot-reload rehydrates from the saved draft instead of
       // restarting (the draft is on the server; without the token in the URL the page can't find it on reload).
-      try { globalThis.history?.replaceState(null, "", `?app=${json.applicationId}&token=${encodeURIComponent(json.token)}`) } catch { /* best-effort */ }
+      if (!isCo) try { globalThis.history?.replaceState(null, "", `?app=${json.applicationId}&token=${encodeURIComponent(json.token)}`) } catch { /* best-effort */ }
       return { id: json.applicationId, url: json.resumeUrl ?? null, emailed: !!json.emailed }
     } catch { if (!opts?.silent) { toast.error("Could not save your progress.") } return null }
   }
@@ -757,7 +771,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     try {
       const supabase = createClient()
       const ext = file.name.split(".").pop() ?? "pdf"
-      const path = `applications/${orgId}/${applicationId}/${single ? categoryKey : fileId}.${ext}`
+      // A co's docs go to their own co_{coId}/ subfolder (subject-isolated; detect-document infers the subject from
+      // the co_ path); the lead's stay at the flat prefix. (14R §6 / 14P 0b.5)
+      const coPrefix = isCo ? `co_${actor.coId}/` : ""
+      const path = `applications/${orgId}/${applicationId}/${coPrefix}${single ? categoryKey : fileId}.${ext}`
       const { error: upErr } = await supabase.storage.from("application-docs").upload(path, file, { upsert: true })
       if (upErr) throw upErr
       let detection: string | null = null
@@ -887,7 +904,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const isMultiParty = isJuristicCompany || coApplicants.length > 0
   // Submit is the primary/signatory's act (CD cross-cutting A): a juristic office-manager (not a director) never
   // presses it — the named director submits via their own link.
-  const canSubmit = !(isJuristicCompany && !companyImDirector)
+  const canSubmit = !isCo && !(isJuristicCompany && !companyImDirector) // a co peer completes their card; peer-submit is Phase 3 (14R §4)
   // The persistent "Review / submit" nav item: unlocked once the filler's own cards are done (fillerReady) and submit
   // is theirs to press (canSubmit). The hub re-derives the same fillerReady internally; this exposes it for the rail.
   const { fillerReady: reviewFillerReady } = summariseStatus(statusMenuCompany, statusMenuPersons)
