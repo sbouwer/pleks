@@ -60,7 +60,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep, setEditReverified,
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
-    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview,
+    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview, finishDocuments,
     personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied,
     statusMenuCompany, statusMenuPersons, canSubmit, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
@@ -85,12 +85,16 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (personalStep === STEP_EXPENSES) return <StepExpenses dependentAdults={dependentAdults} setDependentAdults={setDependentAdults} dependentMinors={dependentMinors} setDependentMinors={setDependentMinors} commitments={commitments} setCommitments={setCommitments} />
     if (personalStep === STEP_DOCUMENTS) return <StepDocuments tab="required" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
     if (personalStep === STEP_DOCS_OPTIONAL) return (
-      <div className="flex flex-col gap-6">
+      <div className="flex min-h-full flex-col gap-6">
         <StepDocuments tab="optional" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
         {/* SECTION sign-off — consent is captured here (per member), so the application Review is consent-free. */}
         <ConsentVerify applicationId={applicationId} token={token} email={form.email} verified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={consent} setConsent={setConsent}>
           I consent to Pleks processing the information and documents I&apos;ve provided — including automated (AI) analysis of my uploaded documents — to pre-screen this application (POPIA). No credit check or bureau enquiry runs at this stage; that only happens later if I&apos;m shortlisted and I consent again.
         </ConsentVerify>
+        {/* The section sign-off action lives bottom-right in the pane (like the company co-review), not the top nav. */}
+        <div className="mt-auto flex justify-end pt-3">
+          <ActionButton tone="primary" onClick={finishDocuments} disabled={!consent || busy}>Complete my part</ActionButton>
+        </div>
       </div>
     )
     if (personalStep === STEP_REVIEW) return <StepSubmit emp={emp} askingRentCents={askingRentCents} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} busy={busy} />

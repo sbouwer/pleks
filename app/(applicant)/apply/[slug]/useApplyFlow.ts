@@ -15,7 +15,7 @@ import { useBegun } from "./applyChrome"
 import { type CompanyInfo, isJuristicCompanyType } from "./applyCompany"
 import {
   type ApplicantType, type CoRole, type ScreeningStatus, type SetFn, type DocFile, type CoApplicant, type Emp, type IncomePeriod, type IncomeRow,
-  STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW, LAST_DATA_STEP,
+  STEP_EXPENSES, STEP_DOCUMENTS, STEP_REVIEW, LAST_DATA_STEP,
   INCOME_LABEL, seedIncomeFor, COMMITMENT_LABEL, seedCommitments,
   allAmountsEmpty, seedIfEmpty, numStr, moneyCents, incomeKeys, blankCo,
 } from "./applyDomain"
@@ -220,8 +220,8 @@ function personalNavNext(o: Readonly<{
   if (o.personalStep === 3) return { label: "Next", onClick: o.continueIncome }
   if (o.personalStep === STEP_EXPENSES) return { label: "Next", onClick: o.createApplication }
   if (o.personalStep === STEP_DOCUMENTS) return { label: "Next", onClick: o.continueDocsRequired, disabled: !o.docsReady }
-  // Documents (optional) is the SECTION sign-off — consent is captured here, so "Complete my part" gates on it.
-  if (o.personalStep === STEP_DOCS_OPTIONAL) return { label: "Complete my part", onClick: o.finishDocuments, disabled: !o.consent, primary: true }
+  // Documents (optional) is the SECTION sign-off: consent + the "Complete my part" action live in the pane itself
+  // (bottom-right, like the company co-review sign-off) — NOT the top nav. So no header forward-action here.
   return null
 }
 
@@ -941,7 +941,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     screeningStatus, assessment,
     // handlers
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
-    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview,
+    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview, finishDocuments,
     // derived
     nav, personalStep, juristic, docApplicantType, docCategories, companyDocCategories, docsReady, applicantsGreen,
     emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, disclaimer, scrollCls,
