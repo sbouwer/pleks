@@ -2012,7 +2012,7 @@ DROP POLICY IF EXISTS "dsr_subject_select_own" ON data_subject_requests;
 CREATE POLICY "dsr_subject_select_own" ON data_subject_requests
   FOR SELECT USING (
     subject_user_id = (SELECT auth.uid())
-    OR lower(subject_email) = lower((auth.jwt() ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING)
+    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT …) so the planner evals once per query (initplan), not per row.
   );
 
 -- Org staff see their org's requests
@@ -2027,7 +2027,7 @@ DROP POLICY IF EXISTS "dsr_subject_insert" ON data_subject_requests;
 CREATE POLICY "dsr_subject_insert" ON data_subject_requests
   FOR INSERT WITH CHECK (
     subject_user_id = (SELECT auth.uid())
-    OR lower(subject_email) = lower((auth.jwt() ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING)
+    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT …) so the planner evals once per query (initplan), not per row.
   );
 
 -- Org staff update their org's requests (status, assignment, resolution)
@@ -2098,7 +2098,7 @@ DROP POLICY IF EXISTS "popia_exports_subject_select" ON popia_exports;
 CREATE POLICY "popia_exports_subject_select" ON popia_exports
   FOR SELECT USING (
     subject_user_id = (SELECT auth.uid())
-    OR lower(subject_email) = lower((auth.jwt() ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING)
+    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT …) so the planner evals once per query (initplan), not per row.
   );
 
 -- Org staff read their org's exports
@@ -2116,7 +2116,7 @@ DROP POLICY IF EXISTS "popia_exports_subject_update_download" ON popia_exports;
 CREATE POLICY "popia_exports_subject_update_download" ON popia_exports
   FOR UPDATE USING (
     subject_user_id = (SELECT auth.uid())
-    OR lower(subject_email) = lower((auth.jwt() ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING)
+    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT …) so the planner evals once per query (initplan), not per row.
   );
 -- Write permissions to individual columns enforced by explicit UPDATE statement shape in lib/popia/export.ts
 
@@ -2259,7 +2259,7 @@ BEGIN
               -- INSERT ... RETURNING *, which evaluates every SELECT policy on the new row, and Postgres plans
               -- this sub-SELECT as an InitPlan regardless of the bucket_id guard. anon/authenticated can't read
               -- auth.users → "permission denied for table users" broke uploads to EVERY bucket. (drift-fix 2026-06-22)
-              OR lower(pe.subject_email) = lower((auth.jwt() ->> 'email'))
+              OR lower(pe.subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- (SELECT …): initplan once/query, not per row (still the JWT claim, no auth.users read)
             )
             AND pe.expires_at > now()
         )

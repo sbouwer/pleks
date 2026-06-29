@@ -548,8 +548,11 @@ CREATE TABLE IF NOT EXISTS communication_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_comms_tenant_id  ON communication_log(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_comms_contact_id ON communication_log(contact_id);
-CREATE INDEX IF NOT EXISTS idx_comms_org_id     ON communication_log(org_id);
+-- idx_comms_contact_id / idx_comms_org_id were DUPLICATES of 007's idx_comm_log_recipient / idx_comm_log_org (same
+-- columns, leftover from the comm_log naming churn). Dropped here for the live DB (no-op on a fresh replay since the
+-- CREATEs are removed + 007 runs later); the idx_comm_log_* pair is the survivor. (Supabase duplicate_index, 2026-06-26)
+DROP INDEX IF EXISTS idx_comms_contact_id;
+DROP INDEX IF EXISTS idx_comms_org_id;
 CREATE INDEX IF NOT EXISTS idx_comms_channel    ON communication_log(channel);
 
 ALTER TABLE communication_log ENABLE ROW LEVEL SECURITY;

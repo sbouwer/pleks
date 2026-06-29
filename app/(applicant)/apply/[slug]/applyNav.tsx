@@ -1,0 +1,277 @@
+"use client"
+
+/**
+ * app/(applicant)/apply/[slug]/applyNav.tsx — the apply wizard's nav chrome
+ *
+ * Notes:  The two-level navigation model (step groups + panes) and its presentational chrome (StepRail · StepBar ·
+ *         SubTabs) + computeStepStates. Pure presentation/derivation owned by the orchestrator's shell; no flow
+ *         logic. Parameterised by a NavModel so the SAME chrome drives the personal flow AND the (copied-and-
+ *         reworked) company flow — the orchestrator picks the model by applicant/company type. Each pane carries a
+ *         `key` so the orchestrator's render/next dispatch is key-driven, not index-bound.
+ */
+
+import { LayoutGrid, Send } from "lucide-react"
+
+export type PaneMeta = ReadonlyArray<{ group: string; sub: string; key: string }>
+export interface NavModel { stepGroups: readonly string[]; paneMeta: PaneMeta; groupPanes: Record<string, number[]>; stepDesc: Record<string, string> }
+
+/** Build a NavModel — derives the group→pane-indices map from the pane list. "Apply as" is the landing (no pane). */
+export function buildNav(stepGroups: readonly string[], paneMeta: PaneMeta, stepDesc: Record<string, string>): NavModel {
+  const groupPanes: Record<string, number[]> = {}
+  paneMeta.forEach((m, i) => {
+    groupPanes[m.group] ??= []
+    groupPanes[m.group].push(i)
+  })
+  return { stepGroups, paneMeta, groupPanes, stepDesc }
+}
+
+// ── PERSONAL flow (individual / couple / guarantor) ──────────────────────────────────────────────
+const PERSONAL_PANES: PaneMeta = [
+  { group: "Personal details",   sub: "Personal information", key: "personal" },   // step 0
+  { group: "Personal details",   sub: "Address",             key: "address" },     // step 1
+  { group: "Finances",           sub: "Employment",          key: "employment" },  // step 2
+  { group: "Finances",           sub: "Income",              key: "income" },      // step 3
+  { group: "Finances",           sub: "Expenses",            key: "expenses" },    // step 4
+  { group: "Documents",          sub: "Required",            key: "docs-req" },    // step 5
+  { group: "Documents",          sub: "Optional",            key: "docs-opt" },    // step 6
+  { group: "Application review", sub: "Check & submit",      key: "review" },      // step 7
+]
+const PERSONAL_DESC: Record<string, string> = {
+  "Personal details": "Your identity & contact",
+  Finances: "Income & affordability",
+  Documents: "ID, proof of address, payslips",
+  "Application review": "Check & submit",
+}
+export const PERSONAL_NAV = buildNav(["Apply as", "Personal details", "Finances", "Documents", "Application review"], PERSONAL_PANES, PERSONAL_DESC)
+
+// ── SOLE-PROP / unincorporated flow ──────────────────────────────────────────────────────────────
+// The personal flow with a "Business information" pane prepended + the first group renamed. The owner IS the
+// applicant (personal affordability), so steps 1+ are exactly the personal panes — the orchestrator renders them by
+// reusing the personal dispatch at (step - 1). Keys match the personal keys so that reuse is direct.
+const SOLEPROP_PANES: PaneMeta = [
+  { group: "Business details",   sub: "Business information", key: "co-info" },    // step 0  (the only new pane)
+  { group: "Business details",   sub: "Personal information", key: "personal" },   // step 1
+  { group: "Business details",   sub: "Address",             key: "address" },     // step 2
+  { group: "Finances",           sub: "Employment",          key: "employment" },  // step 3
+  { group: "Finances",           sub: "Income",              key: "income" },      // step 4
+  { group: "Finances",           sub: "Expenses",            key: "expenses" },    // step 5
+  { group: "Documents",          sub: "Required",            key: "docs-req" },    // step 6
+  { group: "Documents",          sub: "Optional",            key: "docs-opt" },    // step 7
+  { group: "Application review", sub: "Check & submit",      key: "review" },      // step 8
+]
+const SOLEPROP_DESC: Record<string, string> = {
+  "Business details": "Your business & your identity",
+  Finances: "Income & affordability",
+  Documents: "ID, proof of address, statements",
+  "Application review": "Check & submit",
+}
+export const SOLEPROP_NAV = buildNav(["Apply as", "Business details", "Finances", "Documents", "Application review"], SOLEPROP_PANES, SOLEPROP_DESC)
+
+// ── JURISTIC company flow (Pty / CC / NPC / Trust) ───────────────────────────────────────────────
+// The COMPANY entity rail (Company details · finances · documents · review/sign-off) THEN — via the per-applicant
+// roster hub — the DIRECTOR's private rail (the personal panes, reused verbatim) THEN review. The first 5 panes
+// (PTY_COMPANY_PANES) are the entity (ending in co-review, the company sign-off); from that index the orchestrator
+// renders the personal panes at (step - PTY_COMPANY_PANES).
+export const PTY_COMPANY_PANES = 6
+const PTY_PANES: PaneMeta = [
+  { group: "Company details",    sub: "Company information", key: "co-info" },     // 0
+  { group: "Company details",    sub: "Business address",   key: "co-address" },  // 1
+  { group: "Company finances",   sub: "Annual finances",    key: "co-finances" }, // 2
+  { group: "Company documents",  sub: "Required",           key: "co-docs" },     // 3
+  { group: "Company documents",  sub: "Optional",           key: "co-docs-opt" }, // 4  (other supporting docs)
+  { group: "Company review",     sub: "Verify & consent",   key: "co-review" },   // 5  (the company applicant's sign-off)
+  { group: "Personal details",   sub: "Personal information", key: "personal" },  // 6  (director — private rail)
+  { group: "Personal details",   sub: "Address",            key: "address" },     // 7
+  { group: "Finances",           sub: "Employment",         key: "employment" },  // 8
+  { group: "Finances",           sub: "Income",             key: "income" },      // 9
+  { group: "Finances",           sub: "Expenses",           key: "expenses" },    // 10
+  { group: "Documents",          sub: "Required",           key: "docs-req" },    // 11
+  { group: "Documents",          sub: "Optional",           key: "docs-opt" },    // 12
+  { group: "Application review", sub: "Check & submit",     key: "review" },      // 13
+]
+const PTY_DESC: Record<string, string> = {
+  "Company details": "The registered entity",
+  "Company finances": "AFS — net profit",
+  "Company documents": "CIPC, AFS, bank",
+  "Company review": "Verify & consent",
+  "Personal details": "The director's identity",
+  Finances: "The director's income (surety)",
+  Documents: "Director ID & proof",
+  "Application review": "Check & submit",
+}
+export const PTY_NAV = buildNav(["Apply as", "Company details", "Company finances", "Company documents", "Company review", "Personal details", "Finances", "Documents", "Application review"], PTY_PANES, PTY_DESC)
+
+// The juristic flow is TWO distinct rails, not one (the LOCKED roster model: the company is a card on a roster, not a
+// phase in one linear list). The orchestrator drives a single linear `step` over PTY_PANES for render/dispatch, but
+// shows ONLY the relevant section's rail: the COMPANY rail during the company phase (ending at the sign-off), then —
+// once the director is nudged off the roster into their own private application — the DIRECTOR rail (a fresh personal
+// flow, no company steps). These two slice PTY_PANES so the keys/order stay identical to the underlying machine.
+const PTY_COMPANY_DESC: Record<string, string> = {
+  "Company details": PTY_DESC["Company details"], "Company finances": PTY_DESC["Company finances"],
+  "Company documents": PTY_DESC["Company documents"], "Company review": PTY_DESC["Company review"],
+}
+export const PTY_COMPANY_NAV = buildNav(["Apply as", "Company details", "Company finances", "Company documents", "Company review"], PTY_PANES.slice(0, PTY_COMPANY_PANES), PTY_COMPANY_DESC)
+
+const PTY_DIRECTOR_DESC: Record<string, string> = {
+  "Personal details": PTY_DESC["Personal details"], Finances: PTY_DESC.Finances,
+  Documents: PTY_DESC.Documents, "Application review": PTY_DESC["Application review"],
+}
+export const PTY_DIRECTOR_NAV = buildNav(["Apply as", "Personal details", "Finances", "Documents", "Application review"], PTY_PANES.slice(PTY_COMPANY_PANES), PTY_DIRECTOR_DESC)
+
+function tabClass(done: boolean, cur: boolean): string {
+  // NB: don't use `.stoep` here — it sets padding-bottom:4px which overrides the button's pb-2.5 and drops the
+  // active label below the others. The active underline is drawn as an absolute element instead (consistent pad).
+  if (cur) return "font-medium text-[var(--ink)]"
+  if (done) return "text-[var(--ink)]"
+  return "text-[var(--ink-mute)]"
+}
+function circleClass(done: boolean, cur: boolean): string {
+  if (done) return "bg-[var(--ink)] text-[var(--paper)]"
+  if (cur) return "border-[1.5px] border-[var(--amber)] text-[var(--amber-ink)]"
+  return "border-[1.5px] border-[var(--rule-strong)] text-[var(--ink-mute)]"
+}
+
+const ACTIVE_UNDERLINE = "linear-gradient(to right, currentColor 0 55%, var(--amber) 55% 80%, currentColor 80% 100%)"
+
+export interface StepState { group: string; n: number; cur: boolean; done: boolean; reachable: boolean; desc: string | null; target: number | "apply-as" }
+
+/** Per-step nav state over the linear `step` machine — shared by the desktop rail + the mobile bar. */
+export function computeStepStates(model: NavModel, opts: Readonly<{ activeGroup: string; step: number; maxReached: number; inWizard: boolean; typePicked: boolean; hasApplication: boolean; applyAsDesc: string | null }>): StepState[] {
+  const { activeGroup, step, maxReached, inWizard, typePicked, hasApplication, applyAsDesc } = opts
+  const currentLinear = inWizard ? step : -1
+  return model.stepGroups.map((g, gi) => {
+    const applyAs = g === "Apply as"
+    const panes = model.groupPanes[g] ?? []
+    const first = applyAs ? -1 : Math.min(...panes)
+    const last = applyAs ? -1 : Math.max(...panes)
+    const cur = g === activeGroup
+    const done = applyAs ? (typePicked && !cur) : (currentLinear > last)
+    const reachable = applyAs ? !hasApplication : (inWizard && first <= maxReached)
+    return { group: g, n: gi + 1, cur, done, reachable, desc: applyAs ? applyAsDesc : (model.stepDesc[g] ?? null), target: applyAs ? "apply-as" : first }
+  })
+}
+
+/** Desktop vertical step rail — the "listing space, transformed into navigation". The ACTIVE step auto-expands
+ *  its sub-tabs as indented nav items (others stay collapsed). */
+export function StepRail({ model, states, step, maxReached, onNav, onJumpStep }: Readonly<{
+  model: NavModel; states: StepState[]; step: number; maxReached: number; onNav: (t: number | "apply-as") => void; onJumpStep: (s: number) => void
+}>) {
+  return (
+    <nav className="flex flex-col gap-1">
+      {states.map((s) => {
+        const subPanes = model.groupPanes[s.group] ?? []
+        const expanded = s.cur && subPanes.length > 1
+        return (
+          <div key={s.group}>
+            <button type="button" disabled={s.cur || !s.reachable} onClick={() => onNav(s.target)}
+              className={`flex w-full items-start gap-3 rounded-[var(--r-button)] border-l-2 px-3 py-2.5 text-left transition-colors ${s.cur ? "border-[var(--amber)] bg-[var(--paper-sunk)]" : "border-transparent"} ${s.reachable && !s.cur ? "cursor-pointer hover:bg-[var(--paper-sunk)]/60" : "cursor-default"} ${!s.reachable && !s.cur && !s.done ? "opacity-50" : ""}`}>
+              <span className={`mt-px flex size-[22px] shrink-0 items-center justify-center rounded-full text-[11px] ${circleClass(s.done, s.cur)}`}>{s.done ? "✓" : s.n}</span>
+              <span className="min-w-0">
+                <span className={`block text-sm leading-tight ${s.cur || s.done ? "font-medium text-[var(--ink)]" : "text-[var(--ink-soft)]"}`}>{s.group}</span>
+                {s.desc && <span className="mt-0.5 block text-[11px] leading-tight text-[var(--ink-mute)]">{s.desc}</span>}
+              </span>
+            </button>
+            {expanded && (
+              <div className="ml-[26px] mt-0.5 flex flex-col gap-0.5 border-l border-[var(--rule)] pl-3">
+                {subPanes.map((p) => {
+                  const pcur = p === step
+                  const preachable = p <= maxReached
+                  return (
+                    <button key={p} type="button" disabled={pcur || !preachable} onClick={() => onJumpStep(p)}
+                      className={`rounded-[var(--r-button)] px-2 py-1 text-left text-[12px] transition-colors ${pcur ? "font-medium text-[var(--ink)]" : "text-[var(--ink-mute)]"} ${preachable && !pcur ? "cursor-pointer hover:text-[var(--ink)]" : "cursor-default"}`}>
+                      {model.paneMeta[p].sub}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </nav>
+  )
+}
+
+/** A non-numbered nav leaf (icon + label + desc) matching the StepRail item grammar — used for the constant
+ *  "Application overview" and "Review & submit" items that frame the step rail. */
+function NavLeaf({ icon, label, desc, active, disabled, onClick }: Readonly<{
+  icon: React.ReactNode; label: string; desc?: string; active: boolean; disabled?: boolean; onClick: () => void
+}>) {
+  const interactive = !active && !disabled
+  return (
+    <button type="button" disabled={active || disabled} onClick={onClick}
+      className={`flex w-full items-start gap-3 rounded-[var(--r-button)] border-l-2 px-3 py-2.5 text-left transition-colors ${active ? "border-[var(--amber)] bg-[var(--paper-sunk)]" : "border-transparent"} ${interactive ? "cursor-pointer hover:bg-[var(--paper-sunk)]/60" : "cursor-default"} ${disabled && !active ? "opacity-50" : ""}`}>
+      <span className={`mt-px flex size-[22px] shrink-0 items-center justify-center rounded-[var(--r-button)] ${active ? "border-[1.5px] border-[var(--amber)] text-[var(--amber-ink)]" : "border-[1.5px] border-[var(--rule-strong)] text-[var(--ink-mute)]"}`}>{icon}</span>
+      <span className="min-w-0">
+        <span className={`block text-sm leading-tight ${active ? "font-medium text-[var(--ink)]" : "text-[var(--ink-soft)]"}`}>{label}</span>
+        {desc && <span className="mt-0.5 block text-[11px] leading-tight text-[var(--ink-mute)]">{desc}</span>}
+      </span>
+    </button>
+  )
+}
+
+/** The CONSTANT left nav for an in-progress application (ADDENDUM_14Q resequence): "Application overview" (the hub) ·
+ *  the current sub-flow's step rail (only while editing a card) · "Review & submit" (gated on the filler's own cards).
+ *  No "Apply as" — that's a one-time landing with no return. */
+export function ApplyNavRail({
+  overviewActive, onOverview, inSubFlow, reviewActive, reviewEnabled, showReview, onReview,
+  model, states, step, maxReached, onNav, onJumpStep,
+}: Readonly<{
+  overviewActive: boolean; onOverview: () => void; inSubFlow: boolean
+  reviewActive: boolean; reviewEnabled: boolean; showReview: boolean; onReview: () => void
+  model: NavModel; states: StepState[]; step: number; maxReached: number
+  onNav: (t: number | "apply-as") => void; onJumpStep: (s: number) => void
+}>) {
+  return (
+    <div className="flex flex-col gap-1">
+      <NavLeaf icon={<LayoutGrid className="size-3.5" />} label="Application overview" desc="All applicants & status" active={overviewActive} onClick={onOverview} />
+      {inSubFlow && states.length > 0 && (
+        <div className="my-1 ml-[10px] border-l border-[var(--rule)] pl-2">
+          <StepRail model={model} states={states} step={step} maxReached={maxReached} onNav={onNav} onJumpStep={onJumpStep} />
+        </div>
+      )}
+      {showReview && (
+        <NavLeaf icon={<Send className="size-3.5" />} label="Review & submit"
+          desc={reviewEnabled ? "Check & submit" : "Finish your part to unlock"}
+          active={reviewActive} disabled={!reviewEnabled} onClick={onReview} />
+      )}
+    </div>
+  )
+}
+
+/** Mobile horizontal step bar (used below the lg breakpoint). */
+export function StepBar({ states, onNav }: Readonly<{ states: StepState[]; onNav: (t: number | "apply-as") => void }>) {
+  return (
+    <div className="flex flex-wrap gap-x-5 gap-y-1 border-b border-[var(--rule)]">
+      {states.map((s) => (
+        <button key={s.group} type="button" disabled={s.cur || !s.reachable} onClick={() => onNav(s.target)}
+          className={`relative flex items-center gap-2 pb-2.5 text-[13px] ${tabClass(s.done, s.cur)} ${s.reachable && !s.cur ? "cursor-pointer" : "cursor-default"} ${!s.reachable && !s.cur && !s.done ? "opacity-60" : ""}`}>
+          <span className={`flex size-[18px] items-center justify-center rounded-full text-[10px] ${circleClass(s.done, s.cur)}`}>{s.done ? "✓" : s.n}</span>
+          {s.group}
+          {s.cur && <span aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-px h-0.5" style={{ background: ACTIVE_UNDERLINE }} />}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Sub-tab pills for the active step (top of the form panel). Null when the step has ≤1 pane. */
+export function SubTabs({ model, activeGroup, step, maxReached, onJumpStep }: Readonly<{ model: NavModel; activeGroup: string; step: number; maxReached: number; onJumpStep: (s: number) => void }>) {
+  const subPanes = model.groupPanes[activeGroup] ?? []
+  if (subPanes.length <= 1) return null
+  return (
+    <div className="mb-1 flex flex-wrap gap-x-4 gap-y-1 border-b border-[var(--rule)]">
+      {subPanes.map((s) => {
+        const cur = s === step
+        const reachable = s <= maxReached
+        return (
+          <button key={s} type="button" disabled={cur || !reachable} onClick={() => onJumpStep(s)}
+            className={`relative pb-1.5 text-[12px] ${cur ? "font-medium text-[var(--ink)]" : "text-[var(--ink-mute)]"} ${reachable && !cur ? "cursor-pointer hover:text-[var(--ink)]" : "cursor-default"}`}>
+            {model.paneMeta[s].sub}
+            {cur && <span aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 bg-[var(--amber)]" />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}

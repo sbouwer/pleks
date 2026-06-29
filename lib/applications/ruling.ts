@@ -10,10 +10,15 @@
  * override) × Confidence (is the income recent/complete/own-name/corroborated). Flags 0–8 (§3) are live;
  * 10–13 are a 14L fast-follow. Fixable flags carry a source-type-aware best-evidence prompt (§4); Signal
  * flags are agent-facing (no applicant "make it disappear" to-do).
+ *
+ * DEEP-SCAN FOLLOW-UP (not built): MARITAL CROSS-CHECK — compare the applicant's DECLARED marital status against the
+ * bureau/credit-check-confirmed status. Declared "unmarried" but the check confirms married → raise a SIGNAL flag
+ * (mis-declaration / undisclosed joint estate; bears on s15 surety-consent validity). Declared-then-verified, same
+ * as every other field. See memory project_pleks_marital_surety_consent.
  */
 import { INCOME_AFFORDABILITY_THRESHOLD, startedWithinProbation, PROBATION_MONTHS } from "@/lib/constants"
 import type { ReconciliationResult } from "@/lib/extraction/types"
-import { householdLivingFloorCents } from "./livingFloor"
+import { householdLivingFloorCents, LIVING_FLOOR } from "./livingFloor"
 
 export const RULING_VERSION = "ruling.v3"  // v3: flag 0b residual-income override + residual-override tier
 
@@ -48,6 +53,12 @@ export interface RulingResult {
      *  Shown beside the declared ratio so phantom uncorroborated income can't visually carry affordability, and
      *  the base figure for flag 0b's residual override. (ADDENDUM_14M #3) */
     corroboratedIncomeCents: number; corroboratedRatioPct: number | null
+    /** Read-only PUBLISH of two values already computed for the flag-0b residual override (no decision path uses
+     *  these — they are not consumed inside evaluateRuling). Exposed so the company sibling (companyRuling.ts, 14O)
+     *  can read the lead-director surety outcome (backsRent = corroboratedIncomeCents>0 && residualCents>=living
+     *  FloorCents) WITHOUT recomputing. ADDITIVE / non-behavioural — RULING_VERSION is NOT bumped; the §8a snapshot
+     *  gate proves the personal engine's tiers/flags are byte-identical. residualCents = corroborated − rent − obligations. */
+    residualCents: number; livingFloorCents: number
   }
   confidence: { tier: ConfidenceTier }
   flags: RulingFlag[]
@@ -60,23 +71,31 @@ export interface RulingInput {
   employmentStartDate: string | null
   reconciliation: ReconciliationResult
   now: Date
-  adults?: number       // household adults (applicant + co-applicants); defaults to 1
-  dependents?: number   // declared dependents; defaults to 0. Both feed flag 0b's living floor.
+  adults?: number            // household EARNER adults (applicant + co-applicants); defaults to 1
+  adultDependents?: number   // adult dependants supported — full living-floor cost (a whole adult head)
+  minorDependents?: number   // minor (child) dependants — half cost. Both feed flag 0b's living floor.
+  schoolFeesCents?: number   // declared child-specific cost — part of the child bucket (offset by maintenance)
+  childMaintenanceCents?: number  // child maintenance RECEIVED (declared, monthly) — earmarked for the child:
+                                  // excluded from rent-payable income AND offsets the child's living-floor cost
+                                  // (once, capped at that cost). Spousal/alimony stays income (not this field).
 }
 
-const isVariable = (t: string | null): boolean => t === "commission" || t === "self_employed"
+const isVariable = (t: string | null): boolean => t === "commission" || t === "self_employed" || t === "freelance"
 
 /** Source-type-aware best-evidence prompt for an uncorroborated declared source (§4). */
 function evidencePrompt(key: string, employmentType: string | null): string {
   if (key === "employment") {
     if (employmentType === "commission") return "Upload 6 months' bank statements plus your commission/payslip statements."
-    if (employmentType === "self_employed") return "Upload 6 months' business and personal bank statements plus your SARS Tax Compliance Status (good standing) or ITA34."
+    if (employmentType === "self_employed" || employmentType === "freelance") return "Upload 6 months' business and personal bank statements plus your SARS Tax Compliance Status (good standing) or ITA34."
     return "Upload your latest payslip, 3 months' bank statements, and an employment contract or letter of appointment."
   }
   switch (key) {
+    case "business":        return "Upload 6 months' business and personal bank statements plus your SARS Tax Compliance Status (good standing) or ITA34."
     case "rental":          return "Upload the bank account that receives the rent, or a signed lease."
     case "dividends":       return "Upload your broker or investment-account statement."
     case "savings_interest":return "Upload your savings-account statement."
+    case "pension":         return "Upload your latest pension / annuity advice slip, or the account that receives it."
+    case "grant":           return "Upload your SASSA grant approval letter or card, plus the account it's paid into."
     case "alimony":
     case "maintenance":     return "Upload the court order and the bank account that receives the payments."
     default:                return "Upload the bank account that receives this income."
@@ -192,14 +211,24 @@ function affordabilityFlagFor(override: boolean, income: number, ratioPct: numbe
 }
 
 export function evaluateRuling(input: RulingInput): RulingResult {
-  const income = input.declaredMonthlyIncomeCents
+  // Child maintenance RECEIVED is earmarked for the child — single-place accounting: it is NEVER rent-payable
+  // income (excluded from both declared + corroborated income, so the ratio is rent ÷ salary, never inflated and
+  // never penalised below salary), and it offsets the child's living-floor cost ONCE, capped at that cost so
+  // surplus maintenance can't leak back as phantom affordability.
+  const declaredChildMaintCents = Math.max(0, input.childMaintenanceCents ?? 0)
+  const income = Math.max(0, input.declaredMonthlyIncomeCents - declaredChildMaintCents)
   const { override, flag: overrideFlag, demonstrated } = housingOverride(input)
   const ratioPct = income > 0 ? Math.round((input.appliedRentCents / income) * 100) : null
   const affordabilityTier = affordabilityTierOf(override, ratioPct)
 
-  // Corroborated (verified) income = sum of evidenced amounts across sources; uncorroborated/no-evidence count 0.
-  // Tier stays on DECLARED (unchanged behaviour); this is surfaced alongside + feeds flag 0b's residual override.
-  const corroboratedIncomeCents = input.reconciliation.declaredSources.reduce((sum, s) => sum + (s.evidenced_monthly_cents ?? 0), 0)
+  // Corroborated (verified) income = sum of evidenced amounts across sources EXCEPT child maintenance; the
+  // verified maintenance offsets the floor instead (below). Uncorroborated/no-evidence count 0.
+  const corroboratedIncomeCents = input.reconciliation.declaredSources
+    .filter((s) => s.source_key !== "maintenance")
+    .reduce((sum, s) => sum + (s.evidenced_monthly_cents ?? 0), 0)
+  const corroboratedChildMaintCents = input.reconciliation.declaredSources
+    .filter((s) => s.source_key === "maintenance")
+    .reduce((sum, s) => sum + (s.evidenced_monthly_cents ?? 0), 0)
   const corroboratedRatioPct = corroboratedIncomeCents > 0 ? Math.round((input.appliedRentCents / corroboratedIncomeCents) * 100) : null
 
   const flags: RulingFlag[] = []
@@ -211,7 +240,16 @@ export function evaluateRuling(input: RulingInput): RulingResult {
   // counts 0, so it can't pass phantom affordability) and surfaced-not-determinative — so it can't auto-harm.
   const obligationsCents = input.reconciliation.observedObligationsCents ?? 0
   const residualCents = corroboratedIncomeCents - input.appliedRentCents - obligationsCents
-  const livingFloorCents = householdLivingFloorCents(input.adults ?? 1, input.dependents ?? 0)
+  // The child's cost sits in the living floor (R/dependent); verified child maintenance offsets it ONCE, capped
+  // at that cost (never below the adult-only floor; surplus maintenance vanishes — it can't lower the bar further).
+  const minorCount = Math.max(0, input.minorDependents ?? 0)
+  const adultHeads = (input.adults ?? 1) + Math.max(0, input.adultDependents ?? 0)
+  // Child bucket = minor living-floor share + declared child-specific costs (school fees). Maintenance RECEIVED
+  // offsets the WHOLE bucket once, capped (net ≥ 0; surplus vanishes). Adults' general living stays in the adult
+  // floor; commitments (the Expenses grid) sit in obligations, not here — each cost counted exactly once.
+  const childBucketCents = minorCount * LIVING_FLOOR.perMinorCents + Math.max(0, input.schoolFeesCents ?? 0)
+  const netChildCostCents = Math.max(0, childBucketCents - corroboratedChildMaintCents)
+  const livingFloorCents = householdLivingFloorCents(adultHeads, 0) + netChildCostCents
   const residualOverride = corroboratedIncomeCents > 0
     && (affordabilityTier === "marginal" || affordabilityTier === "below")
     && residualCents >= livingFloorCents
@@ -237,7 +275,7 @@ export function evaluateRuling(input: RulingInput): RulingResult {
   return {
     rulingVersion: RULING_VERSION,
     rulingTier,
-    affordability: { ratioPct, tier: effectiveTier, demonstratedHousingCents: demonstrated, corroboratedIncomeCents, corroboratedRatioPct },
+    affordability: { ratioPct, tier: effectiveTier, demonstratedHousingCents: demonstrated, corroboratedIncomeCents, corroboratedRatioPct, residualCents, livingFloorCents },
     confidence: { tier: confidence },
     flags,
   }

@@ -12,6 +12,7 @@
  */
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { formatPhone } from "@/lib/validation/contact"
 
 export type FieldOption = { value: string; label: string }
 
@@ -46,12 +47,15 @@ export function Field({
 }
 
 export function TextField({
-  label, value, onChange, required, span, type = "text", placeholder, error, maxLength, autoComplete,
+  label, value, onChange, required, span, type = "text", placeholder, error, maxLength, autoComplete, format,
 }: Readonly<{
   label: string; value?: string | null; onChange: (v: string) => void
   required?: boolean; span?: boolean; type?: string; placeholder?: string; error?: string; maxLength?: number
   autoComplete?: string
+  /** Optional canonicaliser run on blur (e.g. CIPC "/" insertion). tel fields default to phone auto-format. */
+  format?: (v: string) => string
 }>) {
+  const blurFormat = format ?? (type === "tel" ? formatPhone : undefined)
   return (
     <Field label={label} required={required} error={error} span={span}>
       <input
@@ -62,6 +66,7 @@ export function TextField({
         maxLength={maxLength}
         autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={blurFormat ? (e) => onChange(blurFormat(e.target.value)) : undefined}
       />
     </Field>
   )

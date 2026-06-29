@@ -7,6 +7,7 @@
  *         (not in the component) so the same rules drive both the modal UI and any future API guard.
  */
 import type { PartyRole, PartyEntity, PartyRoleConfig } from "./partyConfig"
+import { isValidEmail, emailError, phoneError } from "@/lib/validation/contact"
 
 /** A person under a company contact (ADDENDUM_25A) — first-class contact, role derives from the company. */
 export interface PartyPerson {
@@ -30,6 +31,8 @@ export type PartyAddressType = "physical" | "postal" | "billing"
 
 export interface PartyAddressInput {
   type: PartyAddressType
+  streetNumber?: string      // split street capture; line1 is kept as the combined "number name" for display
+  streetName?: string
   line1?: string
   line2?: string
   suburb?: string
@@ -83,6 +86,19 @@ export interface PartyFormState {
   idNumber?: string
   email?: string
   phone?: string
+  emergencyContactName?: string          // next-of-kin — lives on the global contact
+  emergencyContactNumber?: string
+  emergencyContactRelationship?: string  // e.g. Spouse, Parent
+  maritalStatus?: string                 // single | married | divorced | widowed
+  matrimonialRegime?: string             // in_community | out_anc | out_accrual (only when married)
+  // In-community spouse — must give written consent (s15 MPA). Captured here; consent flow dispatched at save.
+  // If the spouse is already a co-applicant (couple flow), spouseIsCoApplicant=true and spouseEmail points at them
+  // — no re-capture, no separate consent (they consent via their own application). Else the external fields apply.
+  spouseIsCoApplicant?: boolean
+  spouseFirstName?: string
+  spouseLastName?: string
+  spouseIdNumber?: string
+  spouseEmail?: string
   // company
   companyName?: string
   companyReg?: string
@@ -152,6 +168,9 @@ function checkSaId(f: PartyFormState, typeKey: keyof PartyFormState, numKey: key
 
 function validateIndividualIdentity(f: PartyFormState, e: PartyErrors, need: (k: keyof PartyFormState) => void) {
   need("firstName"); need("lastName"); need("email"); need("phone")
+  // Format checks (system-wide SSOT) — only when present, so "Required" isn't overwritten by a format message.
+  if (f.email?.trim() && !isValidEmail(f.email)) e.email = emailError(f.email) ?? "Enter a valid email address."
+  if (f.phone?.trim()) { const pe = phoneError(f.phone); if (pe) e.phone = pe }
   checkSaId(f, "idType", "idNumber", e)
 }
 

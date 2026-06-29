@@ -67,6 +67,10 @@ export interface Document {
    *  the pipeline trusts it and SKIPS the Haiku classification call, then validates the extraction against it
    *  (a wrong-type doc in a slot is flagged, not silently extracted). Unset for the free-form "other" slot. */
   slotType?: DocumentType
+  /** Which SUBJECT this document belongs to — 'primary' | 'co_{coApplicantId}' (ADDENDUM_14P 0b). Set by the loader
+   *  from the application_documents registry (defaults to 'primary' for unregistered/legacy files). The pipeline
+   *  partitions reconciliation by this (0b.3); until then it's attribution metadata. */
+  subjectRef?: string
 }
 
 export interface ApplicationInput {

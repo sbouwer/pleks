@@ -1,18 +1,54 @@
 /**
- * lib/crypto/idNumber.ts — FILL: one-line purpose
+ * lib/crypto/idNumber.ts — SA ID number helpers: validation, deterministic hashing, and at-rest encryption.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  hashIdNumber = deterministic SHA-256(normalised + salt) — the LOOKUP/dedup key (id_number_hash), computed
+ *         from the RAW value. encryptIdNumber/decryptIdNumber = AES-256-GCM at-rest (apply flow). The ciphertext is
+ *         NON-deterministic (random IV), so anything that MATCHES on id_number must decrypt first — never compare
+ *         ciphertext. decrypt is tolerant (raw/legacy passes through). encrypt/decrypt + isEncrypted live in
+ *         ./encryption; the deterministic key here is hashIdNumber, not the ciphertext.
  */
 import { createHash } from "crypto"
+import { encrypt, decrypt, isEncrypted } from "./encryption"
 
 export function hashIdNumber(idNumber: string): string {
   const normalised = idNumber.replace(/\s/g, "").toUpperCase()
   const salt = process.env.ID_NUMBER_HASH_SALT || "pleks-default-salt"
   return createHash("sha256").update(normalised + salt).digest("hex")
+}
+
+/** Encrypt an ID number for storage (AES-256-GCM). null/empty → null; already-encrypted → unchanged (idempotent).
+ *  The deterministic lookup/dedup key is `id_number_hash` (hashIdNumber on the RAW value) — compute that from the
+ *  RAW input, never from the ciphertext (AES-GCM uses a random IV → ciphertext is non-deterministic, can't match). */
+export function encryptIdNumber(raw: string | null | undefined): string | null {
+  const v = (raw ?? "").trim()
+  if (!v) return null
+  return isEncrypted(v) ? v : encrypt(v)
+}
+
+/** Decrypt a stored ID number. null/empty → null. TOLERANT: a value that isn't ciphertext (legacy/raw, or a
+ *  fake-data row) passes through unchanged — so a mixed table never throws and matching/display stay correct. */
+export function decryptIdNumber(stored: string | null | undefined): string | null {
+  const v = stored ?? null
+  if (!v) return null
+  return isEncrypted(v) ? decrypt(v) : v
+}
+
+// date_of_birth is encrypted at rest with the SAME generic string crypto (its column was widened date→text because
+// AES-GCM ciphertext can't live in a date column). Aliases for call-site clarity; tolerant decrypt as above.
+export const encryptDob = encryptIdNumber
+export const decryptDob = decryptIdNumber
+
+/** spouse_info jsonb carries an `idNumber` (the linked spouse's ID) — encrypt/decrypt JUST that field, leaving the
+ *  rest of the object intact. Encrypt before store; decrypt at the read boundary before matching/display. */
+export function encryptSpouseInfo(si: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!si || typeof si !== "object") return null
+  const id = si.idNumber
+  return typeof id === "string" && id ? { ...si, idNumber: encryptIdNumber(id) } : { ...si }
+}
+export function decryptSpouseInfo(si: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!si || typeof si !== "object") return null
+  const id = si.idNumber
+  return typeof id === "string" && id ? { ...si, idNumber: decryptIdNumber(id) } : { ...si }
 }
 
 export function validateSAIdNumber(id: string): {

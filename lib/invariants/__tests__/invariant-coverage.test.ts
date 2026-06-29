@@ -54,6 +54,19 @@ const NOTIFY_PENDING = new Set([...NOTIFY_NO_FEATURE, ...NOTIFY_UNWIRED])
 // ── Layer 2: curated cross-domain registry ────────────────────────────────────
 interface Invariant { domain: string; name: string; wired: () => boolean; pending?: string }
 
+// A primitive is WIRED only if it's actually USED — CALLED somewhere other than its definition, or referenced
+// across ≥2 files (defined in one, consumed in ≥1 other). A bare SOURCE.includes(name) is NOT enough: it matches
+// the primitive's own definition, so a declared-but-never-called primitive (the exact bug class this ratchet
+// guards) passes. The cross-file arm covers const-data primitives (e.g. ANONYMISE_PLAN passed, not called); the
+// within-file call arm covers a function defined and called in the same module.
+function isWired(name: string): boolean {
+  const ref = new RegExp(String.raw`\b${name}\b`)
+  const inFiles = FILES.filter((f) => ref.test(f.content))
+  if (inFiles.length >= 2) return true
+  const callRe = new RegExp(String.raw`(?<!function )(?<!async function )\b${name}\s*\(`)
+  return inFiles.some((f) => callRe.test(f.content))
+}
+
 const directTrustInsert = /from\(["']trust_transactions["']\)[\s\S]{0,80}\.insert\(/
 const INVARIANT_REGISTRY: Invariant[] = [
   {
@@ -65,17 +78,25 @@ const INVARIANT_REGISTRY: Invariant[] = [
   {
     domain: "recon",
     name: "balance_discrepancy_cents is computed/written, not just read (F-5)",
-    wired: () => SOURCE.includes("recomputeDiscrepancy"),
+    wired: () => isWired("recomputeDiscrepancy"), // CALLED (recon.ts:158/313/347), not merely defined
   },
   {
     domain: "deposits",
     name: "tenant-damage deductions are confirmable in code, gated on a justification (F-2)",
-    wired: () => SOURCE.includes("confirmDeductionItem"),
+    wired: () => isWired("confirmDeductionItem"),
   },
   {
     domain: "popia",
-    name: "PII strip-set / retention is maintained (anonymise plan, P-1)",
-    wired: () => SOURCE.includes("anonymisePlan") && SOURCE.includes("getRetentionForSubject"),
+    name: "PII strip-set is maintained + applied (anonymise plan, P-1)",
+    wired: () => isWired("anonymisePlan"), // referenced across 5 files (SSOT consumed by purge/derivation)
+  },
+  {
+    domain: "popia",
+    name: "per-subject retention lookup is wired (getRetentionForSubject)",
+    // Upgrading from SOURCE.includes() exposed this: the fn is EXPORTED but never called (POPIA erasure Phase 2
+    // is modelled, not built — see project_pleks_archive_vs_erase). Pending: ratchets red when it's first called.
+    wired: () => isWired("getRetentionForSubject"),
+    pending: "POPIA erasure Phase 2 not built — getRetentionForSubject defined but no caller yet",
   },
 ]
 

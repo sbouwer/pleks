@@ -11,6 +11,7 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { decryptIdNumber, decryptDob } from "@/lib/crypto/idNumber"
 
 export async function createTenantFromApplication(
   applicationId: string,
@@ -81,9 +82,11 @@ export async function createTenantFromApplication(
       primary_email: application.applicant_email,
       primary_phone: application.applicant_phone,
       id_type: application.id_type,
-      id_number: application.id_number,
+      // Decrypt before copying to the tenant — the tenant table stores id_number raw (its display reads it raw);
+      // the hash carries over unchanged. (Tenant-side at-rest encryption is a separate, broader item.)
+      id_number: decryptIdNumber(application.id_number),
       id_number_hash: application.id_number_hash,
-      date_of_birth: application.date_of_birth,
+      date_of_birth: decryptDob(application.date_of_birth), // tenant.date_of_birth is a date column → store decrypted
       nationality: application.nationality,
       created_by: agentId,
     })

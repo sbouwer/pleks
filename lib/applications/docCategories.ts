@@ -5,38 +5,127 @@
  * assessment (which checks, server-side, which required slots are actually present). Pure — no AI, no IO.
  * Slots are requested to best support the declared income sources (ADDENDUM_14M §4).
  */
+import { isJuristicCompanyType } from "./companyTypes"
+
 export interface DocCategory {
   key: string
   label: string
   hint: string
   single: boolean
   required: boolean
+  /** Display section: "required" (ID + income proof) · "income" (added because of a declared extra income source)
+   *  · "optional" (boosters + other). Separate from `required` (which gates submit). */
+  tier: "required" | "income" | "optional"
   escapeLabel?: string
   escapeNote?: string
   named?: boolean
   booster?: boolean
 }
 
-/** Build the slot list from the set of income-source keys that carry a positive declared amount. */
-export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentType: string): DocCategory[] {
-  const variable = employmentType === "commission" || employmentType === "self_employed"
+/** The AFS slot, scaled to the company's age (derived from the CIPC registration year):
+ *  - registered this year (age ≤ 0) → AFS may not exist yet → OPTIONAL, nudge management accounts;
+ *  - 1–2 years old → ask for the {age} year(s) that should exist (you can't have 3 yet);
+ *  - 3+ years old → the standard last-3-years ask, with an escape (a mature company that can't produce them is a
+ *    screening flag downstream — the escape note is deliberately soft here). */
+/** The company's age in years, from the CIPC registration year (first 4 digits) — null if the reg is absent/odd.
+ *  Shared by the AFS doc slot (how many to ask for) and the screening flag (a mature co that can't produce them). */
+export function companyAgeYears(companyReg?: string | null): number | null {
+  const regYear = Number((companyReg ?? "").slice(0, 4))
+  const now = new Date().getFullYear()
+  return regYear >= 1900 && regYear <= now ? now - regYear : null
+}
+
+function afsCategory(companyReg?: string | null): DocCategory {
+  const age = companyAgeYears(companyReg)
+  if (age !== null && age <= 0) {
+    return { key: "afs", label: "Annual Financial Statements (if available)", hint: "Registered this year, so audited AFS may not exist yet — upload management accounts or recent financials if you have them.", single: false, required: false, tier: "optional" }
+  }
+  if (age !== null && age < 3) {
+    const yr = age === 1 ? "1 year" : `${age} years`
+    const sets = age === 1 ? "one set" : `${age} sets`
+    return { key: "afs", label: `Annual Financial Statements — ${yr} available`, hint: `Registered ${yr} ago, so ${sets} should be available — upload what you have.`, single: false, required: true, tier: "required", escapeLabel: "We don't have them yet", escapeNote: "Upload management accounts instead if the AFS aren't finalised — the agent will see the company's age." }
+  }
+  // 3+ years (or unknown reg) — the standard ask.
+  return { key: "afs", label: "Annual Financial Statements — last 3 years", hint: "Your 3 most recent AFS.", single: false, required: true, tier: "required", escapeLabel: "We don't have 3 full years", escapeNote: "Upload what you have — fewer years or management accounts is fine; the agent will see the company's age." }
+}
+
+/** Build the slot list from the applicant's declarations — DRIVEN by employment type, income sources, and ID type.
+ *  POPIA-minimal (don't demand a payslip from a self-employed person) + corroboration-aware (require the document
+ *  that verifies their specific declaration). The GATE (submit) is just the core few — conditional + optional
+ *  slots appear (with a "why") but never block. Co-applicant/guarantor docs are collected via their own invites.
+ *  @param idType the primary's ID type ("sa_id"|"passport"|"asylum_permit"|undefined) — foreign → permit slot.
+ *  @param applicantType "company" + a JURISTIC companyType returns the company doc set (CIPC, AFS, business bank,
+ *         FICA address); a sole prop / partnership is unincorporated → the owner's self-employed personal set.
+ *  @param companyType the company entity type — only a JURISTIC one (pty_ltd/cc/npc/trust) gets the company set.
+ *  @param sarsRegistered "yes"|"no"|undefined — a self-employed applicant who said "no" isn't asked for the SARS doc.
+ *  @param companyReg the CIPC registration number — its year scales how many AFS the company should have. */
+export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentType: string, idType?: string | null, applicantType?: string | null, companyType?: string | null, sarsRegistered?: string | null, companyReg?: string | null): DocCategory[] {
+  // ── JURISTIC COMPANY — a separate legal person applying through its director(s); the personal set doesn't apply.
+  // The DIRECTOR's ID lives in the director's OWN (personal) flow, not here — this is the entity's document set. ──
+  if (applicantType === "company" && isJuristicCompanyType(companyType)) {
+    return [
+      { key: "cipc_registration", label: "CIPC registration documents", hint: "Your company registration (CoR14.3 / CK / founding statement) showing the directors.", single: false, required: true, tier: "required" },
+      { key: "bank_main", label: "Business bank statements", hint: "6 consecutive months for the company's primary account.", single: false, required: true, tier: "required" },
+      afsCategory(companyReg),
+      { key: "proof_of_address", label: "Proof of business address", hint: "A utility bill or lease in the company's name (FICA).", single: true, required: true, tier: "required" },
+      { key: "other", label: "Other documents", hint: "Anything else that strengthens the application — name each one.", single: false, required: false, tier: "optional", named: true },
+    ]
+  }
+
+  // An UNINCORPORATED "company" (sole prop / partnership / other) is its self-employed owner(s) — no CIPC/AFS/director.
+  // Default it to self-employed so the right personal set (SARS-if-registered + bank statements) is asked for.
+  const effEmployment = applicantType === "company" ? (employmentType || "self_employed") : employmentType
+  const employed = effEmployment === "permanent" || effEmployment === "contract" || effEmployment === "commission" || effEmployment === "part_time"
+  const variable = effEmployment === "commission" || effEmployment === "self_employed" || effEmployment === "freelance"
   const has = (k: string) => positiveIncomeKeys.has(k)
+  const foreign = !!idType && idType !== "sa_id"
+
+  // ── REQUIRED CORE — the true minimum that makes a meaningful screen (these GATE submit) ──
   const cats: DocCategory[] = [
-    { key: "id", label: "ID document", hint: "Your SA ID (smart card or green book) or passport.", single: true, required: true },
+    { key: "id", label: "ID document", hint: foreign ? "Your passport." : "Your SA ID (smart card or green book) or passport.", single: true, required: true, tier: "required" },
   ]
-  if (has("employment")) {
-    cats.push({ key: "payslips", label: "Payslips", hint: variable ? "Your 3 most recent commission / payslip statements — one file or several." : "Your 3 most recent payslips — a combined PDF or separate files.", single: false, required: false, escapeLabel: "I don't have 3 payslips — I'll upload what I have", escapeNote: "Fewer payslips means we can verify less of your income — your agent will see this." })
+  // Proof of income — ONE slot, the specific document driven by the employment status they chose.
+  if (employed) {
+    cats.push({ key: "payslips", label: "Latest payslip", hint: variable ? "Your most recent commission / payslip statement (3 is ideal)." : "Your latest payslip — your 3 most recent is ideal.", single: false, required: true, tier: "required", escapeLabel: "I don't have a payslip", escapeNote: "Without a payslip we lean on your bank statements — your agent will see this." })
+  } else if (effEmployment === "self_employed" || effEmployment === "freelance") {
+    // SARS doc only when they're registered (or haven't said) — a self-employed applicant who told us "no" isn't asked.
+    if (sarsRegistered !== "no") cats.push({ key: "business_tax", label: "SARS Tax Compliance Status or ITA34", hint: "Proves your self-employed income to SARS — your 6-month statements (below) do the rest.", single: true, required: true, tier: "required", escapeLabel: "I don't have this yet", escapeNote: "Without it we lean on your bank statements — your agent will see this." })
+  } else if (effEmployment === "retired") {
+    cats.push({ key: "pension_advice", label: "Pension / annuity advice slip", hint: "Your latest pension, annuity or provident-fund advice slip.", single: false, required: true, tier: "required", escapeLabel: "I don't have this", escapeNote: "Without it we lean on your bank statements — your agent will see this." })
+  } else if (effEmployment === "grant") {
+    cats.push({ key: "grant_proof", label: "SASSA award letter", hint: "Your SASSA grant approval letter or card.", single: false, required: true, tier: "required", escapeLabel: "I don't have this", escapeNote: "Without it we lean on your bank statements — your agent will see this." })
   }
-  cats.push({ key: "bank_main", label: "Bank statement — main account", hint: variable ? "6 months for the account your income is paid into — we average variable income over 6 months for the fairest result." : "3 consecutive months for the account your income is paid into.", single: false, required: true, escapeLabel: "I don't have all the requested statements — I'll upload what I have", escapeNote: "Fewer months means we can verify less of your income — your agent will see this." })
+  // Bank statements — always, and the single most important document (income, housing, obligations, recency). No
+  // skip-escape: it's the fallback that carries everything else, so it's the one true hard upload (besides ID).
+  cats.push({ key: "bank_main", label: "Bank statements", hint: variable ? "6 months for the account your income is paid into — we average variable income over 6 months for the fairest result." : "3 consecutive months for the account your income is paid into.", single: false, required: true, tier: "required" })
+
+  // ── CONDITIONAL — required ONLY when a declaration triggers it; shown with WHY, but don't gate completion ──
+  if (foreign) {
+    cats.push({ key: "permit_visa", label: "Permit / visa", hint: "Your valid permit or visa — needed for the immigration-compliance check.", single: true, required: false, tier: "required" })
+  }
+  if (has("rental")) {
+    cats.push({ key: "rental_proof", label: "Rental income proof", hint: "The statement for the account that receives the rent, or a signed lease — to verify your declared rental income.", single: false, required: false, tier: "required", escapeLabel: "It's in my uploaded bank statements", escapeNote: "We'll verify the rental income from the recurring deposits in your bank statements instead." })
+  }
   if (has("savings_interest") || has("dividends")) {
-    cats.push({ key: "bank_savings", label: "Savings / investment statement", hint: "A statement for the savings or investment account behind that income.", single: false, required: false, escapeLabel: "I can't supply this", escapeNote: "Extra declared income can't be verified if you don't supply additional information — it won't count towards your affordability." })
+    // Honest escape: regular interest shows as deposits, but dividends are often irregular/reinvested and have no
+    // extractor — so the bank statement may NOT corroborate them. Don't promise verification we can't deliver.
+    cats.push({ key: "bank_savings", label: "Savings / investment statement", hint: "A statement for the account behind that income — to verify your declared investment income.", single: false, required: false, tier: "required", escapeLabel: "It may be in my bank statements", escapeNote: "We'll verify regular deposits from your statements — but irregular or reinvested investment income may still need its own statement to count." })
   }
-  // Optional boosters — shown with a "when it helps" explanation; they raise confidence, never required.
-  if (has("employment")) {
-    cats.push({ key: "employment_letter", label: "Employment letter or contract", hint: "Substantiates your job and salary — especially helpful if you started recently (it can clear a probation flag).", single: true, required: false, booster: true })
+  if (has("maintenance") || has("alimony")) {
+    cats.push({ key: "maintenance_order", label: "Maintenance / court order", hint: "The court order and the statement for the account that receives the payments — to verify your declared maintenance.", single: false, required: false, tier: "required", escapeLabel: "It's in my uploaded bank statements", escapeNote: "We'll verify the payments from the recurring deposits in your bank statements instead." })
   }
-  cats.push({ key: "current_lease", label: "Current lease / rental agreement", hint: "If you already rent, add your lease — it proves what you currently afford and can lift your affordability result.", single: true, required: false, booster: true })
-  cats.push({ key: "other", label: "Other documents", hint: "Anything else that strengthens your application — name each one (e.g. previous rental reference, court order, foreign bank statement).", single: false, required: false, named: true })
+
+  // ── OPTIONAL — strengthens the application; never gates. Each says how it helps. ──
+  if (employed) {
+    cats.push({ key: "employment_contract", label: "Employment contract / letter", hint: "Substantiates your salary — and can clear a probation flag if you started recently.", single: true, required: false, tier: "optional", booster: true })
+  }
+  cats.push({ key: "employer_reference", label: "Employer letter or reference", hint: "A note from your employer confirming your position and standing.", single: true, required: false, tier: "optional", booster: true })
+  cats.push({ key: "landlord_reference", label: "Previous landlord reference", hint: "Your rental track record — valuable if you've rented before (first-time renters can skip).", single: true, required: false, tier: "optional", booster: true })
+  cats.push({ key: "proof_of_savings", label: "Proof of savings / available funds", hint: "Speaks to your deposit affordability.", single: false, required: false, tier: "optional", booster: true })
+  // Optional by default (the bank statement usually carries the address). FUTURE: a per-agency "require proof of
+  // address" toggle (FICA / trust-account agencies may need it hard) — keep this slot easy to flip to required.
+  cats.push({ key: "proof_of_address", label: "Proof of address", hint: "A utility bill or municipal account in your name — your bank statement often already shows this, so only if asked.", single: true, required: false, tier: "optional", booster: true })
+  cats.push({ key: "other", label: "Other documents", hint: "Anything else that strengthens your application — name each one.", single: false, required: false, tier: "optional", named: true })
   return cats
 }
 

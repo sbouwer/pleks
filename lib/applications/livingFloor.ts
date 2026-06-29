@@ -8,7 +8,8 @@
  * and flag 0b only ever RAISES affordability — so an imperfect figure can never auto-harm an applicant; that's
  * why "defensible" beats "precise" here.
  *
- * 2:1 adult:dependent weighting (a dependent ≈ half an adult).
+ * Two dependant classes carry different cost: an ADULT dependant ≈ a full adult's non-rent essentials; a MINOR
+ * (child) ≈ half (2:1 weighting). adults below = all adult heads (earners + adult dependants).
  *
  * SOURCE — PMBEJD Household Affordability Index, May 2026 (https://pmbejd.org.za/index.php/household-affordability-index/):
  *   household food basket R5 479.26 · a worker's non-rent essentials (nutritious food R3 795.23 + electricity &
@@ -21,13 +22,26 @@ export const LIVING_FLOOR = {
   source: "PMBEJD Household Affordability Index",
   effectiveMonth: "2026-05",
   sourceUrl: "https://pmbejd.org.za/index.php/household-affordability-index/",
-  perAdultCents: 350_000,      // R3 500 — non-rent essentials per adult (err-high)
-  perDependentCents: 175_000,  // R1 750 — 2:1 weighting (half an adult)
+  perAdultCents: 350_000,   // R3 500 — non-rent essentials per adult head (earner or adult dependant); err-high
+  perMinorCents: 175_000,   // R1 750 — a minor (child) ≈ half an adult (2:1 weighting)
 } as const
 
-/** Monthly NON-RENT living floor for a household (cents). adults clamped ≥ 1; dependents ≥ 0. */
-export function householdLivingFloorCents(adults: number, dependents: number): number {
+/** Monthly NON-RENT living floor for a household (cents). adults = all adult heads (earners + adult dependants),
+ *  clamped ≥ 1; minors (children) ≥ 0, costed at half. */
+export function householdLivingFloorCents(adults: number, minors: number): number {
   const a = Math.max(1, Math.floor(adults || 0))
-  const d = Math.max(0, Math.floor(dependents || 0))
-  return a * LIVING_FLOOR.perAdultCents + d * LIVING_FLOOR.perDependentCents
+  const m = Math.max(0, Math.floor(minors || 0))
+  return a * LIVING_FLOOR.perAdultCents + m * LIVING_FLOOR.perMinorCents
+}
+
+/** Residual monthly capacity to ABSORB new rent on top of one's own life: income − own obligations − own living
+ *  floor. The guarantor / surety test — when called, they pay this rent IN ADDITION to their existing bond/rent,
+ *  commitments and living costs. NOT an income-to-rent multiple: a high earner who's already stretched has little
+ *  residual and is weak security. May be negative.
+ *  KNOWN SIMPLIFICATION: defaults to a ONE-ADULT floor — it does NOT reflect the surety's own dependents (which
+ *  would make them weaker security), because we don't capture a guarantor's household at Step 1. The deep scan can
+ *  pass real adults/minors. Likewise a guarantor who doesn't DECLARE obligations defaults to 0 → looks stronger;
+ *  the capture flow should require guarantors to declare obligations for parity (see the apply Expenses asymmetry). */
+export function residualCapacityCents(incomeCents: number, obligationsCents: number, adults = 1, minors = 0): number {
+  return incomeCents - Math.max(0, obligationsCents || 0) - householdLivingFloorCents(adults, minors)
 }

@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { freeAssessment, type FreeApplicantInput } from "@/lib/applications/freeAssessment"
+import { assembleAssessment, type AssessmentAppRow, type AssessmentCoRow } from "@/lib/applications/assembleAssessment"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
 import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Fetch application + listing
   const { data: app, error: appError } = await service
     .from("applications")
-    .select("*, listings(id, public_slug, asking_rent_cents, applications_count, status, closes_at, units(unit_number, default_deposit_cents, deposit_amount_cents, properties(id, name, city, managing_agent_id)), org_id)")
+    .select("*, listings(id, public_slug, asking_rent_cents, applications_count, status, closes_at, units(unit_number, default_deposit_cents, deposit_amount_cents, default_lease_period_months, properties(id, name, city, managing_agent_id)), org_id)")
     .eq("id", id)
     .single()
     logQueryError("POST applications", appError)
@@ -81,10 +81,17 @@ export async function POST(req: NextRequest, { params }: Props) {
 
   // Itemise the primary's required document slots: derive the expected slots from declared income, then check
   // which are PRESENT by listing what's uploaded to Storage (presence, not proof — "uploaded, unverified").
-  const incomeSources = (app.income_sources as { key?: string; amount_cents?: number }[] | null) ?? []
+  const incomeSources = (app.income_sources as { key?: string; amount_cents?: number; monthly_cents?: number }[] | null) ?? []
   const positiveIncomeKeys = new Set(incomeSources.filter((s) => (s.amount_cents ?? 0) > 0 && s.key).map((s) => s.key as string))
+  // Child maintenance received is earmarked for the child (a reduced dependent cost), not rent-payable income.
+  const childMaintenanceCents = incomeSources.filter((s) => s.key === "maintenance").reduce((sum, s) => sum + (s.monthly_cents ?? 0), 0)
   if (positiveIncomeKeys.size === 0 && ((app.gross_monthly_income_cents as number | null) ?? 0) > 0) positiveIncomeKeys.add("employment")
-  const docCats = deriveDocCategories(positiveIncomeKeys, (app.employment_type as string | null) ?? "")
+  // companyType (juristic vs sole prop / partnership) + SARS-registered drive the right doc set — a sole prop gets
+  // the self-employed personal set (no CIPC/AFS/"director's ID"), and an un-registered self-employed isn't asked for SARS.
+  const companyInfo = app.company_info as { companyType?: string; companyReg?: string } | null
+  const companyType = companyInfo?.companyType ?? null
+  const sarsRegistered = (app.employment_details as { sars_registered?: string } | null)?.sars_registered ?? null
+  const docCats = deriveDocCategories(positiveIncomeKeys, (app.employment_type as string | null) ?? "", app.id_type as string | null, app.applicant_type as string | null, companyType, sarsRegistered, companyInfo?.companyReg ?? null)
   const { data: docFiles, error: docListErr } = await service.storage.from("application-docs").list(`applications/${app.org_id}/${id}`, { limit: 200 })
   logQueryError("submit doc list", docListErr)
   const presentDocKeys = new Set((docFiles ?? []).map((f) => categoryForFilename(f.name, docCats)))
@@ -97,50 +104,28 @@ export async function POST(req: NextRequest, { params }: Props) {
     .eq("primary_application_id", id)
   logQueryError("submit co-applicants", coErr)
 
-  const applicants: FreeApplicantInput[] = [
-    {
-      role: "primary",
-      declaredIncomeCents: (app.gross_monthly_income_cents as number | null) ?? 0,
-      declaredObligationsCents: (app.declared_monthly_obligations_cents as number | null) ?? null,
-      idType: app.id_type as string | null, idNumber: app.id_number as string | null,
-      declaredDob: (app.date_of_birth as string | null) ?? null,
-      employmentStartDate: (app.employment_start_date as string | null) ?? null,
-      documentsUploaded: app.documents_submitted === true || !!app.bank_statement_path,
-      documents: primaryDocuments,
-      complete: true,
-    },
-    ...(coRows ?? []).map((c): FreeApplicantInput => ({
-      role: c.role === "guarantor" || c.is_surety_director === true ? "guarantor" : "co_applicant",
-      declaredIncomeCents: (c.gross_monthly_income_cents as number | null) ?? 0,
-      declaredObligationsCents: (c.declared_monthly_obligations_cents as number | null) ?? null,
-      idType: c.id_type as string | null, idNumber: c.id_number as string | null,
-      declaredDob: (c.date_of_birth as string | null) ?? null,
-      documentsUploaded: c.documents_submitted === true,
-      complete: c.stage1_consent_given === true,
-    })),
-  ]
-  const assessment = freeAssessment(rentCents, applicants, { depositCents })
+  // Build the FreeApplicantInput set + company options and run the assessment (DB shape → verdict). Extracted to
+  // assembleAssessment so the WIRING is unit-tested, not just the engine. Company net-profit (company_info) +
+  // directors'-surety backstop both reach the verdict here.
+  const assessment = assembleAssessment({
+    rentCents,
+    depositCents,
+    leaseTermMonths: (unit?.default_lease_period_months as number | null) ?? null,
+    app: app as AssessmentAppRow,
+    coRows: (coRows ?? []) as AssessmentCoRow[],
+    primaryDocuments,
+    childMaintenanceCents,
+  })
 
   const now = new Date().toISOString()
-  // Store the free assessment + record Stage-1 consent. NO deep scan — it runs at shortlist (Step 2).
+  // Store the free assessment. NO deep scan — it runs at shortlist (Step 2). POPIA consent is NOT recorded here:
+  // each applicant consents at their own SECTION sign-off (the filler via save-draft, co-applicants via their link,
+  // the company at co-review) — ADDENDUM_14Q. The review is consent-free; re-running it never re-logs consent.
   const { error: updErr } = await service.from("applications").update({
     stage1_status: "pre_screen_complete",
-    stage1_consent_given: true,
-    stage1_consent_given_at: now,
-    stage1_consent_ip: body.consentIp ?? null,
     free_assessment: { ...assessment, assessedAt: now },
   }).eq("id", id)
   logQueryError("submit free_assessment update", updErr)
-
-  // POPIA: record consent — scope covers the Step-2 AI document analysis (P1h), so the deep scan at shortlist
-  // is consented now (no gap when it turns on).
-  await service.from("consent_log").insert({
-    org_id: app.org_id as string,
-    subject_email: (tokenRow.applicant_email as string | null) ?? (app.applicant_email as string),
-    consent_type: "popia_application", consent_given: true,
-    ip_address: body.consentIp ?? null,
-    metadata: { application_id: id, scope: "stage1_prescreen_and_ai_document_analysis" },
-  })
 
   return NextResponse.json({ ok: true, freeAssessment: assessment })
 }

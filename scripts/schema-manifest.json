@@ -173,7 +173,13 @@
       "decided_by",
       "decision_stage",
       "role",
-      "declared_monthly_obligations_cents"
+      "declared_monthly_obligations_cents",
+      "section_data",
+      "marital_status",
+      "matrimonial_regime",
+      "current_address",
+      "spouse_info",
+      "started_at"
     ],
     "application_directors": [
       "id",
@@ -191,6 +197,17 @@
       "cipc_verified_at",
       "cipc_match_confidence",
       "created_at"
+    ],
+    "application_documents": [
+      "id",
+      "org_id",
+      "application_id",
+      "subject_ref",
+      "storage_path",
+      "document_type",
+      "uploaded_by",
+      "uploaded_at",
+      "deleted_at"
     ],
     "application_guarantors": [
       "id",
@@ -493,7 +510,15 @@
       "submitted_at",
       "dependents_count",
       "free_assessment",
-      "declared_monthly_obligations_cents"
+      "declared_monthly_obligations_cents",
+      "employment_details",
+      "dependent_adults_count",
+      "dependent_minors_count",
+      "expenses",
+      "school_fees_cents",
+      "marital_status",
+      "matrimonial_regime",
+      "spouse_info"
     ],
     "arrears_actions": [
       "id",

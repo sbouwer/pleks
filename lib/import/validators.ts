@@ -9,6 +9,7 @@
  */
 import type { ParsedRow, ParseError } from "./csvParser"
 import { SA_PROVINCES } from "@/lib/constants"
+import { isValidEmail } from "@/lib/validation/contact"
 
 export function validatePropertyRow(row: ParsedRow, index: number): ParseError[] {
   const errors: ParseError[] = []
@@ -45,7 +46,7 @@ export function validateTenantRow(row: ParsedRow, index: number): ParseError[] {
   }
   if (!row.email?.trim()) {
     errors.push({ row: rowNum, field: "email", message: "Email is required" })
-  } else if (!/^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,63}$/.test(row.email)) {
+  } else if (!isValidEmail(row.email)) {
     errors.push({ row: rowNum, field: "email", message: "Invalid email format" })
   }
 
@@ -94,10 +95,10 @@ export function validateSAID(idNumber: string): boolean {
 }
 
 /**
- * Basic email format validation.
+ * Basic email format validation. Delegates to the system-wide SSOT (lib/validation/contact).
  */
 export function validateEmail(email: string): boolean {
-  return /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,63}$/.test(email.trim())
+  return isValidEmail(email)
 }
 
 export function normaliseBranchCode(raw: string | null): string | null {

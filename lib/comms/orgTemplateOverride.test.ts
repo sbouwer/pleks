@@ -38,5 +38,9 @@ describe("resolveOrgCorrespondenceHtml (BUILD_70 Phase 2b override gating)", () 
     expect(html).toBeTypeOf("string")
     expect(html).toContain("Dear Jane Smith")
     expect(html).toContain("R 12 500")
+    // …and the org BRANDING/LAYOUT wrapper is applied — not just the bare {{}}-resolved body. A regression that
+    // dropped EmailLayout (shipping the unbranded fragment) would otherwise pass.
+    expect(html).toContain("Test Agency")          // EmailLayout renders the org name (header + footer)
+    expect(html).toMatch(/<html|<!DOCTYPE/i)       // a full email document, not the inner body fragment
   })
 })

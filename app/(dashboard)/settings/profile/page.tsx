@@ -56,6 +56,14 @@ export default async function ProfilePage({ searchParams }: Readonly<{ searchPar
     }
   }
 
+  // Current profile photo (agent card marketing photo) — for the Personal tab's Photo card.
+  let avatarUrl: string | null = null
+  if (active === "personal") {
+    const { data: prof, error: profErr } = await gw.db.from("user_profiles").select("avatar_url").eq("id", gw.userId).maybeSingle()
+    if (profErr) console.error("ProfilePage avatar_url read failed:", profErr.message)
+    avatarUrl = (prof?.avatar_url as string | null) ?? null
+  }
+
   const agentName = profileForm ? `${profileForm.firstName ?? ""} ${profileForm.lastName ?? ""}`.trim() : ""
   const agentInitials = profileForm
     ? `${(profileForm.firstName ?? "").charAt(0)}${(profileForm.lastName ?? "").charAt(0)}`.toUpperCase()
@@ -77,7 +85,7 @@ export default async function ProfilePage({ searchParams }: Readonly<{ searchPar
       >
         {active === "personal" && (
           contactId && profileForm
-            ? <MyProfileCards contactId={contactId} initialForm={profileForm} />
+            ? <MyProfileCards contactId={contactId} initialForm={profileForm} avatarUrl={avatarUrl} />
             : <DetailFullWidth><div className="rounded-[var(--r-button)] border border-dashed border-border bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">Couldn&apos;t load your profile.</div></DetailFullWidth>
         )}
         {active === "signature" && (

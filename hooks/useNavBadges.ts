@@ -1,11 +1,11 @@
 /**
- * hooks/useNavBadges.ts — FILL: one-line purpose
+ * hooks/useNavBadges.ts — sidebar nav badge counts (applications / maintenance / arrears awaiting attention)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   browser Supabase client with the signed-in agent's session (RLS scopes counts to their org)
+ * Data:   live COUNT(head) over applications / maintenance_requests / arrears_cases; 60s stale, 120s refetch
+ * Notes:  applications badge = SUBMITTED + not-yet-triaged only (submitted_at NOT NULL, prescreened_by NULL,
+ *         not archived). stage1_status="pre_screen_complete" alone also matches drafts that merely ran the free
+ *         assessment without submitting — those must NOT show as a pending application.
  */
 import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
@@ -26,7 +26,9 @@ export function useNavBadges(): NavBadges {
           .from("applications")
           .select("id", { count: "exact", head: true })
           .eq("stage1_status", "pre_screen_complete")
-          .is("prescreened_by", null),
+          .not("submitted_at", "is", null)
+          .is("prescreened_by", null)
+          .is("deleted_at", null),
         supabase
           .from("maintenance_requests")
           .select("id", { count: "exact", head: true })

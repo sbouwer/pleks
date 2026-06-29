@@ -30,6 +30,100 @@ describe("freeAssessment — combined declared affordability", () => {
   })
 })
 
+describe("freeAssessment — guarantor / surety backstop (residual capacity)", () => {
+  const RENT = 900_000 // R9 000; living floor = R3 500/adult (350_000)
+  const principal = a({ declaredIncomeCents: 2_000_000 }) // R20k vs R9k = 45% → below on its own merit
+
+  // THE verdict-locking test: a below-income primary with a covering surety must NOT roll up does-not-qualify.
+  it("primary below + covering surety → rollup BACKSTOPPED, not does-not-qualify", () => {
+    const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 2_000_000 })])
+    expect(r.affordabilityTier).toBe("below")   // primary fails on its own merit
+    expect(r.guarantorBacksRent).toBe(true)     // 20k − 0 − 3.5k floor = 16.5k residual ≥ 9k
+    expect(r.rollup).toBe("backstopped")        // …so the surety rescues it — the OR-branch reaches the verdict
+    expect(r.rollup).not.toBe("does-not-qualify")
+  })
+  it("stretched high-earner guarantor is no security → does-not-qualify (residual, not a multiple)", () => {
+    const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 5_000_000, declaredObligationsCents: 4_500_000 })])
+    expect(r.guarantorBacksRent).toBe(false) // 50k − 45k − 3.5k = 1.5k residual < 9k, despite the big salary
+    expect(r.rollup).toBe("does-not-qualify")
+  })
+  it("two unrelated standalone guarantors do NOT pool → does-not-qualify", () => {
+    const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 1_000_000 }), a({ role: "guarantor", declaredIncomeCents: 1_000_000 })])
+    expect(r.guarantorBacksRent).toBe(false) // each: 10k − 3.5k = 6.5k < 9k; no pooling
+    expect(r.rollup).toBe("does-not-qualify")
+  })
+  it("joint-&-several guarantors (same suretyGroup) POOL and cover → backstopped", () => {
+    const r = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "joint-1" }), a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "joint-1" })])
+    expect(r.guarantorBacksRent).toBe(true) // 6.5k + 6.5k = 13k pooled ≥ 9k
+    expect(r.rollup).toBe("backstopped")
+  })
+  it("no guarantor + below primary → does-not-qualify", () => {
+    const r = freeAssessment(RENT, [principal])
+    expect(r.hasGuarantor).toBe(false)
+    expect(r.guarantorBacksRent).toBe(false)
+    expect(r.rollup).toBe("does-not-qualify")
+  })
+  it("guarantor doesn't override a primary who ALREADY affords (stays verify-ready, not backstopped)", () => {
+    const r = freeAssessment(RENT, [a({ declaredIncomeCents: 5_000_000 }), a({ role: "guarantor", declaredIncomeCents: 5_000_000 })]) // 9k/50k = 18% within
+    expect(r.affordabilityTier).toBe("within")
+    expect(r.rollup).toBe("verify-ready") // clean pass — not "backstopped"; the surety is just extra security
+  })
+  it("in-community SURETY → spousal consent required (s15 MPA); ANC does not; in-community PRIMARY does NOT trigger", () => {
+    expect(freeAssessment(RENT, [principal, a({ role: "guarantor", maritalRegime: "in_community" })]).spousalConsentRequired).toBe(true)
+    expect(freeAssessment(RENT, [principal, a({ role: "guarantor", maritalRegime: "out_anc" })]).spousalConsentRequired).toBe(false)
+    // scope is sureties only — an in-community PRIMARY/co-applicant must NOT trip surety consent
+    expect(freeAssessment(RENT, [a({ maritalRegime: "in_community" }), a({ role: "co_applicant", maritalRegime: "in_community" })]).spousalConsentRequired).toBe(false)
+  })
+  it("spousal-consent interpretation is CONTINGENT (never co-suretyship) + tailors to load-bearing vs bonus", () => {
+    // load-bearing: primary below + an in-community surety that CARRIES the rent → "relies on … contingent"
+    const carried = freeAssessment(RENT, [principal, a({ role: "guarantor", declaredIncomeCents: 2_000_000, maritalRegime: "in_community" })])
+    const carriedTxt = carried.interpretations.find((i) => i.kind === "action" && /s15 MPA/.test(i.text))?.text ?? ""
+    expect(carriedTxt).toMatch(/relies on/i)
+    expect(carriedTxt).toMatch(/contingent/i)
+    expect(carriedTxt).not.toMatch(/co-sign/i)   // must NOT bake co-suretyship — instrument is counsel's choice
+    // bonus: primary affords alone + an in-community surety → "own merit … additional", still contingent
+    const bonus = freeAssessment(RENT, [a({ declaredIncomeCents: 5_000_000 }), a({ role: "guarantor", declaredIncomeCents: 5_000_000, maritalRegime: "in_community" })])
+    const bonusTxt = bonus.interpretations.find((i) => i.kind === "action" && /s15 MPA/.test(i.text))?.text ?? ""
+    expect(bonusTxt).toMatch(/own merit/i)
+    expect(bonusTxt).not.toMatch(/co-sign/i)
+  })
+})
+
+describe("freeAssessment — company verdict (net profit + directors' surety)", () => {
+  const RENT = 900_000 // R9 000
+  const director = a() // the director filling it in (primary)
+
+  it("company net profit covers the rent → strong + verify-ready (turnover not used)", () => {
+    const r = freeAssessment(RENT, [director], { company: { netProfitMonthlyCents: 1_000_000, turnoverMonthlyCents: 8_000_000 } })
+    expect(r.isCompany).toBe(true)
+    expect(r.companyVerdict).toBe("strong") // R10k net ≥ R9k rent
+    expect(r.companyTurnoverMonthlyCents).toBe(8_000_000) // captured as context, not the test
+    expect(r.rollup).toBe("verify-ready")  // company affords on its own → clean pass
+  })
+  it("thin net but directors' combined surety carries it → backstopped (verdict AND rollup)", () => {
+    const r = freeAssessment(RENT, [director,
+      a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "dir" }),
+      a({ role: "guarantor", declaredIncomeCents: 1_000_000, suretyGroup: "dir" }),
+    ], { company: { netProfitMonthlyCents: 500_000 } })
+    expect(r.companyVerdict).toBe("backstopped") // net R5k < R9k, but directors pool 6.5k+6.5k = 13k ≥ 9k
+    expect(r.rollup).toBe("backstopped")
+  })
+  it("thin net and no directors' surety → fail + does-not-qualify", () => {
+    const r = freeAssessment(RENT, [director], { company: { netProfitMonthlyCents: 500_000 } })
+    expect(r.companyVerdict).toBe("fail")
+    expect(r.rollup).toBe("does-not-qualify")
+  })
+  it("high turnover, loss-making net, no surety → fail (turnover is never the number)", () => {
+    const r = freeAssessment(RENT, [director], { company: { netProfitMonthlyCents: 0, turnoverMonthlyCents: 10_000_000 } })
+    expect(r.companyVerdict).toBe("fail")
+    expect(r.rollup).toBe("does-not-qualify")
+  })
+  it("personal applications are not company", () => {
+    expect(freeAssessment(RENT, [director]).isCompany).toBe(false)
+    expect(freeAssessment(RENT, [director]).companyVerdict).toBeNull()
+  })
+})
+
 describe("freeAssessment — readiness", () => {
   it("all complete + valid IDs → ready", () => {
     expect(freeAssessment(900_000, [a(), a({ role: "co_applicant" })]).readiness.band).toBe("ready")
@@ -88,6 +182,32 @@ describe("freeAssessment — employment tenure (declared)", () => {
     const settled = freeAssessment(900_000, [a({ employmentStartDate: "2024-01-01" })], { asOf: ASOF })
     expect(settled.employment.recentlyStarted).toBe(false)
     expect(settled.employment.tenureMonths).toBe(29)
+  })
+})
+
+describe("freeAssessment — contract end vs lease term (declared signal)", () => {
+  it("flags a stated contract ending before the lease term", () => {
+    const r = freeAssessment(900_000, [a({ contractEndDate: "2026-09-01" })], { asOf: ASOF, leaseTermMonths: 12 })
+    expect(r.employment.contractEndsBeforeLease).toBe(true)
+    expect(r.interpretations.some((i) => i.text.includes("contract ends before the lease"))).toBe(true)
+  })
+  it("does not flag when the contract runs past the lease term", () => {
+    const r = freeAssessment(900_000, [a({ contractEndDate: "2028-01-01" })], { asOf: ASOF, leaseTermMonths: 12 })
+    expect(r.employment.contractEndsBeforeLease).toBe(false)
+  })
+  it("skips gracefully when the listing has no defined lease term", () => {
+    const r = freeAssessment(900_000, [a({ contractEndDate: "2026-09-01" })], { asOf: ASOF })
+    expect(r.employment.contractEndsBeforeLease).toBe(false)
+  })
+})
+
+describe("freeAssessment — child maintenance is a reduced dependent cost, not income", () => {
+  it("excludes received child maintenance from the affordability income", () => {
+    const withMaint = freeAssessment(900_000, [a({ declaredIncomeCents: 3_000_000, childMaintenanceCents: 500_000 })], { asOf: ASOF })
+    const without = freeAssessment(900_000, [a({ declaredIncomeCents: 2_500_000 })], { asOf: ASOF })
+    expect(withMaint.combinedIncomeCents).toBe(without.combinedIncomeCents) // 3.0m − 0.5m maintenance == 2.5m
+    expect(withMaint.childMaintenanceCents).toBe(500_000)
+    expect(withMaint.interpretations.some((i) => i.text.includes("Child maintenance"))).toBe(true)
   })
 })
 

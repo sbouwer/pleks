@@ -15,7 +15,7 @@ import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
-import { hashIdNumber } from "@/lib/crypto/idNumber"
+import { hashIdNumber, encryptIdNumber } from "@/lib/crypto/idNumber"
 
 export async function POST(
   req: Request,
@@ -50,7 +50,7 @@ export async function POST(
       applicant_email: body.email,
       applicant_phone: body.phone || null,
       id_type: body.id_type || null,
-      id_number: body.id_number || null,
+      id_number: encryptIdNumber(body.id_number), // encrypted at rest; the hash (from RAW) stays the lookup key
       id_number_hash: body.id_number ? hashIdNumber(body.id_number) : null,
       role: body.role === "guarantor" ? "guarantor" : "co_applicant",
     })

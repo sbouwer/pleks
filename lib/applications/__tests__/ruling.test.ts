@@ -6,7 +6,7 @@
  * uncorroborated→flag 5 with the right prompt, probation, identity, the net-pay SIGNAL (not a to-do).
  */
 import { describe, it, expect } from "vitest"
-import { evaluateRuling, type RulingInput } from "../ruling"
+import { evaluateRuling, RULING_VERSION, type RulingInput } from "../ruling"
 import type { ReconciliationResult } from "@/lib/extraction/types"
 
 const NOW = new Date("2026-06-20T00:00:00Z")
@@ -32,11 +32,12 @@ const flag = (r: ReturnType<typeof evaluateRuling>, id: number) => r.flags.find(
 const lowCorrob = (cents: number) => ({ declaredSources: [{ source_key: "employment", label: "Employment (gross)", declared_monthly_cents: cents, evidenced_monthly_cents: cents, variance_pct: 0, match_confidence: 0.9, status: "corroborated" as const, evidenceDocType: "payslip" as const }] })
 
 describe("evaluateRuling — affordability axis", () => {
-  it("clean ratio + corroborated + recent → within + strong", () => {
+  it("clean ratio + corroborated + recent → within + strong (and NO major flags creep in)", () => {
     const r = evaluateRuling(input())
     expect(r.affordability.tier).toBe("within")
     expect(r.rulingTier).toBe("strong")
     expect(flag(r, 1)).toBeUndefined()
+    expect(r.flags.filter((f) => f.severity === "major")).toHaveLength(0) // a stray major flag can't sneak through
   })
   it("marginal ratio (34%, residual below floor) → marginal + a minor flag, capped to adequate (not strong)", () => {
     const r = evaluateRuling(input({ appliedRentCents: 170_000, declaredMonthlyIncomeCents: 500_000, reconciliation: recon(lowCorrob(500_000)) }))
@@ -54,6 +55,52 @@ describe("evaluateRuling — affordability axis", () => {
     const r = evaluateRuling(input({ declaredMonthlyIncomeCents: 0, reconciliation: recon({ declaredSources: [] }) }))
     expect(r.rulingTier).toBe("below-threshold")
     expect(flag(r, 1)?.severity).toBe("block")
+  })
+})
+
+describe("evaluateRuling — child maintenance (single-place accounting)", () => {
+  it("excludes received child maintenance from the rent-payable ratio — nets to salary, not gross, not below salary", () => {
+    // gross 28k = 20k salary + 8k child maintenance; rent 7k → 35% on salary (would be 25% on gross, 58% if penalised).
+    const r = evaluateRuling(input({ declaredMonthlyIncomeCents: 2_800_000, childMaintenanceCents: 800_000, appliedRentCents: 700_000 }))
+    expect(r.affordability.ratioPct).toBe(35)
+  })
+  it("excludes child maintenance from corroborated income (verified maintenance is not rent-payable)", () => {
+    const reconMaint = recon({ declaredSources: [
+      { source_key: "employment", label: "Employment", declared_monthly_cents: 2_000_000, evidenced_monthly_cents: 2_000_000, variance_pct: 0, match_confidence: 0.9, status: "corroborated", evidenceDocType: "payslip" },
+      { source_key: "maintenance", label: "Maintenance (child)", declared_monthly_cents: 800_000, evidenced_monthly_cents: 800_000, variance_pct: 0, match_confidence: 0.9, status: "corroborated", evidenceDocType: "bank-statement" },
+    ] })
+    const r = evaluateRuling(input({ declaredMonthlyIncomeCents: 2_800_000, childMaintenanceCents: 800_000, reconciliation: reconMaint, minorDependents: 2 }))
+    expect(r.affordability.corroboratedIncomeCents).toBe(2_000_000)
+  })
+  it("verified child maintenance offsets the child's floor cost ONCE, capped — flips a case that fails the full floor", () => {
+    // salary 10k (gross 18k − 8k child maintenance), rent 6k → below ratio; corroborated salary 10k → residual 4k.
+    // 2 dependents → full floor 7k (residual 4k fails); 8k verified maintenance offsets the 3.5k child cost → floor
+    // 3.5k → residual 4k now clears it. (Surplus 4.5k of maintenance vanishes — capped at the child cost.)
+    const reconMaint = recon({ observedObligationsCents: 0, declaredSources: [
+      { source_key: "employment", label: "Employment", declared_monthly_cents: 1_000_000, evidenced_monthly_cents: 1_000_000, variance_pct: 0, match_confidence: 0.9, status: "corroborated", evidenceDocType: "payslip" },
+      { source_key: "maintenance", label: "Maintenance (child)", declared_monthly_cents: 800_000, evidenced_monthly_cents: 800_000, variance_pct: 0, match_confidence: 0.9, status: "corroborated", evidenceDocType: "bank-statement" },
+    ] })
+    const withMaint = evaluateRuling(input({ declaredMonthlyIncomeCents: 1_800_000, childMaintenanceCents: 800_000, appliedRentCents: 600_000, reconciliation: reconMaint, minorDependents: 2 }))
+    expect(withMaint.affordability.tier).toBe("residual-override")
+    // Without the maintenance offset the SAME residual fails the full (un-reduced) floor → stays below.
+    const reconNoMaint = recon({ observedObligationsCents: 0, declaredSources: [
+      { source_key: "employment", label: "Employment", declared_monthly_cents: 1_000_000, evidenced_monthly_cents: 1_000_000, variance_pct: 0, match_confidence: 0.9, status: "corroborated", evidenceDocType: "payslip" },
+    ] })
+    const noMaint = evaluateRuling(input({ declaredMonthlyIncomeCents: 1_000_000, appliedRentCents: 600_000, reconciliation: reconNoMaint, minorDependents: 2 }))
+    expect(noMaint.affordability.tier).toBe("below")
+  })
+  it("school fees join the child bucket (offset by maintenance) — not double-counted with commitments", () => {
+    // 1 minor floor 1.75k + school fees 3k = 4.75k child bucket; 3k maintenance → net child 1.75k.
+    // adult floor 3.5k + net child 1.75k = 5.25k floor. Salary 10k, rent 5k, no obligations → residual 5k < 5.25k → below.
+    const reconMaint = recon({ observedObligationsCents: 0, declaredSources: [
+      { source_key: "employment", label: "Employment", declared_monthly_cents: 1_000_000, evidenced_monthly_cents: 1_000_000, variance_pct: 0, match_confidence: 0.9, status: "corroborated", evidenceDocType: "payslip" },
+      { source_key: "maintenance", label: "Maintenance (child)", declared_monthly_cents: 300_000, evidenced_monthly_cents: 300_000, variance_pct: 0, match_confidence: 0.9, status: "corroborated", evidenceDocType: "bank-statement" },
+    ] })
+    const r = evaluateRuling(input({ declaredMonthlyIncomeCents: 1_300_000, childMaintenanceCents: 300_000, appliedRentCents: 500_000, reconciliation: reconMaint, minorDependents: 1, schoolFeesCents: 300_000 }))
+    expect(r.affordability.tier).toBe("below")           // residual 5k just under the 5.25k floor (fees count, capped by maintenance)
+    // Without school fees the bucket is fully covered by maintenance → floor drops to 3.5k → residual 5k clears it.
+    const rNoFees = evaluateRuling(input({ declaredMonthlyIncomeCents: 1_300_000, childMaintenanceCents: 300_000, appliedRentCents: 500_000, reconciliation: reconMaint, minorDependents: 1, schoolFeesCents: 0 }))
+    expect(rNoFees.affordability.tier).toBe("residual-override")
   })
 })
 
@@ -133,7 +180,7 @@ describe("evaluateRuling — flag 0b residual-income override", () => {
   // Residual = 25000 - 8000 - 1000 = R16,000. Floor (1 adult, 0 deps) = R3,500 → clears → override.
   const marginalOver = () => input({
     appliedRentCents: 800_000, declaredMonthlyIncomeCents: 2_500_000,
-    adults: 1, dependents: 0,
+    adults: 1, minorDependents: 0,
     reconciliation: recon({
       observedObligationsCents: 100_000,
       declaredSources: [{ source_key: "employment", label: "Employment (gross)", declared_monthly_cents: 2_500_000, evidenced_monthly_cents: 2_500_000, variance_pct: 0, match_confidence: 0.9, status: "corroborated", evidenceDocType: "payslip" }],
@@ -142,12 +189,13 @@ describe("evaluateRuling — flag 0b residual-income override", () => {
   it("marginal ratio + residual clears the living floor → residual-override (not blocked)", () => {
     const r = evaluateRuling(marginalOver())
     expect(r.affordability.tier).toBe("residual-override")
+    expect(r.rulingTier).not.toBe("below-threshold") // the whole point of the override: no longer blocked
     expect(flag(r, 0)?.type).toBe("override")
     expect(flag(r, 1)).toBeUndefined()  // affordability concern flag suppressed
   })
   it("does NOT fire on phantom income — uncorroborated income can't clear the floor", () => {
     const r = evaluateRuling(input({
-      appliedRentCents: 800_000, declaredMonthlyIncomeCents: 2_500_000, adults: 1, dependents: 0,
+      appliedRentCents: 800_000, declaredMonthlyIncomeCents: 2_500_000, adults: 1, minorDependents: 0,
       reconciliation: recon({ observedObligationsCents: 0, declaredSources: [
         { source_key: "employment", label: "Employment (gross)", declared_monthly_cents: 2_500_000, evidenced_monthly_cents: null, variance_pct: null, match_confidence: 0, status: "uncorroborated", evidenceDocType: null },
       ] }),
@@ -156,7 +204,7 @@ describe("evaluateRuling — flag 0b residual-income override", () => {
   })
   it("more dependents raise the floor → override withheld when residual no longer clears it", () => {
     const base = marginalOver()
-    const r = evaluateRuling({ ...base, dependents: 8 })  // floor = 3500 + 8*1750 = R17,500 > R16,000 residual
+    const r = evaluateRuling({ ...base, minorDependents: 8 })  // floor = 3500 + 8*1750 = R17,500 > R16,000 residual
     expect(r.affordability.tier).not.toBe("residual-override")
   })
 })
@@ -176,5 +224,16 @@ describe("evaluateRuling — corroborated (verified) income dual ratio", () => {
     ] }) }))
     expect(r.affordability.corroboratedIncomeCents).toBe(0)
     expect(r.affordability.corroboratedRatioPct).toBeNull()
+  })
+})
+
+describe("evaluateRuling — determinism + version stamp (POPIA s71 replay)", () => {
+  it("stamps the ruling version on every result", () => {
+    expect(evaluateRuling(input()).rulingVersion).toBe(RULING_VERSION)
+    expect(RULING_VERSION).toBe("ruling.v3") // pin: bump deliberately when the logic changes, never silently
+  })
+  it("is deterministic — same input → identical output (replay defence)", () => {
+    const inp = input({ appliedRentCents: 170_000, declaredMonthlyIncomeCents: 500_000, reconciliation: recon(lowCorrob(500_000)) })
+    expect(evaluateRuling(inp)).toEqual(evaluateRuling(inp))
   })
 })

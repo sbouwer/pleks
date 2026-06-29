@@ -34,6 +34,9 @@ describe("ROUTE_MANIFEST — structural invariants", () => {
   })
 
   it("every other agent route requires AAL2", () => {
+    // Guard the assertion below from passing vacuously: if the AGENT_ONLY_ROUTES filter ever yields [] (a rule
+    // shape change), "no AAL1 agent routes" would be trivially true having checked nothing.
+    expect(AGENT_ONLY_ROUTES.length).toBeGreaterThan(3)
     const aal1AgentRoutes = AGENT_ONLY_ROUTES.filter(
       p => p !== "/settings" && p !== "/help" && p !== "/help/fitscore-report" && !ROUTE_MANIFEST[p]?.requiresAal2
     )

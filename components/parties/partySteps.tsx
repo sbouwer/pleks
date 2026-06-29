@@ -41,6 +41,20 @@ const GENDER_OPTIONS = [
   { value: "other", label: "Other" },
   { value: "prefer_not_to_say", label: "Prefer not to say" },
 ]
+const MARITAL_STATUS_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "single", label: "Single" },
+  { value: "life_partner", label: "Life partner (unmarried)" }, // applying together, not married → no regime/consent
+  { value: "married", label: "Married" },
+  { value: "divorced", label: "Divorced" },
+  { value: "widowed", label: "Widowed" },
+]
+const MATRIMONIAL_REGIME_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "in_community", label: "In community of property" },
+  { value: "out_anc", label: "Out of community (ANC)" },
+  { value: "out_accrual", label: "Out of community, with accrual" },
+]
 
 const GENDER_LABEL: Record<string, string> = { male: "Male", female: "Female", other: "Other", prefer_not_to_say: "Prefer not to say" }
 const CHANNEL_LABEL: Record<string, string> = { email: "Email", sms: "SMS", whatsapp: "WhatsApp", phone: "Phone call", post: "Post" }
@@ -59,7 +73,7 @@ function entityBlurb(entity: PartyEntity, fullFica: boolean): string {
 // ── Step 1 — Identity ─────────────────────────────────────────────────────────
 type IdentityBodyProps = Readonly<{ f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean }>
 
-export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber = "01" }: IdentityBodyProps & { stepNumber?: string }) {
+export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber = "01", sectioned = false, coApplicants = [], suggestSpouseIsCo = true }: IdentityBodyProps & { stepNumber?: string; sectioned?: boolean; coApplicants?: ReadonlyArray<{ firstName?: string; lastName?: string; email?: string }>; suggestSpouseIsCo?: boolean }) {
   // Auto-fill DOB + gender from a valid SA ID — only when empty, so a manual choice (e.g. unlabelled gender) sticks.
   useEffect(() => {
     const v = validateSAId(f.idNumber)
@@ -73,6 +87,94 @@ export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber =
     if (!f.gender) set("gender", v.gender.toLowerCase())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [f.idNumber])
+
+  // Sectioned layout (apply wizard): three iconic-line sections — Personal details · Identity · Contact.
+  if (sectioned) {
+    return (
+      <div className="flex flex-col gap-9">
+        <section>
+          <SectLabel n="01">Personal details</SectLabel>
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-3">
+            <TextField label="First name" k="firstName" f={f} set={set} errors={errors} required placeholder="Jane" />
+            <TextField label="Last name" k="lastName" f={f} set={set} errors={errors} required placeholder="Smith" />
+            <TextField label="Middle name(s)" k="middleNames" f={f} set={set} errors={errors} placeholder="Optional" />
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-3">
+            <SelectField label="Title" k="title" f={f} set={set} options={TITLE_OPTIONS} />
+            <TextField label="Initials" k="initials" f={f} set={set} errors={errors} placeholder="J.S." />
+            <TextField label="Suffix" k="suffix" f={f} set={set} errors={errors} placeholder="Jr / Sr" />
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-3">
+            <TextField label="Designation" k="designation" f={f} set={set} errors={errors} placeholder="Dr, CA(SA)" />
+            <SelectField label="Marital status" k="maritalStatus" f={f} set={set} options={MARITAL_STATUS_OPTIONS} required errors={errors} />
+            {/* Regime un-greys only once married — it's meaningless otherwise. */}
+            <SelectField label="Matrimonial regime" k="matrimonialRegime" f={f} set={set} options={MATRIMONIAL_REGIME_OPTIONS} disabled={f.maritalStatus !== "married"} required={f.maritalStatus === "married"} errors={errors} />
+          </div>
+          {f.maritalStatus === "married" && f.matrimonialRegime === "in_community" && (() => {
+            const hasCoApplicants = coApplicants.length > 0
+            // Default to "spouse is applying with me" only when we SUGGEST it (residential couple — the common case);
+            // for a company the co-applicants are co-directors, not presumed spouses, so default off (14M spouse-
+            // linking amendment §2). The option stays available either way.
+            const spouseIsCo = hasCoApplicants && (f.spouseIsCoApplicant ?? suggestSpouseIsCo)
+            return (
+              <div className="mt-5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
+                <SectLabel n="01a">Spouse consent (in community of property)</SectLabel>
+                <p className="mb-3 text-xs leading-relaxed text-[var(--ink-soft)]">Married in community of property means the joint estate is bound, so your spouse must consent (s15, Matrimonial Property Act).</p>
+                {hasCoApplicants && (
+                  <label className="mb-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-[var(--ink-soft)]">
+                    <input type="checkbox" checked={spouseIsCo} onChange={(e) => set("spouseIsCoApplicant", e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
+                    My spouse is {coApplicants.length === 1 ? `${coApplicants[0].firstName ?? ""} ${coApplicants[0].lastName ?? ""}`.trim() || "the person" : "one of the people"} applying with me
+                  </label>
+                )}
+                {spouseIsCo ? (
+                  <>
+                    {coApplicants.length > 1 && (
+                      <div className="mb-3 sm:max-w-xs">
+                        <SelectField label="Which applicant is your spouse?" k="spouseEmail" f={f} set={set} required errors={errors}
+                          options={[{ value: "", label: "Select…" }, ...coApplicants.map((c) => ({ value: c.email ?? "", label: `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || (c.email ?? "") }))]} />
+                      </div>
+                    )}
+                    <p className="text-xs leading-relaxed text-[var(--ink-soft)]">No extra step — they consent and verify their identity as part of their own application.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-3 text-xs leading-relaxed text-[var(--ink-soft)]">We&apos;ll email them a secure link to confirm their identity and sign — you can finish, but the application can&apos;t be submitted until they do.</p>
+                    <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <TextField label="Spouse first name" k="spouseFirstName" f={f} set={set} errors={errors} required placeholder="Jane" />
+                      <TextField label="Spouse last name" k="spouseLastName" f={f} set={set} errors={errors} required placeholder="Smith" />
+                      <TextField label="Spouse ID number" k="spouseIdNumber" f={f} set={set} errors={errors} required placeholder="ID number" />
+                      <TextField label="Spouse email" k="spouseEmail" f={f} set={set} errors={errors} required type="email" placeholder="spouse@email.co.za" />
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })()}
+        </section>
+        <section>
+          <SectLabel n="02">Identity</SectLabel>
+          {/* One row: ID type · ID number (the IdField pair) · Date of birth · Gender. */}
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+            <IdField label="ID" typeKey="idType" numKey="idNumber" f={f} set={set} errors={errors} required={fullFica} />
+            <TextField label="Date of birth" k="dob" f={f} set={set} errors={errors} type="date" />
+            <SelectField label="Gender" k="gender" f={f} set={set} options={GENDER_OPTIONS} />
+          </div>
+        </section>
+        <section>
+          <SectLabel n="03">Contact</SectLabel>
+          {/* Row 1: email · mobile · preferred. Row 2: emergency contact (name · number · relationship). */}
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+            <TextField label="Email" k="email" f={f} set={set} errors={errors} required type="email" placeholder="jane@email.co.za" />
+            <TextField label="Mobile phone" k="phone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
+            <SelectField label="Preferred contact" k="preferredChannel" f={f} set={set} options={CHANNEL_OPTIONS} />
+            <TextField label="Emergency contact name" k="emergencyContactName" f={f} set={set} errors={errors} placeholder="Full name" />
+            <TextField label="Emergency contact number" k="emergencyContactNumber" f={f} set={set} errors={errors} type="tel" placeholder="082 000 0000" />
+            <TextField label="Emergency contact relationship" k="emergencyContactRelationship" f={f} set={set} errors={errors} placeholder="e.g. Spouse, Parent" />
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   return (
     <div className="mt-6">
@@ -98,6 +200,9 @@ export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber =
         <SelectField label="Gender" k="gender" f={f} set={set} options={GENDER_OPTIONS} />
         <TextField label="Email" k="email" f={f} set={set} errors={errors} required type="email" placeholder="jane@email.co.za" />
         <TextField label="Phone" k="phone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
+        <TextField label="Emergency contact name" k="emergencyContactName" f={f} set={set} errors={errors} placeholder="Full name" />
+        <TextField label="Emergency contact number" k="emergencyContactNumber" f={f} set={set} errors={errors} type="tel" placeholder="082 000 0000" />
+        <TextField label="Emergency contact relationship" k="emergencyContactRelationship" f={f} set={set} errors={errors} placeholder="e.g. Spouse, Parent" />
       </div>
     </div>
   )

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { SA_PROVINCES, COUNTRIES, DEFAULT_COUNTRY } from "@/lib/constants"
 import { PARTY_ID_TYPES, COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
 import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson, type PartyAddressInput, type PartyBankAccountInput } from "@/lib/parties/partyValidation"
+import { formatPhone } from "@/lib/validation/contact"
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean) => void
 
@@ -42,11 +43,15 @@ export function Stepper({ labels, current }: Readonly<{ labels: string[]; curren
 }
 
 // ── Section label ("01 · PERSONAL DETAILS") ───────────────────────────────────
+// The rule sits IN LINE after the label (not underneath), with the amber number + a · separator — the canonical
+// section-header rhythm shared across the apply flow, party forms, settings, and the focus-shell landing.
 export function SectLabel({ n, children }: Readonly<{ n?: string; children: React.ReactNode }>) {
   return (
-    <div className="mb-3 flex items-center gap-2 border-b border-border pb-2">
-      {n && <span className="font-mono text-[11px] font-semibold text-primary">{n}</span>}
-      <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{children}</span>
+    <div className="mb-3 flex items-center gap-2">
+      <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+        {n && <><span className="font-mono font-semibold text-primary">{n}</span> · </>}{children}
+      </span>
+      <span aria-hidden className="h-px flex-1 bg-border" />
     </div>
   )
 }
@@ -90,23 +95,26 @@ export function TextField({
         value={(f[k] as string) || ""}
         placeholder={placeholder}
         onChange={(e) => set(k, e.target.value)}
+        onBlur={type === "tel" ? (e) => set(k, formatPhone(e.target.value)) : undefined}
       />
     </Field>
   )
 }
 
 export function SelectField({
-  label, k, f, set, options, span,
+  label, k, f, set, options, span, disabled, required, errors,
 }: Readonly<{
   label: string; k: keyof PartyFormState; f: PartyFormState; set: SetFn
-  options: ReadonlyArray<{ value: string; label: string }>; span?: boolean
+  options: ReadonlyArray<{ value: string; label: string }>; span?: boolean; disabled?: boolean
+  required?: boolean; errors?: PartyErrors
 }>) {
   return (
-    <Field label={label} span={span}>
+    <Field label={label} span={span} required={required} error={errors?.[k]}>
       <select
-        className={cn(inputCls(false), "appearance-none")}
+        className={cn(inputCls(!!errors?.[k]), "appearance-none", disabled && "cursor-not-allowed opacity-50")}
         value={(f[k] as string) || options[0].value}
         onChange={(e) => set(k, e.target.value)}
+        disabled={disabled}
       >
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -121,25 +129,33 @@ export function IdField({
   label: string; typeKey: keyof PartyFormState; numKey: keyof PartyFormState
   f: PartyFormState; set: SetFn; errors: PartyErrors; required?: boolean
 }>) {
-  const isSaId = ((f[typeKey] as string) || "sa_id") === "sa_id"
+  const idType = (f[typeKey] as string) || "sa_id"
+  const isSaId = idType === "sa_id"
   const v = isSaId ? validateSAId(f[numKey] as string) : null
   const dobStr = v?.dob ? v.dob.toLocaleDateString("en-ZA") : ""
+  // The number field's label + placeholder follow the chosen ID type (passport → "Passport number", etc.).
+  const NUM_LABEL: Record<string, string> = { passport: "Passport number", asylum_permit: "Permit number" }
+  const numLabel = NUM_LABEL[idType] ?? `${label} number`
+  const numPlaceholder = isSaId ? "13-digit SA ID" : numLabel
   return (
     <>
       <SelectField label={`${label} type`} k={typeKey} f={f} set={set} options={PARTY_ID_TYPES} />
-      <Field label={`${label} number`} required={required} error={errors[numKey]}>
+      <Field label={numLabel} required={required} error={errors[numKey]}>
         <input
           className={inputCls(!!errors[numKey])}
           value={(f[numKey] as string) || ""}
-          placeholder={isSaId ? "13-digit SA ID" : "Passport / permit number"}
+          placeholder={numPlaceholder}
           onChange={(e) => set(numKey, e.target.value)}
         />
         {v && (
-          <span className={cn("mt-1 block text-xs", v.valid ? "text-emerald-600" : "text-destructive")}>
-            {v.valid
-              ? `Valid · ${dobStr} · ${v.gender} · ${v.citizenship}`
-              : "Checksum doesn't validate — check the number"}
-          </span>
+          v.valid ? (
+            <span className="mt-1 block text-xs text-emerald-600">
+              <span className="block font-medium">Passed Luhn check:</span>
+              {dobStr} · {v.gender} · {v.citizenship}
+            </span>
+          ) : (
+            <span className="mt-1 block text-xs text-destructive">Checksum doesn&apos;t validate — check the number</span>
+          )
         )}
       </Field>
     </>
@@ -240,18 +256,26 @@ export function AddressFields({
 }: Readonly<{ address: PartyAddressInput; onUpdate: (patch: Partial<PartyAddressInput>) => void; requiredLine?: boolean }>) {
   const country = address.country ?? DEFAULT_COUNTRY
   const isSA = country === DEFAULT_COUNTRY
+  // Street number + name are captured separately, but line1 is kept as the combined "12 Main Road" so every
+  // address reader (display, PDFs, lease docs) keeps working off line1 while consumers can use the parts too.
+  const setStreet = (patch: Partial<PartyAddressInput>) => {
+    const num = (patch.streetNumber ?? address.streetNumber ?? "").trim()
+    const name = (patch.streetName ?? address.streetName ?? "").trim()
+    onUpdate({ ...patch, line1: [num, name].filter(Boolean).join(" ") })
+  }
   return (
-    <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-      <Bare label="Street address" required={requiredLine} value={address.line1} onChange={(v) => onUpdate({ line1: v })} placeholder="12 Main Road" autoComplete="address-line1" />
+    <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Bare label="Street number" required={requiredLine} value={address.streetNumber} onChange={(v) => setStreet({ streetNumber: v })} placeholder="12" autoComplete="address-line1" />
+      <Bare label="Street name" required={requiredLine} value={address.streetName} onChange={(v) => setStreet({ streetName: v })} placeholder="Main Road" />
       <Bare label="Address line 2" value={address.line2} onChange={(v) => onUpdate({ line2: v })} placeholder="Optional" autoComplete="address-line2" />
       <Bare label="Suburb" value={address.suburb} onChange={(v) => onUpdate({ suburb: v })} placeholder="Sea Point" autoComplete="address-level3" />
       <Bare label="City" required={requiredLine} value={address.city} onChange={(v) => onUpdate({ city: v })} placeholder="Cape Town" autoComplete="address-level2" />
+      <Bare label="Postal code" value={address.postal} onChange={(v) => onUpdate({ postal: v })} placeholder="8005" autoComplete="postal-code" />
       {isSA ? (
         <BareSelect label="Province" value={address.province ?? ""} onChange={(v) => onUpdate({ province: v })} options={ADDRESS_PROVINCE_OPTIONS} autoComplete="address-level1" />
       ) : (
         <Bare label="Province / state" value={address.province} onChange={(v) => onUpdate({ province: v })} placeholder="e.g. Noord-Holland" autoComplete="address-level1" />
       )}
-      <Bare label="Postal code" value={address.postal} onChange={(v) => onUpdate({ postal: v })} placeholder="8005" autoComplete="postal-code" />
       <BareSelect label="Country" value={country} onChange={(v) => onUpdate({ country: v })} options={COUNTRY_OPTIONS} autoComplete="country-name" />
     </div>
   )

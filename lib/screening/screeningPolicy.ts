@@ -17,6 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { INCOME_AFFORDABILITY_THRESHOLD } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import type { PoolingRule } from "@/lib/applications/companyRuling"
 
 /** The id + immutable version snapshot to stamp onto a decision (applications.screening_policy_id/_version). */
 export interface ResolvedScreeningPolicy {
@@ -35,6 +36,10 @@ export const PLATFORM_DEFAULT_SCREENING_POLICY_VERSION = "platform-default-v0"
 const PLATFORM_DEFAULT_SCREENING_POLICY = {
   source: "platform-default",
   affordability_threshold: INCOME_AFFORDABILITY_THRESHOLD,
+  // The dispositive company-surety pooling rule (14P §5). Conservative default until an org configures it; the
+  // legal BOUNDS are enforced in companyRuling regardless (combined/group collapse to strongestSingle until every
+  // surety is executed), so even a "combined" config only bites on a post-signing re-scan.
+  pooling_rule: "strongestSingle",
   note: "Auto-seeded platform-default screening policy (F3 round-4). Captures the platform's screening "
     + "posture at decision time. Immutable; per-agency policy authoring is a deferred follow-up.",
 } as const
@@ -94,4 +99,18 @@ export async function resolveActiveScreeningPolicy(
     return null
   }
   return { id: data.id as string, version: data.version as string }
+}
+
+/**
+ * The org's dispositive company-surety pooling rule (14P §5) from its active policy. Conservative default
+ * (strongestSingle) when the org has no policy / no rule set / on any read error — the legal bounds are enforced
+ * in companyRuling regardless (the execution gate), so the default is safe by construction.
+ */
+export async function resolvePoolingRule(db: SupabaseClient, orgId: string): Promise<PoolingRule> {
+  const { data, error } = await db
+    .from("screening_policies").select("policy")
+    .eq("org_id", orgId).order("created_at", { ascending: false }).limit(1).maybeSingle()
+  if (error) { logQueryError("resolvePoolingRule", error); return "strongestSingle" }
+  const rule = (data?.policy as { pooling_rule?: string } | null)?.pooling_rule
+  return rule === "combined" || rule === "suretyGroupPooled" ? rule : "strongestSingle"
 }

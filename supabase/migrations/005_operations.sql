@@ -2015,13 +2015,17 @@ CREATE POLICY "org_screening_artifacts" ON screening_artifacts
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
+-- The immutability latch MUST be RESTRICTIVE: permissive policies OR together, so a permissive USING(false) sitting
+-- beside the permissive org "FOR ALL" policy is a no-op (org-true OR false = true → update/delete allowed). RESTRICTIVE
+-- policies AND with the permissive result (org-true AND false = false), so they actually block. (Service-role bypasses
+-- RLS, so the legitimate purge still deletes; this hardens the anon/authenticated path — defence-in-depth.)
 DROP POLICY IF EXISTS "screening_artifacts_no_update" ON screening_artifacts;
 CREATE POLICY "screening_artifacts_no_update" ON screening_artifacts
-  FOR UPDATE USING (false) WITH CHECK (false);
+  AS RESTRICTIVE FOR UPDATE USING (false) WITH CHECK (false);
 
 DROP POLICY IF EXISTS "screening_artifacts_no_delete" ON screening_artifacts;
 CREATE POLICY "screening_artifacts_no_delete" ON screening_artifacts
-  FOR DELETE USING (false);
+  AS RESTRICTIVE FOR DELETE USING (false);
 
 -- ── v_application_screening_lines: orchestration view ────────────────────────
 -- ADDENDUM_00M Phase 1: security_invoker so the caller's RLS applies (the view no longer runs as
@@ -2999,3 +3003,58 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS free_assessment jsonb;
 -- unverified; summed across primary + co-applicants like income. (ADDENDUM_14M funnel, Step-1 enrichment)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS declared_monthly_obligations_cents bigint;
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS declared_monthly_obligations_cents bigint;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §37  APPLY EMPLOYMENT BRANCHING CONTEXT (ADDENDUM_14M apply redesign — Employment sub-tab)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The Employment sub-tab branches on employment_type: employed → employer fields; self-employed/freelance →
+-- business fields; retired/grant → minimal; unemployed → route to other income. The branching context (contract
+-- end date, job title, employer contact, business name/nature/trading-since, registration, SARS) is held in one
+-- jsonb — the income figure itself stays in income_sources. Two new status values (freelance, grant) are added:
+-- freelance is treated as variable income (like commission/self_employed), grant as a fixed minimal source.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS employment_details jsonb;
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_employment_type_check;
+ALTER TABLE applications ADD CONSTRAINT applications_employment_type_check CHECK (
+  employment_type IN ('permanent','contract','commission','self_employed','freelance','part_time','student','unemployed','retired','grant','other')
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §38  APPLY EXPENSES TABLE + DEPENDANT BREAKDOWN (ADDENDUM_14M apply redesign — Expenses sub-tab)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Dependants split into adults vs minors — different living-floor cost (adult ≈ full adult essentials, minor ≈
+-- half; PMBEJD). dependents_count stays as the combined total for back-compat. Expenses become an itemised list
+-- (jsonb, mirrors income_sources); their monthly sum is the declared_monthly_obligations_cents used by the read.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependent_adults_count integer;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependent_minors_count integer;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS school_fees_cents bigint;  -- declared child cost (child bucket)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS expenses jsonb;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §39  APPLY MARITAL STATUS + SPOUSE (ADDENDUM_14M apply redesign — Personal details)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Declared on the personal-details step. marital_status (single|life_partner|married|divorced|widowed);
+-- matrimonial_regime (in_community|out_anc|out_accrual) only when married. A married-IN-COMMUNITY applicant's
+-- spouse must consent (s15 Matrimonial Property Act) — spouse_info jsonb holds {firstName,lastName,idNumber,email}
+-- + (later) the consent/verification status that gates submit. Marital regime also feeds the surety-consent engine.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS marital_status text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS matrimonial_regime text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS spouse_info jsonb;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §40  CO-APPLICANT PER-LINK SECTION (ADDENDUM_14Q §10 — the co-applicant's own session)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- A co-applicant completes their OWN section via their invite link (/apply/co-applicant/[token]), persisting here
+-- (NOT on applications). section_data jsonb holds the whole section (identity snapshot, income_sources, expenses,
+-- employment_details, dependants, addresses) — mirrors the apply flow's jsonb persistence. The few fields the agent
+-- detail + the screening/affordability + the 14M marital-consistency flags must QUERY are promoted to columns:
+-- marital_status / matrimonial_regime / current_address / spouse_info. stage1_consent_given (already present) is set
+-- when the co signs off — that's the J1 submit gate + the 14Q hub's live co-status.
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS section_data jsonb;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS marital_status text;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS matrimonial_regime text;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS current_address jsonb;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS spouse_info jsonb;
+-- "Started application" signal for the 14Q hub: set when the co-applicant first OPENS their invite link (clicked
+-- through to start), distinct from stage1_consent_given (finished + consented). Lets the hub show a co card as
+-- Invitation sent → Started application → Completed.
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS started_at timestamptz;
