@@ -7,6 +7,8 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function LandlordProfilePage() {
@@ -21,40 +23,41 @@ export default async function LandlordProfilePage() {
     logQueryError("LandlordProfilePage organisations", orgError)
 
   return (
-    <div className="max-w-md space-y-6">
-      <h1 className="font-heading text-3xl">Profile</h1>
+    <div className="space-y-4">
+      <ResourcePageHeader eyebrow="Landlord" title="Profile" headline="Your account & managing agent" />
 
-      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-3 text-sm">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Your account</p>
-        <div>
-          <p className="text-muted-foreground text-xs mb-0.5">Name</p>
-          <p className="font-medium">{session.displayName}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground text-xs mb-0.5">Managed by</p>
-          <p>{org?.name ?? "Your managing agent"}</p>
-          {org?.email && <p className="text-muted-foreground">{org.email}</p>}
-          {org?.phone && <p className="text-muted-foreground">{org.phone}</p>}
-        </div>
-      </div>
+      <div className="max-w-md space-y-4">
+        <DetailCard title="Your account">
+          <div className="space-y-3 text-sm">
+            <div>
+              <p className="mb-0.5 text-xs text-muted-foreground">Name</p>
+              <p className="font-medium text-foreground">{session.displayName}</p>
+            </div>
+            <div>
+              <p className="mb-0.5 text-xs text-muted-foreground">Managed by</p>
+              <p className="text-foreground">{org?.name ?? "Your managing agent"}</p>
+              {org?.email && <p className="text-muted-foreground">{org.email}</p>}
+              {org?.phone && <p className="text-muted-foreground">{org.phone}</p>}
+            </div>
+          </div>
+        </DetailCard>
 
-      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-2 text-sm">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Password</p>
-        <p className="text-muted-foreground">
-          To change your password, use the password reset link on the login page.
-        </p>
-      </div>
+        <DetailCard title="Password">
+          <p className="text-sm text-muted-foreground">
+            To change your password, use the password reset link on the login page.
+          </p>
+        </DetailCard>
 
-      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-2 text-sm">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Need help?</p>
-        <p className="text-muted-foreground">
-          Contact your managing agent for any changes to your property details, lease terms, or account access.
-        </p>
-        {org?.email && (
-          <a href={`mailto:${org.email}`} className="hover:underline text-sm">
-            {org.email}
-          </a>
-        )}
+        <DetailCard title="Need help?">
+          <p className="text-sm text-muted-foreground">
+            Contact your managing agent for any changes to your property details, lease terms, or account access.
+          </p>
+          {org?.email && (
+            <a href={`mailto:${org.email}`} className="text-sm hover:underline">
+              {org.email}
+            </a>
+          )}
+        </DetailCard>
       </div>
     </div>
   )

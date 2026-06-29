@@ -1,16 +1,18 @@
 /**
- * app/(landlord)/landlord/properties/page.tsx — FILL: one-line purpose
+ * app/(landlord)/landlord/properties/page.tsx — Landlord portal: the landlord's properties list
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlord/properties
+ * Auth:   getLandlordSession (token-gated landlord portal); scoped to landlord_id
+ * Data:   createServiceClient — properties (+ unit count), leases, maintenance_requests
+ * Notes:  Canon ResourcePageHeader + ListCard rows / EmptyResourceState (door style) — presentation only.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import Link from "next/link"
 import { ChevronRight, Building2 } from "lucide-react"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ListCard } from "@/components/ui/resource-list"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -57,34 +59,49 @@ export default async function LandlordPropertiesPage() {
     maintByProperty[m.property_id] = (maintByProperty[m.property_id] ?? 0) + 1
   }
 
+  const list = properties ?? []
+
+  if (list.length === 0) {
+    return (
+      <EmptyResourceState
+        eyebrow="Landlord"
+        title="Your properties"
+        headline="No properties yet"
+        headerSub="Properties your agent links to your account will appear here."
+        emptyTitle="No properties linked yet"
+        emptySub="Once your managing agent links a property to your account, it will appear here."
+        icon={<Building2 className="h-6 w-6" />}
+      />
+    )
+  }
+
   return (
-    <div className="max-w-2xl space-y-4">
-      <h1 className="font-heading text-3xl mb-6">Your properties</h1>
+    <div>
+      <ResourcePageHeader
+        eyebrow="Landlord"
+        title="Your properties"
+        headline={`${list.length} propert${list.length === 1 ? "y" : "ies"}`}
+      />
+      <ListCard>
+        <div className="divide-y divide-border">
+          {list.map((p) => {
+            const address = [p.address_line1, p.suburb, p.city].filter(Boolean).join(", ")
+            const units = (p.units as unknown as { count: number }[] | null)?.[0]?.count ?? 0
+            const occupied = leasesByProperty[p.id] ?? 0
+            const occupancyPct = units > 0 ? Math.round((occupied / units) * 100) : 0
+            const monthlyRent = rentByProperty[p.id] ?? 0
+            const activeMaintCount = maintByProperty[p.id] ?? 0
 
-      {(properties ?? []).length === 0 && (
-        <p className="text-sm text-muted-foreground">No properties linked to your account yet.</p>
-      )}
-
-      {(properties ?? []).map((p) => {
-        const address = [p.address_line1, p.suburb, p.city].filter(Boolean).join(", ")
-        const units = (p.units as unknown as { count: number }[] | null)?.[0]?.count ?? 0
-        const occupied = leasesByProperty[p.id] ?? 0
-        const occupancyPct = units > 0 ? Math.round((occupied / units) * 100) : 0
-        const monthlyRent = rentByProperty[p.id] ?? 0
-        const activeMaintCount = maintByProperty[p.id] ?? 0
-
-        return (
-          <Link key={p.id} href={`/landlord/properties/${p.id}`} className="block">
-            <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 hover:border-brand/40 transition-colors group">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
-                    <Building2 className="h-4 w-4 text-blue-600" />
+            return (
+              <Link key={p.id} href={`/landlord/properties/${p.id}`} className="group flex items-start justify-between gap-3 px-5 py-4 transition-colors hover:bg-muted/40">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--r-button)] bg-muted text-muted-foreground">
+                    <Building2 className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium">{p.name}</p>
-                    {address && <p className="text-xs text-muted-foreground mt-0.5">{address}</p>}
-                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+                    <p className="font-medium text-foreground">{p.name}</p>
+                    {address && <p className="mt-0.5 text-xs text-muted-foreground">{address}</p>}
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       <span>Occupancy: {occupancyPct}% ({occupied}/{units})</span>
                       {monthlyRent > 0 && <span>Monthly rent: {formatZAR(monthlyRent)}</span>}
                       {activeMaintCount > 0 && (
@@ -94,12 +111,12 @@ export default async function LandlordPropertiesPage() {
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0 mt-1" />
-              </div>
-            </div>
-          </Link>
-        )
-      })}
+                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground" />
+              </Link>
+            )
+          })}
+        </div>
+      </ListCard>
     </div>
   )
 }

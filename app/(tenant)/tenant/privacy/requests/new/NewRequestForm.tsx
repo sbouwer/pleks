@@ -12,7 +12,7 @@ import { useState } from "react"
 import { RequestTypePicker } from "@/components/popia/RequestTypePicker"
 import { NukeCarveoutDisclosure } from "@/components/popia/NukeCarveoutDisclosure"
 import { ActionButton, IconButton } from "@/components/ui/actions"
-import { Textarea } from "@/components/ui/textarea"
+import { TextareaField } from "@/components/forms/fields"
 import { ChevronLeft } from "lucide-react"
 import type { RequestType } from "@/lib/popia/requests"
 import type { AcknowledgedCarveout } from "@/lib/popia/erasure"
@@ -147,19 +147,13 @@ export default function NewRequestForm() {
 
       {(step === "form" || step === "submitting") && (
         <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium" htmlFor="narrative">
-              Additional context (optional)
-            </label>
-            <Textarea
-              id="narrative"
-              placeholder="Describe your request in more detail if needed..."
-              value={narrative}
-              onChange={(e) => setNarrative(e.target.value)}
-              className="mt-1.5 resize-none"
-              rows={4}
-            />
-          </div>
+          <TextareaField
+            label="Additional context (optional)"
+            placeholder="Describe your request in more detail if needed..."
+            value={narrative}
+            onChange={setNarrative}
+            rows={4}
+          />
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-3">
             <ActionButton tone="secondary" onClick={() => setStep("pick")} disabled={step === "submitting"}>

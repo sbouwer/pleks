@@ -1,16 +1,19 @@
 /**
- * app/(landlord)/landlord/maintenance/page.tsx — FILL: one-line purpose
+ * app/(landlord)/landlord/maintenance/page.tsx — landlord portal: maintenance across the landlord's properties
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlord/maintenance
+ * Auth:   getLandlordSession (token-gated); scoped to the landlord's properties
+ * Data:   createServiceClient — properties → maintenance_requests (+ unit/property, contractor_view)
+ * Notes:  Canon ResourcePageHeader + DetailCard sections / EmptyResourceState (door style) — presentation only.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import Link from "next/link"
+import { Wrench } from "lucide-react"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -57,74 +60,85 @@ export default async function LandlordMaintenancePage() {
     pending_landlord: "Awaiting your approval",
   }
 
+  if (all.length === 0) {
+    return (
+      <EmptyResourceState
+        eyebrow="Landlord"
+        title="Maintenance"
+        headline="Nothing to action"
+        headerSub="Maintenance across your properties appears here."
+        emptyTitle="No maintenance requests"
+        emptySub="There are no maintenance requests for your properties right now."
+        icon={<Wrench className="h-6 w-6" />}
+      />
+    )
+  }
+
   return (
-    <div className="max-w-3xl space-y-6">
-      <h1 className="font-heading text-3xl">Maintenance</h1>
+    <div className="space-y-4">
+      <ResourcePageHeader
+        eyebrow="Landlord"
+        title="Maintenance"
+        headline={`${all.length} request${all.length === 1 ? "" : "s"} across your properties`}
+      />
 
       {/* Needs approval */}
       {pendingApproval.length > 0 && (
-        <div className="rounded-xl border border-warning/30 bg-warning/5 px-5 py-4 space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
-            Needs your approval ({pendingApproval.length})
-          </p>
-          {pendingApproval.map((req) => {
-            const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
-            return (
-              <div key={req.id} className="space-y-1">
-                {unit && <p className="text-xs text-muted-foreground pl-5">{unit.unit_number}, {unit.properties.name}</p>}
-                <LandlordMaintenanceCard req={req} showApproveActions />
-              </div>
-            )
-          })}
-        </div>
+        <DetailCard title={`Needs your approval (${pendingApproval.length})`}>
+          <div className="space-y-4">
+            {pendingApproval.map((req) => {
+              const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
+              return (
+                <div key={req.id} className="space-y-1">
+                  {unit && <p className="pl-5 text-xs text-muted-foreground">{unit.unit_number}, {unit.properties.name}</p>}
+                  <LandlordMaintenanceCard req={req} showApproveActions />
+                </div>
+              )
+            })}
+          </div>
+        </DetailCard>
       )}
 
       {/* In progress */}
       {inProgress.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-2">
-            In progress ({inProgress.length})
-          </p>
-          {inProgress.map((req) => {
-            const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
-            return (
-              <Link key={req.id} href={`/landlord/maintenance/${req.id}`} className="flex items-center gap-3 py-1.5 group">
-                <div className={`h-2 w-2 rounded-full shrink-0 ${URGENCY_DOT[req.urgency ?? "routine"]}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{req.title}</p>
-                  {unit && <p className="text-xs text-muted-foreground">{unit.unit_number}, {unit.properties.name}</p>}
-                </div>
-                <span className="text-xs text-muted-foreground shrink-0">{STATUS_DISPLAY[req.status] ?? req.status.replaceAll("_", " ")}</span>
-              </Link>
-            )
-          })}
-        </div>
+        <DetailCard title={`In progress (${inProgress.length})`}>
+          <div className="space-y-1">
+            {inProgress.map((req) => {
+              const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
+              return (
+                <Link key={req.id} href={`/landlord/maintenance/${req.id}`} className="group flex items-center gap-3 py-1.5">
+                  <div className={`h-2 w-2 shrink-0 rounded-full ${URGENCY_DOT[req.urgency ?? "routine"]}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-foreground">{req.title}</p>
+                    {unit && <p className="text-xs text-muted-foreground">{unit.unit_number}, {unit.properties.name}</p>}
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">{STATUS_DISPLAY[req.status] ?? req.status.replaceAll("_", " ")}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </DetailCard>
       )}
 
       {/* Completed */}
       {completed.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-2">
-            Completed (last 30 days)
-          </p>
-          {completed.map((req) => {
-            const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
-            return (
-              <div key={req.id} className="flex items-center gap-3 py-1.5 text-sm text-muted-foreground">
-                <span className="text-success shrink-0">✅</span>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate">{req.title}</p>
-                  {unit && <p className="text-xs">{unit.unit_number}, {unit.properties.name}</p>}
+        <DetailCard title="Completed (last 30 days)">
+          <div className="space-y-1">
+            {completed.map((req) => {
+              const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
+              return (
+                <div key={req.id} className="flex items-center gap-3 py-1.5 text-sm text-muted-foreground">
+                  <span className="shrink-0 text-success">✅</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate">{req.title}</p>
+                    {unit && <p className="text-xs">{unit.unit_number}, {unit.properties.name}</p>}
+                  </div>
+                  {req.actual_cost_cents && <span className="shrink-0">{formatZAR(req.actual_cost_cents)}</span>}
                 </div>
-                {req.actual_cost_cents && <span className="shrink-0">{formatZAR(req.actual_cost_cents)}</span>}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {all.length === 0 && (
-        <p className="text-sm text-muted-foreground">No maintenance requests for your properties.</p>
+              )
+            })}
+          </div>
+        </DetailCard>
       )}
     </div>
   )

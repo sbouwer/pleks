@@ -12,6 +12,8 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import { formatZAR } from "@/lib/constants"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { ShieldCheck } from "lucide-react"
 
 interface DepositRow {
@@ -147,19 +149,19 @@ export default async function LandlordTrustSummaryPage() {
   const hasAnyDeposit = groups.some((g) => g.deposits.length > 0)
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <h1 className="font-heading text-3xl">Deposits held in trust</h1>
+    <div className="space-y-4">
+      <ResourcePageHeader eyebrow="Landlord" title="Deposits held in trust" headline="Deposits your agency holds on your behalf" />
 
       {/* Sovereign notice */}
-      <div className="flex gap-3 rounded-xl border border-border/60 bg-surface-elevated px-4 py-3">
-        <ShieldCheck className="h-5 w-5 text-brand mt-0.5 shrink-0" />
-        <div className="text-sm text-muted-foreground space-y-0.5">
+      <div className="flex gap-3 rounded-[var(--r-button)] border border-border bg-card px-4 py-3">
+        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
+        <div className="space-y-0.5 text-sm text-muted-foreground">
           <p className="font-medium text-foreground">Your agency holds these deposits in trust</p>
           <p>Your deposits are held in your agency&apos;s Section 86 trust account. Pleks is the management software — Pleks does not hold your funds.</p>
           {lastReconDate && (
             <p className="mt-1">
               Last reconciliation signed off:{" "}
-              <span className="text-foreground font-medium">
+              <span className="font-medium text-foreground">
                 {new Date(lastReconDate).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
               </span>
             </p>
@@ -174,19 +176,16 @@ export default async function LandlordTrustSummaryPage() {
       {groups.map((group) => {
         const groupTotal = group.deposits.reduce((s, d) => s + d.depositHeldCents + d.interestAccruedCents, 0)
         return (
-          <div key={group.id} className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-3">
-            <div>
-              <p className="font-semibold">{group.name}</p>
-              {group.address && <p className="text-xs text-muted-foreground">{group.address}</p>}
-            </div>
-            <div className="divide-y divide-border/60">
+          <DetailCard key={group.id} title={group.name}>
+            {group.address && <p className="mb-2 text-xs text-muted-foreground">{group.address}</p>}
+            <div className="divide-y divide-border">
               {group.deposits.map((d) => (
                 <div key={d.leaseId} className="py-3 text-sm">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium">{d.tenantName}</span>
-                    <span className="font-semibold tabular-nums">{formatZAR(d.depositHeldCents + d.interestAccruedCents)}</span>
+                    <span className="font-medium text-foreground">{d.tenantName}</span>
+                    <span className="font-semibold tabular-nums text-foreground">{formatZAR(d.depositHeldCents + d.interestAccruedCents)}</span>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs text-muted-foreground">
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                     <span>Lease from {new Date(d.leaseStart).toLocaleDateString("en-ZA", { month: "short", year: "numeric" })}</span>
                     <span>Deposit held: {formatZAR(d.depositHeldCents)}</span>
                     {d.interestAccruedCents > 0 && (
@@ -197,25 +196,25 @@ export default async function LandlordTrustSummaryPage() {
               ))}
             </div>
             {group.deposits.length > 1 && (
-              <div className="flex justify-between text-sm pt-1 border-t border-border/60 font-medium">
+              <div className="flex justify-between border-t border-border pt-2 text-sm font-medium text-foreground">
                 <span>Subtotal</span>
                 <span className="tabular-nums">{formatZAR(groupTotal)}</span>
               </div>
             )}
-          </div>
+          </DetailCard>
         )
       })}
 
       {hasAnyDeposit && (
-        <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex justify-between items-center">
+        <div className="flex items-center justify-between rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card px-5 py-4">
           <div>
-            <p className="font-semibold">Total held on your behalf</p>
+            <p className="font-semibold text-foreground">Total held on your behalf</p>
             <p className="text-xs text-muted-foreground">
               Deposit principal: {formatZAR(totalDeposits)}
               {totalInterest > 0 && ` · Interest: ${formatZAR(totalInterest)}`}
             </p>
           </div>
-          <p className="text-xl font-bold tabular-nums">{formatZAR(totalDeposits + totalInterest)}</p>
+          <p className="text-xl font-bold tabular-nums text-foreground">{formatZAR(totalDeposits + totalInterest)}</p>
         </div>
       )}
     </div>

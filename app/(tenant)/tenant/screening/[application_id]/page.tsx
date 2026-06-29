@@ -4,18 +4,26 @@
  * Route:  /tenant/screening/[application_id]
  * Auth:   Supabase magic-link session → tenants.auth_user_id → applications.tenant_id
  * Data:   applications.current_screening_run_id, application_screening_lines (pdf_storage_path)
- * Notes:  Three-state UI: Ready / Running / Results ready.
- *         Applicants see bureau PDFs (Stream 1 — screening-reports bucket via §28.4 RLS).
- *         FitScore document (Stream 2) is agent-only — excluded by storage RLS; not linked here.
- *         POPIA s23(3) data-controller list sourced from COMBINED_DATA_CONTROLLERS.
+ * Notes:  Three-state UI: Ready / Running / Results ready. Applicants see bureau PDFs (Stream 1 —
+ *         screening-reports bucket via §28.4 RLS); FitScore (Stream 2) is agent-only. POPIA s23(3) data-
+ *         controller list from COMBINED_DATA_CONTROLLERS. Canon DetailPageLayout + DetailCard (door style).
  */
 import { redirect, notFound } from "next/navigation"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { COMBINED_DATA_CONTROLLERS } from "@/lib/searchworx/products/combinedConsumerCreditReport"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailCard } from "@/components/detail/DetailCard"
+import type { DetailStatus } from "@/lib/detail/types"
 import { FileDown, Clock, CheckCircle2, ShieldCheck, ExternalLink } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
+
+const STATE_STATUS: Record<"ready" | "running" | "results", DetailStatus> = {
+  ready: { kind: "neutral", label: "Not started" },
+  running: { kind: "vacant", label: "In progress" },
+  results: { kind: "occupied", label: "Report ready" },
+}
 
 export default async function ScreeningPage({
   params,
@@ -90,14 +98,21 @@ export default async function ScreeningPage({
   const applicantName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "Applicant"
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
-      <h1 className="font-heading text-2xl mb-1">Credit screening</h1>
-      <p className="text-sm text-muted-foreground mb-8">Application for {applicantName}</p>
-
-      {state === "ready" && <ReadyState />}
-      {state === "running" && <RunningState />}
-      {state === "results" && <ResultsState links={signedLinks} />}
-    </div>
+    <DetailPageLayout
+      category="Home"
+      backHref="/tenant"
+      title="Credit screening"
+      status={STATE_STATUS[state]}
+      facts={[{ k: "Applicant", v: applicantName }]}
+    >
+      <DetailFullWidth>
+        <div className="max-w-2xl space-y-4">
+          {state === "ready" && <ReadyState />}
+          {state === "running" && <RunningState />}
+          {state === "results" && <ResultsState links={signedLinks} />}
+        </div>
+      </DetailFullWidth>
+    </DetailPageLayout>
   )
 }
 
@@ -113,49 +128,48 @@ function deriveState(status: string | null): "ready" | "running" | "results" {
 
 function ReadyState() {
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-border/60 bg-card p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-6 w-6 text-brand shrink-0" />
-          <h2 className="font-semibold text-lg">Credit & identity check</h2>
+    <>
+      <DetailCard title="Credit & identity check">
+        <div className="space-y-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3 text-foreground">
+            <ShieldCheck className="h-5 w-5 shrink-0 text-brand" />
+            <span className="font-semibold">Multi-bureau check</span>
+          </div>
+          <p>
+            Your managing agent will initiate a multi-bureau credit check as part of the application process.
+            This check covers TransUnion, XDS, Experian Sigma, and VeriCred — and includes a Home Affairs
+            identity verification and SAFPS fraud register check.
+          </p>
+          <p>You will be notified when your report is ready for download.</p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Your managing agent will initiate a multi-bureau credit check as part of the application process.
-          This check covers TransUnion, XDS, Experian Sigma, and VeriCred — and includes a Home Affairs
-          identity verification and SAFPS fraud register check.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          You will be notified when your report is ready for download.
-        </p>
-      </div>
+      </DetailCard>
 
-      <div className="rounded-xl border border-border/60 bg-card p-6 space-y-4">
-        <h3 className="font-semibold text-sm">Personal information processed by</h3>
-        <p className="text-xs text-muted-foreground mb-3">
+      <DetailCard title="Personal information processed by">
+        <p className="mb-3 text-xs text-muted-foreground">
           POPIA s23(3) — the following registered credit bureaux will process your personal information:
         </p>
         <ul className="space-y-2">
           {COMBINED_DATA_CONTROLLERS.map((dc) => (
-            <li key={dc.name} className="text-sm border-l-2 border-brand/30 pl-3">
-              <span className="font-medium">{dc.name}</span>
+            <li key={dc.name} className="border-l-2 border-amber-400/40 pl-3 text-sm">
+              <span className="font-medium text-foreground">{dc.name}</span>
               {dc.contact !== "TBD" && (
                 <span className="text-muted-foreground"> · {dc.contact}</span>
               )}
             </li>
           ))}
         </ul>
-      </div>
-    </div>
+      </DetailCard>
+    </>
   )
 }
 
 function RunningState() {
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 flex items-start gap-4">
-      <Clock className="h-6 w-6 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+    <div className="flex items-start gap-4 rounded-[var(--r-button)] border border-warning/30 bg-warning/10 p-6">
+      <Clock className="mt-0.5 h-6 w-6 shrink-0 animate-pulse text-warning" />
       <div>
-        <h2 className="font-semibold text-amber-900">Credit check in progress</h2>
-        <p className="text-sm text-amber-800 mt-1">
+        <h2 className="font-semibold text-foreground">Credit check in progress</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           We&apos;re pulling your credit profile from multiple bureaux. This typically takes 1–3 minutes.
           Refresh this page to check if your report is ready.
         </p>
@@ -166,46 +180,47 @@ function RunningState() {
 
 function ResultsState({ links }: { links: { label: string; url: string }[] }) {
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-success/30 bg-success/5 p-6 flex items-start gap-4">
-        <CheckCircle2 className="h-6 w-6 text-success shrink-0 mt-0.5" />
+    <>
+      <div className="flex items-start gap-4 rounded-[var(--r-button)] border border-success/30 bg-success/5 p-6">
+        <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-success" />
         <div>
-          <h2 className="font-semibold">Credit report ready</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h2 className="font-semibold text-foreground">Credit report ready</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Your multi-bureau credit report is available below. These are your personal reports from each credit bureau.
           </p>
         </div>
       </div>
 
       {links.length > 0 ? (
-        <div className="rounded-xl border border-border/60 bg-card p-6 space-y-3">
-          <h3 className="font-semibold text-sm mb-4">Download your bureau reports</h3>
-          {links.map((link) => (
-            <a
-              key={link.label}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 rounded-lg border border-border/60 px-4 py-3 hover:bg-muted/50 transition-colors"
-            >
-              <FileDown className="h-4 w-4 text-brand shrink-0" />
-              <span className="text-sm font-medium flex-1">{link.label}</span>
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            </a>
-          ))}
-        </div>
+        <DetailCard title="Download your bureau reports">
+          <div className="space-y-3">
+            {links.map((link) => (
+              <a
+                key={link.label}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-[var(--r-button)] border border-border px-4 py-3 transition-colors hover:bg-muted/50"
+              >
+                <FileDown className="h-4 w-4 shrink-0 text-brand" />
+                <span className="flex-1 text-sm font-medium text-foreground">{link.label}</span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </a>
+            ))}
+          </div>
+        </DetailCard>
       ) : (
-        <div className="rounded-xl border border-border/60 bg-card p-6">
+        <DetailCard title="Reports">
           <p className="text-sm text-muted-foreground">
             Your reports are being prepared. Check back shortly or contact your managing agent.
           </p>
-        </div>
+        </DetailCard>
       )}
 
       <p className="text-xs text-muted-foreground">
         Download links expire after 1 hour. Reload this page to generate fresh links.
       </p>
-    </div>
+    </>
   )
 }
 

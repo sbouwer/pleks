@@ -4,12 +4,15 @@
  * Route:  /landlord/properties/[id]
  * Auth:   getLandlordSession (token-gated landlord portal); verifies property.landlord_id matches
  * Data:   createServiceClient — units, leases, maintenance_requests, owner_statements
+ * Notes:  Canon DetailPageLayout + DetailCard (door style) — presentation only.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { InlineLink } from "@/components/ui/actions"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailCard } from "@/components/detail/DetailCard"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { Download } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
@@ -85,124 +88,130 @@ export default async function LandlordPropertyDetailPage({ params }: Props) {
     emergency: "bg-danger", urgent: "bg-warning", routine: "bg-info", cosmetic: "bg-muted-foreground/40",
   }
 
+  function deriveStatus(): DetailStatus {
+    if (totalUnits === 0) return { kind: "neutral", label: "No units" }
+    if (occupiedUnits === 0) return { kind: "vacant", label: "Vacant" }
+    if (occupiedUnits >= totalUnits) return { kind: "occupied", label: "Fully let" }
+    return { kind: "occupied", label: `${occupancyPct}% let` }
+  }
+  const status = deriveStatus()
+
+  const facts: DetailFact[] = [
+    { k: "Units", v: String(totalUnits) },
+    { k: "Occupancy", v: `${occupancyPct}%` },
+    { k: "Monthly rent", v: formatZAR(monthlyRent), mono: true },
+  ]
+
+  const address = [property.address_line1, property.suburb, property.city].filter(Boolean).join(", ")
+
   return (
-    <div className="max-w-3xl space-y-6">
-      {/* Breadcrumb + header */}
-      <div>
-        <div className="mb-3">
-          <InlineLink href="/landlord/properties">← Your properties</InlineLink>
-        </div>
-        <h1 className="font-heading text-3xl">{property.name}</h1>
-        {[property.address_line1, property.suburb, property.city].filter(Boolean).join(", ") && (
-          <p className="text-muted-foreground mt-1">{[property.address_line1, property.suburb, property.city].filter(Boolean).join(", ")}</p>
-        )}
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Units", value: String(totalUnits) },
-          { label: "Occupancy", value: `${occupancyPct}%` },
-          { label: "Monthly rent", value: formatZAR(monthlyRent) },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-border/60 bg-surface-elevated px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">{s.label}</p>
-            <p className="font-heading text-xl mt-1">{s.value}</p>
-          </div>
-        ))}
-      </div>
-
+    <DetailPageLayout
+      category="Properties"
+      backHref="/landlord/properties"
+      title={property.name}
+      status={status}
+      sub={address || undefined}
+      facts={facts}
+    >
       {/* Units */}
-      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3">Units</p>
-        <div className="divide-y divide-border/60">
-          {units.map((unit) => {
-            const lease = leaseByUnit[unit.id]
-            const tenant = lease?.tenant_view as unknown as { first_name: string; last_name: string } | null
-            return (
-              <div key={unit.id} className="py-2.5 flex items-center gap-4 text-sm">
-                <div className="w-16 font-medium">{unit.unit_number}</div>
-                <div className="flex-1 text-muted-foreground">
-                  {[unit.bedrooms && `${unit.bedrooms} bed`, unit.bathrooms && `${unit.bathrooms} bath`].filter(Boolean).join(" · ") || "—"}
-                </div>
-                <div className="text-muted-foreground">
-                  {tenant ? `${tenant.first_name} ${tenant.last_name[0]}.` : <span className="text-muted-foreground/60">Vacant</span>}
-                </div>
-                <div className="text-right font-medium">
-                  {lease?.rent_amount_cents ? formatZAR(lease.rent_amount_cents) : "—"}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Maintenance needing approval */}
-      {pendingApproval.length > 0 && (
-        <div className="rounded-xl border border-warning/30 bg-warning/5 px-5 py-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Needs your approval</p>
-          {pendingApproval.map((req) => (
-            <LandlordMaintenanceCard key={req.id} req={req} showApproveActions />
-          ))}
-        </div>
-      )}
-
-      {/* Active maintenance */}
-      {activeMaint.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-1">Active maintenance</p>
-          {activeMaint.map((req) => (
-            <Link key={req.id} href={`/landlord/maintenance/${req.id}`} className="flex items-center gap-3 py-1.5 group">
-              <div className={`h-2 w-2 rounded-full shrink-0 ${URGENCY_COLORS[req.urgency ?? "routine"]}`} />
-              <p className="text-sm flex-1 truncate">{req.title}</p>
-              <span className="text-xs text-muted-foreground capitalize shrink-0">{req.status.replace(/_/g, " ")}</span>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {/* Recent completed */}
-      {recentCompleted.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 mb-1">Recently completed</p>
-          {recentCompleted.map((req) => (
-            <div key={req.id} className="flex items-center gap-3 py-1.5 text-sm text-muted-foreground">
-              <span className="text-success">✅</span>
-              <span className="flex-1 truncate">{req.title}</span>
-              {req.actual_cost_cents && <span className="shrink-0">{formatZAR(req.actual_cost_cents)}</span>}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Statements */}
-      {statements.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Recent statements</p>
-            <InlineLink href="/landlord/statements" withArrow={false}>View all</InlineLink>
-          </div>
-          <div className="divide-y divide-border/60">
-            {statements.map((s) => {
-              const period = new Date(s.period_month).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+      <DetailFullWidth>
+        <DetailCard title="Units" flush>
+          <div className="divide-y divide-border">
+            {units.map((unit) => {
+              const lease = leaseByUnit[unit.id]
+              const tenant = lease?.tenant_view as unknown as { first_name: string; last_name: string } | null
               return (
-                <div key={s.id} className="py-2.5 flex items-center gap-4 text-sm">
-                  <span className="flex-1 text-muted-foreground">{period}</span>
-                  <span className="font-medium">{formatZAR(s.net_to_owner_cents)}</span>
-                  <span className={`text-xs ${s.owner_payment_status === "paid" ? "text-success" : "text-muted-foreground"}`}>
-                    {s.owner_payment_status === "paid" ? "Paid ✓" : "Pending"}
-                  </span>
-                  {s.pdf_storage_path && (
-                    <a href={`/api/statements/${s.id}/download`} className="text-muted-foreground hover:text-foreground">
-                      <Download className="h-4 w-4" />
-                    </a>
-                  )}
+                <div key={unit.id} className="flex items-center gap-4 px-5 py-2.5 text-sm">
+                  <div className="w-16 font-medium text-foreground">{unit.unit_number}</div>
+                  <div className="flex-1 text-muted-foreground">
+                    {[unit.bedrooms && `${unit.bedrooms} bed`, unit.bathrooms && `${unit.bathrooms} bath`].filter(Boolean).join(" · ") || "—"}
+                  </div>
+                  <div className="text-muted-foreground">
+                    {tenant ? `${tenant.first_name} ${tenant.last_name[0]}.` : <span className="text-muted-foreground/60">Vacant</span>}
+                  </div>
+                  <div className="text-right font-medium text-foreground">
+                    {lease?.rent_amount_cents ? formatZAR(lease.rent_amount_cents) : "—"}
+                  </div>
                 </div>
               )
             })}
           </div>
-        </div>
+        </DetailCard>
+      </DetailFullWidth>
+
+      {/* Maintenance needing approval */}
+      {pendingApproval.length > 0 && (
+        <DetailFullWidth>
+          <DetailCard title="Needs your approval">
+            <div className="space-y-3">
+              {pendingApproval.map((req) => (
+                <LandlordMaintenanceCard key={req.id} req={req} showApproveActions />
+              ))}
+            </div>
+          </DetailCard>
+        </DetailFullWidth>
       )}
-    </div>
+
+      {/* Active maintenance */}
+      {activeMaint.length > 0 && (
+        <DetailFullWidth>
+          <DetailCard title="Active maintenance">
+            <div className="space-y-1">
+              {activeMaint.map((req) => (
+                <Link key={req.id} href={`/landlord/maintenance/${req.id}`} className="group flex items-center gap-3 py-1.5">
+                  <div className={`h-2 w-2 shrink-0 rounded-full ${URGENCY_COLORS[req.urgency ?? "routine"]}`} />
+                  <p className="flex-1 truncate text-sm text-foreground">{req.title}</p>
+                  <span className="shrink-0 text-xs capitalize text-muted-foreground">{req.status.replace(/_/g, " ")}</span>
+                </Link>
+              ))}
+            </div>
+          </DetailCard>
+        </DetailFullWidth>
+      )}
+
+      {/* Recent completed */}
+      {recentCompleted.length > 0 && (
+        <DetailFullWidth>
+          <DetailCard title="Recently completed">
+            <div className="space-y-1">
+              {recentCompleted.map((req) => (
+                <div key={req.id} className="flex items-center gap-3 py-1.5 text-sm text-muted-foreground">
+                  <span className="text-success">✅</span>
+                  <span className="flex-1 truncate">{req.title}</span>
+                  {req.actual_cost_cents && <span className="shrink-0">{formatZAR(req.actual_cost_cents)}</span>}
+                </div>
+              ))}
+            </div>
+          </DetailCard>
+        </DetailFullWidth>
+      )}
+
+      {/* Statements */}
+      {statements.length > 0 && (
+        <DetailFullWidth>
+          <DetailCard title="Recent statements" action={{ label: "View all", href: "/landlord/statements" }} flush>
+            <div className="divide-y divide-border">
+              {statements.map((s) => {
+                const period = new Date(s.period_month).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+                return (
+                  <div key={s.id} className="flex items-center gap-4 px-5 py-2.5 text-sm">
+                    <span className="flex-1 text-muted-foreground">{period}</span>
+                    <span className="font-medium text-foreground">{formatZAR(s.net_to_owner_cents)}</span>
+                    <span className={`text-xs ${s.owner_payment_status === "paid" ? "text-success" : "text-muted-foreground"}`}>
+                      {s.owner_payment_status === "paid" ? "Paid ✓" : "Pending"}
+                    </span>
+                    {s.pdf_storage_path && (
+                      <a href={`/api/statements/${s.id}/download`} className="text-muted-foreground hover:text-foreground">
+                        <Download className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </DetailCard>
+        </DetailFullWidth>
+      )}
+    </DetailPageLayout>
   )
 }

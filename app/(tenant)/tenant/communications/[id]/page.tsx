@@ -4,9 +4,8 @@
  * Route:  /tenant/communications/[id]
  * Auth:   getTenantSession (token-gated tenant portal)
  * Data:   communication_log, communication_delivery_events via service client
- * Notes:  Page visit auto-records a portal_view delivery event (Tribunal evidence).
- *         "I've read this" button is available for mandatory comms with no prior portal view.
- *         BUILD_63 Phase 8 (§9.1).
+ * Notes:  Page visit auto-records a portal_view delivery event (Tribunal evidence). Mandatory comms show a
+ *         "Notice" badge + acknowledgement banner. BUILD_63 Phase 8 (§9.1). Canon DetailPageLayout + DetailCard.
  */
 
 import { redirect, notFound } from "next/navigation"
@@ -14,9 +13,10 @@ import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTemplate } from "@/lib/comms/template-registry"
 import { recordPortalView } from "@/lib/actions/portal-comms"
-import { Badge } from "@/components/ui/badge"
-import { Mail, MessageSquare, CheckCircle2, XCircle, AlertTriangle, ChevronLeft } from "lucide-react"
-import Link from "next/link"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailCard } from "@/components/detail/DetailCard"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
+import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function isTemplateMandatory(key: string | null): boolean {
@@ -38,6 +38,12 @@ const EVENT_LABELS: Record<string, string> = {
   opened: "Opened", clicked: "Link clicked", bounced_hard: "Hard bounce",
   bounced_soft: "Soft bounce", complained: "Spam report", unsubscribed: "Unsubscribed",
   failed: "Failed", page_view: "Viewed online", portal_view: "Viewed in portal",
+}
+
+function commStatus(status: string, label: string): DetailStatus {
+  if (status === "failed") return { kind: "flag", label }
+  if (status === "delivered" || status === "read") return { kind: "occupied", label }
+  return { kind: "neutral", label }
 }
 
 export default async function CommDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -73,69 +79,48 @@ export default async function CommDetailPage({ params }: { params: Promise<{ id:
   const subject = (comm.subject as string | null) ?? templateLabel(comm.template_key as string | null)
   const statusLabel = STATUS_LABELS[(comm.status as string) ?? ""] ?? (comm.status as string) ?? "Unknown"
 
+  const facts: DetailFact[] = [
+    { k: "Channel", v: (comm.channel as string) === "sms" ? "SMS" : "Email" },
+    { k: "Type", v: templateLabel(comm.template_key as string | null) },
+    { k: "Date", v: new Date(comm.created_at as string).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" }) },
+  ]
+
   return (
-    <div className="max-w-2xl">
-      <Link
-        href="/tenant/communications"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        <ChevronLeft className="h-3.5 w-3.5" />
-        Back to communications
-      </Link>
+    <DetailPageLayout
+      category="Communications"
+      backHref="/tenant/communications"
+      title={subject}
+      status={commStatus(comm.status as string, statusLabel)}
+      badge={mandatory ? (
+        <span className="inline-flex items-center gap-1 rounded-[var(--r-button)] border border-warning/30 bg-warning/10 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-warning">
+          <AlertTriangle className="h-3 w-3" />
+          Notice
+        </span>
+      ) : undefined}
+      facts={facts}
+    >
+      {comm.body && (
+        <DetailFullWidth>
+          <DetailCard title="Message">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{comm.body as string}</p>
+          </DetailCard>
+        </DetailFullWidth>
+      )}
 
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="rounded-xl border border-border/60 bg-card px-5 py-4">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5">
-              {(comm.channel as string) === "sms"
-                ? <MessageSquare className="h-5 w-5 text-muted-foreground" />
-                : <Mail className="h-5 w-5 text-muted-foreground" />
-              }
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <h1 className="font-semibold text-base">{subject}</h1>
-                {mandatory && (
-                  <Badge className="bg-amber-100 text-amber-700 text-xs">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    Notice
-                  </Badge>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">{templateLabel(comm.template_key as string | null)}</p>
-              <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                <span>{new Date(comm.created_at as string).toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
-                <span>·</span>
-                <span>{statusLabel}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Body preview */}
-        {comm.body && (
-          <div className="rounded-xl border border-border/60 bg-card px-5 py-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Message</p>
-            <p className="text-sm text-foreground whitespace-pre-wrap">{comm.body as string}</p>
-          </div>
-        )}
-
-        {/* Delivery timeline */}
-        {(events ?? []).length > 0 && (
-          <div className="rounded-xl border border-border/60 bg-card px-5 py-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Delivery history</p>
+      {(events ?? []).length > 0 && (
+        <DetailFullWidth>
+          <DetailCard title="Delivery history">
             <div className="space-y-2">
               {(events ?? []).map((ev) => {
                 const isFail = (ev.event_type as string).includes("bounce") || ev.event_type === "failed" || ev.event_type === "complained"
                 return (
                   <div key={ev.id} className="flex items-center gap-3 text-xs">
                     {isFail
-                      ? <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                      : <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                      ? <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                      : <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
                     }
                     <span className="text-foreground">{EVENT_LABELS[ev.event_type as string] ?? ev.event_type}</span>
-                    <span className="text-muted-foreground ml-auto">
+                    <span className="ml-auto text-muted-foreground">
                       {new Date(ev.occurred_at as string).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}{" "}
                       {new Date(ev.occurred_at as string).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
                     </span>
@@ -143,32 +128,35 @@ export default async function CommDetailPage({ params }: { params: Promise<{ id:
                 )
               })}
             </div>
-          </div>
-        )}
+          </DetailCard>
+        </DetailFullWidth>
+      )}
 
-        {/* Acknowledgement banner for unread mandatory comms */}
-        {mandatory && !hasPortalView && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+      {mandatory && !hasPortalView && (
+        <DetailFullWidth>
+          <div className="rounded-[var(--r-button)] border border-warning/30 bg-warning/10 px-5 py-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
               <div>
-                <p className="text-sm font-semibold text-amber-800">This is a mandatory notice</p>
-                <p className="text-xs text-amber-700 mt-1">
+                <p className="text-sm font-semibold text-foreground">This is a mandatory notice</p>
+                <p className="mt-1 text-xs text-muted-foreground">
                   This notice requires your attention. Viewing this page has been recorded for audit purposes.
                   If you have questions, please contact your managing agent.
                 </p>
               </div>
             </div>
           </div>
-        )}
+        </DetailFullWidth>
+      )}
 
-        {mandatory && hasPortalView && (
-          <div className="flex items-center gap-2 text-sm text-green-700 px-1">
+      {mandatory && hasPortalView && (
+        <DetailFullWidth>
+          <div className="flex items-center gap-2 px-1 text-sm text-success">
             <CheckCircle2 className="h-4 w-4" />
             Notice viewed — your acknowledgement has been recorded.
           </div>
-        )}
-      </div>
-    </div>
+        </DetailFullWidth>
+      )}
+    </DetailPageLayout>
   )
 }

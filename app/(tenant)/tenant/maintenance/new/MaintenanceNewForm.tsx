@@ -1,21 +1,18 @@
 "use client"
 
 /**
- * app/(tenant)/tenant/maintenance/new/MaintenanceNewForm.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/maintenance/new/MaintenanceNewForm.tsx — multi-step report-an-issue form (tenant portal)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   rendered inside the session-guarded tenant portal; posts via submitMaintenanceRequest
+ * Data:   Haiku triage suggests urgency (advisory); lease clauses drive the consent wording
+ * Notes:  Canon forms/fields + DetailCard + token colours (door style). Describe → urgency → confirm.
  */
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ActionButton } from "@/components/ui/actions"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SelectField, TextareaField } from "@/components/forms/fields"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { toast } from "sonner"
 import { Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft } from "lucide-react"
 import { submitMaintenanceRequest } from "./actions"
@@ -27,6 +24,7 @@ interface Props {
 }
 
 const CATEGORIES = [
+  { value: "", label: "Select category" },
   { value: "plumbing", label: "Plumbing" },
   { value: "electrical", label: "Electrical" },
   { value: "structural", label: "Structural" },
@@ -136,7 +134,7 @@ export function MaintenanceNewForm({
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {([1, 2, 3] as Step[]).map((s) => (
           <div key={s} className="flex items-center gap-2">
-            <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
               s <= step ? "bg-brand text-white" : "bg-muted text-muted-foreground"
             }`}>{s}</span>
             {s < 3 && <div className={`h-px w-6 ${s < step ? "bg-brand" : "bg-border"}`} />}
@@ -150,32 +148,17 @@ export function MaintenanceNewForm({
       {/* ── Step 1: Describe ── */}
       {step === 1 && (
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Category *</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SelectField label="Category" required value={category} onChange={setCategory} options={CATEGORIES} />
 
-          <div className="space-y-1.5">
-            <Label>Describe the issue *</Label>
-            <Textarea
+          <div>
+            <TextareaField
+              label="Describe the issue"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(v) => setDescription(v.slice(0, 1000))}
               rows={5}
               placeholder="Describe what's happening, where it is, and when it started. The more detail you give, the faster it can be resolved."
-              className="resize-none text-sm"
-              minLength={20}
-              maxLength={1000}
             />
-            <p className={`text-xs ${description.length < 20 ? "text-muted-foreground" : "text-success"}`}>
+            <p className={`mt-1 text-xs ${description.length < 20 ? "text-muted-foreground" : "text-success"}`}>
               {description.length}/1000 {description.length < 20 && `— minimum 20 characters`}
             </p>
           </div>
@@ -197,35 +180,35 @@ export function MaintenanceNewForm({
 
           {/* AI suggestion */}
           {aiLoading && (
-            <div className="rounded-xl border border-info/30 bg-info/5 px-4 py-3 flex items-center gap-2.5 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin text-info shrink-0" />
+            <div className="flex items-center gap-2.5 rounded-[var(--r-button)] border border-info/30 bg-info/5 px-4 py-3 text-sm">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-info" />
               Assessing urgency…
             </div>
           )}
           {!aiLoading && aiUrgency && aiUrgency !== urgency && (
-            <div className="rounded-xl border border-info/30 bg-info/5 px-4 py-3 text-sm space-y-1">
+            <div className="space-y-1 rounded-[var(--r-button)] border border-info/30 bg-info/5 px-4 py-3 text-sm">
               <p className="font-medium">
                 {URGENCY_ICON[aiUrgency]} AI suggestion: {aiUrgency}
               </p>
               {aiRationale && <p className="text-muted-foreground">{aiRationale}</p>}
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs text-muted-foreground">
                 You can still select a different level — your agent will confirm priority.
               </p>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <Label>How urgent is this? *</Label>
+            <p className="block text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">How urgent is this? <span className="text-primary">*</span></p>
             <div className="space-y-2">
               {URGENCIES.map((u) => (
                 <button
                   key={u.value}
                   type="button"
                   onClick={() => setUrgency(u.value)}
-                  className={`w-full text-left rounded-xl border px-4 py-3 text-sm transition-colors ${
+                  className={`w-full rounded-[var(--r-button)] border px-4 py-3 text-left text-sm transition-colors ${
                     urgency === u.value
-                      ? "border-brand bg-brand/5 text-brand font-medium"
-                      : "border-border/60 hover:border-border text-foreground"
+                      ? "border-brand bg-brand/5 font-medium text-brand"
+                      : "border-border text-foreground hover:border-[var(--rule-strong)]"
                   }`}
                 >
                   {URGENCY_ICON[u.value]} {u.label}
@@ -252,21 +235,22 @@ export function MaintenanceNewForm({
         <div className="space-y-4">
 
           {/* Summary */}
-          <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-2 text-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3">Your request</p>
-            <div className="flex justify-between"><span className="text-muted-foreground">Category</span><span className="capitalize">{category.replaceAll("_", " ")}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Urgency</span><span>{URGENCY_ICON[urgency]} {urgency}</span></div>
-            <div className="pt-2 border-t border-border/60">
-              <p className="text-muted-foreground mb-1">Description</p>
-              <p className="leading-relaxed">{description}</p>
+          <DetailCard title="Your request">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between gap-3"><span className="text-muted-foreground">Category</span><span className="capitalize text-foreground">{category.replaceAll("_", " ")}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-muted-foreground">Urgency</span><span className="text-foreground">{URGENCY_ICON[urgency]} {urgency}</span></div>
+              <div className="border-t border-border pt-2">
+                <p className="mb-1 text-muted-foreground">Description</p>
+                <p className="leading-relaxed text-foreground">{description}</p>
+              </div>
             </div>
-          </div>
+          </DetailCard>
 
           {/* Cost liability disclaimer */}
-          <div className="rounded-xl border border-warning/30 bg-warning/5 px-5 py-4 space-y-3">
+          <div className="space-y-3 rounded-[var(--r-button)] border border-warning/30 bg-warning/5 px-5 py-4">
             <div className="flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
-              <p className="text-sm font-semibold">Maintenance cost responsibility</p>
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <p className="text-sm font-semibold text-foreground">Maintenance cost responsibility</p>
             </div>
 
             {isPleksTemplate && maintenanceClause && tenantLiabilityClause ? (

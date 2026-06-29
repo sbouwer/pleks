@@ -13,9 +13,9 @@ import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { listControllersForSubject } from "@/lib/popia/requests"
 import { SovereignDataBadge } from "@/components/popia/SovereignDataBadge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { ActionButton } from "@/components/ui/actions"
-import { Badge } from "@/components/ui/badge"
 import { ChevronRight, ExternalLink } from "lucide-react"
 
 export default async function LandlordPrivacyPage() {
@@ -42,92 +42,76 @@ export default async function LandlordPrivacyPage() {
   const recentRequests = requestsResult.data ?? []
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Your data &amp; privacy</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Your POPIA rights are held by you as a person, across all agencies that hold data about you.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <ResourcePageHeader
+        eyebrow="Landlord"
+        title="Your data & privacy"
+        headline="Your POPIA rights, held by you"
+        sub="Across all agencies that hold data about you, regardless of which workspace you're signed into."
+      />
 
       <div className="space-y-3">
         {controllers.map((ctrl) => (
-          <Card key={`${ctrl.type}-${ctrl.org_id ?? "pleks"}`} className="w-full">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-medium">{ctrl.org_name}</CardTitle>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {ctrl.type === "pleks_rp"
-                      ? "Pleks — Responsible Party for your account"
-                      : `${ctrl.subject_role} — agency data`}
-                  </p>
-                </div>
-                <Badge variant="outline" className="text-xs capitalize">
-                  {ctrl.subject_role.replace("_", " ")}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pb-3">
-              <p className="text-xs text-muted-foreground mb-3">
-                {ctrl.data_categories.join(" · ")}
-              </p>
-              {ctrl.org_id && (
-                <div className="flex gap-2">
-                  <ActionButton asChild tone="secondary" size="sm" className="h-7 text-xs">
-                    <Link href={`/landlord/privacy/requests/new?org=${ctrl.org_id}`}>
-                      Open request <ChevronRight className="size-3 ml-1" />
+          <DetailCard
+            key={`${ctrl.type}-${ctrl.org_id ?? "pleks"}`}
+            title={ctrl.org_name}
+            headerAction={
+              <span className="rounded-[var(--r-button)] border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.07em] text-muted-foreground">
+                {ctrl.subject_role.replace("_", " ")}
+              </span>
+            }
+          >
+            <p className="mb-1 text-xs capitalize text-muted-foreground">
+              {ctrl.type === "pleks_rp"
+                ? "Pleks — Responsible Party for your account"
+                : `${ctrl.subject_role} — agency data`}
+            </p>
+            <p className="mb-3 text-xs text-muted-foreground">{ctrl.data_categories.join(" · ")}</p>
+            {ctrl.org_id && (
+              <div className="flex gap-2">
+                <ActionButton asChild tone="secondary" size="sm">
+                  <Link href={`/landlord/privacy/requests/new?org=${ctrl.org_id}`}>
+                    Open request <ChevronRight className="ml-1 size-3" />
+                  </Link>
+                </ActionButton>
+                {ctrl.subject_role === "landlord" && (
+                  <ActionButton asChild tone="secondary" size="sm">
+                    <Link href="/landlord/trust-summary">
+                      Trust summary
                     </Link>
                   </ActionButton>
-                  {ctrl.subject_role === "landlord" && (
-                    <ActionButton asChild tone="secondary" size="sm" className="h-7 text-xs">
-                      <Link href="/landlord/trust-summary">
-                        Trust summary
-                      </Link>
-                    </ActionButton>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </div>
+            )}
+          </DetailCard>
         ))}
       </div>
 
       <SovereignDataBadge variant="subject" agencyName="your agency" />
 
       {recentRequests.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">Previous requests</CardTitle>
-              <ActionButton asChild tone="secondary" size="sm" className="h-7 text-xs">
-                <Link href="/landlord/privacy/requests">
-                  View all
-                </Link>
-              </ActionButton>
-            </div>
-          </CardHeader>
-          <CardContent className="divide-y">
+        <DetailCard title="Previous requests" action={{ label: "View all", href: "/landlord/privacy/requests" }} flush>
+          <div className="divide-y divide-border">
             {recentRequests.map((r) => (
               <Link
                 key={r.id}
                 href={`/landlord/privacy/requests/${r.id}`}
-                className="flex items-center justify-between py-2 hover:bg-muted/50 -mx-2 px-2 rounded transition-colors"
+                className="flex items-center justify-between px-5 py-3 transition-colors hover:bg-muted/40"
               >
                 <div>
-                  <p className="text-sm capitalize">{r.request_type.replace("_", " ")}</p>
+                  <p className="text-sm capitalize text-foreground">{r.request_type.replace("_", " ")}</p>
                   <p className="text-xs text-muted-foreground">
                     {new Date(r.submitted_at).toLocaleDateString("en-ZA")}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs capitalize">{r.status}</Badge>
+                  <span className="rounded-[var(--r-button)] border border-border px-2 py-0.5 text-xs capitalize text-muted-foreground">{r.status}</span>
                   <ChevronRight className="size-4 text-muted-foreground" />
                 </div>
               </Link>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </DetailCard>
       )}
 
       <div className="grid grid-cols-2 gap-3">
