@@ -30,7 +30,12 @@ function spouseForm(spouse: SpouseInfo): Partial<ResumeState["form"]> {
 
 export function buildCoResumeState(
   co: UniformApplicant,
-  ctx: Readonly<{ applicationId: string; token: string; docPaths: ResumeState["docPaths"] }>,
+  ctx: Readonly<{
+    applicationId: string; token: string; docPaths: ResumeState["docPaths"]
+    /** the LEAD as a co-shaped candidate — for the "my spouse is the main applicant" option in StepPersonal + the
+     *  symmetric s15 link (resolveSpouseInfo). NOT a hub roster entry — the co hub is self-only (isCo guard). */
+    spouseCandidate?: ResumeState["coApplicants"][number] | null
+  }>,
 ): ResumeState {
   const sd = (co.sectionData ?? {}) as CoSectionData
   const spouse = co.identity.spouseInfo as SpouseInfo
@@ -59,7 +64,9 @@ export function buildCoResumeState(
     dependentMinors: sd.dependants?.minors ?? null,
     incomeSources: sd.income_sources ?? [],
     commitments: sd.expenses ?? [],
-    coApplicants: [], // POPIA: a co sees only their own card — never the roster of other peers (14R §5)
+    // Only the LEAD (for the spouse-link option + s15) — NOT a hub roster (the co hub is self-only via the isCo
+    // guard in buildStatusMenuData, so this never surfaces other peers to the co; POPIA §5 holds).
+    coApplicants: ctx.spouseCandidate ? [ctx.spouseCandidate] : [],
     docPaths: ctx.docPaths,
     selfDone: co.consentGiven,
   }

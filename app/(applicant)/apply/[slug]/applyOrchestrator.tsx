@@ -32,25 +32,28 @@ import { StepSubmit, VerifyEmail, ConsentVerify } from "./applyReview"
 import { ApplicationStatusMenu } from "./applyStatusMenu"
 import { StepBar, SubTabs, ApplyNavRail } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
-import { useApplyFlow, type ResumeState } from "./useApplyFlow"
+import { useApplyFlow, type ResumeState, type ApplyActor } from "./useApplyFlow"
 
 export type { ResumeState }
 
 // "done" = the Step-1 free assessment is ready to show (it's instant — no processing/poll). The deep-scan ruling
 // moved off the applicant flow to the agent's shortlist step (Step 2). (ADDENDUM_14M three-step funnel)
 
-export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, agentCard, listingCard }: Readonly<{
+export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, actor, agentCard, listingCard }: Readonly<{
   slug: string; orgId: string; listingTitle?: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
   /** the logged-in visitor's account email (already confirmed) — if it matches, skip the email-OTP gate. */
   verifiedEmail?: string | null
+  /** 14R: who this session belongs to (default = the lead). A co peer passes { isLead:false, coId } to run the
+   *  same flow at the hub / their own card, token-as-proof, writing to the co endpoint. */
+  actor?: ApplyActor
   /** the agent card, rendered at the bottom of the desktop side column (full-page shell). */
   agentCard?: ReactNode
   /** the home being applied for — shown in the side column BEFORE begin; replaced by the step rail after. */
   listingCard?: ReactNode
 }>) {
-  const f = useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail })
+  const f = useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, actor })
   const {
     commercial, type, form, set, errors, emp, setEmp, income, setIncome,
     dependentAdults, setDependentAdults, dependentMinors, setDependentMinors, commitments, setCommitments,

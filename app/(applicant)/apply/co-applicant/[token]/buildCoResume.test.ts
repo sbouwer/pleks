@@ -67,6 +67,12 @@ describe("buildCoResumeState", () => {
     expect(r.dependentAdults).toBeNull()
   })
 
+  it("seeds the lead as the sole co (spouse-linking only; the hub stays self-only via the isCo guard)", () => {
+    expect(buildCoResumeState(coApplicant(), CTX).coApplicants).toEqual([])
+    const lead = { firstName: "Lead", lastName: "One", email: "lead@x.com", phone: "", idNumber: "8505050050081", role: "co_applicant" as const, invited: true }
+    expect(buildCoResumeState(coApplicant(), { ...CTX, spouseCandidate: lead }).coApplicants).toEqual([lead])
+  })
+
   it("selfDone tracks consentGiven", () => {
     expect(buildCoResumeState(coApplicant({ consentGiven: true }), CTX).selfDone).toBe(true)
     expect(buildCoResumeState(coApplicant({ consentGiven: false }), CTX).selfDone).toBe(false)
