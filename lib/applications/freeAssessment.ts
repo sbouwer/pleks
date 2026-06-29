@@ -42,6 +42,15 @@ function suretyUnitsCoverRent(guarantors: FreeApplicantInput[], rentCents: numbe
 /** The STRONGEST surety unit's pooled residual capacity (0 if none) — the same pooling as suretyUnitsCoverRent, but
  *  returning the best unit's amount rather than a bool. Lets a caller distinguish none (0) / partial (<rent) / full
  *  (≥rent) cover — e.g. the company-card's director-surety context line. */
+/** Strongest director-surety residual for the context LINE (none/partial/full read). For a COMPANY the director-
+ *  filler is a surety director but is modelled as the "primary" (on-behalf already resolves the primary to the named
+ *  director), so fold the primary into the pool — otherwise a director who declared surety reads as "no surety".
+ *  Drives only guarantorBestResidualCents; the verdict's guarantorBacksRent stays guarantor-role-only. */
+function directorSuretyResidualCents(applicants: FreeApplicantInput[], guarantors: FreeApplicantInput[], isCompany: boolean): number {
+  const primaryInput = applicants.find((a) => a.role === "primary")
+  return bestSuretyUnitResidualCents(isCompany && primaryInput ? [primaryInput, ...guarantors] : guarantors)
+}
+
 function bestSuretyUnitResidualCents(guarantors: FreeApplicantInput[]): number {
   if (guarantors.length === 0) return 0
   const units = new Map<string, FreeApplicantInput[]>()
@@ -476,7 +485,7 @@ export function freeAssessment(rentCents: number, applicants: FreeApplicantInput
   const guarantors = applicants.filter((a) => a.role === "guarantor")
   const hasGuarantor = guarantors.length > 0
   const guarantorBacksRent = suretyUnitsCoverRent(guarantors, rentCents)
-  const guarantorBestResidualCents = bestSuretyUnitResidualCents(guarantors)
+  const guarantorBestResidualCents = directorSuretyResidualCents(applicants, guarantors, opts.company != null)
   // s15(2)(h) MPA: an in-community surety-giver needs spousal CONSENT (co-signed via DocuSeal at signing). Validity,
   // separate from pooling. Surfaced here so the flow can require + route the witnessed consent before submit.
   const spousalConsentRequired = applicants.some((a) => a.role === "guarantor" && a.maritalRegime === "in_community")

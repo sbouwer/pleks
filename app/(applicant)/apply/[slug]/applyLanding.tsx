@@ -85,12 +85,12 @@ function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Reado
   const updateCo = (i: number, patch: Partial<CoApplicant>) => setCoApplicants(coApplicants.map((c, j) => (j === i ? { ...c, ...patch } : c)))
   const addCo = () => setCoApplicants([...coApplicants, blankCo(type === "guarantor" ? "guarantor" : "co_applicant")])
   const removeCo = (i: number) => setCoApplicants(coApplicants.filter((_, j) => j !== i))
-  // First two parties are mandatory (You + the first co) — only couple/guarantor reach here; "just me" shows no party
-  // section at all. Co-applicants at/after this index are optional → removable (✗) + last box tucked.
+  // "Just me" renders only the You row (no co-rows). Couple/guarantor seed one mandatory co (You + first co); any
+  // co-applicant at/after this index is optional → removable (✗) + last box tucked.
   const mandatoryCo = 1
   return (
     <>
-      <p className="text-xs font-medium text-[var(--ink)]">Who&apos;s on the application?</p>
+      <p className="text-xs font-medium text-[var(--ink)]">{type === "individual" ? "Your details" : "Who's on the application?"}</p>
       {/* Row 1 — YOU. The primary applicant; you'll finish your full details next. */}
       <div className="flex flex-wrap items-center gap-1.5">
         <input placeholder="First name" value={form.firstName ?? ""} onChange={(e) => set("firstName", e.target.value)} className={CO_INPUT} />
@@ -125,12 +125,15 @@ function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Reado
           </span>
         </div>
       ))}
-      <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={addCo} className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
-          <Plus className="size-4" /> Add another person
-        </button>
-        <span className="text-[11px] text-[var(--ink-mute)]">Each person gets their own secure link to consent &amp; load documents.</span>
-      </div>
+      {/* "Just me" is one person — no co-applicants — so no "add another". Other flows can append people. */}
+      {type !== "individual" && (
+        <div className="flex items-center justify-between gap-2">
+          <button type="button" onClick={addCo} className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--ink-soft)] transition-colors hover:text-[var(--ink)]">
+            <Plus className="size-4" /> Add another person
+          </button>
+          <span className="text-[11px] text-[var(--ink-mute)]">Each person gets their own secure link to consent &amp; load documents.</span>
+        </div>
+      )}
     </>
   )
 }
@@ -237,7 +240,7 @@ export function ApplyAsPane({ commercial, type, onSelect, form, set, coApplicant
   const [retEmail, setRetEmail] = useState("")
   // couple / guarantor / company all capture people inline; company also captures the business above them.
   // The per-type capture lives in PersonParties / CompanyParties; this pane just picks one.
-  const parties = type === "couple" || type === "guarantor" || type === "company"
+  const parties = type === "individual" || type === "couple" || type === "guarantor" || type === "company"
   // Company person role depends on the type: juristic = director, partnership = partner, sole prop/other = owner.
   const companyJuristic = isJuristicCompanyType(company.companyType)
   let companyRole = "owner"

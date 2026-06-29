@@ -540,7 +540,7 @@ export async function sendCoApplicantInvited(
         <EmailSectionHeading>What you need to do</EmailSectionHeading>
         <p style={S.body}>
           Click the button below to complete your portion of the joint application.
-          This includes your personal details, income, and consent to a credit check.
+          This includes your personal details, income, and your consent to pre-screen the application (POPIA). No credit check runs at this stage.
         </p>
         <EmailButton href={inviteLink} accentColor={org.branding.accentColor}>Complete your co-applicant details →</EmailButton>
         <p style={S.footer}>

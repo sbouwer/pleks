@@ -110,23 +110,28 @@ export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber =
             {/* Regime un-greys only once married — it's meaningless otherwise. */}
             <SelectField label="Matrimonial regime" k="matrimonialRegime" f={f} set={set} options={MATRIMONIAL_REGIME_OPTIONS} disabled={f.maritalStatus !== "married"} required={f.maritalStatus === "married"} errors={errors} />
           </div>
-          {f.maritalStatus === "married" && f.matrimonialRegime === "in_community" && (() => {
+          {/* Married → spouse block. IN COMMUNITY: spousal consent is legally required (s15) — capture/link the spouse.
+              ANC / out of community (residential, with co-applicants): NOT a consent matter, but offer to LINK an
+              existing co-applicant as the spouse (14M spouse-linking — symmetric, allow+flag, never mandatory). */}
+          {f.maritalStatus === "married" && (f.matrimonialRegime === "in_community" || (suggestSpouseIsCo && coApplicants.length > 0)) && (() => {
             const hasCoApplicants = coApplicants.length > 0
+            const inCommunity = f.matrimonialRegime === "in_community"
             // Default to "spouse is applying with me" only when we SUGGEST it (residential couple — the common case);
-            // for a company the co-applicants are co-directors, not presumed spouses, so default off (14M spouse-
-            // linking amendment §2). The option stays available either way.
+            // for a company the co-applicants are co-directors, not presumed spouses, so default off (14M §2).
             const spouseIsCo = hasCoApplicants && (f.spouseIsCoApplicant ?? suggestSpouseIsCo)
             return (
               <div className="mt-5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
-                <SectLabel n="01a">Spouse consent (in community of property)</SectLabel>
-                <p className="mb-3 text-xs leading-relaxed text-[var(--ink-soft)]">Married in community of property means the joint estate is bound, so your spouse must consent (s15, Matrimonial Property Act).</p>
+                <SectLabel n="01a">{inCommunity ? "Spouse consent (in community of property)" : "Your spouse"}</SectLabel>
+                <p className="mb-3 text-xs leading-relaxed text-[var(--ink-soft)]">{inCommunity
+                  ? "Married in community of property means the joint estate is bound, so your spouse must consent (s15, Matrimonial Property Act)."
+                  : "If your spouse is one of the people applying with you, link them here — it keeps your details consistent. There's no extra step for them."}</p>
                 {hasCoApplicants && (
                   <label className="mb-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-[var(--ink-soft)]">
                     <input type="checkbox" checked={spouseIsCo} onChange={(e) => set("spouseIsCoApplicant", e.target.checked)} className="size-3.5 accent-[var(--amber)]" />
                     My spouse is {coApplicants.length === 1 ? `${coApplicants[0].firstName ?? ""} ${coApplicants[0].lastName ?? ""}`.trim() || "the person" : "one of the people"} applying with me
                   </label>
                 )}
-                {spouseIsCo ? (
+                {spouseIsCo && (
                   <>
                     {coApplicants.length > 1 && (
                       <div className="mb-3 sm:max-w-xs">
@@ -136,7 +141,10 @@ export function IndividualIdentity({ f = {}, set, errors, fullFica, stepNumber =
                     )}
                     <p className="text-xs leading-relaxed text-[var(--ink-soft)]">No extra step — they consent and verify their identity as part of their own application.</p>
                   </>
-                ) : (
+                )}
+                {/* Spouse is NOT among the co-applicants. In community → we must still capture them for consent (mandatory).
+                    ANC → optional, nothing more to do (the suggestion above is enough; no spouse details required). */}
+                {!spouseIsCo && inCommunity && (
                   <>
                     <p className="mb-3 text-xs leading-relaxed text-[var(--ink-soft)]">We&apos;ll email them a secure link to confirm their identity and sign — you can finish, but the application can&apos;t be submitted until they do.</p>
                     <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">

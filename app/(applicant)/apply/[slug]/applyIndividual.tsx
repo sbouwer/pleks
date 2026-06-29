@@ -8,7 +8,7 @@
  *         renders these. Shares only bricks (form fields, AddressFields, IndividualIdentity) + applyDomain helpers.
  */
 import { useState } from "react"
-import { AlertCircle, CheckCircle2, FileText, Loader2, Plus, Upload, X } from "lucide-react"
+import { AlertCircle, CheckCircle2, ChevronDown, FileText, Loader2, Plus, Upload, X } from "lucide-react"
 import { FieldGrid, TextField, SelectField } from "@/components/forms/fields"
 import { IndividualIdentity } from "@/components/parties/partySteps"
 import { SectLabel, AddressFields } from "@/components/parties/partyFields"
@@ -207,9 +207,14 @@ export function LineItemGrid({ rows, setRows, catalog, headerLabel, addLabel, em
                   onFocus={() => { const c = moneyCents(r.amount); updateRow(i, { amount: c > 0 ? String(c / 100) : "" }) }}
                   onBlur={() => { const c = moneyCents(r.amount); if (c > 0) updateRow(i, { amount: fmtRands(c) }) }} />
               </div>
-              <select className={`${CELL_SELECT} w-[110px]`} value={r.period} onChange={(e) => updateRow(i, { period: e.target.value as IncomePeriod })}>
-                {PERIOD_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
+              {/* Wrapped with a visible caret — appearance-none strips the native chevron, and testers didn't
+                  realise this was a dropdown (manually converting monthly→annual instead of just picking Month). */}
+              <div className="relative w-[110px] shrink-0">
+                <select className={`${CELL_SELECT} w-full pr-7`} value={r.period} onChange={(e) => updateRow(i, { period: e.target.value as IncomePeriod })} aria-label="Period">
+                  {PERIOD_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-[var(--ink-mute)]" />
+              </div>
               <button type="button" onClick={() => removeRow(i)} aria-label="Remove" className="flex size-7 shrink-0 items-center justify-center text-[var(--ink-mute)] hover:text-red-600"><X className="size-4" /></button>
             </div>
           ))}

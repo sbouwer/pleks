@@ -170,6 +170,13 @@ const eslintConfig = defineConfig([
       "sonarjs/different-types-comparison": "off",
     },
   },
+  {
+    // OG/metadata image routes render through next/og (Satori), which supports ONLY raw <img> — next/image is
+    // unavailable. Turn the rule off here so it's deterministic across envs (it fires locally but not in CI, so
+    // any inline disable reads as "unused" on one side). No directive needed → clean on both.
+    files: ["**/opengraph-image.tsx", "**/twitter-image.tsx", "**/icon.tsx", "**/apple-icon.tsx"],
+    rules: { "@next/next/no-img-element": "off" },
+  },
 ]);
 
 export default eslintConfig;
