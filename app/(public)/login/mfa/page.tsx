@@ -16,7 +16,7 @@ import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
-import { Loader2, ShieldCheck } from "lucide-react"
+import { ShieldCheck } from "lucide-react"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { mfaVerifyNeedsEnrol, enrolChooserPath } from "@/lib/auth/mfaVerifyDecision"
@@ -73,27 +73,29 @@ function MfaContent() {
           return
         }
 
+        // Resolve every signal CONCURRENTLY — these were four sequential round-trips (≈2s of blank screen
+        // before the form appeared). Same decision logic, just in parallel: AAL level, TOTP factors,
+        // server-truth passkey existence, and this browser's passkey capability.
+        const [aalRes, factorsRes, passkeyExists, passkeyCapable] = await Promise.all([
+          supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+          supabase.auth.mfa.listFactors(),
+          // Server-truth passkey existence drives the redirect decision — NOT browser capability. Deleting a
+          // passkey from the authenticator removes only the client credential; this server row persists, so a
+          // passkey-holder is routed to *verify* and must not be bounced into enrolment here.
+          fetch("/api/auth/passkeys/list")
+            .then((res) => (res.ok ? res.json() : { passkeys: [] }))
+            .then((j: { passkeys?: unknown[] }) => (j.passkeys?.length ?? 0) > 0)
+            .catch(() => false),
+          canUsePasskeys().then((c) => c.available).catch(() => false),
+        ])
+
         // Already AAL2 — skip ahead to destination
-        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-        if (aal?.currentLevel === "aal2") {
+        if (aalRes.data?.currentLevel === "aal2") {
           globalThis.location.href = safeRedirect(redirectParam)
           return
         }
 
-        const { data: factors } = await supabase.auth.mfa.listFactors()
-        const totpVerified = (factors?.totp ?? []).some((f) => f.status === "verified")
-
-        // Server-truth passkey existence drives the redirect decision — NOT browser capability. Deleting
-        // a passkey from the authenticator removes only the client credential; this server row persists,
-        // so a passkey-holder is routed to *verify* and must not be bounced into enrolment here.
-        let passkeyExists = false
-        try {
-          const res = await fetch("/api/auth/passkeys/list")
-          if (res.ok) {
-            const { passkeys } = await res.json() as { passkeys?: unknown[] }
-            passkeyExists = (passkeys?.length ?? 0) > 0
-          }
-        } catch { /* treat as absent */ }
+        const totpVerified = (factorsRes.data?.totp ?? []).some((f) => f.status === "verified")
 
         // No factor of EITHER kind → enrolment, via the chooser (passkey or authenticator).
         if (mfaVerifyNeedsEnrol({ totpVerified, passkeyExists })) {
@@ -103,8 +105,7 @@ function MfaContent() {
 
         // The passkey button renders only when the credential is also usable on THIS browser; a
         // passkey-only user on a non-WebAuthn browser still gets the always-on escape link below.
-        const cap = await canUsePasskeys().catch(() => ({ available: false }))
-        setPasskeyOffered(passkeyExists && cap.available)
+        setPasskeyOffered(passkeyExists && passkeyCapable)
         setHasTotp(totpVerified)
         setChecking(false)
         if (totpVerified) setTimeout(() => inputRef.current?.focus(), 100)
@@ -160,12 +161,18 @@ function MfaContent() {
   }
 
   if (checking) {
+    // Skeleton of the verification form (wordmark · shield · prompt · code · button) rather than a bare spinner in
+    // an empty card — the brief load now reads as "the MFA step is arriving", matching the login page's loading.
     return (
       <FocusShell>
         <div className="fs-panel" style={{ maxWidth: 400, textAlign: "center" }} role="status" aria-busy="true">
           <span className="fs-knob" aria-hidden="true" />
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" style={{ margin: "0 auto" }} />
-          <span className="sr-only">Checking your session</span>
+          <div className="fs-skel" style={{ height: 22, width: "45%", margin: "0 auto 14px" }} />
+          <div className="fs-skel" style={{ height: 28, width: 28, borderRadius: 8, margin: "0 auto 12px" }} />
+          <div className="fs-skel" style={{ height: 13, width: "85%", margin: "0 auto 22px" }} />
+          <div className="fs-skel" style={{ height: 48, margin: "0 auto 12px" }} />
+          <div className="fs-skel" style={{ height: 48 }} />
+          <span className="sr-only">Loading sign-in verification</span>
         </div>
       </FocusShell>
     )
