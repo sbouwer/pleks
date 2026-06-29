@@ -29,8 +29,14 @@ function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon:
 
 // Compact bare input for the inline co-applicant rows on the landing (placeholders instead of labels → one line).
 const CO_INPUT = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none"
-// The 5th "Designation" column — a ghost-prefill cell (dashed, muted) that opens a dropdown of short role titles.
-const CO_DESIGNATION = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-dashed border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:border-solid focus:outline-none"
+// The 5th "Designation" column — a role-title dropdown. Solid border to match the rest of the row (First/Last/Email/
+// Identity + the "You" cell) so every row reads as one consistent format.
+const CO_DESIGNATION = "min-w-[110px] flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none"
+// Same select, but min-w-0 so it can shrink WITHIN its column cell — used when a delete ✗ shares the cell, so
+// ONLY this last box gives up room for the ✗ (the other four columns keep the full-width sizing).
+const CO_DESIGNATION_INNER = "min-w-0 flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none"
+// The delete column lives INSIDE the last cell so only that box shrinks; the ✗ button styling.
+const CO_DELETE_BTN = "shrink-0 text-[var(--ink-mute)] transition-colors hover:text-red-600"
 
 // Short chip labels for the chosen type (PARTY_ID_TYPES carries the canonical values + long labels — same SSOT the
 // personal step's IdField uses, so a type picked here matches there).
@@ -79,6 +85,9 @@ function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Reado
   const updateCo = (i: number, patch: Partial<CoApplicant>) => setCoApplicants(coApplicants.map((c, j) => (j === i ? { ...c, ...patch } : c)))
   const addCo = () => setCoApplicants([...coApplicants, blankCo(type === "guarantor" ? "guarantor" : "co_applicant")])
   const removeCo = (i: number) => setCoApplicants(coApplicants.filter((_, j) => j !== i))
+  // First two parties are mandatory (You + the first co) — only couple/guarantor reach here; "just me" shows no party
+  // section at all. Co-applicants at/after this index are optional → removable (✗) + last box tucked.
+  const mandatoryCo = 1
   return (
     <>
       <p className="text-xs font-medium text-[var(--ink)]">Who&apos;s on the application?</p>
@@ -88,11 +97,15 @@ function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Reado
         <input placeholder="Last name" value={form.lastName ?? ""} onChange={(e) => set("lastName", e.target.value)} className={CO_INPUT} />
         <input type="email" placeholder="Email" autoComplete="off" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} className={CO_INPUT} />
         <IdentityField idType={form.idType} idNumber={form.idNumber ?? ""} onType={(t) => set("idType", t)} onNumber={(v) => set("idNumber", v)} />
-        <span className="inline-flex min-w-[110px] flex-1 items-center gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] px-2 py-1.5 text-xs text-[var(--ink-soft)]">
-          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" /> You · Applicant
+        {/* Structurally identical to the co-rows' last cell — an outer flex-1 wrapper with a min-w-0 inner box — so
+            this column sizes EXACTLY like the dropdown cells and row 1's columns line up with the rows below. */}
+        <span className="flex min-w-[110px] flex-1 items-center">
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] px-2 py-1.5 text-xs text-[var(--ink-soft)]">
+            <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+            <span className="min-w-0 truncate">You · Applicant</span>
+          </span>
         </span>
-        {/* Empty trailing gutter — matches the co-rows' delete column so all five columns line up. */}
-        <span aria-hidden className="w-5 shrink-0" />
+        {/* No trailing gutter — YOU are mandatory + can't be removed, so the last box runs full width to the edge. */}
       </div>
       {/* The other people — the Designation column sets each one's role. */}
       {coApplicants.map((c, i) => (
@@ -101,12 +114,14 @@ function PersonParties({ type, form, set, coApplicants, setCoApplicants }: Reado
           <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
           <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
           <IdentityField idType={c.idType} idNumber={c.idNumber} onType={(t) => updateCo(i, { idType: t })} onNumber={(v) => updateCo(i, { idNumber: v })} />
-          <select value={c.role} onChange={(e) => updateCo(i, { role: e.target.value as CoRole })} className={CO_DESIGNATION} aria-label="Designation">
-            <option value="co_applicant">Co-applicant</option>
-            <option value="guarantor">Guarantor</option>
-          </select>
-          <span className="flex w-5 shrink-0 items-center justify-center">
-            {coApplicants.length > 1 && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>}
+          {/* Last column. Mandatory parties (i < mandatoryCo) run full width, no ✗. Optional applicants are
+              removable: the ✗ tucks INTO this cell so only this box shrinks. */}
+          <span className="flex min-w-[110px] flex-1 items-center gap-1">
+            <select value={c.role} onChange={(e) => updateCo(i, { role: e.target.value as CoRole })} className={CO_DESIGNATION_INNER} aria-label="Designation">
+              <option value="co_applicant">Co-applicant</option>
+              <option value="guarantor">Guarantor</option>
+            </select>
+            {i >= mandatoryCo && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className={CO_DELETE_BTN}><X className="size-4" /></button>}
           </span>
         </div>
       ))}
@@ -133,17 +148,18 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
   const updateCo = (i: number, patch: Partial<CoApplicant>) => setCoApplicants(coApplicants.map((c, j) => (j === i ? { ...c, ...patch } : c)))
   const addCo = () => setCoApplicants([...coApplicants, { ...blankCo("co_applicant"), designation: "director" }])
   const removeCo = (i: number) => setCoApplicants(coApplicants.filter((_, j) => j !== i))
+  // First two parties are mandatory (You + the first director); extra directors are optional → removable (✗).
+  const mandatoryCo = 1
   return (
     <>
       {/* The company TYPE drives the whole flow (sole prop = personal application + trading name; (Pty)/CC = CIPC +
-          AFS; etc.). Reg number, AFS and the rest are captured later, conditional on the type. The trailing gutter
-          matches the rows' delete column so the select's right edge lines up with the Designation cell below. */}
+          AFS; etc.). Reg number, AFS and the rest are captured later, conditional on the type. Full width — it aligns
+          with the mandatory people rows below (only manually-added directors reserve a delete column). */}
       <div className="flex items-center gap-1.5">
         <select value={company.companyType} onChange={(e) => setCompany({ ...company, companyType: e.target.value })}
           className="min-w-0 flex-1 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--amber)] focus:outline-none">
           {COMPANY_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.value === "" ? "Company type…" : o.label}</option>)}
         </select>
-        <span aria-hidden className="w-5 shrink-0" />
       </div>
       {company.companyType && (
         <>
@@ -173,7 +189,6 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
                   </>}
               <option value="on_behalf">On behalf</option>
             </select>
-            <span aria-hidden className="w-5 shrink-0" />
           </div>
           {/* Co-directors / signatories — the Designation is a free title. */}
           {coApplicants.map((c, i) => (
@@ -182,15 +197,17 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
               <input placeholder="Last name" value={c.lastName} onChange={(e) => updateCo(i, { lastName: e.target.value })} className={CO_INPUT} />
               <input type="email" placeholder="Email" autoComplete="off" value={c.email} onChange={(e) => updateCo(i, { email: e.target.value })} className={CO_INPUT} />
               <IdentityField idType={c.idType} idNumber={c.idNumber} onType={(t) => updateCo(i, { idType: t })} onNumber={(v) => updateCo(i, { idNumber: v })} />
-              {/* Guarantor/surety → the guarantor ROLE (income backstops the rent); everyone else is a co-party. */}
-              <select value={c.designation ?? "director"} onChange={(e) => updateCo(i, { designation: e.target.value, role: e.target.value === "guarantor" ? "guarantor" : "co_applicant" })} className={CO_DESIGNATION} aria-label="Designation">
-                <option value="director">Director</option>
-                <option value="shareholder">Shareholder</option>
-                <option value="guarantor">Guarantor / surety</option>
-                <option value="other">Other</option>
-              </select>
-              <span className="flex w-5 shrink-0 items-center justify-center">
-                <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className="text-[var(--ink-mute)] transition-colors hover:text-red-600"><X className="size-4" /></button>
+              {/* Last column. Mandatory parties (i < mandatoryCo) run full width, no ✗; optional directors are
+                  removable — the ✗ tucks INTO this cell so only this box shrinks. */}
+              <span className="flex min-w-[110px] flex-1 items-center gap-1">
+                {/* Guarantor/surety → the guarantor ROLE (income backstops the rent); everyone else is a co-party. */}
+                <select value={c.designation ?? "director"} onChange={(e) => updateCo(i, { designation: e.target.value, role: e.target.value === "guarantor" ? "guarantor" : "co_applicant" })} className={CO_DESIGNATION_INNER} aria-label="Designation">
+                  <option value="director">Director</option>
+                  <option value="shareholder">Shareholder</option>
+                  <option value="guarantor">Guarantor / surety</option>
+                  <option value="other">Other</option>
+                </select>
+                {i >= mandatoryCo && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className={CO_DELETE_BTN}><X className="size-4" /></button>}
               </span>
             </div>
           ))}
@@ -284,7 +301,7 @@ export function ApplyAsPane({ commercial, type, onSelect, form, set, coApplicant
         {/* Inline capture — one grey block. Couple / guarantor → the people (5-column rows). Company → the business
             type + the people on its behalf. Both share the row rhythm (First · Last · Email · ID · Designation). */}
         {parties && type && (
-          <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
+          <div className="flex flex-col gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-4 py-3">
             {type === "company" ? (
               <CompanyParties company={company} setCompany={setCompany} form={form} set={set} coApplicants={coApplicants} setCoApplicants={setCoApplicants}
                 imDirector={imDirector} setImDirector={setImDirector} companyRole={companyRole} singlePerson={companySinglePerson} />
