@@ -1,13 +1,16 @@
 "use server"
 
 /**
- * lib/applications/createTenantFromApplication.ts — FILL: one-line purpose
+ * lib/applications/createTenantFromApplication.ts — promote an application's applicant to a tenant record.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   server action — called by the agent (shortlist/approve, createdBy=createdBy, authUserId null), and (14R)
+ *         by the applicant's own account-creation at completion (createdBy + authUserId = the new auth user).
+ * Data:   reads applications (denormalised applicant fields) → dedups → creates contacts + tenants → links
+ *         applications.tenant_id → logs consent + audit.
+ * Notes:  applicant ≡ tenant (CLAUDE.md). 14R: sets tenants.auth_user_id when the applicant creates an account at
+ *         completion (binding the person to their tenant); agent-initiated leaves it null until the applicant logs
+ *         in. Dedup-on-identity reuses an existing tenant by auth user OR id_number_hash — one person, one
+ *         tenant/auth user; a returning person's account binds to their existing (agent-created) tenant.
  */
 import { createClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -15,7 +18,10 @@ import { decryptIdNumber, decryptDob } from "@/lib/crypto/idNumber"
 
 export async function createTenantFromApplication(
   applicationId: string,
-  agentId: string
+  createdBy: string | null,
+  // 14R: the applicant's auth.users id when they create their account at completion → set on the tenant. null for
+  // agent-initiated promotion (the tenant gets no auth binding until the applicant logs in).
+  authUserId: string | null = null,
 ): Promise<{ tenantId: string } | { error: string }> {
   const supabase = await createClient()
 
@@ -37,6 +43,18 @@ export async function createTenantFromApplication(
   // Already linked to a tenant
   if (application.tenant_id) {
     return { tenantId: application.tenant_id }
+  }
+
+  // 14R dedup-on-account: a tenant already bound to this auth user (a returning account-holder applying again) →
+  // reuse it, never mint a second tenant per person.
+  if (authUserId) {
+    const { data: byAuth, error: byAuthError } = await supabase
+      .from("tenants").select("id").eq("org_id", application.org_id).eq("auth_user_id", authUserId).is("deleted_at", null).maybeSingle()
+    logQueryError("createTenantFromApplication tenant by auth", byAuthError)
+    if (byAuth) {
+      await supabase.from("applications").update({ tenant_id: byAuth.id }).eq("id", applicationId)
+      return { tenantId: byAuth.id }
+    }
   }
 
   // Deduplication — check if contact with same ID hash already exists in org
@@ -64,7 +82,11 @@ export async function createTenantFromApplication(
         await supabase.from("applications")
           .update({ tenant_id: existingTenant.id })
           .eq("id", applicationId)
-
+        // 14R: bind the applicant's new account to their existing (agent-created, unbound) tenant — only if unbound,
+        // never overwrite a different auth user.
+        if (authUserId) {
+          await supabase.from("tenants").update({ auth_user_id: authUserId }).eq("id", existingTenant.id).is("auth_user_id", null)
+        }
         return { tenantId: existingTenant.id }
       }
     }
@@ -88,7 +110,7 @@ export async function createTenantFromApplication(
       id_number_hash: application.id_number_hash,
       date_of_birth: decryptDob(application.date_of_birth), // tenant.date_of_birth is a date column → store decrypted
       nationality: application.nationality,
-      created_by: agentId,
+      created_by: createdBy,
     })
     .select("id")
     .single()
@@ -103,11 +125,12 @@ export async function createTenantFromApplication(
     .insert({
       org_id: application.org_id,
       contact_id: contact.id,
+      auth_user_id: authUserId, // 14R: the applicant's account at completion (null for agent-initiated promotion)
       employer_name: application.employer_name,
       popia_consent_given: true,
       popia_consent_given_at: application.stage1_consent_given_at,
       portal_access_enabled: false,
-      created_by: agentId,
+      created_by: createdBy,
     })
     .select("id")
     .single()
@@ -140,7 +163,7 @@ export async function createTenantFromApplication(
     table_name: "tenants",
     record_id: tenant.id,
     action: "INSERT",
-    changed_by: agentId,
+    changed_by: createdBy,
     new_values: { source: "application", application_id: applicationId },
   })
 
