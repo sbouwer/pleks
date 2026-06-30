@@ -2,10 +2,12 @@
  * lib/applications/peerCompletion.ts — fire the all-green "ready to submit" fan-out ONCE (ADDENDUM_14R Phase 4).
  *
  * Called after a section sign-off (the lead's save-draft consent, or a co's final save). If that write made EVERY
- * peer green on a JOINT application, email all applicants "ready to submit" — exactly once. Idempotency rides on
- * communication_log (sendEmail already logs there with template_key + entity_id), so NO new column: if
- * application.all_complete was already logged for this application we skip the re-send. Only ONE write ever
- * transitions the group to all-green (the last completer), so the dedup is just a retry backstop.
+ * peer green on a JOINT application, email all applicants "ready to submit" — exactly once. The fan-out is armed off
+ * applications.all_complete_notified_at: a conditional update claims the notify (null → now), so only ONE writer
+ * fires even if finishers race. Unlike a communication_log dedup, the column is RE-ARMABLE — a roster change nulls
+ * it (the co-add route does, on invite), so a group that goes all-green AGAIN re-fires. (Decline-induced all-green
+ * firing — a pending co declines, completing the group — is a queued follow-on: the decline sites would call
+ * maybeFireAllGreen.)
  *
  * Returns whether the application is now all-green — the caller routes the finisher straight to the review on true
  * (14R last-to-complete). Solo applications (no cos) return false: their normal hub→review flow already covers it.
@@ -30,12 +32,12 @@ export async function maybeFireAllGreen(service: SupabaseClient, applicationId: 
   const incomplete = incompleteApplicantCount(app.stage1_consent_given === true, coList.map((c) => c.stage1_consent_given === true))
   if (incomplete > 0) return false
 
-  // All green. Fire the "ready to submit" fan-out once — dedup off communication_log (the send logs there).
-  const { data: prior, error: priorErr } = await service
-    .from("communication_log").select("id")
-    .eq("entity_type", "application").eq("entity_id", applicationId).eq("template_key", "application.all_complete")
-    .limit(1).maybeSingle()
-  logQueryError("peerCompletion prior notify", priorErr)
-  if (!prior) await notifyAllReadyToSubmit(service, applicationId)
+  // All green. Arm the fan-out atomically: the conditional update flips all_complete_notified_at null → now and
+  // returns the row only for the WINNER, so concurrent finishers can't double-send. A roster change re-arms it.
+  const { data: armed, error: armErr } = await service
+    .from("applications").update({ all_complete_notified_at: new Date().toISOString() })
+    .eq("id", applicationId).is("all_complete_notified_at", null).select("id")
+  logQueryError("peerCompletion arm", armErr)
+  if (armed && armed.length > 0) await notifyAllReadyToSubmit(service, applicationId)
   return true
 }
