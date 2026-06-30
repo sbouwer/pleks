@@ -2929,9 +2929,9 @@ ALTER TABLE applications
   -- the chosen application TYPE + company details — persisted so resume restores the right flow for all four
   -- scenarios (individual/couple/company/guarantor) instead of inferring it from the co-applicant roster.
   ADD COLUMN IF NOT EXISTS applicant_type      text CHECK (applicant_type IN ('individual','couple','company','guarantor')),
-  ADD COLUMN IF NOT EXISTS company_info        jsonb,
-  -- anti-bot: applicant must verify their email (OTP) before submit; cleared if the email is later changed.
-  ADD COLUMN IF NOT EXISTS email_verified_at   timestamptz;
+  ADD COLUMN IF NOT EXISTS company_info        jsonb;
+  -- (applications.email_verified_at — the old apply email-OTP — was retired in ADDENDUM_14R step 8 and DROPPED
+  --  post-deploy; the column is intentionally absent. user_profiles.email_verified_at in 001 is unrelated.)
 
 -- Reuse the consent OTP engine for the applicant pre-submit email verification: allow the email_otp method +
 -- an application_email "consent type" on consent_verifications.
