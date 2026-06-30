@@ -28,7 +28,7 @@ import { StepCompanyDetails, StepCompanyReview } from "./applyCompany"
 import { type CoRole, SELF_EMPLOYED_TYPES, STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW } from "./applyDomain"
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
-import { StepSubmit, VerifyEmail, ConsentVerify } from "./applyReview"
+import { StepSubmit, ConsentVerify } from "./applyReview"
 import { ApplicationStatusMenu } from "./applyStatusMenu"
 import { StepBar, SubTabs, ApplyNavRail } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
@@ -60,10 +60,10 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, setEmailVerified,
     coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
     addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, docFiles, docEscape, setDocEscape,
-    consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep, setEditReverified,
+    consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
-    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, submitToAgent, afterCompanyReview, finishDocuments,
+    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, submitApplication, submitToAgent, afterCompanyReview, finishDocuments,
     personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied,
     statusMenuCompany, statusMenuPersons, canSubmit, canCoSubmit, coSubmitted, coPeersIncomplete, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
@@ -319,23 +319,18 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         </div>
       )}
 
-      {/* Email gate — first-time VERIFY (the unlock before starting your section) OR a security RE-verify (editing an
-          already-completed section in a multi-party app, where the link is shared). The copy differs so the re-verify
-          reads as "make sure it's you", not a generic "verify your email". On success it opens the section. */}
+      {/* 14R amend gate — editing an already-COMPLETED section requires being SIGNED IN as the section owner (the
+          account created at completion replaces the old email-OTP re-verify). passAmendGate opens this only when the
+          editor isn't signed in as the owner; signing in and returning lets the edit proceed. */}
       {amendGateStep !== null && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => setAmendGateStep(null)}>
           <div className="w-full max-w-md rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-[var(--ink)]">{emailGateSatisfied ? "Let's make sure it's you" : "Verify your email to continue"}</h3>
-            <p className="mt-1 text-sm leading-relaxed text-[var(--ink-soft)]">
-              {emailGateSatisfied
-                ? "This application is already complete and its link can be shared, so before you change anything we'll send a code to your email to confirm it's really you making the edit."
-                : "We'll send a code to your email to confirm it's you before you start your part of the application."}
-            </p>
-            <div className="mt-3">
-              <VerifyEmail applicationId={applicationId} token={token} email={form.email} verified={false} reverify
-                onVerified={() => { setEmailVerified(true); setEditReverified(true); applyAmend(amendGateStep); setAmendGateStep(null) }} />
+            <h3 className="text-base font-semibold text-[var(--ink)]">Sign in to edit</h3>
+            <p className="mt-1 text-sm leading-relaxed text-[var(--ink-soft)]">This part of the application is already complete. Please sign in as <strong className="text-[var(--ink)]">{form.email}</strong> to make changes.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <ActionButton tone="secondary" onClick={() => setAmendGateStep(null)} disabled={busy}>Cancel</ActionButton>
+              <ActionButton tone="primary" onClick={() => { globalThis.location.href = `/login?next=${encodeURIComponent(globalThis.location.pathname + globalThis.location.search)}` }}>Sign in</ActionButton>
             </div>
-            <div className="mt-4 flex justify-end"><ActionButton tone="secondary" onClick={() => setAmendGateStep(null)} disabled={busy}>Cancel</ActionButton></div>
           </div>
         </div>
       )}

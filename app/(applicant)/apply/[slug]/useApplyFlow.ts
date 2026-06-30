@@ -560,22 +560,33 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       setCompanySignedOff(true); setAtRoster(true)
     } finally { setBusy(false) }
   }
-  /** Whether opening/editing a personal pane needs the email-OTP gate. Verify ONCE before starting (the unlock).
-   *  Re-verify (once per session) ONLY before editing an already-COMPLETED section in a multi-party NON-company
-   *  application (couple/guarantor — the link is shared, so confirm it's really them). Individual, company, and
-   *  not-yet-completed apps never re-verify (email_verified_at persists). */
+  /** 14R: whether editing a personal pane needs the AMEND GATE — being signed in as the section owner. There is no
+   *  verify-before-START anymore (the account is created at completion, not before), so this fires ONLY when editing
+   *  an already-COMPLETED section in a multi-party app. The owner created their account at completion, so they're
+   *  normally still signed in → passAmendGate proceeds transparently; a logged-out editor gets a sign-in prompt. */
   function gateNeedsVerify(toStep: number): boolean {
-    if (isCo) return false // a token-authed co never re-verifies — the access token IS the email proof (14R §3)
-    if (!emailGateSatisfied) return true // never verified → first-time verify
+    if (isCo) return false // a co edits via their own per-party link (their token IS their credential)
     const personalPane = PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")
     const completedMultiPartyEdit = selfSectionDone && !isJuristicCompany && coApplicants.length > 0
     return personalPane && completedMultiPartyEdit && !editReverified
   }
 
+  /** The amend gate (14R, ex-OTP): may this edit proceed? If the section isn't a completed-edit, yes. Otherwise the
+   *  editor must be SIGNED IN as the section owner (the account made at completion) — true → proceed (mark
+   *  re-confirmed); false → open the sign-in prompt. Replaces the email-OTP re-verify. */
+  async function passAmendGate(toStep: number): Promise<boolean> {
+    if (!gateNeedsVerify(toStep)) return true
+    const { data: { user } } = await createClient().auth.getUser()
+    const isOwner = !!(user?.email && form.email && user.email.toLowerCase() === form.email.toLowerCase())
+    if (isOwner) { setEditReverified(true); return true }
+    setAmendGateStep(toStep)
+    return false
+  }
+
   // Open a card from the status-menu hub. The company card → the company section; "self" → the director's own
   // (personal) section, reusing what we know about the company (shared prefill, #1); "review" → the application
   // Review & Submit. navTo clears the hub flag + sets the step.
-  function onOpenCard(id: string) {
+  async function onOpenCard(id: string) {
     if (id === "company") { if (companySignedOff) { setCompanyEdited(true) } setCompanyStarted(true); navTo(0) } // juristic only — opens the company section (re-open after sign-off = an edit)
     else if (id === "self") {
       // The filler's own section. For a juristic company the director's personal flow starts after the company panes
@@ -583,9 +594,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       const target = isJuristicCompany ? companyPaneCount : 0
       if (isJuristicCompany) setEmp((e) => prefillEmploymentFromCompany(company, e))
       if (selfSectionDone) setSelfEdited(true) // re-opening a completed section = an edit → card reads "Updated application"
-      // Verify email ONCE before starting (the unlock). Re-verify (once/session) ONLY before editing an already-
-      // COMPLETED section in a multi-party non-company app (couple/guarantor — shared link). See gateNeedsVerify.
-      if (gateNeedsVerify(target)) { setAmendGateStep(target); return }
+      // 14R amend gate: editing a COMPLETED section requires being signed in as the owner (see passAmendGate). The
+      // owner is normally still signed in from completion → transparent; otherwise a sign-in prompt opens.
+      if (!(await passAmendGate(target))) return
       navTo(target)
     }
     else if (id === "review") {
@@ -888,13 +899,13 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   /** Amend the application (add applicant / upload docs / edit details) → re-enter that step; the user
    *  re-submits to run a fresh screening iteration (the 14M self-improvement loop). */
   function applyAmend(toStep: number) { setScreeningStatus("idle"); setAssessment(null); setAtRoster(false); setStep(toStep) }
-  function amendAt(toStep: number) {
+  async function amendAt(toStep: number) {
     // Editing a section after it's done = an edit → that card reads "Updated application" (self OR company).
     const editKey = nav.paneMeta[toStep]?.key ?? ""
     if (selfSectionDone && PERSONAL_EDIT_KEYS.has(editKey)) setSelfEdited(true)
     if (companySignedOff && COMPANY_EDIT_KEYS.has(editKey)) setCompanyEdited(true)
-    // Verify (first time) / re-verify (completed multi-party edit) before editing personal details — see gateNeedsVerify.
-    if (gateNeedsVerify(toStep)) { setAmendGateStep(toStep); return }
+    // 14R amend gate: editing a completed section requires being signed in as the owner (see passAmendGate).
+    if (!(await passAmendGate(toStep))) return
     applyAmend(toStep)
   }
 

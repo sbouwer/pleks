@@ -295,69 +295,6 @@ export function ReadOnlyAssessment({ assessment, askingRentCents, emp }: Readonl
   return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} readOnly />
 }
 
-/** Anti-bot email verification — send a 6-digit code to the applicant's email, then confirm it before submit.
- *  Exported so the company sign-off (StepCompanyReview) reuses the same verify widget. */
-export function VerifyEmail({ applicationId, token, email, verified, onVerified, reverify }: Readonly<{
-  applicationId: string | null; token: string | null; email?: string; verified: boolean; onVerified: () => void; reverify?: boolean
-}>) {
-  const [sent, setSent] = useState(false)
-  const [code, setCode] = useState("")
-  const [busy, setBusy] = useState(false)
-
-  async function send() {
-    if (!applicationId || !token) { toast.error("Please complete the earlier steps first."); return }
-    setBusy(true)
-    try {
-      const res = await fetch(`/api/applications/${applicationId}/verify/send`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, reverify }),
-      })
-      const json = await res.json() as { ok?: boolean; alreadyVerified?: boolean; error?: string }
-      if (json.alreadyVerified) { onVerified(); return }
-      if (!res.ok) { toast.error(json.error ?? "Could not send the code."); return }
-      setSent(true); toast.success(email ? `Code sent to ${email}` : "Code sent — check your email")
-    } catch { toast.error("Could not send the code.") } finally { setBusy(false) }
-  }
-  async function check() {
-    if (!applicationId || !token) return
-    setBusy(true)
-    try {
-      const res = await fetch(`/api/applications/${applicationId}/verify/check`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, code }),
-      })
-      const json = await res.json() as { ok?: boolean; status?: string; error?: string }
-      if (json.ok && json.status === "verified") { onVerified(); toast.success("Email verified ✓") }
-      else if (json.status === "locked") toast.error(json.error ?? "Too many attempts — try again later.")
-      else if (json.status === "expired") { toast.error("That code expired — send a new one."); setSent(false); setCode("") }
-      else toast.error("Incorrect code — check and try again.")
-    } catch { toast.error("Could not verify the code.") } finally { setBusy(false) }
-  }
-
-  if (verified) {
-    return (
-      <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-        <CheckCircle2 className="size-4" /> Email verified
-      </p>
-    )
-  }
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-[var(--ink)]">Verify your email</p>
-        <p className="mt-0.5 text-xs text-[var(--ink-soft)]">We&apos;ll send a 6-digit code to <strong className="text-[var(--ink)]">{email ?? "your email"}</strong> to confirm it&apos;s really you.</p>
-      </div>
-      {!sent ? (
-        <ActionButton tone="primary" size="sm" onClick={send} disabled={busy} className="shrink-0">Send code</ActionButton>
-      ) : (
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="123456" className="w-28 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm tracking-[0.3em]" />
-          <ActionButton tone="primary" size="sm" onClick={check} disabled={busy || code.length !== 6}>Verify</ActionButton>
-          <button type="button" onClick={send} disabled={busy} className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]">Resend</button>
-        </div>
-      )}
-    </div>
-  )
-}
-
 /** Account-at-completion (14R auth amendment) — the successor to the email-OTP VerifyEmail. "Start cheap, end
  *  expensive": at sign-off the applicant creates a Pleks account with a 6-digit email code entered IN-FLOW (or, if
  *  already signed in, skips the code) — then link-account establishes the tenant binding so CONSENT is captured
