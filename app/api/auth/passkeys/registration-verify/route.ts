@@ -12,6 +12,7 @@ import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
 import { bytesToB64url } from "@/lib/auth/passkeys/encoding"
 import { jwtIdentity } from "@/lib/auth/passkey-aal"
 import { issuePasskeyAal } from "@/lib/auth/passkey-aal-server"
+import { resolveUserMembership } from "@/lib/auth/membership"
 import { logAuthEvent } from "@/lib/auth/events"
 
 export async function POST(req: Request) {
@@ -103,10 +104,17 @@ export async function POST(req: Request) {
     metadata: { label, device_type: credentialDeviceType },
   })
 
-  // ADDENDUM_69 Slice A (OQ-A4): grant the CURRENT session aal2 on enrol, so a user who
-  // just set up a passkey isn't immediately bounced to TOTP.
-  const { data: { session } } = await supabase.auth.getSession()
-  await issuePasskeyAal(user.id, jwtIdentity(session?.access_token).sessionId)
+  // ADDENDUM_69 Slice A (OQ-A4): grant the CURRENT session aal2 on enrol, so a user who just set
+  // up a passkey isn't immediately bounced to TOTP — but ONLY for AGENTS. 14R: AAL2 is an
+  // agent-workspace concept (manifest requiresAal2 / requiresOrgDomain); an applicant or
+  // tenant-portal user enrolling a CONVENIENCE passkey must stay AAL1 and must never inherit the
+  // agent's fails-closed-to-TOTP step-up. Non-agents have no AAL2 routes, so the grant is a no-op
+  // for them anyway. Membership-resolve failure → skip (conservative: never auto-elevate).
+  const enrolMembership = await resolveUserMembership(user.id).catch(() => null)
+  if (enrolMembership?.portalClass === "agent") {
+    const { data: { session } } = await supabase.auth.getSession()
+    await issuePasskeyAal(user.id, jwtIdentity(session?.access_token).sessionId)
+  }
 
   // backedUp = BS (the WebAuthn backup-state flag) — true means the credential is synced (iCloud /
   // Google Password Manager) and therefore self-recovering. The enrolment chooser uses this to
