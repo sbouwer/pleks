@@ -59,7 +59,7 @@ async function loadResume(
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, employment_details, dependents_count, dependent_adults_count, dependent_minors_count, income_sources, declared_monthly_obligations_cents, expenses, applicant_addresses, applicant_type, company_info, marital_status, matrimonial_regime, spouse_info, email_verified_at, draft_step, draft_saved_at, stage1_status, org_id, submitted_at")
+    .select("first_name, last_name, applicant_email, applicant_phone, id_type, id_number, date_of_birth, employment_type, employer_name, employment_start_date, employment_details, dependents_count, dependent_adults_count, dependent_minors_count, income_sources, declared_monthly_obligations_cents, expenses, applicant_addresses, applicant_type, company_info, marital_status, matrimonial_regime, spouse_info, draft_step, draft_saved_at, stage1_status, org_id, submitted_at")
     .eq("id", appId).maybeSingle()
   logQueryError("ApplyPreview resume app", appErr)
   // Don't resume a SUBMITTED application (submitted_at set) — only drafts / pre-screens are editable.
@@ -82,7 +82,7 @@ async function loadResume(
     applicationId: appId, token, step: (app.draft_step as number | null) ?? 5, savedAt: (app.draft_saved_at as string | null) ?? null,
     applicantType: (app.applicant_type as ResumeState["applicantType"]) ?? null,
     company: (app.company_info as ResumeState["company"]) ?? null,
-    emailVerified: (app.email_verified_at as string | null) != null,
+    emailVerified: false, // 14R: account-at-completion (AccountStep) is the gate now — the apply email_verified_at OTP is retired
     form: {
       firstName: (app.first_name as string | null) ?? undefined, lastName: (app.last_name as string | null) ?? undefined,
       email: (app.applicant_email as string | null) ?? undefined, phone: (app.applicant_phone as string | null) ?? undefined,

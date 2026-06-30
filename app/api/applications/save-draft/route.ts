@@ -79,12 +79,12 @@ async function recordSectionConsent(db: Db, applicationId: string, bodyEmail: st
   return { stage1_consent_given: true, stage1_consent_given_at: new Date().toISOString(), stage1_consent_ip: ip }
 }
 
-/** If the applicant changed their email, persist it AND invalidate any prior email verification (the anti-bot gate
- *  must re-verify the new address — else verify A, switch to B, submit B unverified). Returns fields to set. */
+/** If the applicant changed their email, persist it. (14R: there's no apply email-OTP to invalidate anymore — the
+ *  account is created at completion against whatever email is current then.) Returns fields to set. */
 async function applyEmailChange(db: Db, applicationId: string, bodyEmail: string): Promise<Record<string, unknown>> {
   const { data: cur, error } = await db.from("applications").select("applicant_email").eq("id", applicationId).maybeSingle()
   logQueryError("save-draft current email", error)
-  if (cur && bodyEmail !== cur.applicant_email) return { applicant_email: bodyEmail, email_verified_at: null }
+  if (cur && bodyEmail !== cur.applicant_email) return { applicant_email: bodyEmail }
   return {}
 }
 
