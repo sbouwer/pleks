@@ -7,10 +7,11 @@
  *         Shared bookend for BOTH flows — the orchestrator (StepPanel) renders it last, after the chosen flow.
  *         Owns its own helpers; shares only bricks + applyDomain.
  */
-import { useState, type ReactNode } from "react"
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
 import { toast } from "sonner"
 import { AlertCircle, Building2, CheckCircle2, Loader2, Pencil, ShieldCheck, User, Users } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
+import { useEmailOtpSignup } from "@/lib/auth/useEmailOtpSignup"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { formatZAR } from "@/lib/constants"
 import { StepHeading } from "./applyShared"
@@ -350,6 +351,93 @@ export function VerifyEmail({ applicationId, token, email, verified, onVerified,
           <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="123456" className="w-28 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm tracking-[0.3em]" />
           <ActionButton tone="primary" size="sm" onClick={check} disabled={busy || code.length !== 6}>Verify</ActionButton>
           <button type="button" onClick={send} disabled={busy} className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]">Resend</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Account-at-completion (14R auth amendment) — the successor to the email-OTP VerifyEmail. "Start cheap, end
+ *  expensive": at sign-off the applicant creates a Pleks account with a 6-digit email code entered IN-FLOW (or, if
+ *  already signed in, skips the code) — then link-account establishes the tenant binding so CONSENT is captured
+ *  against the auth user (CD §5 POPIA binding).
+ *
+ *  CD constraints: (1) link-account ALWAYS runs — a signed-in user skips only the code, never the binding (else the
+ *  resolver's session branch has nothing to match and they can't resume/edit); (2) onReady fires only after the
+ *  binding, so consent is captured after auth_user_id exists; (3) resume-after-bounce (account made, left before
+ *  consent) returns signed-in → binds on mount → lands on consent, never re-creates the account. Co-aware: a co
+ *  sends its access token as `ct`, the lead its app token as `token`. */
+export function AccountStep({ applicationId, fillToken, isCo, email, signedInEmail, ready, onReady }: Readonly<{
+  applicationId: string | null
+  fillToken: string | null            // lead application_tokens token, OR a co's access_token
+  isCo: boolean
+  email?: string
+  signedInEmail?: string | null       // server-rendered session email at load (logged-in / resume-after-bounce)
+  ready: boolean
+  onReady: () => void
+}>) {
+  const { send, verify, sending, verifying, sent, error } = useEmailOtpSignup()
+  const [code, setCode] = useState("")
+  const [binding, setBinding] = useState(false)
+  const [authed, setAuthed] = useState<boolean>(!!signedInEmail)
+  const boundRef = useRef(false)
+
+  // link-account — establish the tenant binding. Idempotent (the promotion dedups on tenant_id/auth user), and ALWAYS
+  // runs (CD constraint 1) so a signed-in/returning applicant still gets bound. Returns ok.
+  const bind = useCallback(async (): Promise<boolean> => {
+    if (!applicationId) return false
+    setBinding(true)
+    try {
+      const res = await fetch(`/api/applications/${applicationId}/link-account`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isCo ? { ct: fillToken } : { token: fillToken }),
+      })
+      if (!res.ok) { const b = await res.json().catch(() => ({})) as { error?: string }; toast.error(b.error ?? "Could not link your account — please try again."); return false }
+      return true
+    } catch { toast.error("Could not link your account — please try again."); return false } finally { setBinding(false) }
+  }, [applicationId, isCo, fillToken])
+
+  // Already signed in (logged-in OR resume-after-bounce, CD constraints 1 + 3): bind on mount → ready. No code entry.
+  useEffect(() => {
+    if (ready || boundRef.current || !authed) return
+    boundRef.current = true
+    void (async () => { if (await bind()) onReady(); else boundRef.current = false })()
+  }, [authed, ready, bind, onReady])
+
+  async function onVerify() {
+    if (!email) return
+    if (!(await verify(email, code))) return // creates + signs in the account (sets the session)
+    setAuthed(true)                          // → the bind effect runs link-account, then onReady
+  }
+
+  if (ready) {
+    return (
+      <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <CheckCircle2 className="size-4" /> Account ready{signedInEmail ? <> — <strong>{signedInEmail}</strong></> : null}
+      </p>
+    )
+  }
+  if (authed) {
+    return (
+      <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-sm text-[var(--ink-soft)]">
+        <Loader2 className="size-4 animate-spin text-[var(--amber)]" /> Linking your account…
+      </p>
+    )
+  }
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-[var(--ink)]">Create your account to finish</p>
+        <p className="mt-0.5 text-xs text-[var(--ink-soft)]">We&apos;ll send a 6-digit code to <strong className="text-[var(--ink)]">{email ?? "your email"}</strong>. Your account secures your application and lets you sign back in to edit it.</p>
+        {error ? <p className="mt-1 text-xs text-rose-600">{error}</p> : null}
+      </div>
+      {!sent ? (
+        <ActionButton tone="primary" size="sm" onClick={() => email && send(email)} disabled={sending || !email} className="shrink-0">{sending ? "Sending…" : "Send code"}</ActionButton>
+      ) : (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="123456" className="w-28 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm tracking-[0.3em]" />
+          <ActionButton tone="primary" size="sm" onClick={onVerify} disabled={verifying || binding || code.length !== 6}>{verifying || binding ? "…" : "Create account"}</ActionButton>
+          <button type="button" onClick={() => email && send(email)} disabled={sending} className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]">Resend</button>
         </div>
       )}
     </div>
