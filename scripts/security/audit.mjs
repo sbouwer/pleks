@@ -1043,6 +1043,7 @@ async function cat12_idor() {
     `/api/applications/${fakeId}/documents`,
     `/api/applications/${fakeId}/submit`,
     `/api/applications/${fakeId}/submit-to-agent`,
+    `/api/applications/${fakeId}/link-account`,
   ]
 
   for (const route of IDOR_ROUTES) {
