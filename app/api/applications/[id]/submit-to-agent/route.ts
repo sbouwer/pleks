@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendSubmissionNotifications } from "@/lib/applications/submissionEmails"
+import { notifyAllSubmitted } from "@/lib/applications/peerEmails"
 import { incompleteApplicantCount } from "@/lib/applications/submitGate"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -90,7 +91,11 @@ export async function POST(req: NextRequest, { params }: Props) {
     .eq("application_id", id).gt("expires_at", new Date().toISOString())
     .order("expires_at", { ascending: false }).limit(1).maybeSingle()
   logQueryError("submit-to-agent lead token for notify", leadTokErr)
-  await sendSubmissionNotifications(service, id, leadTokenRow?.token ?? body.token)
+  // Joint app (14R): email ALL applicants "submitted + view-only link" via notifyAllSubmitted, and skip the lead's
+  // legacy "received" (superseded). Solo app: the existing lead "received" + agent notification, unchanged.
+  const isJoint = (coRows ?? []).length > 0
+  await sendSubmissionNotifications(service, id, leadTokenRow?.token ?? body.token, { skipApplicant: isJoint })
+  if (isJoint) void notifyAllSubmitted(service, id)
 
   return NextResponse.json({ ok: true })
 }

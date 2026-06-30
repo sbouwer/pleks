@@ -15,6 +15,7 @@ export async function sendSubmissionNotifications(
   service: SupabaseClient,
   applicationId: string,
   token: string,
+  opts?: { skipApplicant?: boolean }, // 14R: a joint app emails ALL applicants via notifyAllSubmitted — skip the lead "received" here
 ): Promise<void> {
   const { data: app, error: appErr } = await service
     .from("applications")
@@ -66,9 +67,11 @@ export async function sendSubmissionNotifications(
     availableFrom: listing?.available_from as string | undefined,
   }
 
-  void sendApplicationReceived(appSummary, listingSummary, orgContext, {
-    slug: (listing?.public_slug as string) ?? "", accessToken: token,
-  })
+  if (!opts?.skipApplicant) {
+    void sendApplicationReceived(appSummary, listingSummary, orgContext, {
+      slug: (listing?.public_slug as string) ?? "", accessToken: token,
+    })
+  }
 
   if (agentEmail) {
     const { count, error: countErr } = await service
