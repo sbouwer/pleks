@@ -146,7 +146,7 @@ function CompanyAffordabilityCard({ assessment, askingRentCents }: Readonly<{ as
 
 /** Personal affordability — the residual card (declared income − commitments − rent → left over). The applicant IS
  *  the tenant here (couple/guarantor income is already combined in the assessment). */
-function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; onAddApplicant: () => void }>) {
+function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; onAddApplicant?: () => void }>) {
   const incomeCents = assessment.combinedIncomeCents
   const oblCents = assessment.declaredObligationsCents
   const residualCents = assessment.randLeftAfterObligationsCents ?? assessment.randLeftAfterRentCents ?? (incomeCents - askingRentCents - oblCents)
@@ -177,7 +177,7 @@ function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant
         <span className={`text-xl font-semibold ${residualCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatZAR(residualCents)}</span>
       </div>
       <p className="text-[11px] text-[var(--ink-mute)]">{ratioPct != null ? `Rent is ${ratioPct}% of income` : "Income still to confirm"}{multiple != null ? ` · income covers rent ${multiple}×` : ""}</p>
-      {short && (
+      {short && onAddApplicant && (
         <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
           <p className="text-xs leading-relaxed text-[var(--ink-soft)]">{assessment.affordabilityTier === "no-income" ? "No income declared yet." : "Rent is high relative to your declared income."} Adding a co-applicant or guarantor whose income counts would strengthen affordability.</p>
           <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} className="mt-2" onClick={onAddApplicant}>Add applicant</ActionButton>
@@ -190,11 +190,12 @@ function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant
 /** Step-1 FREE assessment — the application review: Completeness (what's done / still to add) + Residual
  *  affordability (income vs commitments + the residual + a tier read; prompts "Add applicant" when short).
  *  Re-runnable for free; the J1 gate (all co-applicants complete) blocks submit. (ADDENDUM_14M funnel) */
-function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend: (s: number) => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
+function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmitToAgent, onAddApplicant, readOnly = false }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend?: (s: number) => void; onSubmitToAgent?: () => Promise<boolean>; onAddApplicant?: () => void; readOnly?: boolean }>) {
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   async function doSubmit() {
+    if (!onSubmitToAgent) return
     setSubmitting(true)
     const ok = await onSubmitToAgent()
     if (ok) setDone(true)
@@ -263,7 +264,7 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmi
 
       {/* Something to change? One line — edit your details (or go back to the overview to edit any card). Re-opening
           the review re-checks automatically, so there's no manual "re-check" here. */}
-      {!verdictGood && (
+      {!verdictGood && !readOnly && onAmend && (
         <div className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
           <p className="text-xs text-[var(--ink-mute)]">Want to change something before you submit?</p>
           <ActionButton tone="secondary" size="sm" icon={<Pencil className="size-4" />} onClick={() => onAmend(0)} className="shrink-0">Edit details</ActionButton>
@@ -276,13 +277,20 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmi
         <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-soft)]">You submit → if the agent shortlists you, your documents are verified against what you declared → an optional credit check runs only with your explicit consent, and you&apos;ll receive a copy.</p>
       </div>
 
-      {/* Submit pinned to the BOTTOM of the card (mt-auto), bottom-right. No "amend" button — Back + the side nav
-          handle edits. Consent + email verification happened at the review landing, so this just sends. */}
-      <div className="mt-auto flex justify-end pt-3">
-        <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} disabled={submitting} onClick={doSubmit}>{submitting ? "Submitting…" : "Submit application"}</ActionButton>
-      </div>
+      {/* Submit pinned to the BOTTOM of the card (mt-auto), bottom-right. Hidden in read-only (the view-only link from
+          the submission email) — there's nothing to change or re-send there. */}
+      {!readOnly && (
+        <div className="mt-auto flex justify-end pt-3">
+          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} disabled={submitting} onClick={doSubmit}>{submitting ? "Submitting…" : "Submit application"}</ActionButton>
+        </div>
+      )}
     </div>
   )
+}
+
+/** Read-only render of a stored assessment — the view-only review reached from the submission email (14R §4). */
+export function ReadOnlyAssessment({ assessment, askingRentCents, emp }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp }>) {
+  return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} readOnly />
 }
 
 /** Anti-bot email verification — send a 6-digit code to the applicant's email, then confirm it before submit.
