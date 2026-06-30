@@ -447,13 +447,15 @@ export function AccountStep({ applicationId, fillToken, isCo, email, signedInEma
 /** The per-applicant sign-off block — email verification + a consent checkbox — shared by the company sign-off
  *  (StepCompanyReview) and the personal review (StepSubmit) so the gate looks/behaves identically; the consent
  *  WORDING differs per applicant, so it's passed as children (#4 of the redundancy cleanup). */
-export function ConsentVerify({ applicationId, token, email, verified, onVerified, reverify, consent, setConsent, children }: Readonly<{
-  applicationId: string | null; token: string | null; email?: string; verified: boolean; onVerified: () => void; reverify?: boolean
+export function ConsentVerify({ applicationId, token, isCo, email, signedInEmail, verified, onVerified, consent, setConsent, children }: Readonly<{
+  applicationId: string | null; token: string | null; isCo: boolean; email?: string; signedInEmail?: string | null
+  verified: boolean; onVerified: () => void
   consent: boolean; setConsent: (v: boolean) => void; children: ReactNode
 }>) {
   return (
     <>
-      <VerifyEmail applicationId={applicationId} token={token} email={email} verified={verified} onVerified={onVerified} reverify={reverify} />
+      {/* 14R: account-at-completion replaces the email-OTP verify; consent is captured against the bound auth user. */}
+      <AccountStep applicationId={applicationId} fillToken={token} isCo={isCo} email={email} signedInEmail={signedInEmail} ready={verified} onReady={onVerified} />
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--amber)]" />
         <span className="text-[13px] leading-relaxed text-[var(--ink-soft)]"><ShieldCheck className="mr-1 inline size-3.5 text-[var(--ink-mute)]" />{children}</span>

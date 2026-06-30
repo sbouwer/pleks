@@ -308,12 +308,11 @@ export interface UseApplyFlowProps {
   slug: string; orgId: string; listingTitle?: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
-  verifiedEmail?: string | null
   actor?: ApplyActor
 }
 
 /** The apply wizard state machine. Returns all state, setters, handlers and derived values the render shell needs. */
-export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, actor = LEAD_ACTOR }: UseApplyFlowProps) {
+export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, actor = LEAD_ACTOR }: UseApplyFlowProps) {
   const commercial = leaseType === "commercial"
   // 14R: a co peer (isLead:false) runs the SAME machine as the lead with three divergences — enter at the hub, never
   // re-verify (token-as-proof), never submit (Phase 2). The lead (default actor) is unchanged.
@@ -945,8 +944,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // Submit gate: every applicant "green" — primary is implicit, each co-applicant has name+email+id (or is
   // already invited), and a company application has its type captured.
   const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
-  // Email gate satisfied if they verified by OTP OR they're the logged-in owner of this email (already confirmed).
-  const emailGateSatisfied = emailVerified || (!!verifiedEmail && !!form.email && form.email.toLowerCase() === verifiedEmail.toLowerCase())
+  // 14R: the gate is satisfied once the account exists AND is bound (AccountStep's onReady → setEmailVerified). The
+  // old "logged-in owner of this email" shortcut is gone on purpose — a signed-in applicant must still run
+  // link-account to bind THIS application (CD constraint 1), and AccountStep does that on mount before onReady.
+  const emailGateSatisfied = emailVerified
   // The "Your application status" hub cards (ADDENDUM_14Q). selfStarted = the applicant has entered their own section
   // (post-company for a director) at least once.
   const selfStart = isJuristicCompany ? companyPaneCount : 0

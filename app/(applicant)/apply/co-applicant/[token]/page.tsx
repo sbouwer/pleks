@@ -19,6 +19,7 @@ import { formatZAR } from "@/lib/constants"
 import { ApplyPortalShell, ApplyAgentCard, Eyebrow } from "../../applyPortalChrome"
 import { StepPanel, type ResumeState } from "../../[slug]/applyOrchestrator"
 import { buildCoResumeState } from "./buildCoResume"
+import { getServerUser } from "@/lib/auth/server"
 
 type CoListing = {
   public_slug: string | null; asking_rent_cents: number | null; available_from: string | null
@@ -136,7 +137,7 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
           askingRentCents={listing?.asking_rent_cents ?? 0}
           resume={resume}
           actor={{ isLead: false, coId: co.id as string, peersIncomplete }}
-          verifiedEmail={null}
+          verifiedEmail={(await getServerUser())?.email ?? null}
           agentCard={agentCard}
         />
       )}

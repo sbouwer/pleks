@@ -53,7 +53,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
   /** the home being applied for — shown in the side column BEFORE begin; replaced by the step rail after. */
   listingCard?: ReactNode
 }>) {
-  const f = useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, actor })
+  const f = useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, actor })
   const {
     commercial, type, form, set, errors, emp, setEmp, income, setIncome,
     dependentAdults, setDependentAdults, dependentMinors, setDependentMinors, commitments, setCommitments,
@@ -69,6 +69,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
     reviewUnlocked, onReviewStep,
   } = f
+  const isCo = actor ? !actor.isLead : false // 14R: a co sends its access token as `ct` to AccountStep/link-account
 
   // The active form pane for the current step — kept here (it's render). Works for personal AND the sole-prop
   // machine (co-info at step 0, then the personal panes via personalStep).
@@ -80,7 +81,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (activeKey === "co-finances") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={2} />
     if (activeKey === "co-docs") return <StepDocuments tab="required" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
     if (activeKey === "co-docs-opt") return <StepDocuments tab="optional" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
-    if (activeKey === "co-review") return <StepCompanyReview company={company} setCompany={setCompany} signOffEmail={(type === "company" && !companyImDirector && coApplicants[0]) ? coApplicants[0].email : form.email} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={companyConsent} setConsent={setCompanyConsent} imDirector={companyImDirector} companyRole={companyRole} onContinue={afterCompanyReview} busy={busy} />
+    if (activeKey === "co-review") return <StepCompanyReview company={company} setCompany={setCompany} signOffEmail={(type === "company" && !companyImDirector && coApplicants[0]) ? coApplicants[0].email : form.email} applicationId={applicationId} token={token} isCo={isCo} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={companyConsent} setConsent={setCompanyConsent} imDirector={companyImDirector} companyRole={companyRole} onContinue={afterCompanyReview} busy={busy} />
     if (personalStep === 0) return <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} coApplicants={coApplicants} />
     if (personalStep === 1) return <StepAddress form={form} set={set} errors={errors} />
     if (personalStep === 2) return <StepEmployment emp={emp} setEmp={setEmp} />
@@ -91,12 +92,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       <div className="flex min-h-full flex-col gap-6">
         <StepDocuments tab="optional" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
         {/* SECTION sign-off — consent is captured here (per member), so the application Review is consent-free. */}
-        <ConsentVerify applicationId={applicationId} token={token} email={form.email} verified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={consent} setConsent={setConsent}>
+        <ConsentVerify applicationId={applicationId} token={token} isCo={isCo} email={form.email} signedInEmail={verifiedEmail} verified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={consent} setConsent={setConsent}>
           I consent to Pleks processing the information and documents I&apos;ve provided — including automated (AI) analysis of my uploaded documents — to pre-screen this application (POPIA). No credit check or bureau enquiry runs at this stage; that only happens later if I&apos;m shortlisted and I consent again.
         </ConsentVerify>
-        {/* The section sign-off action lives bottom-right in the pane (like the company co-review), not the top nav. */}
+        {/* The section sign-off action lives bottom-right in the pane (like the company co-review), not the top nav.
+            14R: gated on emailGateSatisfied too — the account must be created + bound before consent is captured. */}
         <div className="mt-auto flex justify-end pt-3">
-          <ActionButton tone="primary" onClick={finishDocuments} disabled={!consent || busy}>Complete my part</ActionButton>
+          <ActionButton tone="primary" onClick={finishDocuments} disabled={!consent || !emailGateSatisfied || busy}>Complete my part</ActionButton>
         </div>
       </div>
     )

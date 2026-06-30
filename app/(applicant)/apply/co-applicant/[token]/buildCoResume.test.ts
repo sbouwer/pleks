@@ -2,7 +2,8 @@
  * buildCoResume.test.ts — co UniformApplicant → ResumeState (ADDENDUM_14R Phase 2, sub-step 0).
  *
  * Proves the co rehydrates into the lead's orchestrator shape: identity + section_data finances map across,
- * emailVerified is forced (token-as-proof), and POPIA isolation holds (no peer roster, individual flow).
+ * the account gate starts UNsatisfied (14R: a co creates their own account at completion, like the lead), and
+ * POPIA isolation holds (no peer roster, individual flow).
  */
 import { describe, it, expect } from "vitest"
 import { buildCoResumeState } from "./buildCoResume"
@@ -30,13 +31,13 @@ function coApplicant(overrides: Partial<UniformApplicant> = {}): UniformApplican
 const CTX = { applicationId: "app-1", token: "co-token", docPaths: [{ name: "id.pdf", storagePath: "applications/o/app-1/co_co-1/id.pdf" }] }
 
 describe("buildCoResumeState", () => {
-  it("maps identity → form and forces the individual, email-verified, peerless shape", () => {
+  it("maps identity → form and forces the individual, account-at-completion, peerless shape", () => {
     const r = buildCoResumeState(coApplicant(), CTX)
     expect(r.applicationId).toBe("app-1")
     expect(r.token).toBe("co-token")
     expect(r.applicantType).toBe("individual")
     expect(r.company).toBeNull()
-    expect(r.emailVerified).toBe(true) // token-as-proof
+    expect(r.emailVerified).toBe(false) // 14R: a co authenticates at completion (AccountStep), like the lead
     expect(r.coApplicants).toEqual([]) // POPIA: no peer roster
     expect(r.docPaths).toEqual(CTX.docPaths)
     expect(r.form).toMatchObject({ firstName: "Co", lastName: "Peer", idType: "sa_id", idNumber: "9001015800089", dob: "1990-01-01", email: "co@example.com" })

@@ -219,8 +219,8 @@ function CoReviewLine({ k, v }: Readonly<{ k: string; v: string }>) {
 /** The COMPANY applicant's sign-off — the last pane of the company section. Confirm the entity, verify the email and
  *  consent on the company's behalf. After this the per-applicant roster takes over (the director then does their own
  *  section). consent + email-verified gate the forward action (the orchestrator). */
-export function StepCompanyReview({ company, setCompany, signOffEmail, applicationId, token, emailVerified, onVerified, consent, setConsent, imDirector, companyRole, onContinue, busy }: Readonly<{
-  company: CompanyInfo; setCompany: (c: CompanyInfo) => void; applicationId: string | null; token: string | null; emailVerified: boolean; onVerified: () => void
+export function StepCompanyReview({ company, setCompany, signOffEmail, applicationId, token, isCo, emailVerified, onVerified, consent, setConsent, imDirector, companyRole, onContinue, busy }: Readonly<{
+  company: CompanyInfo; setCompany: (c: CompanyInfo) => void; applicationId: string | null; token: string | null; isCo: boolean; emailVerified: boolean; onVerified: () => void
   /** The email the OTP actually goes to — the application's applicant_email (the director / on-behalf primary), NOT
    *  the optional company contact email. Display must match what's sent or it reads "Code sent to undefined". */
   signOffEmail?: string
@@ -269,7 +269,7 @@ export function StepCompanyReview({ company, setCompany, signOffEmail, applicati
           </FieldGrid>
         </div>
       )}
-      <ConsentVerify applicationId={applicationId} token={token} email={signOffEmail} verified={emailVerified} onVerified={onVerified} consent={consent} setConsent={setConsent}>
+      <ConsentVerify applicationId={applicationId} token={token} isCo={isCo} email={signOffEmail} verified={emailVerified} onVerified={onVerified} consent={consent} setConsent={setConsent}>
         I&apos;m authorised to apply on behalf of the company, and I consent to Pleks processing the company&apos;s information for this rental pre-selection (no credit check at this stage).
       </ConsentVerify>
       {/* Primary action bottom-right (consistent with the other consent/review panes — not in the top nav). */}

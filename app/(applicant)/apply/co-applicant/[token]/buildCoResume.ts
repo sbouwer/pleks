@@ -11,7 +11,7 @@
 import type { ResumeState } from "../../[slug]/useApplyFlow"
 import type { UniformApplicant } from "@/lib/applications/applicantAdapter"
 
-/** The shape `CoApplicantSession.submit` writes into `application_co_applicants.section_data`. */
+/** The shape `assembleCoSaveBody` writes into `application_co_applicants.section_data`. */
 interface CoSectionData {
   addresses?: ResumeState["form"]["addresses"]
   employment_details?: Partial<ResumeState["emp"]>
@@ -48,7 +48,10 @@ export function buildCoResumeState(
     savedAt: co.startedAt,
     applicantType: "individual", // a co is always an individual peer — never the apply-as company/couple chooser
     company: null,
-    emailVerified: true, // token-as-proof (§3) — a token-authed co never re-verifies via email OTP
+    // 14R auth: a co is a FULL peer — they create their own account at completion (AccountStep) just like the lead,
+    // so the gate starts UNsatisfied. The access token still proves email-possession to FILL; it no longer stands in
+    // for an account at sign-off (that's the "start cheap, end expensive" amendment).
+    emailVerified: false,
     form: {
       firstName: co.identity.firstName ?? undefined, lastName: co.identity.lastName ?? undefined,
       email: co.identity.email ?? undefined, phone: co.identity.phone ?? undefined,
