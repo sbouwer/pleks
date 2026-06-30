@@ -27,6 +27,14 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "application.received", channel: "email", category: "applications", is_mandatory: false,
     description: "Applicant confirmation on submit",
   },
+  "application.all_complete": {
+    key: "application.all_complete", channel: "email", category: "applications", is_mandatory: false,
+    description: "Joint application — every applicant has finished their part; ready to submit (14R)",
+  },
+  "application.submitted_all": {
+    key: "application.submitted_all", channel: "email", category: "applications", is_mandatory: false,
+    description: "Joint application submitted to the agent — view-only link to all applicants (14R)",
+  },
   "application.resume_link": {
     key: "application.resume_link", channel: "email", category: "applications", is_mandatory: true,
     description: "Applicant resume link — finish a saved (not-yet-submitted) application",
