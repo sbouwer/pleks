@@ -425,8 +425,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // application (couple/guarantor — the link is shared). Set true after that re-verify; resets on resume (new session).
   // Individual / company / not-yet-completed apps verify once and never re-verify here.
   const [editReverified, setEditReverified] = useState(false)
-  // The email-OTP gate step (the "verify your email" modal target) — set when an unverified filler tries to start/
-  // edit their section; null when no gate is open. Email verify is once-off (email_verified_at persists on resume).
+  // The amend-gate step (the "Sign in to edit" modal target, 14R) — set when editing a COMPLETED section while not
+  // signed in as the owner; null when no gate is open. (Ex email-OTP re-verify; see passAmendGate.)
   const [amendGateStep, setAmendGateStep] = useState<number | null>(null)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
@@ -921,8 +921,6 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       })
       const json = await res.json() as { ok?: boolean; error?: string; code?: string; freeAssessment?: FreeAssessmentResult }
       if (!res.ok || !json.ok || !json.freeAssessment) {
-        // If the email changed since verifying, the server clears the gate — re-show "Verify your email".
-        if (json.code === "email_unverified") setEmailVerified(false)
         toast.error(json.error ?? "Could not run your assessment."); return
       }
       setAssessment(json.freeAssessment); setScreeningStatus("done")
