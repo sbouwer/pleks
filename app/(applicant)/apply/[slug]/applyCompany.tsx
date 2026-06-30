@@ -219,8 +219,8 @@ function CoReviewLine({ k, v }: Readonly<{ k: string; v: string }>) {
 /** The COMPANY applicant's sign-off — the last pane of the company section. Confirm the entity, verify the email and
  *  consent on the company's behalf. After this the per-applicant roster takes over (the director then does their own
  *  section). consent + email-verified gate the forward action (the orchestrator). */
-export function StepCompanyReview({ company, setCompany, signOffEmail, applicationId, token, isCo, emailVerified, onVerified, consent, setConsent, imDirector, companyRole, onContinue, busy }: Readonly<{
-  company: CompanyInfo; setCompany: (c: CompanyInfo) => void; applicationId: string | null; token: string | null; isCo: boolean; emailVerified: boolean; onVerified: () => void
+export function StepCompanyReview({ company, setCompany, signOffEmail, applicationId, token, isCo, signedInEmail, emailVerified, onVerified, consent, setConsent, imDirector, companyRole, onContinue, busy }: Readonly<{
+  company: CompanyInfo; setCompany: (c: CompanyInfo) => void; applicationId: string | null; token: string | null; isCo: boolean; signedInEmail?: string | null; emailVerified: boolean; onVerified: () => void
   /** The email the OTP actually goes to — the application's applicant_email (the director / on-behalf primary), NOT
    *  the optional company contact email. Display must match what's sent or it reads "Code sent to undefined". */
   signOffEmail?: string
@@ -237,7 +237,7 @@ export function StepCompanyReview({ company, setCompany, signOffEmail, applicati
   const surplusMo = turnoverMo - totalMonthlyCents(ledgerOut)
   return (
     <div className="flex min-h-full flex-col gap-6">
-      <StepHeading title="Company review & consent" sub={imDirector ? "Confirm the company's details, verify your email and consent — then you'll continue to your own director application." : `Confirm the company's details, verify your email and consent — then we'll email the ${companyRole} to complete their personal application.`} />
+      <StepHeading title="Company review & consent" sub={imDirector ? "Confirm the company's details, create your account and consent — then you'll continue to your own director application." : `Confirm the company's details and consent — then we'll email the ${companyRole} to complete their application and create their own account.`} />
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4 text-sm">
         <CoReviewLine k="Registered name" v={company.name || "—"} />
         {company.trading ? <CoReviewLine k="Trading as" v={company.trading} /> : null}
@@ -269,12 +269,12 @@ export function StepCompanyReview({ company, setCompany, signOffEmail, applicati
           </FieldGrid>
         </div>
       )}
-      <ConsentVerify applicationId={applicationId} token={token} isCo={isCo} email={signOffEmail} verified={emailVerified} onVerified={onVerified} consent={consent} setConsent={setConsent}>
+      <ConsentVerify applicationId={applicationId} token={token} isCo={isCo} email={signOffEmail} signedInEmail={signedInEmail} verified={emailVerified} onVerified={onVerified} consent={consent} setConsent={setConsent} skipAccount={!imDirector}>
         I&apos;m authorised to apply on behalf of the company, and I consent to Pleks processing the company&apos;s information for this rental pre-selection (no credit check at this stage).
       </ConsentVerify>
       {/* Primary action bottom-right (consistent with the other consent/review panes — not in the top nav). */}
       <div className="mt-auto flex justify-end pt-3">
-        <ActionButton tone="primary" onClick={onContinue} disabled={busy || !consent || !emailVerified}>
+        <ActionButton tone="primary" onClick={onContinue} disabled={busy || !consent || (imDirector && !emailVerified)}>
           {imDirector ? "Continue to your application" : `Send to the ${companyRole}`}
         </ActionButton>
       </div>

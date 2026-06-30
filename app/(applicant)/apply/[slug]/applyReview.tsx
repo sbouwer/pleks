@@ -416,15 +416,23 @@ export function AccountStep({ applicationId, fillToken, isCo, email, signedInEma
 /** The per-applicant sign-off block — email verification + a consent checkbox — shared by the company sign-off
  *  (StepCompanyReview) and the personal review (StepSubmit) so the gate looks/behaves identically; the consent
  *  WORDING differs per applicant, so it's passed as children (#4 of the redundancy cleanup). */
-export function ConsentVerify({ applicationId, token, isCo, email, signedInEmail, verified, onVerified, consent, setConsent, children }: Readonly<{
+export function ConsentVerify({ applicationId, token, isCo, email, signedInEmail, verified, onVerified, consent, setConsent, skipAccount, children }: Readonly<{
   applicationId: string | null; token: string | null; isCo: boolean; email?: string; signedInEmail?: string | null
   verified: boolean; onVerified: () => void
   consent: boolean; setConsent: (v: boolean) => void; children: ReactNode
+  /** 14R §9a: the office-manager ON-BEHALF company sign-off creates NO account — the named directors create their own
+   *  via their links (the co-applicant model). So AccountStep is skipped and the consent is the on-behalf attestation
+   *  (the office manager isn't an applicant). The email-code can't go to a director's inbox the manager can't open. */
+  skipAccount?: boolean
 }>) {
   return (
     <>
-      {/* 14R: account-at-completion replaces the email-OTP verify; consent is captured against the bound auth user. */}
-      <AccountStep applicationId={applicationId} fillToken={token} isCo={isCo} email={email} signedInEmail={signedInEmail} ready={verified} onReady={onVerified} />
+      {skipAccount ? (
+        <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3 text-xs leading-relaxed text-[var(--ink-soft)]">The director(s) you name will each receive their own secure link to complete their part and create their account. You don&apos;t need an account to submit the company&apos;s details on its behalf.</p>
+      ) : (
+        /* 14R: account-at-completion replaces the email-OTP verify; consent is captured against the bound auth user. */
+        <AccountStep applicationId={applicationId} fillToken={token} isCo={isCo} email={email} signedInEmail={signedInEmail} ready={verified} onReady={onVerified} />
+      )}
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--amber)]" />
         <span className="text-[13px] leading-relaxed text-[var(--ink-soft)]"><ShieldCheck className="mr-1 inline size-3.5 text-[var(--ink-mute)]" />{children}</span>
