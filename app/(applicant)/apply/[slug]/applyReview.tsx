@@ -9,9 +9,10 @@
  */
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
 import { toast } from "sonner"
-import { AlertCircle, Building2, CheckCircle2, Loader2, Pencil, ShieldCheck, User, Users } from "lucide-react"
+import { AlertCircle, Building2, CheckCircle2, Fingerprint, Loader2, Pencil, ShieldCheck, User, Users } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { useEmailOtpSignup } from "@/lib/auth/useEmailOtpSignup"
+import { useEnrolPasskey } from "@/lib/auth/passkeys/useEnrolPasskey"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { formatZAR } from "@/lib/constants"
 import { StepHeading } from "./applyShared"
@@ -377,10 +378,17 @@ export function AccountStep({ applicationId, fillToken, isCo, email, signedInEma
   onReady: () => void
 }>) {
   const { send, verify, sending, verifying, sent, error } = useEmailOtpSignup()
+  const { enrol, state: pkState, errorMsg: pkError } = useEnrolPasskey()
   const [code, setCode] = useState("")
   const [binding, setBinding] = useState(false)
   const [authed, setAuthed] = useState<boolean>(!!signedInEmail)
   const boundRef = useRef(false)
+  // Passkey upsell: only offered after a FRESH account creation this session (not on resume/already-signed-in — that
+  // user manages passkeys from their account). The passkey enrols against THIS session's user, which link-account
+  // bound to the tenant (tenants.auth_user_id), so it persists on the tenant account for future sign-ins.
+  const [justCreated, setJustCreated] = useState(false)
+  const [pkChoice, setPkChoice] = useState<"offer" | "done" | "skipped">("offer")
+  const pkSupported = !!globalThis.window?.PublicKeyCredential
 
   // link-account — establish the tenant binding. Idempotent (the promotion dedups on tenant_id/auth user), and ALWAYS
   // runs (CD constraint 1) so a signed-in/returning applicant still gets bound. Returns ok.
@@ -407,14 +415,38 @@ export function AccountStep({ applicationId, fillToken, isCo, email, signedInEma
   async function onVerify() {
     if (!email) return
     if (!(await verify(email, code))) return // creates + signs in the account (sets the session)
+    setJustCreated(true)                     // a fresh account this session → offer the passkey upsell when ready
     setAuthed(true)                          // → the bind effect runs link-account, then onReady
   }
 
   if (ready) {
     return (
-      <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-        <CheckCircle2 className="size-4" /> Account ready{signedInEmail ? <> — <strong>{signedInEmail}</strong></> : null}
-      </p>
+      <div className="flex flex-col gap-2">
+        <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <CheckCircle2 className="size-4" /> Account ready{signedInEmail ? <> — <strong>{signedInEmail}</strong></> : null}
+        </p>
+        {/* Optional, NON-blocking passkey upsell — only after a fresh account creation, and only where supported.
+            Enrols against this session's user (which link-account bound to the tenant), so it survives on the
+            account; revoke it any time from your account's sign-in settings. Skipping changes nothing. */}
+        {justCreated && pkSupported && pkChoice === "offer" && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-[var(--ink)]"><Fingerprint className="size-4 text-[var(--ink-mute)]" /> Sign in faster next time</p>
+              <p className="mt-0.5 text-xs text-[var(--ink-soft)]">Add a passkey — use Face ID, a fingerprint or your device PIN instead of an emailed code.</p>
+              {pkError && pkError !== "Cancelled" ? <p className="mt-1 text-xs text-rose-600">{pkError}</p> : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <ActionButton tone="primary" size="sm" onClick={async () => { if (await enrol()) setPkChoice("done") }} disabled={pkState === "in_progress"}>{pkState === "in_progress" ? "Setting up…" : "Add passkey"}</ActionButton>
+              <button type="button" onClick={() => setPkChoice("skipped")} className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]">Not now</button>
+            </div>
+          </div>
+        )}
+        {pkChoice === "done" && (
+          <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            <CheckCircle2 className="size-3.5" /> Passkey added — sign in with Face ID / fingerprint next time.
+          </p>
+        )}
+      </div>
     )
   }
   if (authed) {
