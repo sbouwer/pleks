@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { encryptIdNumber, encryptDob, hashIdNumber, encryptSpouseInfo } from "@/lib/crypto/idNumber"
+import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -88,5 +89,8 @@ export async function POST(req: NextRequest, { params }: Props) {
   logQueryError("co-applicant save update", updErr)
   if (updErr) return NextResponse.json({ error: "Could not save your details. Please try again." }, { status: 500 })
 
-  return NextResponse.json({ ok: true })
+  // A final sign-off may complete the group → fan out "ready to submit" once + tell the client to route to the
+  // review (14R last-to-complete). A draft autosave never completes the group.
+  const allGreen = isDraft ? false : await maybeFireAllGreen(service, co.primary_application_id as string)
+  return NextResponse.json({ ok: true, allGreen })
 }
