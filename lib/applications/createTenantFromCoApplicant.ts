@@ -88,7 +88,7 @@ export async function createTenantFromCoApplicant(
   await supabase.from("application_co_applicants").update({ tenant_id: tenant.id }).eq("id", coApplicantId)
 
   await supabase.from("consent_log").insert({
-    org_id: co.org_id, subject_email: co.applicant_email,
+    org_id: co.org_id, user_id: authUserId, subject_email: co.applicant_email,
     consent_type: "data_processing", consent_version: "1.0-tenant-onboard",
     metadata: { tenant_id: tenant.id, source: "co_applicant_pipeline", co_applicant_id: coApplicantId },
   })

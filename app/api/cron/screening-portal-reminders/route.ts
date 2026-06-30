@@ -15,6 +15,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { buildDirectorReminderElement } from "@/lib/applications/commercial-emails"
+import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(req: NextRequest) {
@@ -141,6 +142,10 @@ async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppR
     org_id: line.org_id, table_name: "application_co_applicants", record_id: line.subject_id,
     action: "UPDATE", new_values: { declined_at: now, decline_reason: "expired_no_completion" },
   })
+
+  // 14R: declining a non-completing line shrinks the roster — the REMAINING applicants may now be all-green, so fire
+  // the "ready to submit" fan-out (arm is null while a line was pending, so this fires the first all-green).
+  await maybeFireAllGreen(service, line.application_id)
 
   if (line.paid_at) {
     const { data: payment, error: paymentError } = await service

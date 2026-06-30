@@ -14,6 +14,7 @@ import { createClient } from "@supabase/supabase-js"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { encryptIdNumber, encryptDob, hashIdNumber, encryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
+import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   if (!isDraft) {
     const { error: consentErr } = await service.from("consent_log").insert({
       org_id: co.org_id as string,
+      user_id: (await getServerUser())?.id ?? null, // 14R: bind the consent to the co's account (created at completion)
       subject_email: co.applicant_email as string,
       consent_type: "popia_application", consent_given: true,
       ip_address: body.consentIp ?? null,

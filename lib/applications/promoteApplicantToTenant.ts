@@ -98,7 +98,7 @@ export async function promoteApplicationToTenant(
   await db.from("applications").update({ tenant_id: tenant.id }).eq("id", applicationId)
 
   await db.from("consent_log").insert({
-    org_id: application.org_id, subject_email: application.applicant_email,
+    org_id: application.org_id, user_id: authUserId, subject_email: application.applicant_email,
     consent_type: "data_processing", consent_version: "1.0-tenant-onboard",
     metadata: { tenant_id: tenant.id, source: "application_pipeline", application_id: applicationId },
   })

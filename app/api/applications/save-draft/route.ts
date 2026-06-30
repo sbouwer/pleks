@@ -19,6 +19,7 @@ import { encryptIdNumber, encryptDob, encryptSpouseInfo } from "@/lib/crypto/idN
 import { sendApplicationResumeLink } from "@/lib/applications/emails"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -65,8 +66,10 @@ async function recordSectionConsent(db: Db, applicationId: string, bodyEmail: st
   const { data: capp, error } = await db.from("applications").select("org_id, applicant_email, stage1_consent_given").eq("id", applicationId).maybeSingle()
   logQueryError("save-draft consent load", error)
   if (!capp || capp.stage1_consent_given === true) return {}
+  const userId = (await getServerUser())?.id ?? null // 14R: bind the consent to the account created at completion
   const { error: clErr } = await db.from("consent_log").insert({
     org_id: capp.org_id as string,
+    user_id: userId,
     subject_email: (capp.applicant_email as string | null) ?? bodyEmail ?? null,
     consent_type: "popia_application", consent_given: true,
     ip_address: ip,
