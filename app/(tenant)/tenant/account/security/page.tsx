@@ -1,29 +1,14 @@
 /**
- * app/(tenant)/tenant/account/security/page.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/account/security/page.tsx — redirect to the consolidated /account/security (14R §9a E1).
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenant/account/security
+ * Auth:   none here — the canonical /account/security self-gates (getServerUser) and resolves the role.
+ * Notes:  account security (passkeys · MFA · sessions) is account-level, not lease-level — so a PRE-LEASE applicant
+ *         can reach it too (the old page required an active lease via getTenantSession). One auth-gated surface
+ *         replaces the three per-portal copies. Kept as a redirect for back-compat / existing nav links.
  */
 import { redirect } from "next/navigation"
-import { getTenantSession } from "@/lib/portal/getTenantSession"
-import { createClient } from "@/lib/supabase/server"
-import { PortalSecurityView } from "@/components/auth/PortalSecurityView"
 
-export const metadata = { title: "Security" }
-
-export default async function TenantSecurityPage() {
-  const session = await getTenantSession()
-  if (!session) redirect("/login")
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: factors } = await supabase.auth.mfa.listFactors()
-  const totpCount = factors?.totp?.length ?? 0
-
-  return <PortalSecurityView userId={user.id} totpCount={totpCount} role="tenant" />
+export default function TenantSecurityPage() {
+  redirect("/account/security")
 }
