@@ -464,11 +464,13 @@ export function ConsentVerify({ applicationId, token, isCo, email, signedInEmail
   )
 }
 
-export function StepSubmit({ emp, askingRentCents, applicantsGreen, screeningStatus, assessment, onAmend, onContinue, onAddApplicant, applicationId, token, busy }: Readonly<{
+export function StepSubmit({ emp, askingRentCents, applicantsGreen, screeningStatus, assessment, onAmend, onContinue, onAddApplicant, applicationId, token, busy, readOnly = false }: Readonly<{
   emp: Emp; askingRentCents: number
   applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null
   onAmend: (s: number) => void; onContinue: () => void; onAddApplicant: () => void
   applicationId: string | null; token: string | null; busy?: boolean
+  /** 14R §5: a co views the shared review READ-ONLY (no submit/amend here — they submit via the hub all-green action). */
+  readOnly?: boolean
 }>) {
   // The REAL submission — only when the applicant reviews the pre-screen and chooses to send it to the agent.
   async function submitToAgent(): Promise<boolean> {
@@ -482,7 +484,7 @@ export function StepSubmit({ emp, askingRentCents, applicantsGreen, screeningSta
     } catch { toast.error("Could not submit. Please try again."); return false }
   }
 
-  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
+  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} readOnly={readOnly} />
 
   // Not done yet — the assessment auto-runs when the review opens (consent is per-section, so there's no consent
   // gate here). Show a brief "preparing" state while it computes; if it isn't running (idle / a failed run), offer a

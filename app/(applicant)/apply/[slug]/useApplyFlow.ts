@@ -905,7 +905,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     setBusy(true)
     try {
       const res = await fetch(`/api/applications/${applicationId}/submit`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
+        // 14R: a co sends their access token as `ct` (the resolver's co arm), the lead/director its app token.
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isCo ? { ct: token } : { token }),
       })
       const json = await res.json() as { ok?: boolean; error?: string; code?: string; freeAssessment?: FreeAssessmentResult }
       if (!res.ok || !json.ok || !json.freeAssessment) {
@@ -981,7 +982,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // The persistent "Review / submit" nav item: unlocked once the filler's own cards are done (fillerReady) and submit
   // is theirs to press (canSubmit). The hub re-derives the same fillerReady internally; this exposes it for the rail.
   const { fillerReady: reviewFillerReady } = summariseStatus(statusMenuCompany, statusMenuPersons)
-  const reviewUnlocked = reviewFillerReady && canSubmit
+  // 14R §5: a co is a full peer — once their own section is done they can VIEW the shared (aggregate, peer-safe)
+  // review too, not only the lead. The pane renders read-only for a co (they submit via the hub's all-green action,
+  // not from the review). Reverses the earlier "never the review for a co" — the review carries no raw PII.
+  const reviewUnlocked = reviewFillerReady && (canSubmit || canCoSubmit)
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
   // -mr-5 pr-5: bleed the scroll body 20px into the panel's 40px side padding and pad the content back, so the

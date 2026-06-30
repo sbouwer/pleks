@@ -102,7 +102,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         </div>
       </div>
     )
-    if (personalStep === STEP_REVIEW) return <StepSubmit emp={emp} askingRentCents={askingRentCents} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} busy={busy} />
+    if (personalStep === STEP_REVIEW) return <StepSubmit emp={emp} askingRentCents={askingRentCents} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} busy={busy} readOnly={isCo} />
     return null
   }
   // Desktop = vertical step rail (left) + form panel; mobile/short = horizontal step bar atop the panel.
@@ -129,7 +129,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
               <ApplyNavRail
                 overviewActive={atRoster} onOverview={backToMenu} inSubFlow={begun && !atRoster && !onReviewStep}
-                reviewActive={onReviewStep} reviewEnabled={reviewUnlocked} showReview={canSubmit}
+                reviewActive={onReviewStep} reviewEnabled={reviewUnlocked} showReview={canSubmit || canCoSubmit}
                 onReview={() => onOpenCard("review")}
                 model={railNav} states={navStates} step={railStep} maxReached={railMaxReached} onNav={onNav} onJumpStep={onJumpRail}
               />
