@@ -3058,3 +3058,17 @@ ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS spouse_info jsonb
 -- through to start), distinct from stage1_consent_given (finished + consented). Lets the hub show a co card as
 -- Invitation sent → Started application → Completed.
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS started_at timestamptz;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §41  APPLICANT-ACCOUNT-AT-COMPLETION (ADDENDUM_14R_AUTH_AMENDMENT §4a + 14R §10 #5)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Full-peer auth ("start cheap, end expensive"): at COMPLETION an applicant creates a Pleks account (Supabase
+-- email-OTP in-flow + passkey upsell) and is promoted to a tenant-in-pre-lease-state — symmetric to the primary
+-- (applications.tenant_id → tenants.auth_user_id). The co's binding lives one level over: tenant_id → tenants(id),
+-- same uuid/default-RESTRICT convention as applications.tenant_id (never orphans — POPIA anonymises tenants, never
+-- hard-deletes). Nullable + set only at account-creation, so cos who never finish mint no tenant.
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES tenants(id);
+CREATE INDEX IF NOT EXISTS idx_co_applicants_tenant ON application_co_applicants(tenant_id) WHERE tenant_id IS NOT NULL;
+-- Re-armable all-green "ready to submit" fan-out (14R §10 #1): stamped when the completion email fires; reset to
+-- NULL on a roster change (co added / consent withdrawn) so a later all-green re-fires exactly once.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS all_complete_notified_at timestamptz;
