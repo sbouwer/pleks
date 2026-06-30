@@ -13,6 +13,7 @@ import { createClient } from "@supabase/supabase-js"
 import { assembleAssessment, type AssessmentAppRow, type AssessmentCoRow } from "@/lib/applications/assembleAssessment"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
 import { getServerUser } from "@/lib/auth/server"
+import { resolveApplicationCredential } from "@/lib/applications/applicationCredential"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -26,21 +27,17 @@ interface Props { params: Promise<{ id: string }> }
 
 export async function POST(req: NextRequest, { params }: Props) {
   const { id } = await params
-  const body = await req.json() as { token: string; consentIp?: string }
+  const body = await req.json() as { token?: string; ct?: string; consentIp?: string }
   const service = getServiceClient()
 
-  // Validate token belongs to this application
-  const { data: tokenRow, error: tokenRowError } = await service
-    .from("application_tokens")
-    .select("application_id, applicant_email")
-    .eq("token", body.token)
-    .eq("application_id", id)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle()
-    logQueryError("POST application_tokens", tokenRowError)
-
-  if (!tokenRow) {
-    return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
+  // ONE credential check (14R sub-step 7): the caller is an authorised applicant on THIS application — the lead's
+  // application_tokens token, a co's access token (ct), OR an authenticated session (the account created at
+  // completion). resolveApplicationCredential bakes in the IDOR guard (.eq applicationId) + expiry. A valid
+  // credential here IS the email-possession proof (a token was emailed; a session is a confirmed account), which
+  // is why the old email_verified_at OTP gate below is retired — account-at-completion (step 6) supersedes it.
+  const cred = await resolveApplicationCredential(service, { applicationId: id, token: body.token, ct: body.ct, authUserId: (await getServerUser())?.id })
+  if (!cred) {
+    return NextResponse.json({ error: "Invalid or expired credential" }, { status: 401 })
   }
 
   // Fetch application + listing
@@ -63,17 +60,8 @@ export async function POST(req: NextRequest, { params }: Props) {
     return NextResponse.json({ error: "This listing has closed and is no longer accepting applications." }, { status: 410 })
   }
 
-  // Anti-bot gate: the applicant must have verified their email (OTP) before submit — UNLESS they're the
-  // logged-in owner of that email (a Supabase account's email is already confirmed, so no second check needed).
-  if (!app.email_verified_at) {
-    const sessionEmail = (await getServerUser())?.email ?? null
-    const ownerLoggedIn = !!sessionEmail && !!app.applicant_email && sessionEmail.toLowerCase() === (app.applicant_email as string).toLowerCase()
-    if (!ownerLoggedIn) {
-      return NextResponse.json({ error: "Please verify your email before submitting.", code: "email_unverified" }, { status: 403 })
-    }
-  }
-
-  // Build the applicant set (primary + co-applicants) for the combined declared assessment. Guarantors/sureties
+  // (Anti-bot is now the credential check above + the account required at completion — the OTP email_verified_at
+  // gate is retired.) Build the applicant set (primary + co-applicants) for the combined declared assessment. Guarantors/sureties
   // are included so readiness reflects them, but freeAssessment excludes their income from combined affordability.
   const rentCents = (listing?.asking_rent_cents as number) ?? 0
   const unit = listing?.units as Record<string, unknown> | null

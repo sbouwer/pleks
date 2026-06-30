@@ -15,16 +15,11 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { decryptIdNumber, decryptDob, decryptSpouseInfo } from "@/lib/crypto/idNumber"
-import { Wordmark } from "@/components/ui/Wordmark"
-import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
-import "@/components/layout/focus-shell.css"
 import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
-import Image from "next/image"
-import { Phone, Mail, MessageCircle, ShieldCheck, Image as ImageIcon, type LucideIcon } from "lucide-react"
+import { Image as ImageIcon } from "lucide-react"
 import { StepPanel, type ResumeState } from "./applyOrchestrator"
-import { ApplyLoginButton, ApplyThemeToggle } from "./ApplyLoginButton"
-import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
-import { ApplyChromeProvider, ApplyUnitStrip } from "./applyChrome"
+import { ApplyLoginButton } from "./ApplyLoginButton"
+import { ApplyPortalShell, ApplyAgentCard, Eyebrow } from "../applyPortalChrome"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getServerUser } from "@/lib/auth/server"
 import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
@@ -167,22 +162,6 @@ async function hasSubmittedApplication(
   return !!data
 }
 
-function Eyebrow({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--ink-mute)]">{children}</span>
-}
-
-/** Stacked contact row — matches the supplier/contractor detail card's contact lines. */
-function ContactLine({ icon: Icon, href, children }: Readonly<{ icon: LucideIcon; href?: string; children: React.ReactNode }>) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      {href
-        ? <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className="truncate transition-colors hover:text-brand">{children}</a>
-        : <span className="truncate">{children}</span>}
-    </div>
-  )
-}
-
 function furnishLabel(unit: UnitRow | null): string {
   if (unit?.furnishing_status) {
     return unit.furnishing_status.replaceAll("_", " ").replace(/^\w/, (c) => c.toUpperCase())
@@ -195,14 +174,6 @@ function parkingLabel(bays: number | null | undefined): string {
 }
 function numOrDash(n: number | null | undefined): string { return n != null ? String(n) : "—" }
 function areaLabel(m2: number | null | undefined): string { return m2 != null ? `${m2} m²` : "—" }
-/** SA mobile → wa.me link (leading 0 → 27), or null. */
-function waLink(phone: string | null): string | null {
-  if (!phone) return null
-  const digits = phone.replaceAll(/\D/g, "")
-  if (digits.startsWith("0")) return `https://wa.me/27${digits.slice(1)}`
-  if (digits.startsWith("27")) return `https://wa.me/${digits}`
-  return null
-}
 
 export default async function ApplyPreviewPage({ params, searchParams }: Readonly<{ params: Promise<{ slug: string }>; searchParams: Promise<{ app?: string; token?: string }> }>) {
   const { slug } = await params
@@ -292,11 +263,6 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
 
   const title = [property?.address_line1, property?.suburb ?? property?.city].filter(Boolean).join(", ") || property?.name || "This property"
   const photo = (listing.listing_photos as string[] | null)?.[0] ?? null
-  const phone = agentPhone ?? org?.phone ?? null
-  const waHref = waLink(phone)
-  const enquiryMailto = org?.email
-    ? `mailto:${org.email}?subject=${encodeURIComponent("Property application enquiry, address: " + title)}`
-    : null
 
   // One short value per cell so nothing truncates in the narrow 2-col grid (bed/bath/size were one long line).
   const facts: ReadonlyArray<{ label: string; value: string; tone?: "ok" }> = [
@@ -315,29 +281,11 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
   const stripTitle = [property?.name, unit?.unit_number ? `Unit ${unit.unit_number}` : null, property?.suburb ?? property?.city].filter(Boolean).join(" · ") || title
   const availStr = facts[1]?.value ?? "Now"
   const agentCard = (
-    <DetailCard title="Your agent" headerAction={orgLogoUrl ? <Image src={orgLogoUrl} alt={org?.name ?? "Agency"} width={112} height={28} className="h-7 w-auto max-w-20 object-contain" unoptimized /> : undefined}>
-      {/* Name block (company · agent · function) on the left; photo on the right, sitting below the header logo.
-          Contacts run full width below so a long email never gets squashed by the photo. */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold leading-snug text-[var(--ink)]">{org?.name ?? "Managing agency"}</p>
-            {agentName && <p className="text-sm leading-snug text-[var(--ink)]">{agentName}</p>}
-            <p className="text-xs text-muted-foreground">Rental agent</p>
-          </div>
-          {agentPhoto && (
-            <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-[var(--r-button)] border border-border">
-              <Image src={agentPhoto} alt={agentName ?? "Agent"} fill className="object-cover object-top" unoptimized />
-            </div>
-          )}
-        </div>
-        <div className="space-y-1.5 border-t border-border pt-3">
-          {phone && <ContactLine icon={Phone} href={`tel:${phone.replaceAll(/\s/g, "")}`}>{phone}</ContactLine>}
-          {waHref && <ContactLine icon={MessageCircle} href={waHref}>WhatsApp</ContactLine>}
-          {enquiryMailto && <ContactLine icon={Mail} href={enquiryMailto}>{org?.email}</ContactLine>}
-        </div>
-      </div>
-    </DetailCard>
+    <ApplyAgentCard
+      orgName={org?.name ?? null} orgEmail={org?.email ?? null} orgPhone={org?.phone ?? null} orgLogoUrl={orgLogoUrl}
+      agentName={agentName} agentPhone={agentPhone} agentPhoto={agentPhoto}
+      enquirySubject={"Property application enquiry, address: " + title}
+    />
   )
 
   // The home being applied for — shown in the side column BEFORE the applicant begins (it becomes the step rail
@@ -360,71 +308,37 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
   )
 
   return (
-    <PublicThemeProvider>
-      <ApplyChromeProvider initial={!!resume}>
-      <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: "var(--paper)", color: "var(--ink)" }}>
-        {/* Same 4-layer warm backdrop as the login surface (fixed behind content) */}
-        <div className="pointer-events-none fixed inset-0 overflow-hidden"><FocusBackdrop /></div>
-
-      <div className="relative z-10 flex h-full flex-col">
-        {/* Header — backed surface; sits ABOVE the scroll area so a scrollbar can't clip it */}
-        <header className="shrink-0 border-b border-[var(--rule)] bg-[var(--paper-raised)]">
-          <div className="mx-auto flex max-w-[1280px] items-center px-6 py-3">
-            {/* Left zone — same width as the rail, so the unit line below starts in line with the form panel */}
-            <div className="flex shrink-0 items-center gap-3 [@media(min-width:1024px)_and_(min-height:700px)]:w-[300px]">
-              <Wordmark style={{ fontSize: 19 }} />
-              <span className="h-4 w-px shrink-0 bg-[var(--rule)]" />
-              <span className="hidden shrink-0 sm:inline"><Eyebrow>Rental application</Eyebrow></span>
-            </div>
-            {/* Main zone — unit details (ONLY once in the application; the landing shows them in the side card) on
-                the left, account controls on the right. */}
-            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 [@media(min-width:1024px)_and_(min-height:700px)]:ml-4">
-              <ApplyUnitStrip title={stripTitle} detail={`${formatZAR(listing.asking_rent_cents)}/mo · available ${availStr}`} />
-              <div className="flex shrink-0 items-center gap-3 sm:gap-4">
-                <span className="hidden items-center gap-1.5 text-[var(--ink-mute)] sm:flex">
-                  <ShieldCheck className="size-3.5" />
-                  <Eyebrow>Encrypted</Eyebrow>
-                </span>
-                <ApplyThemeToggle />
-                <ApplyLoginButton slug={slug} loggedIn={!!gw} name={prefillName} />
-              </div>
-            </div>
+    <ApplyPortalShell
+      stripTitle={stripTitle}
+      stripDetail={`${formatZAR(listing.asking_rent_cents)}/mo · available ${availStr}`}
+      begun={!!resume}
+      login={<ApplyLoginButton slug={slug} loggedIn={!!gw} name={prefillName} />}
+    >
+      {alreadyApplied ? (
+        <div className="flex flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:max-w-2xl">
+          <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
+            <Eyebrow>Already applied</Eyebrow>
+            <h2 className="mt-2 text-lg font-medium text-[var(--ink)]">You&apos;ve already applied for this unit</h2>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">
+              Your application for this listing is with the agent. There&apos;s nothing more to do — they&apos;ll be in touch about next steps. If you need to change something, contact the agent directly.
+            </p>
           </div>
-        </header>
-
-        {/* Content area — fills the viewport on desktop (each column scrolls internally); page-scrolls on mobile */}
-        <div className="min-h-0 flex-1 overflow-y-auto [@media(min-width:1024px)_and_(min-height:700px)]:overflow-hidden">
-          <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-4 px-6 py-4 [@media(min-width:1024px)_and_(min-height:700px)]:h-full [@media(min-width:1024px)_and_(min-height:700px)]:min-h-0">
-            {alreadyApplied ? (
-              <div className="flex flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:max-w-2xl">
-                <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
-                  <Eyebrow>Already applied</Eyebrow>
-                  <h2 className="mt-2 text-lg font-medium text-[var(--ink)]">You&apos;ve already applied for this unit</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">
-                    Your application for this listing is with the agent. There&apos;s nothing more to do — they&apos;ll be in touch about next steps. If you need to change something, contact the agent directly.
-                  </p>
-                </div>
-                {agentCard}
-              </div>
-            ) : (
-              <StepPanel
-                slug={slug}
-                orgId={listing.org_id as string}
-                listingTitle={stripTitle}
-                listingCard={listingCard}
-                leaseType={leaseType}
-                askingRentCents={(listing.asking_rent_cents as number) ?? 0}
-                prefill={prefill}
-                resume={resume}
-                verifiedEmail={verifiedEmail}
-                agentCard={agentCard}
-              />
-            )}
-          </div>
+          {agentCard}
         </div>
-      </div>
-      </div>
-      </ApplyChromeProvider>
-    </PublicThemeProvider>
+      ) : (
+        <StepPanel
+          slug={slug}
+          orgId={listing.org_id as string}
+          listingTitle={stripTitle}
+          listingCard={listingCard}
+          leaseType={leaseType}
+          askingRentCents={(listing.asking_rent_cents as number) ?? 0}
+          prefill={prefill}
+          resume={resume}
+          verifiedEmail={verifiedEmail}
+          agentCard={agentCard}
+        />
+      )}
+    </ApplyPortalShell>
   )
 }

@@ -61,10 +61,12 @@ export async function POST(
     return NextResponse.json({ error: error?.message || "Failed" }, { status: 500 })
   }
 
-  // Update application
+  // Update application. all_complete_notified_at → null re-arms the all-green "ready to submit" fan-out (14R step 7):
+  // a newly-added co re-opens the roster, so a group that was previously all-green can legitimately reach it again.
   await supabase.from("applications").update({
     has_co_applicant: true,
     co_applicants_count: (application.co_applicants_count || 0) + 1,
+    all_complete_notified_at: null,
   }).eq("id", applicationId)
 
   // Send co-applicant invitation email

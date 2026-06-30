@@ -17,7 +17,9 @@ import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { parseIncomeSources } from "@/lib/applications/incomeSources"
 import { encryptIdNumber, encryptDob, encryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { sendApplicationResumeLink } from "@/lib/applications/emails"
+import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -64,8 +66,10 @@ async function recordSectionConsent(db: Db, applicationId: string, bodyEmail: st
   const { data: capp, error } = await db.from("applications").select("org_id, applicant_email, stage1_consent_given").eq("id", applicationId).maybeSingle()
   logQueryError("save-draft consent load", error)
   if (!capp || capp.stage1_consent_given === true) return {}
+  const userId = (await getServerUser())?.id ?? null // 14R: bind the consent to the account created at completion
   const { error: clErr } = await db.from("consent_log").insert({
     org_id: capp.org_id as string,
+    user_id: userId,
     subject_email: (capp.applicant_email as string | null) ?? bodyEmail ?? null,
     consent_type: "popia_application", consent_given: true,
     ip_address: ip,
@@ -82,6 +86,12 @@ async function applyEmailChange(db: Db, applicationId: string, bodyEmail: string
   logQueryError("save-draft current email", error)
   if (cur && bodyEmail !== cur.applicant_email) return { applicant_email: bodyEmail, email_verified_at: null }
   return {}
+}
+
+/** After a section sign-off (consent), fire the all-green "ready to submit" fan-out once + report whether the group
+ *  is now complete (the client routes the finisher to the review). Module-level to keep POST under the complexity gate. */
+async function fireAllGreenIfConsented(db: Db, applicationId: string, consentGiven: boolean): Promise<boolean> {
+  return consentGiven ? maybeFireAllGreen(db, applicationId) : false
 }
 
 /** Map the partial body → the application columns we persist (only what's filled). */
@@ -188,7 +198,9 @@ export async function POST(req: NextRequest) {
     const updUrl = resumeUrl(req, body.slug, body.applicationId, body.token)
     let updEmail: { sent: boolean; error?: string } = { sent: false }
     if (body.notify && body.email) updEmail = await sendResumeEmail(db, body.applicationId, body.email, body.first_name, updUrl)
-    return NextResponse.json({ applicationId: body.applicationId, token: body.token, resumeUrl: updUrl, emailed: updEmail.sent, emailError: updEmail.error })
+    // A section sign-off (consent) may complete the group → fan out "ready to submit" once + route to the review.
+    const allGreen = await fireAllGreenIfConsented(db, body.applicationId, !!body.consentGiven)
+    return NextResponse.json({ applicationId: body.applicationId, token: body.token, resumeUrl: updUrl, emailed: updEmail.sent, emailError: updEmail.error, allGreen })
   }
 
   // ── Create a new draft (email required to send the resume link) ──

@@ -26,7 +26,7 @@ import {
   type PartyFormState, type PartyErrors,
 } from "@/lib/parties/partyValidation"
 import { isValidEmail, cipcRegError, checkPhone } from "@/lib/validation/contact"
-import { assembleSaveDraftPayload, resolvePrimary } from "./applySaveDraft"
+import { assembleSaveDraftPayload, assembleCoSaveBody, resolvePrimary } from "./applySaveDraft"
 import type { StatusMenuCompany, StatusMenuPerson, CardStatus } from "./applyStatusMenu"
 import { summariseStatus } from "./applyStatusMenu"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, type NavModel } from "./applyNav"
@@ -73,12 +73,13 @@ function editableCardStatus(done: boolean, edited: boolean, started: boolean): C
   if (done) return edited ? "updated" : "completed"
   return cardStatusOf(false, started)
 }
-/** The filler's own (self) card. Adds the FIRST-landing state: before they verify their email it reads "Verify
- *  email" (the unlock); verifying + entering their section makes it "Started application"; then Completed/Updated. */
-function selfCardStatus(done: boolean, edited: boolean, started: boolean, emailVerified: boolean): CardStatus {
+/** The filler's own (self) card. 14R account-at-completion: there's no verify-to-START gate anymore (the account is
+ *  created at sign-off), so a fresh card reads "Start"; entering the section makes it "Started application"; then
+ *  Completed/Updated once they finish (which now requires the account + consent). */
+function selfCardStatus(done: boolean, edited: boolean, started: boolean): CardStatus {
   if (done) return edited ? "updated" : "completed"
   if (started) return "in_progress"
-  return emailVerified ? "not_started" : "verify_email"
+  return "not_started"
 }
 /** A co-applicant card from the live tri-state poll: Completed (consented) → Started application (clicked their
  *  link) → Invitation sent (emailed, app exists) → Not started (pre-create). */
@@ -95,7 +96,10 @@ export function buildStatusMenuData(o: Readonly<{
   type: ApplicantType | null; isJuristic: boolean
   companyName: string; companyStarted: boolean; companySignedOff: boolean; companyEdited: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
-  selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; emailVerified: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
+  selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
+  /** 14R: a co peer runs the same hub. It shows their OWN editable card PLUS the other applicants as read-only
+   *  status cards (peerRoster — name + status only, never the company card or anyone's financials; POPIA §5). */
+  isCo?: boolean; peerRoster?: ReadonlyArray<{ id: string; name: string; roleLabel: string; status: CardStatus }>
 }>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
   const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -107,8 +111,18 @@ export function buildStatusMenuData(o: Readonly<{
   const includeSelf = o.isJuristic ? o.imDirector : true
   if (includeSelf) {
     const selfRole = o.isJuristic ? cap(o.companyRole) : "Applicant"
-    const selfStatus = selfCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted, o.emailVerified)
+    const selfStatus = selfCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted)
     persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: selfRole, status: selfStatus, canOpen: true })
+  }
+  // 14R full peer: the co sees the whole roster — their own editable card (above) + every OTHER applicant as a
+  // read-only status card (so the lead reads "Completed", a peer "In progress"). Name + status only; the company
+  // entity card + financials are NOT exposed here (§5 — the masked review is the financial surface).
+  if (o.isCo) {
+    const PEER_NOTE: Record<string, string> = { completed: "completed their part", in_progress: "completing their part", not_started: "not started yet" }
+    for (const p of o.peerRoster ?? []) {
+      persons.push({ id: p.id, name: p.name, roleLabel: p.roleLabel, status: p.status, canOpen: false, statusOnlyNote: `${p.roleLabel} — ${PEER_NOTE[p.status] ?? "in progress"}` })
+    }
+    return { company: null, persons }
   }
   o.coApplicants.forEach((c, i) => {
     const role = coRoleLabel(o.type, c, cap)
@@ -234,6 +248,10 @@ export interface ResumeState {
   incomeSources: { key: string; label: string; amount_cents: number; period: string }[]
   commitments?: { key: string; label: string; amount_cents: number; period: string }[]
   coApplicants: CoApplicant[]; docPaths: { name: string; storagePath: string }[]
+  /** 14R §5: a co peer's view of the OTHER applicants — NAME + completion status ONLY (no financials/ID/bank; the
+   *  shared masked review is the financial surface). Drives the co's read-only roster cards so a full peer sees the
+   *  whole roster (e.g. the lead as "Completed"), not just themselves. Undefined/empty for the lead. */
+  peerRoster?: { id: string; name: string; roleLabel: string; status: "not_started" | "in_progress" | "completed" }[]
   /** the filler had already finished their own section (documents submitted) before this resume — so the hub shows
    *  their card as Completed, not "Started application". */
   selfDone?: boolean
@@ -276,16 +294,43 @@ function seedDocFiles(income: IncomeRow[], employmentType: string, docPaths: { n
   return out
 }
 
+/** Submit affordances (14R §4): the lead/signatory submits via the affordability review; a co peer submits from
+ *  the hub once their own section is done (the server re-checks every peer is green). Module-level to keep
+ *  useApplyFlow under the cognitive-complexity gate. */
+function resolveSubmit(o: Readonly<{ isCo: boolean; selfSectionDone: boolean; isJuristicCompany: boolean; companyImDirector: boolean }>): { canSubmit: boolean; canCoSubmit: boolean } {
+  return {
+    canSubmit: !o.isCo && !(o.isJuristicCompany && !o.companyImDirector),
+    canCoSubmit: o.isCo && o.selfSectionDone,
+  }
+}
+
+/** Who this session belongs to (ADDENDUM_14R full-peer). Absent / isLead → the lead (the applications row, the
+ *  default — every existing caller). A co peer passes isLead:false + their co row id; that forces the hub entry,
+ *  the token-as-proof gate bypass (the access token IS the email proof), the co-scoped doc path, no-submit
+ *  (Phase 3 wires peer submit), and routes writes to the co save endpoint (sub-step 2). */
+export interface ApplyActor {
+  isLead: boolean; coId?: string
+  /** 14R §4: how many OTHER peers (lead + other cos) haven't finished their section — a load-time snapshot the co
+   *  page computes from the adapter. >0 → the co's submit is held ("waiting on N"); 0 → enabled. A count, not names
+   *  (POPIA-safe; named "waiting on {names}" is Phase 4). The server re-checks all-green regardless. */
+  peersIncomplete?: number
+}
+/** Default actor — the lead. Lets every existing caller omit `actor` and keeps `isCo` a single negation. */
+const LEAD_ACTOR: ApplyActor = { isLead: true }
+
 export interface UseApplyFlowProps {
   slug: string; orgId: string; listingTitle?: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
-  verifiedEmail?: string | null
+  actor?: ApplyActor
 }
 
 /** The apply wizard state machine. Returns all state, setters, handlers and derived values the render shell needs. */
-export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail }: UseApplyFlowProps) {
+export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, actor = LEAD_ACTOR }: UseApplyFlowProps) {
   const commercial = leaseType === "commercial"
+  // 14R: a co peer (isLead:false) runs the SAME machine as the lead with three divergences — enter at the hub, never
+  // re-verify (token-as-proof), never submit (Phase 2). The lead (default actor) is unchanged.
+  const isCo = !actor.isLead
   // Resuming a saved draft (the ?app&token link) rehydrates identity/income/employment/docs/co-applicants and
   // drops the applicant back on the step they left. Address isn't persisted by the apply flow, so it re-enters.
   const resumedIncome = resume ? rebuildRows(resume.incomeSources, INCOME_LABEL) : null
@@ -365,7 +410,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // lands on the menu too. (Couple/guarantor/individual still run linearly — their menu is a later increment.)
   const resumeCompany = !!resume && resume.applicantType === "company" && isJuristicCompanyType(resume.company?.companyType ?? "")
   const resumeStep = resume?.step ?? 0
-  const [atRoster, setAtRoster] = useState<boolean>(resumeCompany)
+  const [atRoster, setAtRoster] = useState<boolean>(resumeCompany || isCo) // a co peer enters at the hub / their own card (14R)
   const [companyStarted, setCompanyStarted] = useState<boolean>(resumeCompany && resumeStep > 0)
   // Prefer the EXPLICIT persisted flag (survives an edit moving the cursor back); fall back to the draft_step
   // heuristic for drafts saved before signedOff was persisted.
@@ -385,19 +430,21 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const [amendGateStep, setAmendGateStep] = useState<number | null>(null)
   const [screeningStatus, setScreeningStatus] = useState<ScreeningStatus>("idle")
   const [assessment, setAssessment] = useState<FreeAssessmentResult | null>(null)
+  const [coSubmitted, setCoSubmitted] = useState(false) // 14R: a co peer has submitted the application to the agent
   // Live co-applicant status (ADDENDUM_14Q) — the server is authoritative; we poll it on the hub so a co's card
   // flips Invitation sent → Started application → Completed as THEY progress their own per-link session. Keyed by
   // email; value is the tri-state ("invited" | "started" | "completed").
   const [coStatusByEmail, setCoStatusByEmail] = useState<Record<string, string>>({})
   useEffect(() => {
-    if (!applicationId || !token || !atRoster || coApplicants.length === 0) return
+    // A co holds an access-token (not an application_tokens token) + sees only their own card → never polls co-status.
+    if (isCo || !applicationId || !token || !atRoster || coApplicants.length === 0) return
     let cancelled = false
     void fetch(`/api/applications/${applicationId}/co-status?token=${encodeURIComponent(token)}`)
       .then((r) => r.json() as Promise<{ coApplicants?: { email: string; status?: string; completed?: boolean }[] }>)
       .then((j) => { if (!cancelled && j.coApplicants) setCoStatusByEmail(Object.fromEntries(j.coApplicants.map((c) => [c.email, c.status ?? (c.completed ? "completed" : "invited")]))) })
       .catch(() => { /* hub status is best-effort */ })
     return () => { cancelled = true }
-  }, [applicationId, token, atRoster, coApplicants.length])
+  }, [applicationId, token, atRoster, coApplicants.length, isCo])
 
   function advance(to: number) { setStep(to); setMaxReached((m) => Math.max(m, to)) }
 
@@ -513,21 +560,33 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       setCompanySignedOff(true); setAtRoster(true)
     } finally { setBusy(false) }
   }
-  /** Whether opening/editing a personal pane needs the email-OTP gate. Verify ONCE before starting (the unlock).
-   *  Re-verify (once per session) ONLY before editing an already-COMPLETED section in a multi-party NON-company
-   *  application (couple/guarantor — the link is shared, so confirm it's really them). Individual, company, and
-   *  not-yet-completed apps never re-verify (email_verified_at persists). */
+  /** 14R: whether editing a personal pane needs the AMEND GATE — being signed in as the section owner. There is no
+   *  verify-before-START anymore (the account is created at completion, not before), so this fires ONLY when editing
+   *  an already-COMPLETED section in a multi-party app. The owner created their account at completion, so they're
+   *  normally still signed in → passAmendGate proceeds transparently; a logged-out editor gets a sign-in prompt. */
   function gateNeedsVerify(toStep: number): boolean {
-    if (!emailGateSatisfied) return true // never verified → first-time verify
+    if (isCo) return false // a co edits via their own per-party link (their token IS their credential)
     const personalPane = PERSONAL_EDIT_KEYS.has(nav.paneMeta[toStep]?.key ?? "")
     const completedMultiPartyEdit = selfSectionDone && !isJuristicCompany && coApplicants.length > 0
     return personalPane && completedMultiPartyEdit && !editReverified
   }
 
+  /** The amend gate (14R, ex-OTP): may this edit proceed? If the section isn't a completed-edit, yes. Otherwise the
+   *  editor must be SIGNED IN as the section owner (the account made at completion) — true → proceed (mark
+   *  re-confirmed); false → open the sign-in prompt. Replaces the email-OTP re-verify. */
+  async function passAmendGate(toStep: number): Promise<boolean> {
+    if (!gateNeedsVerify(toStep)) return true
+    const { data: { user } } = await createClient().auth.getUser()
+    const isOwner = !!(user?.email && form.email && user.email.toLowerCase() === form.email.toLowerCase())
+    if (isOwner) { setEditReverified(true); return true }
+    setAmendGateStep(toStep)
+    return false
+  }
+
   // Open a card from the status-menu hub. The company card → the company section; "self" → the director's own
   // (personal) section, reusing what we know about the company (shared prefill, #1); "review" → the application
   // Review & Submit. navTo clears the hub flag + sets the step.
-  function onOpenCard(id: string) {
+  async function onOpenCard(id: string) {
     if (id === "company") { if (companySignedOff) { setCompanyEdited(true) } setCompanyStarted(true); navTo(0) } // juristic only — opens the company section (re-open after sign-off = an edit)
     else if (id === "self") {
       // The filler's own section. For a juristic company the director's personal flow starts after the company panes
@@ -535,9 +594,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       const target = isJuristicCompany ? companyPaneCount : 0
       if (isJuristicCompany) setEmp((e) => prefillEmploymentFromCompany(company, e))
       if (selfSectionDone) setSelfEdited(true) // re-opening a completed section = an edit → card reads "Updated application"
-      // Verify email ONCE before starting (the unlock). Re-verify (once/session) ONLY before editing an already-
-      // COMPLETED section in a multi-party non-company app (couple/guarantor — shared link). See gateNeedsVerify.
-      if (gateNeedsVerify(target)) { setAmendGateStep(target); return }
+      // 14R amend gate: editing a COMPLETED section requires being signed in as the owner (see passAmendGate). The
+      // owner is normally still signed in from completion → transparent; otherwise a sign-in prompt opens.
+      if (!(await passAmendGate(target))) return
       navTo(target)
     }
     else if (id === "review") {
@@ -626,6 +685,19 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // call EXTENDS the 30-day token server-side so a long document-gathering session isn't killed mid-edit. Shared
   // by createApplication (Income→Documents) and "Save & finish later". Email is required (to send the link).
   async function saveDraft(stepToSave: number, opts?: { explicit?: boolean; silent?: boolean; documentsSubmitted?: boolean; consentGiven?: boolean; companySignedOff?: boolean }): Promise<{ id: string; url: string | null; emailed: boolean } | null> {
+    // 14R: a co peer persists through their OWN endpoint (their access token = credential), not the lead's
+    // save-draft. The draft already exists (resume) so there's nothing to create — just patch the co row. A
+    // consentGiven call (finishDocuments) is the final sign-off (records consent); otherwise an autosave (draft).
+    if (isCo) {
+      if (!token || !applicationId) return null
+      const coBody = assembleCoSaveBody({ form, emp, dependentAdults, dependentMinors, income, commitments, spouseCandidates: coApplicants, final: opts?.consentGiven === true })
+      try {
+        const res = await fetch(`/api/applications/co-applicant/${token}/save`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(coBody) })
+        const json = await res.json() as { ok?: boolean; error?: string }
+        if (!res.ok || !json.ok) { if (!opts?.silent) { toast.error(json.error ?? "Could not save your progress.") } return null }
+        return { id: applicationId, url: null, emailed: false }
+      } catch { if (!opts?.silent) { toast.error("Could not save your progress.") } return null }
+    }
     // Primary-person resolution + the whole request body are pure (applySaveDraft) — the email guard, network call
     // and state writes stay here. On-behalf company → the named director is primary (see resolvePrimary).
     const primary = resolvePrimary(type, companyImDirector, coApplicants, form)
@@ -643,7 +715,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       setApplicationId(json.applicationId); setToken(json.token)
       // Put the resume token in the URL so a refresh / dev hot-reload rehydrates from the saved draft instead of
       // restarting (the draft is on the server; without the token in the URL the page can't find it on reload).
-      try { globalThis.history?.replaceState(null, "", `?app=${json.applicationId}&token=${encodeURIComponent(json.token)}`) } catch { /* best-effort */ }
+      if (!isCo) try { globalThis.history?.replaceState(null, "", `?app=${json.applicationId}&token=${encodeURIComponent(json.token)}`) } catch { /* best-effort */ }
       return { id: json.applicationId, url: json.resumeUrl ?? null, emailed: !!json.emailed }
     } catch { if (!opts?.silent) { toast.error("Could not save your progress.") } return null }
   }
@@ -757,7 +829,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     try {
       const supabase = createClient()
       const ext = file.name.split(".").pop() ?? "pdf"
-      const path = `applications/${orgId}/${applicationId}/${single ? categoryKey : fileId}.${ext}`
+      // A co's docs go to their own co_{coId}/ subfolder (subject-isolated; detect-document infers the subject from
+      // the co_ path); the lead's stay at the flat prefix. (14R §6 / 14P 0b.5)
+      const coPrefix = isCo ? `co_${actor.coId}/` : ""
+      const path = `applications/${orgId}/${applicationId}/${coPrefix}${single ? categoryKey : fileId}.${ext}`
       const { error: upErr } = await supabase.storage.from("application-docs").upload(path, file, { upsert: true })
       if (upErr) throw upErr
       let detection: string | null = null
@@ -805,7 +880,9 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       const bankPath = (docFiles["bank_main"] ?? []).find((f) => f.uploaded)?.storagePath ?? null
       const r = await saveDraft(step, { silent: true, documentsSubmitted: true, consentGiven: true })
       if (!r) { toast.error("Could not save — please try again."); return }
-      void createClient().from("applications").update({ bank_statement_path: bankPath }).eq("id", applicationId)
+      // bank_statement_path lives on the applications row (the lead) — a co's bank doc is registered under their own
+      // co_{coId}/ folder + row, and the /screen pipeline enumerates every file regardless, so skip this for a co.
+      if (!isCo) void createClient().from("applications").update({ bank_statement_path: bankPath }).eq("id", applicationId)
       // The applicant's own section is done → back to the status hub (their self card flips to Completed). The
       // application Review & Submit lives on the hub now (every flow), not at the end of a linear walk.
       setSelfSectionDone(true)
@@ -822,13 +899,13 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   /** Amend the application (add applicant / upload docs / edit details) → re-enter that step; the user
    *  re-submits to run a fresh screening iteration (the 14M self-improvement loop). */
   function applyAmend(toStep: number) { setScreeningStatus("idle"); setAssessment(null); setAtRoster(false); setStep(toStep) }
-  function amendAt(toStep: number) {
+  async function amendAt(toStep: number) {
     // Editing a section after it's done = an edit → that card reads "Updated application" (self OR company).
     const editKey = nav.paneMeta[toStep]?.key ?? ""
     if (selfSectionDone && PERSONAL_EDIT_KEYS.has(editKey)) setSelfEdited(true)
     if (companySignedOff && COMPANY_EDIT_KEYS.has(editKey)) setCompanyEdited(true)
-    // Verify (first time) / re-verify (completed multi-party edit) before editing personal details — see gateNeedsVerify.
-    if (gateNeedsVerify(toStep)) { setAmendGateStep(toStep); return }
+    // 14R amend gate: editing a completed section requires being signed in as the owner (see passAmendGate).
+    if (!(await passAmendGate(toStep))) return
     applyAmend(toStep)
   }
 
@@ -839,7 +916,8 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     setBusy(true)
     try {
       const res = await fetch(`/api/applications/${applicationId}/submit`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
+        // 14R: a co sends their access token as `ct` (the resolver's co arm), the lead/director its app token.
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isCo ? { ct: token } : { token }),
       })
       const json = await res.json() as { ok?: boolean; error?: string; code?: string; freeAssessment?: FreeAssessmentResult }
       if (!res.ok || !json.ok || !json.freeAssessment) {
@@ -850,6 +928,26 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       setAssessment(json.freeAssessment); setScreeningStatus("done")
     } catch {
       toast.error("Could not run your assessment.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // 14R §4 peer submit — a co submits the WHOLE application to the agent directly from the hub (NOT via the
+  // affordability review, which a co never sees — POPIA §5). The server re-validates the all-green gate; a 409
+  // means someone's still busy ("waiting on N"). The lead submits via the review's "Submit to agent" as before.
+  async function submitToAgent() {
+    if (!applicationId || !token) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/applications/${applicationId}/submit-to-agent`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
+      })
+      const json = await res.json() as { ok?: boolean; error?: string; code?: string }
+      if (!res.ok || !json.ok) { toast.error(json.error ?? "Could not submit your application."); return }
+      setCoSubmitted(true)
+    } catch {
+      toast.error("Could not submit your application.")
     } finally {
       setBusy(false)
     }
@@ -872,8 +970,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   // Submit gate: every applicant "green" — primary is implicit, each co-applicant has name+email+id (or is
   // already invited), and a company application has its type captured.
   const applicantsGreen = companyOk && coApplicants.every((c) => c.invited || coComplete(c))
-  // Email gate satisfied if they verified by OTP OR they're the logged-in owner of this email (already confirmed).
-  const emailGateSatisfied = emailVerified || (!!verifiedEmail && !!form.email && form.email.toLowerCase() === verifiedEmail.toLowerCase())
+  // 14R: the gate is satisfied once the account exists AND is bound (AccountStep's onReady → setEmailVerified). The
+  // old "logged-in owner of this email" shortcut is gone on purpose — a signed-in applicant must still run
+  // link-account to bind THIS application (CD constraint 1), and AccountStep does that on mount before onReady.
+  const emailGateSatisfied = emailVerified
   // The "Your application status" hub cards (ADDENDUM_14Q). selfStarted = the applicant has entered their own section
   // (post-company for a director) at least once.
   const selfStart = isJuristicCompany ? companyPaneCount : 0
@@ -881,17 +981,22 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
     type, isJuristic: isJuristicCompany, companyName: company.name || company.trading || "The company",
     companyStarted, companySignedOff, companyEdited, form, coApplicants, companyRole, imDirector: companyImDirector,
-    selfSectionDone, selfStarted, selfEdited, emailVerified: emailGateSatisfied, appCreated: !!applicationId, coStatusByEmail,
+    selfSectionDone, selfStarted, selfEdited, appCreated: !!applicationId, coStatusByEmail, isCo, peerRoster: resume?.peerRoster,
   })
   // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).
   const isMultiParty = isJuristicCompany || coApplicants.length > 0
   // Submit is the primary/signatory's act (CD cross-cutting A): a juristic office-manager (not a director) never
   // presses it — the named director submits via their own link.
-  const canSubmit = !(isJuristicCompany && !companyImDirector)
+  // The lead/signatory submits via the affordability review; a co peer submits straight from the hub once their own
+  // section is done (server re-validates all-green). Never the review for a co — POPIA §5. (See resolveSubmit.)
+  const { canSubmit, canCoSubmit } = resolveSubmit({ isCo, selfSectionDone, isJuristicCompany, companyImDirector })
   // The persistent "Review / submit" nav item: unlocked once the filler's own cards are done (fillerReady) and submit
   // is theirs to press (canSubmit). The hub re-derives the same fillerReady internally; this exposes it for the rail.
   const { fillerReady: reviewFillerReady } = summariseStatus(statusMenuCompany, statusMenuPersons)
-  const reviewUnlocked = reviewFillerReady && canSubmit
+  // 14R §5: a co is a full peer — once their own section is done they can VIEW the shared (aggregate, peer-safe)
+  // review too, not only the lead. The pane renders read-only for a co (they submit via the hub's all-green action,
+  // not from the review). Reverses the earlier "never the review for a co" — the review carries no raw PII.
+  const reviewUnlocked = reviewFillerReady && (canSubmit || canCoSubmit)
   // The footer ALWAYS shows the pre-selection disclaimer — the save confirmation lives in the modal, not here.
   const disclaimer = "Pre-selection only — affordability and shortlisting. No credit check or bureau enquiry runs at this stage — only after you submit and give explicit consent."
   // -mr-5 pr-5: bleed the scroll body 20px into the panel's 40px side padding and pad the content back, so the
@@ -941,10 +1046,10 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     screeningStatus, assessment,
     // handlers
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
-    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview, finishDocuments,
+    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, submitToAgent, afterCompanyReview, finishDocuments,
     // derived
     nav, personalStep, juristic, docApplicantType, docCategories, companyDocCategories, docsReady, applicantsGreen,
-    emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, disclaimer, scrollCls,
+    emailGateSatisfied, statusMenuCompany, statusMenuPersons, isMultiParty, canSubmit, canCoSubmit, coSubmitted, coPeersIncomplete: actor.peersIncomplete ?? 0, disclaimer, scrollCls,
     inWizard, activeKey, activeGroup, headerTitle, headerSub, railNav, railStep, railMaxReached, navStates, onNav,
     onJumpRail, navNext, showBackBtn, showSaveBtn, askingRentCents, reviewUnlocked, onReviewStep,
   }

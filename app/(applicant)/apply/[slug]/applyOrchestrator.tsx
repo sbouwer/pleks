@@ -28,44 +28,48 @@ import { StepCompanyDetails, StepCompanyReview } from "./applyCompany"
 import { type CoRole, SELF_EMPLOYED_TYPES, STEP_EXPENSES, STEP_DOCUMENTS, STEP_DOCS_OPTIONAL, STEP_REVIEW } from "./applyDomain"
 import { ApplyAsPane } from "./applyLanding"
 import { StepPersonal, StepAddress, StepEmployment, StepIncome, StepExpenses, StepDocuments } from "./applyIndividual"
-import { StepSubmit, VerifyEmail, ConsentVerify } from "./applyReview"
+import { StepSubmit, ConsentVerify } from "./applyReview"
 import { ApplicationStatusMenu } from "./applyStatusMenu"
 import { StepBar, SubTabs, ApplyNavRail } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
-import { useApplyFlow, type ResumeState } from "./useApplyFlow"
+import { useApplyFlow, type ResumeState, type ApplyActor } from "./useApplyFlow"
 
 export type { ResumeState }
 
 // "done" = the Step-1 free assessment is ready to show (it's instant — no processing/poll). The deep-scan ruling
 // moved off the applicant flow to the agent's shortlist step (Step 2). (ADDENDUM_14M three-step funnel)
 
-export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, agentCard, listingCard }: Readonly<{
+export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail, actor, agentCard, listingCard }: Readonly<{
   slug: string; orgId: string; listingTitle?: string; leaseType: "residential" | "commercial"; askingRentCents: number
   prefill?: Partial<PartyFormState> | null
   resume?: ResumeState | null
   /** the logged-in visitor's account email (already confirmed) — if it matches, skip the email-OTP gate. */
   verifiedEmail?: string | null
+  /** 14R: who this session belongs to (default = the lead). A co peer passes { isLead:false, coId } to run the
+   *  same flow at the hub / their own card, token-as-proof, writing to the co endpoint. */
+  actor?: ApplyActor
   /** the agent card, rendered at the bottom of the desktop side column (full-page shell). */
   agentCard?: ReactNode
   /** the home being applied for — shown in the side column BEFORE begin; replaced by the step rail after. */
   listingCard?: ReactNode
 }>) {
-  const f = useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, verifiedEmail })
+  const f = useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, actor })
   const {
     commercial, type, form, set, errors, emp, setEmp, income, setIncome,
     dependentAdults, setDependentAdults, dependentMinors, setDependentMinors, commitments, setCommitments,
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, setEmailVerified,
     coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
     addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, docFiles, docEscape, setDocEscape,
-    consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep, setEditReverified,
+    consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
-    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, applyAmend, submitApplication, afterCompanyReview, finishDocuments,
+    confirmAddApplicant, uploadDoc, removeDoc, renameDoc, amendAt, submitApplication, submitToAgent, afterCompanyReview, finishDocuments,
     personalStep, docCategories, companyDocCategories, applicantsGreen, emailGateSatisfied,
-    statusMenuCompany, statusMenuPersons, canSubmit, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
+    statusMenuCompany, statusMenuPersons, canSubmit, canCoSubmit, coSubmitted, coPeersIncomplete, disclaimer, scrollCls, inWizard, activeKey, activeGroup, headerTitle, headerSub,
     railNav, railStep, railMaxReached, navStates, onNav, onJumpRail, navNext, showBackBtn, showSaveBtn,
     reviewUnlocked, onReviewStep,
   } = f
+  const isCo = actor ? !actor.isLead : false // 14R: a co sends its access token as `ct` to AccountStep/link-account
 
   // The active form pane for the current step — kept here (it's render). Works for personal AND the sole-prop
   // machine (co-info at step 0, then the personal panes via personalStep).
@@ -77,7 +81,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     if (activeKey === "co-finances") return <StepCompanyDetails company={company} setCompany={setCompany} imDirector={companyImDirector} companyStep={2} />
     if (activeKey === "co-docs") return <StepDocuments tab="required" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
     if (activeKey === "co-docs-opt") return <StepDocuments tab="optional" categories={companyDocCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
-    if (activeKey === "co-review") return <StepCompanyReview company={company} setCompany={setCompany} signOffEmail={(type === "company" && !companyImDirector && coApplicants[0]) ? coApplicants[0].email : form.email} applicationId={applicationId} token={token} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={companyConsent} setConsent={setCompanyConsent} imDirector={companyImDirector} companyRole={companyRole} onContinue={afterCompanyReview} busy={busy} />
+    if (activeKey === "co-review") return <StepCompanyReview company={company} setCompany={setCompany} signOffEmail={(type === "company" && !companyImDirector && coApplicants[0]) ? coApplicants[0].email : form.email} applicationId={applicationId} token={token} isCo={isCo} signedInEmail={verifiedEmail} emailVerified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={companyConsent} setConsent={setCompanyConsent} imDirector={companyImDirector} companyRole={companyRole} onContinue={afterCompanyReview} busy={busy} />
     if (personalStep === 0) return <StepPersonal type={type} commercial={commercial} form={form} set={set} errors={errors} coApplicants={coApplicants} />
     if (personalStep === 1) return <StepAddress form={form} set={set} errors={errors} />
     if (personalStep === 2) return <StepEmployment emp={emp} setEmp={setEmp} />
@@ -88,16 +92,18 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
       <div className="flex min-h-full flex-col gap-6">
         <StepDocuments tab="optional" categories={docCategories} docFiles={docFiles} escape={docEscape} onUpload={uploadDoc} onRemove={removeDoc} onRename={renameDoc} onEscape={(k, v) => setDocEscape((p) => ({ ...p, [k]: v }))} />
         {/* SECTION sign-off — consent is captured here (per member), so the application Review is consent-free. */}
-        <ConsentVerify applicationId={applicationId} token={token} email={form.email} verified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={consent} setConsent={setConsent}>
+        <ConsentVerify applicationId={applicationId} token={token} isCo={isCo} email={form.email} signedInEmail={verifiedEmail} verified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={consent} setConsent={setConsent}>
           I consent to Pleks processing the information and documents I&apos;ve provided — including automated (AI) analysis of my uploaded documents — to pre-screen this application (POPIA). No credit check or bureau enquiry runs at this stage; that only happens later if I&apos;m shortlisted and I consent again.
+          {coApplicants.length > 0 ? <> As this is a JOINT application, my co-applicants can see the shared affordability summary; my raw ID, bank-account and credit details are not shared with them.</> : null}
         </ConsentVerify>
-        {/* The section sign-off action lives bottom-right in the pane (like the company co-review), not the top nav. */}
+        {/* The section sign-off action lives bottom-right in the pane (like the company co-review), not the top nav.
+            14R: gated on emailGateSatisfied too — the account must be created + bound before consent is captured. */}
         <div className="mt-auto flex justify-end pt-3">
-          <ActionButton tone="primary" onClick={finishDocuments} disabled={!consent || busy}>Complete my part</ActionButton>
+          <ActionButton tone="primary" onClick={finishDocuments} disabled={!consent || !emailGateSatisfied || busy}>Complete my part</ActionButton>
         </div>
       </div>
     )
-    if (personalStep === STEP_REVIEW) return <StepSubmit emp={emp} askingRentCents={askingRentCents} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} busy={busy} />
+    if (personalStep === STEP_REVIEW) return <StepSubmit emp={emp} askingRentCents={askingRentCents} applicantsGreen={applicantsGreen} screeningStatus={screeningStatus} assessment={assessment} onAmend={amendAt} onContinue={submitApplication} onAddApplicant={() => setAddApplicantOpen(true)} applicationId={applicationId} token={token} busy={busy} readOnly={isCo} />
     return null
   }
   // Desktop = vertical step rail (left) + form panel; mobile/short = horizontal step bar atop the panel.
@@ -124,7 +130,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
               <ApplyNavRail
                 overviewActive={atRoster} onOverview={backToMenu} inSubFlow={begun && !atRoster && !onReviewStep}
-                reviewActive={onReviewStep} reviewEnabled={reviewUnlocked} showReview={canSubmit}
+                reviewActive={onReviewStep} reviewEnabled={reviewUnlocked} showReview={canSubmit || canCoSubmit}
                 onReview={() => onOpenCard("review")}
                 model={railNav} states={navStates} step={railStep} maxReached={railMaxReached} onNav={onNav} onJumpStep={onJumpRail}
               />
@@ -210,15 +216,41 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
             has handed the company off lands here too (company ✓, director status-only; submit isn't theirs to press). */}
         {begun && atRoster && (
           <div className={scrollCls}>
-            <ApplicationStatusMenu
-              unitTitle={listingTitle ?? "this home"}
-              company={statusMenuCompany}
-              persons={statusMenuPersons}
-              onOpen={onOpenCard}
-              onSubmit={() => onOpenCard("review")}
-              busy={busy}
-              canSubmit={canSubmit}
-            />
+            {coSubmitted ? (
+              /* 14R §4 — a co peer has submitted the application to the agent. Terminal confirmation (the co never
+                 sees the affordability review — POPIA §5). */
+              <div className="flex flex-col items-center gap-3 py-12 text-center">
+                <h2 className="text-xl font-semibold text-[var(--ink)]">Application submitted ✓</h2>
+                <p className="max-w-md text-sm leading-relaxed text-[var(--ink-soft)]">Thanks — your details and consent are recorded, and the application has gone to the agent. You can close this page.</p>
+              </div>
+            ) : (
+              <>
+                <ApplicationStatusMenu
+                  unitTitle={listingTitle ?? "this home"}
+                  company={statusMenuCompany}
+                  persons={statusMenuPersons}
+                  onOpen={onOpenCard}
+                  onSubmit={() => onOpenCard("review")}
+                  busy={busy}
+                  canSubmit={canSubmit}
+                />
+                {/* A co peer submits the whole application straight from the hub once EVERYONE's part is done (no
+                    affordability review — POPIA §5). Until then the action is held with a "waiting on N" note rather
+                    than offered-then-bounced; the server re-checks all-green regardless. */}
+                {canCoSubmit && (
+                  <div className="mt-4 flex flex-col items-stretch gap-1.5 border-t border-[var(--rule)] pt-4">
+                    {coPeersIncomplete > 0 ? (
+                      <div className="flex items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-4 text-sm leading-relaxed text-[var(--ink-soft)]">
+                        <Clock className="mt-0.5 size-5 shrink-0 text-[var(--ink-mute)]" />
+                        <span>Your part is in. Waiting for {coPeersIncomplete} other applicant{coPeersIncomplete === 1 ? "" : "s"} to finish — the application goes to the agent once everyone&apos;s done.</span>
+                      </div>
+                    ) : (
+                      <ActionButton tone="primary" onClick={submitToAgent} disabled={busy}>Submit application to the agent</ActionButton>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -288,23 +320,18 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         </div>
       )}
 
-      {/* Email gate — first-time VERIFY (the unlock before starting your section) OR a security RE-verify (editing an
-          already-completed section in a multi-party app, where the link is shared). The copy differs so the re-verify
-          reads as "make sure it's you", not a generic "verify your email". On success it opens the section. */}
+      {/* 14R amend gate — editing an already-COMPLETED section requires being SIGNED IN as the section owner (the
+          account created at completion replaces the old email-OTP re-verify). passAmendGate opens this only when the
+          editor isn't signed in as the owner; signing in and returning lets the edit proceed. */}
       {amendGateStep !== null && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => setAmendGateStep(null)}>
           <div className="w-full max-w-md rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-[var(--ink)]">{emailGateSatisfied ? "Let's make sure it's you" : "Verify your email to continue"}</h3>
-            <p className="mt-1 text-sm leading-relaxed text-[var(--ink-soft)]">
-              {emailGateSatisfied
-                ? "This application is already complete and its link can be shared, so before you change anything we'll send a code to your email to confirm it's really you making the edit."
-                : "We'll send a code to your email to confirm it's you before you start your part of the application."}
-            </p>
-            <div className="mt-3">
-              <VerifyEmail applicationId={applicationId} token={token} email={form.email} verified={false} reverify
-                onVerified={() => { setEmailVerified(true); setEditReverified(true); applyAmend(amendGateStep); setAmendGateStep(null) }} />
+            <h3 className="text-base font-semibold text-[var(--ink)]">Sign in to edit</h3>
+            <p className="mt-1 text-sm leading-relaxed text-[var(--ink-soft)]">This part of the application is already complete. Please sign in as <strong className="text-[var(--ink)]">{form.email}</strong> to make changes.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <ActionButton tone="secondary" onClick={() => setAmendGateStep(null)} disabled={busy}>Cancel</ActionButton>
+              <ActionButton tone="primary" onClick={() => { globalThis.location.href = `/login?next=${encodeURIComponent(globalThis.location.pathname + globalThis.location.search)}` }}>Sign in</ActionButton>
             </div>
-            <div className="mt-4 flex justify-end"><ActionButton tone="secondary" onClick={() => setAmendGateStep(null)} disabled={busy}>Cancel</ActionButton></div>
           </div>
         </div>
       )}

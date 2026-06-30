@@ -305,7 +305,6 @@
   "lib/actions/schemes.ts",
   "lib/actions/submitContactForm.ts",
   "lib/actions/templates.ts",
-  "lib/applications/createTenantFromApplication.ts",
   "lib/auth/login-notification-email.tsx",
   "lib/auth/roles.ts",
   "lib/calendar/events.ts",

@@ -7,10 +7,12 @@
  *         Shared bookend for BOTH flows — the orchestrator (StepPanel) renders it last, after the chosen flow.
  *         Owns its own helpers; shares only bricks + applyDomain.
  */
-import { useState, type ReactNode } from "react"
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
 import { toast } from "sonner"
-import { AlertCircle, Building2, CheckCircle2, Loader2, Pencil, ShieldCheck, User, Users } from "lucide-react"
+import { AlertCircle, Building2, CheckCircle2, Fingerprint, Loader2, Pencil, ShieldCheck, User, Users } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
+import { useEmailOtpSignup } from "@/lib/auth/useEmailOtpSignup"
+import { useEnrolPasskey } from "@/lib/auth/passkeys/useEnrolPasskey"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { formatZAR } from "@/lib/constants"
 import { StepHeading } from "./applyShared"
@@ -146,7 +148,7 @@ function CompanyAffordabilityCard({ assessment, askingRentCents }: Readonly<{ as
 
 /** Personal affordability — the residual card (declared income − commitments − rent → left over). The applicant IS
  *  the tenant here (couple/guarantor income is already combined in the assessment). */
-function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; onAddApplicant: () => void }>) {
+function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; onAddApplicant?: () => void }>) {
   const incomeCents = assessment.combinedIncomeCents
   const oblCents = assessment.declaredObligationsCents
   const residualCents = assessment.randLeftAfterObligationsCents ?? assessment.randLeftAfterRentCents ?? (incomeCents - askingRentCents - oblCents)
@@ -177,7 +179,7 @@ function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant
         <span className={`text-xl font-semibold ${residualCents >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatZAR(residualCents)}</span>
       </div>
       <p className="text-[11px] text-[var(--ink-mute)]">{ratioPct != null ? `Rent is ${ratioPct}% of income` : "Income still to confirm"}{multiple != null ? ` · income covers rent ${multiple}×` : ""}</p>
-      {short && (
+      {short && onAddApplicant && (
         <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
           <p className="text-xs leading-relaxed text-[var(--ink-soft)]">{assessment.affordabilityTier === "no-income" ? "No income declared yet." : "Rent is high relative to your declared income."} Adding a co-applicant or guarantor whose income counts would strengthen affordability.</p>
           <ActionButton tone="secondary" size="sm" icon={<Users className="size-4" />} className="mt-2" onClick={onAddApplicant}>Add applicant</ActionButton>
@@ -190,11 +192,12 @@ function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant
 /** Step-1 FREE assessment — the application review: Completeness (what's done / still to add) + Residual
  *  affordability (income vs commitments + the residual + a tier read; prompts "Add applicant" when short).
  *  Re-runnable for free; the J1 gate (all co-applicants complete) blocks submit. (ADDENDUM_14M funnel) */
-function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmitToAgent, onAddApplicant }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend: (s: number) => void; onSubmitToAgent: () => Promise<boolean>; onAddApplicant: () => void }>) {
+function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmitToAgent, onAddApplicant, readOnly = false }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend?: (s: number) => void; onSubmitToAgent?: () => Promise<boolean>; onAddApplicant?: () => void; readOnly?: boolean }>) {
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   async function doSubmit() {
+    if (!onSubmitToAgent) return
     setSubmitting(true)
     const ok = await onSubmitToAgent()
     if (ok) setDone(true)
@@ -263,7 +266,7 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmi
 
       {/* Something to change? One line — edit your details (or go back to the overview to edit any card). Re-opening
           the review re-checks automatically, so there's no manual "re-check" here. */}
-      {!verdictGood && (
+      {!verdictGood && !readOnly && onAmend && (
         <div className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-3">
           <p className="text-xs text-[var(--ink-mute)]">Want to change something before you submit?</p>
           <ActionButton tone="secondary" size="sm" icon={<Pencil className="size-4" />} onClick={() => onAmend(0)} className="shrink-0">Edit details</ActionButton>
@@ -276,72 +279,134 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmi
         <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-soft)]">You submit → if the agent shortlists you, your documents are verified against what you declared → an optional credit check runs only with your explicit consent, and you&apos;ll receive a copy.</p>
       </div>
 
-      {/* Submit pinned to the BOTTOM of the card (mt-auto), bottom-right. No "amend" button — Back + the side nav
-          handle edits. Consent + email verification happened at the review landing, so this just sends. */}
-      <div className="mt-auto flex justify-end pt-3">
-        <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} disabled={submitting} onClick={doSubmit}>{submitting ? "Submitting…" : "Submit application"}</ActionButton>
-      </div>
+      {/* Submit pinned to the BOTTOM of the card (mt-auto), bottom-right. Hidden in read-only (the view-only link from
+          the submission email) — there's nothing to change or re-send there. */}
+      {!readOnly && (
+        <div className="mt-auto flex justify-end pt-3">
+          <ActionButton tone="primary" icon={<CheckCircle2 className="size-4" />} disabled={submitting} onClick={doSubmit}>{submitting ? "Submitting…" : "Submit application"}</ActionButton>
+        </div>
+      )}
     </div>
   )
 }
 
-/** Anti-bot email verification — send a 6-digit code to the applicant's email, then confirm it before submit.
- *  Exported so the company sign-off (StepCompanyReview) reuses the same verify widget. */
-export function VerifyEmail({ applicationId, token, email, verified, onVerified, reverify }: Readonly<{
-  applicationId: string | null; token: string | null; email?: string; verified: boolean; onVerified: () => void; reverify?: boolean
+/** Read-only render of a stored assessment — the view-only review reached from the submission email (14R §4). */
+export function ReadOnlyAssessment({ assessment, askingRentCents, emp }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp }>) {
+  return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} readOnly />
+}
+
+/** Account-at-completion (14R auth amendment) — the successor to the email-OTP VerifyEmail. "Start cheap, end
+ *  expensive": at sign-off the applicant creates a Pleks account with a 6-digit email code entered IN-FLOW (or, if
+ *  already signed in, skips the code) — then link-account establishes the tenant binding so CONSENT is captured
+ *  against the auth user (CD §5 POPIA binding).
+ *
+ *  CD constraints: (1) link-account ALWAYS runs — a signed-in user skips only the code, never the binding (else the
+ *  resolver's session branch has nothing to match and they can't resume/edit); (2) onReady fires only after the
+ *  binding, so consent is captured after auth_user_id exists; (3) resume-after-bounce (account made, left before
+ *  consent) returns signed-in → binds on mount → lands on consent, never re-creates the account. Co-aware: a co
+ *  sends its access token as `ct`, the lead its app token as `token`. */
+export function AccountStep({ applicationId, fillToken, isCo, email, signedInEmail, ready, onReady }: Readonly<{
+  applicationId: string | null
+  fillToken: string | null            // lead application_tokens token, OR a co's access_token
+  isCo: boolean
+  email?: string
+  signedInEmail?: string | null       // server-rendered session email at load (logged-in / resume-after-bounce)
+  ready: boolean
+  onReady: () => void
 }>) {
-  const [sent, setSent] = useState(false)
+  const { send, verify, sending, verifying, sent, error } = useEmailOtpSignup()
+  const { enrol, state: pkState, errorMsg: pkError } = useEnrolPasskey()
   const [code, setCode] = useState("")
-  const [busy, setBusy] = useState(false)
+  const [binding, setBinding] = useState(false)
+  const [authed, setAuthed] = useState<boolean>(!!signedInEmail)
+  const boundRef = useRef(false)
+  // Passkey upsell: only offered after a FRESH account creation this session (not on resume/already-signed-in — that
+  // user manages passkeys from their account). The passkey enrols against THIS session's user, which link-account
+  // bound to the tenant (tenants.auth_user_id), so it persists on the tenant account for future sign-ins.
+  const [justCreated, setJustCreated] = useState(false)
+  const [pkChoice, setPkChoice] = useState<"offer" | "done" | "skipped">("offer")
+  const pkSupported = !!globalThis.window?.PublicKeyCredential
 
-  async function send() {
-    if (!applicationId || !token) { toast.error("Please complete the earlier steps first."); return }
-    setBusy(true)
+  // link-account — establish the tenant binding. Idempotent (the promotion dedups on tenant_id/auth user), and ALWAYS
+  // runs (CD constraint 1) so a signed-in/returning applicant still gets bound. Returns ok.
+  const bind = useCallback(async (): Promise<boolean> => {
+    if (!applicationId) return false
+    setBinding(true)
     try {
-      const res = await fetch(`/api/applications/${applicationId}/verify/send`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, reverify }),
+      const res = await fetch(`/api/applications/${applicationId}/link-account`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isCo ? { ct: fillToken } : { token: fillToken }),
       })
-      const json = await res.json() as { ok?: boolean; alreadyVerified?: boolean; error?: string }
-      if (json.alreadyVerified) { onVerified(); return }
-      if (!res.ok) { toast.error(json.error ?? "Could not send the code."); return }
-      setSent(true); toast.success(email ? `Code sent to ${email}` : "Code sent — check your email")
-    } catch { toast.error("Could not send the code.") } finally { setBusy(false) }
-  }
-  async function check() {
-    if (!applicationId || !token) return
-    setBusy(true)
-    try {
-      const res = await fetch(`/api/applications/${applicationId}/verify/check`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, code }),
-      })
-      const json = await res.json() as { ok?: boolean; status?: string; error?: string }
-      if (json.ok && json.status === "verified") { onVerified(); toast.success("Email verified ✓") }
-      else if (json.status === "locked") toast.error(json.error ?? "Too many attempts — try again later.")
-      else if (json.status === "expired") { toast.error("That code expired — send a new one."); setSent(false); setCode("") }
-      else toast.error("Incorrect code — check and try again.")
-    } catch { toast.error("Could not verify the code.") } finally { setBusy(false) }
+      if (!res.ok) { const b = await res.json().catch(() => ({})) as { error?: string }; toast.error(b.error ?? "Could not link your account — please try again."); return false }
+      return true
+    } catch { toast.error("Could not link your account — please try again."); return false } finally { setBinding(false) }
+  }, [applicationId, isCo, fillToken])
+
+  // Already signed in (logged-in OR resume-after-bounce, CD constraints 1 + 3): bind on mount → ready. No code entry.
+  useEffect(() => {
+    if (ready || boundRef.current || !authed) return
+    boundRef.current = true
+    void (async () => { if (await bind()) onReady(); else boundRef.current = false })()
+  }, [authed, ready, bind, onReady])
+
+  async function onVerify() {
+    if (!email) return
+    if (!(await verify(email, code))) return // creates + signs in the account (sets the session)
+    setJustCreated(true)                     // a fresh account this session → offer the passkey upsell when ready
+    setAuthed(true)                          // → the bind effect runs link-account, then onReady
   }
 
-  if (verified) {
+  if (ready) {
     return (
-      <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-        <CheckCircle2 className="size-4" /> Email verified
+      <div className="flex flex-col gap-2">
+        <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <CheckCircle2 className="size-4" /> Account ready{signedInEmail ? <> — <strong>{signedInEmail}</strong></> : null}
+        </p>
+        {/* Optional, NON-blocking passkey upsell — only after a fresh account creation, and only where supported.
+            Enrols against this session's user (which link-account bound to the tenant), so it survives on the
+            account; revoke it any time from your account's sign-in settings. Skipping changes nothing. */}
+        {justCreated && pkSupported && pkChoice === "offer" && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-[var(--ink)]"><Fingerprint className="size-4 text-[var(--ink-mute)]" /> Sign in faster next time</p>
+              <p className="mt-0.5 text-xs text-[var(--ink-soft)]">Add a passkey — use Face ID, a fingerprint or your device PIN instead of an emailed code.</p>
+              {pkError && pkError !== "Cancelled" ? <p className="mt-1 text-xs text-rose-600">{pkError}</p> : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <ActionButton tone="primary" size="sm" onClick={async () => { if (await enrol()) setPkChoice("done") }} disabled={pkState === "in_progress"}>{pkState === "in_progress" ? "Setting up…" : "Add passkey"}</ActionButton>
+              <button type="button" onClick={() => setPkChoice("skipped")} className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]">Not now</button>
+            </div>
+          </div>
+        )}
+        {pkChoice === "done" && (
+          <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            <CheckCircle2 className="size-3.5" /> Passkey added — sign in with Face ID / fingerprint next time.
+          </p>
+        )}
+      </div>
+    )
+  }
+  if (authed) {
+    return (
+      <p className="flex items-center gap-2 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] px-3 py-2 text-sm text-[var(--ink-soft)]">
+        <Loader2 className="size-4 animate-spin text-[var(--amber)]" /> Linking your account…
       </p>
     )
   }
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-[var(--ink)]">Verify your email</p>
-        <p className="mt-0.5 text-xs text-[var(--ink-soft)]">We&apos;ll send a 6-digit code to <strong className="text-[var(--ink)]">{email ?? "your email"}</strong> to confirm it&apos;s really you.</p>
+        <p className="text-sm font-medium text-[var(--ink)]">Create your account to finish</p>
+        <p className="mt-0.5 text-xs text-[var(--ink-soft)]">We&apos;ll send a 6-digit code to <strong className="text-[var(--ink)]">{email ?? "your email"}</strong>. Your account secures your application and lets you sign back in to edit it.</p>
+        {error ? <p className="mt-1 text-xs text-rose-600">{error}</p> : null}
       </div>
       {!sent ? (
-        <ActionButton tone="primary" size="sm" onClick={send} disabled={busy} className="shrink-0">Send code</ActionButton>
+        <ActionButton tone="primary" size="sm" onClick={() => email && send(email)} disabled={sending || !email} className="shrink-0">{sending ? "Sending…" : "Send code"}</ActionButton>
       ) : (
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="123456" className="w-28 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper)] px-2.5 py-1.5 text-sm tracking-[0.3em]" />
-          <ActionButton tone="primary" size="sm" onClick={check} disabled={busy || code.length !== 6}>Verify</ActionButton>
-          <button type="button" onClick={send} disabled={busy} className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]">Resend</button>
+          <ActionButton tone="primary" size="sm" onClick={onVerify} disabled={verifying || binding || code.length !== 6}>{verifying || binding ? "…" : "Create account"}</ActionButton>
+          <button type="button" onClick={() => email && send(email)} disabled={sending} className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]">Resend</button>
         </div>
       )}
     </div>
@@ -351,13 +416,23 @@ export function VerifyEmail({ applicationId, token, email, verified, onVerified,
 /** The per-applicant sign-off block — email verification + a consent checkbox — shared by the company sign-off
  *  (StepCompanyReview) and the personal review (StepSubmit) so the gate looks/behaves identically; the consent
  *  WORDING differs per applicant, so it's passed as children (#4 of the redundancy cleanup). */
-export function ConsentVerify({ applicationId, token, email, verified, onVerified, reverify, consent, setConsent, children }: Readonly<{
-  applicationId: string | null; token: string | null; email?: string; verified: boolean; onVerified: () => void; reverify?: boolean
+export function ConsentVerify({ applicationId, token, isCo, email, signedInEmail, verified, onVerified, consent, setConsent, skipAccount, children }: Readonly<{
+  applicationId: string | null; token: string | null; isCo: boolean; email?: string; signedInEmail?: string | null
+  verified: boolean; onVerified: () => void
   consent: boolean; setConsent: (v: boolean) => void; children: ReactNode
+  /** 14R §9a: the office-manager ON-BEHALF company sign-off creates NO account — the named directors create their own
+   *  via their links (the co-applicant model). So AccountStep is skipped and the consent is the on-behalf attestation
+   *  (the office manager isn't an applicant). The email-code can't go to a director's inbox the manager can't open. */
+  skipAccount?: boolean
 }>) {
   return (
     <>
-      <VerifyEmail applicationId={applicationId} token={token} email={email} verified={verified} onVerified={onVerified} reverify={reverify} />
+      {skipAccount ? (
+        <p className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-3 text-xs leading-relaxed text-[var(--ink-soft)]">The director(s) you name will each receive their own secure link to complete their part and create their account. You don&apos;t need an account to submit the company&apos;s details on its behalf.</p>
+      ) : (
+        /* 14R: account-at-completion replaces the email-OTP verify; consent is captured against the bound auth user. */
+        <AccountStep applicationId={applicationId} fillToken={token} isCo={isCo} email={email} signedInEmail={signedInEmail} ready={verified} onReady={onVerified} />
+      )}
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--amber)]" />
         <span className="text-[13px] leading-relaxed text-[var(--ink-soft)]"><ShieldCheck className="mr-1 inline size-3.5 text-[var(--ink-mute)]" />{children}</span>
@@ -366,11 +441,13 @@ export function ConsentVerify({ applicationId, token, email, verified, onVerifie
   )
 }
 
-export function StepSubmit({ emp, askingRentCents, applicantsGreen, screeningStatus, assessment, onAmend, onContinue, onAddApplicant, applicationId, token, busy }: Readonly<{
+export function StepSubmit({ emp, askingRentCents, applicantsGreen, screeningStatus, assessment, onAmend, onContinue, onAddApplicant, applicationId, token, busy, readOnly = false }: Readonly<{
   emp: Emp; askingRentCents: number
   applicantsGreen: boolean; screeningStatus: ScreeningStatus; assessment: FreeAssessmentResult | null
   onAmend: (s: number) => void; onContinue: () => void; onAddApplicant: () => void
   applicationId: string | null; token: string | null; busy?: boolean
+  /** 14R §5: a co views the shared review READ-ONLY (no submit/amend here — they submit via the hub all-green action). */
+  readOnly?: boolean
 }>) {
   // The REAL submission — only when the applicant reviews the pre-screen and chooses to send it to the agent.
   async function submitToAgent(): Promise<boolean> {
@@ -384,7 +461,7 @@ export function StepSubmit({ emp, askingRentCents, applicantsGreen, screeningSta
     } catch { toast.error("Could not submit. Please try again."); return false }
   }
 
-  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} />
+  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} readOnly={readOnly} />
 
   // Not done yet — the assessment auto-runs when the review opens (consent is per-section, so there's no consent
   // gate here). Show a brief "preparing" state while it computes; if it isn't running (idle / a failed run), offer a

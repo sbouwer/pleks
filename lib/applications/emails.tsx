@@ -32,7 +32,7 @@ interface ApplicationSummary {
   bankStatementFlags?: string | null
 }
 
-interface ListingSummary {
+export interface ListingSummary {
   id: string
   unitLabel: string
   propertyName: string
@@ -41,7 +41,7 @@ interface ListingSummary {
   availableFrom?: string
 }
 
-interface OrgContext {
+export interface OrgContext {
   orgId: string
   orgName: string
   orgEmail?: string
@@ -110,6 +110,64 @@ export async function sendApplicationReceived(
     bodyPreview: `Thank you for applying for ${listing.unitLabel} at ${listing.propertyName}. Reference: ${ref}.`,
     entityType: "application",
     entityId: app.id,
+  })
+}
+
+// ── 14R: joint-application fan-out — ready-to-submit + submitted (to ALL applicants) ──────────
+
+/** Sent to EVERY applicant once everyone's finished their part — the application is complete + ready to submit.
+ *  applyUrl is the RECIPIENT's own apply link (their credential) so anyone can open it to review + submit. */
+export async function sendApplicationReadyToSubmit(
+  to: { email: string; name: string },
+  listing: ListingSummary,
+  org: OrgContext,
+  opts: { applyUrl: string; applicationId: string }
+) {
+  const first = to.name.split(" ")[0] || "there"
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "application.all_complete",
+    to,
+    subject: `Application ready to submit — ${listing.unitLabel}, ${listing.propertyName}`,
+    emailElement: (
+      <EmailLayout preview={`Everyone on the application for ${listing.unitLabel} has finished their part`} branding={org.branding}>
+        <p style={S.greeting}>Hi {first},</p>
+        <p style={S.body}>Good news — everyone on the joint application for {listing.unitLabel} at {listing.propertyName}{listing.city ? `, ${listing.city}` : ""} has finished their part. It&apos;s complete and ready to submit to the agent.</p>
+        <p style={S.body}>Any applicant can send it — open the application to review and submit.</p>
+        <EmailButton href={opts.applyUrl} accentColor={org.branding.accentColor}>Review &amp; submit →</EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: `Everyone on the application for ${listing.unitLabel} has finished — it's ready to submit to the agent.`,
+    entityType: "application",
+    entityId: opts.applicationId,
+  })
+}
+
+/** Sent to EVERY applicant once the application has been submitted to the agent. reviewUrl is the RECIPIENT's own
+ *  VIEW-ONLY link to the review (read-only — nothing to change). */
+export async function sendApplicationSubmittedToAgent(
+  to: { email: string; name: string },
+  listing: ListingSummary,
+  org: OrgContext,
+  opts: { reviewUrl: string; applicationId: string }
+) {
+  const first = to.name.split(" ")[0] || "there"
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "application.submitted_all",
+    to,
+    subject: `Application submitted — ${listing.unitLabel}, ${listing.propertyName}`,
+    emailElement: (
+      <EmailLayout preview={`Your application for ${listing.unitLabel} has gone to the agent`} branding={org.branding}>
+        <p style={S.greeting}>Hi {first},</p>
+        <p style={S.body}>The joint application for {listing.unitLabel} at {listing.propertyName}{listing.city ? `, ${listing.city}` : ""} has been submitted to the agent. There&apos;s nothing more to do — they&apos;ll be in touch about next steps.</p>
+        <p style={S.body}>You can view the submitted application below (view only).</p>
+        <EmailButton href={opts.reviewUrl} accentColor={org.branding.accentColor}>View the application →</EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: `The application for ${listing.unitLabel} has been submitted to the agent.`,
+    entityType: "application",
+    entityId: opts.applicationId,
   })
 }
 

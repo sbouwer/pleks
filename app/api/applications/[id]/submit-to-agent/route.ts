@@ -13,6 +13,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendSubmissionNotifications } from "@/lib/applications/submissionEmails"
+import { notifyAllSubmitted } from "@/lib/applications/peerEmails"
+import { incompleteApplicantCount } from "@/lib/applications/submitGate"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
@@ -27,11 +29,21 @@ export async function POST(req: NextRequest, { params }: Props) {
   const service = getServiceClient()
 
   if (!body.token) return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
-  const { data: tokenRow, error: tokenErr } = await service
+  // Credential boundary (14R §4): ANY peer may submit. Accept the lead's application_tokens token OR a co's access
+  // token — either bound to THIS application. The all-green gate below is what actually permits the submission.
+  const { data: leadTok, error: tokenErr } = await service
     .from("application_tokens").select("application_id")
     .eq("token", body.token).eq("application_id", id).gt("expires_at", new Date().toISOString()).maybeSingle()
   logQueryError("submit-to-agent token", tokenErr)
-  if (!tokenRow) return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
+  let authed = !!leadTok
+  if (!authed) {
+    const { data: coTok, error: coTokErr } = await service
+      .from("application_co_applicants").select("id")
+      .eq("access_token", body.token).eq("primary_application_id", id).is("declined_at", null).maybeSingle()
+    logQueryError("submit-to-agent co token", coTokErr)
+    authed = !!coTok
+  }
+  if (!authed) return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
 
   const { data: app, error: appErr } = await service
     .from("applications")
@@ -43,17 +55,17 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Already submitted → idempotent no-op (e.g. a double-click).
   if (app.submitted_at) return NextResponse.json({ ok: true, alreadySubmitted: true })
 
-  // Must have run the pre-screen first (POPIA processing consent recorded there).
-  if (app.stage1_consent_given !== true) {
-    return NextResponse.json({ error: "Run the pre-screen before submitting." }, { status: 400 })
-  }
-
-  // J1 SUBMIT GATE: every co-applicant/guarantor must have finished their part before anyone submits for the
-  // group — one submission applies to all, so it can't go in half-complete. (ADDENDUM_14M joint applications)
+  // ALL-GREEN GATE (14R §4 / J1): every peer must have finished their own section before ANYONE submits for the
+  // group — one submission applies to all, so it can't go in half-complete. Full peers: the lead (the app row)
+  // counts the same as every co. POPIA-safe — a count, not names (named "waiting on …" arrives with the Phase-4
+  // roster). The lead's section sign-off is also the POPIA processing-consent record.
   const { data: coRows, error: coErr } = await service
     .from("application_co_applicants").select("stage1_consent_given").eq("primary_application_id", id)
   logQueryError("submit-to-agent co-applicants", coErr)
-  const incompleteCount = (coRows ?? []).filter((c) => c.stage1_consent_given !== true).length
+  const incompleteCount = incompleteApplicantCount(
+    app.stage1_consent_given === true,
+    (coRows ?? []).map((c) => c.stage1_consent_given === true),
+  )
   if (incompleteCount > 0) {
     return NextResponse.json({
       error: `Everyone on this application must finish their part before you submit — waiting on ${incompleteCount} ${incompleteCount === 1 ? "applicant" : "applicants"}.`,
@@ -72,7 +84,18 @@ export async function POST(req: NextRequest, { params }: Props) {
   logQueryError("submit-to-agent update", updErr)
   if (updErr) return NextResponse.json({ error: "Could not submit your application." }, { status: 500 })
 
-  await sendSubmissionNotifications(service, id, body.token)
+  // The submission notification carries a RESUME link for the LEAD applicant — always use the lead's token (a co
+  // may have submitted with their own access token, which must never land in the lead's email).
+  const { data: leadTokenRow, error: leadTokErr } = await service
+    .from("application_tokens").select("token")
+    .eq("application_id", id).gt("expires_at", new Date().toISOString())
+    .order("expires_at", { ascending: false }).limit(1).maybeSingle()
+  logQueryError("submit-to-agent lead token for notify", leadTokErr)
+  // Joint app (14R): email ALL applicants "submitted + view-only link" via notifyAllSubmitted, and skip the lead's
+  // legacy "received" (superseded). Solo app: the existing lead "received" + agent notification, unchanged.
+  const isJoint = (coRows ?? []).length > 0
+  await sendSubmissionNotifications(service, id, leadTokenRow?.token ?? body.token, { skipApplicant: isJoint })
+  if (isJoint) void notifyAllSubmitted(service, id)
 
   return NextResponse.json({ ok: true })
 }

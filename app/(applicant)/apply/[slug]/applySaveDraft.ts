@@ -42,6 +42,51 @@ export function resolveSpouseInfo(form: PartyFormState, coApplicants: ReadonlyAr
   return { firstName: form.spouseFirstName ?? "", lastName: form.spouseLastName ?? "", idNumber: form.spouseIdNumber ?? "", email: form.spouseEmail ?? "" }
 }
 
+export interface CoSaveInputs {
+  form: PartyFormState; emp: Emp
+  dependentAdults: string; dependentMinors: string
+  income: ReadonlyArray<IncomeRow>; commitments: ReadonlyArray<IncomeRow>
+  /** spouse candidates for the symmetric s15 link — the LEAD as a co-shaped candidate (so resolveSpouseInfo can
+   *  store "my spouse is the main applicant" by the lead's id_number). [] when not linking. */
+  spouseCandidates: ReadonlyArray<CoApplicant>
+  /** true at the co's section sign-off (records consent) — false for an intermediate autosave (draft:true). */
+  final: boolean
+  consentIp?: string | null
+}
+
+/** Build the POST /api/applications/co-applicant/[token]/save body for a co peer (ADDENDUM_14R Phase 2). Mirrors
+ *  the lead's contract field-for-field where the co row has a column; the rest rides in section_data (the co row is
+ *  leaner). Pure — reuses resolveSpouseInfo + the income/expense helpers so the co stays byte-compatible with the
+ *  lead's affordability inputs. `final` flips consent (sign-off) vs draft (autosave). */
+export function assembleCoSaveBody(inp: CoSaveInputs): Record<string, unknown> {
+  const { form, emp } = inp
+  const income = inp.income as IncomeRow[]
+  const commitments = inp.commitments as IncomeRow[]
+  const schoolFeesCents = commitments.filter((r) => r.key === "school_fees").reduce((s, r) => s + rowMonthlyCents(r), 0)
+  const depA = intOrNull(inp.dependentAdults)
+  const depM = intOrNull(inp.dependentMinors)
+  const base = {
+    firstName: form.firstName ?? "", lastName: form.lastName ?? "",
+    idType: form.idType || "sa_id", idNumber: form.idNumber ?? "", dob: form.dob || "",
+    maritalStatus: form.maritalStatus || null, matrimonialRegime: form.matrimonialRegime || null,
+    currentAddress: form.addresses ?? null,
+    spouseInfo: resolveSpouseInfo(form, inp.spouseCandidates),
+    employmentType: emp.employment_type, employerName: emp.employer,
+    grossMonthlyIncomeCents: totalMonthlyCents(income),
+    // School fees are child-earmarked → excluded from the declared obligations the read subtracts (lead parity).
+    declaredMonthlyObligationsCents: totalMonthlyCents(commitments) - schoolFeesCents,
+    sectionData: {
+      addresses: form.addresses ?? null,
+      marital: { maritalStatus: form.maritalStatus ?? null, matrimonialRegime: form.matrimonialRegime ?? null },
+      employment_details: { ...emp },
+      income_sources: incomeSourcesPayload(income),
+      expenses: incomeSourcesPayload(commitments),
+      dependants: { adults: depA, minors: depM, school_fees: posOrNull(schoolFeesCents / 100) },
+    },
+  }
+  return inp.final ? { ...base, consent: true, consentIp: inp.consentIp ?? null } : { ...base, draft: true }
+}
+
 export interface SaveDraftInputs {
   slug: string; applicationId: string | null; token: string | null; stepToSave: number; notify: boolean
   type: ApplicantType | null; companyImDirector: boolean; coApplicants: ReadonlyArray<CoApplicant>

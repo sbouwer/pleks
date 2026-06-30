@@ -12,7 +12,7 @@ import type { PartyFormState } from "@/lib/parties/partyValidation"
 
 const form = (over: Partial<PartyFormState> = {}): PartyFormState => ({ idType: "sa_id", firstName: "Di", lastName: "Rector", ...over } as PartyFormState)
 const co = (over: Partial<CoApplicant> = {}): CoApplicant => ({ firstName: "Sue", lastName: "Se", email: "sue@co.za", phone: "", idNumber: "", role: "co_applicant", designation: "director", invited: false, ...over })
-const base = { type: "company" as const, isJuristic: true, companyName: "Acme (Pty) Ltd", companyStarted: false, companySignedOff: false, companyEdited: false, form: form(), coApplicants: [] as CoApplicant[], companyRole: "director", imDirector: true, selfSectionDone: false, selfStarted: false, selfEdited: false, emailVerified: true, appCreated: false }
+const base = { type: "company" as const, isJuristic: true, companyName: "Acme (Pty) Ltd", companyStarted: false, companySignedOff: false, companyEdited: false, form: form(), coApplicants: [] as CoApplicant[], companyRole: "director", imDirector: true, selfSectionDone: false, selfStarted: false, selfEdited: false, appCreated: false }
 
 describe("buildStatusMenuData — juristic company", () => {
   it("company card status tracks started → signed off → updated", () => {
@@ -29,11 +29,9 @@ describe("buildStatusMenuData — juristic company", () => {
     expect(buildStatusMenuData({ ...base, selfSectionDone: true }).persons.find((p) => p.id === "self")?.status).toBe("completed")
   })
 
-  it("self card reads Verify email on first landing (before email verified), then Started once entered", () => {
-    expect(buildStatusMenuData({ ...base, emailVerified: false }).persons.find((p) => p.id === "self")?.status).toBe("verify_email")
-    // verified but not yet entered → Not started; entered → Started application
-    expect(buildStatusMenuData({ ...base, emailVerified: true }).persons.find((p) => p.id === "self")?.status).toBe("not_started")
-    expect(buildStatusMenuData({ ...base, emailVerified: false, selfStarted: true }).persons.find((p) => p.id === "self")?.status).toBe("in_progress")
+  it("14R: self card reads Start on first landing (no verify-to-start — account is at completion), then Started once entered", () => {
+    expect(buildStatusMenuData(base).persons.find((p) => p.id === "self")?.status).toBe("not_started")
+    expect(buildStatusMenuData({ ...base, selfStarted: true }).persons.find((p) => p.id === "self")?.status).toBe("in_progress")
   })
 
   it("self card flips to Updated application once edited after completion", () => {
@@ -91,5 +89,37 @@ describe("buildStatusMenuData — universal hub (non-company)", () => {
     // started/completed from the live poll override the invitation-sent default
     expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": "started" } }).persons.find((p) => p.id === "co_0")?.status).toBe("in_progress")
     expect(buildStatusMenuData({ ...args, coStatusByEmail: { "sue@co.za": "completed" } }).persons.find((p) => p.id === "co_0")?.status).toBe("completed")
+  })
+})
+
+describe("buildStatusMenuData — co peer view (14R §5)", () => {
+  const personal = { ...base, isJuristic: false }
+  // coApplicants is the LEAD-perspective roster — it must NEVER render on a co's hub; the co's roster comes ONLY
+  // from peerRoster (a name+status projection, no financials).
+  const coView = { ...personal, type: "couple" as const, isCo: true, form: form({ firstName: "Co", lastName: "Peer" }), coApplicants: [co({ firstName: "Other", email: "other@x.za", role: "co_applicant" })], appCreated: true }
+
+  it("ignores the lead-perspective coApplicants — without peerRoster the co sees only their own card", () => {
+    const r = buildStatusMenuData(coView)
+    expect(r.company).toBeNull()
+    expect(r.persons).toHaveLength(1)
+    expect(r.persons[0]).toMatchObject({ id: "self", canOpen: true })
+    expect(r.persons.some((p) => p.id.startsWith("co_"))).toBe(false)
+  })
+
+  it("14R full peer: renders peerRoster as read-only cards — the co sees the lead (Completed) + other co's", () => {
+    const r = buildStatusMenuData({ ...coView, peerRoster: [
+      { id: "primary", name: "Lead Person", roleLabel: "Main applicant", status: "completed" },
+      { id: "co_2", name: "Other Peer", roleLabel: "Co-applicant", status: "in_progress" },
+    ] })
+    expect(r.company).toBeNull() // still no company ENTITY card for a co
+    expect(r.persons).toHaveLength(3) // self + 2 peers
+    expect(r.persons.find((p) => p.id === "self")).toMatchObject({ canOpen: true })
+    expect(r.persons.find((p) => p.id === "primary")).toMatchObject({ name: "Lead Person", roleLabel: "Main applicant", status: "completed", canOpen: false })
+    expect(r.persons.find((p) => p.id === "co_2")).toMatchObject({ status: "in_progress", canOpen: false })
+  })
+
+  it("14R: the co's own card reads Start, then Completed once their section is done", () => {
+    expect(buildStatusMenuData(coView).persons[0]?.status).toBe("not_started")
+    expect(buildStatusMenuData({ ...coView, selfSectionDone: true }).persons[0]?.status).toBe("completed")
   })
 })
