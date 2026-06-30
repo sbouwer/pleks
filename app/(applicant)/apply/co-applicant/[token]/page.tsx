@@ -101,7 +101,18 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
     ? { firstName: (app?.first_name as string | null) ?? "", lastName: (app?.last_name as string | null) ?? "", email: "", phone: "", idNumber: primaryId, role: "co_applicant" as const, invited: true }
     : null
 
-  const resume: ResumeState = buildCoResumeState(coUniform, { applicationId: appId, token, docPaths, spouseCandidate })
+  // 14R §5: the OTHER applicants as a NAME + STATUS-only roster (no financials / ID / bank leave the server) → the
+  // co's read-only hub cards, so a full peer sees the lead (e.g. "Completed") + any other co's, not just themselves.
+  const peerRoster = applicants
+    .filter((a) => a.ref !== coUniform.ref)
+    .map((a) => {
+      let roleLabel = "Co-applicant"
+      if (a.isLead) roleLabel = "Main applicant"
+      else if (a.role === "guarantor") roleLabel = "Guarantor"
+      return { id: a.ref, name: [a.identity.firstName, a.identity.lastName].filter(Boolean).join(" ") || "Applicant", roleLabel, status: a.status }
+    })
+
+  const resume: ResumeState = buildCoResumeState(coUniform, { applicationId: appId, token, docPaths, spouseCandidate, peerRoster })
   // Apply the symmetric prefill only where the co hasn't already declared their own marital status.
   if (linkedAsSpouse) {
     resume.form.maritalStatus = resume.form.maritalStatus ?? (app?.marital_status as string | null) ?? "married"

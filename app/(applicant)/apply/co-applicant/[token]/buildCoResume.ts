@@ -33,8 +33,11 @@ export function buildCoResumeState(
   ctx: Readonly<{
     applicationId: string; token: string; docPaths: ResumeState["docPaths"]
     /** the LEAD as a co-shaped candidate — for the "my spouse is the main applicant" option in StepPersonal + the
-     *  symmetric s15 link (resolveSpouseInfo). NOT a hub roster entry — the co hub is self-only (isCo guard). */
+     *  symmetric s15 link (resolveSpouseInfo). This is the spouse-PREFILL candidate, distinct from the hub roster. */
     spouseCandidate?: ResumeState["coApplicants"][number] | null
+    /** 14R §5: the OTHER applicants (lead + other co's) as name+status-only roster entries → the co's read-only hub
+     *  cards. Projected server-side (no financials/ID reach the client). */
+    peerRoster?: ResumeState["peerRoster"]
   }>,
 ): ResumeState {
   const sd = (co.sectionData ?? {}) as CoSectionData
@@ -67,9 +70,11 @@ export function buildCoResumeState(
     dependentMinors: sd.dependants?.minors ?? null,
     incomeSources: sd.income_sources ?? [],
     commitments: sd.expenses ?? [],
-    // Only the LEAD (for the spouse-link option + s15) — NOT a hub roster (the co hub is self-only via the isCo
-    // guard in buildStatusMenuData, so this never surfaces other peers to the co; POPIA §5 holds).
+    // coApplicants here is ONLY the spouse-prefill candidate (the lead, for the s15 "my spouse is the main
+    // applicant" option) — NOT the hub roster. The co's hub roster is peerRoster (name+status only); the two are
+    // deliberately separate so the spouse-link machinery never leaks a peer's details into the roster (POPIA §5).
     coApplicants: ctx.spouseCandidate ? [ctx.spouseCandidate] : [],
+    peerRoster: ctx.peerRoster ?? [],
     docPaths: ctx.docPaths,
     selfDone: co.consentGiven,
   }

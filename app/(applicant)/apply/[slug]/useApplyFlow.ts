@@ -97,8 +97,9 @@ export function buildStatusMenuData(o: Readonly<{
   companyName: string; companyStarted: boolean; companySignedOff: boolean; companyEdited: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
   selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
-  /** 14R §5: a co peer sees ONLY their own card — never the company card or the roster of other peers (POPIA). */
-  isCo?: boolean
+  /** 14R: a co peer runs the same hub. It shows their OWN editable card PLUS the other applicants as read-only
+   *  status cards (peerRoster — name + status only, never the company card or anyone's financials; POPIA §5). */
+  isCo?: boolean; peerRoster?: ReadonlyArray<{ id: string; name: string; roleLabel: string; status: CardStatus }>
 }>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
   const name = (f?: string | null, l?: string | null, fb = "Applicant") => [f, l].filter(Boolean).join(" ") || fb
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -113,8 +114,16 @@ export function buildStatusMenuData(o: Readonly<{
     const selfStatus = selfCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted)
     persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: selfRole, status: selfStatus, canOpen: true })
   }
-  // POPIA (14R §5): a co peer's hub is just their own card — never the company card or the other peers' roster.
-  if (o.isCo) return { company: null, persons }
+  // 14R full peer: the co sees the whole roster — their own editable card (above) + every OTHER applicant as a
+  // read-only status card (so the lead reads "Completed", a peer "In progress"). Name + status only; the company
+  // entity card + financials are NOT exposed here (§5 — the masked review is the financial surface).
+  if (o.isCo) {
+    const PEER_NOTE: Record<string, string> = { completed: "completed their part", in_progress: "completing their part", not_started: "not started yet" }
+    for (const p of o.peerRoster ?? []) {
+      persons.push({ id: p.id, name: p.name, roleLabel: p.roleLabel, status: p.status, canOpen: false, statusOnlyNote: `${p.roleLabel} — ${PEER_NOTE[p.status] ?? "in progress"}` })
+    }
+    return { company: null, persons }
+  }
   o.coApplicants.forEach((c, i) => {
     const role = coRoleLabel(o.type, c, cap)
     const live = o.coStatusByEmail?.[c.email] // live server tri-state (invited/started/completed); best-effort
@@ -239,6 +248,10 @@ export interface ResumeState {
   incomeSources: { key: string; label: string; amount_cents: number; period: string }[]
   commitments?: { key: string; label: string; amount_cents: number; period: string }[]
   coApplicants: CoApplicant[]; docPaths: { name: string; storagePath: string }[]
+  /** 14R §5: a co peer's view of the OTHER applicants — NAME + completion status ONLY (no financials/ID/bank; the
+   *  shared masked review is the financial surface). Drives the co's read-only roster cards so a full peer sees the
+   *  whole roster (e.g. the lead as "Completed"), not just themselves. Undefined/empty for the lead. */
+  peerRoster?: { id: string; name: string; roleLabel: string; status: "not_started" | "in_progress" | "completed" }[]
   /** the filler had already finished their own section (documents submitted) before this resume — so the hub shows
    *  their card as Completed, not "Started application". */
   selfDone?: boolean
@@ -956,7 +969,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
     type, isJuristic: isJuristicCompany, companyName: company.name || company.trading || "The company",
     companyStarted, companySignedOff, companyEdited, form, coApplicants, companyRole, imDirector: companyImDirector,
-    selfSectionDone, selfStarted, selfEdited, appCreated: !!applicationId, coStatusByEmail, isCo,
+    selfSectionDone, selfStarted, selfEdited, appCreated: !!applicationId, coStatusByEmail, isCo, peerRoster: resume?.peerRoster,
   })
   // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).
   const isMultiParty = isJuristicCompany || coApplicants.length > 0

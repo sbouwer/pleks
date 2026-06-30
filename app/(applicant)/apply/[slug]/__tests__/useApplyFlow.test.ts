@@ -92,17 +92,30 @@ describe("buildStatusMenuData — universal hub (non-company)", () => {
   })
 })
 
-describe("buildStatusMenuData — co peer view (14R §5: self-only hub, POPIA)", () => {
+describe("buildStatusMenuData — co peer view (14R §5)", () => {
   const personal = { ...base, isJuristic: false }
-  // A couple application with another peer present — a co peer must NOT see that peer (or the company card).
+  // coApplicants is the LEAD-perspective roster — it must NEVER render on a co's hub; the co's roster comes ONLY
+  // from peerRoster (a name+status projection, no financials).
   const coView = { ...personal, type: "couple" as const, isCo: true, form: form({ firstName: "Co", lastName: "Peer" }), coApplicants: [co({ firstName: "Other", email: "other@x.za", role: "co_applicant" })], appCreated: true }
 
-  it("shows ONLY the co's own card — no company, no roster of other peers", () => {
+  it("ignores the lead-perspective coApplicants — without peerRoster the co sees only their own card", () => {
     const r = buildStatusMenuData(coView)
     expect(r.company).toBeNull()
     expect(r.persons).toHaveLength(1)
     expect(r.persons[0]).toMatchObject({ id: "self", canOpen: true })
     expect(r.persons.some((p) => p.id.startsWith("co_"))).toBe(false)
+  })
+
+  it("14R full peer: renders peerRoster as read-only cards — the co sees the lead (Completed) + other co's", () => {
+    const r = buildStatusMenuData({ ...coView, peerRoster: [
+      { id: "primary", name: "Lead Person", roleLabel: "Main applicant", status: "completed" },
+      { id: "co_2", name: "Other Peer", roleLabel: "Co-applicant", status: "in_progress" },
+    ] })
+    expect(r.company).toBeNull() // still no company ENTITY card for a co
+    expect(r.persons).toHaveLength(3) // self + 2 peers
+    expect(r.persons.find((p) => p.id === "self")).toMatchObject({ canOpen: true })
+    expect(r.persons.find((p) => p.id === "primary")).toMatchObject({ name: "Lead Person", roleLabel: "Main applicant", status: "completed", canOpen: false })
+    expect(r.persons.find((p) => p.id === "co_2")).toMatchObject({ status: "in_progress", canOpen: false })
   })
 
   it("14R: the co's own card reads Start, then Completed once their section is done", () => {
