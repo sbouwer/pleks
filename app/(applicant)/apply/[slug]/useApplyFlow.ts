@@ -73,12 +73,13 @@ function editableCardStatus(done: boolean, edited: boolean, started: boolean): C
   if (done) return edited ? "updated" : "completed"
   return cardStatusOf(false, started)
 }
-/** The filler's own (self) card. Adds the FIRST-landing state: before they verify their email it reads "Verify
- *  email" (the unlock); verifying + entering their section makes it "Started application"; then Completed/Updated. */
-function selfCardStatus(done: boolean, edited: boolean, started: boolean, emailVerified: boolean): CardStatus {
+/** The filler's own (self) card. 14R account-at-completion: there's no verify-to-START gate anymore (the account is
+ *  created at sign-off), so a fresh card reads "Start"; entering the section makes it "Started application"; then
+ *  Completed/Updated once they finish (which now requires the account + consent). */
+function selfCardStatus(done: boolean, edited: boolean, started: boolean): CardStatus {
   if (done) return edited ? "updated" : "completed"
   if (started) return "in_progress"
-  return emailVerified ? "not_started" : "verify_email"
+  return "not_started"
 }
 /** A co-applicant card from the live tri-state poll: Completed (consented) → Started application (clicked their
  *  link) → Invitation sent (emailed, app exists) → Not started (pre-create). */
@@ -95,7 +96,7 @@ export function buildStatusMenuData(o: Readonly<{
   type: ApplicantType | null; isJuristic: boolean
   companyName: string; companyStarted: boolean; companySignedOff: boolean; companyEdited: boolean
   form: PartyFormState; coApplicants: ReadonlyArray<CoApplicant>; companyRole: string; imDirector: boolean
-  selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; emailVerified: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
+  selfSectionDone: boolean; selfStarted: boolean; selfEdited: boolean; appCreated: boolean; coStatusByEmail?: Record<string, string>
   /** 14R §5: a co peer sees ONLY their own card — never the company card or the roster of other peers (POPIA). */
   isCo?: boolean
 }>): { company: StatusMenuCompany | null; persons: StatusMenuPerson[] } {
@@ -109,7 +110,7 @@ export function buildStatusMenuData(o: Readonly<{
   const includeSelf = o.isJuristic ? o.imDirector : true
   if (includeSelf) {
     const selfRole = o.isJuristic ? cap(o.companyRole) : "Applicant"
-    const selfStatus = selfCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted, o.emailVerified)
+    const selfStatus = selfCardStatus(o.selfSectionDone, o.selfEdited, o.selfStarted)
     persons.push({ id: "self", name: name(o.form.firstName, o.form.lastName, "You"), roleLabel: selfRole, status: selfStatus, canOpen: true })
   }
   // POPIA (14R §5): a co peer's hub is just their own card — never the company card or the other peers' roster.
@@ -955,7 +956,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const { company: statusMenuCompany, persons: statusMenuPersons } = buildStatusMenuData({
     type, isJuristic: isJuristicCompany, companyName: company.name || company.trading || "The company",
     companyStarted, companySignedOff, companyEdited, form, coApplicants, companyRole, imDirector: companyImDirector,
-    selfSectionDone, selfStarted, selfEdited, emailVerified: emailGateSatisfied, appCreated: !!applicationId, coStatusByEmail, isCo,
+    selfSectionDone, selfStarted, selfEdited, appCreated: !!applicationId, coStatusByEmail, isCo,
   })
   // Multi-party = the hub lists more than the filler (a juristic company, or any co-applicant/guarantor).
   const isMultiParty = isJuristicCompany || coApplicants.length > 0
