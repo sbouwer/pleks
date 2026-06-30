@@ -1,25 +1,14 @@
 /**
- * app/(supplier)/supplier/account/security/page.tsx — FILL: one-line purpose
+ * app/(supplier)/supplier/account/security/page.tsx — redirect to the consolidated /account/security (14R §9a E1).
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /supplier/account/security
+ * Auth:   none here — the canonical /account/security self-gates (getServerUser) and resolves the role.
+ * Notes:  account security (passkeys · MFA · sessions) is account-level, not portal-level, so it lives at ONE
+ *         auth-gated surface (the three per-portal copies had inconsistent gates). Kept as a redirect for
+ *         back-compat / existing nav links.
  */
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import { PortalSecurityView } from "@/components/auth/PortalSecurityView"
 
-export const metadata = { title: "Security" }
-
-export default async function SupplierSecurityPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: factors } = await supabase.auth.mfa.listFactors()
-  const totpCount = factors?.totp?.length ?? 0
-
-  return <PortalSecurityView userId={user.id} totpCount={totpCount} role="supplier" />
+export default function SupplierSecurityPage() {
+  redirect("/account/security")
 }
