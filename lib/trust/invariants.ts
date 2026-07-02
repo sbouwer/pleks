@@ -1,13 +1,18 @@
 /**
- * lib/trust/invariants.ts — Runtime enforcement of D-TRUST-01: Pleks is not the trustee.
+ * lib/trust/invariants.ts — App-layer mirror of the D-TRUST-01 sovereignty guard: Pleks is not the trustee.
  *
  * Auth:  Internal — called from server actions and API routes only.
- * Notes: recordTrustTransaction() is the SINGLE insert path for trust_transactions (ADDENDUM_FINANCIAL_INTEGRITY
- *        F-3, shipped) — all 13 write sites route through it, so assertPleksIsNotTrustee() runs on every trust
- *        write and source/initiated_by are real, persisted columns. The invariant-coverage ratchet enforces
- *        "no direct trust_transactions inserts outside this file" (a new one fails the build). This code-level
- *        guard sits ON TOP of the structural guarantee (bank_accounts.type CHECK, no Pleks org + the ESLint
- *        payment-SDK import ban). See brief/legal/TRUST_ACCOUNT_POSITIONING.md §3.2.
+ * Notes: The CANONICAL enforcement of record is the DB trigger `tr_trust_txn_sovereignty` (BEFORE INSERT on
+ *        trust_transactions, 004 — ADDENDUM_TRUST_RPC_ATOMICITY step 0). It fires on EVERY insert path — the
+ *        recordTrustTransaction() JS helper, the atomic-write plpgsql RPCs, raw SQL, psql — so "all trust
+ *        writes pass the guard" is true via the DB, not merely via JS. assertPleksIsNotTrustee() below is the
+ *        app-layer EARLY-FAIL MIRROR: it throws a clean typed error before the round-trip (better UX) and
+ *        keeps recordTrustTransaction() the single JS insert path (invariant-coverage ratchet: no direct
+ *        trust_transactions .insert outside this file). The two share ONE rule set — lib/trust/sovereignty-vectors.ts
+ *        drives the parity test (vitest JS half + scripts/security/trust-sovereignty-parity.mts DB half); if the
+ *        trigger and this assert ever disagree, or the trigger is dropped/disabled, that test fails.
+ *        These code guards sit ON TOP of the structural guarantee (bank_accounts.type CHECK, no Pleks org +
+ *        the ESLint payment-SDK import ban). See brief/legal/TRUST_ACCOUNT_POSITIONING.md §3.2.
  */
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
