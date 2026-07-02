@@ -7,6 +7,7 @@
  */
 import { NextRequest } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { getMembership } from "@/lib/supabase/getMembership"
 import { buildTenantWelcomePackData } from "@/lib/reports/tenantWelcomePack"
 import { buildTenantWelcomePackHTML, type TenantWelcomePackToolbar } from "@/lib/reports/tenantWelcomePackHTML"
 import { getReportBranding } from "@/lib/reports/reportBranding"
@@ -18,15 +19,9 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 // ── Shared auth check ─────────────────────────────────────────────────────────
 
 async function verifyAccess(userId: string, orgId: string) {
-  const supabase = await createClient()
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", userId)
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("verifyAccess user_orgs", membershipError)
+  // Service client — the membership check on the (lease-derived) orgId is the boundary
+  const service = await createServiceClient()
+  const membership = await getMembership(service, userId, orgId)
   return membership ? { ok: true } : { error: "Forbidden" }
 }
 
