@@ -857,3 +857,21 @@ ALTER TABLE organisations ADD COLUMN IF NOT EXISTS linkedin_url text;
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS facebook_url text;
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS instagram_url text;
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS x_url text;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §20  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys.
+--     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
+--       (1) auth.users FKs on erasure-reachable SUBJECT-DATA tables (cold audit/config/
+--           reference tables skipped: small, the planner seq-scans them regardless);
+--       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade — protects P-1);
+--       (3) org_id + hot domain/self-ref FKs on HIGH-GROWTH child tables.
+--     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain — do NOT re-litigate):
+--       teams refs (named-teams Layer 1 unwired), policy-table refs, and cold-table org_id
+--       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_changed_by ON audit_log(changed_by);
+CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_compliance_confirmed_by ON custom_lease_requests(compliance_confirmed_by);
+CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_submitted_by ON custom_lease_requests(submitted_by);
+CREATE INDEX IF NOT EXISTS idx_invites_invited_by ON invites(invited_by);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_agent_contact_id ON user_profiles(agent_contact_id);

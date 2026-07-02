@@ -711,3 +711,22 @@ ALTER TABLE units ADD COLUMN IF NOT EXISTS default_lease_period_months integer;
 -- same way default_lease_period_months is. Low legal risk (a prefill the agent confirms, not a binding
 -- rule); sets up O-22 (furnishing-based deposit). Decoupled from the accounts/interest core.
 ALTER TABLE units ADD COLUMN IF NOT EXISTS default_deposit_cents integer;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §13  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys.
+--     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
+--       (1) auth.users FKs on erasure-reachable SUBJECT-DATA tables (cold audit/config/
+--           reference tables skipped: small, the planner seq-scans them regardless);
+--       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade — protects P-1);
+--       (3) org_id + hot domain/self-ref FKs on HIGH-GROWTH child tables.
+--     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain — do NOT re-litigate):
+--       teams refs (named-teams Layer 1 unwired), policy-table refs, and cold-table org_id
+--       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_incident_notifications_decision_by ON incident_notifications(decision_by);
+CREATE INDEX IF NOT EXISTS idx_incident_notifications_party_contact_id ON incident_notifications(party_contact_id);
+CREATE INDEX IF NOT EXISTS idx_managing_schemes_emergency_contact_id ON managing_schemes(emergency_contact_id);
+CREATE INDEX IF NOT EXISTS idx_managing_schemes_managing_agent_contact_id ON managing_schemes(managing_agent_contact_id);
+CREATE INDEX IF NOT EXISTS idx_property_insurance_checklist_events_actor_user_id ON property_insurance_checklist_events(actor_user_id);
+CREATE INDEX IF NOT EXISTS idx_property_insurance_checklists_confirmed_by ON property_insurance_checklists(confirmed_by);
