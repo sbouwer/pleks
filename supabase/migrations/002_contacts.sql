@@ -1100,3 +1100,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_landlords_org_contact_live
 -- — deleting the contact just clears the pointer.
 ALTER TABLE user_profiles
   ADD COLUMN IF NOT EXISTS agent_contact_id uuid REFERENCES contacts(id) ON DELETE SET NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §20  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys.
+--     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
+--       (1) auth.users FKs on erasure-reachable SUBJECT-DATA tables (cold audit/config/
+--           reference tables skipped: small, the planner seq-scans them regardless);
+--       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade — protects P-1);
+--       (3) org_id + hot domain/self-ref FKs on HIGH-GROWTH child tables.
+--     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain — do NOT re-litigate):
+--       teams refs (named-teams Layer 1 unwired), policy-table refs, and cold-table org_id
+--       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_communication_log_first_attempt_log_id ON communication_log(first_attempt_log_id);
+CREATE INDEX IF NOT EXISTS idx_communication_log_sent_by ON communication_log(sent_by);
+CREATE INDEX IF NOT EXISTS idx_communication_log_triggered_by ON communication_log(triggered_by);
+CREATE INDEX IF NOT EXISTS idx_contact_bank_accounts_created_by ON contact_bank_accounts(created_by);
+CREATE INDEX IF NOT EXISTS idx_contacts_created_by ON contacts(created_by);
+CREATE INDEX IF NOT EXISTS idx_landlords_created_by ON landlords(created_by);
+CREATE INDEX IF NOT EXISTS idx_tenant_documents_uploaded_by ON tenant_documents(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_tenant_next_of_kin_tenant_id ON tenant_next_of_kin(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenants_created_by ON tenants(created_by);
+CREATE INDEX IF NOT EXISTS idx_user_orgs_tenants_tenant_id ON user_orgs_tenants(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_user_orgs_tenants_user_id ON user_orgs_tenants(user_id);

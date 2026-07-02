@@ -3072,3 +3072,78 @@ CREATE INDEX IF NOT EXISTS idx_co_applicants_tenant ON application_co_applicants
 -- Re-armable all-green "ready to submit" fan-out (14R §10 #1): stamped when the completion email fires; reset to
 -- NULL on a roster change (co added / consent withdrawn) so a later all-green re-fires exactly once.
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS all_complete_notified_at timestamptz;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §42  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys.
+--     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
+--       (1) auth.users FKs on erasure-reachable SUBJECT-DATA tables (cold audit/config/
+--           reference tables skipped: small, the planner seq-scans them regardless);
+--       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade — protects P-1);
+--       (3) org_id + hot domain/self-ref FKs on HIGH-GROWTH child tables.
+--     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain — do NOT re-litigate):
+--       teams refs (named-teams Layer 1 unwired), policy-table refs, and cold-table org_id
+--       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_agm_records_created_by ON agm_records(created_by);
+CREATE INDEX IF NOT EXISTS idx_application_bank_statement_classifications_org_id ON application_bank_statement_classifications(org_id);
+CREATE INDEX IF NOT EXISTS idx_application_co_applicants_decided_by ON application_co_applicants(decided_by);
+CREATE INDEX IF NOT EXISTS idx_application_directors_co_applicant_id ON application_directors(co_applicant_id);
+CREATE INDEX IF NOT EXISTS idx_application_directors_org_id ON application_directors(org_id);
+CREATE INDEX IF NOT EXISTS idx_application_prescreens_org_id ON application_prescreens(org_id);
+CREATE INDEX IF NOT EXISTS idx_application_screening_evaluations_org_id ON application_screening_evaluations(org_id);
+CREATE INDEX IF NOT EXISTS idx_application_screening_lines_org_id ON application_screening_lines(org_id);
+CREATE INDEX IF NOT EXISTS idx_application_screening_payments_org_id ON application_screening_payments(org_id);
+CREATE INDEX IF NOT EXISTS idx_application_screening_payments_paid_by_user_id ON application_screening_payments(paid_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_application_tokens_application_id ON application_tokens(application_id);
+CREATE INDEX IF NOT EXISTS idx_applications_assigned_user_id ON applications(assigned_user_id);
+CREATE INDEX IF NOT EXISTS idx_applications_decided_by ON applications(decided_by);
+CREATE INDEX IF NOT EXISTS idx_applications_handled_by ON applications(handled_by);
+CREATE INDEX IF NOT EXISTS idx_applications_immigration_compliance_confirmed_by ON applications(immigration_compliance_confirmed_by);
+CREATE INDEX IF NOT EXISTS idx_applications_permit_verified_by ON applications(permit_verified_by);
+CREATE INDEX IF NOT EXISTS idx_applications_prescreened_by ON applications(prescreened_by);
+CREATE INDEX IF NOT EXISTS idx_applications_reused_from_application_id ON applications(reused_from_application_id);
+CREATE INDEX IF NOT EXISTS idx_applications_reviewed_by ON applications(reviewed_by);
+CREATE INDEX IF NOT EXISTS idx_contractor_updates_contractor_id ON contractor_updates(contractor_id);
+CREATE INDEX IF NOT EXISTS idx_contractor_updates_request_id ON contractor_updates(request_id);
+CREATE INDEX IF NOT EXISTS idx_contractors_auth_user_id ON contractors(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_contractors_created_by ON contractors(created_by);
+CREATE INDEX IF NOT EXISTS idx_levy_invoices_org_id ON levy_invoices(org_id);
+CREATE INDEX IF NOT EXISTS idx_levy_invoices_schedule_id ON levy_invoices(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_levy_invoices_unit_id ON levy_invoices(unit_id);
+CREATE INDEX IF NOT EXISTS idx_listings_created_by ON listings(created_by);
+CREATE INDEX IF NOT EXISTS idx_maintenance_cost_allocations_created_by ON maintenance_cost_allocations(created_by);
+CREATE INDEX IF NOT EXISTS idx_maintenance_photos_uploaded_by_contractor ON maintenance_photos(uploaded_by_contractor);
+CREATE INDEX IF NOT EXISTS idx_maintenance_photos_uploaded_by_user ON maintenance_photos(uploaded_by_user);
+CREATE INDEX IF NOT EXISTS idx_maintenance_quotes_org_id ON maintenance_quotes(org_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_quotes_reviewed_by ON maintenance_quotes(reviewed_by);
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_agent_signoff_by ON maintenance_requests(agent_signoff_by);
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_assigned_user_id ON maintenance_requests(assigned_user_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_building_id ON maintenance_requests(building_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_cancelled_by ON maintenance_requests(cancelled_by);
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_handled_by ON maintenance_requests(handled_by);
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_insurance_decision_by ON maintenance_requests(insurance_decision_by);
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_logged_by_user ON maintenance_requests(logged_by_user);
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_reviewed_by ON maintenance_requests(reviewed_by);
+CREATE INDEX IF NOT EXISTS idx_maintenance_requests_warranty_claim_id ON maintenance_requests(warranty_claim_id);
+CREATE INDEX IF NOT EXISTS idx_municipal_bill_allocations_tenant_id ON municipal_bill_allocations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_municipal_bills_confirmed_by ON municipal_bills(confirmed_by);
+CREATE INDEX IF NOT EXISTS idx_municipal_bills_uploaded_by ON municipal_bills(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_property_info_request_events_actor_user_id ON property_info_request_events(actor_user_id);
+CREATE INDEX IF NOT EXISTS idx_property_info_requests_recipient_contact_id ON property_info_requests(recipient_contact_id);
+CREATE INDEX IF NOT EXISTS idx_property_info_requests_requested_by ON property_info_requests(requested_by);
+CREATE INDEX IF NOT EXISTS idx_property_intelligence_pulls_created_by_user_id ON property_intelligence_pulls(created_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_property_intelligence_pulls_landlord_id ON property_intelligence_pulls(landlord_id);
+CREATE INDEX IF NOT EXISTS idx_reserve_fund_entries_created_by ON reserve_fund_entries(created_by);
+CREATE INDEX IF NOT EXISTS idx_screening_artifacts_generated_by ON screening_artifacts(generated_by);
+CREATE INDEX IF NOT EXISTS idx_screening_artifacts_org_id ON screening_artifacts(org_id);
+CREATE INDEX IF NOT EXISTS idx_screening_artifacts_recipient_co_applicant_id ON screening_artifacts(recipient_co_applicant_id);
+CREATE INDEX IF NOT EXISTS idx_screening_artifacts_supersedes_artifact_id ON screening_artifacts(supersedes_artifact_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_building_id ON supplier_invoices(building_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_contractor_id ON supplier_invoices(contractor_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_paid_by ON supplier_invoices(paid_by);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_reviewed_by ON supplier_invoices(reviewed_by);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_schedule_id ON supplier_invoices(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_unit_id ON supplier_invoices(unit_id);
+CREATE INDEX IF NOT EXISTS idx_warranties_contractor_id ON warranties(contractor_id);
+CREATE INDEX IF NOT EXISTS idx_warranties_created_by ON warranties(created_by);

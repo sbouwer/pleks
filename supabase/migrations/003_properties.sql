@@ -606,3 +606,31 @@ CREATE INDEX IF NOT EXISTS idx_inspections_assigned_user
   ON inspections(org_id, assigned_user_id) WHERE assigned_user_id IS NOT NULL;
 COMMENT ON COLUMN inspections.assigned_user_id IS
   'Individual assignee (auth.users). NULL = Everyone/Org shared bucket (ADDENDUM_TEAMS D-11/12); defaults to the creating agent.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys.
+--     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
+--       (1) auth.users FKs on erasure-reachable SUBJECT-DATA tables (cold audit/config/
+--           reference tables skipped: small, the planner seq-scans them regardless);
+--       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade — protects P-1);
+--       (3) org_id + hot domain/self-ref FKs on HIGH-GROWTH child tables.
+--     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain — do NOT re-litigate):
+--       teams refs (named-teams Layer 1 unwired), policy-table refs, and cold-table org_id
+--       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_buildings_created_by ON buildings(created_by);
+CREATE INDEX IF NOT EXISTS idx_inspection_items_move_in_item_id ON inspection_items(move_in_item_id);
+CREATE INDEX IF NOT EXISTS idx_inspection_photos_move_in_photo_id ON inspection_photos(move_in_photo_id);
+CREATE INDEX IF NOT EXISTS idx_inspection_photos_room_id ON inspection_photos(room_id);
+CREATE INDEX IF NOT EXISTS idx_inspection_photos_uploaded_by ON inspection_photos(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_inspections_assigned_user_id ON inspections(assigned_user_id);
+CREATE INDEX IF NOT EXISTS idx_inspections_conducted_by ON inspections(conducted_by);
+CREATE INDEX IF NOT EXISTS idx_inspections_handled_by ON inspections(handled_by);
+CREATE INDEX IF NOT EXISTS idx_inspections_move_in_inspection_id ON inspections(move_in_inspection_id);
+CREATE INDEX IF NOT EXISTS idx_properties_managing_agent_id ON properties(managing_agent_id);
+CREATE INDEX IF NOT EXISTS idx_property_documents_uploaded_by ON property_documents(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_property_photos_uploaded_by ON property_photos(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_unit_status_history_changed_by ON unit_status_history(changed_by);
+CREATE INDEX IF NOT EXISTS idx_units_prospective_co_tenant_id ON units(prospective_co_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_units_prospective_tenant_id ON units(prospective_tenant_id);
