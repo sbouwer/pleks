@@ -125,7 +125,7 @@ export default async function MyPage() {
 - Cron and webhook handlers: do NOT use `requireAgentWriteAccess` — they fire regardless of subscription state
 - Tenant/landlord/supplier portal actions: use `getTenantSession()` — not subject to agent lockdown
 - Every query MUST include `.eq("org_id", orgId)` — the service client bypasses RLS
-- The only valid use of `createClient()` is for `auth.getUser()` — never for data queries
+- The only valid use of `createClient()` is for `auth.getUser()` — never for data queries. **Enforced by `pleks/no-cookie-client-from`** (ESLint): `.from()` on the cookie client hard-fails CI. ~75 pre-existing sites are grandfathered in `eslint-rules/no-cookie-client-from.baseline.json` and burning down via the caller-supplied-ID census — remove a file from that JSON as you fix it (the baseline only shrinks); a NEW violation anywhere else fails immediately.
 - Always check `{ data, error }` from Supabase queries — never use `(data ?? [])` without logging `error` first
 - `any` types leaking through (fix them, don't suppress)
 - Missing `key` props in .map() renders
