@@ -1,14 +1,14 @@
 /**
- * app/api/leases/preview-template/route.ts — FILL: one-line purpose
+ * app/api/leases/preview-template/route.ts — rendered clause preview + org branding for the lease template preview
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/leases/preview-template?leaseType=residential|commercial
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   lease_clause_library (shared seed) + org_lease_clause_defaults + organisations + banking,
+ *         all org-scoped via gateway orgId; org-assets storage signed URL for the logo.
+ * Notes:  resolves {{ref:}} / {{var:}} / {{self:N}} clause tokens for display only.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { parseClauseBody, buildSelfLookup } from "@/lib/leases/parseClauseBody"
 import { renderClauseBodyToHtml } from "@/lib/leases/renderClauseHtml"
@@ -33,37 +33,25 @@ function resolveRefAndVar(body: string, clauseNumberMap: Map<string, number>): s
 }
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("GET user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const leaseType = req.nextUrl.searchParams.get("leaseType") ?? "residential"
 
-  // Fetch clause library, org branding, and banking in parallel
-  const service = await createServiceClient()
-
+  // Fetch clause library (shared seed, no org_id), org branding, and banking in parallel
   const [libraryRes, orgRes, banking] = await Promise.all([
-    service
+    db
       .from("lease_clause_library")
       .select("clause_key, title, body_template, is_required, is_enabled_by_default, sort_order")
       .in("lease_type", [leaseType, "both"])
       .order("sort_order"),
-    supabase
+    db
       .from("organisations")
       .select("name, type, user_type, trading_as, title, first_name, last_name, initials, reg_number, eaab_number, phone, mobile, email, website, addr_line1, addr_suburb, addr_city, brand_logo_path, brand_accent_color, brand_cover_template")
-      .eq("id", membership.org_id)
+      .eq("id", orgId)
       .single(),
-    getLessorBankDetails(membership.org_id),
+    getLessorBankDetails(orgId),
   ])
 
   if (libraryRes.error) {
@@ -71,11 +59,11 @@ export async function GET(req: NextRequest) {
   }
 
   // Fetch org-level toggle defaults
-  const { data: orgDefaults, error: orgDefaultsError } = await supabase
+  const { data: orgDefaults, error: orgDefaultsError } = await db
     .from("org_lease_clause_defaults")
     .select("clause_key, enabled")
-    .eq("org_id", membership.org_id)
-    logQueryError("GET org_lease_clause_defaults", orgDefaultsError)
+    .eq("org_id", orgId)
+  logQueryError("GET org_lease_clause_defaults", orgDefaultsError)
 
   const orgMap = new Map(orgDefaults?.map((d) => [d.clause_key, d.enabled]) ?? [])
 
@@ -146,7 +134,7 @@ export async function GET(req: NextRequest) {
 
   let logoUrl: string | null = null
   if (org?.brand_logo_path) {
-    const { data: signed, error: signedError } = await supabase.storage
+    const { data: signed, error: signedError } = await db.storage
       .from("org-assets")
       .createSignedUrl(org.brand_logo_path, 3600)
     logQueryError("GET org-assets", signedError)

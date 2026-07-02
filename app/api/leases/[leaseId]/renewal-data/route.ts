@@ -1,31 +1,30 @@
 /**
- * app/api/leases/[leaseId]/renewal-data/route.ts — FILL: one-line purpose
+ * app/api/leases/[leaseId]/renewal-data/route.ts — renewal-form seed data (escalated rent) for a lease
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/leases/[leaseId]/renewal-data
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   leases, org-scoped via gateway orgId. leaseId is caller-supplied → filtered by org_id.
  */
-import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { NextResponse } from "next/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(
-  _req: NextRequest,
+  _req: Request,
   { params }: { params: Promise<{ leaseId: string }> }
 ) {
   const { leaseId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data: lease, error: leaseError } = await supabase
+  const { data: lease, error: leaseError } = await db
     .from("leases")
     .select("unit_id, property_id, tenant_id, lease_type, rent_amount_cents, deposit_amount_cents, escalation_percent, payment_due_day, escalation_type")
     .eq("id", leaseId)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("GET leases", leaseError)
+  logQueryError("GET leases", leaseError)
 
   if (!lease) return NextResponse.json({ error: "Lease not found" }, { status: 404 })
 

@@ -2,12 +2,13 @@
  * app/api/leases/conflict-check/route.ts — AI clause-conflict check for the lease wizard's clauses section
  *
  * Route:  POST /api/leases/conflict-check
- * Auth:   authenticated agent session (Supabase cookie)
- * Data:   reads the posted clause selections + Annexure C rules; returns ClauseConflict[] from the AI checker
+ * Auth:   auth.getUser() on the cookie client (auth-only); no org dimension — reads shared seed data
+ * Data:   reads the posted clause selections + Annexure C rules; clause bodies read from the shared-seed
+ *         lease_clause_library via the service client (no org_id column); returns ClauseConflict[] from the AI checker
  * Notes:  AnnexureCRules type now comes from components/leases/wizardData (the LeaseWizard component is gone)
  */
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import type { AnnexureCRules } from "@/components/leases/wizardData"
 import type { ClauseConflict } from "@/lib/leases/conflictChecker"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -22,7 +23,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
  * Free for all tiers — this is platform safety, not a convenience feature.
  */
 export async function POST(req: Request) {
-  // Auth gate
+  // Auth gate — cookie client is used for auth.getUser() ONLY
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -36,12 +37,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ conflicts: [] })
   }
 
-  // Fetch clause bodies from the library for enabled optional clauses
-  const { data: clauses, error: clausesError } = await supabase
+  // Fetch clause bodies from the shared-seed library (no org_id) via the service client
+  const service = await createServiceClient()
+  const { data: clauses, error: clausesError } = await service
     .from("lease_clause_library")
     .select("clause_key, title, body_template")
     .in("clause_key", enabledClauseKeys)
-    logQueryError("POST lease_clause_library", clausesError)
+  logQueryError("POST lease_clause_library", clausesError)
 
   if (!clauses?.length) return NextResponse.json({ conflicts: [] })
 
