@@ -1183,3 +1183,22 @@ ALTER TABLE application_documents ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Org members view application documents" ON application_documents;
 CREATE POLICY "Org members view application documents" ON application_documents
   FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §24  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys.
+--     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
+--       (1) auth.users FKs on erasure-reachable SUBJECT-DATA tables (cold audit/config/
+--           reference tables skipped: small, the planner seq-scans them regardless);
+--       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade — protects P-1);
+--       (3) org_id + hot domain/self-ref FKs on HIGH-GROWTH child tables.
+--     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain — do NOT re-litigate):
+--       teams refs (named-teams Layer 1 unwired), policy-table refs, and cold-table org_id
+--       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_delivery_notice_tokens_tenant_id ON delivery_notice_tokens(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_signature_sign_tokens_user_id ON signature_sign_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_cs_windows_tenant_id ON whatsapp_cs_windows(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_cs_windows_trigger_message_id ON whatsapp_cs_windows(trigger_message_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_communication_log_id ON whatsapp_messages(communication_log_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_template_id ON whatsapp_messages(template_id);

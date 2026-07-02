@@ -3698,3 +3698,39 @@ REVOKE EXECUTE ON FUNCTION public.get_active_unit_count(uuid)             FROM P
 
 ALTER FUNCTION public.transfer_org_ownership(uuid, uuid, uuid)            SET search_path = public, pg_temp;
 ALTER FUNCTION public.assert_deduction_justification()                   SET search_path = public, pg_temp;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §48  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys (follows §47 in PR #104).
+--     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
+--       (1) auth.users FKs on erasure-reachable SUBJECT-DATA tables (cold audit/config/
+--           reference tables skipped: small, the planner seq-scans them regardless);
+--       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade — protects P-1);
+--       (3) org_id + hot domain/self-ref FKs on HIGH-GROWTH child tables.
+--     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain — do NOT re-litigate):
+--       teams refs (named-teams Layer 1 unwired), policy-table refs, and cold-table org_id
+--       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_activation_delegations_delegated_by ON activation_delegations(delegated_by);
+CREATE INDEX IF NOT EXISTS idx_activation_delegations_delegated_to ON activation_delegations(delegated_to);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_org_id ON ai_usage(org_id);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user_id ON ai_usage(user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_events_user_id ON auth_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_communication_delivery_events_org_id ON communication_delivery_events(org_id);
+CREATE INDEX IF NOT EXISTS idx_data_subject_requests_assigned_to ON data_subject_requests(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_data_subject_requests_resolved_by ON data_subject_requests(resolved_by);
+CREATE INDEX IF NOT EXISTS idx_data_subject_requests_subject_user_id ON data_subject_requests(subject_user_id);
+CREATE INDEX IF NOT EXISTS idx_lease_notes_created_by ON lease_notes(created_by);
+CREATE INDEX IF NOT EXISTS idx_legal_hold_events_placed_by ON legal_hold_events(placed_by);
+CREATE INDEX IF NOT EXISTS idx_mandatory_comm_retries_communication_log_id ON mandatory_comm_retries(communication_log_id);
+CREATE INDEX IF NOT EXISTS idx_mandatory_comm_retries_dispatched_by ON mandatory_comm_retries(dispatched_by);
+CREATE INDEX IF NOT EXISTS idx_mandatory_comm_retries_org_id ON mandatory_comm_retries(org_id);
+CREATE INDEX IF NOT EXISTS idx_passkey_challenges_user_id ON passkey_challenges(user_id);
+CREATE INDEX IF NOT EXISTS idx_popia_exports_generated_by ON popia_exports(generated_by);
+CREATE INDEX IF NOT EXISTS idx_popia_exports_subject_user_id ON popia_exports(subject_user_id);
+CREATE INDEX IF NOT EXISTS idx_settings_ui_state_user_id ON settings_ui_state(user_id);
+CREATE INDEX IF NOT EXISTS idx_step_up_challenges_user_id ON step_up_challenges(user_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_tos_acceptances_user_id ON tos_acceptances(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_capabilities_granted_by ON user_capabilities(granted_by);
+CREATE INDEX IF NOT EXISTS idx_user_capabilities_user_id ON user_capabilities(user_id);

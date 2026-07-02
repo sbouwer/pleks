@@ -1816,3 +1816,61 @@ CREATE INDEX IF NOT EXISTS idx_leases_trust_account   ON leases(trust_account_id
 -- 2026-06-18 ownership correction: residential deposit interest is statutory (always the tenant, RHA
 -- s5(3)(d)), not a contractual election — so there is no beneficiary field and the deposit clause states
 -- the lessee literally. The column was dropped from live in the same change.
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys.
+--     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
+--       (1) auth.users FKs on erasure-reachable SUBJECT-DATA tables (cold audit/config/
+--           reference tables skipped: small, the planner seq-scans them regardless);
+--       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade — protects P-1);
+--       (3) org_id + hot domain/self-ref FKs on HIGH-GROWTH child tables.
+--     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain — do NOT re-litigate):
+--       teams refs (named-teams Layer 1 unwired), policy-table refs, and cold-table org_id
+--       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_arrears_actions_approved_by ON arrears_actions(approved_by);
+CREATE INDEX IF NOT EXISTS idx_arrears_cases_property_id ON arrears_cases(property_id);
+CREATE INDEX IF NOT EXISTS idx_arrears_cases_resolved_by ON arrears_cases(resolved_by);
+CREATE INDEX IF NOT EXISTS idx_arrears_cases_unit_id ON arrears_cases(unit_id);
+CREATE INDEX IF NOT EXISTS idx_arrears_interest_charges_lease_id ON arrears_interest_charges(lease_id);
+CREATE INDEX IF NOT EXISTS idx_arrears_interest_charges_tenant_id ON arrears_interest_charges(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_arrears_interest_charges_waived_by ON arrears_interest_charges(waived_by);
+CREATE INDEX IF NOT EXISTS idx_bank_recon_sessions_signed_off_by ON bank_recon_sessions(signed_off_by);
+CREATE INDEX IF NOT EXISTS idx_bank_statement_imports_created_by ON bank_statement_imports(created_by);
+CREATE INDEX IF NOT EXISTS idx_bank_statement_imports_reconciled_by ON bank_statement_imports(reconciled_by);
+CREATE INDEX IF NOT EXISTS idx_bank_statement_lines_ai_match_confirmed_by ON bank_statement_lines(ai_match_confirmed_by);
+CREATE INDEX IF NOT EXISTS idx_bank_statement_lines_matched_invoice_id ON bank_statement_lines(matched_invoice_id);
+CREATE INDEX IF NOT EXISTS idx_bank_statement_lines_matched_payment_id ON bank_statement_lines(matched_payment_id);
+CREATE INDEX IF NOT EXISTS idx_bank_statement_lines_matched_trust_txn_id ON bank_statement_lines(matched_trust_txn_id);
+CREATE INDEX IF NOT EXISTS idx_bank_statement_lines_resolved_by ON bank_statement_lines(resolved_by);
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_confirmed_by ON deposit_charges(confirmed_by);
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_created_by ON deposit_charges(created_by);
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_org_id ON deposit_charges(org_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_settling_deposit_txn_id ON deposit_charges(settling_deposit_txn_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_settling_payment_id ON deposit_charges(settling_payment_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_source_invoice_id ON deposit_charges(source_invoice_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_source_lease_charge_id ON deposit_charges(source_lease_charge_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_deduction_items_confirmed_by ON deposit_deduction_items(confirmed_by);
+CREATE INDEX IF NOT EXISTS idx_deposit_deduction_items_inspection_id ON deposit_deduction_items(inspection_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_deduction_items_org_id ON deposit_deduction_items(org_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_reconciliations_tenant_id ON deposit_reconciliations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_transactions_charge_id ON deposit_transactions(charge_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_transactions_created_by ON deposit_transactions(created_by);
+CREATE INDEX IF NOT EXISTS idx_deposit_transactions_deduction_item_id ON deposit_transactions(deduction_item_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_transactions_rate_config_id ON deposit_transactions(rate_config_id);
+CREATE INDEX IF NOT EXISTS idx_lease_amendments_created_by ON lease_amendments(created_by);
+CREATE INDEX IF NOT EXISTS idx_lease_charges_created_by ON lease_charges(created_by);
+CREATE INDEX IF NOT EXISTS idx_lease_lifecycle_events_triggered_by_user ON lease_lifecycle_events(triggered_by_user);
+CREATE INDEX IF NOT EXISTS idx_lease_renewal_offers_created_by ON lease_renewal_offers(created_by);
+CREATE INDEX IF NOT EXISTS idx_leases_created_by ON leases(created_by);
+CREATE INDEX IF NOT EXISTS idx_owner_statements_generated_by ON owner_statements(generated_by);
+CREATE INDEX IF NOT EXISTS idx_payments_recorded_by ON payments(recorded_by);
+CREATE INDEX IF NOT EXISTS idx_rent_invoices_tenant_id ON rent_invoices(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_rent_invoices_unit_id ON rent_invoices(unit_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_bank_accounts_tenant_id ON tenant_bank_accounts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_trust_audit_exports_generated_by ON trust_audit_exports(generated_by);
+CREATE INDEX IF NOT EXISTS idx_trust_reconciliation_periods_signed_off_by ON trust_reconciliation_periods(signed_off_by);
+CREATE INDEX IF NOT EXISTS idx_trust_transactions_created_by ON trust_transactions(created_by);
+CREATE INDEX IF NOT EXISTS idx_trust_transactions_maintenance_request_id ON trust_transactions(maintenance_request_id);
+CREATE INDEX IF NOT EXISTS idx_trust_transactions_unit_id ON trust_transactions(unit_id);
