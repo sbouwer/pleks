@@ -30,11 +30,10 @@ interface Applicant {
 
 interface Props {
   applicants: Applicant[]
-  agentId: string
   onDone?: () => void
 }
 
-export function BulkDecidePanel({ applicants, agentId, onDone }: Props) {
+export function BulkDecidePanel({ applicants, onDone }: Props) {
   const router = useRouter()
   const [decisions, setDecisions] = useState<Record<string, Decision>>({})
   const [reasonCode, setReasonCode] = useState<NotShortlistedReasonCode>("not_shortlisted_other_applicant_selected")
@@ -58,7 +57,7 @@ export function BulkDecidePanel({ applicants, agentId, onDone }: Props) {
         .filter(([, d]) => d !== null)
         .map(async ([appId, decision]) => {
           if (decision === "shortlist") {
-            const res = await sendShortlistInvitation(appId, agentId)
+            const res = await sendShortlistInvitation(appId)
             if (res?.error) throw new Error(res.error)
           } else {
             const res = await declineStage1Action(appId, reasonCode)
