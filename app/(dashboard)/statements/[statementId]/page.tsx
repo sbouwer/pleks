@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/statements/[statementId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/statements/[statementId]/page.tsx — owner statement detail (income, expenses, arrears, net to owner)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /statements/[statementId]
+ * Auth:   gatewaySSR() (agent session + org membership)
+ * Data:   owner_statements (org-scoped by org_id) joined to properties
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BackLink } from "@/components/ui/BackLink"
@@ -21,14 +19,15 @@ export default async function StatementDetailPage({
   params: Promise<{ statementId: string }>
 }) {
   const { statementId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
-  const { data: stmt, error: stmtError } = await supabase
+  const { data: stmt, error: stmtError } = await db
     .from("owner_statements")
     .select("*, properties(name, address_line1, city, owner_name, owner_email)")
     .eq("id", statementId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("StatementDetailPage owner_statements", stmtError)
 

@@ -2,12 +2,11 @@
  * app/(dashboard)/finance/deposits/page.tsx — Deposit management: active leases, pending reconciliations, completed this month.
  *
  * Route:  /finance/deposits
- * Auth:   getServerOrgMembership (redirects to /login)
- * Data:   leases, deposit_reconciliations, deposit_timers via Supabase server client
+ * Auth:   gatewaySSR() (agent session + org membership); redirects to /login
+ * Data:   leases, deposit_reconciliations, deposit_timers via gatewaySSR db (all org-scoped)
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
-import { getServerOrgMembership } from "@/lib/auth/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InlineLink } from "@/components/ui/actions"
@@ -15,36 +14,35 @@ import { formatZAR } from "@/lib/constants"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 
 export default async function DepositsPage() {
-  const membership = await getServerOrgMembership()
-  if (!membership) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
 
-  const { org_id: orgId } = membership
-  const supabase = await createClient()
+  const { db, orgId } = gw
 
   const monthStart = new Date()
   monthStart.setDate(1)
 
   const [activeLeasesRes, reconsRes, overdueTimersRes, completedReconsRes] = await Promise.all([
-    supabase
+    db
       .from("leases")
       .select(`id, deposit_amount_cents, status, units(unit_number, properties(name)), tenant_view(first_name, last_name)`)
       .eq("org_id", orgId)
       .gt("deposit_amount_cents", 0)
       .in("status", ["active", "notice", "expired"])
       .order("created_at", { ascending: false }),
-    supabase
+    db
       .from("deposit_reconciliations")
       .select(`id, lease_id, tenant_id, deposit_held_cents, interest_accrued_cents, total_available_cents, refund_to_tenant_cents, total_deductions_cents, status, leases(units(unit_number, properties(name)), tenant_view(first_name, last_name))`)
       .eq("org_id", orgId)
       .in("status", ["draft", "pending_review", "sent_to_tenant", "disputed", "overdue"])
       .order("created_at", { ascending: false }),
-    supabase
+    db
       .from("deposit_timers")
       .select("lease_id, deadline")
       .eq("org_id", orgId)
       .eq("status", "running")
       .lt("deadline", new Date().toISOString().split("T")[0]),
-    supabase
+    db
       .from("deposit_reconciliations")
       .select(`id, lease_id, refund_to_tenant_cents, total_deductions_cents, status, leases(units(unit_number, properties(name)), tenant_view(first_name, last_name))`)
       .eq("org_id", orgId)

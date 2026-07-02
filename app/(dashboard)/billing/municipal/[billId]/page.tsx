@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/billing/municipal/[billId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/municipal/[billId]/page.tsx — municipal bill detail (charges, meter readings, extraction)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/municipal/[billId]
+ * Auth:   gatewaySSR() (agent session + org membership)
+ * Data:   municipal_bills (org-scoped by org_id) joined to properties + municipal_accounts
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BackLink } from "@/components/ui/BackLink"
@@ -21,14 +19,15 @@ export default async function MunicipalBillDetailPage({
   params: Promise<{ billId: string }>
 }) {
   const { billId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
-  const { data: bill, error: billError } = await supabase
+  const { data: bill, error: billError } = await db
     .from("municipal_bills")
     .select("*, properties(name, address_line1), municipal_accounts(municipality_name, account_number)")
     .eq("id", billId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("MunicipalBillDetailPage municipal_bills", billError)
 

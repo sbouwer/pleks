@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/billing/reconciliation/[importId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/reconciliation/[importId]/page.tsx — bank statement reconciliation detail (lines, match status, balance check)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/reconciliation/[importId]
+ * Auth:   gatewaySSR() (agent session + org membership)
+ * Data:   bank_statement_imports + bank_statement_lines (both org-scoped by org_id)
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -33,23 +31,25 @@ export default async function ReconDetailPage({
   params: Promise<{ importId: string }>
 }) {
   const { importId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
-  const { data: imp, error: impError } = await supabase
+  const { data: imp, error: impError } = await db
     .from("bank_statement_imports")
     .select("*")
     .eq("id", importId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("ReconDetailPage bank_statement_imports", impError)
 
   if (!imp) notFound()
 
-  const { data: lines, error: linesError } = await supabase
+  const { data: lines, error: linesError } = await db
     .from("bank_statement_lines")
     .select("*")
     .eq("import_id", importId)
+    .eq("org_id", orgId)
     .order("line_sequence")
     logQueryError("ReconDetailPage bank_statement_lines", linesError)
 

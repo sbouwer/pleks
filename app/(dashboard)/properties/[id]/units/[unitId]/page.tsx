@@ -2,8 +2,8 @@
  * app/(dashboard)/properties/[id]/units/[unitId]/page.tsx — Unit detail page: edit fields, manage listing, inspection profile, clause overrides, and status history
  *
  * Route:  /properties/[id]/units/[unitId]
- * Auth:   dashboard layout (gateway); redirects to /login if no user, /onboarding if no org
- * Data:   unit + property from supabase; team members, listing, prime rate, furnishings, active lease, inspection profile via parallel fetches
+ * Auth:   cookie auth.getUser (→ /login) + service-client user_orgs membership (→ /onboarding)
+ * Data:   service client, all org-scoped — units, unit_status_history, unit_furnishings, leases (org-filtered), prime_rates (global reference, no org_id); team members, listing, inspection profile via parallel fetches
  * Notes:  updateUnit server action is bound to (unitId, propertyId) so UnitForm posts to the correct record
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
@@ -38,29 +38,21 @@ export default async function UnitDetailPage({
 
   const service = await createServiceClient()
 
+  // Resolve org membership first so org_id can scope every read below.
+  const { data: membership, error: membershipError } = await service
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+  if (membershipError) console.error("UnitDetailPage user_orgs read failed:", membershipError.message)
+
+  if (!membership) redirect("/onboarding")
+
+  const orgId = membership.org_id
+
   const [
     { data: unit },
-    membershipResult,
-  ] = await Promise.all([
-    supabase
-      .from("units")
-      .select("*, properties(name, managing_agent_id)")
-      .eq("id", unitId)
-      .single(),
-    service
-      .from("user_orgs")
-      .select("org_id")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
-      .single(),
-  ])
-
-  if (!unit) notFound()
-  if (!membershipResult.data) redirect("/onboarding")
-
-  const orgId = membershipResult.data.org_id
-
-  const [
     { data: statusHistory },
     { data: teamMemberRows },
     { data: activeListing },
@@ -69,10 +61,17 @@ export default async function UnitDetailPage({
     { data: activeLease },
     { data: profileRooms },
   ] = await Promise.all([
-    supabase
+    service
+      .from("units")
+      .select("*, properties(name, managing_agent_id)")
+      .eq("id", unitId)
+      .eq("org_id", orgId)
+      .single(),
+    service
       .from("unit_status_history")
       .select("*")
       .eq("unit_id", unitId)
+      .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(10),
     service
@@ -88,20 +87,22 @@ export default async function UnitDetailPage({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
+    service
       .from("prime_rates")
       .select("rate_percent")
       .order("effective_date", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
+    service
       .from("unit_furnishings")
       .select("category, item_name, quantity, condition, notes, is_custom")
-      .eq("unit_id", unitId),
-    supabase
+      .eq("unit_id", unitId)
+      .eq("org_id", orgId),
+    service
       .from("leases")
       .select("id, end_date, status, tenants(id, contacts(first_name, last_name, company_name))")
       .eq("unit_id", unitId)
+      .eq("org_id", orgId)
       .in("status", ["active", "notice"])
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -113,6 +114,8 @@ export default async function UnitDetailPage({
       .eq("unit_id", unitId)
       .maybeSingle(),
   ])
+
+  if (!unit) notFound()
 
   const property = unit.properties as unknown as { name: string; managing_agent_id: string | null }
 

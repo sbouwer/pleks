@@ -2,15 +2,15 @@
  * app/(dashboard)/dashboard/page.tsx — Main dashboard: greeting, KPI strip, onboarding checklist, heavy data sections
  *
  * Route:  /dashboard
- * Auth:   getServerOrgMembership + getServerUser (redirects to /login if missing)
- * Data:   supabase client (light wave) + Suspense-streamed heavy sections (attentionItems, trustBalance, etc.)
+ * Auth:   gatewaySSR() (agent session + org membership); redirects to /login if missing
+ * Data:   gatewaySSR db (organisations, user_profiles, subscriptions, properties, units, tenants, leases, inspections — all org-scoped) + getCachedServiceClient reads + Suspense-streamed heavy sections
  * Notes:  Light queries render immediately; heavy sections stream in behind DashboardSectionsSkeleton
  */
 import { Suspense } from "react"
 import { MobileHomeScreen } from "@/components/mobile/MobileHomeScreen"
-import { createClient, getCachedServiceClient } from "@/lib/supabase/server"
+import { getCachedServiceClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
-import { getServerOrgMembership, getServerUser } from "@/lib/auth/server"
 import { DashboardBanners } from "./DashboardBanners"
 import { MetricCard } from "@/components/ui/metric-card"
 import { AttentionQueue } from "./AttentionQueue"
@@ -195,48 +195,44 @@ function DashboardSectionsSkeleton() {
 // ── Main page — light queries render immediately ──────────────────────────────
 
 export default async function DashboardPage() {
-  const [membership, user] = await Promise.all([
-    getServerOrgMembership(),
-    getServerUser(),
-  ])
-  if (!membership || !user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
 
-  const { org_id: orgId } = membership
-  const supabase = await createClient()
+  const { db, userId, orgId } = gw
 
   // Light wave — all independent, renders greeting + metrics immediately
   const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate, feesDue, tenantsCountRes, leasesCountRes, inspectionsCountRes, landlordsCountRes, contractorsCountRes, surrenderedCommsRes] = await Promise.all([
-    supabase
+    db
       .from("organisations")
       .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents, onboarding_dismissed_at")
       .eq("id", orgId)
       .single(),
-    supabase
+    db
       .from("user_profiles")
       .select("full_name")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single(),
-    supabase
+    db
       .from("subscriptions")
       .select("tier, status, trial_tier, trial_ends_at, trial_converted")
       .eq("org_id", orgId)
       .in("status", ["active", "trialing"])
       .single(),
-    supabase
+    db
       .from("properties")
       .select("id", { count: "exact", head: true })
       .eq("org_id", orgId)
       .is("deleted_at", null),
-    supabase
+    db
       .from("units")
       .select("status")
       .eq("org_id", orgId)
       .is("deleted_at", null),
     getCollectionRate(orgId),
     getFeesDue(orgId),
-    supabase.from("tenants").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
-    supabase.from("leases").select("id", { count: "exact", head: true }).eq("org_id", orgId),
-    supabase.from("inspections").select("id", { count: "exact", head: true }).eq("org_id", orgId),
+    db.from("tenants").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
+    db.from("leases").select("id", { count: "exact", head: true }).eq("org_id", orgId),
+    db.from("inspections").select("id", { count: "exact", head: true }).eq("org_id", orgId),
     getCachedServiceClient().then((c) => c.from("landlord_view").select("id", { count: "exact", head: true }).eq("org_id", orgId)),
     getCachedServiceClient().then((c) => c.from("contractors").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null)),
     // Surrendered mandatory comms requiring manual dispatch (BUILD_63 Phase 8)
@@ -355,9 +351,9 @@ export default async function DashboardPage() {
         <>
       {/* BUILD_60 property setup cards — check imports */}
       <PropertySetupCards
-        orgId={membership.org_id}
+        orgId={orgId}
         totalProperties={totalProperties}
-        isAdmin={membership.role === "owner"}
+        isAdmin={gw.role === "owner"}
       />
 
       {/* KPI strip — connected panel */}

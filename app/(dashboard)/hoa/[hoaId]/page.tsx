@@ -3,9 +3,10 @@
  *
  * Route:  /hoa/[hoaId]
  * Auth:   Dashboard layout gateway; org must have firm tier
- * Data:   hoa_entities, hoa_unit_owners, levy_invoices, reserve_fund_entries, agm_records via Supabase server client
+ * Data:   hoa_entities, hoa_unit_owners, levy_invoices, reserve_fund_entries, agm_records, levy_schedules —
+ *         all org-scoped via gatewaySSR orgId (hoaId is caller-supplied, so the anchor fetch filters org_id)
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InlineLink } from "@/components/ui/actions"
@@ -25,14 +26,15 @@ export default async function HOADetailPage({
   params: Promise<{ hoaId: string }>
 }) {
   const { hoaId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
-  const { data: hoa, error: hoaError } = await supabase
+  const { data: hoa, error: hoaError } = await db
     .from("hoa_entities")
     .select("*, properties(name, address_line1, city)")
     .eq("id", hoaId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("HOADetailPage hoa_entities", hoaError)
 
@@ -42,10 +44,10 @@ export default async function HOADetailPage({
 
   // Stats
   const [ownersRes, invoicesRes, reserveRes, agmRes] = await Promise.all([
-    supabase.from("hoa_unit_owners").select("id", { count: "exact", head: true }).eq("hoa_id", hoaId).eq("is_active", true),
-    supabase.from("levy_invoices").select("status, total_cents, balance_cents").eq("hoa_id", hoaId),
-    supabase.from("reserve_fund_entries").select("direction, amount_cents").eq("hoa_id", hoaId),
-    supabase.from("agm_records").select("id, meeting_date, status").eq("hoa_id", hoaId).order("meeting_date", { ascending: false }).limit(3),
+    db.from("hoa_unit_owners").select("id", { count: "exact", head: true }).eq("hoa_id", hoaId).eq("org_id", orgId).eq("is_active", true),
+    db.from("levy_invoices").select("status, total_cents, balance_cents").eq("hoa_id", hoaId).eq("org_id", orgId),
+    db.from("reserve_fund_entries").select("direction, amount_cents").eq("hoa_id", hoaId).eq("org_id", orgId),
+    db.from("agm_records").select("id, meeting_date, status").eq("hoa_id", hoaId).eq("org_id", orgId).order("meeting_date", { ascending: false }).limit(3),
   ])
 
   const ownerCount = ownersRes.count ?? 0
@@ -190,11 +192,14 @@ export default async function HOADetailPage({
 // Tab components below — kept in same file for simplicity
 
 async function HOAOwnersTab({ hoaId }: { hoaId: string }) {
-  const supabase = await createClient()
-  const { data: owners, error: ownersError } = await supabase
+  const gw = await gatewaySSR()
+  if (!gw) return null
+  const { db, orgId } = gw
+  const { data: owners, error: ownersError } = await db
     .from("hoa_unit_owners")
     .select("*, units(unit_number)")
     .eq("hoa_id", hoaId)
+    .eq("org_id", orgId)
     .eq("is_active", true)
     .order("owner_name")
     logQueryError("HOAOwnersTab hoa_unit_owners", ownersError)
@@ -202,10 +207,11 @@ async function HOAOwnersTab({ hoaId }: { hoaId: string }) {
   // Get latest levy status per owner
   const ownerIds = (owners ?? []).map((o) => o.id)
   const { data: latestInvoices } = ownerIds.length > 0
-    ? await supabase
+    ? await db
         .from("levy_invoices")
         .select("owner_id, status, balance_cents")
         .in("owner_id", ownerIds)
+        .eq("org_id", orgId)
         .order("period_month", { ascending: false })
     : { data: [] }
 
@@ -264,18 +270,22 @@ async function HOAOwnersTab({ hoaId }: { hoaId: string }) {
 }
 
 async function HOALeviesTab({ hoaId }: { hoaId: string }) {
-  const supabase = await createClient()
+  const gw = await gatewaySSR()
+  if (!gw) return null
+  const { db, orgId } = gw
 
   const [schedulesRes, ownersRes] = await Promise.all([
-    supabase
+    db
       .from("levy_schedules")
       .select("id, description, schedule_type, calculation_method, total_budget_cents, effective_from, effective_to, is_active, include_vacant_units")
       .eq("hoa_id", hoaId)
+      .eq("org_id", orgId)
       .order("effective_from", { ascending: false }),
-    supabase
+    db
       .from("hoa_unit_owners")
       .select("unit_id, units(unit_number)")
       .eq("hoa_id", hoaId)
+      .eq("org_id", orgId)
       .eq("is_active", true),
   ])
 
@@ -296,11 +306,14 @@ async function HOALeviesTab({ hoaId }: { hoaId: string }) {
 }
 
 async function HOAAGMTab({ hoaId }: { hoaId: string }) {
-  const supabase = await createClient()
-  const { data: records, error: recordsError } = await supabase
+  const gw = await gatewaySSR()
+  if (!gw) return null
+  const { db, orgId } = gw
+  const { data: records, error: recordsError } = await db
     .from("agm_records")
     .select("*, agm_resolutions(*)")
     .eq("hoa_id", hoaId)
+    .eq("org_id", orgId)
     .order("meeting_date", { ascending: false })
     logQueryError("HOAAGMTab agm_records", recordsError)
 
@@ -308,11 +321,14 @@ async function HOAAGMTab({ hoaId }: { hoaId: string }) {
 }
 
 async function HOAFinancialsTab({ hoaId, reserveBalance }: Readonly<{ hoaId: string; reserveBalance: number }>) {
-  const supabase = await createClient()
-  const { data: entries, error: entriesError } = await supabase
+  const gw = await gatewaySSR()
+  if (!gw) return null
+  const { db, orgId } = gw
+  const { data: entries, error: entriesError } = await db
     .from("reserve_fund_entries")
     .select("*")
     .eq("hoa_id", hoaId)
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     logQueryError("HOAFinancialsTab reserve_fund_entries", entriesError)
 

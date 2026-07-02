@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/billing/municipal/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/municipal/page.tsx — municipal bills list (most recent 50)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/municipal
+ * Auth:   gatewaySSR() (agent session + org membership)
+ * Data:   municipal_bills (org-scoped by org_id) joined to properties + municipal_accounts
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
@@ -27,13 +25,14 @@ const EXTRACTION_MAP: Record<string, "pending" | "active" | "completed" | "arrea
 }
 
 export default async function MunicipalBillsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
-  const { data: bills, error: billsError } = await supabase
+  const { data: bills, error: billsError } = await db
     .from("municipal_bills")
     .select("id, billing_month, total_amount_due_cents, extraction_status, payment_status, original_filename, properties(name), municipal_accounts(municipality_name)")
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(50)
     logQueryError("MunicipalBillsPage municipal_bills", billsError)

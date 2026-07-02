@@ -1,13 +1,13 @@
 /**
- * app/(dashboard)/billing/arrears/[caseId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/arrears/[caseId]/page.tsx — arrears case detail (summary, interest, actions timeline)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/arrears/[caseId]
+ * Auth:   gatewaySSR() (agent session + org membership)
+ * Data:   arrears_cases, arrears_actions, leases (all org-scoped by org_id);
+ *         prime_rates read via createServiceClient (public read-only reference data)
  */
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -29,31 +29,34 @@ export default async function ArrearsDetailPage({
   params: Promise<{ caseId: string }>
 }) {
   const { caseId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
-  const { data: arrearsCase, error: arrearsCaseError } = await supabase
+  const { data: arrearsCase, error: arrearsCaseError } = await db
     .from("arrears_cases")
     .select("*, tenant_view(first_name, last_name, company_name, entity_type, email, phone), units(unit_number, properties(name))")
     .eq("id", caseId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("ArrearsDetailPage arrears_cases", arrearsCaseError)
 
   if (!arrearsCase) notFound()
 
-  const { data: actions, error: actionsError } = await supabase
+  const { data: actions, error: actionsError } = await db
     .from("arrears_actions")
     .select("*")
     .eq("case_id", caseId)
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     logQueryError("ArrearsDetailPage arrears_actions", actionsError)
 
   // Fetch lease interest settings and current prime rate
-  const { data: leaseData, error: leaseDataError } = await supabase
+  const { data: leaseData, error: leaseDataError } = await db
     .from("leases")
     .select("arrears_interest_enabled, arrears_interest_margin_percent")
     .eq("id", arrearsCase.lease_id)
+    .eq("org_id", orgId)
     .single()
     logQueryError("ArrearsDetailPage leases", leaseDataError)
 

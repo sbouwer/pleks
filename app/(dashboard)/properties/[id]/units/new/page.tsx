@@ -1,13 +1,12 @@
 /**
- * app/(dashboard)/properties/[id]/units/new/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/units/new/page.tsx — add-unit form for a property (server)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/units/new
+ * Auth:   gatewaySSR() (agent session + org membership)
+ * Data:   properties (org-scoped) for the parent property; org members via service client for assignee picker
  */
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import { createUnit } from "@/lib/actions/units"
 import { UnitForm } from "../UnitForm"
@@ -20,23 +19,25 @@ export default async function NewUnitPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/onboarding")
+  const { db, orgId } = gw
 
-  const [{ data: property }, membershipResult] = await Promise.all([
-    supabase.from("properties").select("id, name").eq("id", id).single(),
-    supabase.from("user_orgs").select("org_id").eq("user_id", user.id).is("deleted_at", null).single(),
-  ])
+  const { data: property, error: propertyError } = await db
+    .from("properties")
+    .select("id, name")
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .single()
+    logQueryError("NewUnitPage properties", propertyError)
 
   if (!property) notFound()
-  if (!membershipResult.data) redirect("/onboarding")
 
   const service = await createServiceClient()
   const { data: members, error: membersError } = await service
     .from("user_orgs")
     .select("user_id, role, user_profiles(full_name)")
-    .eq("org_id", membershipResult.data.org_id)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     logQueryError("NewUnitPage user_orgs", membersError)
 

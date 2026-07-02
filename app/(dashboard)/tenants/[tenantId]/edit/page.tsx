@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/tenants/[tenantId]/edit/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/tenants/[tenantId]/edit/page.tsx — edit-tenant form page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenants/[tenantId]/edit
+ * Auth:   gatewaySSR() (agent session + org membership)
+ * Data:   tenant_view (org-scoped by org_id), excluding soft-deleted rows
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import { updateTenant } from "@/lib/actions/tenants"
 import { TenantEditForm } from "./TenantEditForm"
@@ -20,14 +18,15 @@ export default async function EditTenantPage({
   params: Promise<{ tenantId: string }>
 }) {
   const { tenantId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
-  const { data: tenant, error: tenantError } = await supabase
+  const { data: tenant, error: tenantError } = await db
     .from("tenant_view")
     .select("*")
     .eq("id", tenantId)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
     logQueryError("EditTenantPage tenant_view", tenantError)
