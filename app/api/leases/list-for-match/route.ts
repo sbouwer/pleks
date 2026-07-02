@@ -1,39 +1,26 @@
 /**
- * app/api/leases/list-for-match/route.ts — FILL: one-line purpose
+ * app/api/leases/list-for-match/route.ts — active/recent leases as labelled options for payment-match pickers
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/leases/list-for-match
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   leases (org-scoped via gateway orgId) joined to units/properties/tenant_view for a display label.
  */
 import { NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const service = await createServiceClient()
-  const { data: membership, error: membershipError } = await service
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("GET user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
-
-  const { data: leases, error: leasesError } = await supabase
+  const { data: leases, error: leasesError } = await db
     .from("leases")
     .select("id, status, rent_amount_cents, units(unit_number, properties(name)), tenant_view(first_name, last_name)")
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .in("status", ["active", "notice", "month_to_month", "expired"])
     .order("created_at", { ascending: false })
-    logQueryError("GET leases", leasesError)
+  logQueryError("GET leases", leasesError)
 
   const mapped = (leases ?? []).map((l) => {
     const unit = l.units as unknown as { unit_number: string; properties: { name: string } } | null
