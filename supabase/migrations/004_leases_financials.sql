@@ -1933,3 +1933,138 @@ AS $$
 $$;
 
 REVOKE EXECUTE ON FUNCTION trust_sovereignty_trigger_enabled() FROM PUBLIC, anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_TRUST_RPC_ATOMICITY step 1 (2026-07-02): atomic money+trust write
+--   record_payment_atomic() folds the money-invariant writes into ONE plpgsql
+--   transaction so a partial failure can't leave a payment with no trust credit
+--   (the old recordPayment .catch()-swallowed the trust insert). In scope: the
+--   org-scoped invoice resolve, the payments insert, the target-invoice status
+--   update, and the trust_transactions rent_received credit. OUT of scope (stay
+--   post-commit in the caller): receipt_path, allocatePayment, email, audit,
+--   revalidatePath — side effects that may fail/retry independently. The trust
+--   insert fires the §step-0 sovereignty trigger + the §4 closed-period trigger;
+--   any RAISE rolls back the whole function.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION record_payment_atomic(
+  p_org_id         uuid,
+  p_invoice_id     uuid,
+  p_amount_cents   bigint,
+  p_payment_date   date,
+  p_method         text,
+  p_reference      text,
+  p_recorded_by    uuid,
+  p_receipt_number text,
+  p_notes          text
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_inv             rent_invoices%ROWTYPE;
+  v_current_balance bigint;
+  v_new_paid        bigint;
+  v_new_balance     bigint;
+  v_surplus         bigint;
+  v_status          text;
+  v_payment_id      uuid;
+BEGIN
+  -- Org-scope guard: the invoice MUST belong to the caller's org (service_role bypasses RLS).
+  SELECT * INTO v_inv FROM rent_invoices WHERE id = p_invoice_id AND org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'record_payment_atomic: invoice % not found in org %', p_invoice_id, p_org_id
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  v_current_balance := COALESCE(v_inv.balance_cents, v_inv.total_amount_cents - COALESCE(v_inv.amount_paid_cents, 0));
+  v_new_paid        := COALESCE(v_inv.amount_paid_cents, 0) + p_amount_cents;
+  v_new_balance     := v_inv.total_amount_cents - v_new_paid;
+  v_surplus         := GREATEST(0, -v_new_balance);
+  v_status          := CASE WHEN v_new_balance <= 0 THEN 'paid'
+                            WHEN v_new_paid > 0    THEN 'partial'
+                            ELSE 'open' END;
+
+  -- 1. payment
+  INSERT INTO payments (
+    org_id, invoice_id, lease_id, tenant_id, amount_cents, payment_date, payment_method,
+    reference, receipt_number, recorded_by, surplus_cents, surplus_disposition, allocated_invoices, notes
+  ) VALUES (
+    p_org_id, p_invoice_id, v_inv.lease_id, v_inv.tenant_id, p_amount_cents, p_payment_date, p_method,
+    p_reference, p_receipt_number, p_recorded_by, v_surplus,
+    CASE WHEN v_surplus > 0 THEN 'pending' ELSE NULL END,
+    jsonb_build_array(jsonb_build_object('invoice_id', p_invoice_id, 'amount_cents', LEAST(p_amount_cents, v_current_balance))),
+    p_notes
+  ) RETURNING id INTO v_payment_id;
+
+  -- 2. target-invoice status
+  UPDATE rent_invoices SET
+    amount_paid_cents = v_new_paid,
+    balance_cents     = GREATEST(0, v_new_balance),
+    status            = v_status,
+    paid_at           = CASE WHEN v_status = 'paid' THEN now() ELSE NULL END
+  WHERE id = p_invoice_id;
+
+  -- 3. trust posting (rent_received credit) — sovereignty + closed-period triggers fire here.
+  INSERT INTO trust_transactions (
+    org_id, transaction_type, direction, amount_cents, description,
+    unit_id, lease_id, reference, invoice_id, statement_month, created_by, source, initiated_by
+  ) VALUES (
+    p_org_id, 'rent_received', 'credit', p_amount_cents,
+    'Payment received — ' || upper(p_method) || CASE WHEN p_reference IS NOT NULL AND p_reference <> '' THEN ' ref: ' || p_reference ELSE '' END,
+    v_inv.unit_id, v_inv.lease_id, p_receipt_number, p_invoice_id,
+    date_trunc('month', CURRENT_DATE)::date, p_recorded_by, 'agency_bank', 'agent'
+  );
+
+  RETURN v_payment_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION record_payment_atomic(uuid,uuid,bigint,date,text,text,uuid,text,text) FROM PUBLIC, anon, authenticated;
+
+-- Kill-between-writes regression probe (CD step-1 gate): forces the LAST write (trust insert) to
+-- fail via a signed-off period covering this month, then asserts the payment inserted first was
+-- rolled back. Fully self-contained — the probe's period insert + the RPC's writes all abort in a
+-- caught subtransaction, so nothing persists. Called by trust-sovereignty-parity.mts in security:db.
+CREATE OR REPLACE FUNCTION verify_record_payment_atomicity()
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_inv    rent_invoices%ROWTYPE;
+  v_bank   uuid;
+  v_before bigint;
+  v_after  bigint;
+BEGIN
+  SELECT * INTO v_inv FROM rent_invoices ORDER BY created_at DESC LIMIT 1;
+  IF NOT FOUND THEN RETURN 'SKIP: no rent_invoices to probe'; END IF;
+  SELECT id INTO v_bank FROM bank_accounts WHERE org_id = v_inv.org_id LIMIT 1;
+  IF v_bank IS NULL THEN RETURN 'SKIP: no bank_account for org'; END IF;
+
+  SELECT count(*) INTO v_before FROM payments WHERE invoice_id = v_inv.id;
+
+  BEGIN
+    INSERT INTO trust_reconciliation_periods (
+      org_id, bank_account_id, period_start, period_end,
+      bank_closing_balance_cents, ledger_closing_balance_cents, recon_computed_closing_cents, status
+    ) VALUES (
+      v_inv.org_id, v_bank, date_trunc('month', CURRENT_DATE)::date,
+      (date_trunc('month', CURRENT_DATE) + interval '1 month - 1 day')::date, 0, 0, 0, 'signed_off'
+    );
+    PERFORM record_payment_atomic(v_inv.org_id, v_inv.id, 1, CURRENT_DATE, 'eft', 'atomicity-probe', NULL, 'ATOMICITY-PROBE', NULL);
+    RAISE EXCEPTION 'probe-did-not-fail: trust insert was not blocked';
+  EXCEPTION WHEN others THEN
+    NULL; -- expected: the subtransaction (period insert + RPC writes) rolled back
+  END;
+
+  SELECT count(*) INTO v_after FROM payments WHERE invoice_id = v_inv.id;
+  IF v_after = v_before THEN
+    RETURN 'PASS: payment rolled back when trust posting failed (count=' || v_before || ')';
+  END IF;
+  RETURN 'FAIL: payment persisted despite trust failure (before=' || v_before || ' after=' || v_after || ')';
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION verify_record_payment_atomicity() FROM PUBLIC, anon, authenticated;

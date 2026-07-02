@@ -3,10 +3,14 @@
 /**
  * lib/actions/payments.ts — record a rent payment against an invoice
  *
- * Auth:   gateway (agent session)
- * Data:   rent_invoices, payments, trust_transactions, audit_log via gateway db
- * Notes:  allocatePayment() handles interest-first allocation (lease clause 6.6).
- *         BUILD_63 Phase 7 (F2): fires rent.payment_received comm after allocation.
+ * Auth:   requireAgentWriteAccess("record_payment") + finance capability
+ * Data:   record_payment_atomic() RPC writes payments + rent_invoices + trust_transactions in ONE
+ *         transaction (ADDENDUM_TRUST_RPC_ATOMICITY step 1); everything after is a post-commit side
+ *         effect (receipt path, allocatePayment, email, audit) allowed to fail independently.
+ * Notes:  allocatePayment() (interest-first allocation, lease clause 6.6) stays OUTSIDE the tx —
+ *         non-trivial (shared by bulk-import + deposit-disburse) and flagged to CD for the
+ *         fold-in-or-idempotent decision (addendum §3/§7). BUILD_63 Phase 7 (F2): fires
+ *         rent.payment_received comm after allocation.
  */
 
 import * as React from "react"
@@ -14,7 +18,6 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { hasCapability } from "@/lib/auth/can"
 import { revalidatePath } from "next/cache"
 import { allocatePayment } from "@/lib/finance/paymentAllocation"
-import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { PaymentReceivedEmail } from "@/lib/comms/templates/tenant/rent/payment-received"
@@ -41,81 +44,44 @@ export async function recordPayment(formData: FormData) {
 
   if (!invoice) return { error: "Invoice not found" }
 
-  const currentBalance = invoice.balance_cents ?? (invoice.total_amount_cents - (invoice.amount_paid_cents || 0))
+  // Kept only for the payment-received email's outstanding-balance fallback below (the email re-reads
+  // the live invoice balance); the authoritative paid/balance/status write happens inside the RPC.
   const newPaid = (invoice.amount_paid_cents || 0) + amountCents
   const newBalance = invoice.total_amount_cents - newPaid
-  const surplus = newBalance < 0 ? Math.abs(newBalance) : 0
 
-  // Determine new invoice status
-  let newStatus: string
-  if (newBalance <= 0) newStatus = "paid"
-  else if (newPaid > 0) newStatus = "partial"
-  else newStatus = "open"
-
-  // Create payment record
   const receiptNumber = `REC-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`
 
-  const { data: payment, error } = await db
-    .from("payments")
-    .insert({
-      org_id: orgId,
-      invoice_id: invoiceId,
-      lease_id: invoice.lease_id,
-      tenant_id: invoice.tenant_id,
-      amount_cents: amountCents,
-      payment_date: paymentDate,
-      payment_method: paymentMethod,
-      reference,
-      receipt_number: receiptNumber,
-      recorded_by: userId,
-      surplus_cents: surplus,
-      surplus_disposition: surplus > 0 ? "pending" : null,
-      allocated_invoices: [{ invoice_id: invoiceId, amount_cents: Math.min(amountCents, currentBalance) }],
-      notes: formData.get("notes") as string || null,
-    })
-    .select("id")
-    .single()
+  // Atomic money+trust write (ADDENDUM_TRUST_RPC_ATOMICITY step 1): payment + target-invoice status +
+  // trust rent_received credit commit together or not at all. The old sequence .catch()-swallowed the
+  // trust insert, leaving a payment with no matching trust credit — a D-TRUST-01 ledger imbalance.
+  const { data: paymentId, error } = await db.rpc("record_payment_atomic", {
+    p_org_id: orgId,
+    p_invoice_id: invoiceId,
+    p_amount_cents: amountCents,
+    p_payment_date: paymentDate,
+    p_method: paymentMethod,
+    p_reference: reference,
+    p_recorded_by: userId,
+    p_receipt_number: receiptNumber,
+    p_notes: (formData.get("notes") as string) || null,
+  })
 
-  if (error || !payment) return { error: error?.message || "Failed to record payment" }
+  if (error || !paymentId) {
+    console.error("recordPayment record_payment_atomic failed:", error?.message)
+    return { error: error?.message || "Failed to record payment" }
+  }
 
-  // Store receipt path — on-demand generation at /api/payments/[id]/receipt. Awaited + error-checked
-  // (CRITICAL table — not swallowed); the path is deterministic so a failure is logged, not fatal.
+  // ── Post-commit side effects — allowed to fail/retry independently, so NOT in the transaction ──
+
+  // Receipt path — deterministic + regenerable (on-demand generation at /api/payments/[id]/receipt).
   const { error: receiptErr } = await db.from("payments")
-    .update({ receipt_path: `/api/payments/${payment.id}/receipt` })
-    .eq("id", payment.id)
+    .update({ receipt_path: `/api/payments/${paymentId}/receipt` })
+    .eq("id", paymentId)
   if (receiptErr) console.error("recordPayment receipt_path update failed:", receiptErr.message)
-
-  // Update invoice
-  await db.from("rent_invoices").update({
-    amount_paid_cents: newPaid,
-    balance_cents: Math.max(0, newBalance),
-    status: newStatus,
-    paid_at: newStatus === "paid" ? new Date().toISOString() : null,
-  }).eq("id", invoiceId)
-
-  // Trust transaction — confirm the credit
-  const currentMonth = new Date()
-  currentMonth.setDate(1)
-
-  await recordTrustTransaction({
-    orgId,
-    unitId: invoice.unit_id ?? undefined,
-    leaseId: invoice.lease_id ?? undefined,
-    transactionType: "rent_received",
-    direction: "credit",
-    amountCents,
-    description: `Payment received — ${paymentMethod.toUpperCase()}${reference ? ` ref: ${reference}` : ""}`,
-    reference: receiptNumber,
-    invoiceId,
-    statementMonth: currentMonth.toISOString().split("T")[0],
-    createdBy: userId,
-    source: "agency_bank",
-    initiatedBy: "agent",
-  }).catch((e) => console.error("[trust] rent_received insert failed:", e instanceof Error ? e.message : String(e)))
 
   // Allocate payment: interest first, then rent (lease clause 6.6)
   if (invoice.lease_id) {
-    await allocatePayment(payment.id, invoice.lease_id, amountCents, userId)
+    await allocatePayment(paymentId, invoice.lease_id, amountCents, userId)
   }
 
   // BUILD_63 Phase 7 (F2) — fire rent.payment_received comm if tenant has an email
@@ -163,15 +129,15 @@ export async function recordPayment(formData: FormData) {
             invoiceNumber,
           }),
           entityType:       "payment",
-          entityId:         payment.id,
+          entityId:         paymentId,
           triggerEventType: "payment_recorded",
-          triggerEventId:   payment.id,
+          triggerEventId:   paymentId,
           triggeredBy:      userId,
           toneVariant:      "n/a",
         })
       }
     } catch (err) {
-      console.error("[recordPayment] comm failed for payment", payment.id, err)
+      console.error("[recordPayment] comm failed for payment", paymentId, err)
     }
   }
 
@@ -179,7 +145,7 @@ export async function recordPayment(formData: FormData) {
   await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "payments",
-    record_id: payment.id,
+    record_id: paymentId,
     action: "INSERT",
     changed_by: userId,
     new_values: { amount_cents: amountCents, method: paymentMethod, invoice_id: invoiceId },

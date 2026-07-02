@@ -3749,6 +3749,7 @@
     "check_policy_version_immutable": [],
     "check_trust_txn_insert_period_open": [],
     "check_trust_txn_period_open": [],
+    "check_trust_txn_sovereignty": [],
     "claim_purge_slot": [
       "p_org_id"
     ],
@@ -3827,6 +3828,17 @@
       "p_reason"
     ],
     "reconcile_self_landlord_bindings": [],
+    "record_payment_atomic": [
+      "p_org_id",
+      "p_invoice_id",
+      "p_amount_cents",
+      "p_payment_date",
+      "p_method",
+      "p_reference",
+      "p_recorded_by",
+      "p_receipt_number",
+      "p_notes"
+    ],
     "refresh_arrears_interest_total": [
       "p_case_id"
     ],
@@ -3843,10 +3855,12 @@
       "p_old_owner"
     ],
     "trigger_seed_retention_policies": [],
+    "trust_sovereignty_trigger_enabled": [],
     "update_updated_at_column": [],
     "verify_legal_hold_chain": [
       "p_scope_type",
       "p_scope_id"
-    ]
+    ],
+    "verify_record_payment_atomicity": []
   }
 }
