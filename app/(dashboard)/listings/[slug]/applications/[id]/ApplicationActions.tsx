@@ -59,7 +59,7 @@ export function ApplicationActions({
       return
     }
     if (!user) return
-    const result = await sendShortlistInvitation(applicationId, user.id)
+    const result = await sendShortlistInvitation(applicationId)
     if (result?.error) toast.error(result.error)
     else { toast.success("Shortlist invitation sent"); router.refresh() }
   }

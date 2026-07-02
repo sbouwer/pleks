@@ -373,7 +373,6 @@
   "lib/screening/preScreenScore.ts",
   "lib/screening/searchworxBundle.ts",
   "lib/screening/sendCreditReport.ts",
-  "lib/screening/sendShortlistInvitation.ts",
   "lib/screening/visaLeaseCheck.ts",
   "lib/supabase/getMembership.ts",
   "lib/supabase/public.ts",
