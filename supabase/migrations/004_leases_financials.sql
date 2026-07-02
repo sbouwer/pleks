@@ -1874,3 +1874,62 @@ CREATE INDEX IF NOT EXISTS idx_trust_reconciliation_periods_signed_off_by ON tru
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_created_by ON trust_transactions(created_by);
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_maintenance_request_id ON trust_transactions(maintenance_request_id);
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_unit_id ON trust_transactions(unit_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_TRUST_RPC_ATOMICITY step 0 (2026-07-02): D-TRUST-01 sovereignty guard
+--   as a BEFORE INSERT trigger — the CANONICAL enforcement of record. Mirrors the
+--   §4 closed-period trigger so the guard fires on EVERY insert path (the JS
+--   recordTrustTransaction helper, the atomic-write plpgsql RPCs, raw SQL, psql),
+--   not only the JS path the coverage ratchet can see. assertPleksIsNotTrustee()
+--   in lib/trust/invariants.ts stays as the app-layer early-fail MIRROR.
+--   Rule definitions — single source of truth: TRUST_ACCOUNT_POSITIONING.md §3.2
+--   + ADDENDUM_TRUST_RPC_ATOMICITY §2:
+--     Rule 1: source = 'pleks_controlled_account'                          → violation
+--     Rule 2: direction = 'debit' (outbound) AND initiated_by = 'pleks_system' → violation
+--   NULL source/initiated_by (pre-F-3 rows) pass — only the two explicit rules RAISE.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION check_trust_txn_sovereignty()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  -- Rule 1: Pleks never controls a fund-holding account.
+  IF NEW.source = 'pleks_controlled_account' THEN
+    RAISE EXCEPTION 'SOVEREIGN_TRUST_VIOLATION: Pleks does not control any account capable of holding client funds (source=pleks_controlled_account). See brief/legal/TRUST_ACCOUNT_POSITIONING.md.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  -- Rule 2: Pleks never initiates outbound fund movement (debit = outbound).
+  IF NEW.direction = 'debit' AND NEW.initiated_by = 'pleks_system' THEN
+    RAISE EXCEPTION 'SOVEREIGN_TRUST_VIOLATION: Pleks system processes cannot initiate outbound fund movement (direction=debit, initiated_by=pleks_system). See brief/legal/TRUST_ACCOUNT_POSITIONING.md.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS tr_trust_txn_sovereignty ON trust_transactions;
+CREATE TRIGGER tr_trust_txn_sovereignty
+  BEFORE INSERT ON trust_transactions
+  FOR EACH ROW EXECUTE FUNCTION check_trust_txn_sovereignty();
+
+-- Existence/enabled ratchet for the sovereignty trigger (CD condition 3): returns false if the
+-- trigger is DROPPED or DISABLED (tgenabled = 'D'), so scripts/security/trust-sovereignty-parity.mts
+-- fails CI on silent removal. service_role only (called from the DB security audit).
+CREATE OR REPLACE FUNCTION trust_sovereignty_trigger_enabled()
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT COALESCE(bool_or(t.tgenabled <> 'D'), false)
+  FROM pg_trigger t
+  JOIN pg_class c ON c.oid = t.tgrelid
+  WHERE c.relname = 'trust_transactions'
+    AND t.tgname = 'tr_trust_txn_sovereignty'
+    AND NOT t.tgisinternal;
+$$;
+
+REVOKE EXECUTE ON FUNCTION trust_sovereignty_trigger_enabled() FROM PUBLIC, anon, authenticated;
