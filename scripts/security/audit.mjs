@@ -43,6 +43,7 @@ import { readFileSync } from "fs"
 import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
 import { buildCensus, PUBLIC_ALLOWLIST, probePath } from "./route-census.mjs"
+import { buildActionCensus } from "./server-action-census.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, "../..")
@@ -1228,6 +1229,52 @@ async function cat13_auditIntegrity() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// CATEGORY 15: Server Action Auth Census (static — Truth Pipeline)
+// ═══════════════════════════════════════════════════════════════
+// Every top-level `"use server"` export is a directly-callable RPC. This census (derived from
+// disk, scripts/server-action-census.mjs) asserts each module resolves auth through the gate
+// APPROPRIATE TO ITS LOCATION — an app/(admin) module MUST call requireAdminAuth (a bare
+// gateway() is not enough; that was the saveContentRow / adminOrgActions bug). Ungated + not
+// allowlisted → CRITICAL. This is the class a hand-listed audit could never see.
+function cat15_serverActionAuth() {
+  console.log("\n📋 Category 15: Server Action Auth Census")
+  console.log("─".repeat(50))
+
+  const { modules, totalActions } = buildActionCensus()
+  const gated = modules.filter((m) => m.gated)
+  const allowed = modules.filter((m) => !m.gated && m.allow)
+  const fails = modules.filter((m) => !m.gated && !m.allow)
+
+  test(`Server-action census: ${modules.length} "use server" modules / ${totalActions} exported actions`)
+  if (fails.length) {
+    fail(`${fails.length} module(s) with no location-appropriate auth gate, not allowlisted`)
+    for (const m of fails) {
+      const need =
+        m.family === "admin"
+          ? "requireAdminAuth() / isAdminAuthenticated()"
+          : "a recognized auth gate (gateway / getServerUser / requireAgentWriteAccess / getTenantSession)"
+      finding(
+        15,
+        "CRITICAL",
+        `Ungated server-action module: ${m.file}`,
+        `${m.family === "admin" ? "admin-surface " : ""}module exports [${m.actions.join(", ")}] but calls no ${need}`,
+        "Add the correct gate to each action, or add the file to ACTION_ALLOWLIST (with a reason) in scripts/security/server-action-census.mjs",
+      )
+    }
+  } else {
+    ok(`all ${modules.length} modules gated or allowlisted (${gated.length} gated, ${allowed.length} allowlisted)`)
+    pass(15, "server-action-census")
+  }
+
+  // REVIEW-flagged allowlist entries — surfaced as warnings (not failures) for a human to confirm.
+  const reviews = allowed.filter((m) => m.allow.startsWith("REVIEW"))
+  if (reviews.length) {
+    warn(`${reviews.length} allowlisted module(s) flagged REVIEW — confirm the gate`)
+    for (const m of reviews) console.log(`  │    ${m.file} — ${m.allow}`)
+  }
+}
+
 async function main() {
   if (ciMode) { await runCiMode(); return }
 
@@ -1276,6 +1323,10 @@ async function main() {
     11: appUp ? cat11_secretsExposure : null,
     12: appUp ? cat12_idor : null,
     13: cat13_auditIntegrity,
+    // Cat-15 is static (disk-only). Gated out of --ci for now because the admin-surface
+    // findings it correctly raises are fixed in PR #104 (not yet on main) — promote into the
+    // --ci/check:full set once #104 lands so it hard-gates new ungated actions in CI.
+    15: ciMode ? null : cat15_serverActionAuth,
   }
 
   for (const [num, fn] of Object.entries(categories)) {

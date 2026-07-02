@@ -326,7 +326,7 @@ Before every deployment to production, run the full security audit:
 npm run security
 ```
 
-This runs 282 tests across 12 security categories:
+This runs across 15 security categories:
 1. Unauthenticated table access (SELECT/INSERT/DELETE on all sensitive tables)
 2. Cross-org data leakage
 3. Gateway bypass / org_id injection
@@ -334,11 +334,14 @@ This runs 282 tests across 12 security categories:
 5. File storage access (bucket listing, predictable paths)
 6. Security headers (CSP, X-Frame-Options, HSTS, etc.)
 7. RLS policy audit (queries pg_policies — flags USING(true), missing WITH CHECK, RLS disabled)
-8. Server action / API route auth (hits every route without cookies)
+8. Server action / API route auth — route census DERIVED from `app/api/**/route.ts` on disk (`scripts/security/route-census.mjs`), classified by the auth helper each route calls; probes every authenticated route without cookies + asserts census completeness (no ungated route outside the public allowlist)
 9. Rate limiting on public routes
 10. Webhook signature verification (sends forged payloads)
 11. Secrets exposure (service key in NEXT_PUBLIC_, secrets in HTML)
 12. IDOR (fake UUIDs on parameterised routes)
+13. Audit-log integrity (canaries; raw-PII-in-values scan)
+14. Audit behavioural coverage (drives each T1 past the gateway; separate `cat14-behavioural.mts`)
+15. Server-action auth census — DERIVED from `"use server"` files on disk (`scripts/security/server-action-census.mjs`); asserts each module resolves the auth gate APPROPRIATE TO ITS LOCATION (app/(admin) → requireAdminAuth, else a recognized agent/portal gate) or is an explicit allowlist entry. Static (disk-only); prod/full run for now, promote to `--ci` once PR #104 lands.
 
 **Exit code 1 = CRITICAL findings = deployment blocked.**
 
@@ -352,7 +355,8 @@ This runs 282 tests across 12 security categories:
 - If a finding is a false positive (e.g. `prime_rates` intentionally has no RLS because it's read-only public data), the correct fix is to add a read-only RLS policy (`USING (true)` for SELECT, block INSERT/UPDATE/DELETE) — not to remove the test.
 - Never disable or skip categories to pass the audit.
 - When adding new tables: add RLS + org_id policy immediately. The Category 7 audit will catch you if you forget.
-- When adding new API routes: the Category 8 test list in `scripts/security/audit.mjs` must be updated to include the new route.
+- When adding new API routes: Category 8 auto-discovers them from disk — no list to update. Just gate the route with a recognized auth helper; a route with no gate that isn't a conscious public route FAILS the census until you add it to `PUBLIC_ALLOWLIST` (with a reason) in `route-census.mjs`.
+- When adding new server actions (`"use server"`): Category 15 auto-discovers them — gate each with the helper appropriate to its location (`app/(admin)` → `requireAdminAuth`; agent → `requireAgentWriteAccess`/`gateway`; portal → `getTenantSession`), or add the file to `ACTION_ALLOWLIST` (with a reason) in `server-action-census.mjs`. A bare `gateway()` on an `app/(admin)` action FAILS — admin surfaces need the admin gate.
 - When adding new webhook handlers: add signature verification from day one. Category 10 sends forged payloads.
 - When adding new public routes: add them to the Category 9 rate limit test list.
 
