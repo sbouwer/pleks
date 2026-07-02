@@ -1,14 +1,16 @@
 /**
- * app/api/reports/route.ts — FILL: one-line purpose
+ * app/api/reports/route.ts — JSON report builder dispatch for the reports dashboard
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/reports?type=&orgId=&periodType=&propertyIds=&customFrom=&customTo=
+ * Auth:   auth.getUser() (cookie) + getMembership() on the caller-supplied orgId (service client)
+ * Data:   verifies membership + active-subscription tier via the service client, then dispatches
+ *         to the matching lib/reports builder (each scopes by filters.orgId).
+ * Notes:  orgId is caller-supplied by design (multi-org) — the service-client membership check IS
+ *         the boundary, so this stays on getMembership() rather than the cookie-resolved gateway().
  */
 import { NextRequest } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { getMembership } from "@/lib/supabase/getMembership"
 import { resolvePeriod } from "@/lib/reports/periods"
 import { buildPortfolioSummary } from "@/lib/reports/portfolioSummary"
 import { buildOccupancyReport } from "@/lib/reports/occupancy"
@@ -55,26 +57,19 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Missing type or orgId" }, { status: 400 })
   }
 
-  // Verify user belongs to org
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("GET user_orgs", membershipError)
-
+  // Verify user belongs to the caller-supplied org (service client — the membership check IS the boundary)
+  const service = await createServiceClient()
+  const membership = await getMembership(service, user.id, orgId)
   if (!membership) return Response.json({ error: "Forbidden" }, { status: 403 })
 
   // Check tier access
-  const { data: sub, error: subError } = await supabase
+  const { data: sub, error: subError } = await service
     .from("subscriptions")
     .select("tier")
     .eq("org_id", orgId)
     .eq("status", "active")
     .single()
-    logQueryError("GET subscriptions", subError)
+  logQueryError("GET subscriptions", subError)
 
   const tier = sub?.tier ?? "owner"
   const allowed = REPORT_TIER_ACCESS[reportType]
