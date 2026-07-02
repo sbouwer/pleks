@@ -30,8 +30,6 @@
   "app/api/user/preferences/route.ts",
   "lib/auth/server.ts",
   "lib/contractors/sendPortalInvite.ts",
-  "lib/deposits/buildDeductionSchedule.ts",
-  "lib/deposits/generateJustification.ts",
   "lib/hoa/levyCalculation.ts",
   "lib/import/leaseImport.ts",
   "lib/import/propertyImport.ts",
@@ -39,6 +37,5 @@
   "lib/leases/lifecycle.ts",
   "lib/portal/inviteLandlord.ts",
   "lib/tier/getOrgTier.ts",
-  "lib/trial/convertTrial.ts",
   "lib/trial/startTrial.ts"
 ]

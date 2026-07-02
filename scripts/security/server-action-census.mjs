@@ -78,7 +78,6 @@ export const ACTION_ALLOWLIST = {
   // UNVERIFIED — guilty until read in the caller-supplied-ID / cookie-client census (CD 2026-07-02).
   // (2 of the original 6 REVIEW items — quoteApproval + handleDispute — turned out to be live
   //  doctrine+IDOR violations and were DELETED as dead code; do not assume these three are safe.)
-  "lib/trial/convertTrial.ts::*": "REVIEW: UNVERIFIED — read in the census before clearing",
   "lib/trial/startTrial.ts::*": "REVIEW: UNVERIFIED — admin wrapper gated (#104) but the lib fn itself is not; read in the census",
   "lib/auth/capabilityActions.ts::*": "REVIEW: UNVERIFIED — read in the census before clearing",
 }
