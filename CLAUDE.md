@@ -1009,6 +1009,21 @@ Source: ADDENDUM_LEGAL_DOCS_SPACING_2026-05-27.
 
 **Server actions: use `gateway()` or `requireAgentWriteAccess(action)`.** Same shape, same rules. `requireAgentWriteAccess` additionally enforces the subscription lockdown gate.
 
+**Which write gate — the paused-org test.** A mutation is NOT automatically `requireAgentWriteAccess`. The subscription-lockdown gate applies only to *net-new value creation* (per "Your Data, Always"), not to every write. Classify by the table the write targets, using one test:
+
+> **"If the org is paused, should this action still work?"**
+
+- **Yes → `gateway()`** (auth + org-scope, no lockdown): the org's own account/config surface — notification prefs, display/display-name settings, profile, saved filters, team display names. A cancelled agency editing its own settings is exercising "your data, always," not creating new business. Blocking it is a regression.
+- **No → `requireAgentWriteAccess(action)`** (full gate): create or advance billable business objects — leases, properties/units beyond tier, applications, credit checks, AI generations, trust/financial postings.
+
+This maps 1:1 onto the "net-new value creation" doctrine and is answerable per-table, not per-route.
+
+**A `gateway()`-on-a-write must be provably intentional.** Every write that uses `gateway()` instead of `requireAgentWriteAccess` MUST be an explicit allowlist entry (const or inline reason) that the server-action census category (`scripts/security/server-action-census.mjs`) can read. Otherwise "intentionally lockdown-free" is indistinguishable from "forgot the gate" — the exact bug class behind the site-content hole (2026-07-02). An ungated-for-lockdown write with no allowlist entry FAILS the census.
+
+**Mixed-class PATCH routes (e.g. `org/details`).** If one route writes both config fields (display name → `gateway()`) and billing-adjacent identity fields (→ lockdown), split the route or gate it to the stricter of the two. Never let a mixed route default to the looser gate.
+
+Source: cookie-client baseline burndown + write-gate ratification (PR #116, 2026-07-02).
+
 **Reference:** `app/(dashboard)/dashboard/page.tsx` (Pattern A). Every `supabase.from(...)` call in it includes `.eq("org_id", orgId)`.
 
 **Anti-pattern (do NOT do this):**
