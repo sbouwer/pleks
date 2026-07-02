@@ -1,31 +1,29 @@
 /**
- * app/api/properties/[id]/units/route.ts — FILL: one-line purpose
+ * app/api/properties/[id]/units/route.ts — unit list (number + access instructions) for a property
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/properties/[id]/units
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   units, org-scoped via gateway orgId, filtered to the property.
  */
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: propertyId } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data: units, error: unitsError } = await supabase
+  const { data: units, error: unitsError } = await db
     .from("units")
     .select("id, unit_number, access_instructions")
+    .eq("org_id", orgId)
     .eq("property_id", propertyId)
     .is("deleted_at", null)
-    .is("deleted_at", null)
     .order("unit_number")
-    logQueryError("GET units", unitsError)
+  logQueryError("GET units", unitsError)
 
   return NextResponse.json({ units: units ?? [] })
 }
