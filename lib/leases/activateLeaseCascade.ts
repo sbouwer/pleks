@@ -11,7 +11,6 @@
 import * as React from "react"
 import { SupabaseClient } from "@supabase/supabase-js"
 import { createServiceClient } from "@/lib/supabase/server"
-import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
@@ -97,24 +96,28 @@ async function stepRecordDeposit(
   if (!lease.deposit_amount_cents || lease.deposit_amount_cents <= 0) {
     return { step: "Record deposit", status: "skipped", detail: "No deposit amount set" }
   }
-  try {
-    await supabase.from("deposit_transactions").insert({
-      org_id: orgId, lease_id: leaseId, tenant_id: lease.tenant_id,
-      transaction_type: "deposit_received", direction: "credit",
-      amount_cents: lease.deposit_amount_cents,
-      description: "Security deposit received", created_by: userId ?? null,
-    })
-    await recordTrustTransaction({
-      orgId, propertyId: lease.property_id ?? undefined, unitId: lease.unit_id ?? undefined,
-      leaseId, transactionType: "deposit_received", direction: "credit",
-      amountCents: lease.deposit_amount_cents,
-      description: "Security deposit", createdBy: userId ?? undefined,
-      source: "agency_bank", initiatedBy: "agent",
-    })
-    return { step: "Record deposit", status: "success", detail: `R ${(lease.deposit_amount_cents / 100).toFixed(2)}` }
-  } catch (e) {
-    return { step: "Record deposit", status: "failed", detail: String(e) }
-  }
+  // Atomic deposit sub-ledger + trust posting (ADDENDUM_TRUST_RPC_ATOMICITY step 2) — the two
+  // ledgers commit together or not at all (previously written separately → could disagree).
+  const { error } = await supabase.rpc("record_deposit_atomic", {
+    p_org_id: orgId,
+    p_lease_id: leaseId,
+    p_tenant_id: lease.tenant_id,
+    p_amount_cents: lease.deposit_amount_cents,
+    p_dep_txn_type: "deposit_received",
+    p_dep_description: "Security deposit received",
+    p_trust_txn_type: "deposit_received",
+    p_trust_description: "Security deposit",
+    p_initiated_by: "agent",
+    p_created_by: userId ?? null,
+    p_property_id: lease.property_id ?? null,
+    p_unit_id: lease.unit_id ?? null,
+    p_reference: null,
+    p_effective_rate_percent: null,
+    p_rate_config_id: null,
+    p_statement_month: null,
+  })
+  if (error) return { step: "Record deposit", status: "failed", detail: error.message }
+  return { step: "Record deposit", status: "success", detail: `R ${(lease.deposit_amount_cents / 100).toFixed(2)}` }
 }
 
 async function stepSendDepositReceived(
