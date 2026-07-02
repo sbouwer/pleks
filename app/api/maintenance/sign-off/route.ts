@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { recordTrustTransaction } from "@/lib/trust/invariants"
+import * as Sentry from "@sentry/nextjs"
 import * as React from "react"
 import { addMonths } from "date-fns"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
@@ -64,7 +65,24 @@ async function writeFinancialRecords(
       createdBy: userId,
       source: "agency_bank",
       initiatedBy: "agent",
-    }).catch((e) => console.error("[trust] maintenance_expense insert failed:", e instanceof Error ? e.message : String(e)))
+    }).catch(async (e) => {
+      // Surface the books-gap instead of swallowing it (CD 2026-07-02): a dropped expense posting no
+      // one sees is worse than a visible failure. The proper fix (fold into an atomic RPC with the
+      // upstream cost allocation) is tracked; until then this makes the failure loud.
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error("[trust] maintenance_expense insert failed:", msg)
+      Sentry.captureException(e instanceof Error ? e : new Error(msg), {
+        tags: { invariant: "trust_write_failed", path: "maintenance_signoff" },
+      })
+      await service.from("audit_log").insert({
+        org_id: orgId,
+        table_name: "trust_transactions",
+        record_id: requestId,
+        action: "NOTE",
+        changed_by: userId,
+        new_values: { event: "trust_write_failed", type: "maintenance_expense", amount_cents: alloc.amount_cents, error: msg },
+      })
+    })
   }
 
   if (request.lease_id) {

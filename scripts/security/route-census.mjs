@@ -67,8 +67,9 @@ export const PUBLIC_ALLOWLIST = {
   "/api/public/status-summary": "public status page summary",
   "/api/paia-manual-pdf": "public PAIA manual (statutory public document)",
   "/api/unsubscribe/[token]": "unsubscribe token is the credential",
-  // Flagged for human confirmation — appears session-ungated; verify the intended gate.
-  "/api/property-intelligence/run/[pull_id]": "REVIEW: appears session-ungated — confirm it is internal/token-triggered only",
+  // Internal-secret-gated — the property-intelligence ITN webhook calls this with x-internal-secret
+  // (route.ts:166), not the browser; fail-closed if INTERNAL_API_SECRET is unset (CD-verified 2026-07-02).
+  "/api/property-intelligence/run/[pull_id]": "internal-secret-gated (ITN webhook, x-internal-secret)",
 }
 
 // Match CALLS, not doc mentions: the FILL: header stub literally contains
