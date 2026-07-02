@@ -2982,7 +2982,10 @@ REVOKE EXECUTE ON FUNCTION public.org_has_trust_account()                       
 -- ── complete the partial 009 revoke (PUBLIC already gone; anon+auth remained) ──
 REVOKE EXECUTE ON FUNCTION public.count_distinct_orgs(text)                              FROM anon, authenticated;
 
--- ── revoke PUBLIC + anon, KEEP authenticated (verified authenticated-ctx caller / intended client use) ──
+-- ── revoke PUBLIC + anon. is_mfa_fresh KEEPS authenticated (self-scoped: reads only the caller's
+--    own MFA freshness — no arbitrary input). get_active_unit_count's authenticated grant is
+--    REVOKED in §47 below (2026-07-02 security batch) — the "intended client use" assumption here
+--    was wrong: it is SECURITY DEFINER + takes an arbitrary p_org_id = cross-org read. ──
 REVOKE EXECUTE ON FUNCTION public.get_active_unit_count(uuid)                            FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.is_mfa_fresh(integer)                                  FROM PUBLIC, anon;
 
@@ -3673,3 +3676,25 @@ ALTER TABLE legal_hold_events ADD CONSTRAINT legal_hold_events_trigger_category_
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_number text;
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_issued_at date;
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_expires_at date;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §47  SECURITY BATCH 2026-07-02: revoke authenticated EXECUTE on the cross-org
+--      count RPC + pin search_path on two invoker functions.
+--
+--      get_active_unit_count(uuid) is SECURITY DEFINER and takes an arbitrary
+--      p_org_id with NO caller-membership check — so an EXECUTE grant to
+--      `authenticated` let any logged-in user read any org's active-unit count
+--      (agency-isolation violation, live-advisor confirmed). Its sole caller,
+--      lib/tier/unitLimits.ts, is server-only and passes a service_role client
+--      (service_role EXECUTE is retained), so this revoke has no app impact.
+--      Supersedes the "KEEP authenticated" note in the §RPC-hardening block above.
+--
+--      transfer_org_ownership / assert_deduction_justification are SECURITY INVOKER
+--      (RLS still applies — no privilege escalation), but pinning search_path
+--      silences advisor lint 0011 (function_search_path_mutable) permanently.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+REVOKE EXECUTE ON FUNCTION public.get_active_unit_count(uuid)             FROM PUBLIC, anon, authenticated;
+
+ALTER FUNCTION public.transfer_org_ownership(uuid, uuid, uuid)            SET search_path = public, pg_temp;
+ALTER FUNCTION public.assert_deduction_justification()                   SET search_path = public, pg_temp;

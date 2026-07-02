@@ -3,18 +3,22 @@
 /**
  * app/(admin)/admin/orgs/[orgId]/adminOrgActions.server.ts — admin server actions on a single org
  *
- * Auth:   Admin portal — (admin) route group is HMAC-token gated upstream; service client used here
+ * Auth:   requireAdminAuth() asserted IN every action — server actions are directly POSTable, so
+ *         the (admin) route-group HMAC gate is NOT sufficient on its own. Service client used here.
  * Data:   organisations, subscriptions, audit_log
  * Notes:  changeTier fires onTierChanged (ADDENDUM_01C §4) AFTER the subscriptions write — the
- *         Owner→Steward+ identity fork hangs off that hook.
+ *         Owner→Steward+ identity fork hangs off that hook. startTrial is re-exported through a
+ *         gated wrapper (the raw lib fn is a "use server" export → would otherwise be ungated).
  */
+import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
-import { startTrial } from "@/lib/trial/startTrial"
+import { startTrial as startTrialImpl } from "@/lib/trial/startTrial"
 import { onTierChanged } from "@/lib/tier/onTierChanged"
 import type { Tier } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function activateFoundingAgent(orgId: string) {
+  await requireAdminAuth()
   const supabase = await createServiceClient()
 
   const now = new Date()
@@ -49,6 +53,7 @@ export async function activateFoundingAgent(orgId: string) {
 }
 
 export async function changeTier(orgId: string, newTier: string) {
+  await requireAdminAuth()
   const supabase = await createServiceClient()
 
   // Read the raw tier we're replacing, for the tier-change hook (ADDENDUM_01C §4).
@@ -80,4 +85,11 @@ export async function changeTier(orgId: string, newTier: string) {
   return { success: true }
 }
 
-export { startTrial }
+/** Gated wrapper — the raw lib fn is a "use server" export and must not be reachable ungated. */
+export async function startTrial(
+  orgId: string,
+  trialTier: "steward" | "portfolio" | "firm" = "steward"
+) {
+  await requireAdminAuth()
+  return startTrialImpl(orgId, trialTier)
+}
