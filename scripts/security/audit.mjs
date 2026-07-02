@@ -42,6 +42,7 @@
 import { readFileSync } from "fs"
 import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
+import { buildCensus, PUBLIC_ALLOWLIST, probePath } from "./route-census.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, "../..")
@@ -804,52 +805,69 @@ async function cat8_serverActionAbuse() {
   console.log("\n📋 Category 8: Server Action / API Route Abuse")
   console.log("─".repeat(50))
 
-  // Test every authenticated route without auth
-  for (const route of AUTHENTICATED_API_ROUTES) {
-    test(`GET ${route} (no cookies)`)
-    const res = await appFetch(route)
-    if (res.status === 200 && res.json && !res.json.error && !res.text.includes("Unauthorized")) {
-      fail("returned data!")
-      finding(8, "CRITICAL", `No auth on ${route}`, `GET returned 200 with data`, "Add auth.getUser() check")
-    } else {
-      ok(`blocked (${res.status})`)
-      pass(8, route)
+  // ── Census completeness (Truth Pipeline applied to the audit itself) ──
+  // The route list is DERIVED from disk (app/api/**/route.ts), never hand-maintained, and
+  // each route's auth model is DERIVED from the auth helper it calls (route-census.mjs).
+  // A route that resolves to NO recognized gate and isn't a conscious PUBLIC_ALLOWLIST entry
+  // FAILS here — the exact gap class (saveContentRow / adminOrgActions) a hand-listed Cat-8
+  // could never see. This also means a NEW authenticated route is probed below automatically.
+  const { routes, byBucket } = buildCensus()
+  const bucketSummary = Object.entries(byBucket)
+    .map(([b, rs]) => `${b}:${rs.length}`)
+    .sort()
+    .join(" ")
+  test(`Route census: ${routes.length} route.ts on disk classified [${bucketSummary}]`)
+  const unallowed = (byBucket.public ?? []).filter((r) => !(r.path in PUBLIC_ALLOWLIST))
+  const stale = Object.keys(PUBLIC_ALLOWLIST).filter((p) => !routes.some((r) => r.path === p))
+  if (unallowed.length) {
+    fail(`${unallowed.length} route(s) with no recognized auth gate, not allowlisted`)
+    for (const r of unallowed) {
+      finding(
+        8,
+        "CRITICAL",
+        `Ungated route not in public allowlist: ${r.path}`,
+        "route.ts calls no recognized auth helper (gateway / getServerUser / requireAdminAuth / getTenantSession / cron-secret) and is not a declared public route",
+        "Add the correct auth gate, or add the path to PUBLIC_ALLOWLIST (with a reason) in scripts/security/route-census.mjs",
+      )
     }
+  } else {
+    ok(`all ${(byBucket.public ?? []).length} public routes allowlisted`)
+    pass(8, "route-census")
+  }
+  for (const p of stale) {
+    finding(8, "MEDIUM", `Stale PUBLIC_ALLOWLIST entry: ${p}`, "allowlisted path has no matching route.ts on disk", "Remove the stale entry from route-census.mjs")
   }
 
-  // Test POST to mutation endpoints without auth
-  const MUTATION_ROUTES = [
-    { path: "/api/maintenance/sign-off", body: { requestId: "x", allocations: [] } },
-    { path: "/api/maintenance/triage", body: { requestId: "x" } },
-    { path: "/api/leases/generate-docx", body: { leaseId: "x" } },
-    { path: "/api/rules/reformat", body: { text: "test" } },
-    { path: "/api/leases/confirm-clause-edit", body: { orgId: "x" } },
-    // BUILD_62 auth security routes
-    { path: "/api/auth/step-up", body: { challengeToken: "x", code: "000000" } },
-    { path: "/api/auth/revoke-session", body: { deviceFingerprintId: "x" } },
-    { path: "/api/auth/log-totp-verified", body: {} },
-    { path: "/api/auth/log-totp-enrolled", body: {} },
-    { path: "/api/auth/set-mfa-recovery", body: {} },
-    { path: "/api/auth/clear-mfa-recovery", body: {} },
-    // BUILD_62 Part B: passkey routes (registration/revoke require auth; auth-options/auth-verify are public but return 400 on bad input)
-    { path: "/api/auth/passkeys/registration-options", body: {} },
-    { path: "/api/auth/passkeys/registration-verify", body: { response: {}, label: "test" } },
-    { path: "/api/auth/passkeys/revoke", body: { passkeyId: "x" } },
-  ]
-
-  for (const { path, body } of MUTATION_ROUTES) {
-    test(`POST ${path} (no auth)`)
-    const res = await appFetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (res.status === 200 && !res.text.includes("Unauthorized") && !res.text.includes("error")) {
-      fail("mutation accepted!")
-      finding(8, "CRITICAL", `Unauthenticated mutation on ${path}`, "POST accepted without auth", "Add auth check")
-    } else {
-      ok(`blocked (${res.status})`)
-      pass(8, path)
+  // ── Probe every authenticated route with no cookies — must block, never return data /
+  //    accept a mutation. Targets are census-derived, so new routes are covered by construction. ──
+  for (const r of byBucket.authenticated ?? []) {
+    const url = probePath(r.path)
+    if (r.methods.includes("GET")) {
+      test(`GET ${url} (no cookies)`)
+      const res = await appFetch(url)
+      if (res.status === 200 && res.json && !res.json.error && !res.text.includes("Unauthorized")) {
+        fail("returned data!")
+        finding(8, "CRITICAL", `No auth on GET ${r.path}`, "GET returned 200 with data and no cookies", "Gate with getServerUser()/gateway()")
+      } else {
+        ok(`blocked (${res.status})`)
+        pass(8, `GET ${r.path}`)
+      }
+    }
+    const mutating = r.methods.find((m) => m !== "GET")
+    if (mutating) {
+      test(`${mutating} ${url} (no auth)`)
+      const res = await appFetch(url, {
+        method: mutating,
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      })
+      if (res.status === 200 && !res.text.includes("Unauthorized") && !res.text.includes("error")) {
+        fail("mutation accepted!")
+        finding(8, "CRITICAL", `Unauthenticated ${mutating} on ${r.path}`, `${mutating} accepted without auth`, "Add an auth gate before any write")
+      } else {
+        ok(`blocked (${res.status})`)
+        pass(8, `${mutating} ${r.path}`)
+      }
     }
   }
 }
