@@ -9,7 +9,6 @@
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
-import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { allocatePayment } from "@/lib/finance/paymentAllocation"
@@ -152,73 +151,31 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receiptNumber: string, userId: string, orgId: string): Promise<boolean> {
-  const { data: payment, error } = await db
-    .from("payments")
-    .insert({
-      org_id: orgId,
-      invoice_id: p.invoiceId,
-      lease_id: p.leaseId,
-      tenant_id: p.tenantId,
-      amount_cents: p.amountCents,
-      payment_date: p.date,
-      payment_method: "eft",
-      reference: p.reference,
-      receipt_number: receiptNumber,
-      recorded_by: userId,
-      allocated_invoices: [{ invoice_id: p.invoiceId, amount_cents: p.amountCents }],
-      recon_method: "manual",
-    })
-    .select("id")
-    .single()
+  // Atomic payment + invoice status + trust rent_received credit (ADDENDUM_TRUST_RPC_ATOMICITY step 3 —
+  // reuses step-1's record_payment_atomic; the old sequence .catch()-swallowed the trust insert).
+  const { data: paymentId, error } = await db.rpc("record_payment_atomic", {
+    p_org_id: orgId,
+    p_invoice_id: p.invoiceId,
+    p_amount_cents: p.amountCents,
+    p_payment_date: p.date,
+    p_method: "eft",
+    p_reference: p.reference,
+    p_recorded_by: userId,
+    p_receipt_number: receiptNumber,
+    p_notes: null,
+  })
+  if (error || !paymentId) { logQueryError("processOnePayment record_payment_atomic", error); return false }
 
-  if (error || !payment) return false
-
-  const { data: inv, error: invError } = await db
-    .from("rent_invoices")
-    .select("total_amount_cents, amount_paid_cents, unit_id")
-    .eq("id", p.invoiceId)
-    .single()
-    logQueryError("processOnePayment rent_invoices", invError)
-
-  if (inv) {
-    const newPaid = (inv.amount_paid_cents ?? 0) + p.amountCents
-    const newBalance = inv.total_amount_cents - newPaid
-    let newStatus = "open"
-    if (newBalance <= 0) newStatus = "paid"
-    else if (newPaid > 0) newStatus = "partial"
-
-    await db.from("rent_invoices").update({
-      amount_paid_cents: newPaid,
-      balance_cents: Math.max(0, newBalance),
-      status: newStatus,
-      paid_at: newStatus === "paid" ? new Date().toISOString() : null,
-    }).eq("id", p.invoiceId)
-
-    await recordTrustTransaction({
-      orgId,
-      unitId: inv.unit_id ?? undefined,
-      leaseId: p.leaseId ?? undefined,
-      transactionType: "rent_received",
-      direction: "credit",
-      amountCents: p.amountCents,
-      description: "Bulk import — " + (p.reference ?? p.description),
-      reference: receiptNumber,
-      invoiceId: p.invoiceId,
-      statementMonth: p.date.slice(0, 7) + "-01",
-      createdBy: userId,
-      source: "agency_bank",
-      initiatedBy: "agent",
-    }).catch((e) => console.error("[trust] rent_received (bulk) insert failed:", e instanceof Error ? e.message : String(e)))
-
-    if (p.leaseId) {
-      await allocatePayment(payment.id, p.leaseId, p.amountCents, userId)
-    }
+  // ── Post-commit side effects (may fail/retry independently — NOT in the transaction) ──
+  await db.from("payments").update({ recon_method: "manual" }).eq("id", paymentId) // mark as bulk-import recon
+  if (p.leaseId) {
+    await allocatePayment(paymentId, p.leaseId, p.amountCents, userId)
   }
 
   await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "payments",
-    record_id: payment.id,
+    record_id: paymentId,
     action: "INSERT",
     changed_by: userId,
     new_values: { amount_cents: p.amountCents, method: "eft", invoice_id: p.invoiceId, source: "bulk_import" },

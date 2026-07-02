@@ -3741,6 +3741,15 @@
     ]
   },
   "rpcs": {
+    "apply_invoice_payment_atomic": [
+      "p_org_id",
+      "p_invoice_id",
+      "p_amount_cents",
+      "p_payment_date",
+      "p_method",
+      "p_reference",
+      "p_recorded_by"
+    ],
     "assert_deduction_justification": [],
     "audit_applications_fitscore_changes": [],
     "check_email_exists": [
@@ -3844,7 +3853,9 @@
       "p_reference",
       "p_effective_rate_percent",
       "p_rate_config_id",
-      "p_statement_month"
+      "p_statement_month",
+      "p_is_opening_balance",
+      "p_trust_reference"
     ],
     "record_payment_atomic": [
       "p_org_id",
@@ -3875,6 +3886,7 @@
     "trigger_seed_retention_policies": [],
     "trust_sovereignty_trigger_enabled": [],
     "update_updated_at_column": [],
+    "verify_apply_invoice_payment_atomicity": [],
     "verify_legal_hold_chain": [
       "p_scope_type",
       "p_scope_id"

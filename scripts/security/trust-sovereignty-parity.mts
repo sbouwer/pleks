@@ -113,6 +113,7 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
   for (const [label, rpc] of [
     ["payment", "verify_record_payment_atomicity"],
     ["deposit", "verify_record_deposit_atomicity"],
+    ["invoice-apply", "verify_apply_invoice_payment_atomicity"],
   ] as const) {
     const { data: atom, error: atomErr } = await db.rpc(rpc)
     if (atomErr) fail(`${rpc}() unavailable: ${atomErr.message}`)

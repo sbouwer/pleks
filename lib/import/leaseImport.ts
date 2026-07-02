@@ -1,16 +1,14 @@
 "use server"
 
 /**
- * lib/import/leaseImport.ts — FILL: one-line purpose
+ * lib/import/leaseImport.ts — CSV lease import: match tenant/unit, create leases + opening balances
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   server-only; org passed by the caller (the import route is agent-gated). Injectable core —
+ *         receives the service client + orgId; not directly reachable as a form action.
+ * Data:   leases, units, tenant_view, arrears_cases; deposit opening balance via record_deposit_atomic
+ *         (deposit_transactions + trust posting, atomic, is_opening_balance).
  */
 import { createClient } from "@/lib/supabase/server"
-import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { parseCSV, type ImportResult } from "./csvParser"
 import { validateLeaseRow } from "./validators"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -88,32 +86,29 @@ async function createOpeningBalances(
   const { orgId, agentId, propertyId, unitId, leaseId, tenantId, depositCents, leaseType, row } = params
 
   if (depositCents > 0) {
-    await recordTrustTransaction({
-      orgId,
-      propertyId: propertyId ?? undefined,
-      unitId: unitId ?? undefined,
-      leaseId,
-      transactionType: "deposit_received",
-      direction: "credit",
-      amountCents: depositCents,
-      description: `Opening balance — deposit migrated`,
-      reference: `MIGRATION-${new Date().toISOString().slice(0, 10)}`,
-      isOpeningBalance: true,
-      createdBy: agentId,
-      source: "agency_bank",
-      initiatedBy: "agent",
-    }).catch((e) => console.error("[trust] deposit_received (migration) insert failed:", e instanceof Error ? e.message : String(e)))
-
-    await supabase.from("deposit_transactions").insert({
-      org_id: orgId,
-      lease_id: leaseId,
-      tenant_id: tenantId,
-      transaction_type: "deposit_received",
-      direction: "credit",
-      amount_cents: depositCents,
-      description: `Opening balance — deposit migrated`,
-      created_by: agentId,
+    // Atomic deposit sub-ledger + trust opening-balance posting (ADDENDUM_TRUST_RPC_ATOMICITY step 3 —
+    // reuses step-2's record_deposit_atomic with its opening-balance + trust-reference params).
+    const { error: depErr } = await supabase.rpc("record_deposit_atomic", {
+      p_org_id: orgId,
+      p_lease_id: leaseId,
+      p_tenant_id: tenantId,
+      p_amount_cents: depositCents,
+      p_dep_txn_type: "deposit_received",
+      p_dep_description: "Opening balance — deposit migrated",
+      p_trust_txn_type: "deposit_received",
+      p_trust_description: "Opening balance — deposit migrated",
+      p_initiated_by: "agent",
+      p_created_by: agentId,
+      p_property_id: propertyId ?? null,
+      p_unit_id: unitId ?? null,
+      p_reference: null,
+      p_effective_rate_percent: null,
+      p_rate_config_id: null,
+      p_statement_month: null,
+      p_is_opening_balance: true,
+      p_trust_reference: `MIGRATION-${new Date().toISOString().slice(0, 10)}`,
     })
+    if (depErr) console.error("[leaseImport] record_deposit_atomic (migration) failed:", depErr.message)
   }
 
   const arrearsCents = Number.parseInt(row.current_arrears_cents) || 0

@@ -2166,3 +2166,151 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION verify_record_deposit_atomicity() FROM PUBLIC, anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_TRUST_RPC_ATOMICITY step 3 (2026-07-02): route the remaining trust
+--   co-writes through atomic RPCs (sweep result).
+--   (a) apply_invoice_payment_atomic — the bulk invoice-apply path
+--       (app/api/rent-invoices) updates an invoice + posts trust but records NO
+--       payment row, so record_payment_atomic (which inserts a payment) doesn't
+--       fit — this is its narrow sibling: invoice status + trust rent_received.
+--   (b) record_deposit_atomic gains is_opening_balance + trust reference (DROP +
+--       CREATE with defaults, so the step-2 callers stay 16-arg) — so the lease
+--       import migration deposit can route through it while keeping its opening-
+--       balance flag (idx_trust_txn_one_opening_per_period) + MIGRATION ref.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION apply_invoice_payment_atomic(
+  p_org_id       uuid,
+  p_invoice_id   uuid,
+  p_amount_cents bigint,
+  p_payment_date date,
+  p_method       text,
+  p_reference    text,
+  p_recorded_by  uuid
+) RETURNS bigint            -- cents actually applied (0 if the invoice is already settled)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE v_inv rent_invoices%ROWTYPE; v_applied bigint; v_new_paid bigint; v_new_balance bigint; v_status text;
+BEGIN
+  SELECT * INTO v_inv FROM rent_invoices WHERE id = p_invoice_id AND org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'apply_invoice_payment_atomic: invoice % not found in org %', p_invoice_id, p_org_id USING ERRCODE = 'no_data_found';
+  END IF;
+  IF COALESCE(v_inv.balance_cents, 0) <= 0 THEN RETURN 0; END IF;
+
+  v_applied     := LEAST(p_amount_cents, v_inv.balance_cents);
+  v_new_paid    := COALESCE(v_inv.amount_paid_cents, 0) + v_applied;
+  v_new_balance := v_inv.balance_cents - v_applied;
+  v_status      := CASE WHEN v_new_balance <= 0 THEN 'paid' ELSE 'partial' END;
+
+  UPDATE rent_invoices SET
+    amount_paid_cents = v_new_paid,
+    balance_cents     = v_new_balance,
+    status            = v_status,
+    paid_at           = CASE WHEN v_new_balance <= 0 THEN p_payment_date ELSE NULL END,
+    updated_at        = now()
+  WHERE id = p_invoice_id;
+
+  INSERT INTO trust_transactions (
+    org_id, transaction_type, direction, amount_cents, description,
+    unit_id, lease_id, reference, invoice_id, payment_method, statement_month, created_by, source, initiated_by
+  ) VALUES (
+    p_org_id, 'rent_received', 'credit', v_applied,
+    'Rent payment' || CASE WHEN p_reference IS NOT NULL AND p_reference <> '' THEN ' — ref: ' || p_reference ELSE '' END,
+    v_inv.unit_id, v_inv.lease_id, p_reference, p_invoice_id, p_method,
+    date_trunc('month', p_payment_date)::date, p_recorded_by, 'agency_bank', 'agent'
+  );
+
+  RETURN v_applied;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION apply_invoice_payment_atomic(uuid,uuid,bigint,date,text,text,uuid) FROM PUBLIC, anon, authenticated;
+
+-- Extend record_deposit_atomic with the two fields the lease-import opening balance needs.
+DROP FUNCTION IF EXISTS record_deposit_atomic(uuid,uuid,uuid,bigint,text,text,text,text,text,uuid,uuid,uuid,text,numeric,uuid,date);
+CREATE OR REPLACE FUNCTION record_deposit_atomic(
+  p_org_id                uuid,
+  p_lease_id              uuid,
+  p_tenant_id             uuid,
+  p_amount_cents          bigint,
+  p_dep_txn_type          text,
+  p_dep_description       text,
+  p_trust_txn_type        text,
+  p_trust_description      text,
+  p_initiated_by          text,
+  p_created_by            uuid,
+  p_property_id           uuid,
+  p_unit_id               uuid,
+  p_reference             text,
+  p_effective_rate_percent numeric,
+  p_rate_config_id        uuid,
+  p_statement_month       date,
+  p_is_opening_balance    boolean DEFAULT false,  -- step-2 callers omit → false
+  p_trust_reference       text    DEFAULT NULL    -- trust_transactions.reference (import migration ref)
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE v_dep_id uuid;
+BEGIN
+  INSERT INTO deposit_transactions (
+    org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description,
+    created_by, reference, effective_rate_percent, rate_config_id
+  ) VALUES (
+    p_org_id, p_lease_id, p_tenant_id, p_dep_txn_type, 'credit', p_amount_cents, p_dep_description,
+    p_created_by, p_reference, p_effective_rate_percent, p_rate_config_id
+  ) RETURNING id INTO v_dep_id;
+
+  INSERT INTO trust_transactions (
+    org_id, transaction_type, direction, amount_cents, description,
+    property_id, unit_id, lease_id, statement_month, created_by, source, initiated_by,
+    is_opening_balance, reference
+  ) VALUES (
+    p_org_id, p_trust_txn_type, 'credit', p_amount_cents, p_trust_description,
+    p_property_id, p_unit_id, p_lease_id, p_statement_month, p_created_by, 'agency_bank', p_initiated_by,
+    p_is_opening_balance, p_trust_reference
+  );
+
+  RETURN v_dep_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION record_deposit_atomic(uuid,uuid,uuid,bigint,text,text,text,text,text,uuid,uuid,uuid,text,numeric,uuid,date,boolean,text) FROM PUBLIC, anon, authenticated;
+
+-- Kill-between-writes probe for apply_invoice_payment_atomic (CD step-1 gate): forces the trust insert
+-- (2nd write) to fail via a signed-off period, asserts the invoice-status update (1st write) rolled back.
+CREATE OR REPLACE FUNCTION verify_apply_invoice_payment_atomicity()
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE v_inv rent_invoices%ROWTYPE; v_bank uuid; v_before bigint; v_after bigint;
+BEGIN
+  SELECT * INTO v_inv FROM rent_invoices WHERE balance_cents > 0 ORDER BY created_at DESC LIMIT 1;
+  IF NOT FOUND THEN RETURN 'SKIP: no open invoice'; END IF;
+  SELECT id INTO v_bank FROM bank_accounts WHERE org_id = v_inv.org_id LIMIT 1;
+  IF v_bank IS NULL THEN RETURN 'SKIP: no bank_account for org'; END IF;
+  v_before := v_inv.balance_cents;
+  BEGIN
+    INSERT INTO trust_reconciliation_periods (org_id, bank_account_id, period_start, period_end,
+      bank_closing_balance_cents, ledger_closing_balance_cents, recon_computed_closing_cents, status)
+    VALUES (v_inv.org_id, v_bank, date_trunc('month', CURRENT_DATE)::date,
+      (date_trunc('month', CURRENT_DATE) + interval '1 month - 1 day')::date, 0, 0, 0, 'signed_off');
+    PERFORM apply_invoice_payment_atomic(v_inv.org_id, v_inv.id, 1, CURRENT_DATE, 'eft', 'atomicity-probe', NULL);
+    RAISE EXCEPTION 'probe-did-not-fail';
+  EXCEPTION WHEN others THEN NULL; END;
+  SELECT balance_cents INTO v_after FROM rent_invoices WHERE id = v_inv.id;
+  IF v_after = v_before THEN
+    RETURN 'PASS: invoice balance unchanged when trust posting failed (balance=' || v_before || ')';
+  END IF;
+  RETURN 'FAIL: invoice mutated despite trust failure (before=' || v_before || ' after=' || v_after || ')';
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION verify_apply_invoice_payment_atomicity() FROM PUBLIC, anon, authenticated;

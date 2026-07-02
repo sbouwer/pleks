@@ -1,15 +1,13 @@
 /**
- * app/api/rent-invoices/route.ts — FILL: one-line purpose
+ * app/api/rent-invoices/route.ts — batch rent-invoice payment application
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/rent-invoices?status= (open invoices for batch entry) · POST (apply a batch of payments)
+ * Auth:   auth.getUser + user_orgs membership; org-scoped service client
+ * Data:   rent_invoices; POST applies each payment via apply_invoice_payment_atomic (invoice status +
+ *         trust rent_received commit atomically — this endpoint records NO payment row).
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function getOrgId(): Promise<string | null> {
@@ -86,60 +84,28 @@ export async function POST(req: NextRequest) {
   for (const p of payments) {
     if (!p.invoiceId || p.amountCents <= 0) continue
 
-    // Fetch invoice (verify ownership)
-    const { data: inv, error: invError } = await service
-      .from("rent_invoices")
-      .select("id, org_id, lease_id, unit_id, tenant_id, balance_cents, amount_paid_cents, total_amount_cents")
-      .eq("id", p.invoiceId)
-      .eq("org_id", orgId)
-      .single()
-    logQueryError("POST rent_invoices", invError)
-
-    if (!inv || inv.balance_cents <= 0) continue
-
-    const applied = Math.min(p.amountCents, inv.balance_cents)
-    const newPaid = (inv.amount_paid_cents ?? 0) + applied
-    const newBalance = inv.balance_cents - applied
-    const newStatus = newBalance <= 0 ? "paid" : "partial"
-
-    // Update invoice
-    await service.from("rent_invoices").update({
-      amount_paid_cents: newPaid,
-      balance_cents: newBalance,
-      status: newStatus,
-      paid_at: newBalance <= 0 ? p.paymentDate : null,
-      updated_at: new Date().toISOString(),
-    }).eq("id", p.invoiceId)
-
-    // Record trust transaction
-    const statementMonth = new Date(p.paymentDate)
-    const monthStart = new Date(statementMonth.getFullYear(), statementMonth.getMonth(), 1)
-      .toISOString().split("T")[0]
-
     const safeMethod = (VALID_PAYMENT_METHODS as readonly string[]).includes(p.method)
       ? (p.method as PaymentMethod)
       : null
 
-    const refSuffix = p.reference ? ` — ref: ${p.reference}` : ""
-    await recordTrustTransaction({
-      orgId,
-      leaseId: inv.lease_id ?? undefined,
-      unitId: inv.unit_id ?? undefined,
-      transactionType: "rent_received",
-      direction: "credit",
-      amountCents: applied,
-      description: `Rent payment${refSuffix}`,
-      reference: p.reference || undefined,
-      invoiceId: p.invoiceId,
-      paymentMethod: safeMethod ?? undefined,
-      statementMonth: monthStart,
-      createdBy: user.id,
-      source: "agency_bank",
-      initiatedBy: "agent",
-    }).catch((e) => console.error("[trust] rent_received insert failed:", e instanceof Error ? e.message : String(e)))
+    // Atomic invoice-apply + trust posting (ADDENDUM_TRUST_RPC_ATOMICITY step 3). This endpoint applies
+    // against invoices WITHOUT creating a payment row, so it uses record_payment_atomic's narrow sibling:
+    // invoice status + trust rent_received commit together (org-scoped resolve; returns cents applied).
+    const { data: applied, error: rpcErr } = await service.rpc("apply_invoice_payment_atomic", {
+      p_org_id: orgId,
+      p_invoice_id: p.invoiceId,
+      p_amount_cents: p.amountCents,
+      p_payment_date: p.paymentDate,
+      p_method: safeMethod,
+      p_reference: p.reference || null,
+      p_recorded_by: user.id,
+    })
+    if (rpcErr) { logQueryError("apply_invoice_payment_atomic", rpcErr); continue }
+    const appliedCents = Number(applied ?? 0)
+    if (appliedCents <= 0) continue
 
     recorded++
-    totalCents += applied
+    totalCents += appliedCents
   }
 
   return NextResponse.json({ ok: true, recorded, totalCents })
