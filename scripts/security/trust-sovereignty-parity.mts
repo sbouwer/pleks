@@ -106,12 +106,21 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
       else fail(`DB trigger did NOT reject — ${v.label} (row inserted!)`)
     }
   }
+
+  // 3. Payment-atomicity regression (ADDENDUM_TRUST_RPC_ATOMICITY step 1): the RPC's kill-between-
+  //    writes guarantee. verify_record_payment_atomicity() forces the trust insert (last write) to
+  //    fail and asserts the payment inserted first was rolled back — self-contained, rolls itself back.
+  const { data: atom, error: atomErr } = await db.rpc("verify_record_payment_atomicity")
+  if (atomErr) fail(`verify_record_payment_atomicity() unavailable: ${atomErr.message}`)
+  else if (typeof atom === "string" && atom.startsWith("PASS")) ok(`record_payment_atomic rollback — ${atom}`)
+  else if (typeof atom === "string" && atom.startsWith("SKIP")) console.log(`  ⏭️  atomicity probe ${atom}`)
+  else fail(`record_payment_atomic atomicity — ${String(atom)}`)
 }
 
 console.log("─".repeat(60))
 if (failures.length) {
-  console.log(`\n🚨 ${failures.length} sovereignty parity failure(s) — D-TRUST-01 guard broken\n`)
+  console.log(`\n🚨 ${failures.length} trust DB-invariant failure(s) — D-TRUST-01 guard broken\n`)
   process.exit(1)
 }
-console.log("✅ Sovereignty parity clean — JS assert and DB trigger agree\n")
+console.log("✅ Trust DB invariants clean — sovereignty parity + payment atomicity\n")
 process.exit(0)
