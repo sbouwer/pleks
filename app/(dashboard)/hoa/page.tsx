@@ -2,10 +2,10 @@
  * app/(dashboard)/hoa/page.tsx — HOA entity list (server)
  *
  * Route:  /hoa
- * Auth:   Dashboard layout gateway; org-type guard redirects non-HOA orgs to /dashboard; firm-tier gate shows upgrade prompt
- * Data:   hoa_entities, subscriptions via Supabase server client
+ * Auth:   gatewaySSR() (agent session + org membership); org-type guard redirects non-HOA orgs to /dashboard; firm-tier gate shows upgrade prompt
+ * Data:   hoa_entities, subscriptions — org-scoped via gatewaySSR db
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { getCurrentOrgCapabilities } from "@/lib/auth/server"
 import Link from "next/link"
@@ -15,26 +15,15 @@ import { Badge } from "@/components/ui/badge"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function HOAListPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("HOAListPage user_orgs", membershipError)
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/onboarding")
+  const { db, orgId } = gw
 
   const caps = await getCurrentOrgCapabilities()
   if (!caps?.hasHOA) redirect("/dashboard")
 
   // Firm tier check
-  const { data: sub, error: subError } = await supabase
+  const { data: sub, error: subError } = await db
     .from("subscriptions")
     .select("tier")
     .eq("org_id", orgId)
@@ -61,7 +50,7 @@ export default async function HOAListPage() {
     )
   }
 
-  const { data: hoaEntities, error: hoaEntitiesError } = await supabase
+  const { data: hoaEntities, error: hoaEntitiesError } = await db
     .from("hoa_entities")
     .select(`
       id, name, entity_type, is_active,

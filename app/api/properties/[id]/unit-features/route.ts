@@ -1,44 +1,31 @@
 /**
- * app/api/properties/[id]/unit-features/route.ts — FILL: one-line purpose
+ * app/api/properties/[id]/unit-features/route.ts — union of unit features across a property
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/properties/[id]/unit-features
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   units (org-scoped via gateway orgId), filtered to the property; used by PropertyRulesEditor
+ *         to suggest relevant library rules.
  */
-import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { NextResponse } from "next/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
-// GET /api/properties/[id]/unit-features
-// Returns the union of features across all units in a property.
-// Used by PropertyRulesEditor to suggest relevant library rules.
 export async function GET(
-  _req: NextRequest,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: propertyId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("GET user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
-
-  const { data: units, error: unitsError } = await supabase
+  const { data: units, error: unitsError } = await db
     .from("units")
     .select("features")
+    .eq("org_id", orgId)
     .eq("property_id", propertyId)
     .is("deleted_at", null)
-    logQueryError("GET units", unitsError)
+  logQueryError("GET units", unitsError)
 
   if (!units) return NextResponse.json({ features: [] })
 

@@ -1,14 +1,12 @@
 /**
- * app/(dashboard)/inspections/new/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/inspections/new/page.tsx — schedule-inspection form, pre-filled from query params
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /inspections/new?unit=&lease=&property=&type=&date=&time=
+ * Auth:   gatewaySSR() (agent session + org membership)
+ * Data:   units / properties / leases / tenant_view lookups to resolve display names for pre-filled IDs,
+ *         all org-scoped via gatewaySSR orgId (the IDs come from caller-supplied query params).
  */
-import { createClient } from "@/lib/supabase/server"
-import { getServerOrgMembership } from "@/lib/auth/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { NewInspectionForm } from "./NewInspectionForm"
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -20,9 +18,9 @@ interface Props {
   searchParams: Promise<Record<string, string>>
 }
 
-async function resolvePropertyId(supabase: SupabaseClient, unitId: string | null, propertyId: string | null) {
+async function resolvePropertyId(db: SupabaseClient, orgId: string, unitId: string | null, propertyId: string | null) {
   if (propertyId || !unitId) return propertyId
-  const { data, error: queryError } = await supabase.from("units").select("property_id").eq("id", unitId).single()
+  const { data, error: queryError } = await db.from("units").select("property_id").eq("id", unitId).eq("org_id", orgId).single()
     logQueryError("resolvePropertyId units", queryError)
   return data?.property_id ?? null
 }
@@ -34,12 +32,13 @@ function buildUnitLabel(unit: { unit_number: string | null; bedrooms: number | n
   return base + beds
 }
 
-async function resolveTenantName(supabase: SupabaseClient, tenantId: string | null) {
+async function resolveTenantName(db: SupabaseClient, orgId: string, tenantId: string | null) {
   if (!tenantId) return null
-  const { data: tv, error: tvError } = await supabase
+  const { data: tv, error: tvError } = await db
     .from("tenant_view")
     .select("first_name, last_name, company_name, entity_type")
     .eq("id", tenantId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("resolveTenantName tenant_view", tvError)
   if (!tv) return null
@@ -47,11 +46,9 @@ async function resolveTenantName(supabase: SupabaseClient, tenantId: string | nu
 }
 
 export default async function NewInspectionPage({ searchParams }: Readonly<Props>) {
-  const membership = await getServerOrgMembership()
-  if (!membership) redirect("/login")
-
-  const { org_id: orgId } = membership
-  const supabase = await createClient()
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
   const sp = await searchParams
   const unitId = sp.unit ?? null
@@ -61,23 +58,23 @@ export default async function NewInspectionPage({ searchParams }: Readonly<Props
   const timeParam = sp.time ?? null   // prefilled from a week/day time-slot click (?time=HH:MM)
 
   // If only unit is given (e.g. from a unit quick-action), look up the property
-  const propertyId = await resolvePropertyId(supabase, unitId, sp.property ?? null)
+  const propertyId = await resolvePropertyId(db, orgId, unitId, sp.property ?? null)
 
   // Fetch display names for pre-filled IDs in parallel
   const [propRes, unitRes, leaseRes] = await Promise.all([
     propertyId
-      ? supabase.from("properties").select("name").eq("id", propertyId).single()
+      ? db.from("properties").select("name").eq("id", propertyId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
     unitId
-      ? supabase.from("units").select("unit_number, bedrooms").eq("id", unitId).single()
+      ? db.from("units").select("unit_number, bedrooms").eq("id", unitId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
     leaseId
-      ? supabase.from("leases").select("tenant_id, lease_type").eq("id", leaseId).single()
+      ? db.from("leases").select("tenant_id, lease_type").eq("id", leaseId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
   ])
 
   const tenantId = leaseRes.data?.tenant_id ?? null
-  const tenantName = await resolveTenantName(supabase, tenantId)
+  const tenantName = await resolveTenantName(db, orgId, tenantId)
 
   return (
     <div className="max-w-2xl">

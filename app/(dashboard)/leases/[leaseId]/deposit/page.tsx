@@ -2,13 +2,13 @@
  * app/(dashboard)/leases/[leaseId]/deposit/page.tsx — deposit reconciliation detail page
  *
  * Route:  /leases/[leaseId]/deposit
- * Auth:   Supabase session (createClient auth check)
+ * Auth:   gatewaySSR() (agent session + org membership)
  * Data:   deposit_reconciliations, deposit_deduction_items, deposit_charges, deposit_timers,
- *         deposit_transactions (interest), leases, arrears_cases, rent_invoices via createClient
+ *         deposit_transactions (interest), leases, arrears_cases, rent_invoices — all org-scoped by org_id
  * Notes:  ADDENDUM_63B: fetches deposit_charges and suggestion data (open arrears cases,
  *         unpaid invoices) to populate DepositChargesEditor.
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -26,9 +26,9 @@ export default async function DepositReconPage({
   params: Promise<{ leaseId: string }>
 }) {
   const { leaseId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
   const [
     { data: recon },
@@ -40,16 +40,16 @@ export default async function DepositReconPage({
     { data: arrearsCases },
     { data: openInvoices },
   ] = await Promise.all([
-    supabase.from("deposit_reconciliations").select("*").eq("lease_id", leaseId).single(),
-    supabase.from("deposit_deduction_items").select("*").eq("lease_id", leaseId).order("created_at"),
-    supabase.from("deposit_charges").select("id, charge_type, description, deduction_amount_cents, agent_confirmed, source_arrears_case_id, source_invoice_id, source_supplier_invoice_id, source_municipal_bill_id, source_lease_charge_id, notes").eq("lease_id", leaseId).order("created_at"),
-    supabase.from("deposit_timers").select("deadline, status, return_days").eq("lease_id", leaseId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("leases").select("start_date, end_date, lease_type, units(unit_number, properties(name)), tenant_view(first_name, last_name)").eq("id", leaseId).single(),
-    supabase.from("deposit_transactions").select("id, created_at, amount_cents, effective_rate_percent, description").eq("lease_id", leaseId).eq("transaction_type", "interest_accrued").order("created_at", { ascending: true }),
+    db.from("deposit_reconciliations").select("*").eq("lease_id", leaseId).eq("org_id", orgId).single(),
+    db.from("deposit_deduction_items").select("*").eq("lease_id", leaseId).eq("org_id", orgId).order("created_at"),
+    db.from("deposit_charges").select("id, charge_type, description, deduction_amount_cents, agent_confirmed, source_arrears_case_id, source_invoice_id, source_supplier_invoice_id, source_municipal_bill_id, source_lease_charge_id, notes").eq("lease_id", leaseId).eq("org_id", orgId).order("created_at"),
+    db.from("deposit_timers").select("deadline, status, return_days").eq("lease_id", leaseId).eq("org_id", orgId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("leases").select("start_date, end_date, lease_type, units(unit_number, properties(name)), tenant_view(first_name, last_name)").eq("id", leaseId).eq("org_id", orgId).single(),
+    db.from("deposit_transactions").select("id, created_at, amount_cents, effective_rate_percent, description").eq("lease_id", leaseId).eq("org_id", orgId).eq("transaction_type", "interest_accrued").order("created_at", { ascending: true }),
     // Suggestions: open arrears cases for this lease
-    supabase.from("arrears_cases").select("id, total_arrears_cents").eq("lease_id", leaseId).neq("status", "resolved").gt("total_arrears_cents", 0),
+    db.from("arrears_cases").select("id, total_arrears_cents").eq("lease_id", leaseId).eq("org_id", orgId).neq("status", "resolved").gt("total_arrears_cents", 0),
     // Suggestions: open/partial/overdue rent invoices not yet fully paid
-    supabase.from("rent_invoices").select("id, invoice_number, balance_cents, due_date").eq("lease_id", leaseId).in("status", ["open", "partial", "overdue"]).gt("balance_cents", 0),
+    db.from("rent_invoices").select("id, invoice_number, balance_cents, due_date").eq("lease_id", leaseId).eq("org_id", orgId).in("status", ["open", "partial", "overdue"]).gt("balance_cents", 0),
   ])
 
   const unit = lease?.units as unknown as { unit_number: string; properties: { name: string } | null } | null

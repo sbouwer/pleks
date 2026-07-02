@@ -1,35 +1,39 @@
 /**
  * app/api/deposits/[leaseId]/schedule-pdf/route.ts — renders the deposit deduction schedule as HTML (for PDF)
  *
- * Route:  /api/deposits/[leaseId]/schedule-pdf
- * Auth:   authenticated user (supabase.auth.getUser); 401 if absent
- * Data:   deposit_reconciliations / leases / user_orgs / deposit_deduction_items / deposit_timers by leaseId
+ * Route:  GET /api/deposits/[leaseId]/schedule-pdf
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   deposit_reconciliations / leases / deposit_deduction_items / deposit_timers by leaseId.
+ * Notes:  leaseId is caller-supplied — the gating recon + lease lookups filter org_id (service client
+ *         bypasses RLS), so a cross-org leaseId 404s before any deposit data is rendered. Items/timer
+ *         are then read by lease_id only, safe because the lease is already confirmed in-org.
  */
 import { NextRequest } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { buildDeductionScheduleHTML } from "@/lib/deposits/generateSchedulePDF"
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ leaseId: string }> }
 ) {
   const { leaseId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  // Get reconciliation
-  const { data: recon, error: reconError } = await supabase
+  // Get reconciliation (org-scoped — the boundary for the caller-supplied leaseId)
+  const { data: recon, error: reconError } = await db
     .from("deposit_reconciliations")
     .select("*")
     .eq("lease_id", leaseId)
+    .eq("org_id", orgId)
     .single()
 
   if (reconError) console.error("schedule-pdf deposit_reconciliations read failed:", reconError.message)
   if (!recon) return Response.json({ error: "Not found" }, { status: 404 })
 
-  // Get lease details
-  const { data: lease, error: leaseError } = await supabase
+  // Get lease details (org-scoped)
+  const { data: lease, error: leaseError } = await db
     .from("leases")
     .select(`
       start_date, end_date,
@@ -37,25 +41,25 @@ export async function GET(
       tenant_view(first_name, last_name)
     `)
     .eq("id", leaseId)
+    .eq("org_id", orgId)
     .single()
   if (leaseError) console.error("schedule-pdf leases read failed:", leaseError.message)
 
   const unit = lease?.units as unknown as { unit_number: string; properties: { name: string; address_line1: string; city: string } | null } | null
   const tenant = lease?.tenant_view as unknown as { first_name: string; last_name: string } | null
 
-  // Get org
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("organisations(name)")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
+  // Get org name for the header
+  const { data: org, error: orgError } = await db
+    .from("organisations")
+    .select("name")
+    .eq("id", orgId)
     .single()
-  if (membershipError) console.error("schedule-pdf user_orgs read failed:", membershipError.message)
+  if (orgError) console.error("schedule-pdf organisations read failed:", orgError.message)
 
-  const orgName = (membership?.organisations as unknown as { name: string } | null)?.name ?? ""
+  const orgName = org?.name ?? ""
 
-  // Get deduction items
-  const { data: items, error: itemsError } = await supabase
+  // Get deduction items (lease already confirmed in-org via recon)
+  const { data: items, error: itemsError } = await db
     .from("deposit_deduction_items")
     .select("room, item_description, classification, deduction_amount_cents, ai_justification, quote_amount_cents")
     .eq("lease_id", leaseId)
@@ -63,7 +67,7 @@ export async function GET(
   if (itemsError) console.error("schedule-pdf deposit_deduction_items read failed:", itemsError.message)
 
   // Get timer
-  const { data: timer, error: timerError } = await supabase
+  const { data: timer, error: timerError } = await db
     .from("deposit_timers")
     .select("deadline, return_days")
     .eq("lease_id", leaseId)

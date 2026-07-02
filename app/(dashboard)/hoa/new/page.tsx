@@ -1,48 +1,36 @@
 /**
- * app/(dashboard)/hoa/new/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/hoa/new/page.tsx — new HOA / body corporate entity form (server)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /hoa/new
+ * Auth:   gatewaySSR() (agent session + org membership); firm-tier gate redirects others to /hoa
+ * Data:   subscriptions (tier gate), properties list — org-scoped via gatewaySSR db
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { NewHOAForm } from "./NewHOAForm"
 import { BackLink } from "@/components/ui/BackLink"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function NewHOAPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("NewHOAPage user_orgs", membershipError)
-
-  if (!membership) redirect("/onboarding")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/onboarding")
+  const { db, orgId } = gw
 
   // Firm tier only
-  const { data: sub, error: subError } = await supabase
+  const { data: sub, error: subError } = await db
     .from("subscriptions")
     .select("tier")
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .eq("status", "active")
     .single()
     logQueryError("NewHOAPage subscriptions", subError)
 
   if (sub?.tier !== "firm") redirect("/hoa")
 
-  const { data: properties, error: propertiesError } = await supabase
+  const { data: properties, error: propertiesError } = await db
     .from("properties")
     .select("id, name, address_line1, city")
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .order("name")
     logQueryError("NewHOAPage properties", propertiesError)
 

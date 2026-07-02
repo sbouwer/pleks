@@ -1,12 +1,11 @@
 /**
  * app/(demo)/layout.tsx — demo route group guard
  *
- * Auth:   public; redirects to /dashboard if user already has an org membership
- * Notes:  Intentionally uses createClient (auth.getUser only — no DB queries).
+ * Auth:   public; checks org membership via gatewaySSR and redirects to /dashboard if the user already has an org
+ * Notes:  gatewaySSR resolves to non-null only when the user is authenticated AND has an org membership.
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
-import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // /demo is an APEX_PREFIX served from www.pleks.co.za — suppress the PWA manifest
 // (its start_url is on app.pleks.co.za) to avoid the cross-origin start_url warning.
@@ -14,20 +13,8 @@ export const metadata = { manifest: null }
 
 export default async function DemoLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // Guard: if user already has an org, redirect to real dashboard
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (user) {
-    const { data: membership, error: membershipError } = await supabase
-      .from("user_orgs")
-      .select("org_id")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
-      .single()
-    logQueryError("DemoLayout user_orgs", membershipError)
-
-    if (membership) redirect("/dashboard")
-  }
+  const gw = await gatewaySSR()
+  if (gw) redirect("/dashboard")
 
   return <>{children}</>
 }
