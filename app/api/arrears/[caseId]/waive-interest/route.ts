@@ -1,11 +1,11 @@
 /**
- * app/api/arrears/[caseId]/waive-interest/route.ts — FILL: one-line purpose
+ * app/api/arrears/[caseId]/waive-interest/route.ts — waive outstanding arrears interest on a case
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/arrears/[caseId]/waive-interest
+ * Auth:   auth.getUser + getMembership.isAdmin (owner OR is_admin). The caseId is UNTRUSTED, so
+ *         the waiver is org-scoped in the helper against membership.org_id — that (not the admin
+ *         check) is what stops one org's owner waiving another org's interest.
+ * Data:   waiveArrearsInterest → arrears_interest_charges (service client, org-filtered).
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
@@ -37,7 +37,7 @@ export async function POST(
     return NextResponse.json({ error: "Reason required" }, { status: 400 })
   }
 
-  const result = await waiveArrearsInterest(caseId, user.id, reason.trim())
+  const result = await waiveArrearsInterest(caseId, membership.org_id, user.id, reason.trim())
 
   return NextResponse.json({
     ok: true,
