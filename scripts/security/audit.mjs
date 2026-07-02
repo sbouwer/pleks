@@ -1156,11 +1156,17 @@ function printReport() {
 // MAIN
 // ═══════════════════════════════════════════════════════════════
 async function runCiMode() {
-  console.log("🔒 Pleks Security Audit Suite — CI mode (cats 1, 2, 5, 7)")
+  console.log("🔒 Pleks Security Audit Suite — CI mode (static cat 15 + DB cats 1, 2, 5, 7)")
+
+  // Cat-15 (server-action auth census) is static — disk-only, no secrets/server needed — so it
+  // runs in CI UNCONDITIONALLY and hard-fails the build on a new ungated server action.
+  try { cat15_serverActionAuth() } catch (e) { console.error(`\n❌ Cat 15 crashed: ${e.message}`) }
+
   if (!SUPABASE_URL || !SERVICE_KEY) {
-    console.log("skipped: CI secrets absent")
+    console.log("\nDB categories (1, 2, 5, 7) skipped: CI secrets absent")
     console.log("Set CI_SUPABASE_URL + CI_SUPABASE_SERVICE_ROLE_KEY in GitHub secrets to enable static-RLS scanning.")
-    process.exit(0)
+    printReport() // exits 1 iff cat 15 raised a CRITICAL, else 0
+    return
   }
   console.log(`   Target: ${SUPABASE_URL}`)
   console.log("")
@@ -1323,10 +1329,9 @@ async function main() {
     11: appUp ? cat11_secretsExposure : null,
     12: appUp ? cat12_idor : null,
     13: cat13_auditIntegrity,
-    // Cat-15 is static (disk-only). Gated out of --ci for now because the admin-surface
-    // findings it correctly raises are fixed in PR #104 (not yet on main) — promote into the
-    // --ci/check:full set once #104 lands so it hard-gates new ungated actions in CI.
-    15: ciMode ? null : cat15_serverActionAuth,
+    // Cat-15 is static (disk-only) — runs in --ci/check:full so a new ungated server action
+    // hard-fails CI (the #104 admin fixes it used to flag are now on main).
+    15: cat15_serverActionAuth,
   }
 
   for (const [num, fn] of Object.entries(categories)) {

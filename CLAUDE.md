@@ -341,7 +341,7 @@ This runs across 15 security categories:
 12. IDOR (fake UUIDs on parameterised routes)
 13. Audit-log integrity (canaries; raw-PII-in-values scan)
 14. Audit behavioural coverage (drives each T1 past the gateway; separate `cat14-behavioural.mts`)
-15. Server-action auth census — DERIVED from `"use server"` files on disk (`scripts/security/server-action-census.mjs`); asserts each module resolves the auth gate APPROPRIATE TO ITS LOCATION (app/(admin) → requireAdminAuth, else a recognized agent/portal gate) or is an explicit allowlist entry. Static (disk-only); prod/full run for now, promote to `--ci` once PR #104 lands.
+15. Server-action auth census — DERIVED from `"use server"` files on disk (`scripts/security/server-action-census.mjs`); asserts each module resolves the auth gate APPROPRIATE TO ITS LOCATION (app/(admin) → requireAdminAuth, else a recognized agent/portal gate) or is an explicit allowlist entry. Static (disk-only) — runs in `--ci`/`check:full`, so a new ungated server action hard-fails CI.
 
 **Exit code 1 = CRITICAL findings = deployment blocked.**
 
