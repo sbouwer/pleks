@@ -1,11 +1,14 @@
 /**
- * lib/finance/arrearsInterest.ts — FILL: one-line purpose
+ * lib/finance/arrearsInterest.ts — accrue + waive arrears interest (simple interest, prime + margin)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Service-role client; callers gate. accrueArrearsInterest is cron-only (daily).
+ *         waiveArrearsInterest is admin-gated at the route AND org-scoped here — the caseId must
+ *         belong to the passed orgId. The service client bypasses RLS, so the explicit org_id
+ *         filters ARE the tenancy boundary.
+ * Data:   arrears_cases, arrears_interest_charges, get_prime_rate_on RPC. Charges are IMMUTABLE —
+ *         waive marks them waived, never deletes.
+ * Notes:  Waive is org-scoped to block a cross-org write (A1 hotfix 2026-07-02): every read and
+ *         the update filter org_id, and a caseId outside the org waives nothing.
  */
 import { format } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -114,15 +117,31 @@ export async function accrueArrearsInterest(
  */
 export async function waiveArrearsInterest(
   caseId: string,
+  orgId: string,
   agentUserId: string,
   reason: string
 ): Promise<{ waivedCents: number; chargesWaived: number }> {
   const supabase = await createServiceClient()
 
+  // Org-scope guard — the service client bypasses RLS, so confirm the case belongs to the
+  // caller's org before touching anything. A caseId from another org matches no row → no-op.
+  const { data: arrearsCase, error: caseError } = await supabase
+    .from("arrears_cases")
+    .select("org_id")
+    .eq("id", caseId)
+    .eq("org_id", orgId)
+    .single()
+    logQueryError("waiveArrearsInterest arrears_cases", caseError)
+
+  if (!arrearsCase) {
+    return { waivedCents: 0, chargesWaived: 0 }
+  }
+
   const { data: charges, error: chargesError } = await supabase
     .from("arrears_interest_charges")
     .select("id, interest_cents")
     .eq("arrears_case_id", caseId)
+    .eq("org_id", orgId)
     .eq("waived", false)
     logQueryError("waiveArrearsInterest arrears_interest_charges", chargesError)
 
@@ -141,34 +160,26 @@ export async function waiveArrearsInterest(
       waived_at: new Date().toISOString(),
       waived_reason: reason,
     })
+    .eq("org_id", orgId)
     .in("id", ids)
 
   // Refresh summary
   await supabase.rpc("refresh_arrears_interest_total", { p_case_id: caseId })
 
-  // Audit log
-  const { data: ac, error: acError } = await supabase
-    .from("arrears_cases")
-    .select("org_id")
-    .eq("id", caseId)
-    .single()
-    logQueryError("waiveArrearsInterest arrears_cases", acError)
-
-  if (ac) {
-    await supabase.from("audit_log").insert({
-      org_id: ac.org_id,
-      table_name: "arrears_interest_charges",
-      record_id: caseId,
-      action: "UPDATE",
-      changed_by: agentUserId,
-      new_values: {
-        action: "interest_waived",
-        charges_waived: charges.length,
-        total_waived_cents: waivedCents,
-        reason,
-      },
-    })
-  }
+  // Audit log — org comes from the validated caller, not a post-write re-read.
+  await supabase.from("audit_log").insert({
+    org_id: orgId,
+    table_name: "arrears_interest_charges",
+    record_id: caseId,
+    action: "UPDATE",
+    changed_by: agentUserId,
+    new_values: {
+      action: "interest_waived",
+      charges_waived: charges.length,
+      total_waived_cents: waivedCents,
+      reason,
+    },
+  })
 
   return { waivedCents, chargesWaived: charges.length }
 }
