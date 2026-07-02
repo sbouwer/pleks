@@ -3828,6 +3828,24 @@
       "p_reason"
     ],
     "reconcile_self_landlord_bindings": [],
+    "record_deposit_atomic": [
+      "p_org_id",
+      "p_lease_id",
+      "p_tenant_id",
+      "p_amount_cents",
+      "p_dep_txn_type",
+      "p_dep_description",
+      "p_trust_txn_type",
+      "p_trust_description",
+      "p_initiated_by",
+      "p_created_by",
+      "p_property_id",
+      "p_unit_id",
+      "p_reference",
+      "p_effective_rate_percent",
+      "p_rate_config_id",
+      "p_statement_month"
+    ],
     "record_payment_atomic": [
       "p_org_id",
       "p_invoice_id",
@@ -3861,6 +3879,7 @@
       "p_scope_type",
       "p_scope_id"
     ],
+    "verify_record_deposit_atomicity": [],
     "verify_record_payment_atomicity": []
   }
 }

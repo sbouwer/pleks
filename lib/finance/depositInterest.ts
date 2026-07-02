@@ -11,7 +11,6 @@ import { differenceInDays, format, startOfMonth } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"
 import { resolveDepositInterestConfig, resolveEffectiveRate } from "@/lib/deposits/interestConfig"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { recordTrustTransaction } from "@/lib/trust/invariants"
 
 /**
  * Pure calculation — used by both the server action and the cron route.
@@ -113,32 +112,33 @@ export async function accrueDepositInterest(
     return { interestCents: 0, fromDate, toDate: upToDate, ratePercent }
   }
 
-  // Record to deposit_transactions (immutable trust ledger)
-  await supabase.from("deposit_transactions").insert({
-    org_id: lease.org_id,
-    lease_id: leaseId,
-    tenant_id: lease.tenant_id,
-    transaction_type: "interest_accrued",
-    direction: "credit",
-    amount_cents: interestCents,
-    description: `Deposit interest accrued: ${ratePercent.toFixed(2)}% p.a. for ${daysElapsed} days`,
-    reference: `DEP-INT-${format(upToDate, "yyyy-MM")}`,
-    effective_rate_percent: ratePercent,
-    rate_config_id: rateConfigId,
+  // Atomic deposit sub-ledger + trust posting (ADDENDUM_TRUST_RPC_ATOMICITY step 2) — the two ledgers
+  // commit together or not at all. Inbound credit, so initiated_by 'pleks_system' passes the
+  // sovereignty trigger (Rule 2 blocks only outbound system movement).
+  const { error: depErr } = await supabase.rpc("record_deposit_atomic", {
+    p_org_id: lease.org_id,
+    p_lease_id: leaseId,
+    p_tenant_id: lease.tenant_id,
+    p_amount_cents: interestCents,
+    p_dep_txn_type: "interest_accrued",
+    p_dep_description: `Deposit interest accrued: ${ratePercent.toFixed(2)}% p.a. for ${daysElapsed} days`,
+    p_trust_txn_type: "deposit_interest",
+    p_trust_description: `Deposit interest: ${ratePercent.toFixed(2)}% p.a. × ${daysElapsed} days`,
+    p_initiated_by: "pleks_system",
+    p_created_by: null,
+    p_property_id: null,
+    p_unit_id: null,
+    p_reference: `DEP-INT-${format(upToDate, "yyyy-MM")}`,
+    p_effective_rate_percent: ratePercent,
+    p_rate_config_id: rateConfigId,
+    p_statement_month: format(startOfMonth(upToDate), "yyyy-MM-dd"),
   })
-
-  // Also record to trust_transactions (main trust ledger)
-  await recordTrustTransaction({
-    orgId: lease.org_id,
-    leaseId,
-    transactionType: "deposit_interest",
-    direction: "credit",
-    amountCents: interestCents,
-    description: `Deposit interest: ${ratePercent.toFixed(2)}% p.a. × ${daysElapsed} days`,
-    statementMonth: startOfMonth(upToDate).toISOString(),
-    source: "agency_bank",
-    initiatedBy: "pleks_system",   // cron interest accrual — inbound credit, allowed (Rule 2 blocks only outbound system)
-  }).catch((e) => console.error("[trust] deposit_interest insert failed:", e instanceof Error ? e.message : String(e)))
+  if (depErr) {
+    // Accrual rolled back atomically — do NOT advance last_accrued below, so the next run retries
+    // this window (the old code advanced it even when the swallowed trust insert failed → under-accrual).
+    console.error("[deposit-interest] record_deposit_atomic failed:", depErr.message)
+    return { interestCents: 0, fromDate, toDate: upToDate, ratePercent }
+  }
 
   // Update last accrued date
   await supabase

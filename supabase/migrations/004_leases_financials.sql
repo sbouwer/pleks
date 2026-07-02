@@ -2068,3 +2068,101 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION verify_record_payment_atomicity() FROM PUBLIC, anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_TRUST_RPC_ATOMICITY step 2 (2026-07-02): atomic deposit+trust write
+--   record_deposit_atomic() folds the deposit sub-ledger write and its trust
+--   posting into ONE transaction so a partial failure can't leave the two
+--   ledgers disagreeing (the old paths wrote them separately; the trust insert
+--   was .catch()-swallowed on the interest run). One discriminated RPC covers
+--   BOTH callers (§5.2) — stepRecordDeposit (deposit_received / initiated_by
+--   'agent') and accrueDepositInterest (interest_accrued / 'pleks_system').
+--   direction + source are constant (credit / agency_bank). Column set taken
+--   verbatim from the two helpers — nothing invented. OUT of scope, post-commit
+--   in the caller: leases.deposit_interest_last_accrued_date + audit_log.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION record_deposit_atomic(
+  p_org_id                uuid,
+  p_lease_id              uuid,
+  p_tenant_id             uuid,
+  p_amount_cents          bigint,
+  p_dep_txn_type          text,
+  p_dep_description       text,
+  p_trust_txn_type        text,
+  p_trust_description      text,
+  p_initiated_by          text,
+  p_created_by            uuid,
+  p_property_id           uuid,
+  p_unit_id               uuid,
+  p_reference             text,
+  p_effective_rate_percent numeric,
+  p_rate_config_id        uuid,
+  p_statement_month       date
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE v_dep_id uuid;
+BEGIN
+  INSERT INTO deposit_transactions (
+    org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description,
+    created_by, reference, effective_rate_percent, rate_config_id
+  ) VALUES (
+    p_org_id, p_lease_id, p_tenant_id, p_dep_txn_type, 'credit', p_amount_cents, p_dep_description,
+    p_created_by, p_reference, p_effective_rate_percent, p_rate_config_id
+  ) RETURNING id INTO v_dep_id;
+
+  -- Trust posting — sovereignty + closed-period triggers fire here; any RAISE rolls back the deposit insert.
+  INSERT INTO trust_transactions (
+    org_id, transaction_type, direction, amount_cents, description,
+    property_id, unit_id, lease_id, statement_month, created_by, source, initiated_by
+  ) VALUES (
+    p_org_id, p_trust_txn_type, 'credit', p_amount_cents, p_trust_description,
+    p_property_id, p_unit_id, p_lease_id, p_statement_month, p_created_by, 'agency_bank', p_initiated_by
+  );
+
+  RETURN v_dep_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION record_deposit_atomic(uuid,uuid,uuid,bigint,text,text,text,text,text,uuid,uuid,uuid,text,numeric,uuid,date) FROM PUBLIC, anon, authenticated;
+
+-- Kill-between-writes regression probe (CD step-1 gate, applied to the deposit path): forces the
+-- trust insert (2nd write) to fail via a signed-off period, asserts the deposit_transactions insert
+-- rolled back. Self-contained — rolls itself back. Called by trust-sovereignty-parity.mts.
+CREATE OR REPLACE FUNCTION verify_record_deposit_atomicity()
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE v_lease_id uuid; v_org uuid; v_tenant uuid; v_bank uuid; v_before bigint; v_after bigint;
+BEGIN
+  SELECT id, org_id, tenant_id INTO v_lease_id, v_org, v_tenant
+    FROM leases WHERE tenant_id IS NOT NULL ORDER BY created_at DESC LIMIT 1;
+  IF v_lease_id IS NULL THEN RETURN 'SKIP: no lease with tenant'; END IF;
+  SELECT id INTO v_bank FROM bank_accounts WHERE org_id = v_org LIMIT 1;
+  IF v_bank IS NULL THEN RETURN 'SKIP: no bank_account for org'; END IF;
+
+  SELECT count(*) INTO v_before FROM deposit_transactions WHERE lease_id = v_lease_id;
+  BEGIN
+    INSERT INTO trust_reconciliation_periods (org_id, bank_account_id, period_start, period_end,
+      bank_closing_balance_cents, ledger_closing_balance_cents, recon_computed_closing_cents, status)
+    VALUES (v_org, v_bank, date_trunc('month', CURRENT_DATE)::date,
+      (date_trunc('month', CURRENT_DATE) + interval '1 month - 1 day')::date, 0, 0, 0, 'signed_off');
+    PERFORM record_deposit_atomic(v_org, v_lease_id, v_tenant, 1, 'interest_accrued', 'atomicity-probe',
+      'deposit_interest', 'atomicity-probe', 'pleks_system', NULL, NULL, NULL, 'ATOMICITY-PROBE', NULL, NULL,
+      date_trunc('month', CURRENT_DATE)::date);
+    RAISE EXCEPTION 'probe-did-not-fail: trust insert was not blocked';
+  EXCEPTION WHEN others THEN NULL; END;
+
+  SELECT count(*) INTO v_after FROM deposit_transactions WHERE lease_id = v_lease_id;
+  IF v_after = v_before THEN
+    RETURN 'PASS: deposit rolled back when trust posting failed (count=' || v_before || ')';
+  END IF;
+  RETURN 'FAIL: deposit persisted despite trust failure (before=' || v_before || ' after=' || v_after || ')';
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION verify_record_deposit_atomicity() FROM PUBLIC, anon, authenticated;
