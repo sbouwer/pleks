@@ -1,15 +1,15 @@
 "use server"
 
 /**
- * lib/hoa/levyCalculation.ts — FILL: one-line purpose
+ * lib/hoa/levyCalculation.ts — compute + persist per-unit levy amounts for a levy schedule
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   internal — called only by the gated /calculate route (requireAgentWriteAccess, and it
+ *         pre-verifies the schedule belongs to the caller's org before invoking). Creates a service
+ *         client for the writes; org is derived from the pre-verified schedule row. Not a client action.
+ * Data:   levy_schedules + hoa_unit_owners (read), levy_unit_amounts (upsert) — all org-consistent via
+ *         the schedule's org_id / hoa_id.
  */
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface UnitLevyAmount {
@@ -110,7 +110,7 @@ function calcByPresetAmounts(
   return { results, warning }
 }
 
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>
+type SupabaseClient = Awaited<ReturnType<typeof createServiceClient>>
 
 async function resolveCalculationMethod(
   supabase: SupabaseClient,
@@ -171,7 +171,7 @@ async function saveLevyUnitAmounts(
 export async function calculateLevyAmounts(
   scheduleId: string
 ): Promise<LevyCalculationResult> {
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
 
   const { data: schedule, error: scheduleError } = await supabase
     .from("levy_schedules")

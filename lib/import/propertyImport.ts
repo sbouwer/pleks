@@ -1,15 +1,14 @@
 "use server"
 
 /**
- * lib/import/propertyImport.ts — FILL: one-line purpose
+ * lib/import/propertyImport.ts — bulk-create properties/units/buildings from a CSV (TPN-aware)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   internal — called only by the admin-gated /api/import route, which passes the authenticated
+ *         orgId + agentId. Service client for the privileged bulk writes.
+ * Data:   properties/units/buildings inserts + a dedup read, all org-scoped by the caller-supplied orgId;
+ *         audit_log. Not a client-callable action (no client component imports this lib).
  */
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { parseCSV, detectTpnFormat, type ImportResult } from "./csvParser"
 import { convertTpnExport } from "./tpnParser"
 import { validatePropertyRow } from "./validators"
@@ -20,7 +19,7 @@ export async function importProperties(
   orgId: string,
   agentId: string
 ): Promise<ImportResult> {
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
   let rows = parseCSV(csvText)
 
   // Auto-detect TPN format
