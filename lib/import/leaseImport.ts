@@ -3,19 +3,20 @@
 /**
  * lib/import/leaseImport.ts — CSV lease import: match tenant/unit, create leases + opening balances
  *
- * Auth:   server-only; org passed by the caller (the import route is agent-gated). Injectable core —
- *         receives the service client + orgId; not directly reachable as a form action.
+ * Auth:   internal — called only by the admin-gated /api/import route, which passes the authenticated
+ *         orgId + agentId. Creates a service client for the privileged bulk writes; not a client-callable
+ *         action (no client component imports this lib).
  * Data:   leases, units, tenant_view, arrears_cases; deposit opening balance via record_deposit_atomic
- *         (deposit_transactions + trust posting, atomic, is_opening_balance).
+ *         (deposit_transactions + trust posting, atomic, is_opening_balance). All org-scoped by orgId.
  */
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { parseCSV, type ImportResult } from "./csvParser"
 import { validateLeaseRow } from "./validators"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
-type SupabaseClient = Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>
+type SupabaseClient = Awaited<ReturnType<typeof import("@/lib/supabase/server").createServiceClient>>
 
 type UnitRow = { id: string; property_id: string; properties: unknown }
 
@@ -136,7 +137,7 @@ export async function importLeases(
   orgId: string,
   agentId: string
 ): Promise<ImportResult> {
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
   const rows = parseCSV(csvText)
   const results: ImportResult = { created: 0, skipped: 0, errors: [] }
 
@@ -225,8 +226,8 @@ export async function importLeases(
       continue
     }
 
-    // Mark unit as occupied
-    await supabase.from("units").update({ status: "occupied" }).eq("id", unitId)
+    // Mark unit as occupied (unitId is org-resolved above; scope the write too for defense-in-depth)
+    await supabase.from("units").update({ status: "occupied" }).eq("id", unitId).eq("org_id", orgId)
 
     // Create tenancy history
     await supabase.from("tenancy_history").insert({

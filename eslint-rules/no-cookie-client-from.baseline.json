@@ -1,9 +1,5 @@
 [
   "lib/auth/server.ts",
-  "lib/hoa/levyCalculation.ts",
-  "lib/import/leaseImport.ts",
-  "lib/import/propertyImport.ts",
-  "lib/import/tenantImport.ts",
   "lib/leases/lifecycle.ts",
   "lib/tier/getOrgTier.ts"
 ]
