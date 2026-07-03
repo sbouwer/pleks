@@ -1,15 +1,14 @@
 "use server"
 
 /**
- * lib/trial/startTrial.ts — FILL: one-line purpose
+ * lib/trial/startTrial.ts — start a 14-day trial for an org (admin-initiated)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   internal — reached ONLY via the requireAdminAuth() wrapper in adminOrgActions.server.ts
+ *         (the client imports that wrapper, never this lib fn), so it is not a client-callable action.
+ * Data:   subscriptions (read + update, org-scoped by the caller-supplied orgId), audit_log. Service client.
+ * Notes:  Caller-verified gated (#124 census). orgId is supplied by the admin acting on the target org.
  */
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { addDays } from "date-fns"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -17,15 +16,15 @@ export async function startTrial(
   orgId: string,
   trialTier: "steward" | "portfolio" | "firm" = "steward"
 ): Promise<{ success: boolean; trialEndsAt?: string; error?: string }> {
-  const supabase = await createClient()
+  const service = await createServiceClient()
 
   // Check if already trialing or on a paid plan
-  const { data: existing, error: existingError } = await supabase
+  const { data: existing, error: existingError } = await service
     .from("subscriptions")
     .select("status, tier, trial_ends_at")
     .eq("org_id", orgId)
     .single()
-    logQueryError("startTrial subscriptions", existingError)
+  logQueryError("startTrial subscriptions", existingError)
 
   if (existing?.status === "trialing") {
     return { success: false, error: "Trial already active" }
@@ -43,7 +42,7 @@ export async function startTrial(
   const now = new Date()
   const trialEnd = addDays(now, 14)
 
-  await supabase
+  await service
     .from("subscriptions")
     .update({
       status: "trialing",
@@ -53,7 +52,7 @@ export async function startTrial(
     })
     .eq("org_id", orgId)
 
-  await supabase.from("audit_log").insert({
+  await service.from("audit_log").insert({
     org_id: orgId,
     table_name: "subscriptions",
     record_id: orgId,

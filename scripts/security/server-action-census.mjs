@@ -46,8 +46,8 @@ export const ACTION_ALLOWLIST = {
   "lib/applications/buildEmailContext.ts::*": "internal: pure email-context builder, no data mutation",
   "lib/applications/commercial-emails.tsx::*": "internal: email template builders (no auth surface)",
   // Contractor / portal invite senders — token/portal flows.
-  "lib/contractors/sendPortalInvite.ts::*": "internal: called by gated supplier-invite action",
-  "lib/portal/inviteLandlord.ts::*": "internal: called by gated landlord action",
+  "lib/contractors/sendPortalInvite.ts::*": "internal: gated supplier portal-invite route; client imports the route, not this lib fn (caller-verified 2026-07-03). Service client + orgId-scoped read.",
+  "lib/portal/inviteLandlord.ts::*": "internal: gated portal-invite route + requireAgentWriteAccess wrapper; client imports the wrapper, not this lib fn (caller-verified 2026-07-03). Service client + orgId-scoped read.",
   "lib/actions/supplierQuote.ts::*": "public: contractor work-order token is the credential",
   "lib/actions/invite.ts::*": "internal: called by gated team/portal invite actions",
   "lib/actions/delivery-notice.ts::*": "internal: called by gated arrears/lease actions",
@@ -78,7 +78,7 @@ export const ACTION_ALLOWLIST = {
   // UNVERIFIED — guilty until read in the caller-supplied-ID / cookie-client census (CD 2026-07-02).
   // (2 of the original 6 REVIEW items — quoteApproval + handleDispute — turned out to be live
   //  doctrine+IDOR violations and were DELETED as dead code; do not assume these three are safe.)
-  "lib/trial/startTrial.ts::*": "REVIEW: UNVERIFIED — admin wrapper gated (#104) but the lib fn itself is not; read in the census",
+  "lib/trial/startTrial.ts::*": "internal: reached only via the requireAdminAuth wrapper in adminOrgActions.server.ts; client imports the wrapper, not this lib fn (caller-verified 2026-07-03). Service client, orgId-scoped.",
   "lib/auth/capabilityActions.ts::*": "REVIEW: UNVERIFIED — read in the census before clearing",
 }
 

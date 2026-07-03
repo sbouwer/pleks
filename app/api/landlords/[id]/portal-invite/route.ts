@@ -63,7 +63,7 @@ export async function POST(
     await service.from("landlords").update({ portal_status: "none" }).eq("id", landlordId)
   }
 
-  const result = await inviteLandlord(landlordId, user.id)
+  const result = await inviteLandlord(landlordId, user.id, membership.org_id)
   if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
 
   return NextResponse.json({ ok: true, status: "invited" })
