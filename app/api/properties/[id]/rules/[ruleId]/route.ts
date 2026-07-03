@@ -1,15 +1,14 @@
 /**
- * app/api/properties/[id]/rules/[ruleId]/route.ts — FILL: one-line purpose
+ * app/api/properties/[id]/rules/[ruleId]/route.ts — update/delete a single property house rule
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  PUT/DELETE /api/properties/[id]/rules/[ruleId]
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   property_rules, updated/deleted WHERE id = ruleId AND property_id AND org_id (all org-scoped).
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess: house rules are config on
+ *         an existing property ("your data, always").
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { gateway } from "@/lib/supabase/gateway"
 
 // PUT /api/properties/[id]/rules/[ruleId]
 // Body: { title?, body_text?, params?, sort_order? }
@@ -18,19 +17,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; ruleId: string }> }
 ) {
   const { id: propertyId, ruleId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("PUT user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const body = await req.json() as {
     title?: string
@@ -39,7 +28,7 @@ export async function PUT(
     sort_order?: number
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("property_rules")
     .update({
       ...(body.title !== undefined && { title: body.title }),
@@ -49,7 +38,7 @@ export async function PUT(
     })
     .eq("id", ruleId)
     .eq("property_id", propertyId)
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .select()
     .single()
 
@@ -65,26 +54,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; ruleId: string }> }
 ) {
   const { id: propertyId, ruleId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("DELETE user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
-
-  const { error } = await supabase
+  const { error } = await db
     .from("property_rules")
     .delete()
     .eq("id", ruleId)
     .eq("property_id", propertyId)
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

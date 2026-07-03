@@ -1,55 +1,44 @@
 /**
- * app/api/leases/unit-clause-profile/route.ts — FILL: one-line purpose
+ * app/api/leases/unit-clause-profile/route.ts — resolve/update per-unit optional clause overrides
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET + PATCH /api/leases/unit-clause-profile
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   lease_clause_library (shared seed, no org_id), org_lease_clause_defaults + unit_clause_defaults (org-scoped)
+ * Notes:  Config write → gateway(), not requireAgentWriteAccess — the org's own per-unit clause
+ *         settings, "your data, always" (no subscription lockdown). unitId is caller-supplied so
+ *         unit_clause_defaults reads/writes are org-scoped by gw.orgId.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { gateway } from "@/lib/supabase/gateway"
 
 // GET /api/leases/unit-clause-profile?unitId=xxx&leaseType=residential
 // Returns resolved optional clauses for a unit with unit-specific state.
 export async function GET(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("GET user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  // Config write → gateway() (no lockdown): org's own clause/template settings, "your data, always".
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const unitId = req.nextUrl.searchParams.get("unitId")
   const leaseType = req.nextUrl.searchParams.get("leaseType") ?? "residential"
 
   if (!unitId) return NextResponse.json({ error: "unitId required" }, { status: 400 })
 
-  const orgId = membership.org_id
-  const service = await createServiceClient()
-
   const [libraryResult, orgResult, unitResult] = await Promise.all([
-    service
+    db
       .from("lease_clause_library")
       .select("clause_key, title, toggle_label, is_required, is_enabled_by_default")
       .or(`lease_type.eq.both,lease_type.eq.${leaseType}`)
       .eq("is_required", false)
       .order("sort_order"),
-    supabase
+    db
       .from("org_lease_clause_defaults")
       .select("clause_key, enabled")
       .eq("org_id", orgId),
-    supabase
+    db
       .from("unit_clause_defaults")
       .select("clause_key, enabled, auto_set")
+      .eq("org_id", orgId)
       .eq("unit_id", unitId),
   ])
 
@@ -96,19 +85,10 @@ interface UpdateEntry {
 // PATCH /api/leases/unit-clause-profile
 // Body: { unitId: string, updates: UpdateEntry[] }
 export async function PATCH(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("PATCH user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  // Config write → gateway() (no lockdown): org's own clause/template settings, "your data, always".
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const body = await req.json() as { unitId: string; updates: UpdateEntry[] }
   const { unitId, updates } = body
@@ -116,8 +96,6 @@ export async function PATCH(req: NextRequest) {
   if (!unitId || !Array.isArray(updates)) {
     return NextResponse.json({ error: "unitId and updates required" }, { status: 400 })
   }
-
-  const orgId = membership.org_id
 
   const toDelete: string[] = []
   const toUpsert: Array<{
@@ -143,15 +121,16 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (toDelete.length > 0) {
-    await supabase
+    await db
       .from("unit_clause_defaults")
       .delete()
+      .eq("org_id", orgId)
       .eq("unit_id", unitId)
       .in("clause_key", toDelete)
   }
 
   if (toUpsert.length > 0) {
-    const { error } = await supabase
+    const { error } = await db
       .from("unit_clause_defaults")
       .upsert(toUpsert, { onConflict: "unit_id,clause_key" })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

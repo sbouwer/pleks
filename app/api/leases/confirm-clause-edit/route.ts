@@ -1,46 +1,21 @@
 /**
- * app/api/leases/confirm-clause-edit/route.ts — FILL: one-line purpose
+ * app/api/leases/confirm-clause-edit/route.ts — record the org's confirmation of a clause-wording edit
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/leases/confirm-clause-edit
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   organisations (org-scoped by gw.orgId), audit_log (org-scoped)
+ * Notes:  Config write → gateway(), not requireAgentWriteAccess — the org's own clause-edit
+ *         attestation, "your data, always". orgId comes from the gateway session, never the
+ *         request body (removed a caller-supplied-id smell).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { gateway } from "@/lib/supabase/gateway"
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const { orgId } = (await req.json()) as { orgId?: string }
-  if (!orgId) {
-    return NextResponse.json(
-      { error: "orgId is required" },
-      { status: 400 }
-    )
-  }
-
-  // Verify user belongs to this org
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) {
-    return NextResponse.json({ error: "Not a member of this organisation" }, { status: 403 })
-  }
+  // Config write → gateway() (no lockdown): org's own clause/template settings, "your data, always".
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, userId, orgId } = gw
 
   const clientIp =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
@@ -49,11 +24,11 @@ export async function POST(req: NextRequest) {
 
   const now = new Date().toISOString()
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("organisations")
     .update({
       clause_edit_confirmed_at: now,
-      clause_edit_confirmed_by: user.id,
+      clause_edit_confirmed_by: userId,
       clause_edit_confirmed_ip: clientIp,
     })
     .eq("id", orgId)
@@ -65,12 +40,12 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "organisations",
     record_id: orgId,
     action: "UPDATE",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: {
       clause_edit_confirmed_at: now,
       clause_edit_confirmed_ip: clientIp,

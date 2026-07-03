@@ -1,34 +1,25 @@
 /**
- * app/api/leases/[leaseId]/upload-document/route.ts — FILL: one-line purpose
+ * app/api/leases/[leaseId]/upload-document/route.ts — upload a signed external lease document
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/leases/[leaseId]/upload-document
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   documents storage bucket (org-pathed), leases.external_document_path (org-scoped), audit_log
+ * Notes:  Config write → gateway(), not requireAgentWriteAccess — attaching the org's own signed
+ *         document to an existing lease, "your data, always" (no subscription lockdown). leaseId is
+ *         a caller-supplied route param so the leases update is org-scoped by gw.orgId.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { gateway } from "@/lib/supabase/gateway"
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ leaseId: string }> }
 ) {
   const { leaseId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  // Config write → gateway() (no lockdown): org's own clause/template settings, "your data, always".
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, userId, orgId } = gw
 
   const formData = await req.formData()
   const file = formData.get("file") as File | null
@@ -48,12 +39,11 @@ export async function POST(
     return NextResponse.json({ error: "Only PDF and DOCX files accepted" }, { status: 400 })
   }
 
-  const serviceSupabase = await createServiceClient()
-  const storagePath = `orgs/${membership.org_id}/leases/${leaseId}/signed_original.${ext}`
+  const storagePath = `orgs/${orgId}/leases/${leaseId}/signed_original.${ext}`
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
-  const { error: uploadError } = await serviceSupabase.storage
+  const { error: uploadError } = await db.storage
     .from("documents")
     .upload(storagePath, buffer, {
       contentType: ext === "pdf" ? "application/pdf"
@@ -66,18 +56,19 @@ export async function POST(
   }
 
   // Update lease record
-  await supabase
+  await db
     .from("leases")
     .update({ external_document_path: storagePath })
+    .eq("org_id", orgId)
     .eq("id", leaseId)
 
   // Audit log
-  await supabase.from("audit_log").insert({
-    org_id: membership.org_id,
+  await db.from("audit_log").insert({
+    org_id: orgId,
     table_name: "leases",
     record_id: leaseId,
     action: "UPDATE",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: {
       action: "external_document_uploaded",
       path: storagePath,

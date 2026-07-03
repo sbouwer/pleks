@@ -1,14 +1,16 @@
 /**
- * app/api/reports/welcome-pack/route.ts — FILL: one-line purpose
+ * app/api/reports/welcome-pack/route.ts — render / email a landlord (owner) portfolio welcome pack
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET (HTML preview) / POST (email the pack) /api/reports/welcome-pack
+ * Auth:   gateway() (agent session + org membership); tier-gated (landlord_welcome_pack)
+ * Data:   landlord_view (org-scoped), buildWelcomePackData/getReportBranding by gateway orgId; POST sends
+ *         the pack via sendEmail.
+ * Notes:  gateway(), intentionally NOT requireAgentWriteAccess — the send is a comm about the org's own
+ *         existing data ("your data, always"), not net-new value creation, so no subscription lockdown.
+ *         landlordId is caller-supplied → the landlord is org-scoped before anything is built/sent.
  */
 import { NextRequest } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { buildWelcomePackData } from "@/lib/reports/welcomePack"
 import { generateWelcomePackRecommendations } from "@/lib/reports/welcomePackRecommendations"
 import { buildWelcomePackHTML, type WelcomePackToolbar } from "@/lib/reports/generateWelcomePackHTML"
@@ -17,60 +19,34 @@ import { REPORT_TIER_ACCESS } from "@/lib/reports/types"
 import { sendEmail } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
-// ── Shared auth + tier check ──────────────────────────────────────────────────
-
-async function verifyAccess(user: { id: string }, orgId: string) {
-  const supabase = await createClient()
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("verifyAccess user_orgs", membershipError)
-  if (!membership) return { error: "Forbidden" }
-
-  const { data: sub, error: subError } = await supabase
-    .from("subscriptions")
-    .select("tier")
-    .eq("org_id", orgId)
-    .eq("status", "active")
-    .single()
-    logQueryError("verifyAccess subscriptions", subError)
-
-  const tier = sub?.tier ?? "owner"
+function tierAllowsWelcomePack(tier: string | null | undefined): boolean {
   const allowed = REPORT_TIER_ACCESS["landlord_welcome_pack"]
-  if (!allowed?.includes(tier)) return { error: "Not available on your plan" }
-
-  return { ok: true }
+  return !!allowed?.includes(tier ?? "owner")
 }
 
 // ── GET — render HTML in browser ──────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId, tier } = gw
 
-  const params = req.nextUrl.searchParams
-  const orgId = params.get("orgId") ?? ""
-  const landlordId = params.get("landlordId") ?? ""
-
-  if (!orgId || !landlordId) {
-    return Response.json({ error: "Missing orgId or landlordId" }, { status: 400 })
+  if (!tierAllowsWelcomePack(tier)) {
+    return Response.json({ error: "Not available on your plan" }, { status: 403 })
   }
 
-  const access = await verifyAccess(user, orgId)
-  if (access.error) return Response.json({ error: access.error }, { status: 403 })
+  const landlordId = req.nextUrl.searchParams.get("landlordId") ?? ""
+  if (!landlordId) return Response.json({ error: "Missing landlordId" }, { status: 400 })
 
-  const service = await createServiceClient()
-  const { data: landlordRow, error: landlordRowError } = await service
+  // Org-scope the landlord (landlordId is caller-supplied)
+  const { data: landlordRow, error: landlordError } = await db
     .from("landlord_view")
     .select("email")
     .eq("id", landlordId)
+    .eq("org_id", orgId)
     .maybeSingle()
-    logQueryError("GET landlord_view", landlordRowError)
+  logQueryError("GET landlord_view", landlordError)
+  if (!landlordRow) return Response.json({ error: "Owner not found" }, { status: 404 })
 
   const [data, orgInfo] = await Promise.all([
     buildWelcomePackData(orgId, landlordId),
@@ -83,7 +59,7 @@ export async function GET(req: NextRequest) {
     orgId,
     landlordId,
     landlordName: data.landlord_name,
-    landlordEmail: (landlordRow?.email as string | null | undefined) ?? null,
+    landlordEmail: (landlordRow.email as string | null | undefined) ?? null,
   }
 
   const html = buildWelcomePackHTML(data, recs, orgInfo, toolbar)
@@ -94,37 +70,36 @@ export async function GET(req: NextRequest) {
 // ── POST /send — email the pack to the owner ──────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, userId, orgId, tier } = gw
 
-  const body = await req.json() as { orgId?: string; landlordId?: string }
-  const orgId = body.orgId ?? ""
-  const landlordId = body.landlordId ?? ""
-
-  if (!orgId || !landlordId) {
-    return Response.json({ error: "Missing orgId or landlordId" }, { status: 400 })
+  if (!tierAllowsWelcomePack(tier)) {
+    return Response.json({ error: "Not available on your plan" }, { status: 403 })
   }
 
-  const access = await verifyAccess(user, orgId)
-  if (access.error) return Response.json({ error: access.error }, { status: 403 })
+  const body = await req.json() as { landlordId?: string }
+  const landlordId = body.landlordId ?? ""
+  if (!landlordId) return Response.json({ error: "Missing landlordId" }, { status: 400 })
 
-  const service = await createServiceClient()
-  const { data: landlordRow, error: landlordRowError } = await service
+  // Org-scope the landlord (landlordId is caller-supplied)
+  const { data: landlordRow, error: landlordError } = await db
     .from("landlord_view")
     .select("email, first_name, last_name, company_name")
     .eq("id", landlordId)
+    .eq("org_id", orgId)
     .maybeSingle()
-    logQueryError("POST landlord_view", landlordRowError)
+  logQueryError("POST landlord_view", landlordError)
+  if (!landlordRow) return Response.json({ error: "Owner not found" }, { status: 404 })
 
-  const landlordEmail = (landlordRow?.email as string | null | undefined) ?? null
+  const landlordEmail = (landlordRow.email as string | null | undefined) ?? null
   if (!landlordEmail) {
     return Response.json({ error: "Owner has no email address on file" }, { status: 422 })
   }
 
-  const companyName = (landlordRow?.company_name as string | null | undefined) ?? null
-  const firstName = (landlordRow?.first_name as string | null | undefined) ?? ""
-  const lastName  = (landlordRow?.last_name  as string | null | undefined) ?? ""
+  const companyName = (landlordRow.company_name as string | null | undefined) ?? null
+  const firstName = (landlordRow.first_name as string | null | undefined) ?? ""
+  const lastName  = (landlordRow.last_name  as string | null | undefined) ?? ""
   const landlordName = companyName ?? (`${firstName} ${lastName}`.trim() || "Owner")
 
   const [data, orgInfo] = await Promise.all([
@@ -145,7 +120,7 @@ export async function POST(req: NextRequest) {
     bodyPreview: `Portfolio overview for ${data.landlord_name}: ${data.totals.properties} propert${data.totals.properties === 1 ? "y" : "ies"}, ${data.totals.occupied} occupied.`,
     entityType: "landlord",
     entityId: landlordId,
-    triggeredBy: user.id,
+    triggeredBy: userId,
   })
 
   if (!result.success) {

@@ -1,30 +1,33 @@
 /**
- * app/api/hoa/[hoaId]/levy-schedules/route.ts — FILL: one-line purpose
+ * app/api/hoa/[hoaId]/levy-schedules/route.ts — list/create levy-schedule definitions for an HOA scheme
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET/POST /api/hoa/[hoaId]/levy-schedules
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   levy_schedules (org-scoped); POST verifies the parent hoa_entities row belongs to the org.
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess: defining a levy schedule
+ *         is scheme config on an existing HOA ("your data, always"). Running the schedule (generating levy
+ *         amounts) is the money path and is lockdown-gated separately in the /calculate route. hoaId is
+ *         caller-supplied → org-scoped.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // GET /api/hoa/[hoaId]/levy-schedules — list all schedules for this HOA
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ hoaId: string }> }
 ) {
   const { hoaId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data: schedules, error } = await supabase
+  const { data: schedules, error } = await db
     .from("levy_schedules")
     .select("*")
     .eq("hoa_id", hoaId)
+    .eq("org_id", orgId)
     .order("effective_from", { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -37,29 +40,18 @@ export async function POST(
   { params }: { params: Promise<{ hoaId: string }> }
 ) {
   const { hoaId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  // Resolve org membership
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
-
-  // Verify HOA belongs to user's org
-  const { data: hoa, error: hoaError } = await supabase
+  // Verify HOA belongs to the org
+  const { data: hoa, error: hoaError } = await db
     .from("hoa_entities")
     .select("id")
     .eq("id", hoaId)
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("POST hoa_entities", hoaError)
+  logQueryError("POST hoa_entities", hoaError)
 
   if (!hoa) return NextResponse.json({ error: "HOA not found" }, { status: 404 })
 
@@ -78,10 +70,10 @@ export async function POST(
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
   }
 
-  const { data: schedule, error } = await supabase
+  const { data: schedule, error } = await db
     .from("levy_schedules")
     .insert({
-      org_id: membership.org_id,
+      org_id: orgId,
       hoa_id: hoaId,
       description: body.description,
       schedule_type: body.schedule_type,

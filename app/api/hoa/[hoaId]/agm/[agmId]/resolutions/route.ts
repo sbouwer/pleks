@@ -1,14 +1,15 @@
 /**
- * app/api/hoa/[hoaId]/agm/[agmId]/resolutions/route.ts — FILL: one-line purpose
+ * app/api/hoa/[hoaId]/agm/[agmId]/resolutions/route.ts — add a resolution to an AGM meeting record
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/hoa/[hoaId]/agm/[agmId]/resolutions
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   agm_resolutions insert (org-scoped); the parent agm_records row is verified to belong to the
+ *         org before inserting (agmId is caller-supplied).
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess: recording AGM resolutions
+ *         is scheme admin on an existing HOA ("your data, always").
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // POST /api/hoa/[hoaId]/agm/[agmId]/resolutions — add a resolution
@@ -17,18 +18,19 @@ export async function POST(
   { params }: { params: Promise<{ hoaId: string; agmId: string }> }
 ) {
   const { agmId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data: membership, error: membershipError2 } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
+  // Verify the parent AGM belongs to the org (agmId is caller-supplied)
+  const { data: agm, error: agmError } = await db
+    .from("agm_records")
+    .select("id")
+    .eq("id", agmId)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("POST user_orgs", membershipError2)
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  logQueryError("POST agm_records", agmError)
+  if (!agm) return NextResponse.json({ error: "AGM not found" }, { status: 404 })
 
   const body = await req.json() as {
     resolution_number?: number
@@ -45,10 +47,10 @@ export async function POST(
     return NextResponse.json({ error: "description and resolution_type required" }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("agm_resolutions")
     .insert({
-      org_id: membership.org_id,
+      org_id: orgId,
       agm_id: agmId,
       resolution_number: body.resolution_number ?? null,
       resolution_type: body.resolution_type,

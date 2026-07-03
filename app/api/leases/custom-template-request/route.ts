@@ -1,24 +1,20 @@
 /**
- * app/api/leases/custom-template-request/route.ts — FILL: one-line purpose
+ * app/api/leases/custom-template-request/route.ts — submit a request for a custom lease template
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/leases/custom-template-request
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   custom_lease_requests (org-scoped by gw.orgId)
+ * Notes:  Config write → gateway(), not requireAgentWriteAccess — the org requesting its own
+ *         template setup, "your data, always" (no subscription lockdown).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { gateway } from "@/lib/supabase/gateway"
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  // Config write → gateway() (no lockdown): org's own clause/template settings, "your data, always".
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, userId, orgId } = gw
 
   const { templatePath, notes } = (await req.json()) as {
     templatePath?: string
@@ -32,31 +28,18 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Get user's org
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) {
-    return NextResponse.json({ error: "No org" }, { status: 403 })
-  }
-
   const now = new Date().toISOString()
 
-  const { error: insertError } = await supabase
+  const { error: insertError } = await db
     .from("custom_lease_requests")
     .insert({
-      org_id: membership.org_id,
-      submitted_by: user.id,
+      org_id: orgId,
+      submitted_by: userId,
       template_path: templatePath,
       notes: notes ?? null,
       status: "pending",
       compliance_confirmed_at: now,
-      compliance_confirmed_by: user.id,
+      compliance_confirmed_by: userId,
     })
 
   if (insertError) {
