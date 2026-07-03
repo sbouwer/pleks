@@ -1,14 +1,14 @@
 /**
- * app/api/org/notifications/route.ts — FILL: one-line purpose
+ * app/api/org/notifications/route.ts — read/update the org's notification-channel settings
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET/PATCH /api/org/notifications
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   organisations.notification_settings (JSON column), org-scoped via gateway orgId.
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess. Notification preferences
+ *         are the org's own settings; a paused org editing them is "your data, always", not net-new value.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const DEFAULT_SETTINGS = {
@@ -28,33 +28,18 @@ const DEFAULT_SETTINGS = {
 
 export type NotificationSettings = typeof DEFAULT_SETTINGS
 
-async function getOrgId(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data, error: queryError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("getOrgId user_orgs", queryError)
-
-  return data?.org_id ?? null
-}
-
 // GET /api/org/notifications
 export async function GET() {
-  const supabase = await createClient()
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data: org, error: orgError } = await supabase
+  const { data: org, error: orgError } = await db
     .from("organisations")
     .select("notification_settings")
     .eq("id", orgId)
     .single()
-    logQueryError("GET organisations", orgError)
+  logQueryError("GET organisations", orgError)
 
   const settings = { ...DEFAULT_SETTINGS, ...(org?.notification_settings as Partial<NotificationSettings> ?? {}) }
   return NextResponse.json(settings)
@@ -62,24 +47,24 @@ export async function GET() {
 
 // PATCH /api/org/notifications
 export async function PATCH(req: NextRequest) {
-  const supabase = await createClient()
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const body = await req.json() as Partial<NotificationSettings>
 
   // Fetch current settings and merge
-  const { data: org, error: orgError } = await supabase
+  const { data: org, error: orgError } = await db
     .from("organisations")
     .select("notification_settings")
     .eq("id", orgId)
     .single()
-    logQueryError("PATCH organisations", orgError)
+  logQueryError("PATCH organisations", orgError)
 
   const current = { ...DEFAULT_SETTINGS, ...(org?.notification_settings as Partial<NotificationSettings> ?? {}) }
   const updated = { ...current, ...body }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("organisations")
     .update({ notification_settings: updated })
     .eq("id", orgId)
