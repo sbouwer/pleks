@@ -1,14 +1,15 @@
 /**
- * app/api/rules/reformat/route.ts — FILL: one-line purpose
+ * app/api/rules/reformat/route.ts — AI-reformat a property house-rule (Haiku), metered per property
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/rules/reformat  { propertyId, text }
+ * Auth:   requireAgentWriteAccess("reformat_rules") — a billable AI generation, so subscription-lockdown
+ *         gated; additionally metered by a per-property credit limit + tier availability.
+ * Data:   properties (org-scoped; reads + increments ai_reformat_count), audit_log via recordAudit.
+ * Notes:  Lockdown surfaces as a clean 403 ({ code: "subscription_locked" }); credit limit → 402.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { reformatRule } from "@/lib/rules/reformat"
 import { TIER_REFORMAT_LIMITS } from "@/lib/rules/templates"
@@ -18,19 +19,16 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 // Body: { propertyId: string, text: string }
 // Checks property-level credit limit, calls Haiku, increments counter.
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id, role")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("reformat_rules")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const { db, userId, orgId, tier } = gw
 
   const body = await req.json() as { propertyId?: string; text?: string }
   const { propertyId, text } = body
@@ -40,27 +38,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify property belongs to this org
-  const { data: property, error: propertyError } = await supabase
+  const { data: property, error: propertyError } = await db
     .from("properties")
     .select("id, ai_reformat_count, ai_reformat_bonus")
     .eq("id", propertyId)
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
-    logQueryError("POST properties", propertyError)
+  logQueryError("POST properties", propertyError)
 
   if (!property) return NextResponse.json({ error: "Property not found" }, { status: 404 })
 
-  // Get tier limit
-  const { data: sub, error: subError } = await supabase
-    .from("subscriptions")
-    .select("tier")
-    .eq("org_id", membership.org_id)
-    .single()
-    logQueryError("POST subscriptions", subError)
-
-  const tier = (sub?.tier as string | null) ?? "steward"
-  const limit = TIER_REFORMAT_LIMITS[tier] ?? 3
+  // Tier credit limit
+  const limit = TIER_REFORMAT_LIMITS[tier ?? "steward"] ?? 3
   const used = property.ai_reformat_count ?? 0
   const bonus = property.ai_reformat_bonus ?? 0
   const totalAllowed = limit + bonus
@@ -93,14 +83,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Increment counter
-  await supabase
+  await db
     .from("properties")
     .update({ ai_reformat_count: used + 1 })
     .eq("id", propertyId)
+    .eq("org_id", orgId)
 
   // Audit log
-  await recordAudit(supabase, {
-    orgId: membership.org_id, actorId: user.id, action: "UPDATE", table: "properties", recordId: propertyId,
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "properties", recordId: propertyId,
     after: { action: "ai_reformat_rule", entity_type: "property", input_length: text.length },
   })
 

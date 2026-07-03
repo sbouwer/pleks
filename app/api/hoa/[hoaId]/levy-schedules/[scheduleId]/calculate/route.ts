@@ -1,14 +1,15 @@
 /**
- * app/api/hoa/[hoaId]/levy-schedules/[scheduleId]/calculate/route.ts — FILL: one-line purpose
+ * app/api/hoa/[hoaId]/levy-schedules/[scheduleId]/calculate/route.ts — run the levy engine for a schedule
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/hoa/[hoaId]/levy-schedules/[scheduleId]/calculate
+ * Auth:   requireAgentWriteAccess("calculate_levies") — generating levy amounts is a financial output
+ *         (net-new value), so it is subscription-lockdown gated.
+ * Data:   verifies the schedule belongs to the org, then calculateLevyAmounts() writes levy_unit_amounts.
+ * Notes:  Lockdown surfaces as a clean 403 ({ code: "subscription_locked" }), never a 500.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { calculateLevyAmounts } from "@/lib/hoa/levyCalculation"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -19,29 +20,26 @@ export async function POST(
   { params }: { params: Promise<{ hoaId: string; scheduleId: string }> }
 ) {
   const { hoaId, scheduleId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("calculate_levy")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const { db, orgId } = gw
 
-  // Verify the schedule belongs to this HOA and user's org
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
-
-  const { data: schedule, error: scheduleError } = await supabase
+  // Verify the schedule belongs to this HOA and the caller's org
+  const { data: schedule, error: scheduleError } = await db
     .from("levy_schedules")
     .select("id, hoa_id, org_id")
     .eq("id", scheduleId)
     .eq("hoa_id", hoaId)
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("POST levy_schedules", scheduleError)
+  logQueryError("POST levy_schedules", scheduleError)
 
   if (!schedule) return NextResponse.json({ error: "Schedule not found" }, { status: 404 })
 
