@@ -76,7 +76,7 @@ export async function POST(
       .eq("id", contractorId)
   }
 
-  const result = await sendPortalInvite(contractorId, user.id)
+  const result = await sendPortalInvite(contractorId, user.id, membership.org_id)
 
   if ("error" in result && result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 })

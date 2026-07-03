@@ -17,7 +17,7 @@ import { inviteLandlord } from "@/lib/portal/inviteLandlord"
 
 export async function inviteLandlordPortal(landlordId: string): Promise<{ success?: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("invite_user")
-  return inviteLandlord(landlordId, gw.userId)
+  return inviteLandlord(landlordId, gw.userId, gw.orgId)
 }
 
 export async function emailLeaseToTenant(leaseId: string): Promise<SendEmailResult & { error?: string }> {

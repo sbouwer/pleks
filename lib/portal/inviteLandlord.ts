@@ -3,30 +3,35 @@
 /**
  * lib/portal/inviteLandlord.ts — invite a landlord to the owner portal
  *
- * Auth:   agent server action (caller passes agentId); service client for the privileged writes
- * Data:   landlord_view (read), landlords (portal_status/portal_invited_at), Supabase auth admin invite, audit_log
+ * Auth:   internal — reached only via gated callers (portal-invite route + requireAgentWriteAccess
+ *         inviteLandlordPortal action wrapper); the client imports the wrapper, never this lib fn. Caller
+ *         passes its authenticated agentId + orgId; service client for the privileged writes.
+ * Data:   landlord_view (read, org-scoped), landlords (portal_status/portal_invited_at), Supabase auth
+ *         admin invite, audit_log
  * Notes:  Provisions the user via Supabase auth.admin.generateLink({type:"invite"}) — identical to
  *         inviteUserByEmail — then sends the action link wrapped in a branded, agency-branded EmailLayout
  *         (ADDENDUM_70I), rather than letting Supabase send its generic email. No acceptance route / no
  *         session-model change (mirrors stepSendPortalInvite). Audit via recordAudit (no PII in values).
+ *         orgId scopes the landlord read — a cross-org landlordId resolves to "not found" (the service
+ *         client bypasses RLS, so the explicit filter is the boundary).
  */
 import * as React from "react"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { PortalLandlordInviteEmail } from "@/lib/comms/templates/portal/role-invites"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
-export async function inviteLandlord(landlordId: string, agentId: string) {
-  const supabase = await createClient()
+export async function inviteLandlord(landlordId: string, agentId: string, orgId: string) {
   const service = await createServiceClient()
 
-  const { data: landlord, error: landlordError } = await supabase
+  const { data: landlord, error: landlordError } = await service
     .from("landlord_view")
     .select("id, org_id, email, first_name, last_name, company_name")
     .eq("id", landlordId)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("inviteLandlord landlord_view", landlordError)
+  logQueryError("inviteLandlord landlord_view", landlordError)
 
   if (!landlord) return { error: "Landlord not found" }
   // portal_status lives on the landlords table, not the view.

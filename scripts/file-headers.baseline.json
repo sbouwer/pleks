@@ -356,7 +356,6 @@
   "lib/tier/effectiveTier.ts",
   "lib/tier/getActiveLeaseCount.ts",
   "lib/tier/pricing.ts",
-  "lib/trial/startTrial.ts",
   "lib/units/typeAwareFields.ts",
   "lib/utils.ts"
 ]
