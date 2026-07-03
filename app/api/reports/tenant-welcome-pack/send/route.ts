@@ -1,12 +1,16 @@
 /**
- * app/api/reports/tenant-welcome-pack/send/route.ts — sends tenant welcome pack via email
+ * app/api/reports/tenant-welcome-pack/send/route.ts — email a tenant their welcome pack
  *
  * Route:  POST /api/reports/tenant-welcome-pack/send
- * Auth:   Supabase user session + user_orgs membership check
- * Data:   builds welcome pack from leaseId/tenantId, renders HTML, sends via sendEmail
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   verifies the lease belongs to the caller's org, builds the pack from leaseId/tenantId, renders
+ *         HTML, sends via sendEmail. All org-scoped via gateway orgId.
+ * Notes:  gateway(), intentionally NOT requireAgentWriteAccess — the send is a comm about the org's own
+ *         existing data ("your data, always"), not net-new value creation. leaseId is caller-supplied →
+ *         org-scoped (a cross-org leaseId resolves to "Lease not found").
  */
 import { NextRequest } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { buildTenantWelcomePackData } from "@/lib/reports/tenantWelcomePack"
 import { buildTenantWelcomePackHTML } from "@/lib/reports/tenantWelcomePackHTML"
 import { getReportBranding } from "@/lib/reports/reportBranding"
@@ -16,9 +20,9 @@ import { getOrgCapabilities } from "@/lib/org/capabilities"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, userId, orgId } = gw
 
   const body = await req.json() as { leaseId?: string; tenantId?: string }
   const leaseId  = body.leaseId  ?? ""
@@ -28,33 +32,20 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Missing leaseId or tenantId" }, { status: 400 })
   }
 
-  // Get org_id from lease
-  const service = await createServiceClient()
-  const { data: leaseRow, error: leaseRowError } = await service
+  // Verify the lease belongs to the caller's org (leaseId is caller-supplied)
+  const { data: leaseRow, error: leaseRowError } = await db
     .from("leases")
-    .select("org_id")
+    .select("id")
     .eq("id", leaseId)
-    .maybeSingle()
-    logQueryError("POST leases", leaseRowError)
-
-  const orgId = (leaseRow as { org_id: string } | null)?.org_id
-  if (!orgId) return Response.json({ error: "Lease not found" }, { status: 404 })
-
-  // Verify membership
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
     .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-  if (!membership) return Response.json({ error: "Forbidden" }, { status: 403 })
+    .maybeSingle()
+  logQueryError("POST leases", leaseRowError)
+  if (!leaseRow) return Response.json({ error: "Lease not found" }, { status: 404 })
 
   const [data, orgInfo, orgRow] = await Promise.all([
     buildTenantWelcomePackData(orgId, leaseId, tenantId),
     getReportBranding(orgId),
-    service.from("organisations").select("type, name").eq("id", orgId).single(),
+    db.from("organisations").select("type, name").eq("id", orgId).single(),
   ])
 
   const capabilities = getOrgCapabilities(
@@ -79,7 +70,7 @@ export async function POST(req: NextRequest) {
     bodyPreview: `Welcome to ${data.propertyName}${unitSuffix}. Monthly rent: ${formatZAR(data.rentAmountCents)}. Payment ref: ${data.paymentReference}.`,
     entityType: "tenant",
     entityId: tenantId,
-    triggeredBy: user.id,
+    triggeredBy: userId,
   })
 
   if (!result.success) {

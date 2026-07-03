@@ -1,15 +1,14 @@
 /**
- * app/api/leases/org-clause-defaults/route.ts — FILL: one-line purpose
+ * app/api/leases/org-clause-defaults/route.ts — upsert org-level optional clause toggle defaults
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/leases/org-clause-defaults
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   org_lease_clause_defaults (org-scoped by gw.orgId)
+ * Notes:  Config write → gateway(), not requireAgentWriteAccess — the org's own clause defaults,
+ *         "your data, always" (no subscription lockdown).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { gateway } from "@/lib/supabase/gateway"
 
 interface UpdateEntry {
   clause_key: string
@@ -20,33 +19,23 @@ interface UpdateEntry {
 // Body: { updates: Array<{ clause_key, enabled }> }
 // Upserts org-level optional clause toggle defaults.
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  // Config write → gateway() (no lockdown): org's own clause/template settings, "your data, always".
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const body = await req.json() as { updates: UpdateEntry[] }
   if (!Array.isArray(body.updates)) {
     return NextResponse.json({ error: "updates array required" }, { status: 400 })
   }
 
-  const orgId = membership.org_id
   const rows = body.updates.map(({ clause_key, enabled }) => ({
     org_id: orgId,
     clause_key,
     enabled,
   }))
 
-  const { error } = await supabase
+  const { error } = await db
     .from("org_lease_clause_defaults")
     .upsert(rows, { onConflict: "org_id,clause_key" })
 

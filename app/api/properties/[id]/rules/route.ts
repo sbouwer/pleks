@@ -1,15 +1,15 @@
 /**
- * app/api/properties/[id]/rules/route.ts — FILL: one-line purpose
+ * app/api/properties/[id]/rules/route.ts — list/create a property's house rules (+ AI-reformat credits)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET/POST /api/properties/[id]/rules
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   property_rules (org-scoped), rule_templates (shared seed, no org_id), properties + subscriptions
+ *         for the AI-reformat credit computation — all org-scoped via gateway orgId.
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess: house rules are config on
+ *         an existing property ("your data, always"). rule_templates is shared seed (no org_id).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { gateway } from "@/lib/supabase/gateway"
 
 // GET /api/properties/[id]/rules
 // Returns: { rules, templates, credits: { used, total, remaining } }
@@ -18,46 +18,36 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: propertyId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("GET user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const [rulesRes, templatesRes, propertyRes, subRes] = await Promise.all([
-    supabase
+    db
       .from("property_rules")
       .select("*")
       .eq("property_id", propertyId)
-      .eq("org_id", membership.org_id)
+      .eq("org_id", orgId)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true }),
 
-    supabase
+    db
       .from("rule_templates")
       .select("*")
       .order("sort_order", { ascending: true }),
 
-    supabase
+    db
       .from("properties")
       .select("id, ai_reformat_count, ai_reformat_bonus")
       .eq("id", propertyId)
-      .eq("org_id", membership.org_id)
+      .eq("org_id", orgId)
       .is("deleted_at", null)
       .single(),
 
-    supabase
+    db
       .from("subscriptions")
       .select("tier")
-      .eq("org_id", membership.org_id)
+      .eq("org_id", orgId)
       .single(),
   ])
 
@@ -86,19 +76,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: propertyId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const body = await req.json() as {
     rule_template_id?: string
@@ -113,11 +93,11 @@ export async function POST(
     return NextResponse.json({ error: "title and body_text are required" }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("property_rules")
     .insert({
       property_id: propertyId,
-      org_id: membership.org_id,
+      org_id: orgId,
       rule_template_id: body.rule_template_id ?? null,
       title: body.title,
       body_text: body.body_text,

@@ -1,14 +1,15 @@
 /**
- * app/api/hoa/[hoaId]/agm/route.ts — FILL: one-line purpose
+ * app/api/hoa/[hoaId]/agm/route.ts — list/create AGM meeting records for an HOA scheme
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET/POST /api/hoa/[hoaId]/agm
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   agm_records (+ agm_resolutions on GET), org-scoped via gateway orgId; POST verifies the parent
+ *         hoa_entities row belongs to the org before inserting.
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess: scheduling an AGM is
+ *         scheme admin on an existing HOA ("your data, always"). hoaId is caller-supplied → org-scoped.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // GET /api/hoa/[hoaId]/agm — list meetings with resolutions
@@ -17,16 +18,17 @@ export async function GET(
   { params }: { params: Promise<{ hoaId: string }> }
 ) {
   const { hoaId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data: records, error: recordsError } = await supabase
+  const { data: records, error: recordsError } = await db
     .from("agm_records")
     .select("*, agm_resolutions(*)")
     .eq("hoa_id", hoaId)
+    .eq("org_id", orgId)
     .order("meeting_date", { ascending: false })
-    logQueryError("GET agm_records", recordsError)
+  logQueryError("GET agm_records", recordsError)
 
   return NextResponse.json(records ?? [])
 }
@@ -37,27 +39,18 @@ export async function POST(
   { params }: { params: Promise<{ hoaId: string }> }
 ) {
   const { hoaId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, userId, orgId } = gw
 
   // Verify HOA ownership
-  const { data: hoa, error: hoaError } = await supabase
+  const { data: hoa, error: hoaError } = await db
     .from("hoa_entities")
     .select("id")
     .eq("id", hoaId)
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("POST hoa_entities", hoaError)
+  logQueryError("POST hoa_entities", hoaError)
   if (!hoa) return NextResponse.json({ error: "HOA not found" }, { status: 404 })
 
   const body = await req.json() as {
@@ -74,10 +67,10 @@ export async function POST(
     return NextResponse.json({ error: "agm_type and meeting_date required" }, { status: 400 })
   }
 
-  const { data: record, error } = await supabase
+  const { data: record, error } = await db
     .from("agm_records")
     .insert({
-      org_id: membership.org_id,
+      org_id: orgId,
       hoa_id: hoaId,
       agm_type: body.agm_type,
       meeting_date: body.meeting_date,
@@ -87,7 +80,7 @@ export async function POST(
       virtual_link: body.virtual_link?.trim() ?? null,
       notes: body.notes?.trim() ?? null,
       status: "scheduled",
-      created_by: user.id,
+      created_by: userId,
     })
     .select()
     .single()

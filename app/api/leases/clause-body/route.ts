@@ -1,31 +1,21 @@
 /**
- * app/api/leases/clause-body/route.ts — FILL: one-line purpose
+ * app/api/leases/clause-body/route.ts — save/reset a custom lease-clause body (org or per-lease)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST + DELETE /api/leases/clause-body
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   lease_clause_selections (org-scoped), audit_log (org-scoped)
+ * Notes:  Config write → gateway(), not requireAgentWriteAccess — the org's own clause
+ *         wording settings, "your data, always" (no subscription lockdown).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { gateway } from "@/lib/supabase/gateway"
 
 // Save or reset custom clause body (org-level when leaseId omitted)
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  // Config write → gateway() (no lockdown): org's own clause/template settings, "your data, always".
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, userId, orgId } = gw
 
   const { clauseKey, customBody, leaseId } = await req.json()
 
@@ -34,10 +24,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Upsert custom body
-  const { error } = await supabase
+  const { error } = await db
     .from("lease_clause_selections")
     .upsert({
-      org_id: membership.org_id,
+      org_id: orgId,
       lease_id: leaseId ?? null,
       clause_key: clauseKey,
       enabled: true,
@@ -52,12 +42,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Audit log
-  await supabase.from("audit_log").insert({
-    org_id: membership.org_id,
+  await db.from("audit_log").insert({
+    org_id: orgId,
     table_name: "lease_clause_selections",
     record_id: clauseKey,
     action: "UPDATE",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: {
       action: "clause_wording_edited",
       clause_key: clauseKey,
@@ -70,19 +60,10 @@ export async function POST(req: NextRequest) {
 
 // Reset clause to standard (delete custom body)
 export async function DELETE(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("DELETE user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  // Config write → gateway() (no lockdown): org's own clause/template settings, "your data, always".
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const { clauseKey, leaseId } = await req.json()
 
@@ -90,10 +71,10 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "clauseKey required" }, { status: 400 })
   }
 
-  let query = supabase
+  let query = db
     .from("lease_clause_selections")
     .delete()
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .eq("clause_key", clauseKey)
 
   if (leaseId) {

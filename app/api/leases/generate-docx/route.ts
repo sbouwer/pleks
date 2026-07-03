@@ -1,32 +1,23 @@
 /**
- * app/api/leases/generate-docx/route.ts — FILL: one-line purpose
+ * app/api/leases/generate-docx/route.ts — render an existing lease to a DOCX + return a signed URL
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/leases/generate-docx
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   generateLeaseDocument(leaseId, orgId), documents storage bucket (signed URL)
+ * Notes:  Config write → gateway(), not requireAgentWriteAccess — rendering an existing lease's
+ *         document (even non-preview) is "your data, always"; lockdown belongs on lease creation,
+ *         not rendering. orgId comes from the gateway session.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
 import { generateLeaseDocument } from "@/lib/leases/generateDocument"
-import { createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  // Config write → gateway() (no lockdown): rendering the org's own existing lease, "your data, always".
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const { leaseId, preview } = await req.json()
 
@@ -34,11 +25,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "leaseId required" }, { status: 400 })
   }
 
-  const result = await generateLeaseDocument(leaseId, membership.org_id, preview === true)
+  const result = await generateLeaseDocument(leaseId, orgId, preview === true)
 
   // Get a signed download URL
-  const serviceSupabase = await createServiceClient()
-  const { data: signedUrl, error: signedUrlError } = await serviceSupabase.storage
+  const { data: signedUrl, error: signedUrlError } = await db.storage
     .from("documents")
     .createSignedUrl(result.storagePath, 3600)
     logQueryError("POST documents", signedUrlError) // 1 hour
