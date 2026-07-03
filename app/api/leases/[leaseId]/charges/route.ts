@@ -106,7 +106,7 @@ export async function POST(
   const { leaseId } = await params
   let gw
   try {
-    gw = await requireAgentWriteAccess("create_lease_charge")
+    gw = await requireAgentWriteAccess("add_lease_charge")
   } catch (e) {
     if (e instanceof SubscriptionLockdownError) {
       return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })

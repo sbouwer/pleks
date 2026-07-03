@@ -22,7 +22,7 @@ export async function POST(
   const { hoaId, scheduleId } = await params
   let gw
   try {
-    gw = await requireAgentWriteAccess("calculate_levies")
+    gw = await requireAgentWriteAccess("calculate_levy")
   } catch (e) {
     if (e instanceof SubscriptionLockdownError) {
       return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })

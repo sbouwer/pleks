@@ -18,6 +18,13 @@ export interface SubscriptionState {
   purge_eligible_at: Date | null
 }
 
+/**
+ * A subscription-lockdown-gated agent write. NAMING CONVENTION: lowercase `verb_noun`
+ * (create_lease, sign_off_inspection, post_reserve_fund). The union is open (`| string`) so
+ * new actions don't need a type edit — but ADD the literal here and follow verb_noun so the set
+ * stays consistent and greppable (avoid drift like create_hoa / hoa_create / add_hoa). Lockdown
+ * is action-agnostic today; a literal only carries extra meaning if mapped in ACTION_CAPABILITY.
+ */
 export type AgentWriteAction =
   | "create_lease" | "create_property" | "create_tenant" | "create_application"
   | "activate_lease" | "renew_lease" | "terminate_lease"
@@ -25,6 +32,9 @@ export type AgentWriteAction =
   | "send_manual_comm" | "invite_user" | "change_team_role"
   | "edit_lease" | "edit_property" | "edit_tenant"
   | "run_searchworx_check" | "run_ai_clause_draft"
+  // Census W3 additions (verb_noun):
+  | "create_hoa" | "post_reserve_fund" | "calculate_levy" | "reformat_rules"
+  | "add_lease_charge" | "remove_lease_charge"
   | string
 
 export type EmailFooterVariant =
