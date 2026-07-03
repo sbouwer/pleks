@@ -2,14 +2,15 @@
  * app/api/org/brand/route.ts — read/update the organisation's document branding (Organisation › Branding)
  *
  * Route:  GET/PATCH /api/org/brand
- * Auth:   getUser + user_orgs membership
- * Data:   organisations.brand_* columns; logo lives in the private org-assets bucket and is returned as a
- *         fresh signed URL.
- * Notes:  Signing uses the service client — the cookie client can't sign on the private bucket (returns a
- *         null logoUrl, so the logo silently never previews).
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   organisations.brand_* columns, org-scoped via gateway orgId; logo lives in the private
+ *         org-assets bucket and is returned as a fresh signed URL via the gateway service db.
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess — branding is the org's
+ *         own settings ("your data, always"). Signing uses the service db (the cookie client can't sign
+ *         the private bucket → a null logoUrl, so the logo silently never previews).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const BRAND_FIELDS = [
@@ -22,28 +23,12 @@ const BRAND_FIELDS = [
 type BrandField = (typeof BRAND_FIELDS)[number]
 type BrandPatch = Partial<Record<BrandField, string | null>>
 
-async function resolveOrgId(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("resolveOrgId user_orgs", membershipError)
-  return membership?.org_id ?? null
-}
-
 export async function GET() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const orgId = await resolveOrgId(supabase, user.id)
-  if (!orgId) return NextResponse.json({ error: "No org" }, { status: 403 })
-
-  const { data: org, error } = await supabase
+  const { data: org, error } = await db
     .from("organisations")
     .select("brand_logo_path, brand_accent_color, brand_cover_template, brand_font")
     .eq("id", orgId)
@@ -62,8 +47,7 @@ export async function GET() {
 
   let logoUrl: string | null = null
   if (d.brand_logo_path) {
-    const serviceClient = await createServiceClient()
-    const { data: signed, error: signedError } = await serviceClient.storage
+    const { data: signed, error: signedError } = await db.storage
       .from("org-assets")
       .createSignedUrl(d.brand_logo_path, 3600)
     logQueryError("GET org-assets", signedError)
@@ -80,14 +64,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const orgId = await resolveOrgId(supabase, user.id)
-  if (!orgId) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   let body: unknown
   try {
@@ -118,7 +97,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No valid brand fields provided" }, { status: 400 })
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("organisations")
     .update(patch)
     .eq("id", orgId)

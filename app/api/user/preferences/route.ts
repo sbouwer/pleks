@@ -1,40 +1,35 @@
 /**
- * app/api/user/preferences/route.ts — FILL: one-line purpose
+ * app/api/user/preferences/route.ts — read/update the signed-in user's per-org UI preferences
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET/PATCH /api/user/preferences
+ * Auth:   gateway() (agent session + org membership)
+ * Data:   user_orgs.preferences (JSON column) for the caller's own membership row, scoped by userId + orgId.
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess. These are the user's own
+ *         saved UI prefs; a paused org's user editing them is "your data, always", not net-new value.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { getServerOrgMembership } from "@/lib/auth/server"
-import { getServerUser } from "@/lib/auth/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // GET /api/user/preferences
 // Returns { preferences, tier }
 export async function GET() {
-  const [user, membership] = await Promise.all([
-    getServerUser(),
-    getServerOrgMembership(),
-  ])
-  if (!user || !membership) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, userId, orgId, tier } = gw
 
-  const supabase = await createClient()
-  const { data, error: queryError } = await supabase
+  const { data, error: queryError } = await db
     .from("user_orgs")
     .select("preferences")
-    .eq("user_id", user.id)
-    .eq("org_id", membership.org_id)
+    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
-    logQueryError("GET user_orgs", queryError)
+  logQueryError("GET user_orgs", queryError)
 
   return NextResponse.json({
     preferences: (data?.preferences as Record<string, unknown>) ?? {},
-    tier: membership.tier ?? null,
+    tier: tier ?? null,
   })
 }
 
@@ -42,34 +37,30 @@ export async function GET() {
 // Body: { key: string, value: unknown }
 // Merges { [key]: value } into user_orgs.preferences
 export async function PATCH(req: NextRequest) {
-  const [user, membership] = await Promise.all([
-    getServerUser(),
-    getServerOrgMembership(),
-  ])
-  if (!user || !membership) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, userId, orgId } = gw
 
   const { key, value } = await req.json() as { key: string; value: unknown }
   if (!key) return NextResponse.json({ error: "Missing key" }, { status: 400 })
 
-  const supabase = await createClient()
-
   // Read current preferences, merge single key
-  const { data: current, error: currentError } = await supabase
+  const { data: current, error: currentError } = await db
     .from("user_orgs")
     .select("preferences")
-    .eq("user_id", user.id)
-    .eq("org_id", membership.org_id)
+    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
-    logQueryError("PATCH user_orgs", currentError)
+  logQueryError("PATCH user_orgs", currentError)
 
   const merged = { ...((current?.preferences as Record<string, unknown>) ?? {}), [key]: value }
 
-  await supabase
+  await db
     .from("user_orgs")
     .update({ preferences: merged })
-    .eq("user_id", user.id)
-    .eq("org_id", membership.org_id)
+    .eq("user_id", userId)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
 
   return NextResponse.json({ ok: true })

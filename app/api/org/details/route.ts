@@ -2,14 +2,17 @@
  * app/api/org/details/route.ts — read/update the organisation's own details (Organisation › Details)
  *
  * Route:  GET/PATCH /api/org/details
- * Auth:   getUser (auth) + getMembership; PATCH additionally requires org admin (isAdmin)
- * Data:   organisations (column allowlist ALL_FIELDS). PATCH validates each field is string|null;
- *         primary_contact_is_user is the one boolean. Banking lives in bank_accounts, not here.
- * Notes:  Allowlist is the write boundary — only listed columns can be patched.
+ * Auth:   gateway() (agent session + org membership); PATCH additionally requires org admin (gw.isAdmin)
+ * Data:   organisations (column allowlist ALL_FIELDS), org-scoped via gateway orgId.
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess. Split-check (org/details is
+ *         the doctrine's ambiguous case): every ALL_FIELDS column is the org's own profile / contact /
+ *         legal-identity data (name, VAT/reg/EAAB/id numbers, address, hours) — banking lives in
+ *         bank_accounts, and there is no subscription/billing-plan field here. Editing it while paused is
+ *         "your data, always", not net-new value creation, so no lockdown and no route split.
+ *         The ALL_FIELDS allowlist is the write boundary — only listed columns can be patched.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { getMembership } from "@/lib/supabase/getMembership"
+import { gateway } from "@/lib/supabase/gateway"
 
 const ALL_FIELDS = [
   "name", "trading_as", "reg_number", "eaab_number", "vat_number",
@@ -29,17 +32,12 @@ const ALL_FIELDS = [
 
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const service = await createServiceClient()
-  const m = await getMembership(service, user.id)
-  if (!m) return NextResponse.json({ error: "No org" }, { status: 403 })
-  const { org_id: orgId } = m
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const selectFields = [...ALL_FIELDS, "id", "type", "user_type", "primary_contact_is_user"].join(", ")
-  const { data: org, error } = await supabase
+  const { data: org, error } = await db
     .from("organisations")
     .select(selectFields)
     .eq("id", orgId)
@@ -68,14 +66,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const service = await createServiceClient()
-  const m = await getMembership(service, user.id)
-  if (!m) return NextResponse.json({ error: "No org" }, { status: 403 })
-  const { org_id: orgId, isAdmin } = m
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId, isAdmin } = gw
   if (!isAdmin) return NextResponse.json({ error: "Admin access required to update org settings" }, { status: 403 })
 
   let body: unknown
@@ -111,7 +104,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No valid fields provided" }, { status: 400 })
   }
 
-  const { error } = await supabase.from("organisations").update({ ...patch, ...boolPatch }).eq("id", orgId)
+  const { error } = await db.from("organisations").update({ ...patch, ...boolPatch }).eq("id", orgId)
   if (error) return NextResponse.json({ error: "Failed to update organisation" }, { status: 500 })
 
   return NextResponse.json({ ok: true })

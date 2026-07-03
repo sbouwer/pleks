@@ -2,32 +2,21 @@
  * app/api/org/brand/logo/route.ts — upload the organisation's document logo (Organisation › Branding)
  *
  * Route:  POST /api/org/brand/logo (multipart file)
- * Auth:   getUser + user_orgs membership
+ * Auth:   gateway() (agent session + org membership)
  * Data:   uploads to the private org-assets bucket (org-<id>/branding/logo.<ext>), stores the path on
  *         organisations.brand_logo_path, returns a fresh signed URL for immediate preview.
- * Notes:  Upload AND signing both use the service client — the cookie client can't sign on the private
- *         bucket, which silently returned a null logoUrl ("success" toast, no preview).
+ * Notes:  Config write → gateway(), intentionally NOT requireAgentWriteAccess — uploading your own logo
+ *         is "your data, always". Upload AND signing use the gateway service db (the cookie client can't
+ *         sign the private bucket, which silently returned a null logoUrl).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError2 } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError2)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
   const formData = await req.formData()
   const file = formData.get("file")
@@ -44,11 +33,10 @@ export async function POST(req: NextRequest) {
   }
 
   const ext = file.type === "image/png" ? "png" : "jpg"
-  const storagePath = `org-${membership.org_id}/branding/logo.${ext}`
+  const storagePath = `org-${orgId}/branding/logo.${ext}`
   const bytes = await file.arrayBuffer()
 
-  const serviceClient = await createServiceClient()
-  const { error: uploadError } = await serviceClient.storage
+  const { error: uploadError } = await db.storage
     .from("org-assets")
     .upload(storagePath, bytes, { contentType: file.type, upsert: true })
 
@@ -56,15 +44,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 })
   }
 
-  await supabase
+  await db
     .from("organisations")
     .update({ brand_logo_path: storagePath } as unknown as Record<string, unknown>)
-    .eq("id", membership.org_id)
+    .eq("id", orgId)
 
-  const { data: signed, error: signedError } = await serviceClient.storage
+  const { data: signed, error: signedError } = await db.storage
     .from("org-assets")
     .createSignedUrl(storagePath, 3600)
-    logQueryError("POST org-assets", signedError)
+  logQueryError("POST org-assets", signedError)
 
   return NextResponse.json({ logoUrl: signed?.signedUrl ?? null, logoPath: storagePath })
 }
