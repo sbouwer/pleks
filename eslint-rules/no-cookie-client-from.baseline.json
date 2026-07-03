@@ -1,10 +1,4 @@
 [
-  "app/api/hoa/[hoaId]/levy-schedules/[scheduleId]/calculate/route.ts",
-  "app/api/hoa/[hoaId]/reserve-fund/route.ts",
-  "app/api/hoa/route.ts",
-  "app/api/inspection/[id]/signature/route.ts",
-  "app/api/leases/[leaseId]/charges/route.ts",
-  "app/api/rules/reformat/route.ts",
   "lib/auth/server.ts",
   "lib/contractors/sendPortalInvite.ts",
   "lib/hoa/levyCalculation.ts",

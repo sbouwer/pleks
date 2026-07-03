@@ -1,42 +1,46 @@
 /**
  * app/api/leases/[leaseId]/charges/route.ts — CRUD for lease additional charges
  *
- * Route:  /api/leases/[leaseId]/charges
- * Auth:   Supabase auth.getUser() + user_orgs membership check
- * Data:   lease_charges, audit_log, communication_log (L6 on POST)
- * Notes:  POST fires lease.amended comm (L6) to tenant when a charge is added to an active lease.
- *         DELETE (soft-deactivate) also fires L6 with changeType="removed". BUILD_63 Phase 5 fix-pack.
+ * Route:  GET/POST/DELETE /api/leases/[leaseId]/charges
+ * Auth:   GET → gateway() (read). POST (add charge) / DELETE (soft-deactivate charge) →
+ *         requireAgentWriteAccess — a lease charge is a financial obligation (net-new value), so writes
+ *         are subscription-lockdown gated.
+ * Data:   lease_charges, audit_log, communication_log (L6 comm on POST/DELETE). All org-scoped.
+ * Notes:  POST fires lease.amended comm (L6) to the tenant when a charge is added to an active lease;
+ *         DELETE fires L6 with changeType="removed". Lockdown surfaces as a clean 403, never a 500.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import * as React from "react"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { LeaseAmendedEmail } from "@/lib/comms/templates/tenant/leases/lease-amended"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
-type SupabaseUserClient = Awaited<ReturnType<typeof createClient>>
-
 type ChargeComm = { description: string; amountCents: number; dateStr: string; changeType: "added" | "removed" }
 
 async function fireLeaseAmendedComm(
-  supabase: SupabaseUserClient,
+  db: SupabaseClient,
   leaseId: string,
   orgId: string,
   userId: string,
   charge: ChargeComm,
 ): Promise<void> {
-  const { data: lease, error: leaseError } = await supabase
+  const { data: lease, error: leaseError } = await db
     .from("leases")
     .select("status, tenant_id, unit_id")
     .eq("id", leaseId)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("fireLeaseAmendedComm leases", leaseError)
+  logQueryError("fireLeaseAmendedComm leases", leaseError)
   if (lease?.status !== "active" || !lease.tenant_id) return
 
   const [tenantRes, unitRes, orgSettings] = await Promise.all([
-    supabase.from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id).single(),
-    supabase.from("units").select("unit_number, properties(name)").eq("id", lease.unit_id).single(),
+    db.from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id).eq("org_id", orgId).single(),
+    db.from("units").select("unit_number, properties(name)").eq("id", lease.unit_id).eq("org_id", orgId).single(),
     fetchOrgSettings(orgId),
   ])
   const tenant = tenantRes.data
@@ -79,17 +83,18 @@ export async function GET(
   { params }: { params: Promise<{ leaseId: string }> }
 ) {
   const { leaseId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data: charges, error: chargesError } = await supabase
+  const { data: charges, error: chargesError } = await db
     .from("lease_charges")
     .select("*, contractor_view(first_name, last_name, company_name)")
     .eq("lease_id", leaseId)
+    .eq("org_id", orgId)
     .eq("is_active", true)
     .order("charge_type")
-    logQueryError("GET lease_charges", chargesError)
+  logQueryError("GET lease_charges", chargesError)
 
   return NextResponse.json({ charges: charges ?? [] })
 }
@@ -99,20 +104,16 @@ export async function POST(
   { params }: { params: Promise<{ leaseId: string }> }
 ) {
   const { leaseId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const service = await createServiceClient()
-  const { data: membership, error: membershipError } = await service
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("create_lease_charge")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const { db, userId, orgId } = gw
 
   const body = await req.json()
   const {
@@ -125,8 +126,8 @@ export async function POST(
     return NextResponse.json({ error: "Description, amount, and start date are required" }, { status: 400 })
   }
 
-  const { data, error } = await supabase.from("lease_charges").insert({
-    org_id: membership.org_id,
+  const { data, error } = await db.from("lease_charges").insert({
+    org_id: orgId,
     lease_id: leaseId,
     description: description.trim(),
     charge_type: charge_type || "other",
@@ -137,24 +138,24 @@ export async function POST(
     payable_to_supplier_id: payable_to_contractor_id || null,
     deduct_from_owner_payment: deduct_from_owner_payment ?? false,
     vat_applicable: vat_applicable ?? false,
-    created_by: user.id,
+    created_by: userId,
   }).select("id").single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Audit log
-  await supabase.from("audit_log").insert({
-    org_id: membership.org_id,
+  await db.from("audit_log").insert({
+    org_id: orgId,
     table_name: "lease_charges",
     record_id: data?.id,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { description, charge_type, amount_cents, lease_id: leaseId },
   })
 
   // L6 — lease.amended comm (charge added)
   try {
-    await fireLeaseAmendedComm(supabase, leaseId, membership.org_id, user.id, {
+    await fireLeaseAmendedComm(db, leaseId, orgId, userId, {
       description: description.trim(),
       amountCents: Number(amount_cents),
       dateStr: start_date,
@@ -172,52 +173,51 @@ export async function DELETE(
   { params }: { params: Promise<{ leaseId: string }> }
 ) {
   const { leaseId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const service = await createServiceClient()
-  const { data: membership, error: membershipError } = await service
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("DELETE user_orgs", membershipError)
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("remove_lease_charge")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const { db, userId, orgId } = gw
 
   const { chargeId } = await req.json()
   if (!chargeId) return NextResponse.json({ error: "chargeId required" }, { status: 400 })
 
   // Fetch charge before deactivating (need description/amount for L6 comm)
-  const { data: charge, error: chargeError } = await supabase
+  const { data: charge, error: chargeError } = await db
     .from("lease_charges")
     .select("description, amount_cents, start_date")
     .eq("id", chargeId)
     .eq("lease_id", leaseId)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("DELETE lease_charges", chargeError)
+  logQueryError("DELETE lease_charges", chargeError)
 
   // Soft deactivate (don't delete — historical invoices reference it)
-  await supabase
+  await db
     .from("lease_charges")
     .update({ is_active: false })
     .eq("id", chargeId)
     .eq("lease_id", leaseId)
+    .eq("org_id", orgId)
 
-  await supabase.from("audit_log").insert({
-    org_id: membership.org_id,
+  await db.from("audit_log").insert({
+    org_id: orgId,
     table_name: "lease_charges",
     record_id: chargeId,
     action: "UPDATE",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { is_active: false, lease_id: leaseId },
   })
 
   // L6 — lease.amended comm (charge removed)
   if (charge) {
     try {
-      await fireLeaseAmendedComm(supabase, leaseId, membership.org_id, user.id, {
+      await fireLeaseAmendedComm(db, leaseId, orgId, userId, {
         description: charge.description,
         amountCents: Number(charge.amount_cents),
         dateStr: new Date().toISOString().split("T")[0],

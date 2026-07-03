@@ -1,14 +1,16 @@
 /**
- * app/api/hoa/[hoaId]/reserve-fund/route.ts — FILL: one-line purpose
+ * app/api/hoa/[hoaId]/reserve-fund/route.ts — list / post reserve-fund ledger entries for an HOA scheme
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET/POST /api/hoa/[hoaId]/reserve-fund
+ * Auth:   GET → gateway() (read, always available). POST → requireAgentWriteAccess("post_reserve_fund"):
+ *         a reserve-fund posting is a financial ledger entry (net-new value), so it is lockdown gated.
+ * Data:   reserve_fund_entries (org-scoped); POST verifies the parent hoa_entities row belongs to the org.
+ * Notes:  Immutable ledger (insert-only). POST lockdown surfaces as a clean 403, never a 500.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // GET /api/hoa/[hoaId]/reserve-fund — list entries
@@ -17,16 +19,17 @@ export async function GET(
   { params }: { params: Promise<{ hoaId: string }> }
 ) {
   const { hoaId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const gw = await gateway()
+  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { db, orgId } = gw
 
-  const { data, error: queryError } = await supabase
+  const { data, error: queryError } = await db
     .from("reserve_fund_entries")
     .select("*")
     .eq("hoa_id", hoaId)
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false })
-    logQueryError("GET reserve_fund_entries", queryError)
+  logQueryError("GET reserve_fund_entries", queryError)
 
   return NextResponse.json(data ?? [])
 }
@@ -37,26 +40,24 @@ export async function POST(
   { params }: { params: Promise<{ hoaId: string }> }
 ) {
   const { hoaId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("post_reserve_fund")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const { db, userId, orgId } = gw
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
-
-  const { data: hoa, error: hoaError } = await supabase
+  const { data: hoa, error: hoaError } = await db
     .from("hoa_entities")
     .select("id")
     .eq("id", hoaId)
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("POST hoa_entities", hoaError)
+  logQueryError("POST hoa_entities", hoaError)
   if (!hoa) return NextResponse.json({ error: "HOA not found" }, { status: 404 })
 
   const body = await req.json() as {
@@ -71,17 +72,17 @@ export async function POST(
     return NextResponse.json({ error: "entry_type, direction, amount_cents and description required" }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("reserve_fund_entries")
     .insert({
-      org_id: membership.org_id,
+      org_id: orgId,
       hoa_id: hoaId,
       entry_type: body.entry_type,
       direction: body.direction,
       amount_cents: body.amount_cents,
       description: body.description.trim(),
       reference: body.reference?.trim() ?? null,
-      created_by: user.id,
+      created_by: userId,
     })
     .select()
     .single()

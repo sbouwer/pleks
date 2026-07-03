@@ -1,42 +1,31 @@
 /**
- * app/api/hoa/route.ts — FILL: one-line purpose
+ * app/api/hoa/route.ts — create a new HOA / body-corporate entity (Firm tier)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/hoa
+ * Auth:   requireAgentWriteAccess("create_hoa") — creating an HOA is net-new billable business, so it is
+ *         subscription-lockdown gated; additionally requires Firm tier.
+ * Data:   verifies the parent property belongs to the org, then inserts hoa_entities (org-scoped).
+ * Notes:  Lockdown surfaces as a clean 403 ({ code: "subscription_locked" }), never a 500.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 
 // POST /api/hoa — create a new HOA entity
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("create_hoa")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const { db, orgId, tier } = gw
 
   // Firm tier only
-  const { data: sub, error: subError } = await supabase
-    .from("subscriptions")
-    .select("tier")
-    .eq("org_id", membership.org_id)
-    .eq("status", "active")
-    .single()
-    logQueryError("POST subscriptions", subError)
-
-  if (sub?.tier !== "firm") {
+  if (tier !== "firm") {
     return NextResponse.json({ error: "HOA management requires Firm tier" }, { status: 403 })
   }
 
@@ -57,20 +46,20 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify property belongs to this org
-  const { data: property, error: propertyError } = await supabase
+  const { data: property, error: propertyError } = await db
     .from("properties")
     .select("id")
     .eq("id", body.property_id)
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .single()
-    logQueryError("POST properties", propertyError)
+  if (propertyError) console.error("POST /api/hoa properties read failed:", propertyError.message)
 
   if (!property) return NextResponse.json({ error: "Property not found" }, { status: 404 })
 
-  const { data: hoa, error } = await supabase
+  const { data: hoa, error } = await db
     .from("hoa_entities")
     .insert({
-      org_id: membership.org_id,
+      org_id: orgId,
       name: body.name.trim(),
       entity_type: body.entity_type,
       property_id: body.property_id,

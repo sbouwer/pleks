@@ -1,14 +1,16 @@
 /**
- * app/api/inspection/[id]/signature/route.ts — FILL: one-line purpose
+ * app/api/inspection/[id]/signature/route.ts — capture an agent/tenant signature on an inspection
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/inspection/[id]/signature (multipart: "file" PNG, "sigType")
+ * Auth:   requireAgentWriteAccess("sign_off_inspection") — advancing an inspection to signed-off is a
+ *         business-object transition, so it is subscription-lockdown gated.
+ * Data:   uploads the signature PNG to the inspection-photos bucket and inserts an inspection_photos
+ *         record (org-scoped via the gateway orgId).
+ * Notes:  Lockdown surfaces as a clean 403 ({ code: "subscription_locked" }), never a 500.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 
 // POST /api/inspection/[id]/signature
 // Accepts multipart/form-data with "file" (PNG blob) and "sigType" ("agent" | "tenant")
@@ -18,18 +20,16 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: inspectionId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const { data: membership, error: memberError } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-  if (memberError || !membership) return NextResponse.json({ error: "No org" }, { status: 403 })
-  const { org_id: orgId } = membership
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("sign_off_inspection")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const { db, userId, orgId } = gw
 
   const formData = await req.formData()
   const file = formData.get("file")
@@ -43,22 +43,21 @@ export async function POST(
   const storagePath = `${orgId}/${inspectionId}/signatures/${sigType}.png`
   const bytes = await file.arrayBuffer()
 
-  const service = await createServiceClient()
-  const { error: uploadError } = await service.storage
+  const { error: uploadError } = await db.storage
     .from("inspection-photos")
     .upload(storagePath, bytes, { contentType: "image/png", upsert: true })
 
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
 
   // Record as inspection_photo with caption = "agent_signature" / "tenant_signature"
-  const { data: photo, error: insertError } = await service
+  const { data: photo, error: insertError } = await db
     .from("inspection_photos")
     .insert({
       org_id: orgId,
       inspection_id: inspectionId,
       storage_path_original: storagePath,
       caption: `${sigType}_signature`,
-      uploaded_by: user.id,
+      uploaded_by: userId,
     })
     .select("id")
     .single()
