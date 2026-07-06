@@ -1,11 +1,11 @@
 /**
- * app/(dashboard)/properties/[id]/edit/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/edit/page.tsx — edit-property form (details, sectional-title scheme, landlord, team)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/edit
+ * Auth:   getServerOrgMembership (agent org session); redirects if no membership
+ * Data:   properties + landlords/units/team for the form; managing-scheme options come from
+ *         managing_schemes (the canonical target for properties.managing_scheme_id — ADDENDUM_18B),
+ *         NOT contractors.
  */
 import { notFound, redirect } from "next/navigation"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
@@ -62,10 +62,9 @@ export default async function EditPropertyPage({
       .order("unit_number"),
 
     supabase
-      .from("contractors")
-      .select("id, contact:contacts(company_name)")
+      .from("managing_schemes")
+      .select("id, name")
       .eq("org_id", orgId)
-      .eq("supplier_type", "managing_scheme")
       .is("deleted_at", null),
 
     service
@@ -130,7 +129,7 @@ export default async function EditPropertyPage({
         sectional_title_number: property.sectional_title_number ?? null,
         notes: property.notes ?? null,
       }}
-      managingSchemes={(managingSchemes ?? []).map((s) => ({ id: s.id as string, company_name: (s.contact as unknown as { company_name: string | null } | null)?.company_name ?? "" }))}
+      managingSchemes={(managingSchemes ?? []).map((s) => ({ id: s.id as string, name: (s.name as string | null) ?? "" }))}
       currentLandlord={currentLandlord}
       allLandlords={allLandlords ?? []}
       units={unitsSummary}

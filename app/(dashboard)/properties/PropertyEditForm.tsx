@@ -75,7 +75,7 @@ interface PropertyEditFormProps {
     sectional_title_number: string | null
     notes: string | null
   }
-  managingSchemes: { id: string; company_name: string }[]
+  managingSchemes: { id: string; name: string }[]
   currentLandlord: Landlord | null
   allLandlords: Landlord[]
   units: UnitSummary[]
@@ -88,7 +88,7 @@ function BodyCorporateCard({
   managingSchemes,
 }: Readonly<{
   defaultValues: PropertyEditFormProps["defaultValues"]
-  managingSchemes: { id: string; company_name: string }[]
+  managingSchemes: { id: string; name: string }[]
 }>) {
   const [isSectional, setIsSectional] = useState(defaultValues.is_sectional_title ?? false)
   const [showSaReg, setShowSaReg] = useState(false)
@@ -129,7 +129,7 @@ function BodyCorporateCard({
                 <SelectItem value="">None</SelectItem>
                 {managingSchemes.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {s.company_name}
+                    {s.name}
                   </SelectItem>
                 ))}
               </SelectContent>

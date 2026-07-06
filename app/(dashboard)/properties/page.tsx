@@ -135,13 +135,15 @@ async function renderOwnerSingleProperty(db: GatewayDB, orgId: string): Promise<
   if (ownerErr) console.error("[properties] owner property fetch failed:", ownerErr.message)
   if (!rawProperty) return <NoPropertyYet />
 
-  // Managing scheme resolved separately — decoupled from the properties→contractors FK embed so a
-  // missing/uncached relationship can never 400 the whole select and blank the page.
+  // Managing scheme resolved separately (its own fetch, not a PostgREST embed) so a missing/uncached
+  // relationship can never 400 the whole select and blank the page. managing_scheme_id → managing_schemes
+  // (the CANONICAL target — ADDENDUM_18B); the old contractors fetch here read the wrong table and always
+  // returned null (BUG-A).
   const schemeId = (rawProperty as { managing_scheme_id?: string | null }).managing_scheme_id ?? null
-  let managingScheme: { id: string; contact: { company_name: string | null } | null } | null = null
+  let managingScheme: { id: string; name: string | null } | null = null
   if (schemeId) {
     const { data: scheme, error: schemeErr } = await db
-      .from("contractors").select("id, contact:contacts(company_name)")
+      .from("managing_schemes").select("id, name")
       .eq("id", schemeId).eq("org_id", orgId).maybeSingle()
     if (schemeErr) console.error("[properties] managing scheme fetch failed:", schemeErr.message)
     managingScheme = (scheme as typeof managingScheme) ?? null
