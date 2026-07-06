@@ -7,10 +7,12 @@
  * Data:   deposit_reconciliations, deposit_charges, deposit_transactions, trust_transactions,
  *         payments, rent_invoices, arrears_cases via service client
  * Notes:  ADDENDUM_63B: three settlement patterns for deposit_charges before disbursement.
- *         Pattern A — tenant-debt: inserts a deposit_offset payment + calls allocatePayment().
+ *         Pattern A — tenant-debt: inserts a deposit_offset payment + allocate_payment_atomic() (clause 6.6).
  *         Pattern B — cost recovery: deposit_transactions + trust_transactions credit.
  *         Pattern C — ad-hoc: deposit_transactions only.
- *         Pre-flight validation runs before any DB writes (fail-fast).
+ *         Pre-flight validation runs before any DB writes (fail-fast). The main disbursement
+ *         (refund/deductions/forfeiture/recon/timer) is one atomic RPC (disburse_deposit_atomic)
+ *         so a failed trust posting rolls the whole sequence back.
  *         BUILD_63 Phase 3: fires deposit.returned (mandatory) after status → refunded.
  */
 import * as React from "react"
@@ -20,7 +22,6 @@ import { formatZAR } from "@/lib/constants"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { DepositReturnedEmail } from "@/lib/comms/templates/tenant/deposits/deposit-returned"
-import { allocatePayment } from "@/lib/finance/paymentAllocation"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ async function settlePatternA(
 ) {
   const now = new Date().toISOString()
 
-  // Insert a deposit-offset payment — allocatePayment will apply interest-first then invoices
+  // Insert a deposit-offset payment — allocate_payment_atomic applies interest-first then invoices
   const { data: payment, error: paymentErr } = await supabase
     .from("payments")
     .insert({
@@ -127,8 +128,16 @@ async function settlePatternA(
     throw new Error(`Pattern A payment insert failed for charge "${charge.description}": ${paymentErr?.message}`)
   }
 
-  // Reuse existing interest-first → oldest-invoice allocation logic
-  await allocatePayment(payment.id as string, recon.lease_id, charge.deduction_amount_cents)
+  // Interest-first → oldest-invoice allocation (clause 6.6) — now the single plpgsql authority
+  // (allocate_payment_atomic), replacing the deleted TS allocatePayment().
+  const { error: allocErr } = await supabase.rpc("allocate_payment_atomic", {
+    p_org_id:       recon.org_id,
+    p_payment_id:   payment.id,
+    p_lease_id:     recon.lease_id,
+    p_amount_cents: charge.deduction_amount_cents,
+    p_actor:        agentId,
+  })
+  if (allocErr) throw new Error(`Pattern A allocation failed for charge "${charge.description}": ${allocErr.message}`)
 
   // Insert deposit transaction recording the offset
   const { data: depTxn, error: dtErr } = await supabase
@@ -347,85 +356,19 @@ export async function disburseDeposit(leaseId: string, agentId: string) {
   const now = new Date()
   const refPrefix = `DEPOSIT-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`
 
-  // 1. Refund to tenant
-  if ((recon.refund_to_tenant_cents as number) > 0) {
-    await supabase.from("deposit_transactions").insert({
-      org_id:           recon.org_id,
-      lease_id:         leaseId,
-      tenant_id:        recon.tenant_id,
-      transaction_type: "deposit_returned_to_tenant",
-      direction:        "debit",
-      amount_cents:     recon.refund_to_tenant_cents,
-      description:      `Deposit refund — ${tenantName}`,
-      reference:        refPrefix,
-      created_by:       agentId,
-    })
-
-    await recordTrustTransaction({
-      orgId:           recon.org_id,
-      leaseId,
-      transactionType: "deposit_returned",   // was the invalid 'deposit_refund' (not in the CHECK) — F-3
-      direction:       "debit",
-      amountCents:     recon.refund_to_tenant_cents as number,
-      description:     `Deposit refund to tenant — ${tenantName}`,
-      createdBy:       agentId,
-      source:          "agency_bank",
-      initiatedBy:     "agent",
-    }).catch((e) => console.error("[trust] deposit_returned insert failed:", e instanceof Error ? e.message : String(e)))
-  }
-
-  // 2. Damage deductions to landlord
-  if ((recon.deductions_to_landlord_cents as number) > 0) {
-    await supabase.from("deposit_transactions").insert({
-      org_id:           recon.org_id,
-      lease_id:         leaseId,
-      tenant_id:        recon.tenant_id,
-      transaction_type: "deduction_paid_to_landlord",
-      direction:        "debit",
-      amount_cents:     recon.deductions_to_landlord_cents,
-      description:      "Deposit deductions to landlord",
-      reference:        refPrefix,
-      created_by:       agentId,
-    })
-
-    await recordTrustTransaction({
-      orgId:           recon.org_id,
-      leaseId,
-      transactionType: "deposit_deduction",
-      direction:       "credit",
-      amountCents:     recon.deductions_to_landlord_cents as number,
-      description:     "Deposit deductions received",
-      createdBy:       agentId,
-      source:          "agency_bank",
-      initiatedBy:     "agent",
-    }).catch((e) => console.error("[trust] deposit_deduction insert failed:", e instanceof Error ? e.message : String(e)))
-  }
-
-  // 3. Forfeiture check
-  if (
-    (recon.refund_to_tenant_cents as number) === 0 &&
-    (recon.total_deductions_cents as number) === 0 &&
-    (recon.deposit_held_cents as number) > 0
-  ) {
-    await supabase.from("deposit_reconciliations").update({
-      is_forfeited:        true,
-      sars_taxable_flagged: true,
-      forfeiture_reason:   "Tenant did not claim refund within statutory period",
-    }).eq("lease_id", leaseId)
-  }
-
-  // 4. Mark complete
-  await supabase.from("deposit_reconciliations").update({
-    status:                  "refunded",
-    tenant_refund_paid_at:   now.toISOString(),
-    tenant_refund_reference: refPrefix,
-    updated_at:              now.toISOString(),
-  }).eq("lease_id", leaseId)
-
-  await supabase.from("deposit_timers").update({
-    status:       "completed",
-    completed_at: now.toISOString(),
-  }).eq("lease_id", leaseId).eq("status", "running")
+  // Main disbursement sequence (refund + deductions + forfeiture + recon status + timer) in ONE atomic
+  // RPC: a failed trust posting now rolls the WHOLE disbursement back. Previously the two trust postings
+  // were log-only .catch() calls, so a failed trust insert left a committed deposit debit with no trust
+  // credit and the recon still flipped to 'refunded' — a D-TRUST-01 imbalance. The trust inserts inside
+  // the RPC fire the sovereignty + closed-period triggers, so the guarantee is enforced at the DB.
+  const { error: disburseErr } = await supabase.rpc("disburse_deposit_atomic", {
+    p_org_id:      recon.org_id,
+    p_lease_id:    leaseId,
+    p_actor:       agentId,
+    p_reference:   refPrefix,
+    p_tenant_name: tenantName,
+  })
+  if (disburseErr) return { error: `Deposit disbursement failed: ${disburseErr.message}` }
 
   // Audit log
   await supabase.from("audit_log").insert({

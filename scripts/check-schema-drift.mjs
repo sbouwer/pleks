@@ -16,8 +16,12 @@
 //   • Triggers expected by migrations (CREATE TRIGGER) but absent from live DB
 //   • Triggers in live DB not named in any migration
 //   • Triggers present but DISABLED
-//   • Functions named in migrations (CREATE [OR REPLACE] FUNCTION) but absent
-//     from the live public schema
+//   • Functions pending deploy (informational, NOT drift): a function named in the
+//     migrations (CREATE [OR REPLACE] FUNCTION) but not yet in the live public
+//     schema. Migrations lead live pre-deploy, so this is reported as "pending" and
+//     never fails the check — a lingering entry after a deploy means a migration that
+//     never landed. Compared by NAME only; a body-level diff (local-replayed vs live
+//     pg_get_functiondef) is unreliable across Postgres minor versions.
 //   • Indexes in DB that no migration explicitly names
 //   • RLS policies in DB that no migration explicitly names
 //
@@ -461,7 +465,6 @@ function inlineCheckColumn(cname, tname) {
     checkStale: 0, checkExtra: 0,
     triggerMissing: 0, triggerExtra: 0, triggerDisabled: 0,
     idxExtra: 0, polExtra: 0,
-    functionMissing: 0,
   }
 
   function add(table, item) {
@@ -597,14 +600,18 @@ function inlineCheckColumn(cname, tname) {
     }
   }
 
-  // ── Function drift (global — not per-table) ─────────────────────────────────
-  const functionIssues = []
+  // ── Function changes (global) — reported as "pending deploy", NOT counted as failing drift ──
+  // A function named in the migrations but not yet in live (new, e.g. allocate_payment_atomic /
+  // disburse_deposit_atomic) is PENDING a deploy, not ad-hoc drift — migrations lead live before a
+  // deploy. We surface it so a forgotten deploy stays visible without making unmerged/undeployed work
+  // read as a failure. Compared by NAME only: a body-level diff (local-replayed vs live
+  // pg_get_functiondef) was tried but is unreliable across Postgres MINOR versions — the canonical
+  // formatting of SECURITY DEFINER / SET search_path clauses differs, producing false positives.
+  const pendingFunctions = [] // { name, reason }
   for (const fname of expectedFunctions) {
-    if (!liveFunctions.has(fname)) {
-      functionIssues.push(fname)
-      counts.functionMissing++
-    }
+    if (!liveFunctions.has(fname)) pendingFunctions.push({ name: fname, reason: "in migrations, not yet in live" })
   }
+  pendingFunctions.sort((a, b) => a.name.localeCompare(b.name))
 
   const totalDrift = Object.values(counts).reduce((s, n) => s + n, 0)
   const tablesWithDrift = perTable.size
@@ -636,8 +643,8 @@ function inlineCheckColumn(cname, tname) {
   md.push(`| Triggers disabled | ${counts.triggerDisabled} |`)
   md.push(`| Indexes extra in DB | ${counts.idxExtra} |`)
   md.push(`| Policies extra in DB | ${counts.polExtra} |`)
-  md.push(`| Functions missing from DB | ${counts.functionMissing} |`)
   md.push(`| **Total drift items** | **${totalDrift}** |`)
+  md.push(`| Functions pending deploy (informational) | ${pendingFunctions.length} |`)
   md.push(`| Tables affected | ${tablesWithDrift} |`)
   md.push("")
 
@@ -650,7 +657,7 @@ function inlineCheckColumn(cname, tname) {
     md.push("")
   }
 
-  if (totalDrift === 0 && functionIssues.length === 0) {
+  if (totalDrift === 0) {
     md.push(`✅ **No drift detected — migrations match the live database.**`)
   } else {
     if (perTable.size > 0) {
@@ -687,17 +694,6 @@ function inlineCheckColumn(cname, tname) {
       }
     }
 
-    if (functionIssues.length > 0) {
-      md.push(`## Function drift`)
-      md.push("")
-      md.push(`Functions named in migrations but absent from the live public schema:`)
-      md.push("")
-      for (const fname of functionIssues.sort()) {
-        md.push(`- ❌ \`${fname}\``)
-      }
-      md.push("")
-    }
-
     if ([...perTable.values()].some(items => items.some(i => i.fix))) {
       md.push(`## Backport all (copy-paste ready)`)
       md.push("")
@@ -715,6 +711,19 @@ function inlineCheckColumn(cname, tname) {
     }
   }
 
+  if (pendingFunctions.length > 0) {
+    md.push(`## Functions pending deploy`)
+    md.push("")
+    md.push(`_Informational — NOT counted as drift. Compared by name (a body-level diff is unreliable across Postgres minor versions)._`)
+    md.push("")
+    md.push(`These functions differ between the migrations and live because the migration hasn't been`)
+    md.push(`applied to prod yet — a new function or a changed body. They resolve on deploy; a lingering`)
+    md.push(`entry after a deploy means a migration that never landed.`)
+    md.push("")
+    for (const f of pendingFunctions) md.push(`- ⏳ \`${f.name}\` — ${f.reason}`)
+    md.push("")
+  }
+
   writeFileSync(outPath, md.join("\n") + "\n", "utf8")
 
   // ── Terminal summary ────────────────────────────────────────────────────────
@@ -723,8 +732,11 @@ function inlineCheckColumn(cname, tname) {
   console.log(`  ${C.dim}Project ${PROJECT_REF}${C.reset}`)
   console.log()
 
-  if (totalDrift === 0 && functionIssues.length === 0) {
+  if (totalDrift === 0) {
     console.log(`  ${C.green}✓ No drift — migrations match the live database.${C.reset}`)
+    if (pendingFunctions.length > 0) {
+      console.log(`  ${C.yellow}⏳ ${pendingFunctions.length} function(s) pending deploy${C.reset} ${C.dim}(informational — see report)${C.reset}`)
+    }
     if (liveViews.size > 0) {
       console.log(`  ${C.dim}(${liveViews.size} views in DB — not tracked for drift)${C.reset}`)
     }
@@ -747,13 +759,12 @@ function inlineCheckColumn(cname, tname) {
   row("triggers disabled",                            counts.triggerDisabled, C.yellow)
   row("indexes extra in DB",                          counts.idxExtra,        C.yellow)
   row("RLS policies extra in DB",                     counts.polExtra,        C.yellow)
-  row("functions missing from DB",                    counts.functionMissing, C.red)
   console.log()
 
   const grandTotal = totalDrift
   console.log(`  ${C.bold}${grandTotal}${C.reset} total drift items across ${C.bold}${tablesWithDrift}${C.reset} tables`)
-  if (functionIssues.length > 0) {
-    console.log(`  ${C.red}+ ${functionIssues.length} function(s) missing from live DB${C.reset}`)
+  if (pendingFunctions.length > 0) {
+    console.log(`  ${C.yellow}⏳ ${pendingFunctions.length} function(s) pending deploy${C.reset} ${C.dim}(informational)${C.reset}`)
   }
   if (liveViews.size > 0) {
     console.log(`  ${C.dim}${liveViews.size} views in DB (not tracked)${C.reset}`)
