@@ -4,20 +4,20 @@
  * lib/actions/payments.ts — record a rent payment against an invoice
  *
  * Auth:   requireAgentWriteAccess("record_payment") + finance capability
- * Data:   record_payment_atomic() RPC writes payments + rent_invoices + trust_transactions in ONE
- *         transaction (ADDENDUM_TRUST_RPC_ATOMICITY step 1); everything after is a post-commit side
- *         effect (receipt path, allocatePayment, email, audit) allowed to fail independently.
- * Notes:  allocatePayment() (interest-first allocation, lease clause 6.6) stays OUTSIDE the tx —
- *         non-trivial (shared by bulk-import + deposit-disburse) and flagged to CD for the
- *         fold-in-or-idempotent decision (addendum §3/§7). BUILD_63 Phase 7 (F2): fires
- *         rent.payment_received comm after allocation.
+ * Data:   record_payment_atomic() RPC writes payments + trust_transactions AND runs the clause-6.6
+ *         allocation (interest-first, then oldest rent) in ONE transaction. Everything after is a
+ *         post-commit side effect (receipt path, email, audit) allowed to fail independently.
+ * Notes:  Allocation is folded INTO the RPC (allocate_payment_atomic). The old post-commit
+ *         allocatePayment() call was REMOVED — it re-applied the amount the RPC had already credited,
+ *         double-counting on any payment with interest, an older invoice, or a partial target. The
+ *         selected invoice is advisory; money follows clause 6.6. BUILD_63 Phase 7 (F2): fires
+ *         rent.payment_received comm after the RPC.
  */
 
 import * as React from "react"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { hasCapability } from "@/lib/auth/can"
 import { revalidatePath } from "next/cache"
-import { allocatePayment } from "@/lib/finance/paymentAllocation"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { PaymentReceivedEmail } from "@/lib/comms/templates/tenant/rent/payment-received"
@@ -79,10 +79,8 @@ export async function recordPayment(formData: FormData) {
     .eq("id", paymentId)
   if (receiptErr) console.error("recordPayment receipt_path update failed:", receiptErr.message)
 
-  // Allocate payment: interest first, then rent (lease clause 6.6)
-  if (invoice.lease_id) {
-    await allocatePayment(paymentId, invoice.lease_id, amountCents, userId)
-  }
+  // Allocation (interest-first, then oldest rent per clause 6.6) now happens INSIDE
+  // record_payment_atomic above — one atomic write. No separate post-commit allocatePayment().
 
   // BUILD_63 Phase 7 (F2) — fire rent.payment_received comm if tenant has an email
   if (invoice.tenant_id) {

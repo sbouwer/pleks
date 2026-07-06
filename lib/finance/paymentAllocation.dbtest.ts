@@ -1,26 +1,24 @@
 /**
- * lib/finance/paymentAllocation.dbtest.ts — characterization of the recordPayment money path
+ * lib/finance/paymentAllocation.dbtest.ts — recordPayment money-path regression guard
  *
  * Auth:   service-role client vs LOCAL Supabase (npm run test:db)
- * Data:   drives the REAL record_payment_atomic() RPC + the REAL allocatePayment() in sequence —
- *         exactly what lib/actions/payments.ts:recordPayment does (RPC at :57, allocate at :84),
- *         minus the auth gate. No mocks: this pins the LIVE double-count against a real Postgres.
- * Notes:  Invariant (see tier.ledgerInvariant): balanceReduction + interestWaived + surplus == payment.
- *         The RPC credits the TARGET invoice in full; allocatePayment then RE-spreads the same amount
- *         interest-first/oldest-first — so any case where allocate still finds something to apply
- *         (older invoice, interest, or a partially-paid target) settles MORE than the payment's value.
- *         This file is RED today for partial / interest-only / multi-invoice+interest, GREEN for the
- *         two cases where the RPC leaves nothing for allocate to touch. The clause-6.6 fold-in
- *         (allocate once, inside the RPC) must turn the whole battery green.
+ * Data:   drives the REAL record_payment_atomic() RPC — which now runs the clause-6.6 allocation
+ *         INSIDE the transaction (allocate_payment_atomic). This is exactly the fixed recordPayment
+ *         path (lib/actions/payments.ts): one atomic RPC, no post-commit allocatePayment(). No mocks.
+ * Notes:  Two invariants:
+ *           1. Conservation (ledgerInvariant): balanceReduction + interestWaived + surplus == payment.
+ *              Catches the double-count — the pre-fold-in code settled MORE than the payment's value.
+ *           2. Placement (canonical case): clause 6.6 mandates a specific order — interest first, then
+ *              OLDEST rent. Conservation alone can't catch mis-ordering, so the canonical case also
+ *              asserts WHERE the money landed. All five cases must be green post-fold-in.
  */
 import { describe, it, expect, afterEach } from "vitest"
-import { allocatePayment } from "./paymentAllocation"
 import { svc, seedLedgerCase, teardownOrg, ledgerInvariant, type SeededCase } from "@/test/db/tier"
 
 const db = svc()
 
-/** Reproduce recordPayment's post-commit sequence: atomic RPC, then interest-first allocation. */
-async function recordAndAllocate(seeded: SeededCase, targetKey: string, amountCents: number): Promise<string> {
+/** Fixed recordPayment path: the atomic RPC allocates internally — nothing else to call. */
+async function recordViaRpc(seeded: SeededCase, targetKey: string, amountCents: number): Promise<string> {
   const target = seeded.invoices[targetKey]
   const { data: paymentId, error } = await db.rpc("record_payment_atomic", {
     p_org_id: seeded.orgId,
@@ -34,67 +32,81 @@ async function recordAndAllocate(seeded: SeededCase, targetKey: string, amountCe
     p_notes: null,
   })
   if (error || !paymentId) throw new Error(`record_payment_atomic failed: ${error?.message ?? "no id"}`)
-  // The exact production call (lib/actions/payments.ts:84) — full amount, re-spread interest-first.
-  await allocatePayment(paymentId as string, seeded.leaseId, amountCents, null)
   return paymentId as string
 }
 
-describe("recordPayment money path — record_payment_atomic + allocatePayment", () => {
+async function balanceOf(invoiceId: string): Promise<number> {
+  const { data, error } = await db.from("rent_invoices").select("balance_cents").eq("id", invoiceId).single()
+  if (error) throw new Error(`balanceOf: ${error.message}`)
+  return data.balance_cents ?? 0
+}
+
+describe("recordPayment money path — record_payment_atomic (clause-6.6 allocation folded in)", () => {
   const seededOrgs: string[] = []
   afterEach(() => {
     for (const orgId of seededOrgs.splice(0)) teardownOrg(orgId)
   })
 
-  it("single invoice, exact pay — GREEN (RPC pays it in full, allocate finds nothing)", async () => {
+  it("single invoice, exact pay — settles exactly the invoice", async () => {
     const s = await seedLedgerCase(db, { invoices: [{ key: "X", totalCents: 100_000, dueOffsetDays: 0 }] })
     seededOrgs.push(s.orgId)
-    const pid = await recordAndAllocate(s, "X", 100_000)
+    const pid = await recordViaRpc(s, "X", 100_000)
     const inv = await ledgerInvariant(db, s, pid)
     expect(inv.lhs, JSON.stringify(inv)).toBe(inv.paymentAmountCents)
+    expect(await balanceOf(s.invoices["X"].id)).toBe(0)
   })
 
-  it("single invoice, overpay — GREEN (target fully paid, surplus captured, allocate finds nothing)", async () => {
+  it("single invoice, overpay — invoice cleared, remainder recorded as surplus", async () => {
     const s = await seedLedgerCase(db, { invoices: [{ key: "X", totalCents: 100_000, dueOffsetDays: 0 }] })
     seededOrgs.push(s.orgId)
-    const pid = await recordAndAllocate(s, "X", 150_000)
+    const pid = await recordViaRpc(s, "X", 150_000)
     const inv = await ledgerInvariant(db, s, pid)
     expect(inv.lhs, JSON.stringify(inv)).toBe(inv.paymentAmountCents)
+    expect(await balanceOf(s.invoices["X"].id)).toBe(0)
+    expect(inv.surplusCents).toBe(50_000)
   })
 
-  it("partial pay on the target — RED (RPC leaves it 'partial', allocate re-applies to it)", async () => {
+  it("partial pay on the target — reduces the target by exactly the payment", async () => {
     const s = await seedLedgerCase(db, { invoices: [{ key: "X", totalCents: 100_000, dueOffsetDays: 0 }] })
     seededOrgs.push(s.orgId)
-    const pid = await recordAndAllocate(s, "X", 60_000)
+    const pid = await recordViaRpc(s, "X", 60_000)
     const inv = await ledgerInvariant(db, s, pid)
     expect(inv.lhs, JSON.stringify(inv)).toBe(inv.paymentAmountCents)
+    expect(await balanceOf(s.invoices["X"].id)).toBe(40_000) // R400 left, not double-reduced to 0
   })
 
-  it("interest present — RED (RPC pays target, allocate additionally consumes interest)", async () => {
+  it("interest present — interest consumed first, remainder to the invoice", async () => {
     const s = await seedLedgerCase(db, {
       invoices: [{ key: "X", totalCents: 100_000, dueOffsetDays: 0 }],
       interest: [{ interestCents: 10_000, chargeOffsetDays: -10 }],
     })
     seededOrgs.push(s.orgId)
-    const pid = await recordAndAllocate(s, "X", 100_000)
+    const pid = await recordViaRpc(s, "X", 100_000)
     const inv = await ledgerInvariant(db, s, pid)
     expect(inv.lhs, JSON.stringify(inv)).toBe(inv.paymentAmountCents)
+    expect(inv.interestWaivedCents).toBe(10_000)                 // R100 interest first
+    expect(await balanceOf(s.invoices["X"].id)).toBe(10_000)     // R900 to X, R100 left
   })
 
-  it("CANONICAL: older invoice + interest — RED (payment settles X in full AND W AND interest)", async () => {
-    // Pay R1000 against current invoice X. Older W (R400) is open; R100 interest outstanding.
-    // Correct clause-6.6: R100 interest → R400 W → R500 X (X keeps R500 balance). Total settled = R1000.
-    // Buggy: RPC pays X in full (R1000) + allocate consumes R100 interest + R400 W = R1500 settled.
+  it("CANONICAL: older invoice + interest — clause-6.6 placement (interest → oldest rent → target)", async () => {
+    // Pay R1000 against current invoice X. Older W (R400) open; R100 interest outstanding.
+    // Clause 6.6: R100 interest → R400 W (oldest) → R500 X. X keeps R500. Total settled == R1000.
     const s = await seedLedgerCase(db, {
       invoices: [
-        { key: "W", totalCents: 40_000, dueOffsetDays: -30 }, // older, oldest-first target of allocate
-        { key: "X", totalCents: 100_000, dueOffsetDays: 0 }, // current — the payment is recorded against this
+        { key: "W", totalCents: 40_000, dueOffsetDays: -30 }, // oldest — allocated before X
+        { key: "X", totalCents: 100_000, dueOffsetDays: 0 }, // the payment is recorded against this
       ],
       interest: [{ interestCents: 10_000, chargeOffsetDays: -20 }],
     })
     seededOrgs.push(s.orgId)
-    const pid = await recordAndAllocate(s, "X", 100_000)
+    const pid = await recordViaRpc(s, "X", 100_000)
     const inv = await ledgerInvariant(db, s, pid)
-    // Whole-payment invariant: the R1000 must not settle more than R1000 of obligations.
+    // Conservation: R1000 settles exactly R1000 of obligations.
     expect(inv.lhs, JSON.stringify(inv)).toBe(inv.paymentAmountCents)
+    // Placement: interest fully waived, W (oldest) fully paid, X reduced by only the R500 remainder.
+    expect(inv.interestWaivedCents).toBe(10_000)
+    expect(await balanceOf(s.invoices["W"].id)).toBe(0)
+    expect(await balanceOf(s.invoices["X"].id)).toBe(50_000)
+    expect(inv.surplusCents).toBe(0)
   })
 })

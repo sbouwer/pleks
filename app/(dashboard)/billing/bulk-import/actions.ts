@@ -11,7 +11,6 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
-import { allocatePayment } from "@/lib/finance/paymentAllocation"
 
 export type ParsedRow = {
   rowIndex: number
@@ -151,8 +150,9 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receiptNumber: string, userId: string, orgId: string): Promise<boolean> {
-  // Atomic payment + invoice status + trust rent_received credit (ADDENDUM_TRUST_RPC_ATOMICITY step 3 —
-  // reuses step-1's record_payment_atomic; the old sequence .catch()-swallowed the trust insert).
+  // Atomic payment + trust rent_received credit + clause-6.6 allocation, all in record_payment_atomic
+  // (ADDENDUM_TRUST_RPC_ATOMICITY step 3). Allocation is folded into the RPC — the old post-commit
+  // allocatePayment() here double-applied the amount the RPC had already credited (same bug as recordPayment).
   const { data: paymentId, error } = await db.rpc("record_payment_atomic", {
     p_org_id: orgId,
     p_invoice_id: p.invoiceId,
@@ -168,9 +168,6 @@ async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receip
 
   // ── Post-commit side effects (may fail/retry independently — NOT in the transaction) ──
   await db.from("payments").update({ recon_method: "manual" }).eq("id", paymentId) // mark as bulk-import recon
-  if (p.leaseId) {
-    await allocatePayment(paymentId, p.leaseId, p.amountCents, userId)
-  }
 
   await db.from("audit_log").insert({
     org_id: orgId,
