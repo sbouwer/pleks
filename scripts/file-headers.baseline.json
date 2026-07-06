@@ -127,7 +127,6 @@
   "app/api/import/analyse/route.ts",
   "app/api/import/execute/route.ts",
   "app/api/import/gl-execute/route.ts",
-  "app/api/import/route.ts",
   "app/api/inspection/[id]/offline-data/route.ts",
   "app/api/inspection/[id]/photo/route.ts",
   "app/api/landlords/[id]/portal-invite/route.ts",
