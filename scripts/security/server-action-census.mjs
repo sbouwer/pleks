@@ -74,11 +74,12 @@ export const ACTION_ALLOWLIST = {
   "lib/import/propertyImport.ts::*": "internal: injectable core, gated /api/import route",
   "lib/import/tenantImport.ts::*": "internal: injectable core, gated /api/import route",
   "lib/hoa/levyCalculation.ts::*": "internal: gated /calculate route (pre-verifies schedule org); creates a service client, org from the verified schedule; not client-imported (caller-verified 2026-07-03)",
-  // UNVERIFIED — guilty until read in the caller-supplied-ID / cookie-client census (CD 2026-07-02).
-  // (2 of the original 6 REVIEW items — quoteApproval + handleDispute — turned out to be live
-  //  doctrine+IDOR violations and were DELETED as dead code; do not assume these three are safe.)
+  // Caller-supplied-ID / cookie-client census REVIEW trio — now ALL resolved (CD 2026-07-02..03).
+  // Of the original 6 "guilty until read" items: quoteApproval + handleDispute were live IDOR/doctrine
+  // violations (DELETED as dead code), convertTrial was dead (DELETED), and the two below are
+  // caller-verified. No REVIEW items remain — the allowlist is provably clean.
   "lib/trial/startTrial.ts::*": "internal: reached only via the requireAdminAuth wrapper in adminOrgActions.server.ts; client imports the wrapper, not this lib fn (caller-verified 2026-07-03). Service client, orgId-scoped.",
-  "lib/auth/capabilityActions.ts::*": "REVIEW: UNVERIFIED — read in the census before clearing",
+  "lib/auth/capabilityActions.ts::*": "internal: no-param, self-scoped read of the caller's OWN capabilities via gateway()-authed getMyCapabilities (service db, .eq user_id + org_id from session); no caller-supplied id, no mutation. Affordance-only hydration — server can()/RLS is the boundary. Sole caller: CapabilitiesProvider (client). Caller-verified 2026-07-03.",
 }
 
 /** Detect a top-level `"use server"` directive (module-scope, before imports). */
