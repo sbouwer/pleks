@@ -43,7 +43,6 @@ CREATE TABLE IF NOT EXISTS properties (
   notes                   text,
   managing_agent_id       uuid REFERENCES auth.users(id),
   owner_id                uuid,
-  hoa_id                  uuid,
   -- Owner / landlord columns (from 011_owner_statements)
   landlord_id             uuid,  -- FK to landlords added in 004_leases_financials.sql
   owner_name              text,

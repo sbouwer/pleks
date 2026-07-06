@@ -29,7 +29,7 @@ export function supplierArchetype(supplierType: string | null | undefined): Supp
 
 const CONFIG: Record<SupplierArchetype, SupplierArchetypeConfig> = {
   contractor: { archetype: "contractor", badgeLabel: "Contractor",     secondaryTitle: "Work orders",       primaryCta: "Assign job" },
-  scheme:     { archetype: "scheme",     badgeLabel: "Scheme service",  secondaryTitle: "Schemes serviced",  primaryCta: "Link to lease" },
+  scheme:     { archetype: "scheme",     badgeLabel: "Scheme service",  secondaryTitle: "Schemes serviced",  primaryCta: "Link to property" },
   utility:    { archetype: "utility",    badgeLabel: "Utility",         secondaryTitle: "Accounts",          primaryCta: null },
 }
 
