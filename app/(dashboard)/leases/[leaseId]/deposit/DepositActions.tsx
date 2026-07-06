@@ -69,7 +69,7 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems, hasU
   async function doDisburse() {
     if (!user) return
     setProcessing(true)
-    const result = await disburseDeposit(leaseId, user.id)
+    const result = await disburseDeposit(leaseId)
     if ("error" in result) toast.error(result.error)
     else toast.success("Deposit disbursed successfully")
     setProcessing(false)
