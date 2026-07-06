@@ -401,8 +401,8 @@ export function PropertyRulesEditor({
             Body corporate conduct rules
           </p>
           <p className="text-sm text-muted-foreground">
-            Upload the body corporate&apos;s conduct rules document. This will be attached as a
-            separate annexure in every lease for units in this property.
+            Upload the body corporate&apos;s conduct rules document. It&apos;s stored on the property;
+            where units are let, it&apos;s attached as an annexure to their leases.
           </p>
           <HoaRulesUpload
             managingSchemeId={managingSchemeId ?? null}
@@ -415,7 +415,7 @@ export function PropertyRulesEditor({
       {/* ─── Template library count not visible = nothing selected note */}
       {templateRuleIds.size === 0 && customRules.length === 0 && !showAddCustom && (
         <p className="text-xs text-muted-foreground">
-          No rules selected. Rules appear as Annexure C in leases for units in this property.
+          No rules selected. Selected rules are stored on the property; where units are let, they appear as an annexure to the lease.
         </p>
       )}
     </div>

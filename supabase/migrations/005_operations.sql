@@ -705,6 +705,10 @@ CREATE TABLE IF NOT EXISTS municipal_bill_allocations (
 
 -- =============================================================
 -- HOA: HOA / Body Corporate entity
+--   CANONICAL HOA record (D-18B-01, ADDENDUM_18B): hoa_entities is the full accounting anchor
+--   (levy schedules, AGM, reserve fund). managing_schemes (012_property_extensions.sql) is a LITE
+--   property-overlay of the same concept — a future Phase-1 consolidation may fold it into
+--   hoa_entities; do NOT extend the two in parallel. New HOA work attaches to hoa_entities.
 -- =============================================================
 CREATE TABLE IF NOT EXISTS hoa_entities (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),

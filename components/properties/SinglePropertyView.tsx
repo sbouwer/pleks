@@ -34,7 +34,7 @@ export interface SinglePropertyData {
   levy_account_number?: string | null
   managing_scheme?: {
     id: string
-    contact: { company_name: string | null } | null
+    name: string | null
   } | null
   units: {
     id: string
@@ -328,9 +328,8 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
       {property.is_sectional_title && (
         <div className="mb-4">
           <BodyCorporateCard
-            schemeName={property.managing_scheme?.contact?.company_name ?? null}
+            schemeName={property.managing_scheme?.name ?? null}
             managingAgentCompany={null}
-            schemeId={property.managing_scheme?.id ?? null}
             levyCents={property.levy_amount_cents ?? null}
             levyAccount={property.levy_account_number ?? null}
           />
