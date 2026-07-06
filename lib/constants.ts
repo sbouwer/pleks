@@ -57,6 +57,11 @@ export type ProductLine = (typeof PRODUCT_LINES)[number]
 export const HOA_TIER_ORDER = { hoa_studio: 0, hoa_practice: 1, hoa_firm: 2, hoa_bespoke: 3 } as const
 export type HoaTier = keyof typeof HOA_TIER_ORDER
 
+// Either-line tier. Only the FEW cross-line helpers (hasFeature/hasAccess) accept this; the tier's own
+// literal identifies its line (residential and HOA literals are disjoint), so no product_line param is
+// needed. Record<Tier> maps + TIER_ORDER indexing stay residential-only — do NOT widen `Tier`.
+export type AnyTier = Tier | HoaTier
+
 // Cap on TOTAL UNITS under management per HOA tier (D-18C-07 — cap basis = units, not schemes).
 // null = unlimited (bespoke/custom contract). Numbers provisional — confirm at GTM. canCreateHoaEntity()
 // reads this (Stage 2).
