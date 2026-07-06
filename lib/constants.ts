@@ -41,6 +41,32 @@ export const TIER_PRICING = {
   bespoke:   { monthly: null },
 } as const
 
+// ── Product line (ADDENDUM_18C) ─────────────────────────────────────────────────
+// New first-class org axis (organisations.product_line): which product FAMILY the account runs —
+// 'residential' (rentals: leases, tenants, applications) or 'hoa' (standalone body-corporate /
+// managing-agent operations, no lease surface). Drives the tier ladder, feature map, and active
+// surface set. Orthogonal to org type (framing) and role (per-user permissions). Every pre-18C org
+// is 'residential' (DB DEFAULT backfill — NR-2: residential behaviour is byte-identical).
+export const PRODUCT_LINES = ["residential", "hoa"] as const
+export type ProductLine = (typeof PRODUCT_LINES)[number]
+
+// HOA product-line tier ladder — its OWN ordered map. Ordinals are ONLY comparable within a line;
+// never compare an HOA tier against a residential (TIER_ORDER) tier. Placeholder names + provisional
+// unit bands, GTM-confirmable (Phase 3): studio ≈ boutique (2–4 schemes), practice ≈ one estate /
+// ~10 schemes, firm ≈ multi-scheme, bespoke = enterprise/custom. (D-18C-02, answered 2026-07-06.)
+export const HOA_TIER_ORDER = { hoa_studio: 0, hoa_practice: 1, hoa_firm: 2, hoa_bespoke: 3 } as const
+export type HoaTier = keyof typeof HOA_TIER_ORDER
+
+// Cap on TOTAL UNITS under management per HOA tier (D-18C-07 — cap basis = units, not schemes).
+// null = unlimited (bespoke/custom contract). Numbers provisional — confirm at GTM. canCreateHoaEntity()
+// reads this (Stage 2).
+export const HOA_LIMITS = {
+  hoa_studio:   { units: 300 },
+  hoa_practice: { units: 1200 },
+  hoa_firm:     { units: 3000 },
+  hoa_bespoke:  { units: null },
+} as const
+
 // Founding agent pricing (first 10 clients — 24-month lock)
 export const FOUNDING_AGENT_PRICE_CENTS = 29900 // R299/month
 export const FOUNDING_AGENT_DURATION_MONTHS = 24
@@ -70,7 +96,10 @@ export function startedWithinProbation(startDate: string | null | undefined, now
   return start > cutoff
 }
 
-export const ORG_TYPES = ["agency", "landlord", "sole_prop"] as const
+// hoa_manager (ADDENDUM_18C D-18C-03): standalone HOA-management company — lease-less, reuses the
+// agent role + AAL2 (NR-4, no new portal). Distinct capability profile added in Stage 2; until then
+// it falls through to the agency-like default in getOrgCapabilities (no existing org is hoa_manager).
+export const ORG_TYPES = ["agency", "landlord", "sole_prop", "hoa_manager"] as const
 export type OrgType = (typeof ORG_TYPES)[number]
 
 export const USER_ROLES = [
