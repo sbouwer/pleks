@@ -2120,6 +2120,103 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION allocate_payment_atomic(uuid,uuid,uuid,bigint,uuid) FROM PUBLIC, anon, authenticated;
+-- deposit disburse (Pattern A) calls this DIRECTLY via the service-role client (PostgREST), not just
+-- internally from record_payment_atomic — so grant it explicitly. (ledger double-count fix 2026-07-06)
+GRANT EXECUTE ON FUNCTION allocate_payment_atomic(uuid,uuid,uuid,bigint,uuid) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- disburse_deposit_atomic() — the deposit-disbursement MAIN sequence in ONE transaction.
+--   Refund + deduction (deposit_transactions debit + their trust postings), forfeiture flag, recon
+--   status, and timer all commit together — so a failed trust insert can no longer leave a committed
+--   deposit_transactions debit with no trust credit and a recon falsely marked 'refunded' (the old
+--   lib/deposits/disburse.ts had the two trust postings as log-only .catch()). Inserting
+--   trust_transactions DIRECTLY makes the §step-0 sovereignty + §4 closed-period triggers enforce
+--   D-TRUST-01 — any RAISE rolls the whole disbursement back. Column sets + trust semantics
+--   (deposit_returned debit / deposit_deduction credit, agency_bank / agent) taken verbatim from the
+--   TS helpers. OUT of scope, post-commit in the caller: charge-settlement loop (Patterns A/B/C),
+--   audit_log, tenant comm. (deposit atomicity — Step 4a 2026-07-06)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION disburse_deposit_atomic(
+  p_org_id      uuid,
+  p_lease_id    uuid,
+  p_actor       uuid,
+  p_reference   text,
+  p_tenant_name text
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_recon deposit_reconciliations%ROWTYPE;
+BEGIN
+  -- Org-scope guard: the reconciliation MUST belong to the caller's org (service_role bypasses RLS).
+  SELECT * INTO v_recon FROM deposit_reconciliations WHERE lease_id = p_lease_id AND org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'disburse_deposit_atomic: reconciliation for lease % not found in org %', p_lease_id, p_org_id
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  -- 1. refund to tenant (deposit debit + trust deposit_returned debit — outbound, agent-initiated)
+  IF COALESCE(v_recon.refund_to_tenant_cents, 0) > 0 THEN
+    INSERT INTO deposit_transactions (
+      org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description, reference, created_by
+    ) VALUES (
+      p_org_id, p_lease_id, v_recon.tenant_id, 'deposit_returned_to_tenant', 'debit',
+      v_recon.refund_to_tenant_cents, 'Deposit refund — ' || p_tenant_name, p_reference, p_actor
+    );
+    INSERT INTO trust_transactions (
+      org_id, transaction_type, direction, amount_cents, description, lease_id, created_by, source, initiated_by
+    ) VALUES (
+      p_org_id, 'deposit_returned', 'debit', v_recon.refund_to_tenant_cents,
+      'Deposit refund to tenant — ' || p_tenant_name, p_lease_id, p_actor, 'agency_bank', 'agent'
+    );
+  END IF;
+
+  -- 2. deductions to landlord (deposit debit + trust deposit_deduction credit — recovers the expense)
+  IF COALESCE(v_recon.deductions_to_landlord_cents, 0) > 0 THEN
+    INSERT INTO deposit_transactions (
+      org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description, reference, created_by
+    ) VALUES (
+      p_org_id, p_lease_id, v_recon.tenant_id, 'deduction_paid_to_landlord', 'debit',
+      v_recon.deductions_to_landlord_cents, 'Deposit deductions to landlord', p_reference, p_actor
+    );
+    INSERT INTO trust_transactions (
+      org_id, transaction_type, direction, amount_cents, description, lease_id, created_by, source, initiated_by
+    ) VALUES (
+      p_org_id, 'deposit_deduction', 'credit', v_recon.deductions_to_landlord_cents,
+      'Deposit deductions received', p_lease_id, p_actor, 'agency_bank', 'agent'
+    );
+  END IF;
+
+  -- 3. forfeiture — nothing refunded, no deductions, but a deposit was held (unclaimed within statute)
+  IF COALESCE(v_recon.refund_to_tenant_cents, 0) = 0
+     AND COALESCE(v_recon.total_deductions_cents, 0) = 0
+     AND COALESCE(v_recon.deposit_held_cents, 0) > 0 THEN
+    UPDATE deposit_reconciliations SET
+      is_forfeited = true,
+      sars_taxable_flagged = true,
+      forfeiture_reason = 'Tenant did not claim refund within statutory period'
+    WHERE lease_id = p_lease_id AND org_id = p_org_id;
+  END IF;
+
+  -- 4. mark the reconciliation complete + close the timer
+  UPDATE deposit_reconciliations SET
+    status = 'refunded',
+    tenant_refund_paid_at = now(),
+    tenant_refund_reference = p_reference,
+    updated_at = now()
+  WHERE lease_id = p_lease_id AND org_id = p_org_id;
+
+  UPDATE deposit_timers SET
+    status = 'completed',
+    completed_at = now()
+  WHERE lease_id = p_lease_id AND org_id = p_org_id AND status = 'running';
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION disburse_deposit_atomic(uuid,uuid,uuid,text,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION disburse_deposit_atomic(uuid,uuid,uuid,text,text) TO service_role;
 
 -- Kill-between-writes regression probe (CD step-1 gate): forces the LAST write (trust insert) to
 -- fail via a signed-off period covering this month, then asserts the payment inserted first was

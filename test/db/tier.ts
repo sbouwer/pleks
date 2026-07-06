@@ -252,3 +252,49 @@ BEGIN
 END $$;
 `)
 }
+
+// ── Deposit fixtures (Step 4 — disburse_deposit_atomic) ────────────────────────
+
+export interface SeededDeposit extends SeededCase {
+  reconId: string
+  refundCents: number
+  deductionsCents: number
+}
+
+/** Seed a lease + a deposit_reconciliations row (ready to disburse) + a running deposit_timer. */
+export async function seedDepositCase(
+  db: SupabaseClient,
+  spec: { refundCents: number; deductionsCents?: number; depositHeldCents?: number },
+): Promise<SeededDeposit> {
+  const base = await seedLedgerCase(db, { invoices: [] })
+  const refundCents = spec.refundCents
+  const deductionsCents = spec.deductionsCents ?? 0
+  const held = spec.depositHeldCents ?? refundCents + deductionsCents
+  const recon = await ins<{ id: string }>(db, "deposit_reconciliations", {
+    org_id: base.orgId, lease_id: base.leaseId, tenant_id: base.tenantId,
+    deposit_held_cents: held, total_available_cents: held,
+    refund_to_tenant_cents: refundCents, deductions_to_landlord_cents: deductionsCents,
+    total_deductions_cents: deductionsCents,
+  })
+  await ins(db, "deposit_timers", {
+    org_id: base.orgId, lease_id: base.leaseId, return_days: 14, deadline: isoDate(14), status: "running",
+  })
+  return { ...base, reconId: recon.id, refundCents, deductionsCents }
+}
+
+/**
+ * Toggle a temporary BEFORE INSERT trigger on trust_transactions that always raises. Lets a test prove
+ * a failing trust posting rolls the whole enclosing RPC transaction back (the disburse_deposit_atomic
+ * hazard). The disburse trust postings pass statement_month=NULL, so the real closed-period trigger
+ * can't force this — hence a dedicated failure injector. Always toggle off in a finally/afterEach.
+ */
+export function forceTrustInsertFailure(on: boolean): void {
+  if (on) {
+    psql(`CREATE OR REPLACE FUNCTION _test_fail_trust() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN RAISE EXCEPTION 'test-forced-trust-failure' USING ERRCODE = 'check_violation'; END; $fn$;
+DROP TRIGGER IF EXISTS _test_fail_trust_trg ON trust_transactions;
+CREATE TRIGGER _test_fail_trust_trg BEFORE INSERT ON trust_transactions FOR EACH ROW EXECUTE FUNCTION _test_fail_trust();`)
+  } else {
+    psql(`DROP TRIGGER IF EXISTS _test_fail_trust_trg ON trust_transactions;
+DROP FUNCTION IF EXISTS _test_fail_trust();`)
+  }
+}

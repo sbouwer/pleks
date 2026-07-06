@@ -24,7 +24,7 @@
  * behavioural harness (Category 14) or a typed client. Unit tests cannot catch this class (mocked DB).
  * See ADDENDUM_SCHEMA_CONTRACT_SCREEN §1/§5. The pure parser below is unit-tested.
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs"
+import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs"
 import { resolve, dirname, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -33,7 +33,7 @@ const ROOT = resolve(__dirname, "..")
 const MANIFEST_PATH = resolve(__dirname, "schema-manifest.json")
 const BASELINE_PATH = resolve(__dirname, "schema-contract.baseline.json")
 
-const EXCLUDE = [/node_modules/, /\.next/, /[\\/]scripts[\\/]/, /[\\/]eslint-rules[\\/]/, /\.d\.ts$/, /\.test\./, /\.spec\./]
+const EXCLUDE = [/node_modules/, /\.next/, /[\\/]scripts[\\/]/, /[\\/]eslint-rules[\\/]/, /\.d\.ts$/, /\.test\./, /\.spec\./, /\.dbtest\./]
 const FILTER_METHODS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "contains", "containedBy", "not", "order", "filter"])
 const WRITE_METHODS = new Set(["insert", "update", "upsert"])
 
@@ -100,7 +100,7 @@ export function validateSelectText(table, text, tbl, acc = { violations: [], unk
  * matcher that goes dead in a refactor (as cardinality did) then fails its own test instead of
  * silently reporting 0.
  */
-export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
+export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind, migrationFns = new Set()) {
   const findings = []   // { file, kind, table, detail, criticality, severity }
   const unknown = new Set()
   const skipped = { select: 0, filter: 0, write: 0 }   // supabase chains seen but table unresolvable (honest coverage)
@@ -280,7 +280,12 @@ export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
         const argObj = call.getArguments()[1]
         if (!a || !Node.isStringLiteral(a)) continue
         const fn = a.getLiteralText()
-        if (!rpcs[fn]) { add(at, "rpc-missing", fn, "function does not exist"); continue }
+        if (!rpcs[fn]) {
+          // Defined in a migration but not yet in the live-sourced manifest → pending deploy, not
+          // missing. Args can't be checked until it lands + the manifest regenerates; skip cleanly.
+          if (migrationFns.has(fn.toLowerCase())) continue
+          add(at, "rpc-missing", fn, "function does not exist"); continue
+        }
         if (argObj && Node.isObjectLiteralExpression(argObj)) {
           for (const prop of argObj.getProperties()) {
             if (!Node.isPropertyAssignment(prop) && !Node.isShorthandPropertyAssignment(prop)) continue
@@ -305,14 +310,29 @@ export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind) {
 
 // ── Scanner (runs only when invoked directly) ──────────────────────────────────
 
+/** Function names CREATE'd in the migrations — an .rpc() to one of these that isn't in the live-sourced
+ *  manifest yet is PENDING a deploy, not missing (mirrors the drift-checker's pending-function logic). */
+function loadMigrationFunctionNames() {
+  const dir = resolve(ROOT, "supabase/migrations")
+  const names = new Set()
+  const re = /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?(\w+)\s*\(/gi
+  for (const f of readdirSync(dir).filter((n) => n.endsWith(".sql"))) {
+    const sql = readFileSync(resolve(dir, f), "utf8")
+    let m
+    while ((m = re.exec(sql))) names.add(m[1].toLowerCase())
+  }
+  return names
+}
+
 async function main() {
   const updateBaseline = process.argv.includes("--update-baseline")
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"))
   const { tables, rpcs } = manifest
+  const migrationFns = loadMigrationFunctionNames()
 
   const { Project, SyntaxKind, Node } = await import("ts-morph")
   const project = new Project({ tsConfigFilePath: resolve(ROOT, "tsconfig.json"), skipAddingFilesFromTsConfig: false })
-  const { findings, unknown, skipped, skippedSites } = scanSourceFiles(project.getSourceFiles(), tables, rpcs, Node, SyntaxKind)
+  const { findings, unknown, skipped, skippedSites } = scanSourceFiles(project.getSourceFiles(), tables, rpcs, Node, SyntaxKind, migrationFns)
 
   // ── Baseline + policy ──
   const keyOf = (f) => `${f.file.split(":")[0]}::${f.kind}::${f.table}::${f.detail}`
