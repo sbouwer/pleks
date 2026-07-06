@@ -632,5 +632,6 @@ CREATE INDEX IF NOT EXISTS idx_properties_managing_agent_id ON properties(managi
 CREATE INDEX IF NOT EXISTS idx_property_documents_uploaded_by ON property_documents(uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_property_photos_uploaded_by ON property_photos(uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_unit_status_history_changed_by ON unit_status_history(changed_by);
-CREATE INDEX IF NOT EXISTS idx_units_prospective_co_tenant_id ON units(prospective_co_tenant_id);
-CREATE INDEX IF NOT EXISTS idx_units_prospective_tenant_id ON units(prospective_tenant_id);
+-- idx_units_prospective_co_tenant_id + idx_units_prospective_tenant_id moved to 008: the
+-- prospective_tenant_id (007) / prospective_co_tenant_id (008) columns are added later, so these
+-- indexes can't live in 003 on fresh replay. (migration-replay fix, 2026-07-06)

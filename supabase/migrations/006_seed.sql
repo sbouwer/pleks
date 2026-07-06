@@ -1,7 +1,7 @@
--- 030_prime_rate_history.sql — Seed historical SA prime rates (SARB MPC decisions)
+-- 030_prime_rate_history.sql Ã¢â‚¬â€ Seed historical SA prime rates (SARB MPC decisions)
 
 -- Remove the placeholder seed first
-DELETE FROM prime_rates WHERE notes = 'Seed rate — update with actual effective date';
+DELETE FROM prime_rates WHERE notes = 'Seed rate Ã¢â‚¬â€ update with actual effective date';
 
 -- Insert full history (newest first for readability, order doesn't matter for queries)
 INSERT INTO prime_rates (rate_percent, effective_date, notes) VALUES
@@ -32,23 +32,23 @@ INSERT INTO prime_rates (rate_percent, effective_date, notes) VALUES
   (10.25, '2017-07-21', 'MPC Jul 2017')
 ON CONFLICT DO NOTHING;
 
--- ═══════════════════════════════════════════════════════════════
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 -- LEASE CLAUSE LIBRARY SEED
--- ═══════════════════════════════════════════════════════════════
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 -- Canonical lease clause library (formerly mirrored in supabase/seed/032_lease_clauses_seed.sql,
--- which was unused and has been removed — THIS is the applied source).
--- Pleks standard lease clause library — sourced from SA residential lease template
+-- which was unused and has been removed Ã¢â‚¬â€ THIS is the applied source).
+-- Pleks standard lease clause library Ã¢â‚¬â€ sourced from SA residential lease template
 -- Anonymised: all entity-specific names replaced with {{var:}} tokens
 -- Cross-references replaced with {{ref:}} and {{self:N}} tokens per cross-reference map
 -- 
 -- Token reference:
---   {{var:field}}    — replaced with lease variable at generation time
---   {{ref:key}}      — replaced with actual clause number at generation time
+--   {{var:field}}    Ã¢â‚¬â€ replaced with lease variable at generation time
+--   {{ref:key}}      Ã¢â‚¬â€ replaced with actual clause number at generation time
 --                      renders as "[not included in this agreement]" if clause disabled
---   {{self:N}}       — replaced with "[this clause number].N" at generation time
+--   {{self:N}}       Ã¢â‚¬â€ replaced with "[this clause number].N" at generation time
 
--- ─── Required clauses (25) ──────────────────────────────────────────────────
+-- Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Required clauses (25) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 INSERT INTO lease_clause_library
   (clause_key, title, body_template, lease_type,
@@ -57,13 +57,13 @@ INSERT INTO lease_clause_library
 VALUES
 
 ('interpretation', 'Interpretation',
-$$In this agreement and its annexes –
+$$In this agreement and its annexes Ã¢â‚¬â€œ
 clause headings shall not be used in its interpretation;
-unless the context clearly indicates a contrary intention, an expression which denotes –
+unless the context clearly indicates a contrary intention, an expression which denotes Ã¢â‚¬â€œ
 any gender includes the other gender;
 a natural person includes an artificial person and vice versa;
 the singular includes the plural and vice versa;
-the following expressions shall bear the following meanings and related expressions bear corresponding meanings –
+the following expressions shall bear the following meanings and related expressions bear corresponding meanings Ã¢â‚¬â€œ
 "agreement" - this agreement and its annexes, as amended from time to time;
 "building" - the building as described on page 1 of this agreement;
 "commencement date" - referencing 'commencement date' as described on page 1 of this agreement. This constitutes the date on which the lease agreement commences;
@@ -74,7 +74,7 @@ the following expressions shall bear the following meanings and related expressi
 "lessor" - as described on page 1 of this agreement;
 "parties" - collectively the lessor and the lessee and any reference to "party" shall be deemed to be reference to either one of them as the context may require;
 "prime rate" - the rate publicly quoted by the Lessor's banking institution from time to time as being its prime overdraft rate (expressed as a nominal annual compounded monthly in arrear rate), calculated on a 365 day a year factor, irrespective as to whether or not the year is a leap year and prima facie proven, in the event of there being a dispute in relation thereto, by certificate by any manager of such bank (whose appointment, qualification or authority need not be proven). The Lessor's banking institution is recorded in Annexure B;
-"property" – The erf upon which the building is situated;
+"property" Ã¢â‚¬â€œ The erf upon which the building is situated;
 "RSA" - Republic of South Africa;
 "signature date" - the date upon which this agreement is signed by the last signing party hereto;
 "SME" - small and micro enterprise;
@@ -93,7 +93,7 @@ words and/or expressions defined in this agreement shall bear the same meanings 
 a reference to any statutory body or court shall be construed as a reference to that statutory body or court as at the signature date and as substituted from time to time thereafter by successor statutory bodies or courts, as the case may be;
 a reference to any legal principle, doctrine or process under South African law shall include a reference to the equivalent or analogous principle, doctrine or process in any other jurisdiction in which the provisions of this agreement may apply or to the laws of which a party may be or become subject;
 the expiration or termination of this agreement shall not affect such of its provisions as expressly provide that they will continue to apply after such expiration or termination or which of necessity must continue to apply after such expiration or termination;
-a reference to –
+a reference to Ã¢â‚¬â€œ
 "business day" shall be construed as being any day other than a Saturday, Sunday or public holiday in the RSA;
 "business hours" shall be construed as being the hours between 08h30 and 17h00 on any business day;
 day/s, month/s or year/s shall be construed as Gregorian calendar day/s, month/s or year/s;
@@ -129,7 +129,7 @@ $$The leased premises are let to the lessee for the purposes of {{var:lease_type
 'both', true, true, 1000, '{}', NULL, NULL),
 
 ('maintenance', 'Maintenance',
-$$The lessee shall –
+$$The lessee shall Ã¢â‚¬â€œ
 at his/its own cost keep and maintain in a clean, good order and condition the leased premises and replace or repair same, as the case may be, which, without derogating from the generality hereof, shall include all fixtures and fittings, electrical installations, plumbing and sanitary works, appliances, firefighting equipment, doors, roller shutter doors, door handles, locks, keys, entrances, glass and windows in or serving the leased premises and on the termination date deliver the leased premises to the lessor in the same good order and condition as existed at the commencement date (taking into consideration any repairs and/or improvements effected by the lessor to the leased premises during the course of this agreement) fair wear and tear excepted. The lessee shall effect proper and adequate insurance for such amount of cover indemnifying the lessor against damage of every nature caused and howsoever caused, to the items referred to in this clause. Replacement of damaged glass shall comply with the safety regulations as specified by the relevant authority from time to time;
 prevent any blockage of sewerage or water pipes or septic tanks or drains in or used in connection with the leased premises and shall remove at his/its cost any obstruction or blockage in any sewer or water pipe or septic tanks or drains serving the leased premises and, where necessary, repair the sewer pipe or drain concerned;
 pay for and replace where necessary all fluorescent bulbs, starters, ballasts and incandescent bulbs used in the leased premises and shall be responsible at his/its own cost to maintain all lights in the leased premises in proper order and clean condition;
@@ -154,7 +154,7 @@ The lessee confirms that with effect from the commencement date it will have acq
 ('alterations', 'Alterations, additions, fixtures and fittings',
 $$The lessor shall not be under any obligation or liability to make any applications in respect of, do any work or make any alterations or repairs to the leased premises in order to comply with the requirements of any local authority or other applicable laws and regulations. The lessor shall not however, unreasonably withhold its consent to the lessee to, at its own expense, carry out such alterations, additions or renovations provided that the lessor's prior written consent is obtained and if the lessor so requires, the work must be carried out by a contractor approved by the lessor and under the supervision of an architect approved by the lessor, with all costs for the lessee's account;
 The lessee shall not effect or cause to allow to be effected to the leased premises and/or to the building any alterations or additions, whether external, internal, structural, non-structural or of any other nature whatsoever, without the prior written consent of the lessor;
-Should the lessee request the lessor, in writing, that the lessee wants to carry out any alterations and/or additions and/or improvements then it shall be in the sole and absolute discretion of the lessor whether or not to agree to such request and should the lessor so agree, the work shall be effected within a reasonable period from the date of receipt by the lessor of such written request, provided that –
+Should the lessee request the lessor, in writing, that the lessee wants to carry out any alterations and/or additions and/or improvements then it shall be in the sole and absolute discretion of the lessor whether or not to agree to such request and should the lessor so agree, the work shall be effected within a reasonable period from the date of receipt by the lessor of such written request, provided that Ã¢â‚¬â€œ
 the plans and specifications for the work shall be prepared by the lessor's architect or an architect approved by the lessor in writing and submitted to the lessor for approval;
 the work shall be carried out by such contractor(s) as may be nominated or agreed to by the lessor under the supervision of the lessor's architect and/or other professional consultant(s);
 the professional fees and charges of the lessor's architect, quantity surveyor, consulting engineer and/or other professional consultant(s) shall be borne by the lessee;
@@ -163,12 +163,12 @@ if the lessee is not required to pay the estimated cost of the alterations or ad
 The lessee shall pay to the lessor on demand any additional municipal rates and taxes levied from time to time during the currency of this agreement in respect of or by virtue of the additions and alterations effected in terms of {{self:0}}. In the event of the premiums payable by the lessor in respect of any insurance policy relating to the leased premises and/or to the building being increased by reason of any such alterations and additions then, as and when the lessor shall be obliged to make payment of such additional premiums during the currency of this agreement, the lessee shall be obligated to refund to the lessor the amount of such increase(s).
 Upon the termination of this agreement for any reason whatever the lessor shall be entitled in its sole discretion to direct that the lessee shall, at the lessee's cost and expense, remove any such alteration or addition or improvements and reinstate the leased premises in the same good order and condition, as at the commencement date (taking into consideration any repairs and/or improvements effected by the lessor to the leased premises during the course of this agreement), fair wear and tear excepted, and to make good and repair at the lessee's cost and expense any disrepair, damage or breakage, or at the lessor's written option, to reimburse the lessor for the cost of so doing and/or the cost of replacing any broken or damaged articles.
 It is expressly recorded that should the lessor not direct the lessee, as envisaged in {{self:5}}, to remove any one or more alterations and/or additions and/or improvements effected by the lessee, then the lessee shall have no claim of whatsoever nature against the lessor for the value or cost of any such alterations and/or additions and/or improvements (as the case may be) effected to the leased premises and/or the building and/or the property, whether or not such alterations, additions or improvements were effected at the cost of the lessee, and the lessor shall be deemed to have become the owner of such alterations, additions and/or improvements upon the installation thereof. The lessee furthermore hereby expressly waives and abandons any improvement lien that it may have in respect of any alterations and/or additions and/or improvements made to the leased premises and/or the building and/or the property and expressly acknowledges that it shall have no right to occupy the leased premises pending the outcome of any legal or other dispute that may arise between the parties in respect of any alleged improvement lien.
-Should the lessee be called upon by the lessor prior to, on or after the termination of this agreement to repair and/or reinstate the leased premises to the condition as stated in {{self:5}}, and for the purpose of so doing, the lessee remains in occupation of the leased premises or part thereof after expiry of the agreement and/or the lessor effects such repairs and/or reinstatement to the leased premises as contemplated in {{self:5}} after the termination of the agreement, which results in the lessor being prevented from letting the leased premises and/or the lessee being in occupation of the leased premises or part thereof due to the fact that, inter alia, work is being done to the leased premises, the lessee shall be liable, without prejudice to any other claims for damages or otherwise which the lessor has or may have in terms of this agreement or in law, to pay the lessor any further damages which may be sustained by the lessor, including but not limited to –
+Should the lessee be called upon by the lessor prior to, on or after the termination of this agreement to repair and/or reinstate the leased premises to the condition as stated in {{self:5}}, and for the purpose of so doing, the lessee remains in occupation of the leased premises or part thereof after expiry of the agreement and/or the lessor effects such repairs and/or reinstatement to the leased premises as contemplated in {{self:5}} after the termination of the agreement, which results in the lessor being prevented from letting the leased premises and/or the lessee being in occupation of the leased premises or part thereof due to the fact that, inter alia, work is being done to the leased premises, the lessee shall be liable, without prejudice to any other claims for damages or otherwise which the lessor has or may have in terms of this agreement or in law, to pay the lessor any further damages which may be sustained by the lessor, including but not limited to Ã¢â‚¬â€œ
 making payment to the lessor, as liquidated damages, of an amount equivalent to the rental payable in the last month of the agreement prior to the termination, together with all other amounts and charges as referred to in this agreement for each month that the lessee remains in occupation until such time as the leased premises are returned to the lessor; and/or
 the loss of additional rentals which would have been payable by a new tenant; and/or
 the loss of future rental resulting from a new tenant cancelling its agreement with the lessor in respect of the leased premises.
 The lessee shall not be entitled, either during or after the termination or expiry of this agreement, to remove any alterations, additions or other improvements to the leased premises, the building and/or the property, unless directed by the lessor in terms of {{self:5}}.
-The lessee shall be entitled from time to time with the lessor's prior written consent, to erect on the leased premises such fixtures and fittings as may be required or necessary for the carrying on of the permitted business therein and shall be in keeping with the general finish of the building of which the leased premises form part, provided that –
+The lessee shall be entitled from time to time with the lessor's prior written consent, to erect on the leased premises such fixtures and fittings as may be required or necessary for the carrying on of the permitted business therein and shall be in keeping with the general finish of the building of which the leased premises form part, provided that Ã¢â‚¬â€œ
 all such fixtures and fittings erected by the lessee in the leased premises shall, be removed by the lessee upon the expiration or early termination of this agreement, failing which such fixture and fittings shall become the lessor's property;
 any damage caused to the leased premises as a result of any removal by the lessee of fixtures and fittings, in respect of which the lessor has directed the lessee to remove, shall be made good at the lessee's expense;
 the lessee shall not be entitled to any compensation from the lessor for any improvements made.
@@ -176,7 +176,7 @@ Without the prior written consent of the lessor, the lessee shall not drive or p
 'both', true, true, 1500, '{}', NULL, NULL),
 
 ('general_obligations', 'Lessee''s general obligations and restrictions',
-$$The lessee shall –
+$$The lessee shall Ã¢â‚¬â€œ
 not change or interfere with the electrical installation of the leased premises as at the date of occupation by the lessee of the leased premises, without the written consent of the lessor;
 ensure that the electricity supply, including but not limited to all plugs and all other power points in the leased premises, is not overloaded at any time during the currency of this agreement;
 be liable to repair and/or replace, at his/its cost, all damage of whatever nature caused to the plugs and power points in the leased premises;
@@ -191,12 +191,12 @@ Should the lessee, upon taking occupation of the leased premises, discover that 
 'both', true, true, 1600, '{}', NULL, NULL),
 
 ('claims_liability', 'Claims and limitation of liability',
-$$The lessee hereby agrees that it shall have no claim of any nature whatsoever whether for damages or otherwise against the lessor, the lessor's shareholders, directors, agents and/or employees –
+$$The lessee hereby agrees that it shall have no claim of any nature whatsoever whether for damages or otherwise against the lessor, the lessor's shareholders, directors, agents and/or employees Ã¢â‚¬â€œ
 by reason of the leased premises, its structure and/or any part thereof and/or any installation/appurtenance being in a defective condition or in a state of disrepair or any particular repair not being effected by the lessor for which the lessor is liable in terms of this agreement;
 in respect of any damage or loss caused to or sustained by the lessee or to any of his/its assets in the leased premises or elsewhere as a result of vis major, causus fortuitus or any other cause whatsoever;
 in respect of any damage caused to the lessee's goods, furniture, equipment, installations, books, papers or other articles kept in the leased premises and/or the building and/or the property or any other damage or loss caused to or sustained by the lessee in or about the leased premises and/or the property as a result of water seepage or leakage including but not limited to sprinkler leakage and/or roof leakage wherever and howsoever occurring in the leased premises and/or the building, or by rain, hail, lightning, fire, riot or civil commotion or by reason of the negligence of the lessor's employees, customers or invitees;
 for any accident, injury or damage caused to the lessee or his/its representatives, agents, employees, customers, friends, family or invitees or any other person through or while using the passages or yard or any portion of the leased premises and/or the building and/or the property, whether or not arising out of the negligence of the lessor and/or the lessor's employees, agents and/or sub-contractors or any other cause (including, without in any way derogating from the generality of the foregoing, whether caused by vehicles, both stationary or moving), other than the wilful misconduct of the lessor;
-in respect of or arising out of a change to the name of the building, its façade, appearance or any other feature thereof;
+in respect of or arising out of a change to the name of the building, its faÃƒÂ§ade, appearance or any other feature thereof;
 in respect of or arising out of the functioning or malfunctioning of the (i) air-conditioning (if any); and/or (ii) the lift/s (if any); serving the leased premises and/or the building.
 The lessee shall not be entitled to withhold or delay payment of any monies by the lessee to the lessor in terms of this agreement by reason of the leased premises or any part thereof being in a defective condition or in a state of disrepair or for any reason whatsoever.
 The lessor shall not be responsible to the lessee for any defect or interruption in the electric current, supply of water, air-conditioning, heating, gas, and/or any other service whether such defect or interruption shall arise from the negligence or a breach on the part of the lessor or any of the lessor's agents, officers, servants or otherwise howsoever. In the event of any such defect or interruption, the lessor shall not be responsible to the lessee for any loss and/or damages sustained by the lessee as a result thereof. Further, in the event of such interruption, the lessee shall have no claim against the lessor for cancellation of this agreement or for any remission of rent.
@@ -207,15 +207,15 @@ The lessee hereby indemnifies the lessor, the lessor's shareholders, directors, 
 'both', true, true, 1800, '{}', NULL, NULL),
 
 ('lessor_rights', 'Lessor''s rights and obligations',
-$$The lessor –
+$$The lessor Ã¢â‚¬â€œ
 shall be obliged to maintain the exterior of the building;
 shall have the right to locate service mains and other facilities, within the leased premises when required in terms of any by-laws or regulation or when, in the opinion of the lessor's architect (which shall be final and binding on both parties), this is dictated by the requirements of engineering design or good practice or both;
-shall be entitled at any time for the purposes of repairing, improving, altering or adding to the building and/or the property –
-to erect –
+shall be entitled at any time for the purposes of repairing, improving, altering or adding to the building and/or the property Ã¢â‚¬â€œ
+to erect Ã¢â‚¬â€œ
 the building equipment required for the carrying out of that work;
 such other equipment or devices as may be required by law or which the lessor's architect considers reasonably necessary for the protection of any person or property against injury arising out of that work;
 at, near or in front of any part of the leased premises;
-to such right of access to the leased premises as is reasonably necessary for the carrying out of that work, provided that the lessor –
+to such right of access to the leased premises as is reasonably necessary for the carrying out of that work, provided that the lessor Ã¢â‚¬â€œ
 shall not unreasonably affect the lessee's beneficial occupation of the leased premises during the carrying out of that work;
 shall carry out such work as quickly as possible in the circumstances;
 shall be entitled to carry out any repairs, additions or alterations to the leased premises and/or the building, which the lessor is required from time to time to carry out by any competent authority;
@@ -227,7 +227,7 @@ Notwithstanding anything to the contrary contained in this agreement and for the
 'both', true, true, 1900, '{}', NULL, NULL),
 
 ('subletting', 'Subletting',
-$$The lessee shall not –
+$$The lessee shall not Ã¢â‚¬â€œ
 cede, assign, transfer, alienate, hypothecate or otherwise dispose of any rights and/or obligations under this agreement; and/or
 sub-let the leased premises or any part thereof; and/or
 give up occupation or possession of the leased premises or any part thereof, to any person,
@@ -238,7 +238,7 @@ Should the lessor consent to a cession or assignment of this agreement, the less
 'both', true, true, 2000, '{}', NULL, NULL),
 
 ('insurance', 'Insurance',
-$$The lessee shall not do or omit to do or keep in or on the leased premises anything or allow anything to be done or kept in or on the leased premises and/or the building and/or the property which in terms of any insurance policy held from time to time by the lessor in respect of the building and/or the leased premises and/or the property may not be done or kept therein, or which is liable to enhance any of the risks against which the building is insured or which may render any policy/ies void or voidable and the lessee shall comply in all respects with the terms of any such policy/ies provided that should any premium payable in respect of any such policy/ies be increased –
+$$The lessee shall not do or omit to do or keep in or on the leased premises anything or allow anything to be done or kept in or on the leased premises and/or the building and/or the property which in terms of any insurance policy held from time to time by the lessor in respect of the building and/or the leased premises and/or the property may not be done or kept therein, or which is liable to enhance any of the risks against which the building is insured or which may render any policy/ies void or voidable and the lessee shall comply in all respects with the terms of any such policy/ies provided that should any premium payable in respect of any such policy/ies be increased Ã¢â‚¬â€œ
 by reason of the nature or scope of the business which the lessee carries on in the leased premises, and/or
 as a result of the lessee not complying with the aforesaid provisions,
 then without prejudice to any other rights which the lessor may have as a result thereof, the lessee shall on demand refund to the lessor, the amount of that additional premium. If as a result of any act, matter or thing done or permitted by the lessor to be done, any insurance policy held by the lessor is rendered void or cancelled, then the lessee shall be responsible for all and any consequential loss suffered by the lessor as a result thereof.
@@ -249,11 +249,11 @@ Should the lessor be cited as a party to any litigation commenced by or against 
 
 ('destruction', 'Destruction of or damage to the leased premises',
 $$Should all or a majority of the leased premises be completely destroyed or be so damaged as to render it substantially untenantable, then the lessor shall be entitled to cancel this agreement, by giving written notice thereof to the lessee, which written notice in order to be of force and effect must be delivered to the lessee within sixty days of the destruction of or damage to the leased premises having occurred. For the purposes of {{self:0}}, "substantially untenantable" shall mean if more than 20% (twenty percent) of the leased premises is damaged or destroyed.
-Should no such notice as referred to in {{self:1}} be given by the lessor to the lessee then –
+Should no such notice as referred to in {{self:1}} be given by the lessor to the lessee then Ã¢â‚¬â€œ
 this agreement shall remain of full force and effect, and the lessor shall be obliged to proceed expeditiously with the work of rebuilding the leased premises and complete such works within a reasonable period of their commencement;
 during the period that the leased premises are substantially untenantable, the lessee will not be liable for the payment of any monthly rental after the date of destruction of the leased premises. The lessor shall proceed expeditiously with the work of repairing the damage to the leased premises and complete such repair works within a reasonable period of their commencement.
 Should the leased premises be damaged in such manner that 80% (eighty percent) or more of the leased premises is nevertheless tenantable, then this agreement shall not be terminated in terms of {{self:1}}, but the basic monthly rental payable by the lessee shall be reduced until the damage has been repaired, having regard to the extent to which the time for which the lessee is deprived of beneficial occupation of the leased premises.
-Should there be any dispute as to –
+Should there be any dispute as to Ã¢â‚¬â€œ
 whether more than 20% (twenty percent) of the leased premises have been rendered substantially untenantable;
 whether 80% (eighty percent) or more of the leased premises is nevertheless tenantable; and/or
 the amount of the remission of the basic monthly rental and/or the extent to which the lessee is deprived of beneficial occupation and enjoyment of the leased premises,
@@ -279,7 +279,7 @@ The Lessor may withhold and apply the Lessee's deposit towards the Lessee's liab
 'both', true, true, 2600, '{}', NULL, NULL),
 
 ('breach', 'Breach by the lessee',
-$$Should –
+$$Should Ã¢â‚¬â€œ
 the basic monthly rental or any other amount due in terms hereof not be paid on the due date; or
 the CPA apply and the lessee commit, suffer or permit the commission of a breach of any of the other terms of this agreement and fails to remedy such breach within a period of twenty days after receipt of notice requiring the remedy thereof; or
 the lessee commit, suffer or permit the commission of a breach of any of the other terms of this agreement whether or not such breach goes to the root of this agreement, and fails to remedy such breach within a period of seven days after receipt of notice requiring the remedy thereof from the lessor;
@@ -297,11 +297,11 @@ While for any reason or on any ground the lessee occupies the leased premises an
 'both', true, true, 2700, '{}', NULL, NULL),
 
 ('domicilium', 'Domicilium and notices',
-$$The parties choose domicilium citandi et executandi ("domicilium") for all purposes of the giving of any notice, the payment of any sum, the serving of any process and for any other purpose arising from this agreement, as follows –
+$$The parties choose domicilium citandi et executandi ("domicilium") for all purposes of the giving of any notice, the payment of any sum, the serving of any process and for any other purpose arising from this agreement, as follows Ã¢â‚¬â€œ
 Lessor; as described and noted on page 1 of this agreement;
 Lessee; the lease premises or the email address referred to on page 1 of this agreement.
 Each of the parties shall be entitled from time to time, by written notice to the others, to vary its domicilium to any other physical address within the RSA and/or its email address.
-Any notice given and any payment made by any party to any other shall be in writing and if –
+Any notice given and any payment made by any party to any other shall be in writing and if Ã¢â‚¬â€œ
 delivered by hand during the normal business hours of the addressee at the addressee's domicilium for the time being shall be presumed to have been received by the addressee at the time of delivery;
 posted by prepaid registered post from an address within the RSA to the addressee at the addressee's domicilium for the time being shall be presumed to have been received by the addressee on the 14th (fourteenth) day after the date of posting;
 Any notice given by any party to any other which is transmitted by email to the addressee at the addressee's email address, for the time being shall be presumed, until the contrary is proved by the addressee, to have been received by the addressee on the first business day after the successful transmission thereof.
@@ -319,7 +319,7 @@ Notwithstanding the consent of the lessor and the lessee to the jurisdiction of 
 'both', true, true, 3000, '{}', NULL, NULL),
 
 ('certificate', 'Certificate',
-$$A certificate signed by any officer, auditor or director of the lessor for the time being (whose appointment, authority or qualifications need not be proved) setting out any amount owing by the lessee to the lessor, or particulars of any breach of this agreement, shall be –
+$$A certificate signed by any officer, auditor or director of the lessor for the time being (whose appointment, authority or qualifications need not be proved) setting out any amount owing by the lessee to the lessor, or particulars of any breach of this agreement, shall be Ã¢â‚¬â€œ
 prima facie proof of the amount due to the lessor, or of the breach, as the case may be;
 valid as a liquid document in any court of competent jurisdiction for the purpose of obtaining provisional sentence or summary judgment.$$,
 'both', true, true, 3200, '{}', NULL, NULL),
@@ -358,7 +358,7 @@ Date: _______________________
 Witness: _______________________$$,
 'both', true, true, 3400, '{}', NULL, NULL),
 
--- ─── Optional clauses ────────────────────────────────────────────────────────
+-- Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Optional clauses Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 ('electricity', 'Electricity, other outgoings and municipal rates & taxes',
 $$The lessee shall with effect from the commencement date be liable for and pay forthwith on demand to the lessor all costs for, electricity, sanitary fees, refuse removal fees, and any other services consumed by the lessee in respect of the leased premises.
@@ -379,7 +379,7 @@ Upon the lessor furnishing the lessee with the compliance certificate referred t
 
 ('fire', 'Fire',
 $$The Lessee shall not store, harbour or permit the storage or harbouring of any articles in or upon the Leased Premises and/or the Building and/or the Property as a result whereof the premiums in respect of fire insurance of the Building and/or the Property may be increased. The Lessee shall not do or permit to be done any act, matter or thing as a result whereof any fire insurance policy held by the Lessor for the time being in respect of the Building and/or the Property may be rendered void or voidable. If, as a result of any act, matter or thing done or permitted to be done by the Lessee, the fire insurance policy held by the Lessor is rendered void or cancelled, then the Lessee shall be responsible for all and any consequential loss to the Lessor as a result thereof.
-Should the premium payable by the lessor under its policy of fire insurance be increased as a result of –
+Should the premium payable by the lessor under its policy of fire insurance be increased as a result of Ã¢â‚¬â€œ
 the storage by the lessee of any of the articles referred to in {{self:1}} or the conduct of the lessee's business in the leased premises; and/or
 attributable to any changed circumstances in the nature of the business conducted by the lessee on the leased premises,
 then the lessee shall forthwith on demand pay to the lessor the amount of such increase.$$,
@@ -389,7 +389,7 @@ then the lessee shall forthwith on demand pay to the lessor the amount of such i
 
 ('security', 'Security',
 $$The lessor shall have no obligation to provide security for the lessee and/or the leased premises and/or the building and/or the property.
-In the event that the lessor directly or indirectly provides security services or any security equipment in or around the property and/or the building and/or the leased premises, then the lessee –
+In the event that the lessor directly or indirectly provides security services or any security equipment in or around the property and/or the building and/or the leased premises, then the lessee Ã¢â‚¬â€œ
 shall be liable and shall pay to the lessor a pro rata portion of the cost of such security for the property based on the square metres comprising the leased premises;
 agrees that the lessor shall not be held responsible or legally liable for any acts or omissions of the person/s or entity/ies carrying out such security services or for the failure of any of the security equipment or in the event that the security equipment is not in working order;
 waives any claims which it may have against the lessor in respect of such security services or provision of or operation or effectiveness of the security equipment.
@@ -401,7 +401,7 @@ The lessee hereby acknowledges and agrees that should the lessor install and/or 
 ('common_property', 'Use of common property',
 $$The common property shall at all times be subject to the exclusive control and management of the lessor, which shall have the right from time to time to establish, modify and enforce by written notice to the lessee and/or tenants in the property rules and regulations with respect thereto and generally to do or perform such other acts in and to the common property as the lessor in its sole discretion shall reasonably determine to be advisable with a view to the improvement of the convenience and the use of the common property by occupiers, their officers, agents, employees and customers.
 Provided that the lessee is not in breach of this agreement, the lessee shall be entitled to the access and reasonable usage of the common property.
-The lessee undertakes that –
+The lessee undertakes that Ã¢â‚¬â€œ
 it will not cause or permit vehicles belonging to or used by him/it or his/its directors, principals or employees to be parked in the common property;
 no obstruction shall be placed or be permitted to be placed by him/it or its directors, principals or employees in the common property which may interfere with their use; and
 no vehicles driven by him/it or him/its principals, employees, members, licensees or invitees shall obstruct the free flow of traffic, the entrances or exits of the driveways or the pedestrian entrances to the property.$$,
@@ -422,7 +422,7 @@ $$The lessee shall not place any extraordinary safe or any extraordinarily heavy
 'Include heavy objects restriction'),
 
 ('aircon', 'Air-conditioning units',
-$$In the event that the lessee wishes, at his/its expense, to install further air-conditioning units in the leased premises, he/it shall not do so without the lessor's prior written consent. Such further air-conditioning units so installed shall at all times remain the property of the lessee, provided that –
+$$In the event that the lessee wishes, at his/its expense, to install further air-conditioning units in the leased premises, he/it shall not do so without the lessor's prior written consent. Such further air-conditioning units so installed shall at all times remain the property of the lessee, provided that Ã¢â‚¬â€œ
 all such air-conditioning units installed by the lessee in the leased premises shall be installed and maintained according to the normal standards and regulations and shall be removed by the lessee upon the expiration or early termination of this lease; and
 the lessee shall reinstate the leased premises (or the part of the leased premises in question) at the lessee's cost to its same condition (fair wear and tear excepted) prior to the installation of such air-conditioning unit;
 any increase in the electricity as a result of the installation of air-conditioning units shall be for the lessee's account.$$,
@@ -444,7 +444,7 @@ The lessor shall provide sanitary bin/s in any public restrooms on the leased pr
 'Building has shared or dedicated restrooms'),
 
 ('wheelchairs', 'Wheelchairs',
-$$The lessee shall –
+$$The lessee shall Ã¢â‚¬â€œ
 ensure that all wheel chairs in the leased premises are placed on carpet protectors; and
 be liable for the cost of replacing any carpet damaged as a result of his/its failure to comply with the provisions of {{self:1}}.$$,
 'commercial', false, false, 1160, '{}',
@@ -452,7 +452,7 @@ be liable for the cost of replacing any carpet damaged as a result of his/its fa
 'Premises has carpeted areas (wheelchair protection clause)'),
 
 ('advertising_signs', 'Advertising and signs',
-$$The lessee shall not write, affix, erect or permit to be written, affixed or erected, any sign, signboard, neon-sign, writing, fixtures, fittings, show-cases and/or any other erection (hereinafter referred to as "signs") –
+$$The lessee shall not write, affix, erect or permit to be written, affixed or erected, any sign, signboard, neon-sign, writing, fixtures, fittings, show-cases and/or any other erection (hereinafter referred to as "signs") Ã¢â‚¬â€œ
 on the interior or exterior of the leased premises and/or the building and/or the property; and/or
 in the windows of the leased premises and/or the building,
 without the written consent of the lessor being first had and obtained.
@@ -460,7 +460,7 @@ The lessee undertakes, at his/its own expense and to the satisfaction of the les
 Should the lessor consent to the lessee, erecting and/or affixing any signs on the interior or exterior of the leased premises and/or the building and/or the property, such consent shall be on the express condition that the supply and erection of the said sign is attended to by a contractor or supplier approved by the lessor.
 The lessee shall be responsible at all times to keep and maintain the signs in good and clean condition, and, where applicable, in proper working order and condition.
 The lessee shall comply with and carry out from time to time all the requirements of any competent authority in regard to the signs.
-The lessee hereby indemnifies the lessor against all claims of whatsoever nature which may be made and/or instituted against the lessor by any third party, under any circumstances as a result of –
+The lessee hereby indemnifies the lessor against all claims of whatsoever nature which may be made and/or instituted against the lessor by any third party, under any circumstances as a result of Ã¢â‚¬â€œ
 the installation, erection, operation and/or removal of the signs, whether installed or erected with or without the lessor''s written consent;
 any defect in any the signs, whether installed or erected with or without the lessor''s written consent; and
 any failure on the part of the lessee or any of the lessee''s servants or agents, to keep and maintain the signs in good order and condition and/or properly installed and erected.$$,
@@ -480,166 +480,15 @@ $$The lessee hereby warrants that it shall at all times comply with all applicab
 'Covers regulatory and legal compliance obligations specific to commercial tenants.',
 'Include regulatory compliance clause')
 ON CONFLICT (clause_key) DO NOTHING;
--- NOTE: BUILD_69A's §7.2 deposit-interest-beneficiary tokenisation of this clause is applied in
+-- NOTE: BUILD_69A's Ã‚Â§7.2 deposit-interest-beneficiary tokenisation of this clause is applied in
 -- 011_documents_messaging.sql (a single block covering the clauses seeded here AND in 007), because
 -- it must run after ALL clause INSERTs and 006/007 are frozen for in-place edits.
 
--- ─────────────────────────────────────────────────────────────────────────────
--- ADDENDUM_60A: Insurance checklist catalogue (13 items)
--- Idempotent — ON CONFLICT (code) DO UPDATE so re-runs refresh the catalogue.
--- ─────────────────────────────────────────────────────────────────────────────
+-- ADDENDUM_60A insurance checklist catalogue seed (13 items) RELOCATED to 012,
+--   directly after the insurance_checklist_items table is created, so the seed
+--   runs after its target table exists on clean replay (migration-replay fix 2026-07-06).
 
-INSERT INTO insurance_checklist_items
-  (code, label, description, help_text, applies_to_scenarios, applies_when,
-   severity, sort_order, is_auto_derived, auto_derive_spec, evidence_type)
-VALUES
-
-  ('POLICY_HEADER',
-   'Policy details on file',
-   'Provider, policy number, type, renewal date, replacement value and excess all populated on the property record.',
-   'These six fields make up the basic shape of the policy. Filled in via the Insurance & risk tab — auto-confirmed here when all six are complete.',
-   ARRAY['*']::text[],
-   '{}'::jsonb,
-   'critical', 10, true,
-   '{"requires_all_of": ["insurance_provider","insurance_policy_number","insurance_policy_type","insurance_renewal_date","insurance_replacement_value_cents","insurance_excess_cents"]}'::jsonb,
-   'auto_derived'),
-
-  ('OCCUPANCY_DECLARED',
-   'Property declared as let to insurer',
-   'Insurer has been notified that the property is tenanted (not owner-occupied).',
-   'Most personal-lines policies are issued on the basis of owner-occupancy. Renting the property out without telling the insurer is the single most common reason landlord claims get repudiated. Confirm with broker before relying on the policy.',
-   ARRAY['*']::text[],
-   '{}'::jsonb,
-   'critical', 20, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('SASRIA_COVER',
-   'SASRIA cover included',
-   'Cover for riot, strike, terrorism, civil commotion and public disorder via SASRIA Limited.',
-   'SASRIA is a separate state-owned reinsurer. Cover is quoted as a separate line on most SA policies. Absence is a major exposure given SA''s history of localised unrest.',
-   ARRAY['*']::text[],
-   '{}'::jsonb,
-   'critical', 30, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('STORM_FLOOD',
-   'Storm and flood damage covered',
-   'Cover for storm, hail, lightning, and flood damage.',
-   'Particularly important for KZN, Cape Flats, and any property below the floodline. Some policies cap storm damage at sub-limits or exclude flood entirely.',
-   ARRAY['*']::text[],
-   '{}'::jsonb,
-   'critical', 40, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('SUBSIDENCE',
-   'Subsidence and heave covered',
-   'Cover for soil-movement damage including subsidence and heave.',
-   'Critical for clay-soil regions — much of Joburg, parts of Pretoria, parts of Cape Town. Often a separate rider on the policy. Absence is a silent gap most landlords discover only at claim stage.',
-   ARRAY['*']::text[],
-   '{}'::jsonb,
-   'critical', 50, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('PUBLIC_LIABILITY',
-   'Public liability cover for third-party injury',
-   'Cover for injury to tenants, visitors, or third parties on the property.',
-   'R 5–10m limits are typical for residential properties; commercial properties generally require higher limits. Verify the limit is appropriate for the property type and occupancy.',
-   ARRAY['*']::text[],
-   '{}'::jsonb,
-   'important', 60, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('LOSS_OF_RENT',
-   'Loss of rent / business interruption cover',
-   'Cover for the period the property is uninhabitable after an insured event.',
-   'Residential: "loss of rent." Commercial: "business interruption." Confirm the cover period (number of months) is realistic for the property type — a geyser burst may take 3 months; a fire, 12.',
-   ARRAY['*']::text[],
-   '{}'::jsonb,
-   'important', 70, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('SECURITY_WARRANTIES',
-   'Policy security warranties met',
-   'Confirm that the policy''s security requirements are being met by the current tenant.',
-   'Most policies include warranties: alarm armed at night, electric fence functional, security gates locked, deadbolts fitted. Tenant non-compliance with a warranty can void cover entirely. Verify with tenant at lease commencement and at each renewal.',
-   ARRAY['*']::text[],
-   '{}'::jsonb,
-   'critical', 80, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('GEYSER_COVER',
-   'Geyser and element cover present',
-   'Cover for geyser-burst and element-failure damage.',
-   'Geyser damage is one of the most common residential property insurance claims in SA. Many cheaper policies cap the geyser sub-limit below the replacement cost, or exclude element failure entirely. Confirm the sub-limit is adequate.',
-   ARRAY['r1','r2','r3','r4','r5','r6','r7','m1','m3','m4']::text[],
-   '{}'::jsonb,
-   'important', 90, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('BC_LANDLORD_BOUNDARY',
-   'BC vs landlord cover boundary clear',
-   'The boundary between the body corporate''s policy and the landlord''s policy is clearly understood.',
-   'In sectional title: the BC''s policy covers common property and the structure of all units; the landlord''s policy covers contents, fixtures, improvements, and rental income. Confirm there is no gap (uncovered exposure) or duplication (double-premium waste) between the two.',
-   ARRAY['r3','r5']::text[],
-   '{}'::jsonb,
-   'critical', 100, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('CONTENTS_FURNISHED',
-   'Contents cover for furnished lets',
-   'Landlord-supplied furniture and appliances are covered under a contents policy.',
-   'Building cover does not extend to movable contents. When the landlord supplies furniture, white goods, or appliances, those need a separate contents policy. Confirm cover limit is adequate for replacement value of furnished items.',
-   ARRAY['*']::text[],
-   '{"furnishing_status": ["semi_furnished", "furnished"]}'::jsonb,
-   'important', 110, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('COMMERCIAL_BI',
-   'Business interruption cover',
-   'Cover for lost revenue during the period the commercial space is uninhabitable.',
-   'The landlord''s loss-of-rent cover protects rental income. Confirm it extends to commercial tenants and that the indemnity period is realistic. Also verify whether tenants are required to carry their own BI cover under the lease terms.',
-   ARRAY['c1','c2','c3','c4','c5','c6','m1','m2','m3']::text[],
-   '{}'::jsonb,
-   'important', 120, false,
-   '{}'::jsonb,
-   'agent_confirmation'),
-
-  ('INDUSTRIAL_RIGGING',
-   'Industrial-specific risks covered',
-   'Explicit endorsements for industrial risks: hot work, fork-lift operations, hazmat exposure, and machinery breakdown.',
-   'Light industrial policies often require specific endorsements for each risk category. Hot-work permits (welding, cutting) must be in place; fork-lift operations need endorsement; hazmat storage requires disclosure. Confirm all tenant activities are within policy scope.',
-   ARRAY['c3']::text[],
-   '{}'::jsonb,
-   'critical', 130, false,
-   '{}'::jsonb,
-   'agent_confirmation')
-
-ON CONFLICT (code) DO UPDATE SET
-  label                = EXCLUDED.label,
-  description          = EXCLUDED.description,
-  help_text            = EXCLUDED.help_text,
-  regulatory_note      = EXCLUDED.regulatory_note,
-  applies_to_scenarios = EXCLUDED.applies_to_scenarios,
-  applies_when         = EXCLUDED.applies_when,
-  severity             = EXCLUDED.severity,
-  sort_order           = EXCLUDED.sort_order,
-  is_auto_derived      = EXCLUDED.is_auto_derived,
-  auto_derive_spec     = EXCLUDED.auto_derive_spec,
-  evidence_type        = EXCLUDED.evidence_type,
-  is_active            = EXCLUDED.is_active,
-  updated_at           = now();
-
--- ─── ADDENDUM_57G §X.5 — Sentinel org for post-purge retention carry-over ────
+-- Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ADDENDUM_57G Ã‚Â§X.5 Ã¢â‚¬â€ Sentinel org for post-purge retention carry-over Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 -- When an org is purged, rows from retention-protected tables (audit_log,
 -- trust_transactions, consent_log, auth_events, etc.) have their org_id
 -- repointed to this sentinel UUID rather than being deleted. Platform-admin
@@ -654,7 +503,7 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- ─── ADDENDUM_57G §X.6 — compliance-archive Storage bucket ──────────────────
+-- Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ADDENDUM_57G Ã‚Â§X.6 Ã¢â‚¬â€ compliance-archive Storage bucket Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 -- Stores pre-purge compliance archives: POPIA data exports, TOS acceptance
 -- records, and other retention-required artefacts. Private; service-role only.
 -- Large file limit (50 MB) to accommodate full org data bundles.
@@ -668,42 +517,23 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- ─── Gate 2 §X.8 — legal-archive Storage bucket ──────────────────────────────
+-- Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Gate 2 Ã‚Â§X.8 Ã¢â‚¬â€ legal-archive Storage bucket Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 -- Stores HTML snapshots of each published ToS and Privacy Policy version.
 -- Path convention: terms/v3.4.0.html, privacy/v4.5.0.html
--- No size limit — HTML snapshots are small. Private; service-role only.
+-- No size limit Ã¢â‚¬â€ HTML snapshots are small. Private; service-role only.
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
 VALUES ('legal-archive', 'legal-archive', false, null)
 ON CONFLICT (id) DO NOTHING;
 
--- ─── BUILD_65: initial privacy policy version ────────────────────────────────
--- Seed the '2026.1' row that bootstraps consent_log.consent_version tracking.
--- body_markdown and body_html are populated when PRIVACY_POLICY_2026_1.md
--- is authored in Phase 8. Until then, the placeholder text is valid SQL but
--- should be replaced before any policy-version surface goes live.
-INSERT INTO privacy_policy_versions (
-  version, title, body_markdown, body_html, change_type,
-  change_summary, effective_from, is_current, created_at
-)
-VALUES (
-  '2026.1',
-  'Pleks Privacy Notice',
-  '# Pleks Privacy Notice\n\nThis notice will be replaced with the full POPIA-compliant policy text from brief/legal/PRIVACY_POLICY_2026_1.md during Phase 8 of BUILD_65.',
-  '<h1>Pleks Privacy Notice</h1><p>This notice will be replaced with the full POPIA-compliant policy text from brief/legal/PRIVACY_POLICY_2026_1.md during Phase 8 of BUILD_65.</p>',
-  'minor',
-  'Initial POPIA-compliant privacy notice. Aligned with BUILD_65 customer-facing surface.',
-  '2026-05-01',
-  true,
-  now()
-)
-ON CONFLICT (version) DO NOTHING;
+-- BUILD_65 initial privacy_policy_versions seed (2026.1) RELOCATED to 010, right
+--   after the privacy_policy_versions table is created (migration-replay fix 2026-07-06).
 
--- ── Honeytoken email addresses (BUILD_AUTH_RESOLVER Amendment 3) ──────────
+-- Ã¢â€â‚¬Ã¢â€â‚¬ Honeytoken email addresses (BUILD_AUTH_RESOLVER Amendment 3) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 -- Canary addresses that NEVER correspond to real auth.users rows.
 -- check_email_exists() returns true for these regardless of auth.users state.
 -- Downstream: any IP that later tries to sign in as one, or appears in a
 -- credential dump alongside one, is provably operating against scraped data.
--- D-AUTH-RESOLVER-28. Keep secret — do NOT expose in API responses or HTML.
+-- D-AUTH-RESOLVER-28. Keep secret Ã¢â‚¬â€ do NOT expose in API responses or HTML.
 INSERT INTO honeytoken_emails (email) VALUES
   ('monitor-pleks-001@pleks-canary.internal'),
   ('monitor-pleks-002@pleks-canary.internal'),

@@ -1686,6 +1686,7 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+DO $wrap$ BEGIN
 DROP POLICY IF EXISTS "trust_exports_storage_select" ON storage.objects;
 CREATE POLICY "trust_exports_storage_select"
   ON storage.objects FOR SELECT
@@ -1696,6 +1697,9 @@ CREATE POLICY "trust_exports_storage_select"
       WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
+END $wrap$;
 
 -- ─── BUILD_64 fix: rename csv_storage_path → xlsx_storage_path ───────────────
 -- The column stores an XLSX file path but was originally named csv_storage_path.
@@ -1858,7 +1862,7 @@ CREATE INDEX IF NOT EXISTS idx_deposit_reconciliations_tenant_id ON deposit_reco
 CREATE INDEX IF NOT EXISTS idx_deposit_transactions_charge_id ON deposit_transactions(charge_id);
 CREATE INDEX IF NOT EXISTS idx_deposit_transactions_created_by ON deposit_transactions(created_by);
 CREATE INDEX IF NOT EXISTS idx_deposit_transactions_deduction_item_id ON deposit_transactions(deduction_item_id);
-CREATE INDEX IF NOT EXISTS idx_deposit_transactions_rate_config_id ON deposit_transactions(rate_config_id);
+-- idx_deposit_transactions_rate_config_id moved to 008: rate_config_id is added there. (replay fix 2026-07-06)
 CREATE INDEX IF NOT EXISTS idx_lease_amendments_created_by ON lease_amendments(created_by);
 CREATE INDEX IF NOT EXISTS idx_lease_charges_created_by ON lease_charges(created_by);
 CREATE INDEX IF NOT EXISTS idx_lease_lifecycle_events_triggered_by_user ON lease_lifecycle_events(triggered_by_user);
@@ -1872,7 +1876,7 @@ CREATE INDEX IF NOT EXISTS idx_tenant_bank_accounts_tenant_id ON tenant_bank_acc
 CREATE INDEX IF NOT EXISTS idx_trust_audit_exports_generated_by ON trust_audit_exports(generated_by);
 CREATE INDEX IF NOT EXISTS idx_trust_reconciliation_periods_signed_off_by ON trust_reconciliation_periods(signed_off_by);
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_created_by ON trust_transactions(created_by);
-CREATE INDEX IF NOT EXISTS idx_trust_transactions_maintenance_request_id ON trust_transactions(maintenance_request_id);
+-- idx_trust_transactions_maintenance_request_id moved to 008: maintenance_request_id is added there. (replay fix 2026-07-06)
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_unit_id ON trust_transactions(unit_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════

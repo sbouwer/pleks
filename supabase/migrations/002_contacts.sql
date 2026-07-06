@@ -391,6 +391,16 @@ CREATE INDEX IF NOT EXISTS idx_tenants_org_id    ON tenants(org_id);
 CREATE INDEX IF NOT EXISTS idx_tenants_contact_id ON tenants(contact_id);
 CREATE INDEX IF NOT EXISTS idx_tenants_deleted    ON tenants(deleted_at);
 
+-- auth_user_id — links a tenant record to its Supabase auth user. Relocated here
+-- from 010 §1 so the 005 §28.4 storage policy that references tenants.auth_user_id
+-- resolves on clean from-scratch replay (migration-replay fix, 2026-07-06).
+ALTER TABLE tenants
+  ADD COLUMN IF NOT EXISTS auth_user_id uuid REFERENCES auth.users(id);
+
+CREATE INDEX IF NOT EXISTS idx_tenants_auth_user_id
+  ON tenants(auth_user_id)
+  WHERE auth_user_id IS NOT NULL;
+
 ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_tenants" ON tenants;
 CREATE POLICY "org_tenants" ON tenants
@@ -1101,6 +1111,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_landlords_org_contact_live
 ALTER TABLE user_profiles
   ADD COLUMN IF NOT EXISTS agent_contact_id uuid REFERENCES contacts(id) ON DELETE SET NULL;
 
+-- Index moved here from 001 (the column above is added in this file and references contacts,
+-- created here), so it can't live in 001 on fresh replay. (migration-replay fix, 2026-07-06)
+CREATE INDEX IF NOT EXISTS idx_user_profiles_agent_contact_id ON user_profiles(agent_contact_id);
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §20  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys.
 --     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
@@ -1113,9 +1127,11 @@ ALTER TABLE user_profiles
 --       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
-CREATE INDEX IF NOT EXISTS idx_communication_log_first_attempt_log_id ON communication_log(first_attempt_log_id);
+-- idx_communication_log_first_attempt_log_id moved to 010: the first_attempt_log_id column is added
+-- there (§comm retry), so the index can't live in 002 on fresh replay. (migration-replay fix, 2026-07-06)
 CREATE INDEX IF NOT EXISTS idx_communication_log_sent_by ON communication_log(sent_by);
-CREATE INDEX IF NOT EXISTS idx_communication_log_triggered_by ON communication_log(triggered_by);
+-- idx_communication_log_triggered_by moved to 011: the triggered_by column is added there
+-- (§comm messaging), so the index can't live in 002 on fresh replay. (migration-replay fix, 2026-07-06)
 CREATE INDEX IF NOT EXISTS idx_contact_bank_accounts_created_by ON contact_bank_accounts(created_by);
 CREATE INDEX IF NOT EXISTS idx_contacts_created_by ON contacts(created_by);
 CREATE INDEX IF NOT EXISTS idx_landlords_created_by ON landlords(created_by);
