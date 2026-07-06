@@ -3,7 +3,13 @@
 /**
  * lib/deposits/disburse.ts — deposit disbursement: refund to tenant, damage deductions, charge settlements
  *
- * Auth:   Called from DepositActions (agent-authenticated client component via server action)
+ * Auth:   gateway() — authenticates + provides the caller's orgId. Deliberately NOT
+ *         requireAgentWriteAccess: returning a tenant's deposit fulfils a statutory RHA obligation, not
+ *         net-new value creation, so it must work even when the subscription is paused/cancelled ("Your
+ *         Data, Always"; allowlisted in the server-action census as an intentional gateway()-on-write).
+ *         The reconciliation read is org-scoped, so a foreign leaseId matches nothing (a caller from org A
+ *         cannot disburse org B's deposit). recorded_by is the session userId, never a caller arg.
+ *         (Caller-ID census hotfix: this action was previously ungated + cross-org + attribution-forgeable.)
  * Data:   deposit_reconciliations, deposit_charges, deposit_transactions, trust_transactions,
  *         payments, rent_invoices, arrears_cases via service client
  * Notes:  ADDENDUM_63B: three settlement patterns for deposit_charges before disbursement.
@@ -16,6 +22,7 @@
  *         BUILD_63 Phase 3: fires deposit.returned (mandatory) after status → refunded.
  */
 import * as React from "react"
+import { gateway } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { formatZAR } from "@/lib/constants"
@@ -103,7 +110,7 @@ async function settlePatternA(
   supabase: Awaited<ReturnType<typeof createServiceClient>>,
   charge: DepositCharge,
   recon: { org_id: string; lease_id: string; tenant_id: string },
-  agentId: string
+  actorId: string
 ) {
   const now = new Date().toISOString()
 
@@ -119,7 +126,7 @@ async function settlePatternA(
       payment_method:  "deposit_offset",
       reference:       `DEPOSIT-OFFSET-${charge.id.slice(0, 8).toUpperCase()}`,
       notes:           charge.description,
-      recorded_by:     agentId,
+      recorded_by:     actorId,
     })
     .select("id")
     .single()
@@ -135,7 +142,7 @@ async function settlePatternA(
     p_payment_id:   payment.id,
     p_lease_id:     recon.lease_id,
     p_amount_cents: charge.deduction_amount_cents,
-    p_actor:        agentId,
+    p_actor:        actorId,
   })
   if (allocErr) throw new Error(`Pattern A allocation failed for charge "${charge.description}": ${allocErr.message}`)
 
@@ -151,7 +158,7 @@ async function settlePatternA(
       amount_cents:     charge.deduction_amount_cents,
       description:      `${charge.description} — settled via deposit offset (Payment ${(payment.id as string).slice(0, 8).toUpperCase()})`,
       charge_id:        charge.id,
-      created_by:       agentId,
+      created_by:       actorId,
     })
     .select("id")
     .single()
@@ -199,7 +206,7 @@ async function settlePatternB(
   supabase: Awaited<ReturnType<typeof createServiceClient>>,
   charge: DepositCharge,
   recon: { org_id: string; lease_id: string; tenant_id: string },
-  agentId: string
+  actorId: string
 ) {
   const sourceLabel = charge.source_supplier_invoice_id
     ? `supplier invoice ${charge.source_supplier_invoice_id.slice(0, 8).toUpperCase()}`
@@ -216,7 +223,7 @@ async function settlePatternB(
       amount_cents:     charge.deduction_amount_cents,
       description:      `${charge.description} — cost recovery (${sourceLabel})`,
       charge_id:        charge.id,
-      created_by:       agentId,
+      created_by:       actorId,
     })
     .select("id")
     .single()
@@ -231,7 +238,7 @@ async function settlePatternB(
     direction:       "credit",
     amountCents:     charge.deduction_amount_cents,
     description:     `${charge.description} — cost recovery from deposit (${sourceLabel})`,
-    createdBy:       agentId,
+    createdBy:       actorId,
     source:          "agency_bank",
     initiatedBy:     "agent",
   })
@@ -246,7 +253,7 @@ async function settlePatternC(
   supabase: Awaited<ReturnType<typeof createServiceClient>>,
   charge: DepositCharge,
   recon: { org_id: string; lease_id: string; tenant_id: string },
-  agentId: string
+  actorId: string
 ) {
   const { data: depTxn, error: dtErr } = await supabase
     .from("deposit_transactions")
@@ -259,7 +266,7 @@ async function settlePatternC(
       amount_cents:     charge.deduction_amount_cents,
       description:      charge.description,
       charge_id:        charge.id,
-      created_by:       agentId,
+      created_by:       actorId,
     })
     .select("id")
     .single()
@@ -274,8 +281,14 @@ async function settlePatternC(
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export async function disburseDeposit(leaseId: string, agentId: string) {
-  const supabase = await createServiceClient()
+export async function disburseDeposit(leaseId: string) {
+  // Lockdown-free BY DESIGN: returning a tenant's deposit fulfils a statutory obligation (Rental Housing
+  // Act — refund within the prescribed period), NOT net-new value creation, so a paused/cancelled agency
+  // MUST still be able to disburse ("Your Data, Always"). gateway() keeps the full IDOR fix (auth + orgId
+  // scope + session userId) and drops only the subscription lockdown. Allowlisted in server-action-census.
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db: supabase, orgId, userId } = gw
 
   const { data: recon, error: reconErr } = await supabase
     .from("deposit_reconciliations")
@@ -285,6 +298,7 @@ export async function disburseDeposit(leaseId: string, agentId: string) {
       deposit_held_cents, total_deductions_cents
     `)
     .eq("lease_id", leaseId)
+    .eq("org_id", orgId)
     .single()
 
   if (reconErr || !recon) return { error: "Reconciliation not found" }
@@ -311,14 +325,14 @@ export async function disburseDeposit(leaseId: string, agentId: string) {
     for (const charge of (charges ?? []) as DepositCharge[]) {
       const isPatternA = !!(charge.source_arrears_case_id || charge.source_invoice_id || charge.source_lease_charge_id)
       const isPatternB = !!(charge.source_supplier_invoice_id || charge.source_municipal_bill_id)
-      const ctx = { org_id: recon.org_id as string, lease_id: leaseId, tenant_id: recon.tenant_id as string }
+      const ctx = { org_id: orgId, lease_id: leaseId, tenant_id: recon.tenant_id as string }
 
       if (isPatternA) {
-        await settlePatternA(supabase, charge, ctx, agentId)
+        await settlePatternA(supabase, charge, ctx, userId)
       } else if (isPatternB) {
-        await settlePatternB(supabase, charge, ctx, agentId)
+        await settlePatternB(supabase, charge, ctx, userId)
       } else {
-        await settlePatternC(supabase, charge, ctx, agentId)
+        await settlePatternC(supabase, charge, ctx, userId)
       }
     }
   } catch (err) {
@@ -362,9 +376,9 @@ export async function disburseDeposit(leaseId: string, agentId: string) {
   // credit and the recon still flipped to 'refunded' — a D-TRUST-01 imbalance. The trust inserts inside
   // the RPC fire the sovereignty + closed-period triggers, so the guarantee is enforced at the DB.
   const { error: disburseErr } = await supabase.rpc("disburse_deposit_atomic", {
-    p_org_id:      recon.org_id,
+    p_org_id:      orgId,
     p_lease_id:    leaseId,
-    p_actor:       agentId,
+    p_actor:       userId,
     p_reference:   refPrefix,
     p_tenant_name: tenantName,
   })
@@ -372,11 +386,11 @@ export async function disburseDeposit(leaseId: string, agentId: string) {
 
   // Audit log
   await supabase.from("audit_log").insert({
-    org_id:     recon.org_id,
+    org_id:     orgId,
     table_name: "deposit_reconciliations",
     record_id:  recon.id,
     action:     "UPDATE",
-    changed_by: agentId,
+    changed_by: userId,
     new_values: {
       status:     "refunded",
       refund:     formatZAR(recon.refund_to_tenant_cents as number),

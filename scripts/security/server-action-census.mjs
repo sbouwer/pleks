@@ -62,7 +62,7 @@ export const ACTION_ALLOWLIST = {
   "lib/deposits/calculateReturn.ts::*": "internal: pure calculation, no mutation",
   "lib/deposits/buildDeductionSchedule.ts::*": "internal: pure calculation, no mutation",
   "lib/deposits/generateJustification.ts::*": "internal: AI justification builder, gated caller",
-  "lib/deposits/disburse.ts::*": "internal: called by gated deposit disburse action",
+  "lib/deposits/disburse.ts::*": "intentional gateway()-on-write: disburseDeposit self-gates with gateway() (auth + orgId scope + session userId), lockdown-free BY DESIGN — returning a tenant's deposit is a statutory RHA obligation-closeout, NOT net-new value creation, so it must work when paused/cancelled ('Your Data, Always'). Every query org-scoped (caller-ID census hotfix 2026-07-06 — was previously ungated + cross-org + attribution-forgeable; the old 'called by a gated caller' reason was wrong and masked the hole).",
   // Screening internals — called by gated screen route / cron.
   "lib/screening/bankStatementClassification.ts::*": "internal: called by gated screen path + cron",
   "lib/screening/recordDecision.ts::*": "internal: called by gated shortlist action",

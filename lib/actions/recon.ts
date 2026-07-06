@@ -74,11 +74,12 @@ async function insertStatementLines(
  * "Matched" = any line not unmatched/ignored (same set as matched_count). Surfaces "your statement doesn't
  * reconcile to zero" so the agent can investigate before sign-off. No-op until both statement balances are known.
  */
-async function recomputeDiscrepancy(db: SupabaseClient, importId: string): Promise<void> {
+async function recomputeDiscrepancy(db: SupabaseClient, orgId: string, importId: string): Promise<void> {
   const { data: imp, error: impErr } = await db
     .from("bank_statement_imports")
     .select("opening_balance_cents, closing_balance_cents")
     .eq("id", importId)
+    .eq("org_id", orgId)
     .single()
   logQueryError("recomputeDiscrepancy bank_statement_imports", impErr)
   if (imp?.opening_balance_cents == null || imp?.closing_balance_cents == null) return
@@ -87,6 +88,7 @@ async function recomputeDiscrepancy(db: SupabaseClient, importId: string): Promi
     .from("bank_statement_lines")
     .select("amount_cents, direction, match_status")
     .eq("import_id", importId)
+    .eq("org_id", orgId)
   logQueryError("recomputeDiscrepancy bank_statement_lines", linesErr)
 
   let matchedNet = 0
@@ -96,7 +98,7 @@ async function recomputeDiscrepancy(db: SupabaseClient, importId: string): Promi
   }
   const discrepancy = imp.closing_balance_cents - (imp.opening_balance_cents + matchedNet)
 
-  await db.from("bank_statement_imports").update({ balance_discrepancy_cents: discrepancy }).eq("id", importId)
+  await db.from("bank_statement_imports").update({ balance_discrepancy_cents: discrepancy }).eq("id", importId).eq("org_id", orgId)
 }
 
 async function autoMatchLines(
@@ -108,6 +110,7 @@ async function autoMatchLines(
     .from("bank_statement_lines")
     .select("id, reference_clean, description_clean, amount_cents, direction, transaction_date")
     .eq("import_id", importId)
+    .eq("org_id", orgId)
     .eq("match_status", "unmatched")
 
   if (error || !lines?.length) return 0
@@ -136,6 +139,7 @@ async function autoMatchLines(
         matched_supplier_inv_id: result.supplierInvoiceId ?? null,
       })
       .eq("id", line.id)
+      .eq("org_id", orgId)
     matched++
   }
 
@@ -144,6 +148,7 @@ async function autoMatchLines(
     .from("bank_statement_lines")
     .select("match_status")
     .eq("import_id", importId)
+    .eq("org_id", orgId)
     logQueryError("autoMatchLines bank_statement_lines", countsError)
 
   const total = counts?.length ?? 0
@@ -154,8 +159,9 @@ async function autoMatchLines(
     .from("bank_statement_imports")
     .update({ transaction_count: total, matched_count: matchedCount, unmatched_count: unmatchedCount })
     .eq("id", importId)
+    .eq("org_id", orgId)
 
-  await recomputeDiscrepancy(db, importId)
+  await recomputeDiscrepancy(db, orgId, importId)
   return matched
 }
 
@@ -290,7 +296,7 @@ export async function resolveStatementLine(
   matchData?: { invoiceId?: string; supplierInvoiceId?: string; reason?: string }
 ) {
   const gw = await requireAgentWriteAccess("sign_off_recon")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const updates: Record<string, unknown> = {
     resolved_by: userId,
@@ -307,10 +313,11 @@ export async function resolveStatementLine(
     if (matchData?.supplierInvoiceId) updates.matched_supplier_inv_id = matchData.supplierInvoiceId
   }
 
-  const { data: updated, error } = await db.from("bank_statement_lines").update(updates).eq("id", lineId).select("import_id").single()
+  // Org-scope the line update (caller-ID census) — a foreign lineId matches nothing.
+  const { data: updated, error } = await db.from("bank_statement_lines").update(updates).eq("id", lineId).eq("org_id", orgId).select("import_id").single()
   if (error) return { error: error.message }
 
-  if (updated?.import_id) await recomputeDiscrepancy(db, updated.import_id as string)
+  if (updated?.import_id) await recomputeDiscrepancy(db, orgId, updated.import_id as string)
   revalidatePath("/billing/reconciliation")
   return { success: true }
 }
@@ -322,7 +329,7 @@ export async function resolveStatementLine(
  */
 export async function resolveFuzzyMatch(lineId: string, decision: "confirm" | "reject") {
   const gw = await requireAgentWriteAccess("sign_off_recon")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const updates: Record<string, unknown> = { resolved_by: userId, resolved_at: new Date().toISOString() }
   if (decision === "confirm") {
@@ -339,12 +346,13 @@ export async function resolveFuzzyMatch(lineId: string, decision: "confirm" | "r
     .from("bank_statement_lines")
     .update(updates)
     .eq("id", lineId)
+    .eq("org_id", orgId)
     .eq("match_status", "matched_fuzzy")   // only act on an un-confirmed fuzzy suggestion (idempotent)
     .select("import_id")
     .maybeSingle()
   if (error) return { error: error.message }
 
-  if (updated?.import_id) await recomputeDiscrepancy(db, updated.import_id as string)
+  if (updated?.import_id) await recomputeDiscrepancy(db, orgId, updated.import_id as string)
   revalidatePath("/billing/reconciliation")
   return { success: true }
 }
@@ -360,12 +368,13 @@ export async function runAutoMatch(importId: string): Promise<{ matched: number 
 
 export async function signOffReconciliation(importId: string, acceptVariance?: { reason: string }) {
   const gw = await requireAgentWriteAccess("sign_off_recon")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const { data: unmatched, error: unmatchedError } = await db
     .from("bank_statement_lines")
     .select("id")
     .eq("import_id", importId)
+    .eq("org_id", orgId)
     .eq("match_status", "unmatched")
     .limit(1)
     logQueryError("signOffReconciliation bank_statement_lines", unmatchedError)
@@ -380,6 +389,7 @@ export async function signOffReconciliation(importId: string, acceptVariance?: {
     .from("bank_statement_lines")
     .select("id")
     .eq("import_id", importId)
+    .eq("org_id", orgId)
     .eq("match_status", "matched_fuzzy")
     .limit(1)
     logQueryError("signOffReconciliation fuzzy check", fuzzyError)
@@ -394,6 +404,7 @@ export async function signOffReconciliation(importId: string, acceptVariance?: {
     .from("bank_statement_imports")
     .select("org_id, balance_discrepancy_cents")
     .eq("id", importId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("signOffReconciliation bank_statement_imports", impError)
 
@@ -415,6 +426,7 @@ export async function signOffReconciliation(importId: string, acceptVariance?: {
       extraction_status: "complete",
     })
     .eq("id", importId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
 

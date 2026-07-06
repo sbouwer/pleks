@@ -19,7 +19,7 @@ export async function updateArrearsStatus(
 ) {
   const gw = await requireAgentWriteAccess("update_arrears_status")
   if (!(await hasCapability(gw, "finance"))) return { error: "Finance access is required for arrears actions." }
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const updates: Record<string, unknown> = { status: newStatus }
 
@@ -39,10 +39,12 @@ export async function updateArrearsStatus(
     updates.referred_at = new Date().toISOString()
   }
 
-  const { error } = await db.from("arrears_cases").update(updates).eq("id", caseId)
+  // Org-scope guard (caller-ID census): the service client bypasses RLS, so a foreign caseId must
+  // match no row on the update AND the follow-up read (which gates the audit/action writes).
+  const { error } = await db.from("arrears_cases").update(updates).eq("id", caseId).eq("org_id", orgId)
   if (error) return { error: error.message }
 
-  const { data: arrearsCase, error: arrearsCaseError } = await db.from("arrears_cases").select("org_id").eq("id", caseId).single()
+  const { data: arrearsCase, error: arrearsCaseError } = await db.from("arrears_cases").select("org_id").eq("id", caseId).eq("org_id", orgId).single()
     logQueryError("updateArrearsStatus arrears_cases", arrearsCaseError)
 
   if (arrearsCase) {
@@ -75,7 +77,7 @@ export async function recordPaymentArrangement(
 ) {
   const gw = await requireAgentWriteAccess("record_payment_arrangement")
   if (!(await hasCapability(gw, "finance"))) return { error: "Finance access is required for arrears actions." }
-  const { db } = gw
+  const { db, orgId } = gw
 
   const amountCents = Math.round(parseFloat(formData.get("amount") as string) * 100)
   const startDate = formData.get("start_date") as string
@@ -90,11 +92,11 @@ export async function recordPaymentArrangement(
     arrangement_notes: notes,
     sequence_paused: true,
     sequence_paused_reason: "Payment arrangement in place",
-  }).eq("id", caseId)
+  }).eq("id", caseId).eq("org_id", orgId)
 
   if (error) return { error: error.message }
 
-  const { data: arrearsCase, error: arrearsCaseError } = await db.from("arrears_cases").select("org_id").eq("id", caseId).single()
+  const { data: arrearsCase, error: arrearsCaseError } = await db.from("arrears_cases").select("org_id").eq("id", caseId).eq("org_id", orgId).single()
     logQueryError("recordPaymentArrangement arrears_cases", arrearsCaseError)
 
   if (arrearsCase) {

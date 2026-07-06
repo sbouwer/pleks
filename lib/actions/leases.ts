@@ -521,10 +521,12 @@ export async function sendForSigning(leaseId: string) {
   const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
 
+  // Org-scope guard (caller-ID census): a foreign leaseId matches no row → "Lease not found".
   const { data: lease, error: leaseError } = await db
     .from("leases")
     .select("status, generated_doc_path, tenant_id, rent_amount_cents, start_date, unit_id")
     .eq("id", leaseId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("sendForSigning leases", leaseError)
 
@@ -532,7 +534,7 @@ export async function sendForSigning(leaseId: string) {
   if (lease.status !== "draft") return { error: "Lease has already been sent for signing" }
   if (!lease.generated_doc_path) return { error: "Generate the lease document first" }
 
-  await db.from("leases").update({ status: "pending_signing", sent_for_signing_at: new Date().toISOString() }).eq("id", leaseId)
+  await db.from("leases").update({ status: "pending_signing", sent_for_signing_at: new Date().toISOString() }).eq("id", leaseId).eq("org_id", orgId)
 
   await db.from("lease_lifecycle_events").insert({
     org_id: orgId,
@@ -591,9 +593,11 @@ export async function sendForSigning(leaseId: string) {
 
 export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord", reason?: string) {
   const gw = await requireAgentWriteAccess("terminate_lease")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
-  const { data: lease, error: leaseError } = await db.from("leases").select("*").eq("id", leaseId).single()
+  // Org-scope guard (caller-ID census): a foreign leaseId matches nothing → "Lease not found", so a
+  // caller can't put another org's lease on notice (+ email their tenant). lease.unit_id is then trusted.
+  const { data: lease, error: leaseError } = await db.from("leases").select("*").eq("id", leaseId).eq("org_id", orgId).single()
     logQueryError("giveNotice leases", leaseError)
   if (!lease) return { error: "Lease not found" }
 
@@ -606,9 +610,9 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
     notice_given_by: givenBy,
     notice_given_date: noticeDate.toISOString().split("T")[0],
     notice_period_end: noticePeriodEnd.toISOString().split("T")[0],
-  }).eq("id", leaseId)
+  }).eq("id", leaseId).eq("org_id", orgId)
 
-  await db.from("units").update({ status: "notice" }).eq("id", lease.unit_id)
+  await db.from("units").update({ status: "notice" }).eq("id", lease.unit_id).eq("org_id", orgId)
 
   await db.from("unit_status_history").insert({
     unit_id: lease.unit_id,

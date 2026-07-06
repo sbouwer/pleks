@@ -157,6 +157,13 @@ export async function saveBroker(propertyId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId } = gw
 
+  // Validate the property belongs to the caller's org before touching its brokers (caller-ID census):
+  // guards BOTH the delete (cross-org wipe) and the upsert (cross-org hijack via a property_id conflict).
+  const { data: prop, error: propErr } = await db
+    .from("properties").select("id").eq("id", propertyId).eq("org_id", orgId).maybeSingle()
+  if (propErr) return { error: propErr.message }
+  if (!prop) return { error: "Property not found" }
+
   const brokerContactId = (formData.get("broker_contact_id") as string) || null
 
   if (!brokerContactId) {
@@ -164,6 +171,7 @@ export async function saveBroker(propertyId: string, formData: FormData) {
       .from("property_brokers")
       .delete()
       .eq("property_id", propertyId)
+      .eq("org_id", orgId)
     if (error) return { error: error.message }
   } else {
     const notifyChannelsRaw = formData.getAll("notify_channels") as string[]
