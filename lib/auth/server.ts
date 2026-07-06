@@ -67,15 +67,18 @@ export const getServerOrgMembership = cache(async () => {
     }
   }
 
-  // 2. DB query (cookie miss — proxy.ts will refresh on next request)
-  const supabase = await createClient()
-  const { data, error: queryError } = await supabase
+  // 2. DB query (cookie miss — proxy.ts will refresh on next request).
+  // Service client: getServerUser() already authenticated the user via the cookie client
+  // (auth.getUser). user_orgs is scoped by the authenticated user.id, so the explicit filter —
+  // not RLS on the cookie client — is the boundary. This is the last cookie-.from() in the gate.
+  const service = await createServiceClient()
+  const { data, error: queryError } = await service
     .from("user_orgs")
     .select("org_id, role")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
-    logQueryError("getServerOrgMembership user_orgs", queryError)
+  logQueryError("getServerOrgMembership user_orgs", queryError)
 
   if (data) setSentryUser({ id: user.id, org_id: data.org_id, role: data.role })
   return data ? { ...data, tier: null } : null
