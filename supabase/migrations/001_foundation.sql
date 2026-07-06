@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS organisations (
   reg_number      text,
   vat_number      text,
   type            text NOT NULL DEFAULT 'agency'
-                  CHECK (type IN ('agency', 'landlord', 'sole_prop')),
+                  -- hoa_manager added ADDENDUM_18C (010 §49); widened here in lock-step for drift honesty.
+                  CHECK (type IN ('agency', 'landlord', 'sole_prop', 'hoa_manager')),
   email           text,
   phone           text,
   address         text,

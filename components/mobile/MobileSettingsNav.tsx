@@ -22,7 +22,10 @@ export function MobileSettingsNav() {
   const { orgId } = useOrg()
   const caps = useOrgCapabilities()
   const canSee = useNavGate()  // shared capability + tier gate (same predicate as desktop) — RBAC P4
-  const depositLabel = caps?.trustAccountLabel === "deposits" ? "Deposits" : "Trust account"
+  // ADDENDUM_18C: the /settings account surface relabels per trust framing (same D-TRUST-01 posture).
+  let depositLabel = "Trust account"
+  if (caps?.trustAccountLabel === "deposits") depositLabel = "Deposits"
+  else if (caps?.trustAccountLabel === "scheme_funds") depositLabel = "Scheme funds"
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {

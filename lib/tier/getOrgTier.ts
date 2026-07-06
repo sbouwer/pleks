@@ -4,18 +4,21 @@
  * Auth:   Server-only; service client for canonical path, cookie-backed client for fast-path
  * Data:   subscriptions table (canonical); pleks_org cookie (fast-path display only)
  * Notes:  getOrgTierCanonical is the ONLY resolver for entitlement gates — cookie tier is forgeable.
+ *         getOrgTierAny is the SAME read, typed as AnyTier for the product-line-aware route guard
+ *         (an HOA org's subscriptions.tier genuinely holds an hoa_* literal). Both go through one
+ *         _readEffectiveTier() so the two views can never drift (ADDENDUM_18C).
  *         getOrgTier (fast-path) is for display surfaces only (badges, plan labels, feature hints).
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-import type { Tier } from "@/lib/constants"
+import type { Tier, AnyTier } from "@/lib/constants"
 import { getEffectiveTier } from "./effectiveTier"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
-/** Canonical tier — always reads subscriptions via service client.
- *  Use for ALL entitlement gates (canActivateLease, canDowngradeTo, etc.).
- *  The cookie fast-path (getOrgTier) is display-only and forgeable. */
-export async function getOrgTierCanonical(orgId: string): Promise<Tier> {
+/** The single canonical read of an org's effective tier from subscriptions (service client). Returns the
+ *  raw tier STRING — the column holds a residential (owner…bespoke) OR an HOA (hoa_*) literal. The two
+ *  public views below narrow it to the type each caller needs, so there is ONE read, no drift. */
+async function _readEffectiveTier(orgId: string): Promise<string> {
   const db = await createServiceClient()
   const { data: sub, error: subError } = await db
     .from("subscriptions")
@@ -23,9 +26,23 @@ export async function getOrgTierCanonical(orgId: string): Promise<Tier> {
     .eq("org_id", orgId)
     .in("status", ["active", "trialing"])
     .maybeSingle()
-    logQueryError("getOrgTierCanonical subscriptions", subError)
+    logQueryError("getOrgTier(canonical) subscriptions", subError)
   if (!sub) return "owner"
   return getEffectiveTier(sub)
+}
+
+/** Canonical tier for ALL entitlement/lease gates (canActivateLease, canDowngradeTo, etc.). Return type
+ *  stays Tier — its residential assumption is intact and these money-adjacent gates are untouched by the
+ *  HOA line (an HOA org never reaches them). The cookie fast-path (getOrgTier) is display-only/forgeable. */
+export async function getOrgTierCanonical(orgId: string): Promise<Tier> {
+  return (await _readEffectiveTier(orgId)) as Tier
+}
+
+/** Line-honest tier for the product-line-aware route guard (requireRouteTier/requireMinTier). Typed AnyTier
+ *  because an HOA org's subscription genuinely holds an hoa_* literal; hasAccess() then compares within the
+ *  org's line and denies cross-line. Same underlying read as getOrgTierCanonical — never a second query. */
+export async function getOrgTierAny(orgId: string): Promise<AnyTier> {
+  return (await _readEffectiveTier(orgId)) as AnyTier
 }
 
 /** Display-only tier — reads pleks_org cookie with DB fallback on cache miss.

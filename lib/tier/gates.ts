@@ -6,7 +6,7 @@
  *         hasFeature() is the only call site check — use it everywhere, never
  *         compare tier strings directly.
  */
-import { TIER_ORDER, type Tier } from "@/lib/constants"
+import { TIER_ORDER, HOA_TIER_ORDER, type Tier, type HoaTier, type AnyTier, type ProductLine } from "@/lib/constants"
 
 const TIER_FEATURES_OWNER = [
   "lease_create",
@@ -64,11 +64,79 @@ export const TIER_FEATURES: Record<Tier, readonly string[]> = {
   bespoke:   TIER_FEATURES_FIRM,
 }
 
-export function hasFeature(tier: Tier, feature: string): boolean {
-  return TIER_FEATURES[tier].includes(feature)
+// ── HOA product line (ADDENDUM_18C D-18C-06) ────────────────────────────────────
+// The standalone HOA / body-corporate management line. hoa_module/body_corporate/sectional_title are
+// RE-HOMED (not moved): they stay in TIER_FEATURES_FIRM above so an existing residential Firm agency
+// keeps "HOAs on the side" (NR-1), AND appear here so the HOA line carries them at its base.
+// PRIMARY AXIS is CAPACITY: the HOA tiers differ on total units under management (HOA_LIMITS), not on
+// packaging, so the feature set is MOSTLY FLAT (base below applies to all four tiers). The one exception
+// is a COST-BASED floor (not packaging): the expensive per-call / per-pull features are gated to
+// hoa_firm+, mirroring the residential line (opus_ai is Firm-only, ai_full is Portfolio+,
+// property_intelligence is a paid PAYG pull) — don't hand the cheapest HOA tier unlimited Opus. Any
+// further per-tier HOA feature differentiation is a Phase-3 product call. Rental-only features (lease_*,
+// tenant_portal, application_pipeline, arrears_automation, fitscore_*) are deliberately absent.
+const HOA_FEATURES_BASE = [
+  "hoa_module",
+  "body_corporate",
+  "sectional_title",
+  "bank_recon",              // levy reconciliation against the scheme bank feed
+  "owner_statements",        // unit-owner levy statements
+  "basic_invoicing",         // levy invoicing
+  "maintenance_log",         // common-property maintenance
+  "inspection_basic",
+  "inspection_unlimited",    // common-property inspections
+  "ai_maintenance_triage",   // Haiku — cheap, flat
+  "ai_inspection",           // Sonnet — common-property condition (Steward-level in residential; flat here)
+  "reports_basic",
+  "reports_full",
+  "docuseal_signing",        // AGM notices, levy demand letters
+  "sms_notifications",
+  "whatsapp_notifications",  // owner comms
+  "contractor_portal",       // scheme contractors
+  "custom_templates",
+] as const
+
+// Cost-based floor — gated to hoa_firm+ on margin grounds, NOT packaging. These carry real per-call /
+// per-pull cost, and the residential line gates them for the same reason.
+const HOA_FEATURES_PREMIUM = [
+  "ai_full",                 // Sonnet — bank statements, AGM notices, levy justifications (Portfolio+ in residential)
+  "opus_ai",                 // Opus — CSOS/tribunal submissions (most expensive per call; Firm-only in residential)
+  "property_intelligence",   // Deeds/Lightstone/CIPC PAYG pulls (per-pull cost; Steward+ in residential)
+] as const
+
+export const HOA_TIER_FEATURES: Record<HoaTier, readonly string[]> = {
+  hoa_studio:   HOA_FEATURES_BASE,
+  hoa_practice: HOA_FEATURES_BASE,
+  hoa_firm:     [...HOA_FEATURES_BASE, ...HOA_FEATURES_PREMIUM],
+  hoa_bespoke:  [...HOA_FEATURES_BASE, ...HOA_FEATURES_PREMIUM],
 }
 
-export function hasAccess(orgTier: Tier, requiredTier: Tier): boolean {
+/** True if `tier` is on the HOA product line (its literal is an HOA-ladder key). */
+function isHoaTier(tier: AnyTier): tier is HoaTier {
+  return tier in HOA_TIER_ORDER
+}
+
+/** The product line a tier belongs to — inferred from its (disjoint) literal. No org lookup needed. */
+export function productLineForTier(tier: AnyTier): ProductLine {
+  return isHoaTier(tier) ? "hoa" : "residential"
+}
+
+export function hasFeature(tier: AnyTier, feature: string): boolean {
+  const features = isHoaTier(tier) ? HOA_TIER_FEATURES[tier] : TIER_FEATURES[tier]
+  return features.includes(feature)
+}
+
+/**
+ * Ordinal tier comparison WITHIN a product line. The residential and HOA ladders are independent, so
+ * comparing across lines is meaningless — a cross-line call returns false (deny) rather than compare
+ * incomparable ordinals. Callers always hold one org's line, so a cross-line pair is a caller bug.
+ */
+export function hasAccess(orgTier: AnyTier, requiredTier: AnyTier): boolean {
+  if (isHoaTier(orgTier)) {
+    if (!isHoaTier(requiredTier)) return false // cross-line — incomparable
+    return HOA_TIER_ORDER[orgTier] >= HOA_TIER_ORDER[requiredTier]
+  }
+  if (isHoaTier(requiredTier)) return false // cross-line — incomparable
   return TIER_ORDER[orgTier] >= TIER_ORDER[requiredTier]
 }
 
@@ -91,11 +159,23 @@ export const ROUTE_TIER_FLOORS = {
   "/settings/import":         "steward",
 } as const satisfies Record<string, Tier>
 
-/** The tier floor that applies to `path` (longest matching route prefix), or null if the route is untiered. */
-export function tierFloorForPath(path: string): Tier | null {
-  let floor: Tier | null = null
+// HOA product line has NO route tier floors (ADDENDUM_18C): HOA tiers differ on CAPACITY (HOA_LIMITS —
+// total units under management), not route access, so every HOA-surface route is reachable at the base
+// tier. Kept as its own map so (a) a residential floor never cross-line-denies an HOA org — Stage 2's
+// hasAccess would otherwise deny hoa_studio vs "firm" and lock HOA orgs out of /hoa, /finance, /settings
+// — and (b) a future HOA route floor is a one-line addition here.
+const HOA_ROUTE_TIER_FLOORS = {} as const satisfies Record<string, HoaTier>
+
+/**
+ * The tier floor that applies to `path` (longest matching route prefix) WITHIN a product line, or null if
+ * the route is untiered on that line. Defaults to the residential line so every existing caller is
+ * byte-identical (NR-2); the HOA line resolves against its own (currently empty) floor map.
+ */
+export function tierFloorForPath(path: string, line: ProductLine = "residential"): AnyTier | null {
+  const floors: Record<string, AnyTier> = line === "hoa" ? HOA_ROUTE_TIER_FLOORS : ROUTE_TIER_FLOORS
+  let floor: AnyTier | null = null
   let bestLen = -1
-  for (const [route, tier] of Object.entries(ROUTE_TIER_FLOORS)) {
+  for (const [route, tier] of Object.entries(floors)) {
     if ((path === route || path.startsWith(route + "/")) && route.length > bestLen) {
       floor = tier
       bestLen = route.length

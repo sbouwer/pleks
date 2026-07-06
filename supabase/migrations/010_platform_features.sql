@@ -3770,3 +3770,30 @@ CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_tos_acceptances_user_id ON tos_acceptances(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_capabilities_granted_by ON user_capabilities(granted_by);
 CREATE INDEX IF NOT EXISTS idx_user_capabilities_user_id ON user_capabilities(user_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §49  ADDENDUM_18C Phase 1: product_line axis + hoa_manager org type
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- `product_line` is a new first-class org axis (D-18C-01): which product FAMILY the account runs —
+-- 'residential' (rentals: leases, tenants, applications) or 'hoa' (standalone body-corporate /
+-- managing-agent operations, no lease surface). It drives the tier ladder, feature map, and active
+-- surface set (lib/constants.ts HOA_TIER_ORDER/HOA_LIMITS; lib/tier + lib/org/capabilities become
+-- product-line-aware). Orthogonal to `type` (framing) and role (per-user permissions).
+--   NR-2 (non-regression): every EXISTING org is 'residential' — the DEFAULT backfills all rows on the
+--   ALTER, so behaviour is byte-identical for residential accounts. No data migration needed.
+--   `hoa_manager` (D-18C-03) joins the org type CHECK: a lease-less HOA-management company that reuses
+--   the agent role + AAL2 (NR-4 — no new portal). The inline CHECK in 001 was widened in lock-step
+--   (drift honesty); this DROP/ADD applies it to already-created databases + targeted re-runs.
+
+ALTER TABLE organisations
+  ADD COLUMN IF NOT EXISTS product_line text NOT NULL DEFAULT 'residential'
+    CHECK (product_line IN ('residential', 'hoa'));
+
+COMMENT ON COLUMN organisations.product_line IS
+  'ADDENDUM_18C D-18C-01: product family the account runs — residential (rentals) | hoa (standalone HOA / body-corporate management, no lease surface). Drives the tier ladder, feature map, and active surface set. Every pre-18C org is residential (DEFAULT backfill). Orthogonal to type + role.';
+
+-- Widen the org type CHECK to admit hoa_manager. Postgres names the inline CHECK from 001
+-- organisations_type_check by convention; drop-first then re-add keeps it idempotent.
+ALTER TABLE organisations DROP CONSTRAINT IF EXISTS organisations_type_check;
+ALTER TABLE organisations ADD CONSTRAINT organisations_type_check
+  CHECK (type IN ('agency', 'landlord', 'sole_prop', 'hoa_manager'));

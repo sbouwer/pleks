@@ -16,6 +16,7 @@ import { SidebarContent, type NavGroup } from "./SidebarContent"
 import { SettingsSidebar } from "./SettingsSidebar"
 import { useNavBadges } from "@/hooks/useNavBadges"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
+import { trustLedgerNavLabel } from "@/lib/org/capabilities"
 import { useNavGate } from "@/hooks/useNavGate"
 import {
   LayoutDashboard,
@@ -114,13 +115,19 @@ export function Sidebar() {
         // Org-type gates — D-61A-04: hide, don't grey-out (a separate axis, per-component)
         if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
         if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
+        // Product-line surface gates (ADDENDUM_18C D-18C-04): the standalone HOA line switches off the
+        // whole rental surface — leases, tenants, and the applications/listings funnel.
+        if (item.href === "/leases" && caps !== null && !caps.hasLeases) return false
+        if (item.href === "/tenants" && caps !== null && !caps.hasTenants) return false
+        if (item.href === "/listings" && caps !== null && !caps.hasApplications) return false
         return true
       })
       .map((item) => ({
         ...item,
-        // D-61A-07: trust ledger relabelled for landlord-type orgs
-        label: item.href === "/finance/trust-ledger" && caps?.trustAccountLabel === "deposits"
-          ? "Deposit holdings"
+        // D-61A-07 / ADDENDUM_18C: trust ledger relabelled per trustAccountLabel (deposits → landlord,
+        // scheme_funds → HOA line; same D-TRUST-01 posture, display only).
+        label: item.href === "/finance/trust-ledger"
+          ? trustLedgerNavLabel(caps?.trustAccountLabel, item.label)
           : item.label,
         count: BADGE_COUNTS[item.href] ?? undefined,
       })),

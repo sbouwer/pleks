@@ -13,6 +13,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { CloudDownload } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
+import { trustLedgerNavLabel } from "@/lib/org/capabilities"
 import { useNavGate } from "@/hooks/useNavGate"
 
 const SECTIONS = [
@@ -20,6 +21,7 @@ const SECTIONS = [
     label: "Portfolio",
     items: [
       { href: "/properties", label: "Properties" },
+      { href: "/hoa", label: "HOA" },
       { href: "/landlords", label: "Landlords" },
       { href: "/tenants", label: "Tenants" },
       { href: "/suppliers", label: "Suppliers" },
@@ -79,12 +81,16 @@ export function MobileMoreSheet({ open, onOpenChange, onOpenOffline }: MobileMor
         if (!canSee(item.href)) return false  // capability + tier (shared SSOT predicate)
         if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
         if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
+        // Product-line surface gates (ADDENDUM_18C D-18C-04) — HOA line switches the rental surface off.
+        if (item.href === "/leases" && caps !== null && !caps.hasLeases) return false
+        if (item.href === "/tenants" && caps !== null && !caps.hasTenants) return false
+        if (item.href === "/listings" && caps !== null && !caps.hasApplications) return false
         return true
       })
       .map((item) => ({
         ...item,
-        label: item.href === "/finance/trust-ledger" && caps?.trustAccountLabel === "deposits"
-          ? "Deposit holdings"
+        label: item.href === "/finance/trust-ledger"
+          ? trustLedgerNavLabel(caps?.trustAccountLabel, item.label)
           : item.label,
       })),
   })).filter((section) => section.items.length > 0)
