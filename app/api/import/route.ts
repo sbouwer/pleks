@@ -1,30 +1,36 @@
 /**
- * app/api/import/route.ts — FILL: one-line purpose
+ * app/api/import/route.ts — CSV bulk-import of properties / tenants / leases into the caller's own org
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/import  (multipart: "file" CSV, "type" = properties|tenants|leases)
+ * Auth:   requireAgentWriteAccess("bulk_import") — bulk import creates net-new business objects, so it is
+ *         subscription-lockdown gated; additionally requires the caller to be an org admin (owner/is_admin).
+ * Data:   dispatches to lib/import/{property,tenant,lease}Import, all org-scoped by the gateway orgId.
+ * Notes:  One gate before the switch covers all three import types. Lockdown resolves first (inside
+ *         requireAgentWriteAccess) then the admin check — a paused org sees a clean 403
+ *         { code: "subscription_locked" } regardless of admin status.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { importProperties } from "@/lib/import/propertyImport"
 import { importTenants } from "@/lib/import/tenantImport"
 import { importLeases } from "@/lib/import/leaseImport"
-import { getMembership } from "@/lib/supabase/getMembership"
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const service = await createServiceClient()
-  const membership = await getMembership(service, user.id)
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
-  if (!membership.isAdmin) {
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("bulk_import")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  // Bulk import is an admin-only surface — org owner or an is_admin user (unchanged authority gate).
+  if (!gw.isAdmin) {
     return NextResponse.json({ error: "Admin access required to import data" }, { status: 403 })
   }
+  const { orgId, userId } = gw
 
   const formData = await req.formData()
   const file = formData.get("file") as File | null
@@ -39,13 +45,13 @@ export async function POST(req: NextRequest) {
   let result
   switch (importType) {
     case "properties":
-      result = await importProperties(csvText, membership.org_id, user.id)
+      result = await importProperties(csvText, orgId, userId)
       break
     case "tenants":
-      result = await importTenants(csvText, membership.org_id, user.id)
+      result = await importTenants(csvText, orgId, userId)
       break
     case "leases":
-      result = await importLeases(csvText, membership.org_id, user.id)
+      result = await importLeases(csvText, orgId, userId)
       break
     default:
       return NextResponse.json({ error: "Invalid import type" }, { status: 400 })
