@@ -68,10 +68,13 @@ export const TIER_FEATURES: Record<Tier, readonly string[]> = {
 // The standalone HOA / body-corporate management line. hoa_module/body_corporate/sectional_title are
 // RE-HOMED (not moved): they stay in TIER_FEATURES_FIRM above so an existing residential Firm agency
 // keeps "HOAs on the side" (NR-1), AND appear here so the HOA line carries them at its base.
-// PROVISIONAL (Phase 3, GTM-confirmable): the HOA tiers differ on CAPACITY (HOA_LIMITS — total units
-// under management), NOT on features, so this feature set is FLAT across hoa_studio→hoa_bespoke. Per-tier
-// HOA feature differentiation is a product decision deferred to Phase 3. Rental-only features
-// (lease_*, tenant_portal, application_pipeline, arrears_automation, fitscore_*) are deliberately absent.
+// PRIMARY AXIS is CAPACITY: the HOA tiers differ on total units under management (HOA_LIMITS), not on
+// packaging, so the feature set is MOSTLY FLAT (base below applies to all four tiers). The one exception
+// is a COST-BASED floor (not packaging): the expensive per-call / per-pull features are gated to
+// hoa_firm+, mirroring the residential line (opus_ai is Firm-only, ai_full is Portfolio+,
+// property_intelligence is a paid PAYG pull) — don't hand the cheapest HOA tier unlimited Opus. Any
+// further per-tier HOA feature differentiation is a Phase-3 product call. Rental-only features (lease_*,
+// tenant_portal, application_pipeline, arrears_automation, fitscore_*) are deliberately absent.
 const HOA_FEATURES_BASE = [
   "hoa_module",
   "body_corporate",
@@ -82,9 +85,8 @@ const HOA_FEATURES_BASE = [
   "maintenance_log",         // common-property maintenance
   "inspection_basic",
   "inspection_unlimited",    // common-property inspections
-  "ai_maintenance_triage",   // Haiku — triage scheme maintenance
-  "ai_inspection",           // Sonnet — common-property condition
-  "ai_full",                 // Sonnet — AGM notices, levy justifications
+  "ai_maintenance_triage",   // Haiku — cheap, flat
+  "ai_inspection",           // Sonnet — common-property condition (Steward-level in residential; flat here)
   "reports_basic",
   "reports_full",
   "docuseal_signing",        // AGM notices, levy demand letters
@@ -92,15 +94,21 @@ const HOA_FEATURES_BASE = [
   "whatsapp_notifications",  // owner comms
   "contractor_portal",       // scheme contractors
   "custom_templates",
-  "opus_ai",                 // Opus — CSOS/tribunal submissions
-  "property_intelligence",
+] as const
+
+// Cost-based floor — gated to hoa_firm+ on margin grounds, NOT packaging. These carry real per-call /
+// per-pull cost, and the residential line gates them for the same reason.
+const HOA_FEATURES_PREMIUM = [
+  "ai_full",                 // Sonnet — bank statements, AGM notices, levy justifications (Portfolio+ in residential)
+  "opus_ai",                 // Opus — CSOS/tribunal submissions (most expensive per call; Firm-only in residential)
+  "property_intelligence",   // Deeds/Lightstone/CIPC PAYG pulls (per-pull cost; Steward+ in residential)
 ] as const
 
 export const HOA_TIER_FEATURES: Record<HoaTier, readonly string[]> = {
   hoa_studio:   HOA_FEATURES_BASE,
   hoa_practice: HOA_FEATURES_BASE,
-  hoa_firm:     HOA_FEATURES_BASE,
-  hoa_bespoke:  HOA_FEATURES_BASE,
+  hoa_firm:     [...HOA_FEATURES_BASE, ...HOA_FEATURES_PREMIUM],
+  hoa_bespoke:  [...HOA_FEATURES_BASE, ...HOA_FEATURES_PREMIUM],
 }
 
 /** True if `tier` is on the HOA product line (its literal is an HOA-ladder key). */

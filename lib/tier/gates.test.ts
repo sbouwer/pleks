@@ -22,13 +22,23 @@ describe("hasFeature — residential line (NR-2: unchanged)", () => {
 })
 
 describe("hasFeature — HOA line", () => {
-  it("carries the re-homed HOA + scheme-operations features at every HOA tier", () => {
+  it("carries the re-homed HOA + base scheme-operations features at every HOA tier", () => {
     for (const t of ["hoa_studio", "hoa_practice", "hoa_firm", "hoa_bespoke"] as const) {
       expect(hasFeature(t, "hoa_module")).toBe(true)
       expect(hasFeature(t, "body_corporate")).toBe(true)
       expect(hasFeature(t, "sectional_title")).toBe(true)
       expect(hasFeature(t, "bank_recon")).toBe(true) // levy reconciliation
-      expect(hasFeature(t, "opus_ai")).toBe(true) // CSOS/tribunal
+      expect(hasFeature(t, "owner_statements")).toBe(true)
+      expect(hasFeature(t, "ai_inspection")).toBe(true) // Sonnet but Steward-level — flat here
+    }
+  })
+
+  it("gates the expensive AI / paid-pull features to hoa_firm+ (cost floor, mirrors residential)", () => {
+    for (const f of ["opus_ai", "ai_full", "property_intelligence"] as const) {
+      expect(hasFeature("hoa_studio", f)).toBe(false) // don't give away Opus at the bottom tier
+      expect(hasFeature("hoa_practice", f)).toBe(false)
+      expect(hasFeature("hoa_firm", f)).toBe(true)
+      expect(hasFeature("hoa_bespoke", f)).toBe(true)
     }
   })
 

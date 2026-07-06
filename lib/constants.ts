@@ -102,8 +102,9 @@ export function startedWithinProbation(startDate: string | null | undefined, now
 }
 
 // hoa_manager (ADDENDUM_18C D-18C-03): standalone HOA-management company — lease-less, reuses the
-// agent role + AAL2 (NR-4, no new portal). Distinct capability profile added in Stage 2; until then
-// it falls through to the agency-like default in getOrgCapabilities (no existing org is hoa_manager).
+// agent role + AAL2 (NR-4, no new portal). Has a dedicated getOrgCapabilities branch that switches the
+// rental surface off (hasLeases/hasTenants/hasApplications false), keeps HOA on, and relabels the trust
+// surface to scheme funds (same D-TRUST-01 posture).
 export const ORG_TYPES = ["agency", "landlord", "sole_prop", "hoa_manager"] as const
 export type OrgType = (typeof ORG_TYPES)[number]
 
