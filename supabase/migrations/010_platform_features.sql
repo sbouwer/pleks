@@ -1,39 +1,37 @@
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- 010_platform_features.sql
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Platform / portal / admin / billing infrastructure.
 --
 -- This file absorbs features that are NOT about property operations or
 -- document generation:
---   • Tenant portal & maintenance portal access
---   • Bank feed integration (Yodlee)
---   • Receipt path
---   • Operating hours & emergency contacts
---   • Team member personal fields & roles
---   • Org custom role library
---   • Admin permission flag (BUILD_56)
---   • Ownership transfers (BUILD_56)
---   • Lease notes & commercial CPA fix (cross-cutting lease enhancement)
+--   â€¢ Tenant portal & maintenance portal access
+--   â€¢ Bank feed integration (Yodlee)
+--   â€¢ Receipt path
+--   â€¢ Operating hours & emergency contacts
+--   â€¢ Team member personal fields & roles
+--   â€¢ Org custom role library
+--   â€¢ Admin permission flag (BUILD_56)
+--   â€¢ Ownership transfers (BUILD_56)
+--   â€¢ Lease notes & commercial CPA fix (cross-cutting lease enhancement)
 --
 -- AMEND-FORWARD RULE: new platform-level features (billing, auth, portal,
--- messaging preferences, team management) should add a new §N section at
+-- messaging preferences, team management) should add a new Â§N section at
 -- the bottom of this file, not a new migration file.
 --
--- Fully idempotent — safe to re-run on any DB state.
--- ═══════════════════════════════════════════════════════════════════════════════
+-- Fully idempotent â€” safe to re-run on any DB state.
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §1  TENANT PORTAL  (was 010_tenant_portal.sql)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§1  TENANT PORTAL  (was 010_tenant_portal.sql)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- 1a. Link tenant records to Supabase auth users
-ALTER TABLE tenants
-  ADD COLUMN IF NOT EXISTS auth_user_id uuid REFERENCES auth.users(id);
-
-CREATE INDEX IF NOT EXISTS idx_tenants_auth_user_id
-  ON tenants(auth_user_id)
-  WHERE auth_user_id IS NOT NULL;
+--     MOVED to 002_contacts.sql (right after the tenants table) so the 005 Â§28.4
+--     "Applicants can read their own bureau PDFs" storage policy â€” which references
+--     tenants.auth_user_id â€” resolves on clean from-scratch replay. Kept here as a
+--     pointer only; the column + index now live with the table. (replay fix 2026-07-06)
 
 -- 1b. Maintenance request portal columns
 ALTER TABLE maintenance_requests
@@ -137,9 +135,9 @@ CREATE POLICY "org_delay_events" ON maintenance_delay_events
   WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §2  BANK FEEDS  (was 011_bank_feeds.sql)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§2  BANK FEEDS  (was 011_bank_feeds.sql)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 ALTER TABLE bank_statement_imports
   ADD COLUMN IF NOT EXISTS import_source text NOT NULL DEFAULT 'upload'
@@ -201,16 +199,16 @@ CREATE POLICY bank_feed_conn_update ON bank_feed_connections
   FOR UPDATE USING (org_id = (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL LIMIT 1));
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §3  RECEIPT PATH ON PAYMENTS  (was 012_receipt_path.sql)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§3  RECEIPT PATH ON PAYMENTS  (was 012_receipt_path.sql)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_path text;
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §4  OPERATING HOURS & EMERGENCY CONTACT  (was 023_operating_hours.sql)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§4  OPERATING HOURS & EMERGENCY CONTACT  (was 023_operating_hours.sql)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 ALTER TABLE organisations
   ADD COLUMN IF NOT EXISTS office_hours_monday           text,
@@ -232,9 +230,9 @@ ALTER TABLE organisations
 ALTER TABLE organisations DROP COLUMN IF EXISTS office_hours_weekday;
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §5  AGENT PROFILE & MULTI-ROLE  (was 024_agent_profile.sql)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§5  AGENT PROFILE & MULTI-ROLE  (was 024_agent_profile.sql)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- Personal emergency contact per agent (Portfolio/Firm tier)
 ALTER TABLE user_profiles
@@ -246,9 +244,9 @@ ALTER TABLE user_orgs
   ADD COLUMN IF NOT EXISTS additional_roles text[] NOT NULL DEFAULT '{}';
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §6  TEAM MEMBER PERSONAL FIELDS
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§6  TEAM MEMBER PERSONAL FIELDS
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- Extend user_profiles for editable personal details.
 -- full_name kept for backwards compat; first/last used in team modal.
@@ -259,18 +257,18 @@ ALTER TABLE user_profiles
   ADD COLUMN IF NOT EXISTS mobile     text;
 
 COMMENT ON COLUMN user_profiles.title      IS 'Salutation: Mr, Mrs, Ms, Dr, etc.';
-COMMENT ON COLUMN user_profiles.first_name IS 'Given name — used to compose full_name';
+COMMENT ON COLUMN user_profiles.first_name IS 'Given name â€” used to compose full_name';
 COMMENT ON COLUMN user_profiles.last_name  IS 'Surname';
 COMMENT ON COLUMN user_profiles.mobile     IS 'Personal mobile number';
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §7  ORG CUSTOM ROLE LIBRARY
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§7  ORG CUSTOM ROLE LIBRARY
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- Free-form role/job-title labels defined per org.
--- user_orgs.role stores either a system slug (owner, property_manager, …) or a
--- custom label from this list.  No permission logic is derived from the value —
+-- user_orgs.role stores either a system slug (owner, property_manager, â€¦) or a
+-- custom label from this list.  No permission logic is derived from the value â€”
 -- it is purely a display/organisational label.
 ALTER TABLE organisations
   ADD COLUMN IF NOT EXISTS custom_roles text[] NOT NULL DEFAULT '{}';
@@ -279,12 +277,12 @@ COMMENT ON COLUMN organisations.custom_roles IS
   'Org-defined reusable role labels shown in the team member role picker';
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §8  ADMIN / USER PERMISSION FLAG  (BUILD_56)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§8  ADMIN / USER PERMISSION FLAG  (BUILD_56)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- is_admin controls destructive actions (delete/archive, manage team).
--- role stays as a free-text display label — no permission logic derived from it.
+-- role stays as a free-text display label â€” no permission logic derived from it.
 -- Owner (role = 'owner') is always implicitly admin; is_admin only matters
 -- for non-owner members.
 
@@ -309,12 +307,12 @@ ALTER TABLE user_orgs ADD CONSTRAINT user_orgs_role_nonempty
 UPDATE user_orgs SET is_admin = true WHERE role = 'owner' AND is_admin = false;
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §9  OWNERSHIP TRANSFERS  (BUILD_56 Phase 1)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§9  OWNERSHIP TRANSFERS  (BUILD_56 Phase 1)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- Tracks pending ownership transfer requests.
--- Owner initiates → new owner receives email → clicks confirm → roles swap.
+-- Owner initiates â†’ new owner receives email â†’ clicks confirm â†’ roles swap.
 CREATE TABLE IF NOT EXISTS ownership_transfers (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id       uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
@@ -339,9 +337,9 @@ CREATE POLICY "org_ownership_transfers" ON ownership_transfers
   WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §10  LEASE NOTES & COMMERCIAL CPA FIX  (was 014_lease_notes.sql)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§10  LEASE NOTES & COMMERCIAL CPA FIX  (was 014_lease_notes.sql)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CREATE TABLE IF NOT EXISTS lease_notes (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -375,9 +373,9 @@ UPDATE leases
     AND cpa_applies = true;
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §11  CRON JOB HEALTH TRACKING  (BUILD_60)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§11  CRON JOB HEALTH TRACKING  (BUILD_60)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Health tracking table for all scheduled edge functions. Every job writes a
 -- row on start and updates on finish. Admin dashboard health widget reads from
 -- this table; turns amber if last successful run > 24h, red if > 48h.
@@ -397,12 +395,12 @@ CREATE INDEX IF NOT EXISTS idx_cron_runs_job_started ON cron_runs(job_name, star
 
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §12  MARKETING SITE CONTENT  (BUILD_HOMEPAGE)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§12  MARKETING SITE CONTENT  (BUILD_HOMEPAGE)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Simple key/value store for editable marketing copy. Admins edit via
 -- /admin/site-content. Homepage reads via anon key (public SELECT policy).
--- No org_id — this is global site content, not tenant data.
+-- No org_id â€” this is global site content, not tenant data.
 
 CREATE TABLE IF NOT EXISTS site_content (
   key        text PRIMARY KEY,
@@ -421,12 +419,12 @@ CREATE POLICY "site_content_public_read" ON site_content
 
 -- Seed default content
 INSERT INTO site_content (key, label, section, sort_order, value) VALUES
-  ('notice_text',         'Notice strip text',          'global',  1,  'Founding-agent cohort now open — 10 spots at R299/mo, locked for life.'),
-  ('notice_link_label',   'Notice strip link label',    'global',  2,  'Reserve your spot →'),
+  ('notice_text',         'Notice strip text',          'global',  1,  'Founding-agent cohort now open â€” 10 spots at R299/mo, locked for life.'),
+  ('notice_link_label',   'Notice strip link label',    'global',  2,  'Reserve your spot â†’'),
   ('notice_link_href',    'Notice strip link URL',      'global',  3,  '/early-access'),
   ('hero_headline',       'Hero headline',              'hero',    1,  'SA Property Management, Built Right'),
   ('hero_sub',            'Hero subheadline',           'hero',    2,  'Built across all three sides of the property cycle: legal, development, management. Applicant-paid FitScore screening. Bank reconciliation that catches every payment. Tribunal-ready documentation by default.'),
-  ('hero_cta_primary',    'Hero primary CTA label',     'hero',    3,  'Start free — 1 unit'),
+  ('hero_cta_primary',    'Hero primary CTA label',     'hero',    3,  'Start free â€” 1 unit'),
   ('hero_cta_secondary',  'Hero secondary CTA label',   'hero',    4,  'Book a demo'),
   ('hero_meta_1_n',       'Hero stat 1 number',         'hero',    5,  'R 0'),
   ('hero_meta_1_l',       'Hero stat 1 label',          'hero',    6,  'Client money Pleks ever holds'),
@@ -437,26 +435,26 @@ INSERT INTO site_content (key, label, section, sort_order, value) VALUES
   ('why_headline',        'Why Pleks headline',         'why',     1,  'We build around them.'),
   ('why_sub',             'Why Pleks subtext',          'why',     2,  'Three parts of your business where most platforms make you fit their workflow. Pleks fits yours.'),
   ('pillar_1_title',      'Pillar 1 title',             'why',     3,  'The applicant'),
-  ('pillar_1_body',       'Pillar 1 body',              'why',     4,  'Applicants apply free. They pay for the credit check — R399 — only when you shortlist them. You see a FitScore, not a raw report.'),
+  ('pillar_1_body',       'Pillar 1 body',              'why',     4,  'Applicants apply free. They pay for the credit check â€” R399 â€” only when you shortlist them. You see a FitScore, not a raw report.'),
   ('pillar_2_title',      'Pillar 2 title',             'why',     5,  'The tenant'),
-  ('pillar_2_body',       'Pillar 2 body',              'why',     6,  'Bank reconciliation watches your trust account. Every payment logged against the unit, no matter how it arrives. When a payment misses, the arrears workflow starts on its own — letters drafted, not typed.'),
+  ('pillar_2_body',       'Pillar 2 body',              'why',     6,  'Bank reconciliation watches your trust account. Every payment logged against the unit, no matter how it arrives. When a payment misses, the arrears workflow starts on its own â€” letters drafted, not typed.'),
   ('pillar_3_title',      'Pillar 3 title',             'why',     7,  'The building'),
   ('pillar_3_body',       'Pillar 3 body',              'why',     8,  'Heritage buildings, sectional title, and freehold on the same erf. Inspections logged with GPS-stamped photos. Tribunal bundles in one click.'),
   ('story_headline',      'Story headline',             'story',   1,  'I did your job. Then I built the software I wished existed.'),
   ('story_body_1',        'Story paragraph 1',          'story',   2,  'I ran rental portfolios in Johannesburg and Cape Town from 2014 to 2025. I used the incumbent platforms, a Sage export, and a spreadsheet I emailed to my landlords on the 3rd of every month. I watched colleagues lose deposit disputes they should have won because the paper trail was in four systems.'),
   ('story_body_2',        'Story paragraph 2',          'story',   3,  'Pleks is the product that would have saved me those Tribunal appearances. Every design decision in here is a specific frustration I remember the month and the flat it happened in. If you''ve done this work, you''ll recognise it.'),
   ('pricing_headline',    'Pricing headline',           'pricing', 1,  'Transparent pricing. No credit-check fees.'),
-  ('pricing_sub',         'Pricing subtext',            'pricing', 2,  'Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st — and if it ever changes, your accountant knows 30 days before it does.')
+  ('pricing_sub',         'Pricing subtext',            'pricing', 2,  'Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st â€” and if it ever changes, your accountant knows 30 days before it does.')
 ON CONFLICT (key) DO NOTHING;
 
--- Live content corrections (idempotent UPDATE — safe to re-run)
-UPDATE site_content SET value = 'Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st — and if it ever changes, you know 30 days before it does.' WHERE key = 'pricing_sub';
+-- Live content corrections (idempotent UPDATE â€” safe to re-run)
+UPDATE site_content SET value = 'Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st â€” and if it ever changes, you know 30 days before it does.' WHERE key = 'pricing_sub';
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §13  TIER MODEL: add growth + bespoke tiers, bespoke pricing columns
---      (2026-04 pricing overhaul: Owner free · Steward · Growth · Portfolio ·
---       Firm · Bespoke — lease-count gated, no seat caps)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§13  TIER MODEL: add growth + bespoke tiers, bespoke pricing columns
+--      (2026-04 pricing overhaul: Owner free Â· Steward Â· Growth Â· Portfolio Â·
+--       Firm Â· Bespoke â€” lease-count gated, no seat caps)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- Widen tier CHECK to include growth and bespoke
 ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_tier_check;
@@ -480,11 +478,11 @@ COMMENT ON COLUMN subscriptions.bespoke_min_monthly_cents IS
 COMMENT ON COLUMN subscriptions.bespoke_per_lease_cents IS
   'Per-lease cost for bespoke tier. Charged above the guaranteed minimum floor. NULL on all other tiers.';
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §14  BUILD_62 PART A — AUTHENTICATION SECURITY
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§14  BUILD_62 PART A â€” AUTHENTICATION SECURITY
 --      auth_events (append-only audit), device_fingerprints, step_up_challenges,
 --      login_notifications_sent, is_mfa_fresh(), purge_old_auth_events()
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- mfa_recovery_pending: agent has only 1 TOTP factor (missing second backup device)
 ALTER TABLE user_profiles
@@ -493,7 +491,7 @@ ALTER TABLE user_profiles
 COMMENT ON COLUMN user_profiles.mfa_recovery_pending IS
   'True when an agent account has fewer than 2 TOTP factors enrolled. Triggers amber banner / escalating modal.';
 
--- ── 5.2.3 device_fingerprints — created FIRST because auth_events FKs into it ──
+-- â”€â”€ 5.2.3 device_fingerprints â€” created FIRST because auth_events FKs into it â”€â”€
 CREATE TABLE IF NOT EXISTS device_fingerprints (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -529,7 +527,7 @@ CREATE POLICY "device_fingerprints_no_delete" ON device_fingerprints
 
 CREATE INDEX IF NOT EXISTS idx_device_fingerprints_user ON device_fingerprints(user_id);
 
--- ── 5.2.1 auth_events — dedicated authentication audit table ──
+-- â”€â”€ 5.2.1 auth_events â€” dedicated authentication audit table â”€â”€
 CREATE TABLE IF NOT EXISTS auth_events (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid REFERENCES organisations(id),
@@ -600,15 +598,15 @@ CREATE POLICY "auth_events_select_org_admin" ON auth_events
 DROP POLICY IF EXISTS "auth_events_insert_service" ON auth_events;
 CREATE POLICY "auth_events_insert_service" ON auth_events
   FOR INSERT WITH CHECK (false);
--- NO UPDATE policy — updates rejected (append-only)
--- NO DELETE policy — deletes rejected (7-year POPIA retention)
+-- NO UPDATE policy â€” updates rejected (append-only)
+-- NO DELETE policy â€” deletes rejected (7-year POPIA retention)
 
 CREATE INDEX IF NOT EXISTS idx_auth_events_user_created ON auth_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_auth_events_org_created  ON auth_events(org_id, created_at DESC) WHERE org_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_auth_events_type_created ON auth_events(event_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_auth_events_device       ON auth_events(device_fingerprint) WHERE device_fingerprint IS NOT NULL;
 
--- ── 5.2.2 login_notifications_sent — dedup for new-device email alerts ──
+-- â”€â”€ 5.2.2 login_notifications_sent â€” dedup for new-device email alerts â”€â”€
 CREATE TABLE IF NOT EXISTS login_notifications_sent (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id             uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -634,7 +632,7 @@ CREATE POLICY "login_notifications_update_service" ON login_notifications_sent
 
 CREATE INDEX IF NOT EXISTS idx_login_notifications_user ON login_notifications_sent(user_id);
 
--- ── 5.2.4 step_up_challenges — ephemeral step-up tokens ──
+-- â”€â”€ 5.2.4 step_up_challenges â€” ephemeral step-up tokens â”€â”€
 CREATE TABLE IF NOT EXISTS step_up_challenges (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -676,7 +674,7 @@ CREATE POLICY "step_up_challenges_update_service" ON step_up_challenges
 
 CREATE INDEX IF NOT EXISTS idx_step_up_challenges_user_expires ON step_up_challenges(user_id, expires_at);
 
--- ── 5.2.5 is_mfa_fresh(window_minutes) — server-side freshness check ──
+-- â”€â”€ 5.2.5 is_mfa_fresh(window_minutes) â€” server-side freshness check â”€â”€
 CREATE OR REPLACE FUNCTION is_mfa_fresh(window_minutes int DEFAULT 5)
 RETURNS boolean AS $$
   SELECT EXISTS (
@@ -688,7 +686,7 @@ RETURNS boolean AS $$
   );
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
 
--- ── 5.2.6 purge_old_auth_events() — monthly cron ──
+-- â”€â”€ 5.2.6 purge_old_auth_events() â€” monthly cron â”€â”€
 CREATE OR REPLACE FUNCTION purge_old_auth_events()
 RETURNS void AS $$
   DELETE FROM auth_events
@@ -700,10 +698,10 @@ $$ LANGUAGE sql SECURITY DEFINER;
 -- SELECT cron.schedule('purge-expired-step-ups', '*/15 * * * *',
 --   $$DELETE FROM step_up_challenges WHERE expires_at < now() - interval '1 hour'$$);
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §15  BUILD_62 PART B — PASSKEY (WebAuthn) LAYER
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§15  BUILD_62 PART B â€” PASSKEY (WebAuthn) LAYER
 --      user_passkeys, passkey_challenges
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CREATE TABLE IF NOT EXISTS user_passkeys (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -776,9 +774,9 @@ CREATE INDEX IF NOT EXISTS idx_passkey_challenges_expires ON passkey_challenges(
 --   $$DELETE FROM passkey_challenges WHERE expires_at < now() - interval '1 hour'$$);
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §16  BUILD_00F: user feedback capture
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§16  BUILD_00F: user feedback capture
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CREATE TABLE IF NOT EXISTS feedback_submissions (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -844,7 +842,7 @@ CREATE POLICY "feedback_submissions_submitter_update" ON feedback_submissions
   FOR UPDATE USING (submitter_id = (SELECT auth.uid()))
   WITH CHECK (submitter_id = (SELECT auth.uid()));
 
--- feedback_submissions: org admin — role='owner' OR is_admin flag (not role='admin', which doesn't exist)
+-- feedback_submissions: org admin â€” role='owner' OR is_admin flag (not role='admin', which doesn't exist)
 DROP POLICY IF EXISTS "feedback_submissions_org_admin_select" ON feedback_submissions;
 CREATE POLICY "feedback_submissions_org_admin_select" ON feedback_submissions
   FOR SELECT USING (
@@ -930,11 +928,11 @@ CREATE POLICY "feedback_replies_platform_admin_insert" ON feedback_replies
     )
   );
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §17  BUILD_00H: AI usage tracking + platform cost aggregates
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§17  BUILD_00H: AI usage tracking + platform cost aggregates
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
--- ── ai_usage — append-only log of every Anthropic API call, with org attribution ──
+-- â”€â”€ ai_usage â€” append-only log of every Anthropic API call, with org attribution â”€â”€
 
 CREATE TABLE IF NOT EXISTS ai_usage (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -957,7 +955,7 @@ CREATE TABLE IF NOT EXISTS ai_usage (
   success              boolean NOT NULL DEFAULT true,
   error_code           text,
 
-  -- Context — NO PII, NO prompt/response text
+  -- Context â€” NO PII, NO prompt/response text
   metadata             jsonb NOT NULL DEFAULT '{}'::jsonb,
 
   created_at           timestamptz NOT NULL DEFAULT now()
@@ -971,7 +969,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_usage_purpose_created
 ALTER TABLE ai_usage ENABLE ROW LEVEL SECURITY;
 
 -- Org admin reads own org's AI usage
--- (Platform admin reads via service-role after requireAdminAuth() — no client-side RLS policy needed)
+-- (Platform admin reads via service-role after requireAdminAuth() â€” no client-side RLS policy needed)
 DROP POLICY IF EXISTS "ai_usage_org_admin_select" ON ai_usage;
 CREATE POLICY "ai_usage_org_admin_select" ON ai_usage
   FOR SELECT USING (
@@ -984,7 +982,7 @@ CREATE POLICY "ai_usage_org_admin_select" ON ai_usage
     )
   );
 
--- No client INSERT/UPDATE/DELETE — service role only via lib/ai/client.ts
+-- No client INSERT/UPDATE/DELETE â€” service role only via lib/ai/client.ts
 DROP POLICY IF EXISTS "ai_usage_insert_deny" ON ai_usage;
 CREATE POLICY "ai_usage_insert_deny" ON ai_usage
   FOR INSERT WITH CHECK (false);
@@ -1002,7 +1000,7 @@ RETURNS void AS $$
   WHERE created_at < (now() - interval '2 years');
 $$ LANGUAGE sql SECURITY DEFINER;
 
--- ── platform_cost_snapshots — one row per org per month, built by daily cron ──
+-- â”€â”€ platform_cost_snapshots â€” one row per org per month, built by daily cron â”€â”€
 
 CREATE TABLE IF NOT EXISTS platform_cost_snapshots (
   id                             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1021,11 +1019,11 @@ CREATE TABLE IF NOT EXISTS platform_cost_snapshots (
   ai_output_tokens               bigint NOT NULL DEFAULT 0,
   ai_cost_cents                  int NOT NULL DEFAULT 0,
 
-  -- Shared infrastructure — activity-weighted proration
+  -- Shared infrastructure â€” activity-weighted proration
   allocated_vercel_cents         int NOT NULL DEFAULT 0,
   allocated_supabase_cents       int NOT NULL DEFAULT 0,
 
-  -- Fixed overhead — spread evenly across active orgs
+  -- Fixed overhead â€” spread evenly across active orgs
   allocated_fixed_overhead_cents int NOT NULL DEFAULT 0,
 
   -- Composite total
@@ -1055,8 +1053,8 @@ CREATE INDEX IF NOT EXISTS idx_pcs_margin_period
 
 ALTER TABLE platform_cost_snapshots ENABLE ROW LEVEL SECURITY;
 
--- All client SELECT denied — admin dashboard reads via service-role after requireAdminAuth()
--- No client writes — service role only via cron
+-- All client SELECT denied â€” admin dashboard reads via service-role after requireAdminAuth()
+-- No client writes â€” service role only via cron
 DROP POLICY IF EXISTS "pcs_insert_deny" ON platform_cost_snapshots;
 CREATE POLICY "pcs_insert_deny" ON platform_cost_snapshots
   FOR INSERT WITH CHECK (false);
@@ -1074,7 +1072,7 @@ RETURNS void AS $$
   WHERE period < (now() - interval '36 months')::date;
 $$ LANGUAGE sql SECURITY DEFINER;
 
--- Aggregate helper for cost snapshot builder — avoids PostgREST 1,000-row default limit.
+-- Aggregate helper for cost snapshot builder â€” avoids PostgREST 1,000-row default limit.
 -- Returns one row per org for the given period; called from lib/observability/cost.ts.
 CREATE OR REPLACE FUNCTION get_ai_usage_agg_by_org(p_start timestamptz, p_end timestamptz)
 RETURNS TABLE (
@@ -1099,9 +1097,9 @@ LANGUAGE sql STABLE SECURITY DEFINER AS $$
   GROUP BY org_id;
 $$;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §18  Admin drill-down: AI usage aggregated by purpose for a single org
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§18  Admin drill-down: AI usage aggregated by purpose for a single org
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- Per-org, per-purpose aggregate helper for the admin cost drill-down page.
 -- Avoids PostgREST 1,000-row default that would silently truncate high-volume orgs.
@@ -1126,15 +1124,15 @@ LANGUAGE sql STABLE SECURITY DEFINER AS $$
 $$;
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §19  Tier model: expand subscriptions CHECK to include growth + bespoke tiers
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§19  Tier model: expand subscriptions CHECK to include growth + bespoke tiers
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- The 2026-04 pricing overhaul introduced a 6-tier model
 -- (owner / steward / growth / portfolio / firm / bespoke).
--- The original CHECK only allowed (owner / steward / portfolio / firm) — growth
+-- The original CHECK only allowed (owner / steward / portfolio / firm) â€” growth
 -- and bespoke were missing, so any subscription insert for those tiers would
 -- fail at the DB level.
--- No data migration needed — existing rows use 'owner' which remains valid.
+-- No data migration needed â€” existing rows use 'owner' which remains valid.
 
 ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_tier_check;
 ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_tier_check
@@ -1146,14 +1144,14 @@ ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_trial_tier_check
   CHECK (trial_tier IS NULL OR trial_tier IN ('steward', 'growth', 'portfolio', 'firm'));
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §20  BUILD_63: Tenant communication lifecycle — audit trail + delivery events
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§20  BUILD_63: Tenant communication lifecycle â€” audit trail + delivery events
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Adds audit-grade fields to communication_log, a delivery-events table fed by
 -- Resend / Africa's Talking webhooks, a mandatory-comm retry queue, and a
 -- platform-level WhatsApp template variant catalog.
 
--- ── Audit-grade fields on communication_log ────────────────────────────────
+-- â”€â”€ Audit-grade fields on communication_log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ALTER TABLE communication_log
   ADD COLUMN IF NOT EXISTS body_full             text,
   ADD COLUMN IF NOT EXISTS template_version_hash text,
@@ -1164,6 +1162,9 @@ ALTER TABLE communication_log
   ADD COLUMN IF NOT EXISTS attempt_number        integer NOT NULL DEFAULT 1,
   ADD COLUMN IF NOT EXISTS first_attempt_log_id  uuid REFERENCES communication_log(id),
   ADD COLUMN IF NOT EXISTS failed_reason_code    text;
+
+-- Index moved here from 002 â€” first_attempt_log_id is added just above. (migration-replay fix, 2026-07-06)
+CREATE INDEX IF NOT EXISTS idx_communication_log_first_attempt_log_id ON communication_log(first_attempt_log_id);
 
 CREATE INDEX IF NOT EXISTS idx_comm_log_trigger
   ON communication_log(trigger_event_type, trigger_event_id);
@@ -1178,7 +1179,7 @@ CREATE INDEX IF NOT EXISTS idx_comm_log_mandatory
     'maintenance.emergency'
   );
 
--- ── Delivery events (provider webhooks + portal view events) ──────────────
+-- â”€â”€ Delivery events (provider webhooks + portal view events) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 CREATE TABLE IF NOT EXISTS communication_delivery_events (
   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id               uuid        NOT NULL REFERENCES organisations(id),
@@ -1211,7 +1212,7 @@ CREATE POLICY "org_delivery_read" ON communication_delivery_events
     SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
--- ── Mandatory-comm retry queue ─────────────────────────────────────────────
+-- â”€â”€ Mandatory-comm retry queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 CREATE TABLE IF NOT EXISTS mandatory_comm_retries (
   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id               uuid        NOT NULL REFERENCES organisations(id),
@@ -1239,7 +1240,7 @@ CREATE POLICY "org_mandatory_retries_read" ON mandatory_comm_retries
     SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
--- ── Platform-email retry queue (ADDENDUM_CRON_RELIABILITY C-1 buckle) ─────────
+-- â”€â”€ Platform-email retry queue (ADDENDUM_CRON_RELIABILITY C-1 buckle) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Subscription/billing lifecycle emails go to the AGENCY ADMIN, not a tenant, so they can't use the
 -- tenant-shaped mandatory_comm_retries (whose attempt-3 delivery-fallback assumes a tenant). This is the
 -- parallel queue: sendPlatformEmail enqueues on a transient send failure; the hourly mandatory-retry cron
@@ -1274,9 +1275,9 @@ CREATE POLICY "org_platform_email_retries_read" ON platform_email_retries
     SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
--- ── Login rate-limit (ADDENDUM_AUTH_HARDENING — server-sign-in keystone) ──────
+-- â”€â”€ Login rate-limit (ADDENDUM_AUTH_HARDENING â€” server-sign-in keystone) â”€â”€â”€â”€â”€â”€
 -- Durable, DB-backed per-IP + per-email login throttle (the in-memory forgot-password limiter is leaky on
--- Vercel multi-instance). identifier is "ip:<addr>" or "email:<sha256 hex>" (never plaintext email — POPIA).
+-- Vercel multi-instance). identifier is "ip:<addr>" or "email:<sha256 hex>" (never plaintext email â€” POPIA).
 -- Service-role only (the login server action is the sole reader/writer); no client policy.
 CREATE TABLE IF NOT EXISTS login_rate_limits (
   identifier           text        PRIMARY KEY,
@@ -1289,7 +1290,7 @@ CREATE TABLE IF NOT EXISTS login_rate_limits (
 CREATE INDEX IF NOT EXISTS idx_login_rate_limits_locked ON login_rate_limits(locked_until) WHERE locked_until IS NOT NULL;
 ALTER TABLE login_rate_limits ENABLE ROW LEVEL SECURITY;
 
--- ── WhatsApp Meta template variant catalog (platform-level, no org_id) ────
+-- â”€â”€ WhatsApp Meta template variant catalog (platform-level, no org_id) â”€â”€â”€â”€
 CREATE TABLE IF NOT EXISTS whatsapp_template_variants (
   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   template_key         text        NOT NULL,
@@ -1311,8 +1312,8 @@ CREATE INDEX IF NOT EXISTS idx_wa_variants_key
 -- No RLS needed: platform-level reference table, service-role managed,
 -- readable by authenticated users via service client in router.
 
--- ── auth_events: portal-token login support (BUILD_63 §9.2) ───────────────────
--- tenant_portal_login / landlord_portal_login events have no auth.users row —
+-- â”€â”€ auth_events: portal-token login support (BUILD_63 Â§9.2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- tenant_portal_login / landlord_portal_login events have no auth.users row â€”
 -- user_id must be nullable for these paths. tenant_id provides the identity link.
 -- token_link added to auth_method CHECK for magic-link / portal-token flows.
 ALTER TABLE auth_events ALTER COLUMN user_id DROP NOT NULL;
@@ -1325,9 +1326,9 @@ ALTER TABLE auth_events ADD CONSTRAINT auth_events_auth_method_check
     'password', 'magic_link', 'totp', 'passkey', 'recovery_code', 'oauth', 'admin', 'token_link'
   ));
 
--- ══════════════════════════════════════════════════════════════════════════════
--- §BUILD_LEGAL: External links registry — admin-editable, daily cron health check
--- ══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§BUILD_LEGAL: External links registry â€” admin-editable, daily cron health check
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CREATE TABLE IF NOT EXISTS external_links (
   key             text        PRIMARY KEY,
@@ -1363,21 +1364,21 @@ INSERT INTO external_links (key, url, label, category) VALUES
   ('informationRegulator', 'https://inforegulator.org.za',        'Information Regulator of SA',  'regulatory'),
   ('sahrc',                'https://www.sahrc.org.za',             'SA Human Rights Commission',   'regulatory'),
   ('chromeCookieHelp',     'https://support.google.com/chrome/answer/95647',
-                           'Chrome — manage cookies',              'browser_help'),
+                           'Chrome â€” manage cookies',              'browser_help'),
   ('firefoxCookieHelp',    'https://support.mozilla.org/kb/clear-cookies-and-site-data-firefox',
-                           'Firefox — manage cookies',             'browser_help'),
+                           'Firefox â€” manage cookies',             'browser_help'),
   ('safariCookieHelp',     'https://support.apple.com/guide/safari/manage-cookies-sfri11471',
-                           'Safari — manage cookies',              'browser_help'),
+                           'Safari â€” manage cookies',              'browser_help'),
   ('edgeCookieHelp',       'https://support.microsoft.com/en-us/microsoft-edge/delete-cookies-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09',
-                           'Edge — manage cookies',                'browser_help'),
+                           'Edge â€” manage cookies',                'browser_help'),
   ('payfastPrivacy',       'https://payfast.io/privacy-policy/',   'PayFast Privacy Policy',       'service_policy'),
   ('statusPage',           'https://status.pleks.co.za',           'Pleks Status Page',            'infrastructure')
 ON CONFLICT (key) DO NOTHING;
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §21  BUILD_63 Phase 8: mandatory_comm_retries — manual dispatch tracking
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§21  BUILD_63 Phase 8: mandatory_comm_retries â€” manual dispatch tracking
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Surrendered comms surface on the agent dashboard. The agent prints and
 -- dispatches physically; these columns record that action for audit continuity.
 
@@ -1391,20 +1392,20 @@ CREATE INDEX IF NOT EXISTS idx_mandatory_retries_surrendered_undispatched
   WHERE surrendered_at IS NOT NULL AND manually_dispatched_at IS NULL;
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §22  ADDENDUM_57G: Subscription Pause & Dormancy Policy
---      State machine: trialing → active ↔ past_due → paused → cancelled → purged
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§22  ADDENDUM_57G: Subscription Pause & Dormancy Policy
+--      State machine: trialing â†’ active â†” past_due â†’ paused â†’ cancelled â†’ purged
 --      "Your Data, Always" doctrine: reads/exports/audit/crons always fire;
 --      net-new business creation is the only commercially-gated capability.
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
--- §X.1 — Status CHECK widening (adds paused + purged; removes legacy grace_period)
+-- Â§X.1 â€” Status CHECK widening (adds paused + purged; removes legacy grace_period)
 ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_status_check;
 ALTER TABLE subscriptions
   ADD CONSTRAINT subscriptions_status_check
   CHECK (status IN ('trialing','active','past_due','paused','cancelled','purged'));
 
--- §X.2 — Pause & cancellation lifecycle columns
+-- Â§X.2 â€” Pause & cancellation lifecycle columns
 ALTER TABLE subscriptions
   ADD COLUMN IF NOT EXISTS past_due_since        timestamptz,
   ADD COLUMN IF NOT EXISTS paused_at             timestamptz,
@@ -1419,12 +1420,12 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_status_purge
   ON subscriptions(status, purge_eligible_at)
   WHERE status IN ('cancelled','paused');
 
--- §X.3 — Owner-free dormancy tracking on organisations
+-- Â§X.3 â€” Owner-free dormancy tracking on organisations
 ALTER TABLE organisations
   ADD COLUMN IF NOT EXISTS dormancy_warning_sent_at timestamptz,
   ADD COLUMN IF NOT EXISTS dormancy_final_sent_at   timestamptz;
 
--- §X.4  BUILD_57G dormancy: RPC helpers that join into auth.users
+-- Â§X.4  BUILD_57G dormancy: RPC helpers that join into auth.users
 --        The JS client cannot reach auth schema directly; SECURITY DEFINER
 --        runs with the definer's privileges. Locked to service_role only.
 --        search_path pinned to prevent SECURITY DEFINER schema-hijack.
@@ -1497,19 +1498,19 @@ REVOKE EXECUTE ON FUNCTION find_dormancy_final_candidates(timestamptz) FROM publ
 GRANT  EXECUTE ON FUNCTION find_dormancy_final_candidates(timestamptz) TO service_role;
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §23  ADDENDUM_57G Step 8: purgeOrg() primitive — claim slot + cascade delete
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§23  ADDENDUM_57G Step 8: purgeOrg() primitive â€” claim slot + cascade delete
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  purge_started_at tracks that a purge is in progress (claim slot).
 --  claim_purge_slot() atomically sets organisations.deleted_at to prevent
 --  concurrent double-purge; returns the org id on success, empty on conflict.
 --  purge_org_cascade() repoints retention-protected rows to the sentinel org,
 --  deletes everything else via a retry-on-FK loop (ordering-free), then
 --  marks subscriptions purged and anonymises the org row.
---  Safety: sentinel (…0001) and decoy (…0003) orgs cannot be purged.
--- ═══════════════════════════════════════════════════════════════════════════════
+--  Safety: sentinel (â€¦0001) and decoy (â€¦0003) orgs cannot be purged.
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
--- §X.4 — audit_log.changed_by: drop strict FK; re-add as ON DELETE SET NULL
+-- Â§X.4 â€” audit_log.changed_by: drop strict FK; re-add as ON DELETE SET NULL
 --         Every user deletion currently breaks the purge chain.
 --         Actor identity is denormalised in actor_name (ADDENDUM_45A), so
 --         audit semantics survive losing the FK pointer.
@@ -1529,7 +1530,7 @@ BEGIN
   END IF;
 END $$;
 
--- §X.5 — claim_purge_slot: atomically marks org as "purge reserved"
+-- Â§X.5 â€” claim_purge_slot: atomically marks org as "purge reserved"
 --         Sets organisations.deleted_at = now(); returns org id on success or
 --         empty set if already claimed/purged (deleted_at IS NOT NULL).
 --         Downstream queries must filter WHERE deleted_at IS NULL to exclude
@@ -1551,13 +1552,13 @@ $$;
 
 GRANT EXECUTE ON FUNCTION claim_purge_slot(uuid) TO service_role;
 
--- §X.6 — purge_org_cascade: retention-aware transactional purge
---         1. Repoints retention-protected tables to sentinel (…0001)
+-- Â§X.6 â€” purge_org_cascade: retention-aware transactional purge
+--         1. Repoints retention-protected tables to sentinel (â€¦0001)
 --         2. Deletes all other org-scoped public tables via retry-on-FK loop
---            (loop re-runs until all tables delete cleanly — handles FK order
+--            (loop re-runs until all tables delete cleanly â€” handles FK order
 --            automatically without requiring a manually maintained cascade list)
 --         3. Marks subscription(s) purged
---         4. Anonymises the org row (row is kept — subscriptions FK to it)
+--         4. Anonymises the org row (row is kept â€” subscriptions FK to it)
 --         5. Inserts a PURGE audit entry on the sentinel org
 CREATE OR REPLACE FUNCTION purge_org_cascade(p_org_id uuid, p_reason text)
 RETURNS void
@@ -1597,7 +1598,7 @@ BEGIN
            'organisations','subscriptions'                 -- handled separately (steps 3+4)
          );
 
-  -- Step 3: Retry-on-FK loop — naturally orders leaf-to-root over passes
+  -- Step 3: Retry-on-FK loop â€” naturally orders leaf-to-root over passes
   LOOP
     v_errors := 0;
     FOREACH v_table IN ARRAY COALESCE(v_tables, '{}') LOOP
@@ -1622,7 +1623,7 @@ BEGIN
          purged_at = now()
    WHERE org_id = p_org_id;
 
-  -- Step 5: Anonymise org row (keep it — subscriptions.org_id FKs to organisations.id)
+  -- Step 5: Anonymise org row (keep it â€” subscriptions.org_id FKs to organisations.id)
   UPDATE organisations
      SET name               = '[purged]',
          email              = NULL,
@@ -1653,13 +1654,13 @@ $$;
 
 GRANT EXECUTE ON FUNCTION purge_org_cascade(uuid, text) TO service_role;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §X.7  ADDENDUM_57G Step 9: two-step cancellation + PENDING_CANCELLATION state
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§X.7  ADDENDUM_57G Step 9: two-step cancellation + PENDING_CANCELLATION state
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  Adds an intermediate state between active and cancelled. The 12-month purge
 --  clock starts only on confirmation, not on initial click.  Unconfirmed requests
---  expire after 24 hours (daily cron reverts status → previous state).
---  organisations.deleted_at is NOT touched here — it remains reserved for purge.
+--  expire after 24 hours (daily cron reverts status â†’ previous state).
+--  organisations.deleted_at is NOT touched here â€” it remains reserved for purge.
 --  subscriptions.cancelled_at is the confirmation timestamp.
 
 -- Widen status CHECK
@@ -1680,11 +1681,11 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_pending_cancellation
   ON subscriptions (pending_cancellation_since)
   WHERE status = 'pending_cancellation';
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §X.8  Gate 2: ToS version archival — tos_acceptances table
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§X.8  Gate 2: ToS version archival â€” tos_acceptances table
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  Records which ToS version each org accepted and when. Append-only (immutable
---  trigger). org_id uses ON DELETE RESTRICT — purgeOrg() must repoint to sentinel
+--  trigger). org_id uses ON DELETE RESTRICT â€” purgeOrg() must repoint to sentinel
 --  before deleting the org row (enforced by purge_org_cascade step 1 above).
 --  Retention: 10 years (POPIA s17 accountability). Added to RETENTION_PROTECTED_TABLES.
 
@@ -1733,13 +1734,13 @@ ALTER TABLE tos_acceptances ENABLE ROW LEVEL SECURITY;
 -- No client-role policies: service role only (bypasses RLS).
 -- Admin portal reads via service client with compliance_access_log entry.
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §24  BUILD_67: Rules engine — per-rule per-org execution log
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§24  BUILD_67: Rules engine â€” per-rule per-org execution log
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
--- Stores every rule evaluation regardless of outcome — the observability layer
+-- Stores every rule evaluation regardless of outcome â€” the observability layer
 -- for the autonomous intelligence engine. Retention: 90 days (operational, not
--- a Compliance Record). Service role only — no agent-facing RLS policies.
+-- a Compliance Record). Service role only â€” no agent-facing RLS policies.
 
 CREATE TABLE IF NOT EXISTS rule_runs (
   id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1771,11 +1772,11 @@ CREATE INDEX IF NOT EXISTS idx_rule_runs_recent
 CREATE INDEX IF NOT EXISTS idx_rule_runs_outcome
   ON rule_runs (outcome, evaluated_at DESC);
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §25  ADDENDUM_14F: auth_events.event_type CHECK extension
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§25  ADDENDUM_14F: auth_events.event_type CHECK extension
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Adds consent verification + ADDENDUM_14E special-information event types.
--- NOTE: user_id is nullable since BUILD_63 §9.2 (ALTER COLUMN user_id DROP NOT NULL).
+-- NOTE: user_id is nullable since BUILD_63 Â§9.2 (ALTER COLUMN user_id DROP NOT NULL).
 -- Token-based applicant/director flows write to auth_events with user_id=NULL.
 -- These event types are written by /api/consent/send-code and /api/consent/verify-code.
 
@@ -1797,12 +1798,12 @@ ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
     'consent_special_information_given', 'consent_special_information_revoked'
   ));
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §26  ADDENDUM_14A: organisation_payment_tokens + property-intelligence bucket
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§26  ADDENDUM_14A: organisation_payment_tokens + property-intelligence bucket
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Stores PayFast Tokenisation tokens (subscription_type=2) for saved-card
 -- one-click pulls. One active token per org at a time; deleted_at soft-deletes.
--- Storage bucket: property-intelligence — org-scoped PDFs from vendor pulls.
+-- Storage bucket: property-intelligence â€” org-scoped PDFs from vendor pulls.
 
 CREATE TABLE IF NOT EXISTS organisation_payment_tokens (
   id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1859,11 +1860,13 @@ BEGIN
         )
       );
   END IF;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
 END $$;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §27  BUILD_65: POPIA CUSTOMER-FACING SURFACE
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§27  BUILD_65: POPIA CUSTOMER-FACING SURFACE
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Data-subject-request workflow, immutable versioned privacy policy,
 -- retention-aware erasure cascade, export bundle artefacts.
 --
@@ -1874,9 +1877,9 @@ END $$;
 -- Responsible Party for platform account data. This schema models the
 -- routing and resolution of subject rights across both controllers.
 
--- ─── privacy_policy_versions ─────────────────────────────────────────────────
+-- â”€â”€â”€ privacy_policy_versions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Immutable versioned privacy policy. consent_log.consent_version references
--- the `version` text column by soft text-equality (no hard FK — missing
+-- the `version` text column by soft text-equality (no hard FK â€” missing
 -- version degrades to "text not available" fallback, not cascade deletion).
 
 CREATE TABLE IF NOT EXISTS privacy_policy_versions (
@@ -1931,7 +1934,29 @@ CREATE POLICY "privacy_policy_platform_admin_update_supersede" ON privacy_policy
   );
 -- Immutability of body enforced via trigger (below)
 
--- ─── data_subject_requests ───────────────────────────────────────────────────
+-- Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ BUILD_65: initial privacy policy version Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- Seed the '2026.1' row that bootstraps consent_log.consent_version tracking.
+-- body_markdown and body_html are populated when PRIVACY_POLICY_2026_1.md
+-- is authored in Phase 8. Until then, the placeholder text is valid SQL but
+-- should be replaced before any policy-version surface goes live.
+INSERT INTO privacy_policy_versions (
+  version, title, body_markdown, body_html, change_type,
+  change_summary, effective_from, is_current, created_at
+)
+VALUES (
+  '2026.1',
+  'Pleks Privacy Notice',
+  '# Pleks Privacy Notice\n\nThis notice will be replaced with the full POPIA-compliant policy text from brief/legal/PRIVACY_POLICY_2026_1.md during Phase 8 of BUILD_65.',
+  '<h1>Pleks Privacy Notice</h1><p>This notice will be replaced with the full POPIA-compliant policy text from brief/legal/PRIVACY_POLICY_2026_1.md during Phase 8 of BUILD_65.</p>',
+  'minor',
+  'Initial POPIA-compliant privacy notice. Aligned with BUILD_65 customer-facing surface.',
+  '2026-05-01',
+  true,
+  now()
+)
+ON CONFLICT (version) DO NOTHING;
+
+-- â”€â”€â”€ data_subject_requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Every POPIA right exercised (and the Pleks nuke request type).
 -- Agency-gated resolution within 30-day SLA.
 
@@ -2012,7 +2037,7 @@ DROP POLICY IF EXISTS "dsr_subject_select_own" ON data_subject_requests;
 CREATE POLICY "dsr_subject_select_own" ON data_subject_requests
   FOR SELECT USING (
     subject_user_id = (SELECT auth.uid())
-    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT …) so the planner evals once per query (initplan), not per row.
+    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT â€¦) so the planner evals once per query (initplan), not per row.
   );
 
 -- Org staff see their org's requests
@@ -2027,7 +2052,7 @@ DROP POLICY IF EXISTS "dsr_subject_insert" ON data_subject_requests;
 CREATE POLICY "dsr_subject_insert" ON data_subject_requests
   FOR INSERT WITH CHECK (
     subject_user_id = (SELECT auth.uid())
-    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT …) so the planner evals once per query (initplan), not per row.
+    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT â€¦) so the planner evals once per query (initplan), not per row.
   );
 
 -- Org staff update their org's requests (status, assignment, resolution)
@@ -2037,9 +2062,9 @@ CREATE POLICY "dsr_org_update" ON data_subject_requests
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
--- No DELETE — requests are immutable history (resolution writes resolved_at, doesn't remove the row)
+-- No DELETE â€” requests are immutable history (resolution writes resolved_at, doesn't remove the row)
 
--- ─── popia_exports ───────────────────────────────────────────────────────────
+-- â”€â”€â”€ popia_exports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Structurally similar to trust_audit_exports (BUILD_64). Manifest-hash tamper
 -- evidence; regenerateable with immutable history.
 
@@ -2098,7 +2123,7 @@ DROP POLICY IF EXISTS "popia_exports_subject_select" ON popia_exports;
 CREATE POLICY "popia_exports_subject_select" ON popia_exports
   FOR SELECT USING (
     subject_user_id = (SELECT auth.uid())
-    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT …) so the planner evals once per query (initplan), not per row.
+    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT â€¦) so the planner evals once per query (initplan), not per row.
   );
 
 -- Org staff read their org's exports
@@ -2116,7 +2141,7 @@ DROP POLICY IF EXISTS "popia_exports_subject_update_download" ON popia_exports;
 CREATE POLICY "popia_exports_subject_update_download" ON popia_exports
   FOR UPDATE USING (
     subject_user_id = (SELECT auth.uid())
-    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT …) so the planner evals once per query (initplan), not per row.
+    OR lower(subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- JWT claim, not auth.users (anon/authenticated lack SELECT on it; the auth.users read breaks nested RLS during storage INSERT...RETURNING). (SELECT â€¦) so the planner evals once per query (initplan), not per row.
   );
 -- Write permissions to individual columns enforced by explicit UPDATE statement shape in lib/popia/export.ts
 
@@ -2129,7 +2154,7 @@ ALTER TABLE data_subject_requests
   ADD CONSTRAINT data_subject_requests_export_id_fkey
   FOREIGN KEY (export_id) REFERENCES popia_exports(id) ON DELETE SET NULL;
 
--- ─── retention_policies_snapshot ─────────────────────────────────────────────
+-- â”€â”€â”€ retention_policies_snapshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Per-org snapshot of retention defaults at a point in time. Enables
 -- per-org future customisation without losing the historical what-was-the-rule
 -- audit trail. For Phase 1, every active org has one row matching the
@@ -2164,7 +2189,7 @@ CREATE POLICY "retention_policies_org_select" ON retention_policies_snapshot
 
 -- INSERT / UPDATE via service role only (platform admin manages)
 
--- ─── retention_purge_runs ────────────────────────────────────────────────────
+-- â”€â”€â”€ retention_purge_runs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Daily retention cron writes one row per purge execution per org, with
 -- structured counts of records affected per category. Full audit trail for
 -- the regulatory claim "we enforce retention automatically."
@@ -2194,7 +2219,7 @@ CREATE POLICY "purge_runs_org_select" ON retention_purge_runs
 
 -- Service-role-only INSERT/UPDATE
 
--- ─── Trigger: immutable policy body ──────────────────────────────────────────
+-- â”€â”€â”€ Trigger: immutable policy body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Once a privacy_policy_versions row is created, body_markdown and body_html
 -- cannot change. Only is_current and superseded_at may flip.
 
@@ -2220,13 +2245,13 @@ CREATE TRIGGER trg_policy_version_immutable
   BEFORE UPDATE ON privacy_policy_versions
   FOR EACH ROW EXECUTE FUNCTION check_policy_version_immutable();
 
--- ─── Trigger: data_subject_requests.updated_at ───────────────────────────────
+-- â”€â”€â”€ Trigger: data_subject_requests.updated_at â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 DROP TRIGGER IF EXISTS trg_dsr_updated_at ON data_subject_requests;
 CREATE TRIGGER trg_dsr_updated_at
   BEFORE UPDATE ON data_subject_requests
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- ─── Storage bucket: popia-exports ───────────────────────────────────────────
+-- â”€â”€â”€ Storage bucket: popia-exports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'popia-exports', 'popia-exports', false, 52428800,
@@ -2258,8 +2283,8 @@ BEGIN
               -- Read the email from the JWT claim, NOT a sub-SELECT on auth.users: storage uploads do
               -- INSERT ... RETURNING *, which evaluates every SELECT policy on the new row, and Postgres plans
               -- this sub-SELECT as an InitPlan regardless of the bucket_id guard. anon/authenticated can't read
-              -- auth.users → "permission denied for table users" broke uploads to EVERY bucket. (drift-fix 2026-06-22)
-              OR lower(pe.subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- (SELECT …): initplan once/query, not per row (still the JWT claim, no auth.users read)
+              -- auth.users â†’ "permission denied for table users" broke uploads to EVERY bucket. (drift-fix 2026-06-22)
+              OR lower(pe.subject_email) = lower(((SELECT auth.jwt()) ->> 'email'))  -- (SELECT â€¦): initplan once/query, not per row (still the JWT claim, no auth.users read)
             )
             AND pe.expires_at > now()
         )
@@ -2283,10 +2308,12 @@ BEGIN
         )
       );
   END IF;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
 END $$;
 
--- ─── Seed default retention policies per org (D-POPIA-02 defaults) ───────────
--- Synced with PLATFORM_DEFAULTS in lib/popia/retention.ts — that constant is
+-- â”€â”€â”€ Seed default retention policies per org (D-POPIA-02 defaults) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- Synced with PLATFORM_DEFAULTS in lib/popia/retention.ts â€” that constant is
 -- the source of truth; keep this JSONB in lockstep with it.
 
 CREATE OR REPLACE FUNCTION seed_default_retention_policies(org_uuid uuid)
@@ -2302,20 +2329,20 @@ BEGIN
       "inspection_photos":       {"retention_months": 36,    "legal_basis": "legal_obligation",    "regulatory_source": "Rental Housing Act 50 of 1999 s5(3)",                                                 "erasable_during_retention": false},
       "inspection_reports":      {"retention_months": 36,    "legal_basis": "legal_obligation",    "regulatory_source": "Rental Housing Act 50 of 1999 s5(3)",                                                 "erasable_during_retention": false},
       "rent_ledger":             {"retention_months": 60,    "legal_basis": "legal_obligation",    "regulatory_source": "Tax Administration Act 28 of 2011 s29 + PPRA",                                        "erasable_during_retention": false},
-      "communications":          {"retention_months": 60,    "legal_basis": "legitimate_interest", "regulatory_source": "PPRA practice — aligned with trust-record retention",                                 "erasable_during_retention": false},
+      "communications":          {"retention_months": 60,    "legal_basis": "legitimate_interest", "regulatory_source": "PPRA practice â€” aligned with trust-record retention",                                 "erasable_during_retention": false},
       "rejected_applications":   {"retention_months": 12,    "legal_basis": "legitimate_interest", "regulatory_source": "POPIA s14 minimisation principle",                                                    "erasable_during_retention": false},
       "credit_checks":           {"retention_months": 12,    "legal_basis": "consent",             "regulatory_source": "POPIA s11(1)(a) + credit bureau consent form",                                        "erasable_during_retention": false},
       "consent_log":             {"retention_months": 99999, "legal_basis": "legal_obligation",    "regulatory_source": "POPIA s17 (accountability principle)",                                                "erasable_during_retention": false, "never_erasable": true},
       "audit_log":               {"retention_months": 84,    "legal_basis": "legal_obligation",    "regulatory_source": "SA business records retention standard",                                              "erasable_during_retention": false},
       "maintenance_records":     {"retention_months": 36,    "legal_basis": "legitimate_interest", "regulatory_source": "RHT evidentiary practice",                                                            "erasable_during_retention": false},
-      "platform_account":        {"retention_months": 0,     "legal_basis": "consent",             "regulatory_source": "POPIA s14 minimisation — account data deleted 30 days post closure",                 "erasable_during_retention": true}
+      "platform_account":        {"retention_months": 0,     "legal_basis": "consent",             "regulatory_source": "POPIA s14 minimisation â€” account data deleted 30 days post closure",                 "erasable_during_retention": true}
     }'::jsonb
   )
   ON CONFLICT DO NOTHING;
 END;
 $$ LANGUAGE plpgsql;
 
--- ─── Auto-seed retention policies on org creation ─────────────────────────────
+-- â”€â”€â”€ Auto-seed retention policies on org creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 CREATE OR REPLACE FUNCTION trigger_seed_retention_policies()
 RETURNS trigger AS $$
@@ -2335,7 +2362,7 @@ CREATE TRIGGER trg_org_seed_retention
   FOR EACH ROW
   EXECUTE FUNCTION trigger_seed_retention_policies();
 
--- ─── One-shot backfill for active orgs ───────────────────────────────────────
+-- â”€â”€â”€ One-shot backfill for active orgs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Idempotent: NOT IN skips orgs that already have an active snapshot;
 -- ON CONFLICT DO NOTHING in the helper provides a second safety net.
 
@@ -2353,25 +2380,25 @@ BEGIN
   END LOOP;
 END $$;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §28  ADDENDUM_14H Phase D: per-org FitScore narrative feature flag
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§28  ADDENDUM_14H Phase D: per-org FitScore narrative feature flag
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Per D2 decision (2026-05-21): per-org flag defaulting true. Enables soft-launch
 -- (flip to false for specific orgs to opt out) and future per-org narrative control.
 
 ALTER TABLE organisations
   ADD COLUMN IF NOT EXISTS fitscore_narrative_enabled boolean NOT NULL DEFAULT true;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §29  ADDENDUM_14H Phase G: user_capabilities — capability-grant model
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§29  ADDENDUM_14H Phase G: user_capabilities â€” capability-grant model
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Capability-grant model on top of the existing role hierarchy (Review #4 decision).
 -- Three capabilities: can_generate_popia_s23, can_run_fitscore_replay,
 -- can_view_sensitive_identity_data. Org-scoped: a user can hold a capability in
 -- one org but not another. Only owner / property_manager roles are eligible grantees.
--- Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §8.7.
+-- Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md Â§8.7.
 -- NOTE (Phase G.2(a), kept-not-dropped): can_run_fitscore_replay is intentionally not yet
--- wired — the only replay surface today is the admin route /admin/popia-requests/[applicationId],
+-- wired â€” the only replay surface today is the admin route /admin/popia-requests/[applicationId],
 -- which gates on requireAdminAuth() (admin routes can't call agent-side gateway()). The capability
 -- is RESERVED for a future agency-side surface: a per-org Information Officer running a replay from
 -- the dashboard. Retain the enum value; do not treat "no callers" as dead.
@@ -2423,14 +2450,14 @@ CREATE POLICY "owners manage org capabilities" ON user_capabilities
     )
   );
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §30  BUILD_AUTH_RESOLVER: onboarding_state + one-active-membership invariant
--- ═══════════════════════════════════════════════════════════════════════════════
--- Spec: ADDENDUM_AUTH_RESOLVER §8.1 + §4.5 (amended by ADDENDUM_AUTH_RESOLVER_AMENDMENTS_2026-05-27)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§30  BUILD_AUTH_RESOLVER: onboarding_state + one-active-membership invariant
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Spec: ADDENDUM_AUTH_RESOLVER Â§8.1 + Â§4.5 (amended by ADDENDUM_AUTH_RESOLVER_AMENDMENTS_2026-05-27)
 -- Amendment 4: onboarding_state is TEXT CHECK enum (not jsonb); onboarding_progress is JSONB sidecar.
 -- Amendment 1: I-4 trigger restructured around per-table is_*_active() predicates.
 
--- ── §30.1  onboarding columns ───────────────────────────────────────────────
+-- â”€â”€ Â§30.1  onboarding columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 -- Drop old jsonb column if it exists (was wrong type from first draft)
 ALTER TABLE user_profiles DROP COLUMN IF EXISTS onboarding_state;
@@ -2459,7 +2486,7 @@ COMMENT ON COLUMN user_profiles.onboarding_state IS
 COMMENT ON COLUMN user_profiles.onboarding_progress IS
   'Wizard-internal step progress, free-form JSONB. Wizard-read only. Reset to {} on complete.';
 
--- Backfill: existing users with an active membership → complete; others → pending_profile
+-- Backfill: existing users with an active membership â†’ complete; others â†’ pending_profile
 UPDATE user_profiles up
 SET onboarding_state    = 'complete',
     onboarding_progress = '{}'::jsonb
@@ -2475,7 +2502,7 @@ SET onboarding_state    = 'pending_profile',
     onboarding_progress = '{}'::jsonb
 WHERE onboarding_state IS NULL;
 
--- ── §30.2  auth_events event_type extension + pre-auth nullable user_id ────
+-- â”€â”€ Â§30.2  auth_events event_type extension + pre-auth nullable user_id â”€â”€â”€â”€
 -- Add resolver_decision and email_existence_check to the allowed set.
 -- Drop and re-add the CHECK constraint (Postgres has no ADD CONSTRAINT IF NOT EXISTS for CHECK).
 ALTER TABLE auth_events DROP CONSTRAINT IF EXISTS auth_events_event_type_check;
@@ -2516,21 +2543,21 @@ ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
 -- Post-auth events keep the FK when user_id is non-null (nullable FK is still enforced when set).
 ALTER TABLE auth_events ALTER COLUMN user_id DROP NOT NULL;
 
--- ── §30.3  honeytoken_emails — canary addresses for enumeration detection ───
+-- â”€â”€ Â§30.3  honeytoken_emails â€” canary addresses for enumeration detection â”€â”€â”€
 CREATE TABLE IF NOT EXISTS honeytoken_emails (
   email text PRIMARY KEY
 );
 
 ALTER TABLE honeytoken_emails ENABLE ROW LEVEL SECURITY;
 
--- Service client only — no direct user access
+-- Service client only â€” no direct user access
 DROP POLICY IF EXISTS "honeytoken_emails_no_public_access" ON honeytoken_emails;
 CREATE POLICY "honeytoken_emails_no_public_access" ON honeytoken_emails
   FOR ALL USING (false);
 
--- ── §30.4  Per-table active-state predicates (Amendment 1) ─────────────────
+-- â”€â”€ Â§30.4  Per-table active-state predicates (Amendment 1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Centralise "is this row active?" per table. Future lifecycle changes extend
--- these helpers only — the trigger structure remains stable.
+-- these helpers only â€” the trigger structure remains stable.
 
 CREATE OR REPLACE FUNCTION is_user_org_active(row_data user_orgs)
 RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE AS $$
@@ -2557,7 +2584,7 @@ BEGIN
 END;
 $$;
 
--- ── §30.5  Cross-table active-count helper ──────────────────────────────────
+-- â”€â”€ Â§30.5  Cross-table active-count helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Called by per-table triggers to count active memberships excluding the row
 -- currently being inserted/updated (avoiding self-count on UPDATE paths).
 
@@ -2594,7 +2621,7 @@ BEGIN
 END;
 $$;
 
--- ── §30.6  Per-table trigger functions ──────────────────────────────────────
+-- â”€â”€ Â§30.6  Per-table trigger functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 CREATE OR REPLACE FUNCTION enforce_user_orgs_single_active() RETURNS TRIGGER
 LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -2656,23 +2683,23 @@ CREATE TRIGGER landlords_single_membership
   BEFORE INSERT OR UPDATE ON landlords
   FOR EACH ROW EXECUTE FUNCTION enforce_landlords_single_active();
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §31  ADDENDUM_ACTIVATION_2026-05-28 §B+§C: welcome_seen + activation_delegations
--- ═══════════════════════════════════════════════════════════════════════════════
--- Spec: ADDENDUM_ACTIVATION_2026-05-28.md §B (Welcome interstitial) + §C (delegation model)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§31  ADDENDUM_ACTIVATION_2026-05-28 Â§B+Â§C: welcome_seen + activation_delegations
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Spec: ADDENDUM_ACTIVATION_2026-05-28.md Â§B (Welcome interstitial) + Â§C (delegation model)
 
--- ── §31.1  user_profiles.welcome_seen — per-user first-run gate ──────────────
+-- â”€â”€ Â§31.1  user_profiles.welcome_seen â€” per-user first-run gate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- Tracks whether the /welcome interstitial has been completed by this user.
 -- Per-user, NOT per-org: founder + each invited agent-class member each see it once.
 -- Set to true when the user clicks "Continue to Pleks" at the end of the Welcome flow.
 ALTER TABLE user_profiles
   ADD COLUMN IF NOT EXISTS welcome_seen BOOLEAN NOT NULL DEFAULT false;
 
--- ── §31.2  activation_delegations — owner → member advisory task pointers ────
+-- â”€â”€ Â§31.2  activation_delegations â€” owner â†’ member advisory task pointers â”€â”€â”€â”€
 -- Owner can delegate specific activation checklist items to org members.
--- §B reads this for delegation previews at Welcome; §C owns writes (Owner "delegate" action).
+-- Â§B reads this for delegation previews at Welcome; Â§C owns writes (Owner "delegate" action).
 -- Delegable items: operational setup only. Legal items (information_officer, trust_account,
--- billing) are non-delegable and enforced by the §C server action allowlist.
+-- billing) are non-delegable and enforced by the Â§C server action allowlist.
 CREATE TABLE IF NOT EXISTS activation_delegations (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id        uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
@@ -2698,7 +2725,7 @@ CREATE POLICY "activation_delegations_org_members_select" ON activation_delegati
     )
   );
 
--- Only owners may write delegations; §C server action enforces the delegable-item allowlist
+-- Only owners may write delegations; Â§C server action enforces the delegable-item allowlist
 DROP POLICY IF EXISTS "activation_delegations_owner_insert" ON activation_delegations;
 CREATE POLICY "activation_delegations_owner_insert" ON activation_delegations
   FOR INSERT WITH CHECK (
@@ -2717,12 +2744,12 @@ CREATE POLICY "activation_delegations_owner_delete" ON activation_delegations
     )
   );
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §32  PASSKEY_FIX: store WebAuthn binary fields as base64url TEXT, not bytea
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§32  PASSKEY_FIX: store WebAuthn binary fields as base64url TEXT, not bytea
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- supabase-js JSON-serialises a Node Buffer to {"type":"Buffer","data":[...]} on insert,
 -- so writing a Buffer into a bytea column persisted that JSON string's bytes (corrupt),
--- and reading bytea back yields a "\x..."-hex string the route code then mis-decoded —
+-- and reading bytea back yields a "\x..."-hex string the route code then mis-decoded â€”
 -- so verifyRegistrationResponse/verifyAuthenticationResponse never matched (passkeys never
 -- enrolled: user_passkeys was empty). The canonical simplewebauthn-on-Supabase pattern is
 -- to store these as base64url TEXT and pass them straight through. Safe to convert in place:
@@ -2745,15 +2772,15 @@ BEGIN
   END IF;
 END $$;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §33  ADDENDUM_68 (Slice 1): enriched bug-report context
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§33  ADDENDUM_68 (Slice 1): enriched bug-report context
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- 1:1 companion to feedback_submissions, written only for category='bug' reports.
 -- Holds auto-captured client diagnostics (route, device, console errors, failed
--- requests) plus the correlation keys (pleks_trace → Supabase logs, x_vercel_id →
+-- requests) plus the correlation keys (pleks_trace â†’ Supabase logs, x_vercel_id â†’
 -- Vercel logs) so the admin can pull the real server logs on demand. Kept in a
 -- separate table so praise/feature rows stay clean. No screenshot_path in Slice 1
--- (deferred to Slice 2). RLS enabled (SECURITY RULE #2 — overrides the spec's "no
+-- (deferred to Slice 2). RLS enabled (SECURITY RULE #2 â€” overrides the spec's "no
 -- RLS" note); reads/writes go via service role, policies mirror feedback_submissions
 -- through the parent so the Category-7 audit passes and a stray anon client can't leak.
 
@@ -2762,8 +2789,8 @@ CREATE TABLE IF NOT EXISTS bug_context (
   route_path         text,
   full_url_scrubbed  text,
   referrer_path      text,
-  pleks_trace        text,            -- → Supabase log join key
-  x_vercel_id        text,            -- → Vercel log join key
+  pleks_trace        text,            -- â†’ Supabase log join key
+  x_vercel_id        text,            -- â†’ Vercel log join key
   app_version        text,
   user_agent_parsed  text,            -- "Android Chrome 148" (parsed, not raw UA)
   viewport           text,            -- "412x915 @2x"
@@ -2805,16 +2832,16 @@ CREATE POLICY "bug_context_org_admin_select" ON bug_context
     )
   );
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §34  ADDENDUM_69 Slice A: passkey → session-AAL2 grants (revocation mirror)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§34  ADDENDUM_69 Slice A: passkey â†’ session-AAL2 grants (revocation mirror)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- A verified passkey mints a signed, session-bound `pleks_aal` cookie that lets the
 -- gate + resolver treat the session as AAL2 (Supabase AAL only counts TOTP/phone). This
 -- table mirrors each grant so it can be REVOKED (sign-out / passkey-revoke): the resolver
 -- checks it; the gate verifies HMAC+expiry only (revoked-but-unexpired passes the gate
--- until exp/cookie-clear — bounded, and the gate routes AAL2 decisions to the resolver
+-- until exp/cookie-clear â€” bounded, and the gate routes AAL2 decisions to the resolver
 -- anyway). session_id = the Supabase JWT session_id claim the grant is bound to. RLS
--- enabled (SECURITY RULE #2; the spec's "no RLS, matches auth_events" was wrong — auth_events
+-- enabled (SECURITY RULE #2; the spec's "no RLS, matches auth_events" was wrong â€” auth_events
 -- DOES have RLS): self-select only, writes are service-role.
 
 CREATE TABLE IF NOT EXISTS passkey_aal_grants (
@@ -2832,23 +2859,23 @@ CREATE INDEX IF NOT EXISTS idx_passkey_aal_user    ON passkey_aal_grants(user_id
 
 ALTER TABLE passkey_aal_grants ENABLE ROW LEVEL SECURITY;
 
--- A user may see their own grants; inserts/updates are service-role only (no policy → denied).
+-- A user may see their own grants; inserts/updates are service-role only (no policy â†’ denied).
 DROP POLICY IF EXISTS "passkey_aal_grants_select_self" ON passkey_aal_grants;
 CREATE POLICY "passkey_aal_grants_select_self" ON passkey_aal_grants
   FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §35  SECURITY (P0, 2026-06-01): lock down SECURITY DEFINER purge functions
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§35  SECURITY (P0, 2026-06-01): lock down SECURITY DEFINER purge functions
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- purge_org_cascade / claim_purge_slot are SECURITY DEFINER with no caller-auth check and were
--- EXECUTE-granted to PUBLIC/anon/authenticated — so a POST /rest/v1/rpc/purge_org_cascade carrying
+-- EXECUTE-granted to PUBLIC/anon/authenticated â€” so a POST /rest/v1/rpc/purge_org_cascade carrying
 -- the public anon key could purge ANY org (RLS bypassed by the definer). Their only caller is
 -- lib/subscriptions/purge.ts via createServiceClient(), so service_role-only EXECUTE closes the hole
 -- with zero blast radius. The 3 retention purges are pg_cron-only (belt-and-suspenders revoke).
 --
--- LESSON (apply everywhere — see ADDENDUM_00K): Supabase default privileges grant anon + authenticated
--- EXECUTE *explicitly*, separate from PUBLIC, so `REVOKE … FROM PUBLIC` ALONE IS INSUFFICIENT — name
+-- LESSON (apply everywhere â€” see ADDENDUM_00K): Supabase default privileges grant anon + authenticated
+-- EXECUTE *explicitly*, separate from PUBLIC, so `REVOKE â€¦ FROM PUBLIC` ALONE IS INSUFFICIENT â€” name
 -- all three. (count_distinct_orgs / 009 looked locked down but wasn't.) Verify LIVE proacl, not source.
 -- Applied to prod 2026-06-01.
 REVOKE EXECUTE ON FUNCTION public.purge_org_cascade(uuid, text) FROM PUBLIC, anon, authenticated;
@@ -2860,13 +2887,13 @@ REVOKE EXECUTE ON FUNCTION public.purge_old_ai_usage()          FROM PUBLIC, ano
 REVOKE EXECUTE ON FUNCTION public.purge_old_cost_snapshots()    FROM PUBLIC, anon, authenticated;
 
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §36  ADDENDUM_00I: RLS initplan — re-create the 13 policies defined in PROTECTED
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§36  ADDENDUM_00I: RLS initplan â€” re-create the 13 policies defined in PROTECTED
 --      007/008 with (SELECT auth.uid()) wrapping. 007/008 are amend-forbidden, so we
 --      DROP+CREATE here (this block loads after them; the later definition wins).
---      Predicates are VERBATIM from 007/008, auth.uid() wrapped only — no logic change.
+--      Predicates are VERBATIM from 007/008, auth.uid() wrapped only â€” no logic change.
 --      The other 221 flagged policies are wrapped in situ in their own files.
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- 007: org-isolation (FOR ALL)
 DROP POLICY IF EXISTS "org_lease_co_tenants" ON lease_co_tenants;
@@ -2940,20 +2967,20 @@ CREATE POLICY "org_isolation" ON deposit_interest_config
     SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL LIMIT 1
   ));
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §37  ADDENDUM_00K: SECURITY DEFINER EXECUTE-grant lockdown + search_path hardening
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§37  ADDENDUM_00K: SECURITY DEFINER EXECUTE-grant lockdown + search_path hardening
 --      CREATE FUNCTION + Supabase default privileges leave PUBLIC+anon+authenticated
---      with EXECUTE; SECURITY DEFINER funcs run as owner → bypass RLS, so an
+--      with EXECUTE; SECURITY DEFINER funcs run as owner â†’ bypass RLS, so an
 --      over-granted definer fn is an RLS-bypass surface via /rest/v1/rpc/<fn>. Lock
---      each to service_role (+ internal/trigger/owner callers). Callers verified —
---      see ADDENDUM_00K §2. NB: revoking PUBLIC alone is insufficient — anon+
+--      each to service_role (+ internal/trigger/owner callers). Callers verified â€”
+--      see ADDENDUM_00K Â§2. NB: revoking PUBLIC alone is insufficient â€” anon+
 --      authenticated are granted explicitly by Supabase defaults; name all three
---      (the count_distinct_orgs lesson). REVOKE/GRANT/ALTER FUNCTION only — no
+--      (the count_distinct_orgs lesson). REVOKE/GRANT/ALTER FUNCTION only â€” no
 --      defining site touched, so 007/008 stay byte-for-byte untouched even for
 --      functions defined there. Idempotent. Live-proacl verified pre/post (D-00K-08).
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
--- ── P0 (already shipped in §35; re-included idempotently to capture in source — D-00K-06) ──
+-- â”€â”€ P0 (already shipped in Â§35; re-included idempotently to capture in source â€” D-00K-06) â”€â”€
 REVOKE EXECUTE ON FUNCTION public.purge_org_cascade(uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.purge_org_cascade(uuid, text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.claim_purge_slot(uuid)        FROM PUBLIC, anon, authenticated;
@@ -2962,7 +2989,7 @@ REVOKE EXECUTE ON FUNCTION public.purge_old_auth_events()    FROM PUBLIC, anon, 
 REVOKE EXECUTE ON FUNCTION public.purge_old_ai_usage()       FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.purge_old_cost_snapshots() FROM PUBLIC, anon, authenticated;
 
--- ── revoke 3 (keep postgres + service_role) — RLS-bypass definer fns, all callers service/trigger/internal ──
+-- â”€â”€ revoke 3 (keep postgres + service_role) â€” RLS-bypass definer fns, all callers service/trigger/internal â”€â”€
 REVOKE EXECUTE ON FUNCTION public.audit_applications_fitscore_changes()                  FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.check_email_exists(text)                               FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.count_active_memberships_for_user(uuid, text, uuid)    FROM PUBLIC, anon, authenticated;
@@ -2975,22 +3002,28 @@ REVOKE EXECUTE ON FUNCTION public.get_current_org_id()                          
 REVOKE EXECUTE ON FUNCTION public.get_current_tier()                                     FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_distinct_audit_tables()                            FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.get_org_member_by_email(uuid, text)                    FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.get_rls_audit()                                        FROM PUBLIC, anon, authenticated;
+-- get_rls_audit() lives in scripts/security/setup-rls-audit.sql (audit-only helper), not in migrations
+-- guard its hardening so a clean replay without that script is a no-op. (migration-replay fix 2026-07-06)
+DO $gra$ BEGIN
+  IF to_regprocedure('public.get_rls_audit()') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.get_rls_audit() FROM PUBLIC, anon, authenticated;
+  END IF;
+END $gra$;
 REVOKE EXECUTE ON FUNCTION public.handle_new_user()                                      FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.org_has_trust_account()                                FROM PUBLIC, anon, authenticated;
 
--- ── complete the partial 009 revoke (PUBLIC already gone; anon+auth remained) ──
+-- â”€â”€ complete the partial 009 revoke (PUBLIC already gone; anon+auth remained) â”€â”€
 REVOKE EXECUTE ON FUNCTION public.count_distinct_orgs(text)                              FROM anon, authenticated;
 
--- ── revoke PUBLIC + anon. is_mfa_fresh KEEPS authenticated (self-scoped: reads only the caller's
---    own MFA freshness — no arbitrary input). get_active_unit_count's authenticated grant is
---    REVOKED in §47 below (2026-07-02 security batch) — the "intended client use" assumption here
---    was wrong: it is SECURITY DEFINER + takes an arbitrary p_org_id = cross-org read. ──
+-- â”€â”€ revoke PUBLIC + anon. is_mfa_fresh KEEPS authenticated (self-scoped: reads only the caller's
+--    own MFA freshness â€” no arbitrary input). get_active_unit_count's authenticated grant is
+--    REVOKED in Â§47 below (2026-07-02 security batch) â€” the "intended client use" assumption here
+--    was wrong: it is SECURITY DEFINER + takes an arbitrary p_org_id = cross-org read. â”€â”€
 REVOKE EXECUTE ON FUNCTION public.get_active_unit_count(uuid)                            FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.is_mfa_fresh(integer)                                  FROM PUBLIC, anon;
 
--- ── search_path hardening (ALTER FUNCTION … SET search_path — idempotent; closes function_search_path_mutable) ──
--- auth-touching funcs (reference the auth schema → public, auth, pg_temp):
+-- â”€â”€ search_path hardening (ALTER FUNCTION â€¦ SET search_path â€” idempotent; closes function_search_path_mutable) â”€â”€
+-- auth-touching funcs (reference the auth schema â†’ public, auth, pg_temp):
 ALTER FUNCTION public.get_current_org_id()                SET search_path = public, auth, pg_temp;
 ALTER FUNCTION public.get_current_tier()                  SET search_path = public, auth, pg_temp;
 ALTER FUNCTION public.get_org_member_by_email(uuid, text) SET search_path = public, auth, pg_temp;
@@ -3008,14 +3041,18 @@ ALTER FUNCTION public.get_active_unit_count(uuid)                         SET se
 ALTER FUNCTION public.get_ai_usage_agg_by_org(timestamptz, timestamptz)   SET search_path = public, pg_temp;
 ALTER FUNCTION public.get_ai_usage_agg_by_purpose(uuid, timestamptz)      SET search_path = public, pg_temp;
 ALTER FUNCTION public.get_distinct_audit_tables()                         SET search_path = public, pg_temp;
-ALTER FUNCTION public.get_rls_audit()                                     SET search_path = public, pg_temp;
+DO $gra$ BEGIN
+  IF to_regprocedure('public.get_rls_audit()') IS NOT NULL THEN
+    ALTER FUNCTION public.get_rls_audit() SET search_path = public, pg_temp;
+  END IF;
+END $gra$;
 ALTER FUNCTION public.org_has_trust_account()                             SET search_path = public, pg_temp;
 ALTER FUNCTION public.purge_old_ai_usage()                                SET search_path = public, pg_temp;
 ALTER FUNCTION public.purge_old_auth_events()                             SET search_path = public, pg_temp;
 ALTER FUNCTION public.purge_old_cost_snapshots()                          SET search_path = public, pg_temp;
 ALTER FUNCTION public.purge_org_cascade(uuid, text)                       SET search_path = public, pg_temp;
 
--- SECURITY INVOKER set (search_path only — grants left as-is; invoker funcs respect RLS):
+-- SECURITY INVOKER set (search_path only â€” grants left as-is; invoker funcs respect RLS):
 ALTER FUNCTION public.check_policy_version_immutable()                    SET search_path = public, pg_temp;
 ALTER FUNCTION public.check_trust_txn_insert_period_open()                SET search_path = public, pg_temp;
 ALTER FUNCTION public.check_trust_txn_period_open()                       SET search_path = public, pg_temp;
@@ -3030,16 +3067,16 @@ ALTER FUNCTION public.reconcile_self_landlord_bindings()                  SET se
 ALTER FUNCTION public.refresh_arrears_interest_total(uuid)                SET search_path = public, pg_temp;
 ALTER FUNCTION public.seed_default_retention_policies(uuid)               SET search_path = public, pg_temp;
 ALTER FUNCTION public.sync_profile_from_self_landlord()                   SET search_path = public, pg_temp;
-ALTER FUNCTION public.sync_property_has_managing_scheme()                 SET search_path = public, pg_temp;
+-- ALTER FUNCTION sync_property_has_managing_scheme SET search_path moved to 012 (function defined there). (replay fix 2026-07-06)
 ALTER FUNCTION public.sync_self_landlord_from_profile()                   SET search_path = public, pg_temp;
 ALTER FUNCTION public.trigger_seed_retention_policies()                   SET search_path = public, pg_temp;
 ALTER FUNCTION public.update_updated_at_column()                          SET search_path = public, pg_temp;
 
--- ── rls_enabled_no_policy (§5): explicit service-role-only deny policies (D-00K-04).
+-- â”€â”€ rls_enabled_no_policy (Â§5): explicit service-role-only deny policies (D-00K-04).
 --    RLS-on + no-policy already denies all client roles (service_role bypasses); these
---    make the intent legible + clear the INFO linter. deny→deny, no behaviour change.
+--    make the intent legible + clear the INFO linter. denyâ†’deny, no behaviour change.
 --    All 9 confirmed: every app-code access path uses createServiceClient / the
---    service-role key (no cookie/anon/authenticated read path) — verified 2026-06-01.
+--    service-role key (no cookie/anon/authenticated read path) â€” verified 2026-06-01.
 DROP POLICY IF EXISTS "cron_runs_service_role_only" ON public.cron_runs;
 CREATE POLICY "cron_runs_service_role_only" ON public.cron_runs FOR ALL USING (false) WITH CHECK (false);
 DROP POLICY IF EXISTS "rule_runs_service_role_only" ON public.rule_runs;
@@ -3056,51 +3093,50 @@ DROP POLICY IF EXISTS "consent_verifications_service_role_only" ON public.consen
 CREATE POLICY "consent_verifications_service_role_only" ON public.consent_verifications FOR ALL USING (false) WITH CHECK (false);
 DROP POLICY IF EXISTS "contact_leads_service_role_only" ON public.contact_leads;
 CREATE POLICY "contact_leads_service_role_only" ON public.contact_leads FOR ALL USING (false) WITH CHECK (false);
-DROP POLICY IF EXISTS "delivery_notice_tokens_service_role_only" ON public.delivery_notice_tokens;
-CREATE POLICY "delivery_notice_tokens_service_role_only" ON public.delivery_notice_tokens FOR ALL USING (false) WITH CHECK (false);
+-- delivery_notice_tokens_service_role_only policy moved to 011 (table is created there). (replay fix 2026-07-06)
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §38  ONBOARDING: dashboard guided-setup dismissal (per-org)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§38  ONBOARDING: dashboard guided-setup dismissal (per-org)
 --      The dashboard shows the new-user onboarding (get-started steps + workspace
 --      setup) until the org finishes or skips it. We persist that as one timestamp on
---      organisations rather than deriving from "has a property" — so a user who skips
+--      organisations rather than deriving from "has a property" â€” so a user who skips
 --      straight to the dashboard still gets the populated view, and onboarding never
 --      re-appears across devices/sessions. Org-level: once anyone on the team completes
 --      it, the org is set up for everyone. Null = onboarding still active.
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS onboarding_dismissed_at timestamptz;
 
--- Backfill: any org that already has a property is past onboarding → mark dismissed so the populated
+-- Backfill: any org that already has a property is past onboarding â†’ mark dismissed so the populated
 -- dashboard shows for established orgs (the flag defaults NULL for everyone, incl. existing orgs).
 -- Idempotent: only touches rows still NULL with a live property.
 UPDATE organisations o SET onboarding_dismissed_at = now()
 WHERE o.onboarding_dismissed_at IS NULL
   AND EXISTS (SELECT 1 FROM properties p WHERE p.org_id = o.id AND p.deleted_at IS NULL);
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §39  ONBOARDING: re-scope the flag to an explicit "skip", and clear stale dismissals
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§39  ONBOARDING: re-scope the flag to an explicit "skip", and clear stale dismissals
 --      The rule changed: the guided setup dashboard now shows until the org has its first
 --      property (an all-zeros populated dashboard is useless). onboarding_dismissed_at no
---      longer means a generic "finished/skipped" — it means ONLY "explicitly skipped setup"
+--      longer means a generic "finished/skipped" â€” it means ONLY "explicitly skipped setup"
 --      (delegated: an admin will do it), the one way to force the populated view with no
 --      portfolio. "I'll finish later" is a session-only defer and never writes this column.
 --      The earlier "finish later" wrongly stamped it, so any org with NO live property that
---      carries a flag was dismissed by that bug (genuine skips post-date this) — clear them
+--      carries a flag was dismissed by that bug (genuine skips post-date this) â€” clear them
 --      so they get the corrected setup dashboard. Idempotent: re-runs match nothing.
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 UPDATE organisations o SET onboarding_dismissed_at = NULL
 WHERE o.onboarding_dismissed_at IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM properties p WHERE p.org_id = o.id AND p.deleted_at IS NULL);
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §40  ADDENDUM_TEAM: atomic ownership transfer (single-owner invariant)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§40  ADDENDUM_TEAM: atomic ownership transfer (single-owner invariant)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- The transfer-ownership route did promote-new-owner then demote-old-owner as two separate PostgREST
 -- updates with a best-effort manual rollback. A partial failure could leave the org with TWO owners (or
 -- zero), violating the single-owner invariant the tier/billing model rests on (owner = the account
 -- holder) and breaking any role='owner' + .single() resolution. This wraps both swaps in ONE plpgsql
--- transaction — atomic by construction. Row-count guard: if the new owner isn't an active member the
--- promote affects 0 rows → RAISE aborts the whole tx (no zero-owner state). SECURITY INVOKER (the route
+-- transaction â€” atomic by construction. Row-count guard: if the new owner isn't an active member the
+-- promote affects 0 rows â†’ RAISE aborts the whole tx (no zero-owner state). SECURITY INVOKER (the route
 -- calls it via the service client, which bypasses RLS); EXECUTE locked to service_role.
 CREATE OR REPLACE FUNCTION transfer_org_ownership(p_org_id uuid, p_new_owner uuid, p_old_owner uuid)
 RETURNS void
@@ -3124,13 +3160,13 @@ $transfer$;
 REVOKE EXECUTE ON FUNCTION transfer_org_ownership(uuid, uuid, uuid) FROM public;
 GRANT  EXECUTE ON FUNCTION transfer_org_ownership(uuid, uuid, uuid) TO service_role;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §41  ADDENDUM_TEAMS_ASSIGNMENT_MODEL Layer 1: named teams (firm-tier overlay)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§41  ADDENDUM_TEAMS_ASSIGNMENT_MODEL Layer 1: named teams (firm-tier overlay)
 --      teams + team_members, and the team-assignment columns on properties/units/work items. Team columns
---      live here (not the domain files) so the FK → teams resolves on a fresh 001→012 replay (003/005 run
---      before this). assigned_user_id XOR assigned_team_id — both-null = Everyone/Org (D-1/D-11). The
+--      live here (not the domain files) so the FK â†’ teams resolves on a fresh 001â†’012 replay (003/005 run
+--      before this). assigned_user_id XOR assigned_team_id â€” both-null = Everyone/Org (D-1/D-11). The
 --      Everyone/Org "team" is virtual (the null state), never a teams row (D-11).
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CREATE TABLE IF NOT EXISTS teams (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -3195,12 +3231,12 @@ CREATE INDEX IF NOT EXISTS idx_maintenance_requests_assigned_team ON maintenance
 CREATE INDEX IF NOT EXISTS idx_applications_assigned_team ON applications(org_id, assigned_team_id) WHERE assigned_team_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_inspections_assigned_team ON inspections(org_id, assigned_team_id) WHERE assigned_team_id IS NOT NULL;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §42  Settings Overview UI state: per-(user, org) dismissed "Set up" cards + page visit counts
---      Personal, cross-device UI state for the settings Overview — dismissed setup nudges and the
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§42  Settings Overview UI state: per-(user, org) dismissed "Set up" cards + page visit counts
+--      Personal, cross-device UI state for the settings Overview â€” dismissed setup nudges and the
 --      "Frequently used" visit tallies. Per user + org (setup is org-specific). RLS: each user sees
 --      only their own rows.
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CREATE TABLE IF NOT EXISTS settings_ui_state (
   user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -3219,12 +3255,12 @@ CREATE POLICY "settings_ui_state_self" ON settings_ui_state
   USING (user_id = (SELECT auth.uid()))
   WITH CHECK (user_id = (SELECT auth.uid()));
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §43  ADDENDUM_RBAC Phase 1: per-org role definitions + capabilities
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§43  ADDENDUM_RBAC Phase 1: per-org role definitions + capabilities
 --      Override layer over the in-code built-in roles (lib/auth/capabilities.ts): a row exists only when
 --      an org has edited a built-in role's capabilities/visibility or added a custom role. The resolver
 --      merges code defaults with these rows. `owner` is implicit-all and never stored here.
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CREATE TABLE IF NOT EXISTS org_roles (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -3255,13 +3291,13 @@ DROP TRIGGER IF EXISTS trg_org_roles_updated ON org_roles;
 CREATE TRIGGER trg_org_roles_updated BEFORE UPDATE ON org_roles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §44  BUILD_F3_LEGAL_HOLD: polymorphic litigation-hold mechanism
---      (SPEC_LEGAL_HOLD_POLYMORPHIC.md — supersedes the org-only RUNBOOK_LEGAL_HOLD snippet)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§44  BUILD_F3_LEGAL_HOLD: polymorphic litigation-hold mechanism
+--      (SPEC_LEGAL_HOLD_POLYMORPHIC.md â€” supersedes the org-only RUNBOOK_LEGAL_HOLD snippet)
 --      Immutable append-only events + SHA-256 instrument-hash chain (per scope). Active holds
 --      (hold_placed not matched by hold_lifted) fail-close the F3 declined-applicant purge gate.
 --      Writes route through placeLegalHold/liftLegalHold (service-role); direct INSERT is RLS-blocked.
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 -- digest()/encode() for the hash chain (gen_random_uuid is core in PG13+, but pgcrypto is required for digest).
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -3352,7 +3388,7 @@ CREATE TRIGGER trg_legal_hold_events_no_delete
   BEFORE DELETE ON legal_hold_events
   FOR EACH ROW EXECUTE FUNCTION prevent_legal_hold_event_mutation();
 
--- Instrument-hash chain (per scope). Canonical-content field order is load-bearing — verify fn (below)
+-- Instrument-hash chain (per scope). Canonical-content field order is load-bearing â€” verify fn (below)
 -- walks the identical order. Any change here requires a coordinated change in verify_legal_hold_chain.
 CREATE OR REPLACE FUNCTION compute_legal_hold_instrument_hash()
 RETURNS trigger AS $$
@@ -3412,7 +3448,7 @@ CREATE POLICY "legal_hold_events_read_org" ON legal_hold_events
     )
   );
 
--- Direct INSERT forbidden — all writes go through placeLegalHold/liftLegalHold under service-role
+-- Direct INSERT forbidden â€” all writes go through placeLegalHold/liftLegalHold under service-role
 -- (which bypasses RLS). An append-only bad row can never be rolled back, so the helpers are the only entry.
 DROP POLICY IF EXISTS "legal_hold_events_insert_blocked" ON legal_hold_events;
 CREATE POLICY "legal_hold_events_insert_blocked" ON legal_hold_events
@@ -3483,13 +3519,13 @@ GRANT  EXECUTE ON FUNCTION verify_legal_hold_chain(text, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION compute_legal_hold_instrument_hash() FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION prevent_legal_hold_event_mutation()  FROM PUBLIC, anon, authenticated;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §45  BUILD_F3: two-tier declined-applicant retention — decision-reason enums (counsel-signed),
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§45  BUILD_F3: two-tier declined-applicant retention â€” decision-reason enums (counsel-signed),
 --      decision-accountability columns, immutable per-org policy-snapshot tables, hybrid criminal
 --      enforcement, decided_* sync trigger, + the legal_hold_events threatened-litigation category.
---      (F3_SPEC_AMENDMENT + COUNSEL_BRIEF_F3_DISPOSITION pass 6 — signed. Decision-reason CHECK bodies
+--      (F3_SPEC_AMENDMENT + COUNSEL_BRIEF_F3_DISPOSITION pass 6 â€” signed. Decision-reason CHECK bodies
 --      are generated from lib/screening/decisionReasons.ts via scripts/codegen/decision-reason-enums.mts.)
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS decline_reason_code text,
@@ -3636,7 +3672,7 @@ ALTER TABLE applications ADD CONSTRAINT applications_criminal_policy_required_ch
    AND NOT (COALESCE(adverse_factor_codes, ARRAY[]::text[]) @> ARRAY['adverse_criminal_record_relevant']))
   OR (criminal_screening_policy_id IS NOT NULL AND criminal_screening_policy_version IS NOT NULL));
 
--- §2.4 sync trigger: mirror prescreened_*/reviewed_* into unified decided_* (review overrides prescreen)
+-- Â§2.4 sync trigger: mirror prescreened_*/reviewed_* into unified decided_* (review overrides prescreen)
 CREATE OR REPLACE FUNCTION sync_decision_columns_on_stage_write()
 RETURNS trigger AS $$
 BEGIN
@@ -3657,59 +3693,59 @@ UPDATE applications SET decided_at = COALESCE(reviewed_at, prescreened_at), deci
   decision_stage = CASE WHEN reviewed_at IS NOT NULL THEN 'reviewed' WHEN prescreened_at IS NOT NULL THEN 'prescreened' ELSE NULL END
 WHERE decided_at IS NULL AND (reviewed_at IS NOT NULL OR prescreened_at IS NOT NULL);
 
--- legal_hold_events: additive trigger_category (counsel pass 1) — threatened_litigation_anticipated
+-- legal_hold_events: additive trigger_category (counsel pass 1) â€” threatened_litigation_anticipated
 ALTER TABLE legal_hold_events DROP CONSTRAINT IF EXISTS legal_hold_events_trigger_category_check;
 ALTER TABLE legal_hold_events ADD CONSTRAINT legal_hold_events_trigger_category_check CHECK (
   trigger_category IN ('customer_dispute','attorney_correspondence','threatened_litigation_anticipated','regulator_inquiry','legal_demand','dsar_contested','tribunal_matter','manual_information_officer','pleks_platform_directive'));
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §46  Individual property-practitioner FFC — each agent's own PPRA Fidelity Fund
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§46  Individual property-practitioner FFC â€” each agent's own PPRA Fidelity Fund
 --      Certificate. Separate from organisations.ppra_ffc_number (the agency's):
 --      PPRA issues an FFC to the firm AND to each practitioner, so both are surfaced
 --      to applicants (agency FFC + the responsible agent's FFC). Domicile is the
 --      user-in-org profile (a practising authorisation, NOT a global natural-person
---      attribute — must not leak via the contact/party identity across orgs).
+--      attribute â€” must not leak via the contact/party identity across orgs).
 --      Issue/expiry captured because practising on a lapsed FFC is a PPRA offence
---      (voids commission) — lets us flag/block listings under an expired certificate.
--- ═══════════════════════════════════════════════════════════════════════════════
+--      (voids commission) â€” lets us flag/block listings under an expired certificate.
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_number text;
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_issued_at date;
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS ppra_ffc_expires_at date;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §47  SECURITY BATCH 2026-07-02: revoke authenticated EXECUTE on the cross-org
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§47  SECURITY BATCH 2026-07-02: revoke authenticated EXECUTE on the cross-org
 --      count RPC + pin search_path on two invoker functions.
 --
 --      get_active_unit_count(uuid) is SECURITY DEFINER and takes an arbitrary
---      p_org_id with NO caller-membership check — so an EXECUTE grant to
+--      p_org_id with NO caller-membership check â€” so an EXECUTE grant to
 --      `authenticated` let any logged-in user read any org's active-unit count
 --      (agency-isolation violation, live-advisor confirmed). Its sole caller,
 --      lib/tier/unitLimits.ts, is server-only and passes a service_role client
 --      (service_role EXECUTE is retained), so this revoke has no app impact.
---      Supersedes the "KEEP authenticated" note in the §RPC-hardening block above.
+--      Supersedes the "KEEP authenticated" note in the Â§RPC-hardening block above.
 --
 --      transfer_org_ownership / assert_deduction_justification are SECURITY INVOKER
---      (RLS still applies — no privilege escalation), but pinning search_path
+--      (RLS still applies â€” no privilege escalation), but pinning search_path
 --      silences advisor lint 0011 (function_search_path_mutable) permanently.
--- ═══════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 REVOKE EXECUTE ON FUNCTION public.get_active_unit_count(uuid)             FROM PUBLIC, anon, authenticated;
 
 ALTER FUNCTION public.transfer_org_ownership(uuid, uuid, uuid)            SET search_path = public, pg_temp;
 ALTER FUNCTION public.assert_deduction_justification()                   SET search_path = public, pg_temp;
 
--- ═══════════════════════════════════════════════════════════════════════════════
--- §48  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys (follows §47 in PR #104).
---     Rule: index unindexed FKs that are erasure/cascade paths or hot joins —
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Â§48  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys (follows Â§47 in PR #104).
+--     Rule: index unindexed FKs that are erasure/cascade paths or hot joins â€”
 --       (1) auth.users FKs on erasure-reachable SUBJECT-DATA tables (cold audit/config/
 --           reference tables skipped: small, the planner seq-scans them regardless);
---       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade — protects P-1);
+--       (2) ALL contacts + tenants FKs (POPIA erasure/anonymise cascade â€” protects P-1);
 --       (3) org_id + hot domain/self-ref FKs on HIGH-GROWTH child tables.
---     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain — do NOT re-litigate):
+--     DEFERRED BY DECISION (~119 advisor unindexed-FK lints remain â€” do NOT re-litigate):
 --       teams refs (named-teams Layer 1 unwired), policy-table refs, and cold-table org_id
---       (→ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
--- ═══════════════════════════════════════════════════════════════════════════════
+--       (â†’ a post-traffic org_id pass justified by pg_stat_user_indexes). See INDEX.md.
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CREATE INDEX IF NOT EXISTS idx_activation_delegations_delegated_by ON activation_delegations(delegated_by);
 CREATE INDEX IF NOT EXISTS idx_activation_delegations_delegated_to ON activation_delegations(delegated_to);

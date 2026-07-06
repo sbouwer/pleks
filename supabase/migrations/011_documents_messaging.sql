@@ -640,6 +640,11 @@ ALTER TABLE communication_log
   ADD COLUMN IF NOT EXISTS failed_reason     text,
   ADD COLUMN IF NOT EXISTS triggered_by      uuid REFERENCES auth.users(id);
 
+-- Index moved here from 002 — triggered_by is added just above. (migration-replay fix, 2026-07-06)
+CREATE INDEX IF NOT EXISTS idx_communication_log_triggered_by ON communication_log(triggered_by);
+-- idx_comm_log_entity moved here from 007 — entity_type/entity_id are added just above. (replay fix 2026-07-06)
+CREATE INDEX IF NOT EXISTS idx_comm_log_entity ON communication_log(entity_type, entity_id);
+
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §11  WHATSAPP INTEGRATION  (BUILD_58)
@@ -790,6 +795,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- 13a. Signatures — path: {org_id}/{user_id}/{filename}
 -- Users may only access their own subfolder inside their org.
+DO $wrap$ BEGIN
 DROP POLICY IF EXISTS "signatures_user_access" ON storage.objects;
 CREATE POLICY "signatures_user_access"
   ON storage.objects FOR ALL
@@ -809,8 +815,12 @@ CREATE POLICY "signatures_user_access"
     )
     AND (storage.foldername(name))[2] = (SELECT auth.uid())::text
   );
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
+END $wrap$;
 
 -- 13b. Lease templates — path: {org_id}/{filename}
+DO $wrap$ BEGIN
 DROP POLICY IF EXISTS "lease_templates_org_access" ON storage.objects;
 CREATE POLICY "lease_templates_org_access"
   ON storage.objects FOR ALL
@@ -828,8 +838,12 @@ CREATE POLICY "lease_templates_org_access"
       WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
+END $wrap$;
 
 -- 13c. Property documents — path: {org_id}/{property_id}/{document_type}/{filename}
+DO $wrap$ BEGIN
 DROP POLICY IF EXISTS "property_documents_org_access" ON storage.objects;
 CREATE POLICY "property_documents_org_access"
   ON storage.objects FOR ALL
@@ -847,6 +861,9 @@ CREATE POLICY "property_documents_org_access"
       WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
+END $wrap$;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -903,6 +920,9 @@ CREATE INDEX IF NOT EXISTS idx_delivery_notice_tokens_log
 
 ALTER TABLE delivery_notice_tokens ENABLE ROW LEVEL SECURITY;
 -- All access via service-role client (route handlers); no user-facing policy needed.
+-- service-role-only lockdown relocated here from 010 (table is created above). (replay fix 2026-07-06)
+DROP POLICY IF EXISTS "delivery_notice_tokens_service_role_only" ON public.delivery_notice_tokens;
+CREATE POLICY "delivery_notice_tokens_service_role_only" ON public.delivery_notice_tokens FOR ALL USING (false) WITH CHECK (false);
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -1152,6 +1172,8 @@ BEGIN
     USING (bucket_id = 'application-docs' AND (storage.foldername(name))[1] = 'applications');
   CREATE POLICY "application_docs_select" ON storage.objects FOR SELECT TO anon, authenticated
     USING (bucket_id = 'application-docs' AND (storage.foldername(name))[1] = 'applications');
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
 END $DOLLAR$;
 
 -- ═══════════════════════════════════════════════════════════════════════════════

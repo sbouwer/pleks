@@ -56,3 +56,8 @@ brief/
 
 # Codemod dry-run/report output (regenerated each run)
 scripts/codemod-supabase-error.report.json
+
+# Supabase local dev runtime state (config.toml + migrations stay tracked)
+supabase/.branches/
+supabase/.temp/linked-project.json
+supabase/.temp/pgdelta/

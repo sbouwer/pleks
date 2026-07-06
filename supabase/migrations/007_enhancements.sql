@@ -146,7 +146,7 @@ ALTER TABLE communication_log
   ADD COLUMN IF NOT EXISTS recipient_name text;
 
 CREATE INDEX IF NOT EXISTS idx_comm_log_org       ON communication_log(org_id);
-CREATE INDEX IF NOT EXISTS idx_comm_log_entity    ON communication_log(entity_type, entity_id);
+-- idx_comm_log_entity moved to 011 — entity_type/entity_id are added there. (replay fix 2026-07-06)
 CREATE INDEX IF NOT EXISTS idx_comm_log_recipient ON communication_log(contact_id);
 CREATE INDEX IF NOT EXISTS idx_comm_log_template  ON communication_log(template_key, org_id);
 CREATE INDEX IF NOT EXISTS idx_comm_log_provider  ON communication_log(external_id) WHERE external_id IS NOT NULL;
@@ -416,6 +416,8 @@ BEGIN
       FOR INSERT TO authenticated
       WITH CHECK (bucket_id = 'org-assets' AND name LIKE 'org-%');
   END IF;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
 END $$;
 
 DO $$
@@ -425,6 +427,8 @@ BEGIN
       FOR ALL TO authenticated
       USING (bucket_id = 'org-assets' AND name LIKE 'org-%');
   END IF;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
 END $$;
 
 

@@ -1686,6 +1686,7 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+DO $wrap$ BEGIN
 DROP POLICY IF EXISTS "trust_exports_storage_select" ON storage.objects;
 CREATE POLICY "trust_exports_storage_select"
   ON storage.objects FOR SELECT
@@ -1696,6 +1697,9 @@ CREATE POLICY "trust_exports_storage_select"
       WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
+END $wrap$;
 
 -- ─── BUILD_64 fix: rename csv_storage_path → xlsx_storage_path ───────────────
 -- The column stores an XLSX file path but was originally named csv_storage_path.
@@ -1858,7 +1862,7 @@ CREATE INDEX IF NOT EXISTS idx_deposit_reconciliations_tenant_id ON deposit_reco
 CREATE INDEX IF NOT EXISTS idx_deposit_transactions_charge_id ON deposit_transactions(charge_id);
 CREATE INDEX IF NOT EXISTS idx_deposit_transactions_created_by ON deposit_transactions(created_by);
 CREATE INDEX IF NOT EXISTS idx_deposit_transactions_deduction_item_id ON deposit_transactions(deduction_item_id);
-CREATE INDEX IF NOT EXISTS idx_deposit_transactions_rate_config_id ON deposit_transactions(rate_config_id);
+-- idx_deposit_transactions_rate_config_id moved to 008: rate_config_id is added there. (replay fix 2026-07-06)
 CREATE INDEX IF NOT EXISTS idx_lease_amendments_created_by ON lease_amendments(created_by);
 CREATE INDEX IF NOT EXISTS idx_lease_charges_created_by ON lease_charges(created_by);
 CREATE INDEX IF NOT EXISTS idx_lease_lifecycle_events_triggered_by_user ON lease_lifecycle_events(triggered_by_user);
@@ -1872,7 +1876,7 @@ CREATE INDEX IF NOT EXISTS idx_tenant_bank_accounts_tenant_id ON tenant_bank_acc
 CREATE INDEX IF NOT EXISTS idx_trust_audit_exports_generated_by ON trust_audit_exports(generated_by);
 CREATE INDEX IF NOT EXISTS idx_trust_reconciliation_periods_signed_off_by ON trust_reconciliation_periods(signed_off_by);
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_created_by ON trust_transactions(created_by);
-CREATE INDEX IF NOT EXISTS idx_trust_transactions_maintenance_request_id ON trust_transactions(maintenance_request_id);
+-- idx_trust_transactions_maintenance_request_id moved to 008: maintenance_request_id is added there. (replay fix 2026-07-06)
 CREATE INDEX IF NOT EXISTS idx_trust_transactions_unit_id ON trust_transactions(unit_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -1939,9 +1943,11 @@ REVOKE EXECUTE ON FUNCTION trust_sovereignty_trigger_enabled() FROM PUBLIC, anon
 --   record_payment_atomic() folds the money-invariant writes into ONE plpgsql
 --   transaction so a partial failure can't leave a payment with no trust credit
 --   (the old recordPayment .catch()-swallowed the trust insert). In scope: the
---   org-scoped invoice resolve, the payments insert, the target-invoice status
---   update, and the trust_transactions rent_received credit. OUT of scope (stay
---   post-commit in the caller): receipt_path, allocatePayment, email, audit,
+--   org-scoped invoice resolve, the payments insert, the trust_transactions
+--   rent_received credit, AND the clause-6.6 allocation (interest-first, then oldest
+--   rent) via allocate_payment_atomic — one allocation, in-transaction (the old
+--   "credit the selected invoice in full" + post-commit allocatePayment() together
+--   DOUBLE-applied). OUT of scope (stay post-commit in the caller): receipt_path, email, audit,
 --   revalidatePath — side effects that may fail/retry independently. The trust
 --   insert fires the §step-0 sovereignty trigger + the §4 closed-period trigger;
 --   any RAISE rolls back the whole function.
@@ -1962,13 +1968,8 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_inv             rent_invoices%ROWTYPE;
-  v_current_balance bigint;
-  v_new_paid        bigint;
-  v_new_balance     bigint;
-  v_surplus         bigint;
-  v_status          text;
-  v_payment_id      uuid;
+  v_inv        rent_invoices%ROWTYPE;
+  v_payment_id uuid;
 BEGIN
   -- Org-scope guard: the invoice MUST belong to the caller's org (service_role bypasses RLS).
   SELECT * INTO v_inv FROM rent_invoices WHERE id = p_invoice_id AND org_id = p_org_id;
@@ -1977,35 +1978,18 @@ BEGIN
       USING ERRCODE = 'no_data_found';
   END IF;
 
-  v_current_balance := COALESCE(v_inv.balance_cents, v_inv.total_amount_cents - COALESCE(v_inv.amount_paid_cents, 0));
-  v_new_paid        := COALESCE(v_inv.amount_paid_cents, 0) + p_amount_cents;
-  v_new_balance     := v_inv.total_amount_cents - v_new_paid;
-  v_surplus         := GREATEST(0, -v_new_balance);
-  v_status          := CASE WHEN v_new_balance <= 0 THEN 'paid'
-                            WHEN v_new_paid > 0    THEN 'partial'
-                            ELSE 'open' END;
-
-  -- 1. payment
+  -- 1. payment (provenance only: invoice_id = the agent-selected invoice. Allocation in step 3 follows
+  --    clause 6.6, so the money may land on interest / older invoices — surplus_cents + allocated_invoices
+  --    are filled by allocate_payment_atomic, NOT pre-credited to the selected invoice).
   INSERT INTO payments (
     org_id, invoice_id, lease_id, tenant_id, amount_cents, payment_date, payment_method,
     reference, receipt_number, recorded_by, surplus_cents, surplus_disposition, allocated_invoices, notes
   ) VALUES (
     p_org_id, p_invoice_id, v_inv.lease_id, v_inv.tenant_id, p_amount_cents, p_payment_date, p_method,
-    p_reference, p_receipt_number, p_recorded_by, v_surplus,
-    CASE WHEN v_surplus > 0 THEN 'pending' ELSE NULL END,
-    jsonb_build_array(jsonb_build_object('invoice_id', p_invoice_id, 'amount_cents', LEAST(p_amount_cents, v_current_balance))),
-    p_notes
+    p_reference, p_receipt_number, p_recorded_by, 0, NULL, '[]'::jsonb, p_notes
   ) RETURNING id INTO v_payment_id;
 
-  -- 2. target-invoice status
-  UPDATE rent_invoices SET
-    amount_paid_cents = v_new_paid,
-    balance_cents     = GREATEST(0, v_new_balance),
-    status            = v_status,
-    paid_at           = CASE WHEN v_status = 'paid' THEN now() ELSE NULL END
-  WHERE id = p_invoice_id;
-
-  -- 3. trust posting (rent_received credit) — sovereignty + closed-period triggers fire here.
+  -- 2. trust posting (rent_received credit) — sovereignty + closed-period triggers fire here.
   INSERT INTO trust_transactions (
     org_id, transaction_type, direction, amount_cents, description,
     unit_id, lease_id, reference, invoice_id, statement_month, created_by, source, initiated_by
@@ -2016,11 +2000,223 @@ BEGIN
     date_trunc('month', CURRENT_DATE)::date, p_recorded_by, 'agency_bank', 'agent'
   );
 
+  -- 3. clause-6.6 allocation — interest oldest-first, then open invoices oldest-first, surplus recorded.
+  --    ONE allocation, in-transaction. Replaces the old "credit the selected invoice in full" step + the
+  --    post-commit allocatePayment() that TOGETHER double-applied the amount (any partial / interest /
+  --    older-invoice case). The selected invoice is advisory — the money follows clause-6.6 order.
+  IF v_inv.lease_id IS NOT NULL THEN
+    PERFORM allocate_payment_atomic(p_org_id, v_payment_id, v_inv.lease_id, p_amount_cents, p_recorded_by);
+  END IF;
+
   RETURN v_payment_id;
 END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION record_payment_atomic(uuid,uuid,bigint,date,text,text,uuid,text,text) FROM PUBLIC, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- allocate_payment_atomic() — lease clause 6.6 allocation (interest-first, then oldest rent), atomic.
+--   Called INSIDE record_payment_atomic so payment + trust + allocation commit as one; the recordPayment
+--   AND bulk-import paths both route through that RPC now. Interest charges (oldest charge_date) are waived
+--   first, then open invoices (oldest due_date) are paid down, and any remainder is recorded as payment
+--   surplus. allocated_invoices records where the money actually landed. This is the single allocation
+--   authority for the recordPayment path; the TS allocatePayment() remains ONLY for deposit disburse
+--   (Pattern A) until Step 4 folds that into disburse_deposit_atomic. (ledger double-count fix 2026-07-06)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION allocate_payment_atomic(
+  p_org_id       uuid,
+  p_payment_id   uuid,
+  p_lease_id     uuid,
+  p_amount_cents bigint,
+  p_actor        uuid
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_remaining        bigint := p_amount_cents;
+  v_interest_applied bigint := 0;
+  v_rent_applied     bigint := 0;
+  v_apply            bigint;
+  v_new_balance      bigint;
+  v_allocated        jsonb  := '[]'::jsonb;
+  v_case_ids         uuid[] := ARRAY[]::uuid[];
+  r_charge           record;
+  r_inv              record;
+  v_case             uuid;
+BEGIN
+  -- STEP 1 — interest charges, oldest charge_date first (clause 6.6: interest/damages before rent).
+  FOR r_charge IN
+    SELECT id, interest_cents, arrears_case_id
+    FROM arrears_interest_charges
+    WHERE lease_id = p_lease_id AND waived = false
+    ORDER BY charge_date ASC
+  LOOP
+    EXIT WHEN v_remaining <= 0;
+    v_apply := LEAST(v_remaining, r_charge.interest_cents);
+    UPDATE arrears_interest_charges
+      SET waived = true,
+          waived_reason = 'Consumed by payment ' || p_payment_id,
+          waived_at = now()
+      WHERE id = r_charge.id;
+    v_remaining        := v_remaining - v_apply;
+    v_interest_applied := v_interest_applied + v_apply;
+    IF r_charge.arrears_case_id IS NOT NULL THEN
+      v_case_ids := array_append(v_case_ids, r_charge.arrears_case_id);
+    END IF;
+  END LOOP;
+
+  -- STEP 2 — open rent invoices, oldest due_date first.
+  FOR r_inv IN
+    SELECT id, balance_cents
+    FROM rent_invoices
+    WHERE lease_id = p_lease_id AND status IN ('open', 'partial', 'overdue')
+    ORDER BY due_date ASC
+  LOOP
+    EXIT WHEN v_remaining <= 0;
+    IF COALESCE(r_inv.balance_cents, 0) <= 0 THEN CONTINUE; END IF;
+    v_apply       := LEAST(v_remaining, r_inv.balance_cents);
+    v_new_balance := r_inv.balance_cents - v_apply;
+    UPDATE rent_invoices SET
+      amount_paid_cents = COALESCE(amount_paid_cents, 0) + v_apply,
+      balance_cents     = v_new_balance,
+      status            = CASE WHEN v_new_balance <= 0 THEN 'paid' ELSE 'partial' END,
+      paid_at           = CASE WHEN v_new_balance <= 0 THEN now() ELSE NULL END
+    WHERE id = r_inv.id;
+    v_remaining    := v_remaining - v_apply;
+    v_rent_applied := v_rent_applied + v_apply;
+    v_allocated    := v_allocated || jsonb_build_array(
+                        jsonb_build_object('invoice_id', r_inv.id, 'amount_cents', v_apply));
+  END LOOP;
+
+  -- STEP 3 — record the breakdown on the payment (surplus = unallocated remainder).
+  UPDATE payments SET
+    interest_applied_cents = v_interest_applied,
+    surplus_cents          = v_remaining,
+    surplus_disposition    = CASE WHEN v_remaining > 0 THEN 'pending' ELSE NULL END,
+    allocated_invoices     = v_allocated
+  WHERE id = p_payment_id;
+
+  -- STEP 4 — refresh arrears interest totals for each touched case.
+  FOR v_case IN SELECT DISTINCT unnest(v_case_ids) LOOP
+    PERFORM refresh_arrears_interest_total(v_case);
+  END LOOP;
+
+  -- STEP 5 — audit the money event with its breakdown (mirrors the old TS payment_allocated audit).
+  INSERT INTO audit_log (org_id, table_name, record_id, action, changed_by, new_values)
+  VALUES (p_org_id, 'payments', p_payment_id, 'UPDATE', p_actor, jsonb_build_object(
+    'action', 'payment_allocated', 'lease_id', p_lease_id,
+    'interest_applied_cents', v_interest_applied,
+    'rent_applied_cents', v_rent_applied,
+    'surplus_cents', v_remaining));
+
+  RETURN jsonb_build_object(
+    'interest_applied_cents', v_interest_applied,
+    'rent_applied_cents', v_rent_applied,
+    'surplus_cents', v_remaining,
+    'allocated_invoices', v_allocated);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION allocate_payment_atomic(uuid,uuid,uuid,bigint,uuid) FROM PUBLIC, anon, authenticated;
+-- deposit disburse (Pattern A) calls this DIRECTLY via the service-role client (PostgREST), not just
+-- internally from record_payment_atomic — so grant it explicitly. (ledger double-count fix 2026-07-06)
+GRANT EXECUTE ON FUNCTION allocate_payment_atomic(uuid,uuid,uuid,bigint,uuid) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- disburse_deposit_atomic() — the deposit-disbursement MAIN sequence in ONE transaction.
+--   Refund + deduction (deposit_transactions debit + their trust postings), forfeiture flag, recon
+--   status, and timer all commit together — so a failed trust insert can no longer leave a committed
+--   deposit_transactions debit with no trust credit and a recon falsely marked 'refunded' (the old
+--   lib/deposits/disburse.ts had the two trust postings as log-only .catch()). Inserting
+--   trust_transactions DIRECTLY makes the §step-0 sovereignty + §4 closed-period triggers enforce
+--   D-TRUST-01 — any RAISE rolls the whole disbursement back. Column sets + trust semantics
+--   (deposit_returned debit / deposit_deduction credit, agency_bank / agent) taken verbatim from the
+--   TS helpers. OUT of scope, post-commit in the caller: charge-settlement loop (Patterns A/B/C),
+--   audit_log, tenant comm. (deposit atomicity — Step 4a 2026-07-06)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION disburse_deposit_atomic(
+  p_org_id      uuid,
+  p_lease_id    uuid,
+  p_actor       uuid,
+  p_reference   text,
+  p_tenant_name text
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_recon deposit_reconciliations%ROWTYPE;
+BEGIN
+  -- Org-scope guard: the reconciliation MUST belong to the caller's org (service_role bypasses RLS).
+  SELECT * INTO v_recon FROM deposit_reconciliations WHERE lease_id = p_lease_id AND org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'disburse_deposit_atomic: reconciliation for lease % not found in org %', p_lease_id, p_org_id
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  -- 1. refund to tenant (deposit debit + trust deposit_returned debit — outbound, agent-initiated)
+  IF COALESCE(v_recon.refund_to_tenant_cents, 0) > 0 THEN
+    INSERT INTO deposit_transactions (
+      org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description, reference, created_by
+    ) VALUES (
+      p_org_id, p_lease_id, v_recon.tenant_id, 'deposit_returned_to_tenant', 'debit',
+      v_recon.refund_to_tenant_cents, 'Deposit refund — ' || p_tenant_name, p_reference, p_actor
+    );
+    INSERT INTO trust_transactions (
+      org_id, transaction_type, direction, amount_cents, description, lease_id, created_by, source, initiated_by
+    ) VALUES (
+      p_org_id, 'deposit_returned', 'debit', v_recon.refund_to_tenant_cents,
+      'Deposit refund to tenant — ' || p_tenant_name, p_lease_id, p_actor, 'agency_bank', 'agent'
+    );
+  END IF;
+
+  -- 2. deductions to landlord (deposit debit + trust deposit_deduction credit — recovers the expense)
+  IF COALESCE(v_recon.deductions_to_landlord_cents, 0) > 0 THEN
+    INSERT INTO deposit_transactions (
+      org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description, reference, created_by
+    ) VALUES (
+      p_org_id, p_lease_id, v_recon.tenant_id, 'deduction_paid_to_landlord', 'debit',
+      v_recon.deductions_to_landlord_cents, 'Deposit deductions to landlord', p_reference, p_actor
+    );
+    INSERT INTO trust_transactions (
+      org_id, transaction_type, direction, amount_cents, description, lease_id, created_by, source, initiated_by
+    ) VALUES (
+      p_org_id, 'deposit_deduction', 'credit', v_recon.deductions_to_landlord_cents,
+      'Deposit deductions received', p_lease_id, p_actor, 'agency_bank', 'agent'
+    );
+  END IF;
+
+  -- 3. forfeiture — nothing refunded, no deductions, but a deposit was held (unclaimed within statute)
+  IF COALESCE(v_recon.refund_to_tenant_cents, 0) = 0
+     AND COALESCE(v_recon.total_deductions_cents, 0) = 0
+     AND COALESCE(v_recon.deposit_held_cents, 0) > 0 THEN
+    UPDATE deposit_reconciliations SET
+      is_forfeited = true,
+      sars_taxable_flagged = true,
+      forfeiture_reason = 'Tenant did not claim refund within statutory period'
+    WHERE lease_id = p_lease_id AND org_id = p_org_id;
+  END IF;
+
+  -- 4. mark the reconciliation complete + close the timer
+  UPDATE deposit_reconciliations SET
+    status = 'refunded',
+    tenant_refund_paid_at = now(),
+    tenant_refund_reference = p_reference,
+    updated_at = now()
+  WHERE lease_id = p_lease_id AND org_id = p_org_id;
+
+  UPDATE deposit_timers SET
+    status = 'completed',
+    completed_at = now()
+  WHERE lease_id = p_lease_id AND org_id = p_org_id AND status = 'running';
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION disburse_deposit_atomic(uuid,uuid,uuid,text,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION disburse_deposit_atomic(uuid,uuid,uuid,text,text) TO service_role;
 
 -- Kill-between-writes regression probe (CD step-1 gate): forces the LAST write (trust insert) to
 -- fail via a signed-off period covering this month, then asserts the payment inserted first was

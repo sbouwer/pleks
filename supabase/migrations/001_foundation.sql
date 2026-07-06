@@ -818,6 +818,18 @@ COMMENT ON COLUMN consent_log.consent_type IS
 -- presence in downstream attacks is evidence of enumeration intent.
 -- See ADDENDUM_AUTH_RESOLVER_AMENDMENTS_2026-05-27 §3.6 (D-AUTH-RESOLVER-28).
 
+-- honeytoken_emails table lives here (foundation) because check_email_exists() below reads it —
+-- it was originally only in 010 §30.3, a forward reference that broke fresh replay. 010 keeps an
+-- idempotent CREATE IF NOT EXISTS (no-op on full replay, self-contained for targeted re-runs).
+-- (migration-replay fix, 2026-07-06)
+CREATE TABLE IF NOT EXISTS public.honeytoken_emails (
+  email text PRIMARY KEY
+);
+ALTER TABLE public.honeytoken_emails ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "honeytoken_emails_no_public_access" ON public.honeytoken_emails;
+CREATE POLICY "honeytoken_emails_no_public_access" ON public.honeytoken_emails
+  FOR ALL USING (false);
+
 CREATE OR REPLACE FUNCTION check_email_exists(p_email text)
 RETURNS boolean AS $$
   SELECT EXISTS (
@@ -874,4 +886,6 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_changed_by ON audit_log(changed_by);
 CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_compliance_confirmed_by ON custom_lease_requests(compliance_confirmed_by);
 CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_submitted_by ON custom_lease_requests(submitted_by);
 CREATE INDEX IF NOT EXISTS idx_invites_invited_by ON invites(invited_by);
-CREATE INDEX IF NOT EXISTS idx_user_profiles_agent_contact_id ON user_profiles(agent_contact_id);
+-- idx_user_profiles_agent_contact_id moved to 002_contacts.sql: the agent_contact_id column is
+-- added there (it REFERENCES contacts, created in 002), so the index can't live in 001 on fresh
+-- replay. (migration-replay fix, 2026-07-06)

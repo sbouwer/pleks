@@ -289,6 +289,13 @@ END $$;
 ALTER TABLE units
   ADD COLUMN IF NOT EXISTS prospective_co_tenant_id uuid REFERENCES tenants(id) ON DELETE SET NULL;
 
+-- Indexes moved here from 003 — prospective_tenant_id (007) + prospective_co_tenant_id (above) now
+-- both exist. (migration-replay fix, 2026-07-06)
+CREATE INDEX IF NOT EXISTS idx_units_prospective_co_tenant_id ON units(prospective_co_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_units_prospective_tenant_id ON units(prospective_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_transactions_rate_config_id ON deposit_transactions(rate_config_id);
+CREATE INDEX IF NOT EXISTS idx_trust_transactions_maintenance_request_id ON trust_transactions(maintenance_request_id);
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §  BUILD_69A: account-scope for deposit-interest config (ADDENDUM_69A)
 -- ═══════════════════════════════════════════════════════════════════════════════
