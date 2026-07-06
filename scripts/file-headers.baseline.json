@@ -299,7 +299,6 @@
   "lib/leases/checkPrerequisites.ts",
   "lib/leases/generateDocument.ts",
   "lib/leases/generateSampleDocument.ts",
-  "lib/leases/lifecycle.ts",
   "lib/leases/parseClauseBody.ts",
   "lib/leases/renderClauseDocx.ts",
   "lib/leases/renderClauseHtml.ts",

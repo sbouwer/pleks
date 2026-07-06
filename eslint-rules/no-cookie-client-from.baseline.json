@@ -1,5 +1,4 @@
 [
   "lib/auth/server.ts",
-  "lib/leases/lifecycle.ts",
   "lib/tier/getOrgTier.ts"
 ]

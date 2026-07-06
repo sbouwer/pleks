@@ -74,7 +74,6 @@ export const ACTION_ALLOWLIST = {
   "lib/import/propertyImport.ts::*": "internal: injectable core, gated /api/import route",
   "lib/import/tenantImport.ts::*": "internal: injectable core, gated /api/import route",
   "lib/hoa/levyCalculation.ts::*": "internal: gated /calculate route (pre-verifies schedule org); creates a service client, org from the verified schedule; not client-imported (caller-verified 2026-07-03)",
-  "lib/leases/lifecycle.ts::*": "internal: lease-lifecycle core, gated action + cron callers",
   // UNVERIFIED — guilty until read in the caller-supplied-ID / cookie-client census (CD 2026-07-02).
   // (2 of the original 6 REVIEW items — quoteApproval + handleDispute — turned out to be live
   //  doctrine+IDOR violations and were DELETED as dead code; do not assume these three are safe.)
