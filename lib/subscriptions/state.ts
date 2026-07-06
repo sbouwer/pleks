@@ -35,6 +35,8 @@ export type AgentWriteAction =
   // Census W3 additions (verb_noun):
   | "create_hoa" | "post_reserve_fund" | "calculate_levy" | "reformat_rules"
   | "add_lease_charge" | "remove_lease_charge"
+  // Census follow-up — bulk CSV import (lockdown-only; admin authority gate at the route):
+  | "bulk_import"
   | string
 
 export type EmailFooterVariant =
