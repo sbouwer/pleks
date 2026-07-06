@@ -13,7 +13,7 @@
 import { useCapabilities } from "@/components/auth/CapabilitiesProvider"
 import { useTier } from "@/hooks/useTier"
 import { capabilityForPath } from "@/lib/auth/routeCapabilities"
-import { tierFloorForPath, hasAccess } from "@/lib/tier/gates"
+import { tierFloorForPath, hasAccess, productLineForTier } from "@/lib/tier/gates"
 
 export function useNavGate(): (path: string) => boolean {
   const { has } = useCapabilities()
@@ -22,7 +22,9 @@ export function useNavGate(): (path: string) => boolean {
     const clean = path.split(/[?#]/)[0]  // strip query/hash so "/tenants?add=1" still matches "/tenants"
     const cap = capabilityForPath(clean)
     if (cap && !has(cap)) return false
-    const floor = tierFloorForPath(clean)
+    // Resolve the floor within the org's line — a residential floor must never cross-line-deny an HOA org
+    // (Stage 2 hasAccess would otherwise hide /hoa, /finance, /settings for the HOA line).
+    const floor = tierFloorForPath(clean, productLineForTier(tier))
     if (floor && !hasAccess(tier, floor)) return false
     return true
   }

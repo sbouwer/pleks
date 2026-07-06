@@ -6,7 +6,7 @@
  *         hasFeature() is the only call site check — use it everywhere, never
  *         compare tier strings directly.
  */
-import { TIER_ORDER, HOA_TIER_ORDER, type Tier, type HoaTier, type AnyTier } from "@/lib/constants"
+import { TIER_ORDER, HOA_TIER_ORDER, type Tier, type HoaTier, type AnyTier, type ProductLine } from "@/lib/constants"
 
 const TIER_FEATURES_OWNER = [
   "lease_create",
@@ -116,6 +116,11 @@ function isHoaTier(tier: AnyTier): tier is HoaTier {
   return tier in HOA_TIER_ORDER
 }
 
+/** The product line a tier belongs to — inferred from its (disjoint) literal. No org lookup needed. */
+export function productLineForTier(tier: AnyTier): ProductLine {
+  return isHoaTier(tier) ? "hoa" : "residential"
+}
+
 export function hasFeature(tier: AnyTier, feature: string): boolean {
   const features = isHoaTier(tier) ? HOA_TIER_FEATURES[tier] : TIER_FEATURES[tier]
   return features.includes(feature)
@@ -154,11 +159,23 @@ export const ROUTE_TIER_FLOORS = {
   "/settings/import":         "steward",
 } as const satisfies Record<string, Tier>
 
-/** The tier floor that applies to `path` (longest matching route prefix), or null if the route is untiered. */
-export function tierFloorForPath(path: string): Tier | null {
-  let floor: Tier | null = null
+// HOA product line has NO route tier floors (ADDENDUM_18C): HOA tiers differ on CAPACITY (HOA_LIMITS —
+// total units under management), not route access, so every HOA-surface route is reachable at the base
+// tier. Kept as its own map so (a) a residential floor never cross-line-denies an HOA org — Stage 2's
+// hasAccess would otherwise deny hoa_studio vs "firm" and lock HOA orgs out of /hoa, /finance, /settings
+// — and (b) a future HOA route floor is a one-line addition here.
+const HOA_ROUTE_TIER_FLOORS = {} as const satisfies Record<string, HoaTier>
+
+/**
+ * The tier floor that applies to `path` (longest matching route prefix) WITHIN a product line, or null if
+ * the route is untiered on that line. Defaults to the residential line so every existing caller is
+ * byte-identical (NR-2); the HOA line resolves against its own (currently empty) floor map.
+ */
+export function tierFloorForPath(path: string, line: ProductLine = "residential"): AnyTier | null {
+  const floors: Record<string, AnyTier> = line === "hoa" ? HOA_ROUTE_TIER_FLOORS : ROUTE_TIER_FLOORS
+  let floor: AnyTier | null = null
   let bestLen = -1
-  for (const [route, tier] of Object.entries(ROUTE_TIER_FLOORS)) {
+  for (const [route, tier] of Object.entries(floors)) {
     if ((path === route || path.startsWith(route + "/")) && route.length > bestLen) {
       floor = tier
       bestLen = route.length

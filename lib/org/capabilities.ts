@@ -59,6 +59,20 @@ export interface OrgCapabilities {
   }
 }
 
+/**
+ * Nav label for the trust-ledger surface given the org's trust framing (D-61A-07 / ADDENDUM_18C). Shared
+ * by the desktop + mobile nav so the relabel can't drift. Same underlying D-TRUST-01 posture in every
+ * case — display only. `fallback` is the caller's default label (e.g. "Trust Ledger" / "Trust").
+ */
+export function trustLedgerNavLabel(
+  label: OrgCapabilities["trustAccountLabel"] | undefined,
+  fallback: string,
+): string {
+  if (label === "deposits") return "Deposit holdings"
+  if (label === "scheme_funds") return "Scheme funds"
+  return fallback
+}
+
 function toVariant(status: SubscriptionStatus): SubscriptionStateVariant {
   switch (status) {
     case "past_due":  return "past_due"

@@ -8,7 +8,7 @@
  *         incomparable and denied (never a silent ordinal comparison across two unrelated ladders).
  */
 import { describe, it, expect } from "vitest"
-import { hasFeature, hasAccess } from "./gates"
+import { hasFeature, hasAccess, tierFloorForPath, productLineForTier } from "./gates"
 
 describe("hasFeature — residential line (NR-2: unchanged)", () => {
   it("resolves residential features exactly as before", () => {
@@ -75,5 +75,33 @@ describe("hasAccess — cross-line pairs are incomparable (denied)", () => {
     expect(hasAccess("bespoke", "hoa_studio")).toBe(false)
     expect(hasAccess("hoa_bespoke", "owner")).toBe(false)
     expect(hasAccess("hoa_firm", "firm")).toBe(false)
+  })
+})
+
+describe("productLineForTier — line inferred from the tier literal", () => {
+  it("maps residential and HOA tiers to their lines", () => {
+    expect(productLineForTier("owner")).toBe("residential")
+    expect(productLineForTier("firm")).toBe("residential")
+    expect(productLineForTier("bespoke")).toBe("residential")
+    expect(productLineForTier("hoa_studio")).toBe("hoa")
+    expect(productLineForTier("hoa_bespoke")).toBe("hoa")
+  })
+})
+
+describe("tierFloorForPath — line-aware route floors", () => {
+  it("residential line is unchanged (NR-2) — longest-prefix floor", () => {
+    expect(tierFloorForPath("/hoa")).toBe("firm") // HOAs on the side stay Firm-gated
+    expect(tierFloorForPath("/finance/trust-ledger")).toBe("steward")
+    expect(tierFloorForPath("/settings/templates")).toBe("steward")
+    expect(tierFloorForPath("/dashboard")).toBeNull() // untiered
+  })
+
+  it("HOA line has NO route floors — every HOA-surface route is reachable at the base tier", () => {
+    // These would cross-line-deny an HOA org if resolved against the residential map; on the HOA line
+    // they return null → no tier gate (HOA tiers gate on capacity, not route access).
+    expect(tierFloorForPath("/hoa", "hoa")).toBeNull()
+    expect(tierFloorForPath("/finance/trust-ledger", "hoa")).toBeNull()
+    expect(tierFloorForPath("/settings/templates", "hoa")).toBeNull()
+    expect(tierFloorForPath("/settings/import", "hoa")).toBeNull()
   })
 })
