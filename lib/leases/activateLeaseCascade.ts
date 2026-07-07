@@ -527,6 +527,18 @@ export async function activateLeaseCascade(
     ((org?.name as string) ?? ""),
   )
 
+  // Tier gate (BUILD_60) enforced on EVERY activation path. markAsSigned pre-checks this, but the DocuSeal webhook
+  // activation path did not — a signed lease could activate past the org's active-lease cap once e-signing goes
+  // live. Guard on the NOT-yet-active case only, so an at-least-once webhook retry of an already-active lease still
+  // reaches the idempotent no-op below instead of throwing on its own now-counted lease. (security 2026-07-07.)
+  if ((lease.status as string) !== "active") {
+    const { canActivateLease } = await import("@/lib/tier/canActivateLease")
+    const tierCheck = await canActivateLease(orgId)
+    if (!tierCheck.ok) {
+      throw new Error(tierCheck.reason ?? "Active lease limit reached — upgrade to activate more.")
+    }
+  }
+
   // Step 1: Activate lease — ATOMIC idempotency claim. DocuSeal (and every webhook provider) delivers
   // at-least-once and retries on timeout, and markAsSigned can be double-clicked; without a guard a second run
   // would double deposit_received into the trust ledger + double the unit/cascade. The conditional UPDATE
