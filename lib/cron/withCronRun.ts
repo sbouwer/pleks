@@ -10,19 +10,34 @@
  *        results directly); this is for the out-of-process crons it can't see.
  */
 import { NextRequest } from "next/server"
+import { timingSafeEqual } from "node:crypto"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { CronJobDetail } from "./cronDigest"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
-/** Accept the cron secret via the header (cPanel standard), Authorization Bearer, or a ?secret= query fallback. */
+/** Constant-time secret compare (avoids leaking length/prefix via response timing). */
+function secretMatches(provided: string | null | undefined, expected: string): boolean {
+  if (!provided) return false
+  try {
+    const a = Buffer.from(provided)
+    const b = Buffer.from(expected)
+    return a.length === b.length && timingSafeEqual(a, b)
+  } catch {
+    return false
+  }
+}
+
+/** Accept the cron secret via the header (cPanel standard) or Authorization Bearer — NEVER a ?secret= query param
+ *  (secrets in URLs leak into access logs, proxy logs, and browser history). Constant-time compared. */
 function authorised(req: NextRequest): boolean {
-  const secret =
+  const expected = process.env.CRON_SECRET
+  if (!expected) return false
+  const provided =
     req.headers.get("x-cron-secret") ??
-    req.headers.get("authorization")?.replace("Bearer ", "") ??
-    new URL(req.url).searchParams.get("secret")
-  return !!process.env.CRON_SECRET && secret === process.env.CRON_SECRET
+    req.headers.get("authorization")?.replace("Bearer ", "")
+  return secretMatches(provided, expected)
 }
 
 /** Pull the numeric fields out of a cron's JSON response (sent/failed/processed/…) for cron_runs.metadata. */
