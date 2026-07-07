@@ -64,15 +64,22 @@ export async function acknowledgeNotice(
   return { success: true }
 }
 
-export async function recordNoticePageView(
-  tokenId: string,
-  orgId: string,
-  commLogId: string,
-): Promise<void> {
+export async function recordNoticePageView(tokenId: string): Promise<void> {
   const service = getService()
+  // Resolve org + comm-log FROM the token row — this is an exported server action reachable directly (not
+  // only from the notice page), so never trust caller-supplied org/commLog (was: unauthenticated cross-org
+  // event insert). A bad tokenId matches no row → no event. The tokenId (the row's own id) is the credential.
+  const { data: row, error: rowErr } = await service
+    .from("delivery_notice_tokens")
+    .select("org_id, communication_log_id")
+    .eq("id", tokenId)
+    .maybeSingle()
+  if (rowErr) { console.error("[delivery-notice] page-view token lookup failed:", rowErr.message); return }
+  if (!row) return
+
   await service.from("communication_delivery_events").insert({
-    org_id:               orgId,
-    communication_log_id: commLogId,
+    org_id:               row.org_id,
+    communication_log_id: row.communication_log_id,
     event_type:           "page_view",
     provider:             "pleks_portal",
     occurred_at:          new Date().toISOString(),

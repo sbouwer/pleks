@@ -2,13 +2,14 @@
  * app/api/wo/[number]/update/route.ts — contractor advances a work-order's status via the portal
  *
  * Route:  POST /api/wo/[number]/update
- * Auth:   token — body requestId's work_order_token must equal the supplied token
+ * Auth:   token — the [number] URL segment (work_order_number) is authoritative; body token must equal
+ *         that request's work_order_token AND the token must not be revoked (verifyWorkOrderAccess)
  * Data:   updates maintenance_requests.status; inserts contractor_updates
- * Notes:  identity comes from body requestId+token — the [number] URL segment is not used; transitions gated by VALID_CONTRACTOR_TRANSITIONS
+ * Notes:  identity is derived from the URL work_order_number, not a caller-supplied body id; transitions gated by VALID_CONTRACTOR_TRANSITIONS
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { verifyWorkOrderAccess } from "@/lib/maintenance/verifyWorkOrderAccess"
 
 const VALID_CONTRACTOR_TRANSITIONS: Record<string, string[]> = {
   work_order_sent: ["acknowledged"],
@@ -16,9 +17,12 @@ const VALID_CONTRACTOR_TRANSITIONS: Record<string, string[]> = {
   in_progress: ["pending_completion"],
 }
 
-export async function POST(req: Request) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ number: string }> },
+) {
+  const { number } = await params
   const body = await req.json() as {
-    requestId: string
     token: string
     new_status: string
     completion_notes?: string
@@ -27,25 +31,20 @@ export async function POST(req: Request) {
     decline_notes?: string
   }
 
-  const { requestId, token, new_status: newStatus } = body
+  const { token, new_status: newStatus } = body
 
-  if (!requestId || !token || !newStatus) {
+  if (!token || !newStatus) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
   }
 
   const supabase = await createServiceClient()
 
-  // Verify token
-  const { data: request, error: requestError } = await supabase
-    .from("maintenance_requests")
-    .select("id, status, work_order_token, org_id")
-    .eq("id", requestId)
-    .single()
-    logQueryError("POST maintenance_requests", requestError)
-
-  if (!request || request.work_order_token !== token) {
+  // Auth: URL work_order_number is authoritative; validates token + revocation.
+  const request = await verifyWorkOrderAccess(supabase, number, token)
+  if (!request) {
     return NextResponse.json({ error: "Invalid token" }, { status: 403 })
   }
+  const requestId = request.id
 
   const allowed = VALID_CONTRACTOR_TRANSITIONS[request.status] ?? []
   if (!allowed.includes(newStatus)) {

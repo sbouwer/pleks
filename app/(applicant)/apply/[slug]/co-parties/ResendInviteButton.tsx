@@ -15,6 +15,7 @@ interface Props {
   coApplicantId: string
   applicationId: string
   orgId: string
+  token: string
 }
 
 type ButtonState = "idle" | "sending" | "sent" | "error"
@@ -26,12 +27,12 @@ function buttonLabel(s: ButtonState): string {
   return "Resend invitation"
 }
 
-export function ResendInviteButton({ coApplicantId, applicationId, orgId }: Props) {
+export function ResendInviteButton({ coApplicantId, applicationId, orgId, token }: Props) {
   const [state, setState] = useState<ButtonState>("idle")
 
   async function handleResend() {
     setState("sending")
-    const result = await resendDirectorInvite(coApplicantId, applicationId, orgId)
+    const result = await resendDirectorInvite(coApplicantId, applicationId, orgId, token)
     setState(result.ok ? "sent" : "error")
     if (result.ok) {
       setTimeout(() => setState("idle"), 4000)

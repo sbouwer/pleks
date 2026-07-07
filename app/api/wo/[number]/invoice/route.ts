@@ -2,17 +2,21 @@
  * app/api/wo/[number]/invoice/route.ts — contractor submits an invoice via the work-order portal
  *
  * Route:  POST /api/wo/[number]/invoice
- * Auth:   token — body requestId's work_order_token must equal the supplied token
+ * Auth:   token — the [number] URL segment (work_order_number) is authoritative; body token must equal
+ *         that request's work_order_token AND the token must not be revoked (verifyWorkOrderAccess)
  * Data:   reads maintenance_requests; inserts supplier_invoices (payment_source 'trust', status 'submitted')
- * Notes:  identity comes from body requestId+token — the [number] URL segment is not used; only allowed once status is pending_completion/completed/closed
+ * Notes:  identity is derived from the URL work_order_number, not a caller-supplied body id; only allowed once status is pending_completion/completed/closed
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
-import { logQueryError } from "@/lib/supabase/logQueryError"
+import { verifyWorkOrderAccess } from "@/lib/maintenance/verifyWorkOrderAccess"
 
-export async function POST(req: Request) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ number: string }> },
+) {
+  const { number } = await params
   const body = await req.json() as {
-    requestId: string
     token: string
     invoice_number?: string
     invoice_date: string
@@ -22,25 +26,20 @@ export async function POST(req: Request) {
     amount_incl_vat_cents: number
   }
 
-  const { requestId, token } = body
+  const { token } = body
 
-  if (!requestId || !token || !body.description || !body.invoice_date) {
+  if (!token || !body.description || !body.invoice_date) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
   }
 
   const supabase = await createServiceClient()
 
-  // Verify token + get org_id, contractor_id, property_id
-  const { data: request, error: requestError } = await supabase
-    .from("maintenance_requests")
-    .select("id, org_id, contractor_id, property_id, unit_id, work_order_token, status")
-    .eq("id", requestId)
-    .single()
-    logQueryError("POST maintenance_requests", requestError)
-
-  if (!request || request.work_order_token !== token) {
+  // Auth: URL work_order_number is authoritative; validates token + revocation.
+  const request = await verifyWorkOrderAccess(supabase, number, token)
+  if (!request) {
     return NextResponse.json({ error: "Invalid token" }, { status: 403 })
   }
+  const requestId = request.id
 
   // Only allow invoice submission after completion report is submitted
   const invoiceableStatuses = ["pending_completion", "completed", "closed"]
