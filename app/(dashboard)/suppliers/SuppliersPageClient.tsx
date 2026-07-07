@@ -39,7 +39,7 @@ export function SuppliersPageClient({ orgId }: Props) {
     staleTime: STALE_TIME.contractors,
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fetchContractors rows carry supplier_type (a DB column absent from the trimmed Contractor type); filter on it, then narrow to Contractor[]
   const contractors = allContractors.filter((c: any) => c.supplier_type === activeTab) as Contractor[]
 
   const tabsRow = (

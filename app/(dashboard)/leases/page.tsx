@@ -26,8 +26,7 @@ export default async function LeasesPage() {
 
   await queryClient.prefetchQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.leases(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchLeases(supabase as any, orgId),
+    queryFn: () => fetchLeases(supabase, orgId),
     staleTime: STALE_TIME.leases,
   })
 
