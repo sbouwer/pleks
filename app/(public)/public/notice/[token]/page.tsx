@@ -94,7 +94,7 @@ export default async function NoticePage({ params }: Props) {
 
   if (!comm) notFound()
 
-  void recordNoticePageView(row.id, row.org_id, row.communication_log_id)
+  void recordNoticePageView(row.id)
 
   const categoryLabel = CATEGORY_LABELS[comm.template_key as string] ?? "Important Notice"
   const sentDate = new Date(comm.created_at as string).toLocaleDateString("en-ZA", {
