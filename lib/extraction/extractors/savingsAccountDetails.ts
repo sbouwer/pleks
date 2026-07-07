@@ -4,7 +4,7 @@
  * Spec: ADDENDUM_14L §4.6, §4.7
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { SAVINGS_ACCOUNT_DETAILS_EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractors/savingsAccountDetails"
 import { toMediaBlock } from "../mediaReader"
 import type { Document, SavingsAccountDetailsExtraction, BankName } from "../types"
@@ -45,8 +45,7 @@ export async function extractSavingsAccountDetails(doc: Document, aiOpts: AiOpts
         system: [{ type: "text", text: SAVINGS_ACCOUNT_DETAILS_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
           role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [{ type: "text", text: "Extract fields from this savings or investment account document." }, mediaBlock] as any,
+          content: [{ type: "text", text: "Extract fields from this savings or investment account document." }, mediaBlock] as MessageContent,
         }],
       },
       { orgId: aiOpts.orgId, purpose: "document_extraction", suppressLogging: aiOpts.suppressLogging, harnessMode: aiOpts.harnessMode },

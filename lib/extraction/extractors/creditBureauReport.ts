@@ -4,7 +4,7 @@
  * Spec: ADDENDUM_14L §4.6, §4.7
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { CREDIT_BUREAU_REPORT_EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractors/creditBureauReport"
 import { toMediaBlock } from "../mediaReader"
 import type { Document, CreditBureauReportExtraction } from "../types"
@@ -44,8 +44,7 @@ export async function extractCreditBureauReport(doc: Document, aiOpts: AiOpts): 
         system: [{ type: "text", text: CREDIT_BUREAU_REPORT_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
           role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [{ type: "text", text: "Extract fields from this credit bureau report." }, mediaBlock] as any,
+          content: [{ type: "text", text: "Extract fields from this credit bureau report." }, mediaBlock] as MessageContent,
         }],
       },
       { orgId: aiOpts.orgId, purpose: "document_extraction", suppressLogging: aiOpts.suppressLogging, harnessMode: aiOpts.harnessMode },

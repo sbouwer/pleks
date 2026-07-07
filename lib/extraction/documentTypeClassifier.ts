@@ -7,7 +7,7 @@
  * Spec: ADDENDUM_14L D-14L-07
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { DOCUMENT_TYPE_SYSTEM_PROMPT, DOCUMENT_TYPE_USER_TEMPLATE } from "./prompts/documentType"
 import { toMediaBlock } from "./mediaReader"
 import type { ApplicationArchetype, Document, DocumentType } from "./types"
@@ -55,8 +55,7 @@ export async function classifyDocumentType(
           content: [
             { type: "text", text: DOCUMENT_TYPE_USER_TEMPLATE(archetypeHint, doc.filename) },
             mediaBlock,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ] as any,
+          ] as MessageContent,
         },
       ],
     },

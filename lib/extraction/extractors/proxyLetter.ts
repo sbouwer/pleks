@@ -4,7 +4,7 @@
  * Spec: ADDENDUM_14L §4.6, §4.7
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { PROXY_LETTER_EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractors/proxyLetter"
 import { toMediaBlock } from "../mediaReader"
 import type { Document, ProxyLetterExtraction } from "../types"
@@ -37,8 +37,7 @@ export async function extractProxyLetter(doc: Document, aiOpts: AiOpts): Promise
         system: [{ type: "text", text: PROXY_LETTER_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
           role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [{ type: "text", text: "Extract fields from this proxy letter or board resolution." }, mediaBlock] as any,
+          content: [{ type: "text", text: "Extract fields from this proxy letter or board resolution." }, mediaBlock] as MessageContent,
         }],
       },
       { orgId: aiOpts.orgId, purpose: "document_extraction", suppressLogging: aiOpts.suppressLogging, harnessMode: aiOpts.harnessMode },

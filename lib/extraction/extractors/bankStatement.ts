@@ -5,7 +5,7 @@
  * Spec: ADDENDUM_14L §4.6, §4.7
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { BANK_STATEMENT_EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractors/bankStatement"
 import { toMediaBlock } from "../mediaReader"
 import type { Document, BankStatementExtraction, BankName } from "../types"
@@ -81,8 +81,7 @@ export async function extractBankStatement(doc: Document, aiOpts: AiOpts): Promi
         system: [{ type: "text", text: BANK_STATEMENT_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
           role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [{ type: "text", text: "Extract all fields from this bank statement." }, mediaBlock] as any,
+          content: [{ type: "text", text: "Extract all fields from this bank statement." }, mediaBlock] as MessageContent,
         }],
       },
       { orgId: aiOpts.orgId, purpose: "document_extraction", suppressLogging: aiOpts.suppressLogging, harnessMode: aiOpts.harnessMode },
