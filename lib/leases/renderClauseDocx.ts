@@ -5,7 +5,7 @@
  */
 import type { ClauseNode } from "./parseClauseBody"
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic docx Document constructor: options/instance are the docx lib types, resolved via runtime import to keep it out of the server bundle
 type DocxClass = new (options: any) => any
 
 interface DocxImports {

@@ -4,7 +4,7 @@
  * Spec: ADDENDUM_14L §4.6, §4.7
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { SALARY_INCREASE_LETTER_EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractors/salaryIncreaseLetter"
 import { toMediaBlock } from "../mediaReader"
 import type { Document, SalaryIncreaseLetterExtraction } from "../types"
@@ -42,8 +42,7 @@ export async function extractSalaryIncreaseLetter(doc: Document, aiOpts: AiOpts)
         system: [{ type: "text", text: SALARY_INCREASE_LETTER_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
           role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [{ type: "text", text: "Extract fields from this salary increase letter." }, mediaBlock] as any,
+          content: [{ type: "text", text: "Extract fields from this salary increase letter." }, mediaBlock] as MessageContent,
         }],
       },
       { orgId: aiOpts.orgId, purpose: "document_extraction", suppressLogging: aiOpts.suppressLogging, harnessMode: aiOpts.harnessMode },

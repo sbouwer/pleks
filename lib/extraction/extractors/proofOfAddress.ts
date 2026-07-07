@@ -5,7 +5,7 @@
  * Spec: ADDENDUM_14L §4.6, §4.7
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { PROOF_OF_ADDRESS_EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractors/proofOfAddress"
 import { toMediaBlock } from "../mediaReader"
 import type { Document, ProofOfAddressExtraction } from "../types"
@@ -40,8 +40,7 @@ export async function extractProofOfAddress(doc: Document, aiOpts: AiOpts): Prom
         system: [{ type: "text", text: PROOF_OF_ADDRESS_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
           role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [{ type: "text", text: "Extract fields from this proof of address document." }, mediaBlock] as any,
+          content: [{ type: "text", text: "Extract fields from this proof of address document." }, mediaBlock] as MessageContent,
         }],
       },
       { orgId: aiOpts.orgId, purpose: "document_extraction", suppressLogging: aiOpts.suppressLogging, harnessMode: aiOpts.harnessMode },
