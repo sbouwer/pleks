@@ -10,6 +10,14 @@ import { NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
+/** Neutralise PostgREST `.or()` / ILIKE metacharacters in a user search term before interpolation. `,` `(` `)`
+ *  delimit/group conditions in the `.or()` grammar — unescaped they let a user inject extra filter conditions
+ *  (org-bounded, so not cross-tenant, but it broadens/errors the query); `%` `_` `\` `*` are LIKE wildcards.
+ *  Strip them so the term is matched literally inside our own `%…%` wrapper. */
+function escapeSearchTerm(q: string): string {
+  return q.replace(/[,()\\%_*]/g, " ").replace(/\s+/g, " ").trim()
+}
+
 type SearchResult = {
   type: string
   id: string
@@ -91,7 +99,7 @@ export async function GET(req: Request) {
 
   if (!membership) return NextResponse.json({ results: [] })
   const orgId = membership.org_id
-  const term = "%" + q + "%"
+  const term = "%" + escapeSearchTerm(q) + "%"
 
   const [propertiesRes, tenantsRes, maintenanceRes, invoicesRes] = await Promise.all([
     supabase
