@@ -163,13 +163,14 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
       ? supabase.from("properties").select("name").eq("id", propertyId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
     unitId
-      ? supabase.from("units").select("unit_number, bedrooms, bathrooms, asking_rent_cents, default_lease_period_months").eq("id", unitId).single()
+      ? supabase.from("units").select("unit_number, bedrooms, bathrooms, asking_rent_cents, default_lease_period_months").eq("id", unitId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
     tenantId && !resolvedTenantName
-      ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", tenantId).single()
+      ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", tenantId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
     ...coTenantIds.map((id) =>
-      supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
+      // org-scope guard (caller-ID): co_tenants ids come straight from the URL — never org-resolved upstream
+      supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).eq("org_id", orgId).single()
         .then((res) => ({ id, data: res.data as TenantRow }))
     ),
   ])
