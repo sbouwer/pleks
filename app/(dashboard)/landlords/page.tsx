@@ -25,8 +25,7 @@ export default async function LandlordsPage() {
 
   await queryClient.prefetchQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.landlords(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchLandlords(supabase as any, orgId),
+    queryFn: () => fetchLandlords(supabase, orgId),
     staleTime: STALE_TIME.landlords,
   })
 

@@ -22,8 +22,7 @@ export default async function ContractorsPage() {
 
   await queryClient.prefetchQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.contractors(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchContractors(supabase as any, orgId),
+    queryFn: () => fetchContractors(supabase, orgId),
     staleTime: STALE_TIME.contractors,
   })
 
