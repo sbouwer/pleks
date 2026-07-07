@@ -75,6 +75,7 @@ export async function recordPayment(formData: FormData) {
 
   // Receipt path — deterministic + regenerable (on-demand generation at /api/payments/[id]/receipt).
   const { error: receiptErr } = await db.from("payments")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- freshly-created own row: paymentId is returned by record_payment_atomic (called above with p_org_id: orgId; the RPC RAISEs if the invoice isn't in the org), so it can't be a foreign id
     .update({ receipt_path: `/api/payments/${paymentId}/receipt` })
     .eq("id", paymentId)
   if (receiptErr) console.error("recordPayment receipt_path update failed:", receiptErr.message)

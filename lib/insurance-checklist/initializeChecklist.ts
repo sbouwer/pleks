@@ -83,6 +83,7 @@ export async function initializeInsuranceChecklist(
 
   const { data: inserted, error: insertErr } = await db
     .from("property_insurance_checklists")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: sole caller createPropertyFromWizard (lib/actions/createPropertyFromWizard.ts, requireAgentWriteAccess-gated) passes its freshly-created in-org propertyId + gateway orgId; rows carry org_id: orgId
     .upsert(rows, { onConflict: "property_id,item_code", ignoreDuplicates: true })
     .select("id, item_code, state")
 

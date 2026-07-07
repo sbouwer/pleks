@@ -234,6 +234,7 @@ export async function buildCostSnapshots(params: {
   for (const row of rows) {
     const { error } = await db
       .from("platform_cost_snapshots")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-write -- system rollup: each row.org_id is org.id from fetchActiveOrgs (all orgs), not a caller-supplied id; upsert onConflict (org_id,period) — a platform-wide cost snapshot, no caller-org to cross
       .upsert(row, { onConflict: "org_id,period" })
     if (error) console.error("[cost-snapshots] upsert failed:", error.message)
   }

@@ -229,6 +229,7 @@ export async function setWhatsAppOptIn(
 
   const { error } = await db
     .from("org_whatsapp_template_preferences")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- upsert keyed on onConflict (org_id,template_id) with org_id: orgId from requireAgentWriteAccess — cannot merge into another org's row
     .upsert(
       { org_id: orgId, template_id: templateId, opted_in: optedIn },
       { onConflict: "org_id,template_id" }
@@ -248,6 +249,7 @@ export async function setWhatsAppTone(
 
   const { error } = await db
     .from("org_whatsapp_template_preferences")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- upsert keyed on onConflict (org_id,template_id) with org_id: orgId from requireAgentWriteAccess — cannot merge into another org's row
     .upsert(
       { org_id: orgId, template_id: templateId, tone_variant: tone },
       { onConflict: "org_id,template_id" }

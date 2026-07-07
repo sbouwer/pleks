@@ -140,6 +140,7 @@ export async function archiveTeam(teamId: string): Promise<{ ok: true } | { erro
 export async function addTeamMember(teamId: string, memberUserId: string): Promise<{ ok: true } | { error: string }> {
   const gw = await requireAgentWriteAccess("add_team_member")
   const { db, orgId, userId } = gw
+  // eslint-disable-next-line pleks/require-org-scope-on-service-write -- payload sets org_id: orgId (requireAgentWriteAccess session) and ignoreDuplicates → INSERT ... ON CONFLICT DO NOTHING: this can only insert a row into the caller's own org, never mutate another org's team_members row
   const { error } = await db.from("team_members").upsert(
     { org_id: orgId, team_id: teamId, user_id: memberUserId },
     { onConflict: "team_id,user_id", ignoreDuplicates: true },

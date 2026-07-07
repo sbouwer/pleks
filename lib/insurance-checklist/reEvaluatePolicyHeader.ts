@@ -61,6 +61,7 @@ export async function reEvaluatePolicyHeader(propertyId: string): Promise<void> 
 
   const { error: updateErr } = await db
     .from("property_insurance_checklists")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: sole caller createPropertyFromWizard (requireAgentWriteAccess-gated) passes its freshly-created in-org propertyId; existing.id resolves from a fetch scoped .eq("property_id", propertyId)
     .update({
       state: targetState,
       confirmed_at: targetState === "confirmed" ? now : null,

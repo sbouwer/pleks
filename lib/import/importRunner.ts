@@ -844,6 +844,7 @@ async function linkTenantToLease(
     .from("leases")
     .update({ tenant_id: tenantId })
     .eq("id", leaseId)
+    .eq("org_id", ctx.orgId) // org-scope guard (caller-ID census)
 
   if (error) {
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Failed to link tenant to lease: ${error.message}`, severity: "warning" })

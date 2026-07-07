@@ -91,6 +91,7 @@ export async function executeErasure(
     const reason = subjectType === "supplier"
       ? "Supplier erasure is deferred from v1 automation (§7.2) — handle manually within the SLA."
       : "Subject role not auto-resolvable — handle manually within the SLA."
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: the request object comes from the gated /api/popia/request/[id]/{approve,reject} route which validates user_orgs membership in request.org_id (or platform-admin) before invoking; org-filtering here is unsafe because platform-controller requests have org_id NULL
     await db.from("data_subject_requests").update({
       erasure_records_affected: { manual_handling: true, reason, manual_review: MANUAL_REVIEW_TARGETS },
     }).eq("id", request.id)
@@ -129,6 +130,7 @@ export async function executeErasure(
     total_affected += deleted
   }
 
+  // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: request object comes from the gated approve/reject route which validates user_orgs membership in request.org_id (or platform-admin) before invoking; org-filtering unsafe (platform requests have org_id NULL)
   await db.from("data_subject_requests").update({
     erasure_records_affected: { categories: result, identity_groups: identity.groups, manual_review: MANUAL_REVIEW_TARGETS },
   }).eq("id", request.id)
@@ -147,6 +149,7 @@ export async function anonymiseRecord(
   const db = createServiceClient()
   const { error } = await (await db)
     .from(table as Parameters<Awaited<ReturnType<typeof createServiceClient>>["from"]>[0])
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- REVIEW: anonymiseRecord has no caller in the codebase (unwired) and mutates a DYNAMIC table by a caller-supplied recordId with no orgId param — an org filter can't be added generically (not every table has org_id). Flag for a human when wired: the caller must org-validate recordId.
     .update(anonymisation.field_overrides)
     .eq("id", recordId)
 

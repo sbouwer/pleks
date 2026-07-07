@@ -143,6 +143,7 @@ export async function accrueDepositInterest(
   // Update last accrued date
   await supabase
     .from("leases")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- cron/system: sole caller is the deposit-interest cron (app/api/cron/deposit-interest) iterating all leases; org derives from lease.org_id, there is no caller-org to cross
     .update({ deposit_interest_last_accrued_date: format(upToDate, "yyyy-MM-dd") })
     .eq("id", leaseId)
 

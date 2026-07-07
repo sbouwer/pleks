@@ -1,13 +1,10 @@
 "use server"
 
 /**
- * lib/actions/invoices.ts — FILL: one-line purpose
+ * lib/actions/invoices.ts — supplier-invoice review server actions (approve, mark paid, reject)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess("accept_quote"); every write is org-scoped (.eq("org_id", orgId)).
+ * Data:   supplier_invoices via the gateway service client.
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
@@ -70,7 +67,7 @@ export async function createSupplierInvoice(formData: FormData) {
 
 export async function approveInvoice(invoiceId: string) {
   const gw = await requireAgentWriteAccess("accept_quote")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const { error } = await db
     .from("supplier_invoices")
@@ -80,6 +77,7 @@ export async function approveInvoice(invoiceId: string) {
       reviewed_at: new Date().toISOString(),
     })
     .eq("id", invoiceId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
 
   if (error) return { error: error.message }
 
@@ -89,12 +87,13 @@ export async function approveInvoice(invoiceId: string) {
 
 export async function markInvoicePaid(invoiceId: string, reference?: string) {
   const gw = await requireAgentWriteAccess("accept_quote")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const { data: invoice, error: invoiceError } = await db
     .from("supplier_invoices")
     .select("org_id, payment_source")
     .eq("id", invoiceId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
     logQueryError("markInvoicePaid supplier_invoices", invoiceError)
 
@@ -111,6 +110,7 @@ export async function markInvoicePaid(invoiceId: string, reference?: string) {
       payment_reference: reference || null,
     })
     .eq("id", invoiceId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
 
@@ -129,7 +129,7 @@ export async function markInvoicePaid(invoiceId: string, reference?: string) {
 
 export async function rejectInvoice(invoiceId: string, reason: string) {
   const gw = await requireAgentWriteAccess("accept_quote")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const { error } = await db
     .from("supplier_invoices")
@@ -140,6 +140,7 @@ export async function rejectInvoice(invoiceId: string, reason: string) {
       rejection_reason: reason,
     })
     .eq("id", invoiceId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
 
   if (error) return { error: error.message }
 

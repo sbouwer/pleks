@@ -89,11 +89,13 @@ export async function ensurePreferences(orgId: string, opts: { contactId?: strin
   // Two separate branches: Supabase's generated types use RejectExcessProperties which rejects
   // a union type — the two branches must be concrete to satisfy the type checker.
   if (opts.contactId) {
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- upsert keyed on onConflict (org_id,contact_id) with org_id: orgId (caller-supplied), ON CONFLICT DO NOTHING — cannot merge into another org's row
     await service.from("communication_preferences").upsert(
       { org_id: orgId, contact_id: opts.contactId },
       { onConflict: "org_id,contact_id", ignoreDuplicates: true },
     )
   } else if (opts.email) {
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- upsert keyed on onConflict (org_id,email) with org_id: orgId (caller-supplied), ON CONFLICT DO NOTHING — cannot merge into another org's row
     await service.from("communication_preferences").upsert(
       { org_id: orgId, email: opts.email },
       { onConflict: "org_id,email", ignoreDuplicates: true },

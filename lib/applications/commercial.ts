@@ -105,6 +105,7 @@ export async function declareDirectors(
       .from("application_directors")
       .update({ co_applicant_id: coApp.id })
       .eq("id", directorRow.id)
+      .eq("org_id", orgId) // org-scope guard (caller-ID census)
 
     // Send invitation email
     await sendDirectorInvite({
@@ -209,6 +210,7 @@ export async function resendDirectorInvite(
     })
     .eq("id", coApplicantId)
     .eq("primary_application_id", applicationId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .is("declined_at", null)
     .select("applicant_email, first_name")
     .single()
@@ -259,6 +261,7 @@ export async function replaceDirector(
     .update({ declined_at: new Date().toISOString(), decline_reason: "replaced" })
     .eq("id", oldCoApplicantId)
     .eq("primary_application_id", applicationId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .is("declined_at", null)
 
   if (declineErr) {
@@ -280,6 +283,7 @@ export async function replaceDirector(
       .from("application_screening_payments")
       .update({ refund_amount_cents: existingPayment.fee_cents })
       .eq("id", existingPayment.id)
+      .eq("org_id", orgId)
     if (refundFlagErr) {
       console.error("replaceDirector — failed to flag refund:", refundFlagErr.message)
     }
@@ -333,6 +337,7 @@ export async function replaceDirector(
     .from("application_directors")
     .update({ co_applicant_id: newCoApp.id })
     .eq("id", newDir.id)
+    .eq("org_id", orgId)
 
   // Send invite to replacement
   await sendDirectorInvite({

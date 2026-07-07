@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
   // Upsert custom body
   const { error } = await db
     .from("lease_clause_selections")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- upsert keyed on onConflict (org_id,clause_key,lease_id) with org_id: orgId from gateway() — a foreign lease_id can only INSERT into the caller's own org, never merge another org's row
     .upsert({
       org_id: orgId,
       lease_id: leaseId ?? null,

@@ -132,6 +132,7 @@ export async function generateExport(
   // 7. Link export to request
   await (await db)
     .from("data_subject_requests")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: request object comes from the gated /api/popia/request/[id]/approve route which validates user_orgs membership in request.org_id (or platform-admin) before invoking; org-filtering unsafe (platform requests have org_id NULL)
     .update({ export_id: exportRow.id })
     .eq("id", request.id)
 
@@ -170,6 +171,7 @@ export async function regenerateExport(
   const db = createServiceClient()
   await (await db)
     .from("popia_exports")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- freshly-created own row: newExport.id is returned by generateExport() a few lines above in this call (the row it just inserted), not a caller-supplied id
     .update({ regeneration_of: originalExportId, regeneration_reason: reason })
     .eq("id", newExport.id)
 
@@ -189,6 +191,7 @@ export async function recordDownload(exportId: string): Promise<void> {
 
   await (await db)
     .from("popia_exports")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: sole caller app/api/popia/request/[id]/download/route.ts validates the caller is the data subject OR an org member (user_orgs in request.org_id) and resolves exportId from request.export_id before calling
     .update({
       download_count: (current?.download_count ?? 0) + 1,
       ...(current?.downloaded_at ? {} : { downloaded_at: new Date().toISOString() }),

@@ -59,6 +59,7 @@ export function ListingCard({ listing, unitLabel, propertyName }: Props) {
   async function updateStatus(newStatus: "active" | "paused" | "filled") {
     setSaving(true)
     const supabase = createClient()
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- client component: browser supabase client (@/lib/supabase/client), RLS-enforced — cross-org blocked by policy, not a service-role write
     await supabase.from("listings").update({ status: newStatus }).eq("id", listing.id)
     setSaving(false)
     router.refresh()

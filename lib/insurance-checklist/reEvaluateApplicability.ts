@@ -96,6 +96,7 @@ export async function reEvaluateChecklistApplicability(propertyId: string): Prom
     if (shouldApply && current.state === "not_applicable") {
       const { error: updErr } = await db
         .from("property_insurance_checklists")
+        // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: sole caller reclassifyProperty (lib/actions/reclassifyProperty.ts, requireAgentWriteAccess-gated) validates the property row is in the caller's org (property fetch filtered by id + org) before calling; current.id resolves from a fetch scoped by property_id
         .update({ state: "unknown", updated_at: now })
         .eq("id", current.id)
 
@@ -117,6 +118,7 @@ export async function reEvaluateChecklistApplicability(propertyId: string): Prom
     } else if (!shouldApply && (current.state === "unknown" || current.state === "confirmed")) {
       const { error: updErr } = await db
         .from("property_insurance_checklists")
+        // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: sole caller reclassifyProperty validates the property row is in the caller's org before calling; current.id resolves from a fetch scoped by property_id
         .update({ state: "not_applicable", updated_at: now })
         .eq("id", current.id)
 

@@ -94,6 +94,7 @@ export async function submitSupplierQuote(
 
   const { error: updErr } = await service
     .from("maintenance_requests")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- portal-scoped: getSupplierSession() resolves session.contractorId; the write is scoped .eq("contractor_id", session.contractorId) and the job was validated to belong to this contractor above
     .update({ status: "quote_submitted" })
     .eq("id", input.requestId)
     .eq("contractor_id", session.contractorId)

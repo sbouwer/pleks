@@ -3,22 +3,27 @@
 /**
  * lib/deposits/calculateReturn.ts — compute and persist deposit return figures
  *
- * Auth:   Called from DepositActions (agent session, not gateway — leaseId-only input)
- * Data:   deposit_deduction_items, deposit_charges, deposit_reconciliations via service client
- * Notes:  Uses service client (bypasses RLS) because the cookie client does not propagate
- *         auth.uid() to Postgres in server action context. Total deductions = confirmed
- *         tenant_damage items + confirmed deposit_charges (ADDENDUM_63B).
+ * Auth:   gateway() — authenticates + provides the caller's orgId; the lease read is org-scoped so a
+ *         foreign leaseId computes/persists nothing (was previously ungated + cross-org — caller-ID
+ *         census). Lockdown-free like disburse: computing a deposit return is obligation-driven (RHA),
+ *         must work when the subscription is paused/cancelled ("Your Data, Always").
+ * Data:   deposit_deduction_items, deposit_charges, deposit_reconciliations via the gateway service client.
+ * Notes:  Total deductions = confirmed tenant_damage items + confirmed deposit_charges (ADDENDUM_63B).
  */
-import { createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { getDepositPaid, getTotalInterestAccrued } from "./balance"
 
 export async function calculateDepositReturn(leaseId: string) {
-  const supabase = await createServiceClient()
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db: supabase, orgId } = gw
 
+  // Org-scope guard (caller-ID census): a foreign leaseId matches no row → "Lease not found".
   const { data: lease, error: leaseErr } = await supabase
     .from("leases")
     .select("org_id, tenant_id")
     .eq("id", leaseId)
+    .eq("org_id", orgId)
     .single()
 
   if (leaseErr || !lease) return { error: "Lease not found" }
@@ -28,12 +33,14 @@ export async function calculateDepositReturn(leaseId: string) {
       .from("deposit_deduction_items")
       .select("deduction_amount_cents")
       .eq("lease_id", leaseId)
+      .eq("org_id", orgId)
       .eq("classification", "tenant_damage")
       .eq("agent_confirmed", true),
     supabase
       .from("deposit_charges")
       .select("deduction_amount_cents")
       .eq("lease_id", leaseId)
+      .eq("org_id", orgId)
       .eq("agent_confirmed", true),
   ])
 
@@ -54,7 +61,7 @@ export async function calculateDepositReturn(leaseId: string) {
   const deductionsToLandlord  = Math.min(totalDeductions, totalAvailable)
 
   const { error: upsertErr } = await supabase.from("deposit_reconciliations").upsert({
-    org_id:                     lease.org_id,
+    org_id:                     orgId,
     lease_id:                   leaseId,
     tenant_id:                  lease.tenant_id,
     deposit_held_cents:         depositHeld,

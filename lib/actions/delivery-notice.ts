@@ -38,6 +38,7 @@ export async function acknowledgeNotice(
   const [{ error: ackError }, { error: evtError }] = await Promise.all([
     service
       .from("delivery_notice_tokens")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-write -- token-scoped: row.id resolves from delivery_notice_tokens via the unguessable token (validated + unexpired above); the token is the credential, no caller-org exists
       .update({ acknowledged_at: now })
       .eq("id", row.id),
     service

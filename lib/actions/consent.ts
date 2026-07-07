@@ -63,6 +63,7 @@ export async function saveLeaseConsent(params: {
 
   const { error } = await db
     .from("tenant_messaging_consent")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: sole caller is createLease (lib/actions/leases.ts:292, requireAgentWriteAccess-gated) passing gw.orgId + the lease's tenantId; org_id in payload is that gateway orgId
     .upsert(
       {
         tenant_id: params.tenantId,

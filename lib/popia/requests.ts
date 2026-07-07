@@ -229,6 +229,7 @@ export async function transitionRequestStatus(
 
   const { data, error } = await (await db)
     .from("data_subject_requests")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: sole callers are the gated /api/popia/request/[id]/{approve,reject} routes, which fetch the request and validate user_orgs membership in request.org_id (or platform-admin) before calling; org-filtering unsafe (platform requests have org_id NULL)
     .update(update)
     .eq("id", requestId)
     .select()
@@ -248,6 +249,7 @@ export async function assignRequest(
   const db = createServiceClient()
   const { data, error } = await (await db)
     .from("data_subject_requests")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- REVIEW: assignRequest has no caller in the codebase (unwired) and takes only requestId + assignee_user_id (no orgId) — cannot org-scope the write. Flag for a human when wired: the caller must validate requestId against the actor's org.
     .update({ assigned_to: assignee_user_id, updated_at: new Date().toISOString() })
     .eq("id", requestId)
     .select()
