@@ -1762,16 +1762,10 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_statement_holder_confiden
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_statement_holder_name_extracted  text;
 
 -- â”€â”€ applications: Estate bundle criminal check support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_given_at         timestamptz;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_ip               inet;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_log_id           uuid;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_withdrawn_at     timestamptz;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_withdrawal_reason text;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS huru_check_id        text;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS huru_check_status    text
-  CHECK (huru_check_status IN ('not_run', 'pending', 'complete', 'failed', 'deleted_post_withdrawal'));
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS huru_check_completed_at timestamptz;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS huru_check_purged_at    timestamptz;
+-- criminal_check_consent_* + huru_check_* were scaffolded here for the Estate-bundle criminal-check
+-- feature, which was CANCELLED (INDEX 14E / OUTSTANDING C3). The ADD statements were removed 2026-07-07
+-- so a fresh replay never materialises the dead columns; §43 at the file tail DROPs them (IF EXISTS) to
+-- converge any environment that already created them from an earlier replay.
 
 -- â”€â”€ applications: Pleks-internal tenant signal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS prior_pleks_tenant_signal jsonb;
@@ -3090,3 +3084,23 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS all_complete_notified_at times
 --   exists (decided_by, insurance_decision_by, etc. are added in 010/012). Kept
 --   here as a pointer only. (migration-replay fix 2026-07-06)
 -- -----------------------------------------------------------------------------
+
+-- -----------------------------------------------------------------------------
+-- Section 43  CLEANUP 2026-07-07: DROP the cancelled criminal-check / Huru scaffold
+--   *** DESTRUCTIVE — column drops on applications ***
+--   The Estate-bundle criminal-check feature (`huru_check_*` + `criminal_check_consent_*`) was
+--   cancelled (INDEX 14E / OUTSTANDING C3). Its ADD statements were removed from the §"Estate bundle"
+--   block above in the same change, so a fresh replay never creates the columns. These DROP IF EXISTS
+--   statements converge any environment that already materialised them from an earlier replay (no-op on
+--   a fresh DB). Verified 2026-07-07: zero live code refs, no view / function / trigger / test dependency;
+--   all 9 columns held 0 non-null values. huru_check_status's CHECK drops automatically with its column.
+-- -----------------------------------------------------------------------------
+ALTER TABLE applications DROP COLUMN IF EXISTS criminal_check_consent_given_at;
+ALTER TABLE applications DROP COLUMN IF EXISTS criminal_check_consent_ip;
+ALTER TABLE applications DROP COLUMN IF EXISTS criminal_check_consent_log_id;
+ALTER TABLE applications DROP COLUMN IF EXISTS criminal_check_consent_withdrawn_at;
+ALTER TABLE applications DROP COLUMN IF EXISTS criminal_check_consent_withdrawal_reason;
+ALTER TABLE applications DROP COLUMN IF EXISTS huru_check_id;
+ALTER TABLE applications DROP COLUMN IF EXISTS huru_check_status;
+ALTER TABLE applications DROP COLUMN IF EXISTS huru_check_completed_at;
+ALTER TABLE applications DROP COLUMN IF EXISTS huru_check_purged_at;
