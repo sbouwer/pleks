@@ -33,6 +33,7 @@ export async function setupProfileFromTemplate(
     .select("unit_type, bedrooms, bathrooms, features, property_id")
     .eq("id", unitId)
     .eq("property_id", propertyId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
 
   if (unitErr || !unit) return { error: "Unit not found" }

@@ -59,10 +59,21 @@ export async function POST(req: NextRequest) {
 
     importSessionId = session?.id
   } else {
+    // org-scope guard (caller-ID census): validate the session belongs to the org before touching it
+    const { data: ownedSession, error: ownedError } = await service
+      .from("import_sessions")
+      .select("id")
+      .eq("id", importSessionId)
+      .eq("org_id", orgId)
+      .maybeSingle()
+    logQueryError("POST import_sessions ownership", ownedError)
+    if (!ownedSession) return NextResponse.json({ error: "Import session not found" }, { status: 404 })
+
     await service
       .from("import_sessions")
       .update({ status: "importing" })
       .eq("id", importSessionId)
+      .eq("org_id", orgId)
   }
 
   // Run import
@@ -92,6 +103,7 @@ export async function POST(req: NextRequest) {
         completed_at: new Date().toISOString(),
       })
       .eq("id", importSessionId)
+      .eq("org_id", orgId)
 
     return NextResponse.json({
       ok: true,
@@ -115,6 +127,7 @@ export async function POST(req: NextRequest) {
       .from("import_sessions")
       .update({ status: "failed", error_report: [{ error: String(err) }] })
       .eq("id", importSessionId)
+      .eq("org_id", orgId)
 
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Import failed" },

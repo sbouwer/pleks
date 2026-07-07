@@ -67,6 +67,7 @@ export async function createProperty(formData: FormData) {
         .from("properties")
         .update({ managing_scheme_id: scheme.id })
         .eq("id", property.id)
+        .eq("org_id", orgId)
     }
   }
 
@@ -102,7 +103,7 @@ export async function createProperty(formData: FormData) {
 
 export async function updateProperty(propertyId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const isSectional = formData.get("is_sectional_title") === "true"
   const levyDisplay = formData.get("levy_amount_cents_display") as string | null
@@ -131,6 +132,7 @@ export async function updateProperty(propertyId: string, formData: FormData) {
     .from("properties")
     .update(updates)
     .eq("id", propertyId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
 
   if (error) return { error: error.message }
 
@@ -139,6 +141,7 @@ export async function updateProperty(propertyId: string, formData: FormData) {
     .from("properties")
     .select("org_id")
     .eq("id", propertyId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("updateProperty properties", propError)
 

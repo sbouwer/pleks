@@ -17,7 +17,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function updateTenant(tenantId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_tenant")
-  const { db } = gw
+  const { db, orgId } = gw
 
   const tenantType = formData.get("tenant_type") as string
 
@@ -26,6 +26,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     .from("tenants")
     .select("contact_id")
     .eq("id", tenantId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
     logQueryError("updateTenant tenants", tenantRecordError)
 
@@ -49,7 +50,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     contactUpdates.vat_number = formData.get("vat_number") || null
   }
 
-  const { error: contactError } = await db.from("contacts").update(contactUpdates).eq("id", tenantRecord.contact_id)
+  const { error: contactError } = await db.from("contacts").update(contactUpdates).eq("id", tenantRecord.contact_id).eq("org_id", orgId)
   if (contactError) return { error: contactError.message }
 
   // Update tenant-specific fields
@@ -60,7 +61,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     preferred_contact: formData.get("preferred_contact") || "whatsapp",
   }
 
-  const { error } = await db.from("tenants").update(tenantUpdates).eq("id", tenantId)
+  const { error } = await db.from("tenants").update(tenantUpdates).eq("id", tenantId).eq("org_id", orgId)
   if (error) return { error: error.message }
 
   revalidatePath(`/tenants/${tenantId}`)

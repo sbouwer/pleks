@@ -63,8 +63,8 @@ async function upsertFurnishings(
     return
   }
 
-  // Delete existing and re-insert (simpler than diffing)
-  await db.from("unit_furnishings").delete().eq("unit_id", unitId)
+  // Delete existing and re-insert (simpler than diffing). Org-scoped so a foreign unitId wipes nothing.
+  await db.from("unit_furnishings").delete().eq("unit_id", unitId).eq("org_id", orgId)
 
   if (rows.length === 0) return
 
@@ -111,6 +111,7 @@ async function upsertInspectionProfile(
     .from("unit_inspection_profiles")
     .select("id")
     .eq("unit_id", unitId)
+    .eq("org_id", orgId)
     .maybeSingle()
     logQueryError("upsertInspectionProfile unit_inspection_profiles", existingError)
 
@@ -123,6 +124,7 @@ async function upsertInspectionProfile(
       .from("unit_inspection_profiles")
       .update({ updated_at: new Date().toISOString() })
       .eq("id", profileId)
+      .eq("org_id", orgId)
   } else {
     const { data: created, error } = await db
       .from("unit_inspection_profiles")
@@ -136,8 +138,8 @@ async function upsertInspectionProfile(
     profileId = created.id
   }
 
-  // Replace rooms
-  await db.from("unit_inspection_profile_rooms").delete().eq("profile_id", profileId)
+  // Replace rooms (org-scoped)
+  await db.from("unit_inspection_profile_rooms").delete().eq("profile_id", profileId).eq("org_id", orgId)
 
   if (rooms.length === 0) return
 
@@ -213,7 +215,7 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
 
   const fields = parseUnitFields(formData)
 
-  const { error } = await db.from("units").update(fields).eq("id", unitId)
+  const { error } = await db.from("units").update(fields).eq("id", unitId).eq("org_id", orgId)
   if (error) return { error: error.message }
 
   await upsertFurnishings(db, unitId, orgId, formData.get("furnishings_json") as string | null)
@@ -232,12 +234,13 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
 
 export async function updateAskingRent(unitId: string, rentCents: number): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("edit_property")
-  const { db } = gw
+  const { db, orgId } = gw
 
   const { error } = await db
     .from("units")
     .update({ asking_rent_cents: rentCents })
     .eq("id", unitId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
 
@@ -293,12 +296,13 @@ export async function updateUnitStatus(
   reason?: string
 ) {
   const gw = await requireAgentWriteAccess("edit_property")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const { data: unit, error: unitError } = await db
     .from("units")
     .select("status, org_id")
     .eq("id", unitId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("updateUnitStatus units", unitError)
 
@@ -311,7 +315,7 @@ export async function updateUnitStatus(
     .from("units")
     .update(archiving ? { deleted_at: new Date().toISOString() } : { status: newStatus })
     .eq("id", unitId)
-    .eq("org_id", unit.org_id)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
 
@@ -387,12 +391,12 @@ export async function createUnitData(propertyId: string, formData: FormData): Pr
 // updateUnitFeatures — PATCH just the features array on a unit
 export async function updateUnitFeatures(unitId: string, propertyId: string, features: string[]): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("edit_property")
-  const { db } = gw
+  const { db, orgId } = gw
 
-  const { data: unit, error: unitError } = await db.from("units").select("org_id").eq("id", unitId).single()
+  const { data: unit, error: unitError } = await db.from("units").select("org_id").eq("id", unitId).eq("org_id", orgId).single()
     logQueryError("updateUnitFeatures units", unitError)
   if (!unit) return { error: "Unit not found" }
-  const { error } = await db.from("units").update({ features }).eq("id", unitId)
+  const { error } = await db.from("units").update({ features }).eq("id", unitId).eq("org_id", orgId)
   if (error) return { error: error.message }
   try { await syncUnitClauseProfile(db, unitId, unit.org_id, features) } catch {}
   revalidatePath(`/properties/${propertyId}`)
@@ -447,7 +451,7 @@ export async function setProspectiveTenants(
   coTenantIds: string[],
 ): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("edit_property")
-  const { db } = gw
+  const { db, orgId } = gw
 
   const { error } = await db
     .from("units")
@@ -456,6 +460,7 @@ export async function setProspectiveTenants(
       prospective_co_tenant_ids: coTenantIds,
     })
     .eq("id", unitId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
   revalidatePath("/properties")
