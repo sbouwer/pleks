@@ -2,12 +2,14 @@
  * app/api/billing/[paymentId]/receipt/route.ts — render a printable HTML payment receipt
  *
  * Route:  GET /api/billing/[paymentId]/receipt
- * Auth:   auth.getUser() (cookie client) — any authenticated user
- * Data:   reads payments, organisations, tenant_view, rent_invoices, leases (service client)
- * Notes:  returns HTML (not JSON); payment is looked up by id only — not scoped to the caller's org
+ * Auth:   auth.getUser() + getMembership → org_id; the payment is org-scoped, so a caller cannot render
+ *         another org's receipt (caller-ID hardening 2026-07-07 — was looked up by id only, a cross-org read).
+ * Data:   reads payments, organisations, tenant_view, rent_invoices, leases (service client).
+ * Notes:  returns HTML (not JSON).
  */
 import { NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { getMembership } from "@/lib/supabase/getMembership"
 
 function formatZAR(cents: number): string {
   return "R\u00a0" + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -35,10 +37,16 @@ export async function GET(
 
   const supabase = await createServiceClient()
 
+  // Org-scope guard (caller-ID hardening): resolve the caller's org and scope the payment lookup to it,
+  // so an authenticated user of one org can't render another org's receipt (a paymentId is not a boundary).
+  const membership = await getMembership(supabase, user.id)
+  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+
   const { data: payment, error: paymentError } = await supabase
     .from("payments")
     .select("id, org_id, amount_cents, payment_date, payment_method, reference, receipt_number, lease_id, tenant_id, invoice_id, created_at")
     .eq("id", paymentId)
+    .eq("org_id", membership.org_id)
     .single()
 
   if (paymentError || !payment) {
