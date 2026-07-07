@@ -28,6 +28,26 @@ const DEFAULT_SETTINGS = {
 
 export type NotificationSettings = typeof DEFAULT_SETTINGS
 
+const BOOLEAN_KEYS = [
+  "email_applications", "email_maintenance", "email_arrears", "email_inspections", "email_lease", "email_statements",
+  "sms_enabled", "sms_maintenance", "sms_arrears", "sms_inspections",
+] as const
+const STRING_KEYS = ["email_from_name", "reply_to_email"] as const
+
+/** Take ONLY known settings keys from the client body, coerced to the right type + bounded — never spread the raw
+ *  body into the JSON column (that let a client persist arbitrary keys / wrong types / unbounded strings). */
+function sanitiseSettings(body: Record<string, unknown>): Partial<NotificationSettings> {
+  const out: Partial<NotificationSettings> = {}
+  for (const k of BOOLEAN_KEYS) if (k in body) out[k] = body[k] === true
+  for (const k of STRING_KEYS) {
+    if (k in body) {
+      const v = body[k]
+      out[k] = typeof v === "string" ? (v.trim().slice(0, 200) || null) : null
+    }
+  }
+  return out
+}
+
 // GET /api/org/notifications
 export async function GET() {
   const gw = await gateway()
@@ -51,7 +71,7 @@ export async function PATCH(req: NextRequest) {
   if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { db, orgId } = gw
 
-  const body = await req.json() as Partial<NotificationSettings>
+  const body = await req.json() as Record<string, unknown>
 
   // Fetch current settings and merge
   const { data: org, error: orgError } = await db
@@ -62,7 +82,7 @@ export async function PATCH(req: NextRequest) {
   logQueryError("PATCH organisations", orgError)
 
   const current = { ...DEFAULT_SETTINGS, ...(org?.notification_settings as Partial<NotificationSettings> ?? {}) }
-  const updated = { ...current, ...body }
+  const updated = { ...current, ...sanitiseSettings(body) }
 
   const { error } = await db
     .from("organisations")
