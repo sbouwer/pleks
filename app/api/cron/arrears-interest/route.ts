@@ -1,11 +1,10 @@
 /**
- * app/api/cron/arrears-interest/route.ts — FILL: one-line purpose
+ * app/api/cron/arrears-interest/route.ts — daily arrears interest accrual (one charge per open case/day)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/cron/arrears-interest
+ * Auth:   x-cron-secret header must equal CRON_SECRET
+ * Data:   reads arrears_cases (+ leases.arrears_interest_enabled); accrues via accrueArrearsInterest
+ * Notes:  skips resolved/written_off/vacated_with_debt cases and leases with interest disabled
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"

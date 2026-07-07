@@ -1,11 +1,10 @@
 /**
- * lib/insurance-checklist/reEvaluateApplicability.ts — FILL: one-line purpose
+ * lib/insurance-checklist/reEvaluateApplicability.ts — re-derives which checklist items apply after a property scenario/furnishing change
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   properties, units, insurance_checklist_items (read); property_insurance_checklists (state update),
+ *         property_insurance_checklist_events (audit insert) — via service client
+ * Notes:  Only flips auto-derived states — an item that became applicable moves not_applicable→unknown; one that
+ *         became inapplicable moves unknown/confirmed→not_applicable. Returns {added, removed} item codes.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"

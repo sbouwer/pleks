@@ -1,13 +1,7 @@
 "use client"
 
 /**
- * components/ui/scroll-area.tsx — FILL: one-line purpose
- *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * components/ui/scroll-area.tsx — custom-styled scrollable viewport with a themed scrollbar (base-ui ScrollArea)
  */
 import * as React from "react"
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"

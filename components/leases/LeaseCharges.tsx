@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/leases/LeaseCharges.tsx — FILL: one-line purpose
+ * components/leases/LeaseCharges.tsx — CRUD panel for a lease's recurring charges (levies, parking, utilities), with optional payable-to contractor
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   Reads/writes lease charges for the given leaseId via the leases API; amounts held in cents.
  */
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

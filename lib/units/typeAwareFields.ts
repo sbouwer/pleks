@@ -1,11 +1,7 @@
 /**
- * lib/units/typeAwareFields.ts — FILL: one-line purpose
+ * lib/units/typeAwareFields.ts — decides which unit fields to show and builds a unit summary string per property type
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Pure logic. Commercial units hide bedrooms/bathrooms/furnished and lead with floor area; residential leads with beds/baths.
  */
 export type PropertyType = "residential" | "commercial" | "mixed"
 

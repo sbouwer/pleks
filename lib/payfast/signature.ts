@@ -1,11 +1,8 @@
 /**
- * lib/payfast/signature.ts — FILL: one-line purpose
+ * lib/payfast/signature.ts — computes the MD5 signature PayFast requires on its payment/ITN payloads
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  MD5 is mandated by the PayFast signature spec (not a security choice). Keys are sorted, empty values
+ *         dropped, spaces encoded as "+", and the optional passphrase appended last — order is signature-critical.
  */
 import { createHash } from "node:crypto"
 

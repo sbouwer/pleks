@@ -1,11 +1,8 @@
 /**
- * lib/reports/tenantWelcomePack.ts — FILL: one-line purpose
+ * lib/reports/tenantWelcomePack.ts — assembles the data model for a tenant welcome pack (lease terms, tenant + co-tenants, property, deposit interest, trust banking, key dates, enabled clauses)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   parallel reads of leases, tenant_view, lease_co_tenants, bank_accounts (trust), inspections, lease_clause_selections; resolves deposit interest config; returns TenantWelcomePackData
+ * Notes:  payment reference derived from name/property/unit; CPA notice due 80 days before lease end, move-out notice at notice_period_days before end
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { resolveDepositInterestConfig } from "@/lib/deposits/interestConfig"

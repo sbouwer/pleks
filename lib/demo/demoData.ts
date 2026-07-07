@@ -1,11 +1,7 @@
 /**
- * lib/demo/demoData.ts — FILL: one-line purpose
+ * lib/demo/demoData.ts — hardcoded fixture dataset (org, properties, leases, etc.) powering the read-only demo mode
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Static fixtures only — no DB. Dates are computed relative to today so the demo never looks stale.
  */
 function daysAgo(n: number): string {
   const d = new Date()

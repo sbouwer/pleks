@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/units/RoomList.tsx — FILL: one-line purpose
+ * components/units/RoomList.tsx — editable room list for a unit (relabel, remove, add suggested/custom rooms)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  controlled component (rooms + onChange); custom rooms delete outright, standard rooms demote to suggestions
  */
 import { useState } from "react"
 import { X, Plus, Check } from "lucide-react"

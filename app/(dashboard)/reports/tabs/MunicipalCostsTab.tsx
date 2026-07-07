@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/tabs/MunicipalCostsTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/tabs/MunicipalCostsTab.tsx — municipal costs report: water/electricity/rates/refuse totals per property/period
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   GET /api/reports?type=municipal_costs (via useReportData); CSV/PDF export via /api/reports/export
  */
 import { useReportData } from "./useReportData"
 import { ReportShell, MetricCard } from "./ReportShell"

@@ -1,11 +1,9 @@
 /**
- * app/api/import/analyse/route.ts — FILL: one-line purpose
+ * app/api/import/analyse/route.ts — suggest column mappings + detect entities for an uploaded import file
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/import/analyse
+ * Auth:   auth.getUser() (cookie client)
+ * Data:   no DB — analyses supplied headers/sampleRows in-memory (column mapping, entity + TPN detection)
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"

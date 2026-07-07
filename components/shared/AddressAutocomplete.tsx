@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/shared/AddressAutocomplete.tsx — FILL: one-line purpose
+ * components/shared/AddressAutocomplete.tsx — property address entry fields (manual entry; Google Places autocomplete pending)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Placeholder for Google Places — falls back to manual fields until NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is configured.
  */
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

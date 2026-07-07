@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/ReportsClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/ReportsClient.tsx — report catalogue UI: category grid of tier-gated cards that open a report tab
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   CSV/PDF exports open /api/reports/export; the welcome pack opens /api/reports/welcome-pack
+ * Notes:  Tier gating via REPORT_TIER_ACCESS (locked cards show the required tier). Maps ReportType → tab component to avoid a 25-branch switch.
  */
 
 import { useState, useCallback } from "react"

@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/leases/LeasePreview.tsx — FILL: one-line purpose
+ * components/leases/LeasePreview.tsx — modal previewing the assembled lease across cover-template variants, with tier-gated PDF download
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   Fetches preview template + rendered document from /api/leases/preview-*; PDF download gated by useTier.
  */
 
 import { useState, useEffect } from "react"

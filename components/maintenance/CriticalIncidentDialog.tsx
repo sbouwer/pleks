@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/maintenance/CriticalIncidentDialog.tsx — FILL: one-line purpose
+ * components/maintenance/CriticalIncidentDialog.tsx — dialog to record the insurance decision on a critical maintenance incident
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   writes via the recordInsuranceDecision server action (reported / declined / unsure)
+ * Notes:  "unsure" sets a 4-hour reminder; "reported" notifies broker + owner; every decision is audit-logged
  */
 import { useState, useTransition } from "react"
 import { AlertTriangle } from "lucide-react"

@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/suppliers/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/suppliers/page.tsx — Suppliers page: prefetches contractors and hydrates the client view
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /suppliers
+ * Auth:   getServerOrgMembership() gate; data via service client
+ * Data:   prefetches contractors (fetchContractors) into react-query for SuppliersPageClient
  */
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"

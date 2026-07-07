@@ -1,11 +1,7 @@
 /**
- * lib/reports/generatePDF.ts — FILL: one-line purpose
+ * lib/reports/generatePDF.ts — HTML renderers (print-to-PDF) for every report type, with branded letterhead variants and shared metric/table chrome
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  pure formatters — build HTML strings from already-built report data + ReportBranding; no data access
  */
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort, formatPeriodLabel } from "./periods"

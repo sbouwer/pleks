@@ -1,11 +1,7 @@
 /**
- * app/(public)/svgs/RentRollSVG.tsx — FILL: one-line purpose
+ * app/(public)/svgs/RentRollSVG.tsx — decorative rent-roll statement line-art background for public pages
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational, aria-hidden. Amber-ink watermark; shows live current-month and previous-month-end date labels.
  */
 function liveDate() {
   const now = new Date()

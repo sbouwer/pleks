@@ -1,11 +1,10 @@
 /**
- * lib/insurance-checklist/initializeChecklist.ts — FILL: one-line purpose
+ * lib/insurance-checklist/initializeChecklist.ts — seeds a property's insurance checklist from the item catalogue on creation
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   properties, units, insurance_checklist_items (read); property_insurance_checklists (upsert),
+ *         property_insurance_checklist_events (audit insert) — via service client
+ * Notes:  Applicability derives per-item from scenario_type + furnished-unit presence; inapplicable items seed as
+ *         "not_applicable". Idempotent upsert on (property_id, item_code). Caller is requireAgentWriteAccess-gated (see inline).
  */
 import { createServiceClient } from "@/lib/supabase/server"
 

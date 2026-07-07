@@ -1,11 +1,7 @@
 /**
- * lib/comms/templates/maintenance/critical-incident-owner.tsx — FILL: one-line purpose
+ * lib/comms/templates/maintenance/critical-incident-owner.tsx — react-email template notifying a property owner of a critical maintenance incident (and whether their broker was notified)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  presentational — all content comes from CriticalIncidentOwnerProps
  */
 import * as React from "react"
 import { Text, Hr } from "@react-email/components"

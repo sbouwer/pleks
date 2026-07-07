@@ -1,11 +1,7 @@
 /**
- * lib/reports/generateWelcomePackHTML.ts — FILL: one-line purpose
+ * lib/reports/generateWelcomePackHTML.ts — renders the multi-page landlord Portfolio Overview ("welcome pack") HTML: snapshot, income analysis, 12-month projection, tenant profiles, compliance calendar, and AI recommendations
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  pure renderer — consumes pre-built WelcomePackData + Recommendation[]; the optional in-page toolbar POSTs to /api/reports/welcome-pack/send
  */
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort } from "./periods"

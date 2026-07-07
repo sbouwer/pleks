@@ -1,11 +1,9 @@
 /**
- * lib/inspections/seedRooms.ts — FILL: one-line purpose
+ * lib/inspections/seedRooms.ts — seeds a new inspection's rooms + items in two batched inserts
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   inspection_rooms, inspection_items (write); units, unit_inspection_profiles, unit_furnishings (read)
+ * Notes:  Idempotent (no-ops if rooms exist). Room source priority: profile → templateEngine (unit_type) → legacy
+ *         flat fallback. Furnished/semi-furnished units get landlord-owned "(furnished)" items injected.
  */
 import { SupabaseClient } from "@supabase/supabase-js"
 import {

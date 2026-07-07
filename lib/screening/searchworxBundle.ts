@@ -1,11 +1,7 @@
 /**
- * lib/screening/searchworxBundle.ts — FILL: one-line purpose
+ * lib/screening/searchworxBundle.ts — SearchWorx screening-check bundle definitions (SA vs foreign) with per-check costs, FitScore components, and application-fee lookup
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  reference data; bundle totals are pre-computed constants — keep them in sync with the per-check cost_excl_vat_cents when checks change.
  */
 import { APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
 

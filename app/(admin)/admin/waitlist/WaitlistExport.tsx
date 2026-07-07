@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(admin)/admin/waitlist/WaitlistExport.tsx — FILL: one-line purpose
+ * app/(admin)/admin/waitlist/WaitlistExport.tsx — CSV export button for the admin waitlist
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Client sub-component. Builds and downloads the CSV entirely client-side from the
+ *         entries prop — no fetch.
  */
 import { ActionButton } from "@/components/ui/actions"
 

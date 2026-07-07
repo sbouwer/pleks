@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/steps/StepDocuments.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/new/steps/StepDocuments.tsx — New-property wizard step: attach compliance documents
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  files buffered in wizard state and uploaded on save; doc type guessed from filename; 20MB per-file cap
  */
 import { useState, useRef, type DragEvent, type ChangeEvent } from "react"
 import { Upload, X, FileText } from "lucide-react"

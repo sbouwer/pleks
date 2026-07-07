@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(public)/contact/ContactForm.tsx — FILL: one-line purpose
+ * app/(public)/contact/ContactForm.tsx — public contact form with intent selector and bot honeypot
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Client sub-component. Submits via the submitContactForm server action; ?intent=
+ *         pre-selects the dropdown, and the hidden "website" field is a bot honeypot.
  */
 
 import { useState, useTransition } from "react"

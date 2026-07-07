@@ -1,11 +1,12 @@
 /**
- * lib/finance/depositInterest.ts — FILL: one-line purpose
+ * lib/finance/depositInterest.ts — deposit interest calc + monthly/lease-end accrual posting
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads leases + deposit interest config (unit→property→org hierarchy); posts via
+ *         record_deposit_atomic RPC (deposit_transactions + trust_ledger commit atomically);
+ *         advances leases.deposit_interest_last_accrued_date; writes audit_log
+ * Notes:  service-client helper (no gate of its own) — driven by the deposit-interest cron and
+ *         lease-end reconciliation. On RPC failure it does NOT advance last_accrued, so the next
+ *         run retries the window (prevents the old swallowed-failure under-accrual).
  */
 import { differenceInDays, format, startOfMonth } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"

@@ -1,11 +1,10 @@
 /**
- * lib/insurance-checklist/reEvaluatePolicyHeader.ts — FILL: one-line purpose
+ * lib/insurance-checklist/reEvaluatePolicyHeader.ts — auto-confirms/unconfirms the POLICY_HEADER checklist item from the property's insurance fields
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   properties (read); property_insurance_checklists (state update),
+ *         property_insurance_checklist_events (audit insert) — via service client
+ * Notes:  State = confirmed when all six insurance fields are populated, else unknown. No-op if the checklist
+ *         row isn't initialized yet or the state is already correct. Confirmations are marked confirmed_via = "auto_derived".
  */
 import { createServiceClient } from "@/lib/supabase/server"
 

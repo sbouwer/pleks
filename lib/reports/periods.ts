@@ -1,11 +1,7 @@
 /**
- * lib/reports/periods.ts — FILL: one-line purpose
+ * lib/reports/periods.ts — report period resolution (this/last month, quarter, SA tax year, custom) and date-range formatting/labelling helpers
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  toDateStr formats YYYY-MM-DD in local time to avoid toISOString() timezone off-by-one in SQL date comparisons; SA tax year runs 1 Mar → 28/29 Feb
  */
 import { ReportPeriodType } from "./types"
 

@@ -1,11 +1,7 @@
 /**
- * lib/reports/inspectionSchedule.ts — FILL: one-line purpose
+ * lib/reports/inspectionSchedule.ts — builds the Inspection Schedule report (scheduled/in-progress inspections within 90 days, with days-overdue)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads `inspections` (+ joined units/properties) and resolves tenant names from `tenants`/`contacts` for the org; returns InspectionScheduleData
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { toDateStr } from "./periods"

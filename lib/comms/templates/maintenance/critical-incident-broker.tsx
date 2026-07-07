@@ -1,11 +1,7 @@
 /**
- * lib/comms/templates/maintenance/critical-incident-broker.tsx — FILL: one-line purpose
+ * lib/comms/templates/maintenance/critical-incident-broker.tsx — react-email template notifying an insurance broker of a critical maintenance incident (with the on-file coverage checklist)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  presentational — all content comes from CriticalIncidentBrokerProps; sent on behalf of the agency to the property's broker
  */
 import * as React from "react"
 import { Text, Hr } from "@react-email/components"

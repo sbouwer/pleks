@@ -1,11 +1,9 @@
 /**
- * lib/finance/financeHub.ts — FILL: one-line purpose
+ * lib/finance/financeHub.ts — aggregates the finance hub dashboard (trust, tenant/owner balances, property perf, unmatched lines)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads rent_invoices, owner_statements, contacts, properties and bank-feed unmatched
+ *         lines; folds in trust balance via getTrustBalance — all filtered by the passed orgId
+ * Notes:  read-only service-client aggregator; caller supplies orgId (resolved upstream by gatewaySSR)
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTrustBalance, type TrustBalanceSummary } from "@/lib/dashboard/trustBalance"

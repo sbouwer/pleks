@@ -1,11 +1,7 @@
 /**
- * components/contacts/RelationshipCard.tsx — FILL: one-line purpose
+ * components/contacts/RelationshipCard.tsx — clickable card linking to a related entity, with icon, title/subtitle and optional badge
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational. Wraps its content in a next/link to href.
  */
 import Link from "next/link"
 

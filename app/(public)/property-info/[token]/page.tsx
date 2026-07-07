@@ -1,11 +1,11 @@
 /**
- * app/(public)/property-info/[token]/page.tsx — FILL: one-line purpose
+ * app/(public)/property-info/[token]/page.tsx — token-gated owner form to supply missing property info
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /property-info/[token]
+ * Auth:   Public — access by property_info_requests token; no session
+ * Data:   property_info_requests, properties, organisations (service client)
+ * Notes:  Server component. Renders terminal-state screens (completed/dismissed/expired), logs a
+ *         'viewed' event on first open, and branches to the checklist form when scenario_context carries items.
  */
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"

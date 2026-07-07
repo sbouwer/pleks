@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/contacts/CoTenantAvatars.tsx — FILL: one-line purpose
+ * components/contacts/CoTenantAvatars.tsx — selectable avatar cluster for co-tenants, overflowing into a dropdown past AVATAR_MAX
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational. Highlights the active tenant; closes the overflow menu on outside click.
  */
 import { useState, useEffect, useRef } from "react"
 

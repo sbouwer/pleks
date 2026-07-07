@@ -1,11 +1,10 @@
 /**
- * app/api/suppliers/[id]/portal-invite/route.ts — FILL: one-line purpose
+ * app/api/suppliers/[id]/portal-invite/route.ts — invite/resend a contractor's portal access
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/suppliers/[id]/portal-invite
+ * Auth:   auth.getUser() + user_orgs membership; org must be on Portfolio or Firm tier
+ * Data:   reads subscriptions + contractors; sendPortalInvite; sets contractors.portal_status 'invited'
+ * Notes:  409 if portal already active; a resend clears portal_access_enabled so the invite re-fires
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"

@@ -1,11 +1,11 @@
 /**
- * app/(applicant)/apply/invite/[token]/page.tsx — FILL: one-line purpose
+ * app/(applicant)/apply/invite/[token]/page.tsx — screening-invite landing (shortlisted + fee + reuse offer)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /apply/invite/[token]
+ * Auth:   Public — access by application-invite token (application_tokens); no session
+ * Data:   application_tokens (+ applications, listings), getRecentCompletedCheck (service client)
+ * Notes:  Server component. Shows an expiry screen once the token's expires_at passes; offers
+ *         free 30-day report reuse when a recent completed check exists for the applicant email.
  */
 import Link from "next/link"
 import { notFound } from "next/navigation"

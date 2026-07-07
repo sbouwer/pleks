@@ -1,11 +1,9 @@
 /**
- * app/api/inspection/[id]/offline-data/route.ts — FILL: one-line purpose
+ * app/api/inspection/[id]/offline-data/route.ts — bundle an inspection's data for offline mobile use
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/inspection/[id]/offline-data
+ * Auth:   gateway() (auth + org scope)
+ * Data:   reads inspections, tenant_view, inspection_rooms + inspection_items (all org-scoped)
  */
 import { NextRequest, NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"

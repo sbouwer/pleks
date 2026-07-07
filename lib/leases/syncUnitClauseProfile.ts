@@ -1,11 +1,8 @@
 /**
- * lib/leases/syncUnitClauseProfile.ts — FILL: one-line purpose
+ * lib/leases/syncUnitClauseProfile.ts — sync unit_clause_defaults from a unit's features: auto-enable mapped clauses, remove stale auto entries
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads/writes unit_clause_defaults (org-scoped); supabase client passed in by caller.
+ * Notes:  only auto_set=true rows are managed here — manual overrides (auto_set=false) are never touched.
  */
 import { getAutoClausesForFeatures } from "./featureClauseMap"
 import type { SupabaseClient } from "@supabase/supabase-js"

@@ -1,11 +1,7 @@
 /**
- * lib/import/bankImport.ts — FILL: one-line purpose
+ * lib/import/bankImport.ts — bank-account import helpers: branch-code normalisation, SHA-256 hashing, and masking
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  hash/mask keep raw account numbers out of storage and UI; branch code extracted from "(NNNNNN)" wrappers.
  */
 import { createHash } from "node:crypto"
 

@@ -1,11 +1,9 @@
 /**
- * app/api/maintenance/[id]/note/route.ts — FILL: one-line purpose
+ * app/api/maintenance/[id]/note/route.ts — add an internal note to a maintenance request
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/maintenance/[id]/note
+ * Auth:   auth.getUser() + user_orgs membership lookup (service client)
+ * Data:   inserts audit_log (action 'NOTE') against maintenance_requests
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"

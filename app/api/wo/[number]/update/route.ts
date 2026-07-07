@@ -1,11 +1,10 @@
 /**
- * app/api/wo/[number]/update/route.ts — FILL: one-line purpose
+ * app/api/wo/[number]/update/route.ts — contractor advances a work-order's status via the portal
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/wo/[number]/update
+ * Auth:   token — body requestId's work_order_token must equal the supplied token
+ * Data:   updates maintenance_requests.status; inserts contractor_updates
+ * Notes:  identity comes from body requestId+token — the [number] URL segment is not used; transitions gated by VALID_CONTRACTOR_TRANSITIONS
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"

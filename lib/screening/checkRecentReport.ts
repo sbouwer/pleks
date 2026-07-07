@@ -1,11 +1,8 @@
 /**
- * lib/screening/checkRecentReport.ts — FILL: one-line purpose
+ * lib/screening/checkRecentReport.ts — find an applicant's most recent completed screening check within a window, so it can be reused instead of re-run
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads applications (complete searchworx check, fitscore not null, within N days) with listing/unit/property joins, keyed by applicant_email; service client.
+ * Notes:  "no recent check" is the common case — returned as null via maybeSingle(), not an error.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { subDays } from "date-fns"

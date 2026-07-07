@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(admin)/admin/orgs/[orgId]/lease-clauses/AdminClauseEditor.tsx — FILL: one-line purpose
+ * app/(admin)/admin/orgs/[orgId]/lease-clauses/AdminClauseEditor.tsx — per-org lease-clause custom-wording editor
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Client sub-component. POSTs/DELETEs /api/admin/org-clause to override or reset a
+ *         clause's standard body_template with org-specific custom wording.
  */
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"

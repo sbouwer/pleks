@@ -1,11 +1,7 @@
 /**
- * lib/finance/sarsCategories.ts — FILL: one-line purpose
+ * lib/finance/sarsCategories.ts — SARS rental expense category map + provisional-tax threshold constants
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  pure constants (no DB, no gate) — sarsSection "B" = deductible expenses, "D" = capital
  */
 export const SARS_EXPENSE_CATEGORIES = {
   bond_interest: { sarsSection: "B", label: "Bond interest", deductible: true, isCapital: false },

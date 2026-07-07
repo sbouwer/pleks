@@ -1,11 +1,7 @@
 /**
- * lib/leases/parseClauseBody.ts — FILL: one-line purpose
+ * lib/leases/parseClauseBody.ts — parse a clause body template into hierarchically numbered ClauseNodes and build the {{self:N}} lookup
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  a first-line intro (ending " –") is unnumbered and its children use the top-level counter (8.1, 8.2); intros within a sequence are themselves numbered and nest (15.3 → 15.3.1); ";" marks siblings, "." closes the block.
  */
 export interface ClauseNode {
   text: string

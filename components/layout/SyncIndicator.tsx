@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/layout/SyncIndicator.tsx — FILL: one-line purpose
+ * components/layout/SyncIndicator.tsx — topbar "Syncing" pill, shown only on mobile once an offline sync runs >10s
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Subscribes to the offline syncEngine; hidden on desktop and for short syncs to avoid flicker.
  */
 import { useEffect, useState } from "react"
 import { isSyncing, syncStartedAt, onSyncStatusChange } from "@/lib/offline/syncEngine"

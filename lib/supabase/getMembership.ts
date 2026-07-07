@@ -1,11 +1,8 @@
 /**
- * lib/supabase/getMembership.ts — FILL: one-line purpose
+ * lib/supabase/getMembership.ts — resolves a user's org membership (role + admin flags) via a caller-supplied service client
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   user_orgs (service client — caller passes it; bypasses RLS)
+ * Notes:  isAdmin is true when role === "owner" OR is_admin. Filters to a single org when orgId is given.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 

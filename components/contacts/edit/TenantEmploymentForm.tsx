@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/contacts/edit/TenantEmploymentForm.tsx — FILL: one-line purpose
+ * components/contacts/edit/TenantEmploymentForm.tsx — client form to edit a tenant's employment and preferred-contact details
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   PATCH /api/tenants, then router.refresh().
  */
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"

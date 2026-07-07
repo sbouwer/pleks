@@ -1,13 +1,7 @@
 "use client"
 
 /**
- * components/ui/select.tsx — FILL: one-line purpose
- *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * components/ui/select.tsx — styled Select dropdown primitives (base-ui) — trigger, popup, items, scroll arrows
  */
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"

@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/tabs/IncomeTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/tabs/IncomeTab.tsx — income collection report: expected/collected/outstanding metrics + per-invoice table
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   GET /api/reports?type=income_collection (via useReportData); CSV export via /api/reports/export
  */
 
 import { useReportData } from "./useReportData"

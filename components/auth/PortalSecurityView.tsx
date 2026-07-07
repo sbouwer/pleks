@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/auth/PortalSecurityView.tsx — FILL: one-line purpose
+ * components/auth/PortalSecurityView.tsx — portal (tenant/landlord/supplier) security page: 2FA, passkeys, and sessions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Picks the role-scoped TOTP enrolment href; composes PasskeyManager and SessionsView (selfOnly).
  */
 
 import Link from "next/link"

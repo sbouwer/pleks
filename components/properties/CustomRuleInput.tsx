@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/properties/CustomRuleInput.tsx — FILL: one-line purpose
+ * components/properties/CustomRuleInput.tsx — free-text input for a custom property rule with optional AI reformatting
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  AI reformat consumes a credit; owners with no tier limit and no purchased credits see a top-up CTA instead. Save is delegated to onSave.
  */
 import { useState } from "react"
 import { Sparkles, Check, X } from "lucide-react"

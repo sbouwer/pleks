@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/leases/LeaseBrandingSection.tsx — FILL: one-line purpose
+ * components/leases/LeaseBrandingSection.tsx — settings section to edit the org's lease branding (logo, display name, accent colour) with a live preview
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   GET/PATCH /api/org/branding; logo upload through the same route. Renders BrandingPreview from the working draft.
  */
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

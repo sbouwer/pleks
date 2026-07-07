@@ -1,13 +1,12 @@
 "use server"
 
 /**
- * app/(tenant)/tenant/account/actions.ts — FILL: one-line purpose
+ * app/(tenant)/tenant/account/actions.ts — tenant portal: update the tenant's own contact details
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenant/account (server actions)
+ * Auth:   getTenantSession() — portal session; writes scoped to session.tenantId + session.orgId (a
+ *         caller-supplied orgId that mismatches the session is rejected).
+ * Data:   tenants, contacts, contact_phones, contact_emails via the service client.
  */
 
 import { createServiceClient } from "@/lib/supabase/server"

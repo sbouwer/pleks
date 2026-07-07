@@ -1,11 +1,7 @@
 /**
- * lib/inspections/roomTemplates.ts — FILL: one-line purpose
+ * lib/inspections/roomTemplates.ts — static residential/commercial room + item templates and condition options for inspections
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Legacy flat fallback template set (used when a unit has no profile/unit_type); the richer path is templateEngine.
  */
 export const RESIDENTIAL_ROOMS = [
   { type: "entrance", label: "Entrance / Hallway" },

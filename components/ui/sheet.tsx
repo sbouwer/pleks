@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/ui/sheet.tsx — FILL: one-line purpose
+ * components/ui/sheet.tsx — slide-out drawer panel (Sheet) built on the base-ui Dialog primitive
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Portals into the themed .pleks-portal wrapper (not document.body) so the sheet tracks the
+ *         resolved light/dark theme; falls back to body on marketing/public surfaces.
  */
 import * as React from "react"
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"

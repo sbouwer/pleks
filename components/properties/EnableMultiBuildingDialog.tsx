@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/properties/EnableMultiBuildingDialog.tsx — FILL: one-line purpose
+ * components/properties/EnableMultiBuildingDialog.tsx — confirmation dialog that switches a property into multi-building mode
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   enableMultiBuilding server action; names the first building on conversion.
  */
 import { useState, useTransition } from "react"
 import { toast } from "sonner"

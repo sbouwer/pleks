@@ -1,11 +1,8 @@
 /**
- * lib/reports/depositRegister.ts — FILL: one-line purpose
+ * lib/reports/depositRegister.ts — builds the Deposit Register (deposits currently held per tenant: principal + accrued interest, with RHA return deadlines)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   aggregates `deposit_transactions` (+ joined leases/units/properties/tenants) for the org; returns DepositRegisterData
+ * Notes:  RHA s5(3) 14-day return-deadline countdown only applies once the lease is ended/terminated
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { DepositRegisterData, DepositRegisterRow, ReportFilters } from "./types"

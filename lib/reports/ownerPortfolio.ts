@@ -1,11 +1,7 @@
 /**
- * lib/reports/ownerPortfolio.ts — FILL: one-line purpose
+ * lib/reports/ownerPortfolio.ts — builds the Owner Portfolio report (gross income, expenses, net-to-owner, and deposits held per owner)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads `owner_statements`, `units`, `landlord_view`, `management_fee_invoices` for the org/period; returns OwnerPortfolioData
  */
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"

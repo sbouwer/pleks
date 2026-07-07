@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/properties/PropertyDocumentsSection.tsx — FILL: one-line purpose
+ * components/properties/PropertyDocumentsSection.tsx — upload / list / delete a property's documents (title deed, CoCs, insurance) with expiry tracking
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   uploadPropertyDocument / deletePropertyDocument / getDocumentSignedUrl server actions; downloads via short-lived signed URLs.
  */
 import { useState, useTransition, useRef } from "react"
 import { uploadPropertyDocument, deletePropertyDocument, getDocumentSignedUrl } from "@/lib/actions/documents"

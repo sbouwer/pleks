@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * components/mobile/MobileInspectionView.tsx — FILL: one-line purpose
+ * components/mobile/MobileInspectionView.tsx — offline-capable mobile inspection: room/item star ratings, photo capture, sign-off
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   Ratings via updateItemCondition, status via updateInspectionStatus, photos POST to /api/inspection/[id]/photo.
+ * Notes:  Offline-first — writes queue to IndexedDB (queueWrite/queuePhoto) and flush on reconnect; photos compressed + EXIF-
+ *         extracted client-side (preparePhoto) before upload per the inspection-photo discipline. Web Speech API typed locally.
  */
 import { useState, useRef, useCallback, useEffect } from "react"
 import Link from "next/link"

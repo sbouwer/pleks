@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/properties/PropertyRulesEditor.tsx — FILL: one-line purpose
+ * components/properties/PropertyRulesEditor.tsx — editor for a property's house rules: template toggles, custom AI-formatted rules, and HOA rules upload
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   Fetches rule templates, active rules and AI credit balance for the property; feature-driven suggestions loaded lazily.
  */
 import { useState, useEffect } from "react"
 import { Plus, GripVertical, Pencil, Trash2, Check, X } from "lucide-react"

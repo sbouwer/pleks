@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/shared/UpgradeCta.tsx — FILL: one-line purpose
+ * components/shared/UpgradeCta.tsx — dismissible upgrade prompt linking to the subscription/plans page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Dismissal is persisted in localStorage under dismissKey with a 30-day expiry; starts hidden on
+ *         both server and client render (visibility set in useEffect) to avoid a hydration mismatch.
  */
 
 import { useState, useEffect } from "react"

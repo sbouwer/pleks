@@ -1,11 +1,7 @@
 /**
- * lib/import/parseGLReport.ts — FILL: one-line purpose
+ * lib/import/parseGLReport.ts — parse a TPN GL report (CSV or XLSX) into per-property blocks of AR + deposit transactions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  property blocks are keyed off the "Name(Owner)" header; rows split into sections on the TPN "Accounts Receivable (Lease)" / "Security Deposit Account (Agent)" account labels.
  */
 import Papa from "papaparse"
 import * as XLSX from "xlsx"

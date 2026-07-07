@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * hooks/useMobileHomeBadges.ts — FILL: one-line purpose
+ * hooks/useMobileHomeBadges.ts — count/total badges for the mobile home screen (properties, arrears, deposits, etc.)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   parallel react-query counts over properties/contacts/inspections/maintenance/arrears/deposit_transactions/payments (client, RLS-scoped)
+ * Notes:  deposits derived as net credits−debits from deposit_transactions (no flat deposits table); collected = payments since the 1st
  */
 import { useQueries } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"

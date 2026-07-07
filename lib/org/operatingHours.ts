@@ -1,11 +1,7 @@
 /**
- * lib/org/operatingHours.ts — FILL: one-line purpose
+ * lib/org/operatingHours.ts — normalises an org's raw office-hours/emergency-contact columns and formats them for display
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Pure logic. Applies default weekday hours and falls back to the org phone for the emergency line.
  */
 export interface OperatingHours {
   weekday: string

@@ -1,11 +1,7 @@
 /**
- * components/marketing/founder/FounderTimeline.tsx — FILL: one-line purpose
+ * components/marketing/founder/FounderTimeline.tsx — lays founder moments left/right along a road path with server-computed geometry
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational. Pin coordinates live in the SVG viewBox space; ROW_H/PIN_Y_OFFSET must stay in sync with founder.module.css.
  */
 import { FounderMoment } from "./FounderMoment"
 import { RoadPath } from "./RoadPath"

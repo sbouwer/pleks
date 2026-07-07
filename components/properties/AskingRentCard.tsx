@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/properties/AskingRentCard.tsx — FILL: one-line purpose
+ * components/properties/AskingRentCard.tsx — card + dialog to view and edit a unit's asking rent
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   updateAskingRent server action; rands entered in the dialog stored as cents.
  */
 import { useState } from "react"
 import { ActionButton } from "@/components/ui/actions"

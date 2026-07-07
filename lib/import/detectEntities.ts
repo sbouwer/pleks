@@ -1,11 +1,5 @@
 /**
- * lib/import/detectEntities.ts — FILL: one-line purpose
- *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * lib/import/detectEntities.ts — detect which entity types (tenant/unit/lease/bank) are present in a set of column-mapping suggestions
  */
 import type { ColumnSuggestion } from "./columnMapper"
 

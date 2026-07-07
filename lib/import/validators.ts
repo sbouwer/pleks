@@ -1,11 +1,7 @@
 /**
- * lib/import/validators.ts — FILL: one-line purpose
+ * lib/import/validators.ts — validate import rows (property/tenant/lease) plus SA ID (Luhn), email, and branch-code helpers
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  validateSAID runs the Luhn check over 13 digits; email validation delegates to the lib/validation/contact SSOT.
  */
 import type { ParsedRow, ParseError } from "./csvParser"
 import { SA_PROVINCES } from "@/lib/constants"

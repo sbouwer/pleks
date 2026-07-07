@@ -1,11 +1,7 @@
 /**
- * lib/deposits/generateSchedulePDF.ts — FILL: one-line purpose
+ * lib/deposits/generateSchedulePDF.ts — builds the printable HTML for a deposit-deduction schedule (tenant-facing return breakdown)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Pure HTML/CSS string builder from a ScheduleData struct — no DB, no PDF engine (caller renders to PDF).
  */
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort } from "@/lib/reports/periods"

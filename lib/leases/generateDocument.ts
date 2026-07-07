@@ -1,11 +1,8 @@
 /**
- * lib/leases/generateDocument.ts — FILL: one-line purpose
+ * lib/leases/generateDocument.ts — generate the lease-agreement DOCX from the clause library + lease variables, upload to storage, and snapshot the enabled clauses
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads leases, organisations, lease_clause_library, lease_clause_selections, org_lease_clause_defaults, lease_co_tenants; writes leases (clause_snapshot/generated_doc_path), audit_log, and the "documents" storage bucket.
+ * Notes:  clause inclusion follows a 4-level priority (per-lease → org custom → org toggle default → library default) gated by clause condition; deposit-interest rate is a signing-date disclosure snapshot only — the accrual engine re-resolves per period; {{self:N}} tokens are resolved later inside buildDocx.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"

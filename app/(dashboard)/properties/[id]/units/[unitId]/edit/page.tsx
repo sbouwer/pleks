@@ -1,11 +1,8 @@
 /**
- * app/(dashboard)/properties/[id]/units/[unitId]/edit/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/units/[unitId]/edit/page.tsx — Redirects legacy unit-edit URL to the unit detail page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/units/[unitId]/edit
+ * Notes:  redirect-only → /properties/[id]/units/[unitId]
  */
 import { redirect } from "next/navigation"
 

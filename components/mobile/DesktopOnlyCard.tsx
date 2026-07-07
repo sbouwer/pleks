@@ -1,13 +1,7 @@
 "use client"
 
 /**
- * components/mobile/DesktopOnlyCard.tsx — FILL: one-line purpose
- *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * components/mobile/DesktopOnlyCard.tsx — placeholder shown on mobile for desktop-only features, with a copy-link action
  */
 import { useState } from "react"
 import { Monitor } from "lucide-react"

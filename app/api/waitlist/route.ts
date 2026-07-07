@@ -1,11 +1,10 @@
 /**
- * app/api/waitlist/route.ts — FILL: one-line purpose
+ * app/api/waitlist/route.ts — public waitlist signup (email + optional role)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/waitlist
+ * Auth:   none — public endpoint
+ * Data:   inserts waitlist (service client)
+ * Notes:  duplicate email (unique-violation 23505) is treated as success ("already on the list")
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"

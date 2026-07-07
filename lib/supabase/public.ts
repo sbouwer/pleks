@@ -1,11 +1,8 @@
 /**
- * lib/supabase/public.ts — FILL: one-line purpose
+ * lib/supabase/public.ts — anon Supabase client + site_content reader for unauthenticated public data
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   site_content (anon publishable key, no session)
+ * Notes:  ONLY for tables with USING(true) SELECT policies. Never use for org-scoped or authenticated data.
  */
 import { createClient } from "@supabase/supabase-js"
 

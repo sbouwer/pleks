@@ -1,11 +1,10 @@
 /**
- * app/(dashboard)/reports/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/page.tsx — reports hub: renders the tier-gated report catalogue
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /reports
+ * Auth:   gatewaySSR() (redirects to /login if unauthenticated)
+ * Data:   properties (org-scoped db) + user_orgs agent list and landlord_view via service client; getOrgTier(orgId)
+ * Notes:  Desktop-only (mobile shows DesktopOnlyCard). Landlord names resolved from landlord_view to avoid a 3-level PostgREST join.
  */
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"

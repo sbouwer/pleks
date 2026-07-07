@@ -1,11 +1,7 @@
 /**
- * lib/reports/exportCSV.ts — FILL: one-line purpose
+ * lib/reports/exportCSV.ts — CSV serialisers for each report type, plus Xero-ready income/expense exports
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  pure formatters — consume already-built report data objects and emit CSV strings; no data access
  */
 import { formatDateShort } from "./periods"
 import type {

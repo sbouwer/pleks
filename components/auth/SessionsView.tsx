@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/auth/SessionsView.tsx — FILL: one-line purpose
+ * components/auth/SessionsView.tsx — user's sign-in activity: active devices + recent auth-event history, with session revoke
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   Client-fetches auth_events + device_fingerprints via the browser Supabase client (RLS-scoped to the user).
+ * Notes:  Revokes sessions via POST /api/auth/revoke-session; `embedded` drops the standalone-page chrome for tab use.
  */
 
 import { useState, useEffect } from "react"

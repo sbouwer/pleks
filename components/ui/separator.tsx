@@ -1,13 +1,7 @@
 "use client"
 
 /**
- * components/ui/separator.tsx — FILL: one-line purpose
- *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * components/ui/separator.tsx — thin horizontal/vertical divider line (base-ui Separator)
  */
 import { Separator as SeparatorPrimitive } from "@base-ui/react/separator"
 

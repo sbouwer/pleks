@@ -1,11 +1,8 @@
 /**
- * lib/leases/generateSampleDocument.ts — FILL: one-line purpose
+ * lib/leases/generateSampleDocument.ts — generate a watermarked sample lease DOCX with placeholder data for org clause preview
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads lease_clause_library + org_lease_clause_defaults; writes the "documents" storage bucket (no lease row touched).
+ * Notes:  reuses buildDocx from generateDocument with watermark=true and placeholder variables — same clause-priority logic minus per-lease selections.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildDocx } from "@/lib/leases/generateDocument"

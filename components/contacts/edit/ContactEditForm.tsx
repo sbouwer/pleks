@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/contacts/edit/ContactEditForm.tsx — FILL: one-line purpose
+ * components/contacts/edit/ContactEditForm.tsx — client form to edit a contact's phone numbers and email addresses
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   Persists via the entity's API route (landlords/tenants/contractors), then router.refresh().
  */
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"

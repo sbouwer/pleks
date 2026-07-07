@@ -1,11 +1,8 @@
 /**
- * lib/dashboard/leaseExpiry.ts — FILL: one-line purpose
+ * lib/dashboard/leaseExpiry.ts — list leases expiring within 12 months for the dashboard, with term progress + CPA-renewal flags
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads leases (active/notice/month_to_month, end_date ≤ +12mo) with unit/property/tenant joins, org-scoped; capped at 8, soonest first.
+ * Notes:  cpaDue flags CPA leases inside 60 days of expiry with no auto-renewal notice yet sent.
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"

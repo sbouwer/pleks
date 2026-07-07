@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/ui/FormSelect.tsx — FILL: one-line purpose
+ * components/ui/FormSelect.tsx — drop-in styled replacement for native <select>, wrapping the Select primitive
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Supports both uncontrolled (name + defaultValue, FormData-compatible) and controlled (value + onValueChange) usage.
  */
 import { cn } from "@/lib/utils"
 import {

@@ -1,11 +1,8 @@
 /**
- * lib/auth/roles.ts — FILL: one-line purpose
+ * lib/auth/roles.ts — resolves a user's role memberships across agent, tenant, and landlord scopes for the role switcher
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   user_orgs, user_orgs_tenants, landlords, organisations (via service client)
+ * Notes:  Server-side only (service client). Empty array = zero-role state → redirect to /onboarding.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 

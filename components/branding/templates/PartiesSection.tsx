@@ -1,11 +1,7 @@
 /**
- * components/branding/templates/PartiesSection.tsx — FILL: one-line purpose
+ * components/branding/templates/PartiesSection.tsx — shared lessor/agent/lessee party-details block for cover templates
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Two-column label/value grid so all four cover styles share identical party layout; only the outer wrapper differs.
  */
 import type { CoverParties } from "./types"
 

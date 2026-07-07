@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * app/(applicant)/apply/invite/[token]/status/page.tsx — FILL: one-line purpose
+ * app/(applicant)/apply/invite/[token]/status/page.tsx — live application/screening status tracker
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /apply/invite/[token]/status
+ * Auth:   Public — invite token resolves the application; no session
+ * Data:   application_tokens, applications (browser supabase client + realtime channel)
+ * Notes:  Client page. Subscribes to postgres_changes on the applications row to advance the
+ *         step tracker live as stage2_status / fee_status change.
  */
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"

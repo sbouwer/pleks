@@ -1,11 +1,7 @@
 /**
- * components/properties/PropertyMetrics.tsx — FILL: one-line purpose
+ * components/properties/PropertyMetrics.tsx — KPI tiles for a property/unit (rent, lease time remaining, this-month invoice status)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational. Derives labels (lease remaining, this-month collection) from passed-in lease/invoice data.
  */
 import { formatZARAbbrev } from "@/lib/constants"
 import { cn } from "@/lib/utils"

@@ -1,11 +1,8 @@
 /**
- * lib/deposits/balance.ts — FILL: one-line purpose
+ * lib/deposits/balance.ts — derives deposit balance, amount paid, and accrued interest for a lease from its transactions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   deposit_transactions (via service client)
+ * Notes:  Balance = sum of credits minus debits. Caller is responsible for org scoping.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"

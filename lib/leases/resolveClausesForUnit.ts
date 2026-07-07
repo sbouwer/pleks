@@ -1,11 +1,8 @@
 /**
- * lib/leases/resolveClausesForUnit.ts — FILL: one-line purpose
+ * lib/leases/resolveClausesForUnit.ts — resolve the effective clause state for a unit via the library → org-default → unit-override inheritance chain
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads lease_clause_library, org_lease_clause_defaults, unit_clause_defaults; supabase client passed in by caller.
+ * Notes:  required clauses are always enabled and cannot be overridden; each row reports which level won via `source`.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
