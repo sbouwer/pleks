@@ -102,25 +102,33 @@ export async function GET(req: NextRequest) {
       const dueDate = new Date(today)
       dueDate.setDate(dueDate.getDate() + 7)
 
-      await supabase.from("levy_invoices").insert({
-        org_id: hoa.org_id,
-        hoa_id: hoa.id,
-        unit_id: owner.unit_id,
-        owner_id: owner.id,
-        schedule_id: schedule.id,
-        invoice_number: `LEV-${seq}`,
-        invoice_date: today.toISOString().split("T")[0],
-        due_date: dueDate.toISOString().split("T")[0],
-        period_month: periodMonth.toISOString(),
-        admin_levy_cents: adminLevy,
-        reserve_levy_cents: reserveLevy,
-        arrears_cents: arrears,
-        total_cents: invoiceTotal,
-        balance_cents: invoiceTotal,
-        status: "open",
-      })
+      // Upsert with ON CONFLICT DO NOTHING on the unique (owner_id, period_month) index — a concurrent run that
+      // already created this owner's levy for the period is a no-op (no double-levy), and the race loser gets no
+      // row back so it isn't counted. The existence check above is now just a fast path. (double-post fix 2026-07-07.)
+      const { data: levyInserted, error: levyInsertError } = await supabase
+        .from("levy_invoices")
+        .upsert({
+          org_id: hoa.org_id,
+          hoa_id: hoa.id,
+          unit_id: owner.unit_id,
+          owner_id: owner.id,
+          schedule_id: schedule.id,
+          invoice_number: `LEV-${seq}`,
+          invoice_date: today.toISOString().split("T")[0],
+          due_date: dueDate.toISOString().split("T")[0],
+          period_month: periodMonth.toISOString(),
+          admin_levy_cents: adminLevy,
+          reserve_levy_cents: reserveLevy,
+          arrears_cents: arrears,
+          total_cents: invoiceTotal,
+          balance_cents: invoiceTotal,
+          status: "open",
+        }, { onConflict: "owner_id,period_month", ignoreDuplicates: true })
+        .select("id")
+        .maybeSingle()
+      logErr("levy-generate levy_invoices insert failed", levyInsertError)
 
-      generated++
+      if (levyInserted) generated++
     }
   }
 
