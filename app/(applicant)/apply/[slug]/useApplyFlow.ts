@@ -838,7 +838,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       let detection: string | null = null
       try {
         const res = await fetch(`/api/applications/${applicationId}/detect-document`, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, docKey: categoryKey }),
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, docKey: categoryKey, token }),
         })
         if (res.ok) {
           detection = ((await res.json()) as { summary?: string }).summary ?? null
