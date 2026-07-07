@@ -253,11 +253,13 @@ async function prepareWorkOrderSent(
   db: GatewayDb,
   userId: string,
   requestId: string,
+  orgId: string,
 ): Promise<{ extraUpdates: Record<string, unknown>; toastMessage: string } | { error: string }> {
   const { data: req, error: fetchErr } = await db
     .from("maintenance_requests")
     .select("contractor_id, work_order_number, work_order_token, org_id, title, urgency, unit_id, units(unit_number, properties(name))")
     .eq("id", requestId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
 
   if (fetchErr || !req) return { error: "Could not load maintenance request." }
@@ -365,7 +367,7 @@ export async function updateMaintenanceStatus(
   notes?: string
 ): Promise<{ success: true; toast?: string } | { error: string }> {
   const gw = await requireAgentWriteAccess("assign_maintenance")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const updates: Record<string, unknown> = { status: newStatus }
   let toastMessage: string | undefined
@@ -388,7 +390,7 @@ export async function updateMaintenanceStatus(
   }
 
   if (newStatus === "work_order_sent") {
-    const result = await prepareWorkOrderSent(db, userId, requestId)
+    const result = await prepareWorkOrderSent(db, userId, requestId, orgId)
     if ("error" in result) return result
     Object.assign(updates, result.extraUpdates)
     toastMessage = result.toastMessage
@@ -398,6 +400,7 @@ export async function updateMaintenanceStatus(
     .from("maintenance_requests")
     .update(updates)
     .eq("id", requestId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
 
   if (error) return { error: error.message }
 
@@ -405,6 +408,7 @@ export async function updateMaintenanceStatus(
     .from("maintenance_requests")
     .select("org_id")
     .eq("id", requestId)
+    .eq("org_id", orgId)
     .single()
 
   if (reqError) console.error("maintenance_requests read failed:", reqError.message)
@@ -450,13 +454,15 @@ export async function fetchTenantForUnit(
 ): Promise<{ tenant: { id: string; name: string; phone: string | null } | null; leaseId: string | null }> {
   const gw = await gateway()
   if (!gw) return { tenant: null, leaseId: null }
-  const { db } = gw
+  const { db, orgId } = gw
   const TENANT_STATUSES = ["draft", "pending_signing", "active", "notice", "month_to_month"]
 
+  // Org-scope guard (caller-ID census): a foreign unitId reaches no lease/tenant of another org.
   const { data: lease, error: leaseError } = await db
     .from("leases")
     .select("id, tenant_id")
     .eq("unit_id", unitId)
+    .eq("org_id", orgId)
     .in("status", TENANT_STATUSES)
     .order("start_date", { ascending: false })
     .limit(1)
@@ -468,6 +474,7 @@ export async function fetchTenantForUnit(
       .from("tenant_view")
       .select("first_name, last_name, phone")
       .eq("id", lease.tenant_id)
+      .eq("org_id", orgId)
       .maybeSingle()
     if (tvError) console.error("fetchTenantForUnit tenant_view (lease) read failed:", tvError.message)
     const name = `${tv?.first_name ?? ""} ${tv?.last_name ?? ""}`.trim()
@@ -482,6 +489,7 @@ export async function fetchTenantForUnit(
       .from("tenant_view")
       .select("first_name, last_name, phone")
       .eq("id", prospectiveTenantId)
+      .eq("org_id", orgId)
       .maybeSingle()
     if (tvError) console.error("fetchTenantForUnit tenant_view (prospective) read failed:", tvError.message)
     if (tv) {
@@ -497,11 +505,13 @@ export async function fetchTenantForUnit(
 export async function fetchPropertyContactsAction(propertyId: string) {
   const gw = await gateway()
   if (!gw) return []
-  const { db } = gw
+  const { db, orgId } = gw
+  // Org-scope guard (caller-ID census): a foreign propertyId returns no contacts.
   const { data: prop, error: propError } = await db
     .from("properties")
     .select("managing_agent_id, landlord_id")
     .eq("id", propertyId)
+    .eq("org_id", orgId)
     .maybeSingle()
   if (propError) console.error("fetchPropertyContactsAction properties read failed:", propError.message)
   if (!prop) return []
@@ -570,12 +580,13 @@ export async function updateMaintenanceRequest(
   updates: EditableFields,
 ): Promise<{ success: true } | { error: string }> {
   const gw = await requireAgentWriteAccess("assign_maintenance")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const { data: existing, error: fetchErr } = await db
     .from("maintenance_requests")
     .select("status, title, description, category_override, urgency_override, access_instructions, special_instructions, contact_name, contact_phone, estimated_cost_cents, scheduled_date, scheduled_time_from, scheduled_time_to, org_id")
     .eq("id", requestId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
 
   if (fetchErr || !existing) return { error: "Request not found" }
@@ -596,7 +607,7 @@ export async function updateMaintenanceRequest(
   }
   if (Object.keys(patch).length === 0) return { success: true }
 
-  const { error } = await db.from("maintenance_requests").update(patch).eq("id", requestId)
+  const { error } = await db.from("maintenance_requests").update(patch).eq("id", requestId).eq("org_id", orgId)
   if (error) return { error: error.message }
 
   await db.from("audit_log").insert({
@@ -732,6 +743,7 @@ export async function cancelMaintenanceRequest(
     .from("maintenance_requests")
     .select("status, work_order_sent_at, contractor_id, tenant_id, logged_by, title, work_order_number, unit_id, org_id")
     .eq("id", requestId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
 
   if (fetchErr || !req) return { error: "Request not found" }
@@ -747,7 +759,7 @@ export async function cancelMaintenanceRequest(
     cancelled_at: now,
     cancelled_by: userId,
     ...(revokeToken ? { work_order_token_revoked_at: now } : {}),
-  }).eq("id", requestId)
+  }).eq("id", requestId).eq("org_id", orgId)
 
   if (updateErr) return { error: updateErr.message }
 
@@ -857,6 +869,7 @@ export async function changeContractor(
     .from("maintenance_requests")
     .select("status, contractor_id, title, work_order_number, unit_id, org_id, work_order_token")
     .eq("id", requestId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
 
   if (fetchErr || !req) return { error: "Request not found" }
@@ -879,7 +892,7 @@ export async function changeContractor(
   const { error: updateErr } = await db.from("maintenance_requests").update({
     contractor_id: newContractorId,
     ...(wasWoSent ? { work_order_token_revoked_at: now, work_order_token: newToken } : {}),
-  }).eq("id", requestId)
+  }).eq("id", requestId).eq("org_id", orgId)
 
   if (updateErr) return { error: updateErr.message }
 
@@ -996,6 +1009,7 @@ export async function revertStatus(
     .from("maintenance_requests")
     .select("status, reviewed_at, work_order_sent_at, org_id")
     .eq("id", requestId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
 
   if (fetchErr || !req) return { error: "Request not found" }
@@ -1016,6 +1030,7 @@ export async function revertStatus(
   const { error } = await db.from("maintenance_requests")
     .update({ status: "pending_review", reviewed_at: null, reviewed_by: null })
     .eq("id", requestId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
 
@@ -1044,6 +1059,7 @@ export async function togglePhotoVisibilityToTenant(
     .from("maintenance_photos")
     .select("id, request_id")
     .eq("id", photoId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
 
   if (fetchErr || !photo) return { error: "Photo not found" }
@@ -1051,6 +1067,7 @@ export async function togglePhotoVisibilityToTenant(
   const { error } = await db.from("maintenance_photos")
     .update({ visible_to_tenant: visible })
     .eq("id", photoId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
 

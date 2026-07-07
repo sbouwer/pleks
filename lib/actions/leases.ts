@@ -167,7 +167,7 @@ async function saveClauseSelections(db: DbClient, formData: FormData, leaseId: s
 
   // HOA supremacy clause — auto-insert (non-removable) for sectional title properties with a managing scheme
   const { data: propMeta, error: propMetaError } = await db
-    .from("properties").select("is_sectional_title, managing_scheme_id").eq("id", propertyId).single()
+    .from("properties").select("is_sectional_title, managing_scheme_id").eq("id", propertyId).eq("org_id", orgId).single() // org-scope guard (caller-ID census)
     logQueryError("saveClauseSelections properties", propMetaError)
   if (propMeta?.is_sectional_title && propMeta.managing_scheme_id) {
     await db.from("lease_clause_selections").upsert({
@@ -301,7 +301,7 @@ export async function createLease(formData: FormData) {
   await db.from("units").update({
     prospective_tenant_id: f.tenantId,
     prospective_co_tenant_ids: coTenantIds,
-  }).eq("id", f.unitId)
+  }).eq("id", f.unitId).eq("org_id", orgId) // org-scope guard (caller-ID census)
 
   await db.from("audit_log").insert({
     org_id: orgId, table_name: "leases", record_id: lease.id, action: "INSERT", changed_by: userId,
@@ -402,9 +402,9 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
     await db.from("units").update({
       prospective_tenant_id: tenantId,
       prospective_co_tenant_ids: co.map((c) => c.tenant_id),
-    }).eq("id", unitId)
+    }).eq("id", unitId).eq("org_id", orgId) // org-scope guard (caller-ID census)
   } else {
-    await db.from("units").update({ prospective_tenant_id: tenantId }).eq("id", unitId)
+    await db.from("units").update({ prospective_tenant_id: tenantId }).eq("id", unitId).eq("org_id", orgId)
   }
 
   // Upload PDF to storage if provided

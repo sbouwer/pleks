@@ -267,12 +267,13 @@ export async function createInspection(formData: FormData) {
 
 export async function updateInspectionStatus(inspectionId: string, newStatus: string) {
   const gw = await requireAgentWriteAccess("sign_off_inspection")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const { data: inspection, error: inspectionError } = await db
     .from("inspections")
     .select("org_id, lease_type, status, inspection_type, unit_id, tenant_id, conducted_date")
     .eq("id", inspectionId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .single()
 
   if (inspectionError) console.error("updateInspectionStatus inspections read failed:", inspectionError.message)
@@ -312,7 +313,7 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
     )
   }
 
-  await db.from("inspections").update(updates).eq("id", inspectionId)
+  await db.from("inspections").update(updates).eq("id", inspectionId).eq("org_id", orgId)
 
   // Pre-listing completion: save the inspector's room list as the unit's profile
   if (newStatus === "completed" && inspection.inspection_type === "pre_listing" && inspection.unit_id) {
@@ -358,12 +359,12 @@ export async function updateItemCondition(
   notes?: string
 ): Promise<{ success: true; error?: never } | { success?: never; error: string }> {
   const gw = await requireAgentWriteAccess("sign_off_inspection")
-  const { db } = gw
+  const { db, orgId } = gw
 
   const { error } = await db.from("inspection_items").update({
     condition,
     condition_notes: notes || null,
-  }).eq("id", itemId)
+  }).eq("id", itemId).eq("org_id", orgId) // org-scope guard (caller-ID census)
 
   if (error) return { error: error.message }
 

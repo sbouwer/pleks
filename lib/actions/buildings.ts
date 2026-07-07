@@ -68,7 +68,8 @@ export async function createBuilding(formData: FormData) {
   if (error) return { error: error.message }
 
   // Mark all buildings on this property as visible (now multi-building)
-  await db.from("buildings").update({ is_visible_in_ui: true }).eq("property_id", propertyId)
+  // org-scope guard (caller-ID census)
+  await db.from("buildings").update({ is_visible_in_ui: true }).eq("property_id", propertyId).eq("org_id", orgId)
 
   revalidatePath(`/properties/${propertyId}`)
   redirect(`/properties/${propertyId}`)
@@ -133,12 +134,14 @@ export async function enableMultiBuilding(
 export async function fetchBuildingsForProperty(propertyId: string) {
   const gw = await gateway()
   if (!gw) return []
-  const { db } = gw
+  const { db, orgId } = gw
 
+  // Org-scope guard (caller-ID census): a foreign propertyId lists no buildings.
   const { data, error: queryError } = await db
     .from("buildings")
     .select("id, name, building_type, maintenance_rhythm, is_primary, is_visible_in_ui")
     .eq("property_id", propertyId)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("is_primary", { ascending: false })
     logQueryError("fetchBuildingsForProperty buildings", queryError)
