@@ -61,10 +61,28 @@ async function applyOrgFieldPatch(
 async function validateRoleChange(
   orgId: string, body: Record<string, unknown>, callerIsAdmin: boolean,
 ): Promise<string | null> {
-  if (!callerIsAdmin || typeof body.role !== "string") return null
-  if (body.role === "owner") return "Ownership transfers via the transfer-ownership flow, not here"
+  if (!callerIsAdmin) return null
+  if (!("role" in body) && !("additional_roles" in body)) return null
   const assignable = await assignableRoleSlugs(orgId)
-  if (!assignable.has(body.role)) return "That role isn't assignable on this plan"
+
+  if (typeof body.role === "string") {
+    if (body.role === "owner") return "Ownership transfers via the transfer-ownership flow, not here"
+    if (!assignable.has(body.role)) return "That role isn't assignable on this plan"
+  }
+
+  // additional_roles was written straight through from the body (ALLOWED_ORG_FIELDS) without validation — an admin
+  // could grant a member any slug (incl. "owner" or a higher-tier role) by editing the array. Validate every entry
+  // against the org's tier-gated assignable set, same as the single role.
+  if ("additional_roles" in body) {
+    const extra = body.additional_roles
+    if (!Array.isArray(extra) || !extra.every((r) => typeof r === "string")) {
+      return "additional_roles must be an array of role slugs"
+    }
+    if (extra.includes("owner")) return "Ownership transfers via the transfer-ownership flow, not here"
+    const invalid = (extra as string[]).find((r) => !assignable.has(r))
+    if (invalid) return `Role '${invalid}' isn't assignable on this plan`
+  }
+
   return null
 }
 

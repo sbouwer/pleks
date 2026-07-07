@@ -46,6 +46,11 @@ const NEVER_LOG = new Set<string>([
 /** Keys MASKED to last-4 (so the audit still says WHICH account, never the full number). */
 const MASK_LAST4 = new Set<string>(["account_number", "iban", "card_number"])
 
+/** Contact-PII key names (email / phone / mobile in any form: applicant_email, sent_to_phone, owner_mobile, …).
+ *  Dropped like NEVER_LOG (RULE #7 — no PII in audit_log values): the audit already references the data subject by
+ *  record_id / entity id, so the raw email/phone adds exposure without accountability value. */
+const CONTACT_PII_KEY = /(^|_)(email|phone|mobile|cell|msisdn)($|_)/i
+
 /** Strip never-log keys and mask account-number-like keys. Shallow — audit payloads are flat. */
 function sanitise(values: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
   if (!values) return null
@@ -54,7 +59,7 @@ function sanitise(values: Record<string, unknown> | null | undefined): Record<st
     if (MASK_LAST4.has(key)) {
       if (typeof val === "string" && val.length >= 4) out[`${key}_masked`] = `••••${val.slice(-4)}`
       else if (val != null) out[`${key}_masked`] = "••••"
-    } else if (NEVER_LOG.has(key)) {
+    } else if (NEVER_LOG.has(key) || CONTACT_PII_KEY.test(key)) {
       // dropped — never written to audit_log
     } else {
       out[key] = val
