@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/tabs/LeaseExpiryTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/tabs/LeaseExpiryTab.tsx — lease expiry report (next 90 days): expiring leases bucketed by window + month-to-month list
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   GET /api/reports?type=lease_expiry (via useReportData)
  */
 import { useReportData } from "./useReportData"
 import { ReportShell, MetricCard } from "./ReportShell"

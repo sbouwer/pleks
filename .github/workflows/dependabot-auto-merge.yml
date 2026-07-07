@@ -1,9 +1,8 @@
-# .github/workflows/dependabot-auto-merge.yml — FILL: one-line purpose
-#
-# FILL: fill in relevant fields and delete unused ones:
-# Trigger: on push / pull_request / schedule / etc.
-# Auth:    secrets or permissions required
-# Notes:   gotchas or non-obvious decisions
+# .github/workflows/dependabot-auto-merge.yml
+# Auto-merges Dependabot minor/patch dependency PRs via squash.
+# Trigger: pull_request_target
+# Auth:    GITHUB_TOKEN (contents: write, pull-requests: write)
+# Notes:   Gated to the dependabot[bot] actor; major bumps skipped (this guard + dependabot.yml config)
 name: Dependabot auto-merge
 
 on: pull_request_target

@@ -1,11 +1,8 @@
 /**
- * lib/tier/pricing.ts — FILL: one-line purpose
+ * lib/tier/pricing.ts — computes a subscription's monthly price in cents, applying the founding-agent discount when active
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Pure logic over TIER_PRICING. Founding-agent price applies only on the Steward tier while unexpired;
+ *         after expiry it falls back to standard tier pricing automatically.
  */
 import { TIER_PRICING, type Tier } from "@/lib/constants"
 

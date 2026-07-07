@@ -1,13 +1,12 @@
 "use server"
 
 /**
- * lib/actions/submitContactForm.ts — FILL: one-line purpose
+ * lib/actions/submitContactForm.ts — public marketing contact form submission
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   none — public/pre-org action; guarded by honeypot + in-memory per-IP rate limit
+ * Data:   inserts contact_leads via service client; sends notification email to Stéan via Resend
+ * Notes:  intentionally bypasses the org-scoped comms pipeline (pre-org); email failure is non-fatal
+ *         (lead is already saved). See the fuller pipeline JSDoc on the function below.
  */
 
 import { createServiceClient } from "@/lib/supabase/server"

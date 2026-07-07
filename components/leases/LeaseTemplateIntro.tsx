@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/leases/LeaseTemplateIntro.tsx — FILL: one-line purpose
+ * components/leases/LeaseTemplateIntro.tsx — dismissible explainer of the three-layer lease-assembly model, with tier-specific copy
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational. CONTENT is keyed by tier (owner/steward/…) to tailor the walkthrough.
  */
 import { X } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"

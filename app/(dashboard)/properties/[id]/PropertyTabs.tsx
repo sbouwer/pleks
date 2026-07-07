@@ -1,11 +1,7 @@
 /**
- * app/(dashboard)/properties/[id]/PropertyTabs.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/PropertyTabs.tsx — Tab navigation for the property detail page (deep-links via ?tab=)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  inserts a "Scheme & compliance" tab when the property has a managing scheme
  */
 import Link from "next/link"
 import { cn } from "@/lib/utils"

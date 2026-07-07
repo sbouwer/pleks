@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/properties/[id]/insurance/edit/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/insurance/edit/page.tsx — Edit property insurance policy + broker details
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/insurance/edit
+ * Auth:   getServerOrgMembership() gate; data via service client
+ * Data:   reads properties, property_brokers, contacts (insurance_broker role) — org-scoped
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"

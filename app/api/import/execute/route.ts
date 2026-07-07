@@ -1,11 +1,10 @@
 /**
- * app/api/import/execute/route.ts — FILL: one-line purpose
+ * app/api/import/execute/route.ts — execute a data import into the caller's org
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/import/execute
+ * Auth:   auth.getUser() + user_orgs membership lookup (service client)
+ * Data:   creates/updates import_sessions; runImport() creates tenants/units/leases/contractors/etc.
+ * Notes:  existing sessions are org-scope-verified before reuse; failures mark the session 'failed'
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"

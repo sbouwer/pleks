@@ -1,11 +1,10 @@
 /**
- * app/api/wo/[number]/quote/route.ts — FILL: one-line purpose
+ * app/api/wo/[number]/quote/route.ts — contractor submits a quote/estimate via the work-order portal
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/wo/[number]/quote
+ * Auth:   token — body requestId's work_order_token must equal the supplied token
+ * Data:   reads maintenance_requests; inserts maintenance_quotes; updates maintenance_requests.quoted_cost_cents
+ * Notes:  identity comes from body requestId+token — the [number] URL segment is not used
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"

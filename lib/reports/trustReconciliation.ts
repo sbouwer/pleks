@@ -1,11 +1,7 @@
 /**
- * lib/reports/trustReconciliation.ts — FILL: one-line purpose
+ * lib/reports/trustReconciliation.ts — builds the Trust Reconciliation report (opening/closing balance with all in-period trust transactions as credit/debit rows)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads `trust_transactions` for the org (in-period rows + prior rows to compute opening balance); returns TrustReconciliationData
  */
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"

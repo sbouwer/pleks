@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/mobile/MobileMaintenanceView.tsx — FILL: one-line purpose
+ * components/mobile/MobileMaintenanceView.tsx — mobile maintenance-request detail with photo capture, notes, assign, status
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   Photos/notes/assign POST to /api/maintenance/[id]/*; status via updateMaintenanceStatus; contractors read from contractor_view.
+ * Notes:  Uses the Web Speech API (typed locally) for voice notes, falling back to a text input when unsupported.
  */
 import { useState, useRef, useCallback } from "react"
 import Link from "next/link"

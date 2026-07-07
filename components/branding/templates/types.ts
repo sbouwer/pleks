@@ -1,11 +1,5 @@
 /**
- * components/branding/templates/types.ts — FILL: one-line purpose
- *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * components/branding/templates/types.ts — shared prop/data types for the lease-document cover templates
  */
 export interface CoverIdentity {
   name: string

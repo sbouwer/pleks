@@ -1,11 +1,7 @@
 /**
- * lib/import/detectExpiredLeases.ts — FILL: one-line purpose
+ * lib/import/detectExpiredLeases.ts — partition import rows into expired vs active leases by end-date
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  blank or unparseable end_date is treated as active (month-to-month) so data is never silently discarded.
  */
 import { normaliseDate } from "./normalise"
 

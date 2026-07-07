@@ -1,11 +1,10 @@
 /**
- * app/(dashboard)/billing/invoices/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/invoices/page.tsx — Supplier invoices list, optionally filtered by contractor
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/invoices  (?contractor=<id> filters to one supplier)
+ * Auth:   gatewaySSR()
+ * Data:   reads supplier_invoices (joined contractor_view, properties), org-scoped
+ * Notes:  row cards link to /payments/invoices/:id (legacy path) while the detail page lives under /billing
  */
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"

@@ -1,11 +1,7 @@
 /**
- * lib/comms/templates/maintenance/critical-incident-scheme.tsx — FILL: one-line purpose
+ * lib/comms/templates/maintenance/critical-incident-scheme.tsx — react-email template notifying a managing scheme / body corporate of a critical incident affecting a scheme property
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  presentational — all content comes from CriticalIncidentSchemeProps; flags possible common-property impact
  */
 import * as React from "react"
 import { Text, Hr } from "@react-email/components"

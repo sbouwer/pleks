@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/contacts/edit/ContractorRatesForm.tsx — FILL: one-line purpose
+ * components/contacts/edit/ContractorRatesForm.tsx — client form to edit a contractor's rates, specialities and heritage approval
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Rates are entered in rands but stored as cents. Heritage specialities are a separate option set.
  */
 
 import { useState, useTransition } from "react"

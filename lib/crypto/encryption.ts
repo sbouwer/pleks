@@ -1,11 +1,8 @@
 /**
- * lib/crypto/encryption.ts — FILL: one-line purpose
+ * lib/crypto/encryption.ts — AES-256-GCM encrypt/decrypt helpers for PII at rest
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Requires ENCRYPTION_KEY (64 hex chars / 32 bytes). Ciphertext format is
+ *         "iv:ciphertext:authtag" (all hex); decrypt() throws on tamper (GCM auth tag mismatch).
  */
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto"
 

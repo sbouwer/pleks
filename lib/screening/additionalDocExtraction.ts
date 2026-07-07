@@ -1,11 +1,7 @@
 /**
- * lib/screening/additionalDocExtraction.ts — FILL: one-line purpose
+ * lib/screening/additionalDocExtraction.ts — AI extraction prompt catalogue for supplementary income/asset documents (savings, investments, pension, trust, rental)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  getExtractionPrompt falls back to the generic other_income prompt for unknown doc types; each prompt pins its own JSON output shape.
  */
 export const ADDITIONAL_DOC_PROMPTS: Record<string, string> = {
   savings_account: `Extract the current balance from this South African bank savings account statement. Return JSON:

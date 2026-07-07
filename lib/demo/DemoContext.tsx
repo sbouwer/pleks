@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * lib/demo/DemoContext.tsx — FILL: one-line purpose
+ * lib/demo/DemoContext.tsx — client React context that serves the static DEMO_DATA set and a "set up your account" demo toast
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Read-only demo mode — no persistence. useDemoData throws outside DemoProvider.
  */
 import { createContext, useContext } from "react"
 import { DEMO_DATA, type DemoData } from "./demoData"

@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/leases/[leaseId]/communications/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/communications/page.tsx — Full communication + document history for one lease
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId]/communications
+ * Auth:   createClient().auth.getUser() gate; data via service client
+ * Data:   reads leases, communication_log, lease_documents (org-scoped)
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"

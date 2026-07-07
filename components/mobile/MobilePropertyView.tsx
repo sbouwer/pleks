@@ -1,11 +1,7 @@
 /**
- * components/mobile/MobilePropertyView.tsx — FILL: one-line purpose
+ * components/mobile/MobilePropertyView.tsx — mobile property detail summary: stats, landlord, units, maintenance
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational — all data is passed in as props by the property detail page.
  */
 import Link from "next/link"
 import { ActionButton } from "@/components/ui/actions"

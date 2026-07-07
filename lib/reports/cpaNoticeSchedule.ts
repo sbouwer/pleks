@@ -1,11 +1,8 @@
 /**
- * lib/reports/cpaNoticeSchedule.ts — FILL: one-line purpose
+ * lib/reports/cpaNoticeSchedule.ts — builds the CPA Section 14 notice schedule (active leases nearing end, with notice-due dates and sent/overdue/pending status)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads `leases` (+ joined tenants/contacts/units/properties) ending within 90 days for the org; returns CpaNoticeScheduleData
+ * Notes:  notice deemed due 28 calendar days (≈20 business days) before lease end
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { toDateStr } from "./periods"

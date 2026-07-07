@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(public)/wo/[workOrderNumber]/ContractorTrackingClient.tsx — FILL: one-line purpose
+ * app/(public)/wo/[workOrderNumber]/ContractorTrackingClient.tsx — contractor work-order tracking, quote & invoice controls
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Client sub-component of the token-gated /wo/[workOrderNumber] page. POSTs to
+ *         /api/wo/[workOrderNumber]/{update,quote,invoice} to advance status and submit quotes/invoices.
  */
 import { useState } from "react"
 import { Button } from "@/components/ui/button"

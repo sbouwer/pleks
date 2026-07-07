@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/settings/team/sessions/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/team/sessions/page.tsx — team sessions admin: view/revoke team members' active sessions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/team/sessions
+ * Auth:   gatewaySSR(); restricted to owner/property_manager (else /403)
+ * Data:   Delegated to TeamSessionsView (scoped by orgId)
  */
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"

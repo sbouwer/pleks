@@ -1,11 +1,9 @@
 /**
- * app/api/consent/lease-disclaimer/route.ts — FILL: one-line purpose
+ * app/api/consent/lease-disclaimer/route.ts — has the current user accepted the lease disclaimer?
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/consent/lease-disclaimer
+ * Auth:   delegated to hasAcceptedLeaseDisclaimer() (resolves the current session)
+ * Data:   consent lookup via lib/leases/disclaimer
  */
 import { NextResponse } from "next/server"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"

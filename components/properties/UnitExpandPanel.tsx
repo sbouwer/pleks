@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/properties/UnitExpandPanel.tsx — FILL: one-line purpose
+ * components/properties/UnitExpandPanel.tsx — expandable unit detail panel: type-aware fields, feature toggles, rent/deposit, with archive/listing actions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Visible fields derived from getVisibleFields(propertyType); archive can be hidden via hideArchive (owner view).
  */
 import Link from "next/link"
 import { formatZAR } from "@/lib/constants"

@@ -1,11 +1,7 @@
 /**
- * lib/import/tpnParser.ts — FILL: one-line purpose
+ * lib/import/tpnParser.ts — convert TPN RentBook export rows to Pleks import field names (splits full name, rand→cents, DD/MM/YYYY→ISO)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  unmapped columns pass through under their snake_cased key.
  */
 import type { ParsedRow } from "./csvParser"
 

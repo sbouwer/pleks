@@ -1,11 +1,5 @@
 /**
- * lib/import/detectCoTenants.ts — FILL: one-line purpose
- *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * lib/import/detectCoTenants.ts — split a TPN import row into primary + co-tenant when an ampersand name or dual email/phone is present
  */
 export interface CoTenantSplit {
   primary: { first_name: string; last_name: string; email: string; phone: string; id_number: string }

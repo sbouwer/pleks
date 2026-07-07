@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(demo)/demo/leases/page.tsx — FILL: one-line purpose
+ * app/(demo)/demo/leases/page.tsx — demo leases list with CPA renewal-notice tracking
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /demo/leases
+ * Notes:  demo/sample surface — reads in-memory sample data from DemoContext (useDemoData); actions fire a toast
  */
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"

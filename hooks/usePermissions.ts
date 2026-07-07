@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * hooks/usePermissions.ts — FILL: one-line purpose
+ * hooks/usePermissions.ts — resolves the current user's owner/admin flags for the active org
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   user_orgs.role + is_admin for the authed user (client, RLS-scoped)
+ * Notes:  owner implies admin; no membership (onboarding) returns null rather than erroring
  */
 import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"

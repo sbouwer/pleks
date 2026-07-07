@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/tabs/useReportData.ts — FILL: one-line purpose
+ * app/(dashboard)/reports/tabs/useReportData.ts — client hook: fetches a report's JSON and returns { data, loading, error }
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   GET /api/reports?type=<reportType> with period/property filters
+ * Notes:  propertyIds serialised to a string key for a stable effect dependency; cancels stale fetches on unmount/refetch.
  */
 import { useState, useEffect } from "react"
 import type { ReportPeriodType } from "@/lib/reports/types"

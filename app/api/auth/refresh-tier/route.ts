@@ -1,11 +1,10 @@
 /**
- * app/api/auth/refresh-tier/route.ts — FILL: one-line purpose
+ * app/api/auth/refresh-tier/route.ts — rewrite the pleks_org cookie with the current DB tier
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/auth/refresh-tier
+ * Auth:   auth.getUser() (cookie client)
+ * Data:   reads user_orgs + subscriptions (service client); rewrites the pleks_org cookie
+ * Notes:  call after a successful upgrade (PayFast return) so the new tier shows without re-login
  */
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"

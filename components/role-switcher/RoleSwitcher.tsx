@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/role-switcher/RoleSwitcher.tsx — FILL: one-line purpose
+ * components/role-switcher/RoleSwitcher.tsx — dropdown to switch between the user's role/workspace memberships
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   /api/auth/available-roles for memberships; POST /api/switch-role to change active role
+ * Notes:  hidden when the user has ≤1 role; switching hard-navigates to reload session cookies
  */
 
 import { useEffect, useRef, useState } from "react"

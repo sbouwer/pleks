@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/properties/AddUnitDialog.tsx — FILL: one-line purpose
+ * components/properties/AddUnitDialog.tsx — slide-over form to add a unit to a property (fields adapt to property/unit type)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   createUnitData server action; visible fields derived from getVisibleFields(propertyType).
  */
 import { useState, useTransition } from "react"
 import { toast } from "sonner"

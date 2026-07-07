@@ -1,11 +1,8 @@
 /**
- * lib/reports/portfolioSummary.ts — FILL: one-line purpose
+ * lib/reports/portfolioSummary.ts — builds the Portfolio Summary report (occupancy, income/collection, arrears aging, maintenance, lease expiry, action flags, optional prior-period comparison)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   parallel reads of units, rent_invoices, payments, arrears_cases, maintenance_requests, leases, unit_status_history for the org/period; returns PortfolioSummaryData
+ * Notes:  vacant-since is derived from unit_status_history (not a units column); period comparison re-queries the equal-length preceding period
  */
 import { computePreviousPeriod, toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"

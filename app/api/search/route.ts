@@ -1,11 +1,10 @@
 /**
- * app/api/search/route.ts — FILL: one-line purpose
+ * app/api/search/route.ts — global command-bar search across the caller's org
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/search?q=
+ * Auth:   auth.getUser() + user_orgs membership lookup (service client)
+ * Data:   reads properties, tenant_view, maintenance_requests, rent_invoices (all .eq org_id)
+ * Notes:  requires q length >= 2; returns up to 5 matches per entity type
  */
 import { NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"

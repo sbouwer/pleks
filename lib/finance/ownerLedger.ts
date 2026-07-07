@@ -1,11 +1,8 @@
 /**
- * lib/finance/ownerLedger.ts — FILL: one-line purpose
+ * lib/finance/ownerLedger.ts — builds a landlord's owner-statement ledger (entries + property names/counts)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads properties + owner_statements, org-scoped; optional from/to/propertyId filters
+ * Notes:  read-only helper — caller passes an already-gated db client + orgId
  */
 import { createServiceClient } from "@/lib/supabase/server"
 

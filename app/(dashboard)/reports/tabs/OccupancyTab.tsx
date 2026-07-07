@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/tabs/OccupancyTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/tabs/OccupancyTab.tsx — occupancy report: per-property occupancy rates + vacancy duration table
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   GET /api/reports?type=occupancy (via useReportData); CSV export via /api/reports/export
  */
 import { useReportData } from "./useReportData"
 import { ReportShell, MetricCard } from "./ReportShell"

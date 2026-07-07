@@ -1,11 +1,7 @@
 /**
- * lib/leases/tenantDisplay.ts — FILL: one-line purpose
+ * lib/leases/tenantDisplay.ts — build primary + co-tenant display names/initials and a combined lease display string
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  organisation entities render as company_name; display text collapses to "A & B" for one co-tenant and "A +N" for more.
  */
 interface PersonInput {
   id: string

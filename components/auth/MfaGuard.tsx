@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/auth/MfaGuard.tsx — FILL: one-line purpose
+ * components/auth/MfaGuard.tsx — client-side guard that redirects agent-role users lacking AAL2 to /login/mfa
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Reads AAL via browser Supabase; only enforces for AGENT_ROLES, exempting security/login/onboarding paths.
+ * Notes:  Renders null (side-effect only). Belt-and-braces on top of the proxy.ts AAL2 gate for the agent workspace.
  */
 
 import { useEffect } from "react"

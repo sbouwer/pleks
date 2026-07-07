@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/steps/StepUniversal.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/new/steps/StepUniversal.tsx — New-property wizard step: managing scheme, unit hints, and utilities (WiFi/signal/backup power)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  bedroom pick encodes both unit type and count; some scheme types are pre-selected from the scenario
  */
 
 import { useState, useEffect } from "react"

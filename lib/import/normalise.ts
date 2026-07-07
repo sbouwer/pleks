@@ -1,11 +1,7 @@
 /**
- * lib/import/normalise.ts — FILL: one-line purpose
+ * lib/import/normalise.ts — normalise import date strings to ISO (YYYY-MM-DD) and currency strings to integer cents
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  accepts DD/MM/YYYY, DD-MM-YYYY, and YYYY-MM-DD dates; returns null on anything it cannot parse.
  */
 const ISO_DATE_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})$/
 const DMY_DATE_RE = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/

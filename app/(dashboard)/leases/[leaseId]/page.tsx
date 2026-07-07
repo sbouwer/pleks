@@ -1,11 +1,10 @@
 /**
- * app/(dashboard)/leases/[leaseId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/page.tsx — Tabbed lease detail page (overview, details, contacts, operations, finance, communications)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId]
+ * Auth:   createClient().auth.getUser() gate; data via service client
+ * Data:   reads leases, tenant_view, units/properties, lease_co_tenants, payments, rent_invoices, arrears_cases, landlord_view, inspections, maintenance_requests + more
+ * Notes:  active tab from ?tab=; finance/communications tab data fetched only when that tab is active
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"

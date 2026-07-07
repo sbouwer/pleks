@@ -1,11 +1,10 @@
 /**
- * app/api/billing/[paymentId]/receipt/route.ts — FILL: one-line purpose
+ * app/api/billing/[paymentId]/receipt/route.ts — render a printable HTML payment receipt
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/billing/[paymentId]/receipt
+ * Auth:   auth.getUser() (cookie client) — any authenticated user
+ * Data:   reads payments, organisations, tenant_view, rent_invoices, leases (service client)
+ * Notes:  returns HTML (not JSON); payment is looked up by id only — not scoped to the caller's org
  */
 import { NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"

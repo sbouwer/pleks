@@ -1,11 +1,7 @@
 /**
- * lib/reports/vatSummary.ts — FILL: one-line purpose
+ * lib/reports/vatSummary.ts — builds the VAT Summary report (output VAT from management fees vs input VAT from supplier invoices, and net position)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads `owner_statements` (output VAT) and `supplier_invoices` (input VAT) for the org/period; returns VatSummaryData
  */
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"

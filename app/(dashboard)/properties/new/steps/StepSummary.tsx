@@ -1,13 +1,7 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/steps/StepSummary.tsx — FILL: one-line purpose
- *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * app/(dashboard)/properties/new/steps/StepSummary.tsx — New-property wizard final step: setup-completeness checklist before save
  */
 import { Check, Circle } from "lucide-react"
 import { useWizard } from "../WizardContext"

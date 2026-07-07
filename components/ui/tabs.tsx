@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/ui/tabs.tsx — FILL: one-line purpose
+ * components/ui/tabs.tsx — segmented Tabs primitive (base-ui) with default and underline "line" variants
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  shadcn-style segmented tabs; /settings/** must use DetailTabs instead (enforced by pleks/settings-use-detail-tabs).
  */
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs"
 import { cva, type VariantProps } from "class-variance-authority"

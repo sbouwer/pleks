@@ -1,13 +1,11 @@
 "use server"
 
 /**
- * lib/actions/consent.ts — FILL: one-line purpose
+ * lib/actions/consent.ts — records lease-template disclaimer + tenant messaging consent
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   recordLeaseDisclaimerAcceptance → requireAgentWriteAccess("create_lease");
+ *         saveLeaseConsent → none of its own (service client; validated-caller of gated createLease)
+ * Data:   writes consent_log (idempotent per version) and tenant_messaging_consent (upsert on tenant_id)
  */
 import { headers } from "next/headers"
 import { requireAgentWriteAccess } from "@/lib/auth/server"

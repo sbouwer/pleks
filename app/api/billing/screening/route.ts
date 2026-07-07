@@ -1,11 +1,10 @@
 /**
- * app/api/billing/screening/route.ts — FILL: one-line purpose
+ * app/api/billing/screening/route.ts — build a PayFast form for the applicant screening fee
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/billing/screening
+ * Auth:   token — body token must be an unexpired 'shortlist_invite' application_tokens row
+ * Data:   reads application_tokens, applications, listings; updates applications fee fields
+ * Notes:  joint applications charge JOINT_APPLICATION_FEE_CENTS, else APPLICATION_FEE_CENTS
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"

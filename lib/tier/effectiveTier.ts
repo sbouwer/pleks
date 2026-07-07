@@ -1,11 +1,8 @@
 /**
- * lib/tier/effectiveTier.ts — FILL: one-line purpose
+ * lib/tier/effectiveTier.ts — resolves a subscription's effective tier, honouring an unexpired unconverted trial
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Pure logic — client-safe (no server imports), shared by getOrgTier.ts (server) and useTier.ts (client).
+ *         An active trial returns trial_tier; otherwise the paid tier, defaulting to "owner".
  */
 import type { Tier } from "@/lib/constants"
 

@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/tabs/TenantDirectoryTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/tabs/TenantDirectoryTab.tsx — tenant directory: active tenants + co-tenants with contact and lease details
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   GET /api/reports?type=tenant_directory (via useReportData); CSV/PDF export via /api/reports/export
  */
 import { useReportData } from "./useReportData"
 import { ReportShell, MetricCard } from "./ReportShell"

@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(admin)/admin/orgs/[orgId]/AdminOrgActions.tsx — FILL: one-line purpose
+ * app/(admin)/admin/orgs/[orgId]/AdminOrgActions.tsx — admin controls for an org's tier and trial state
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Client sub-component. Calls the adminOrgActions.server actions to activate a
+ *         founding agent, start a 14-day trial, or change the subscription tier.
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"

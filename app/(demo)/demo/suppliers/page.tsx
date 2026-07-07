@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(demo)/demo/suppliers/page.tsx — FILL: one-line purpose
+ * app/(demo)/demo/suppliers/page.tsx — demo suppliers/contractors directory with trade + rating
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /demo/suppliers
+ * Notes:  demo/sample surface — reads in-memory sample data from DemoContext (useDemoData); actions fire a toast
  */
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"

@@ -1,11 +1,9 @@
 /**
- * app/api/admin/orgs/[orgId]/custom-template/route.ts — FILL: one-line purpose
+ * app/api/admin/orgs/[orgId]/custom-template/route.ts — toggle/set an org's custom lease template
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  PATCH /api/admin/orgs/[orgId]/custom-template
+ * Auth:   isAdminAuthenticated() (admin portal HMAC gate)
+ * Data:   updates organisations.custom_template_active / custom_template_path
  */
 import { NextRequest, NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin/auth"

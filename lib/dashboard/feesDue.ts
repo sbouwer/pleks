@@ -1,11 +1,7 @@
 /**
- * lib/dashboard/feesDue.ts — FILL: one-line purpose
+ * lib/dashboard/feesDue.ts — compute the management-fees-due widget for the current month
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads management_fee_invoices and rent_invoices for the current month, org-scoped; splits fees into collected vs uncollected by the month's rent collection rate.
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
 

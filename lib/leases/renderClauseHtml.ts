@@ -1,11 +1,7 @@
 /**
- * lib/leases/renderClauseHtml.ts — FILL: one-line purpose
+ * lib/leases/renderClauseHtml.ts — render parsed ClauseNodes to an HTML string for the lease clause preview
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  node.text is emitted un-escaped because it may already contain resolved token spans (e.g. <span class="token-ref">); depth drives padding via data-depth.
  */
 import type { ClauseNode } from "./parseClauseBody"
 

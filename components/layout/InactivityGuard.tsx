@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/layout/InactivityGuard.tsx — FILL: one-line purpose
+ * components/layout/InactivityGuard.tsx — auto sign-out after 120 minutes of no user interaction
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Any activity event resets the timer; on timeout POSTs /api/auth/logout and redirects to /login. Renders null.
  */
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"

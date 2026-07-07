@@ -1,11 +1,8 @@
 /**
- * app/(dashboard)/managing-schemes/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/managing-schemes/page.tsx — Redirects legacy /managing-schemes to the suppliers managing-scheme view
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /managing-schemes
+ * Notes:  redirect-only → /suppliers?type=managing_scheme
  */
 import { redirect } from "next/navigation"
 

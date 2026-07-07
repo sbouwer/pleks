@@ -1,11 +1,9 @@
 /**
- * app/(admin)/admin/orgs/[orgId]/lease-clauses/page.tsx — FILL: one-line purpose
+ * app/(admin)/admin/orgs/[orgId]/lease-clauses/page.tsx — admin page to customise an org's lease-clause wording
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin/orgs/[orgId]/lease-clauses
+ * Auth:   requireAdminAuth (admin HMAC token)
+ * Data:   organisations, lease_clause_library, lease_clause_selections (service client)
  */
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"

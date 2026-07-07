@@ -1,11 +1,8 @@
 /**
- * lib/pdf/tenantStatement.ts — FILL: one-line purpose
+ * lib/pdf/tenantStatement.ts — builds the branded HTML for a tenant account-statement PDF
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Pure HTML/CSS string builder from a StatementData struct — no DB, no PDF engine (caller renders to PDF).
+ *         Applies per-org font/accent branding with system-default fallbacks.
  */
 import { formatZAR } from "@/lib/constants"
 import { FONT_STACKS, getFontLink } from "@/lib/reports/reportBranding"

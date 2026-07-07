@@ -1,11 +1,7 @@
 /**
- * lib/screening/depositRecommendation.ts — FILL: one-line purpose
+ * lib/screening/depositRecommendation.ts — recommend a deposit month-multiple from foreign-national status and permit expiry
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  foreign nationals / asylum seekers cannot be negatively listed on TPN, so a larger deposit is the risk mitigation — 3 months for asylum seekers or permits expiring within 12 months, 2 months otherwise.
  */
 import { differenceInMonths } from "date-fns"
 

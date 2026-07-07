@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/shared/DatePickerInput.tsx — FILL: one-line purpose
+ * components/shared/DatePickerInput.tsx — popover calendar date picker with day/month/year navigation (date-fns)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Value is a YYYY-MM-DD string; pass `name` to also emit a hidden input for plain-form submission.
  */
 import { useState, useRef, useEffect } from "react"
 import { ChevronLeft, ChevronRight, CalendarIcon, ChevronsLeft, ChevronsRight } from "lucide-react"

@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/leases/ClauseConfigurator.tsx — FILL: one-line purpose
+ * components/leases/ClauseConfigurator.tsx — interactive selector for enabling/disabling optional lease clauses, with dependency resolution and inline editing
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   Fetches clause library + unit clause profile from /api/leases/*; persists custom bodies via /api/leases/clause-body.
+ * Notes:  applyDependencies cascades depends_on links; required clauses are locked on.
  */
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"

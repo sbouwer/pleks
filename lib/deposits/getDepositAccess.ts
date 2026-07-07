@@ -1,11 +1,8 @@
 /**
- * lib/deposits/getDepositAccess.ts — FILL: one-line purpose
+ * lib/deposits/getDepositAccess.ts — maps org compliance (trust/deposit account + management scope + lease type) to a deposit feature tier
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Pure logic. Encodes the RHA (residential, s5 interest-bearing account) and PPRA (practitioner trust account)
+ *         statutory gating — determines which deposit features unlock vs. are restricted/blocked.
  */
 export type DepositAccess = "full_residential" | "full_commercial" | "restricted" | "blocked"
 

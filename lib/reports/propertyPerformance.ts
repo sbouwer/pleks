@@ -1,11 +1,7 @@
 /**
- * lib/reports/propertyPerformance.ts — FILL: one-line purpose
+ * lib/reports/propertyPerformance.ts — builds the Property Performance report (gross income, total expenses, net, occupancy, and maintenance spend per property)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   parallel reads of owner_statements, units, maintenance_requests for the org/period; returns PropertyPerformanceData
  */
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"

@@ -1,13 +1,12 @@
 "use server"
 
 /**
- * lib/actions/insurance.ts — FILL: one-line purpose
+ * lib/actions/insurance.ts — property insurance policy, owner-verification checklist request, and broker CRUD
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess("edit_property") on every export
+ * Data:   updates properties (insurance fields) + audit_log; reads landlords/contacts/insurance_checklist_items
+ *         to resolve owner email; upserts/deletes property_brokers; delegates to createPropertyInfoRequest
+ * Notes:  property org-ownership is verified before broker delete/upsert to block cross-org wipe/hijack
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"

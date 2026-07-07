@@ -1,11 +1,8 @@
 /**
- * lib/dashboard/trustBalance.ts — FILL: one-line purpose
+ * lib/dashboard/trustBalance.ts — summarise trust-account holdings (net balance, rent undisbursed, deposits, interest, pending fees) for the dashboard
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads trust_transactions, owner_statements, management_fee_invoices, bank_recon_sessions, org-scoped.
+ * Notes:  net balance is credits minus debits over all trust_transactions; deposits/interest broken out by transaction_type.
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
 

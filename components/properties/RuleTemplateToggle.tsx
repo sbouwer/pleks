@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/properties/RuleTemplateToggle.tsx — FILL: one-line purpose
+ * components/properties/RuleTemplateToggle.tsx — expandable enable/disable control for a single rule template, with parameter inputs and live body preview
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational; enable/disable/update are delegated to callbacks. Preview is rendered via renderRuleBody from the current params.
  */
 import { useState } from "react"
 import { ChevronDown, ChevronRight, Check } from "lucide-react"

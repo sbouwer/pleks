@@ -1,11 +1,8 @@
 /**
- * lib/reports/vacancyAnalysis.ts — FILL: one-line purpose
+ * lib/reports/vacancyAnalysis.ts — builds the Vacancy Analysis report (currently vacant units, days vacant, and estimated lost income)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads vacant `units` (+ joined properties) and last ended `leases` (for vacant-since) for the org; returns VacancyAnalysisData
+ * Notes:  vacancy start taken from the most recent ended/terminated lease's end_date; lost income prorated from market_rent_cents
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { VacancyAnalysisData, VacancyRow, ReportFilters } from "./types"

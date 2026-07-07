@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/contacts/ContactCard.tsx — FILL: one-line purpose
+ * components/contacts/ContactCard.tsx — contact summary card with call/email/WhatsApp actions, portal-status and FICA pills
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational. WhatsApp links normalise SA numbers to the 27… wa.me form.
  */
 import { Phone, Mail, MessageCircle, ExternalLink, MapPin } from "lucide-react"
 

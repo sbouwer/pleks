@@ -1,11 +1,7 @@
 /**
- * lib/import/parseFile.ts — FILL: one-line purpose
+ * lib/import/parseFile.ts — parse an uploaded CSV/XLSX import file into headers + string rows (papaparse / xlsx)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  XLSX path auto-detects the header row (first row with ≥3 non-empty cells within the first 10 rows) and reads data below it.
  */
 import Papa from "papaparse"
 import * as XLSX from "xlsx"

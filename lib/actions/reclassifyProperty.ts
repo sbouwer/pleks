@@ -1,13 +1,12 @@
 "use server"
 
 /**
- * lib/actions/reclassifyProperty.ts — FILL: one-line purpose
+ * lib/actions/reclassifyProperty.ts — changes a property's scenario type and rebuilds its profile
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess("edit_property") + in-body isAdmin check (admin-only action)
+ * Data:   reads/updates properties (scenario_type, property_profile) + audit_log; re-evaluates insurance checklist
+ * Notes:  preserves prior universals + scenario answers when rebuilding via buildProfile; checklist
+ *         re-evaluation is non-fatal (logged, not thrown)
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"

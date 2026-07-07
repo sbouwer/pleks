@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(public)/approve/[token]/LandlordApprovalClient.tsx — FILL: one-line purpose
+ * app/(public)/approve/[token]/LandlordApprovalClient.tsx — landlord approve/reject/quote controls for a maintenance request
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Client sub-component of the token-gated /approve/[token] page. POSTs the decision
+ *         (approve | reject | quote_requested) to /api/approve/[token].
  */
 import { useState } from "react"
 import { Button } from "@/components/ui/button"

@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/units/[unitId]/UnitAgentPicker.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/units/[unitId]/UnitAgentPicker.tsx — Dropdown to assign a servicing agent to a unit
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   writes via the assignUnitAgent server action
+ * Notes:  selecting "Inherit from property manager" clears the unit override (null)
  */
 import { useTransition } from "react"
 import {

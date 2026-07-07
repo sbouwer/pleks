@@ -1,11 +1,8 @@
 /**
- * lib/reports/arrearsAging.ts — FILL: one-line purpose
+ * lib/reports/arrearsAging.ts — builds the Arrears Aging report (per-tenant outstanding balances bucketed 0-30 / 31-60 / 61-90 / 90+ days)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads `arrears_cases`, `rent_invoices`, `tenants`/`contacts`, `payments` for the org via the service client; returns ArrearsAgingData
+ * Notes:  aging buckets computed per-invoice off due_date, then summed per tenant
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { ArrearsAgingData, ArrearsAgingRow, ReportFilters } from "./types"

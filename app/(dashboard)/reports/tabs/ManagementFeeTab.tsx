@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/tabs/ManagementFeeTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/tabs/ManagementFeeTab.tsx — management fee summary: fees, VAT and gross totals per property/period
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   GET /api/reports?type=management_fee_summary (via useReportData); CSV/PDF export via /api/reports/export
  */
 import { useReportData } from "./useReportData"
 import { ReportShell, MetricCard } from "./ReportShell"

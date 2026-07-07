@@ -1,11 +1,8 @@
 /**
- * lib/leases/checkPrerequisites.ts — FILL: one-line purpose
+ * lib/leases/checkPrerequisites.ts — evaluate whether a lease is ready to activate (landlord, agent, tenant, terms, deposit, trust account, document, clauses, move-in inspection)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads leases (+ unit/property/tenant_view join), bank_accounts, inspections, lease_clause_selections; supabase client passed in by caller.
+ * Notes:  canProceed is false while any check is a "fail"; move-in inspection is a warning only; clause/document checks skipped for uploaded/external/migrated leases.
  */
 import { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"

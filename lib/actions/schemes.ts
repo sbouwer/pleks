@@ -1,13 +1,10 @@
 "use server"
 
 /**
- * lib/actions/schemes.ts — FILL: one-line purpose
+ * lib/actions/schemes.ts — create / update / unlink a property's managing scheme (HOA / body corporate)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess("edit_property") on every export
+ * Data:   writes managing_schemes + audit_log; links/unlinks via properties.managing_scheme_id
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"

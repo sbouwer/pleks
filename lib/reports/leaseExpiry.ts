@@ -1,11 +1,7 @@
 /**
- * lib/reports/leaseExpiry.ts — FILL: one-line purpose
+ * lib/reports/leaseExpiry.ts — builds the Lease Expiry report (active fixed-term leases bucketed 30/60/90 days to expiry, plus month-to-month)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads `leases` (+ joined units/properties/tenant_view) for the org; returns LeaseExpiryData
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { LeaseExpiryData, LeaseExpiryRow, ReportFilters } from "./types"

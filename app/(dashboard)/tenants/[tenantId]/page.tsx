@@ -1,11 +1,10 @@
 /**
- * app/(dashboard)/tenants/[tenantId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/tenants/[tenantId]/page.tsx — Tenant detail page (identity, current lease, payment status, active maintenance)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenants/[tenantId]
+ * Auth:   createClient().auth.getUser() gate; org membership from user_orgs; data via service client
+ * Data:   reads tenant_view, contacts, contact_phones/emails/addresses, leases (+units/properties), maintenance_requests, arrears_cases (org-scoped)
+ * Notes:  renders separate mobile (MobileTenantView) and desktop (DetailPageLayout) variants
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"

@@ -1,11 +1,9 @@
 /**
- * app/api/cron/purge-import-data/route.ts — FILL: one-line purpose
+ * app/api/cron/purge-import-data/route.ts — POPIA purge of expired import extra data
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/cron/purge-import-data
+ * Auth:   x-cron-secret header must equal CRON_SECRET
+ * Data:   nulls import_sessions.extra_data past extra_data_expires_at; inserts audit_log
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"

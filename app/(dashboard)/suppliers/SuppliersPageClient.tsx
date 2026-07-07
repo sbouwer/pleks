@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(dashboard)/suppliers/SuppliersPageClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/suppliers/SuppliersPageClient.tsx — Tabbed suppliers view (contractors / managing schemes / utilities)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   fetches contractors via the fetchContractorsAction server action (react-query)
+ * Notes:  active tab from ?type=; filters the shared contractor list by supplier_type
  */
 
 import { useQuery } from "@tanstack/react-query"

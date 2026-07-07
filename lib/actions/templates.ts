@@ -1,13 +1,14 @@
 "use server"
 
 /**
- * lib/actions/templates.ts — FILL: one-line purpose
+ * lib/actions/templates.ts — document-template CRUD, system-template customisation, favourites, WhatsApp prefs, custom-lease upload
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess("send_manual_comm") (uploadCustomLease uses "create_lease");
+ *         mutating template ops additionally require the "documents" capability (hasCapability)
+ * Data:   document_templates, user_template_favourites, org_whatsapp_template_preferences, organisations;
+ *         custom leases upload to the "lease-templates" storage bucket
+ * Notes:  customiseSystemTemplate forks a system master into an org-owned editable copy; statutory
+ *         masters are not customisable yet (BUILD_70)
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"

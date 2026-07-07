@@ -1,11 +1,7 @@
 /**
- * lib/reports/contractorPerformance.ts — FILL: one-line purpose
+ * lib/reports/contractorPerformance.ts — builds the Contractor Performance report (jobs assigned/completed, total spend, and delay tallies per contractor)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads `maintenance_requests` (+ joined contractors/contacts) and `maintenance_delay_events` for the org/period; returns ContractorPerformanceData
  */
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"

@@ -1,11 +1,10 @@
 /**
- * app/api/auth/passkeys/list/route.ts — FILL: one-line purpose
+ * app/api/auth/passkeys/list/route.ts — list the current user's passkeys for this host
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/auth/passkeys/list
+ * Auth:   auth.getUser() (cookie client)
+ * Data:   reads user_passkeys (service client) scoped by user_id + rp_id, revoked_at IS NULL
+ * Notes:  rp_id is host-derived (app.pleks.co.za vs localhost) — passkeys are per-host
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 

@@ -1,11 +1,8 @@
 /**
- * lib/import/glImportRunner.ts — FILL: one-line purpose
+ * lib/import/glImportRunner.ts — import parsed TPN GL AR + deposit transactions into the trust ledger as opening balances
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads leases (property/unit resolution, cached) and trust_transactions (dedup); writes trust rows via recordTrustTransaction.
+ * Notes:  dedup uses a ±3-day window on lease_id + amount; GL "invoice" rows are skipped (a receivable, not a trust movement); every row is flagged isOpeningBalance.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { GLPropertyBlock, GLTransaction, GLDepositTransaction } from "./parseGLReport"

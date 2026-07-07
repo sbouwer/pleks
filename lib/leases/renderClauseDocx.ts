@@ -1,11 +1,7 @@
 /**
- * lib/leases/renderClauseDocx.ts — FILL: one-line purpose
+ * lib/leases/renderClauseDocx.ts — render parsed ClauseNodes into DOCX Paragraph objects (justified, depth-indented, explicit numbering)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  docx classes are injected by the caller so the heavy docx import stays lazy; indent is dotLevel × 720 twips capped at depth 3.
  */
 import type { ClauseNode } from "./parseClauseBody"
 

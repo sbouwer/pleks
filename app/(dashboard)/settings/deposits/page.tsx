@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/deposits/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/deposits/page.tsx — finance settings: deposit interest rates (org default + per-property) and bank feeds
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/deposits
+ * Auth:   Client page; auth enforced by the (dashboard) layout/proxy. Org from useOrg().
+ * Data:   prime_rates (latest) + properties read via the browser Supabase client; tier from useOrg().
+ * Notes:  Renders DepositInterestConfig per property and BankFeedSection.
  */
 
 import { useEffect, useState } from "react"

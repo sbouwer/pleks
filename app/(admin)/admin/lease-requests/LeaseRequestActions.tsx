@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(admin)/admin/lease-requests/LeaseRequestActions.tsx — FILL: one-line purpose
+ * app/(admin)/admin/lease-requests/LeaseRequestActions.tsx — status dropdown for a lease-request row
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Client sub-component of the admin lease-requests table. PATCHes
+ *         /api/admin/lease-requests/status to move a request between
+ *         pending/in_progress/approved/rejected, then refreshes the route.
  */
 import { useState } from "react"
 import { toast } from "sonner"

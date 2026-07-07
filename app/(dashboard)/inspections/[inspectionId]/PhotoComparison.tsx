@@ -1,11 +1,8 @@
 /**
- * app/(dashboard)/inspections/[inspectionId]/PhotoComparison.tsx — FILL: one-line purpose
+ * app/(dashboard)/inspections/[inspectionId]/PhotoComparison.tsx — Before/after inspection photo grid pairing move-out photos with their move-in originals
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads inspection_photos + inspection-photos storage bucket (signed URLs) via service client, org-scoped
+ * Notes:  server component; returns null when the inspection has no photos
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"

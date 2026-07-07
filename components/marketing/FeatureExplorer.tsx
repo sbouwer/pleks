@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/marketing/FeatureExplorer.tsx — FILL: one-line purpose
+ * components/marketing/FeatureExplorer.tsx — tabbed marketing browser grouping product features by category
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational. Categories and their feature lists are a static CATEGORIES constant; selected tab is local state.
  */
 
 import { useState } from "react"

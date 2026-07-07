@@ -1,11 +1,7 @@
 /**
- * components/marketing/CostComparison.tsx — FILL: one-line purpose
+ * components/marketing/CostComparison.tsx — marketing section comparing typical-platform per-service fees against what Pleks includes
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational. Fee rows are a static ROWS constant; desktop renders a table, mobile a stacked variant.
  */
 import { Check, X } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"

@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/billing/BillingTabBar.tsx — FILL: one-line purpose
+ * components/billing/BillingTabBar.tsx — sub-navigation tab bar for the /billing section
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Active tab derived from usePathname; Payments matches exactly, other tabs by path prefix.
  */
 
 import Link from "next/link"

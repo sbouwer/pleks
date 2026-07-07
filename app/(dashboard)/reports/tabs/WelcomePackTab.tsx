@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/tabs/WelcomePackTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/tabs/WelcomePackTab.tsx — landlord welcome-pack generator: prompts for a landlord, links to the branded PDF
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   GET /api/reports/welcome-pack?orgId=&landlordId= (does not use useReportData)
+ * Notes:  Requires a landlord filter selection; shows an empty-state prompt until one is chosen.
  */
 import { FileText } from "lucide-react"
 import type { ReportPeriodType } from "@/lib/reports/types"

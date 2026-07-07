@@ -1,11 +1,9 @@
 /**
- * app/api/admin/org-clause/route.ts — FILL: one-line purpose
+ * app/api/admin/org-clause/route.ts — set/clear an org-level custom lease clause body
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST, DELETE /api/admin/org-clause
+ * Auth:   isAdminAuthenticated() (admin portal HMAC gate)
+ * Data:   upserts/deletes lease_clause_selections (lease_id = NULL = org default)
  */
 import { NextRequest, NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin/auth"

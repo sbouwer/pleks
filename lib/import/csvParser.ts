@@ -1,11 +1,7 @@
 /**
- * lib/import/csvParser.ts — FILL: one-line purpose
+ * lib/import/csvParser.ts — minimal quoted-field-aware CSV parser + TPN-format detection for imports
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  headers are normalised to lowercase snake_case; detectTpnFormat matches ≥3 known TPN column names.
  */
 export interface ParsedRow {
   [key: string]: string

@@ -1,13 +1,9 @@
 "use client"
 
 /**
- * components/leases/ClauseEditor.tsx — FILL: one-line purpose
+ * components/leases/ClauseEditor.tsx — inline editor for a lease clause's custom body, highlighting ref/self/var template tokens
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Presentational shell; save/reset are delegated to callbacks. Tokens ({{ref:…}}/{{self:…}}/{{var:…}}) are rendered as styled chips, not raw text.
  */
 import { useState, useRef, useCallback } from "react"
 import { ActionButton } from "@/components/ui/actions"

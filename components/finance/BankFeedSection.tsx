@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/finance/BankFeedSection.tsx — FILL: one-line purpose
+ * components/finance/BankFeedSection.tsx — Yodlee bank-feed connection manager (connect / sync / disconnect)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   reads bank_feed_connections (client, org-scoped); mutations via /api/yodlee/* and /api/bank-feed/* routes
+ * Notes:  Steward tier and above only (R250/account/month); loads the Yodlee FastLink SDK on demand
  */
 
 import { useEffect, useRef, useState } from "react"
