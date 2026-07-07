@@ -88,6 +88,7 @@ export async function acceptInviteNewUser(
 
   const { error: markErr } = await service
     .from("invites")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- token-scoped: invite.id resolves from invites via the unguessable token (validated + unexpired above); the token is the credential
     .update({ accepted_at: new Date().toISOString() })
     .eq("id", invite.id)
 
@@ -133,6 +134,7 @@ export async function acceptInviteExistingUser(
 
   const { error: markErr } = await service
     .from("invites")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- token-scoped: invite.id resolves from invites via the unguessable token (validated + unexpired + email-matched above); the token is the credential
     .update({ accepted_at: new Date().toISOString() })
     .eq("id", invite.id)
 

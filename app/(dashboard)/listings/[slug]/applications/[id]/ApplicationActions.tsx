@@ -101,6 +101,7 @@ export function ApplicationActions({
 
   async function handleConfirmImmigration() {
     const supabase = createClient()
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- client component: browser supabase client (@/lib/supabase/client), RLS-enforced — cross-org blocked by policy, not a service-role write
     await supabase.from("applications").update({
       immigration_compliance_confirmed: true,
       immigration_compliance_confirmed_by: user?.id,

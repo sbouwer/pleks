@@ -240,7 +240,7 @@ export async function createBankImport(formData: FormData): Promise<{
         statement_period_to: result.periodTo ?? null,
         statement_account_number: result.accountNumber ?? null,
         closing_balance_cents: result.closingBalanceCents ?? null,
-      }).eq("id", importId)
+      }).eq("id", importId).eq("org_id", orgId) // org-scope guard (caller-ID census)
     }
   } else if (format === "qif") {
     const result = parseQIF(text)
@@ -252,7 +252,7 @@ export async function createBankImport(formData: FormData): Promise<{
     detectedBank = result.detectedBank
     parseError = result.error
     if (detectedBank && detectedBank !== "unknown") {
-      await db.from("bank_statement_imports").update({ detected_bank: detectedBank }).eq("id", importId)
+      await db.from("bank_statement_imports").update({ detected_bank: detectedBank }).eq("id", importId).eq("org_id", orgId)
     }
   }
 
@@ -260,6 +260,7 @@ export async function createBankImport(formData: FormData): Promise<{
     await db.from("bank_statement_imports")
       .update({ extraction_status: "failed" })
       .eq("id", importId)
+      .eq("org_id", orgId)
     return { error: `Parse error: ${parseError}` }
   }
 
@@ -268,14 +269,14 @@ export async function createBankImport(formData: FormData): Promise<{
   try {
     insertedCount = await insertStatementLines(db, orgId, importId, transactions)
   } catch (err) {
-    await db.from("bank_statement_imports").update({ extraction_status: "failed" }).eq("id", importId)
+    await db.from("bank_statement_imports").update({ extraction_status: "failed" }).eq("id", importId).eq("org_id", orgId)
     return { error: String(err) }
   }
 
   await db.from("bank_statement_imports").update({
     extraction_status: "matching",
     transaction_count: insertedCount,
-  }).eq("id", importId)
+  }).eq("id", importId).eq("org_id", orgId)
 
   // Auto-match
   const matched = await autoMatchLines(db, orgId, importId)
@@ -284,7 +285,7 @@ export async function createBankImport(formData: FormData): Promise<{
     extraction_status: "complete",
     extracted_at: new Date().toISOString(),
     matched_at: new Date().toISOString(),
-  }).eq("id", importId)
+  }).eq("id", importId).eq("org_id", orgId)
 
   revalidatePath("/billing/reconciliation")
   return { success: true, importId, matched, total: insertedCount, source }

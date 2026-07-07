@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
 
   const { error } = await db
     .from("org_lease_clause_defaults")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- upsert keyed on onConflict (org_id,clause_key) with each row's org_id: orgId from gateway() — cannot merge into another org's row
     .upsert(rows, { onConflict: "org_id,clause_key" })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

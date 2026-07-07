@@ -101,6 +101,7 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
       .from("applications")
       .update({ current_screening_run_id: screeningRunId })
       .eq("id", applicationId)
+      .eq("org_id", orgId) // org-scope guard (caller-ID census)
     if (error) console.error("[bundle-runner] current_screening_run_id update failed:", error.message)
   }
 

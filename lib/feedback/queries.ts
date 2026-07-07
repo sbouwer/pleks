@@ -169,6 +169,7 @@ export async function updateFeedbackStatus(
   const service = await createServiceClient()
   const { error } = await service
     .from("feedback_submissions")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: sole caller app/api/feedback/[id]/status/route.ts checks platform-admin OR org-admin (owner/is_admin) membership in the submission's org before calling; feedback status is a cross-org admin surface
     .update({ status, ...(adminNote !== undefined && { admin_note: adminNote }) })
     .eq("id", id)
   if (error) {

@@ -246,6 +246,7 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
       .from("whatsapp_messages")
       .update({ communication_log_id: logRow.id })
       .eq("id", waMsg.id)
+      .eq("org_id", orgId) // org-scope guard (caller-ID census)
 
     if (updateErr) {
       console.error("[sendWhatsApp] communication_log_id update error", updateErr)

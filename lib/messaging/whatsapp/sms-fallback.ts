@@ -53,6 +53,7 @@ export async function sendSmsFallback(
     .from("whatsapp_messages")
     .update({ sms_fallback_sent_at: new Date().toISOString() })
     .eq("id", whatsappMessageId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
 
   if (updateErr) {
     console.error("[sms-fallback] update whatsapp_messages error", updateErr)

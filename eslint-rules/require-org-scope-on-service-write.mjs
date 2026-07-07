@@ -25,9 +25,14 @@ import { fileURLToPath } from "node:url"
 import { dirname, join, relative } from "node:path"
 
 const MUTATIONS = new Set(["update", "upsert"])
-// A function is "org-aware" if its body scopes by org: an `.eq("org_id", …)` filter (validate-then-act
-// or a scoped write elsewhere), or a `row.org_id === / !== orgId` JS ownership compare.
-const ORG_AWARE = /\.(eq|match|filter|or|neq)\(\s*[`'"]org_id[`'"]|org_id\s*(===|!==|==|!=)/
+// Tables with NO org_id column, keyed by a SESSION identity (not a caller-supplied id), so cross-org is
+// impossible: organisations (the row IS the org — self-scoped by the session orgId) and user_profiles
+// (keyed by the auth user id — self-scoped by auth.uid).
+const SELF_SCOPED_TABLES = new Set(["organisations", "user_profiles"])
+// A function is "org-aware" if its body scopes by org: an `.eq("org_id", …)` filter (validate-then-act or
+// a scoped write elsewhere), a `row.org_id === / !== orgId` (or camelCase `orgId`) ownership compare, or a
+// self-org write keyed by the session `.eq("id", orgId)`.
+const ORG_AWARE = /\.(eq|match|filter|or|neq)\(\s*[`'"]org_id[`'"]|\borg_?[iI]d\s*(===|!==|==|!=)|\.eq\(\s*[`'"]id[`'"]\s*,\s*orgId\b/
 
 const BASELINE = new Set(
   JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "require-org-scope-on-service-write.baseline.json"), "utf8")),
@@ -36,27 +41,35 @@ const BASELINE = new Set(
 // The A1 caller-supplied-ID class is an AGENT-SESSION concern only. These surfaces use a DIFFERENT
 // isolation model, so org-scoping doesn't apply and the heuristic would only false-positive:
 //   cron/webhook — process ALL orgs (org from the row/system, no caller-org to cross);
-//   auth — user/session-scoped (user_id, not org); (applicant)/(public)/token — token is the credential;
-//   portals ((tenant)/(landlord)/(supplier)) — portal session; (admin)/api/admin — admin HMAC (cross-org by design).
-const SKIP_PATH = /[/\\](cron|webhooks?)[/\\]|[/\\]api[/\\]auth[/\\]|[/\\]\(auth\)[/\\]|[/\\]\(applicant\)[/\\]|[/\\]\(public\)[/\\]|[/\\]\(tenant\)[/\\]|[/\\]\(landlord\)[/\\]|[/\\]\(supplier\)[/\\]|[/\\]\(admin\)[/\\]|[/\\]api[/\\]admin[/\\]|\[token\]|\[pull_id\]/
+//   auth (api/auth + lib/auth) — user/session-scoped (user_id / auth.uid, not org);
+//   (applicant)/(public)/token + api/{consent,wo,applications} + lib/consent — token/applicant/work-order
+//     token is the credential (application/consent id is bound to the token, not the caller's org);
+//   api/profile — the caller's OWN auth-user profile; portals ((tenant)/(landlord)/(supplier) + lib/portal)
+//     — portal session; (admin)/api/admin — admin HMAC (cross-org by design).
+const SKIP_PATH = /[/\\](cron|webhooks?)[/\\]|[/\\]api[/\\]auth[/\\]|[/\\]lib[/\\]auth[/\\]|[/\\]lib[/\\](portal|consent)[/\\]|[/\\]api[/\\](consent|wo|applications|profile)[/\\]|[/\\]\(auth\)[/\\]|[/\\]\(applicant\)[/\\]|[/\\]\(public\)[/\\]|[/\\]\(tenant\)[/\\]|[/\\]\(landlord\)[/\\]|[/\\]\(supplier\)[/\\]|[/\\]\(admin\)[/\\]|[/\\]api[/\\]admin[/\\]|\[token\]|\[pull_id\]/
 
-/** Walk DOWN a mutation call's object chain to confirm it's a `.from("…")` (a Supabase write). */
-function isSupabaseFromMutation(mutCall) {
+/** Walk DOWN a mutation call's object chain and return the `.from("…")` CallExpression (or null). */
+function fromCallOf(mutCall) {
   let node = mutCall.callee.object
   let depth = 0
   while (node && depth < 60) {
     depth++
     if (node.type === "CallExpression") {
       const callee = node.callee
-      if (callee.type === "MemberExpression" && callee.property.type === "Identifier" && callee.property.name === "from") return true
+      if (callee.type === "MemberExpression" && callee.property.type === "Identifier" && callee.property.name === "from") return node
       node = callee
     } else if (node.type === "MemberExpression") {
       node = node.object
     } else {
-      return false
+      return null
     }
   }
-  return false
+  return null
+}
+
+/** Is `name` a parameter of function `fn`? (injectable-core detection — client passed by the caller). */
+function functionHasParam(fn, name) {
+  return !!fn && fn.params.some((p) => p.type === "Identifier" && p.name === name)
 }
 
 /** Does the filter chain AFTER the mutation carry an `.eq("org_id", …)` (or org_id in .match({...}))? */
@@ -115,9 +128,18 @@ const rule = {
         ) {
           return
         }
-        if (!isSupabaseFromMutation(node)) return
+        const fromCall = fromCallOf(node)
+        if (!fromCall) return
         if (chainHasOrgScope(node)) return
+        // Self-scoped table (organisations has no org_id column — self-scoped by the session orgId).
+        const tableArg = fromCall.arguments[0]
+        if (tableArg?.type === "Literal" && SELF_SCOPED_TABLES.has(tableArg.value)) return
         const fn = enclosingFunction(node)
+        // Injectable core: the Supabase client is a PARAMETER of the enclosing function — the CALLER owns
+        // the org context (the rule governs the ENTRY points that create the client + take caller ids; the
+        // server-action census allowlists these cores the same way). e.g. `async fn(db, orgId, id) {...}`.
+        const client = fromCall.callee.object
+        if (client.type === "Identifier" && functionHasParam(fn, client.name)) return
         // Module-scope write with no enclosing function → can't prove org-awareness; flag.
         const fnText = fn ? sourceCode.getText(fn) : sourceCode.getText()
         if (ORG_AWARE.test(fnText)) return

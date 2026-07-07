@@ -44,6 +44,7 @@ export async function saveSignatureDataUrl(
     .from("user_signatures")
     .update({ is_active: false })
     .eq("user_id", userId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .eq("kind", kind)
     .eq("is_active", true)
 
@@ -97,6 +98,7 @@ export async function saveSignatureFile(formData: FormData, kind: SignatureKind 
     .from("user_signatures")
     .update({ is_active: false })
     .eq("user_id", userId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .eq("kind", kind)
     .eq("is_active", true)
 
@@ -125,12 +127,13 @@ export async function saveSignatureFile(formData: FormData, kind: SignatureKind 
 
 export async function removeSignature(kind: SignatureKind = "signature"): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("save_signature")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const { error } = await db
     .from("user_signatures")
     .update({ is_active: false })
     .eq("user_id", userId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .eq("kind", kind)
     .eq("is_active", true)
 

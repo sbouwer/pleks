@@ -74,6 +74,7 @@ export async function upsertClassificationsFromExtraction(
 
   const { error } = await supabase
     .from("application_bank_statement_classifications")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- cron/system: called by the gated screen path + screening pipeline (server-action-census allowlists this module as internal); orgId is a param carried into each row's org_id, upsert onConflict (application_id,co_applicant_id,payee_signature)
     .upsert(rows, { onConflict: "application_id,co_applicant_id,payee_signature" })
 
   if (error) {
@@ -135,6 +136,7 @@ export async function submitApplicantClassification(
 
   const { error } = await supabase
     .from("application_bank_statement_classifications")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- applicant-token/gated screen path (per file header + server-action-census allowlist): the write is scoped .eq("id", classificationId).eq("application_id", applicationId); the applicant token binds the applicationId upstream, no caller-org exists
     .update({
       applicant_classification: classification,
       applicant_classified_at: new Date().toISOString(),

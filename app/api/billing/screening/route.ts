@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
   const feeCents = isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
 
   // Update fee amount on application
+  // eslint-disable-next-line pleks/require-org-scope-on-service-write -- token-scoped: application.id resolves from application_tokens (validated shortlist_invite token, unexpired) above — the token is the credential, not a caller-supplied org id
   await supabase.from("applications").update({
     fee_amount_cents: feeCents,
     joint_fee_paid: isJoint,
