@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
+import { pathBelongsToApplication } from "@/lib/applications/applicationStoragePath"
 import { createMessage } from "@/lib/ai/client"
 import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
@@ -44,6 +45,14 @@ export async function POST(
 
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 })
+  }
+
+  // BIND the client-supplied path to THIS application's owned storage folder (using the DB org, not the path).
+  // The token gate (#142) proves the caller owns the application, but bankStatementPath was still trusted straight
+  // into the RLS-bypassing download() below — a token holder could pass another org's path and read cross-tenant
+  // files. Reject a foreign/traversal path before any mutation or AI call. (hotfix 2026-07-07.)
+  if (bankStatementPath && !pathBelongsToApplication(application.org_id as string, applicationId, bankStatementPath)) {
+    return NextResponse.json({ error: "Invalid document path" }, { status: 403 })
   }
 
   // Mark as extracting (moved AFTER auth + existence — no unauthenticated state pollution).

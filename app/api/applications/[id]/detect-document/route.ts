@@ -18,6 +18,7 @@ import { isProtectedPdf } from "@/lib/extraction/uploadValidator"
 import { decryptProtectedPdf } from "@/lib/extraction/pdfDecrypt"
 import { registerApplicationDocument } from "@/lib/applications/documentRegistry"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
+import { pathBelongsToApplication } from "@/lib/applications/applicationStoragePath"
 
 function getServiceClient() {
   return createClient(
@@ -51,12 +52,20 @@ export async function POST(req: NextRequest, { params }: Props) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
   }
 
-  // Register in the doc→subject registry (14P 0b). Infer the SUBJECT from the path: applications/{org}/{app}/[co_{id}/]
-  // {file} — a 'co_{id}/' segment means a director's own doc (0b.5), else the primary applicant. orgId = 2nd segment.
-  const segs = body.path.split("/")
-  const orgId = segs[1]
-  const subjectRef = segs[3]?.startsWith("co_") ? segs[3] : "primary"
-  if (orgId) await registerApplicationDocument(service, { orgId, applicationId: id, subjectRef, storagePath: body.path, documentType: body.docKey, uploadedBy: subjectRef === "primary" ? "applicant" : subjectRef })
+  // Resolve the application's REAL org from the DB — NEVER from the client-supplied path — and BIND body.path to
+  // this application's owned storage folder. Without this, a token holder for their own application could pass
+  // another org's path (applications/{victimOrg}/{victimApp}/…) to the RLS-bypassing download() below and read
+  // cross-tenant bank statements / IDs / payslips. (hotfix 2026-07-07 — same body.path-trust class as /documents.)
+  const { data: app, error: appErr } = await service.from("applications").select("org_id").eq("id", id).maybeSingle()
+  const orgId = app?.org_id as string | undefined
+  if (appErr || !orgId || !pathBelongsToApplication(orgId, id, body.path)) {
+    return NextResponse.json({ error: "Invalid document path" }, { status: 403 })
+  }
+
+  // Register in the doc→subject registry (14P 0b). Infer the SUBJECT from the (now-verified-owned) path:
+  // applications/{org}/{app}/[co_{id}/]{file} — a 'co_{id}/' segment means a director's own doc (0b.5), else primary.
+  const subjectRef = body.path.split("/")[3]?.startsWith("co_") ? body.path.split("/")[3] : "primary"
+  await registerApplicationDocument(service, { orgId, applicationId: id, subjectRef, storagePath: body.path, documentType: body.docKey, uploadedBy: subjectRef === "primary" ? "applicant" : subjectRef })
 
   // Download file from storage
   const { data: fileData, error } = await service.storage
