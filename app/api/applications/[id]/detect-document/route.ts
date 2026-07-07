@@ -2,7 +2,8 @@
  * app/api/applications/[id]/detect-document/route.ts — Haiku document type detection
  *
  * Route:  POST /api/applications/[id]/detect-document
- * Auth:   Service role (internal — triggered from document upload flow)
+ * Auth:   applicant token bound to THIS application id (lead application_tokens OR co access_token),
+ *         validated before any registry write / download / AI call. Was previously ungated.
  * Data:   application-docs storage bucket; Anthropic API via lib/ai/client.ts
  * Notes:  Images only — PDFs fall through to key-based classification.
  *         Triggers bank statement extraction when bank_statement detected.
@@ -16,6 +17,7 @@ import { createMessage } from "@/lib/ai/client"
 import { isProtectedPdf } from "@/lib/extraction/uploadValidator"
 import { decryptProtectedPdf } from "@/lib/extraction/pdfDecrypt"
 import { registerApplicationDocument } from "@/lib/applications/documentRegistry"
+import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 
 function getServiceClient() {
   return createClient(
@@ -40,8 +42,14 @@ interface Props { params: Promise<{ id: string }> }
 
 export async function POST(req: NextRequest, { params }: Props) {
   const { id } = await params
-  const body = await req.json() as { path: string; docKey: string }
+  const body = await req.json() as { path: string; docKey: string; token?: string }
   const service = getServiceClient()
+
+  // Auth: an applicant token bound to THIS application (lead or co). Validate BEFORE any registry write,
+  // file download, or AI call — nothing expensive or state-changing runs unauthenticated.
+  if (!(await verifyApplicantToken(service, body.token, id))) {
+    return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
+  }
 
   // Register in the doc→subject registry (14P 0b). Infer the SUBJECT from the path: applications/{org}/{app}/[co_{id}/]
   // {file} — a 'co_{id}/' segment means a director's own doc (0b.5), else the primary applicant. orgId = 2nd segment.
@@ -92,7 +100,7 @@ export async function POST(req: NextRequest, { params }: Props) {
 
       // If bank statement: trigger Sonnet extraction
       if (parsed.document_type === "bank_statement" || body.docKey === "bank_statement") {
-        void triggerBankExtraction(id, body.path)
+        void triggerBankExtraction(id, body.path, body.token)
       }
 
       return NextResponse.json({
@@ -115,12 +123,13 @@ export async function POST(req: NextRequest, { params }: Props) {
   }
 }
 
-async function triggerBankExtraction(applicationId: string, path: string) {
+async function triggerBankExtraction(applicationId: string, path: string, token: string | undefined) {
   try {
+    // Forward the applicant token — /documents re-validates it (token bound to this application).
     await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/applications/${applicationId}/documents`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bankStatementPath: path }),
+      body: JSON.stringify({ bankStatementPath: path, token }),
     })
   } catch { /* non-fatal */ }
 }

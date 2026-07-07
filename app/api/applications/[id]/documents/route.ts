@@ -2,12 +2,16 @@
  * app/api/applications/[id]/documents/route.ts — Bank statement extraction + pre-screen scoring
  *
  * Route:  POST /api/applications/[id]/documents
- * Auth:   Service role (triggered from detect-document or upload flow)
+ * Auth:   applicant token bound to THIS application id (forwarded by the internal detect-document caller);
+ *         validated BEFORE any mutation or AI call. Was previously UNGATED — an unauthenticated caller
+ *         could trigger Sonnet extraction (denial-of-wallet), overwrite prescreen_*, and read the
+ *         affordability signal for any known application id.
  * Data:   applications, listings, application-docs storage; Anthropic API via lib/ai/client.ts
  * Notes:  Sonnet income extraction gated behind ai_full (Portfolio+). Falls back to self-reported income.
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 import { createMessage } from "@/lib/ai/client"
 import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
@@ -21,16 +25,16 @@ export async function POST(
 ) {
   const { id: applicationId } = await params
   const supabase = await createServiceClient()
-  const body = await req.json()
-  const bankStatementPath = body.bankStatementPath as string | undefined
+  const body = await req.json() as { bankStatementPath?: string; token?: string }
+  const bankStatementPath = body.bankStatementPath
 
-  // Mark as extracting
-  await supabase.from("applications").update({
-    stage1_status: "extracting",
-    bank_statement_status: "extracting",
-  }).eq("id", applicationId)
+  // Auth: an applicant token bound to THIS application (forwarded by the internal detect-document caller).
+  // Validate BEFORE any mutation/AI — nothing expensive or state-changing runs unauthenticated.
+  if (!(await verifyApplicantToken(supabase, body.token, applicationId))) {
+    return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
+  }
 
-  // Get application + listing
+  // Get application + listing (existence check BEFORE any mutation/AI).
   const { data: application, error: applicationError } = await supabase
     .from("applications")
     .select("id, org_id, first_name, last_name, gross_monthly_income_cents, employment_type, listing_id, current_rent_cents, current_housing_status")
@@ -41,6 +45,12 @@ export async function POST(
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 })
   }
+
+  // Mark as extracting (moved AFTER auth + existence — no unauthenticated state pollution).
+  await supabase.from("applications").update({
+    stage1_status: "extracting",
+    bank_statement_status: "extracting",
+  }).eq("id", applicationId)
 
   const { data: listing, error: listingError } = await supabase
     .from("listings")
