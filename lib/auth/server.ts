@@ -256,7 +256,7 @@ const ACTION_CAPABILITY: Record<string, string> = {
   // inspections
   sign_off_inspection: "inspections",
   // maintenance (incl. contractors/suppliers)
-  assign_maintenance: "maintenance", accept_quote: "maintenance",
+  assign_maintenance: "maintenance", accept_quote: "maintenance", sign_off_maintenance: "maintenance",
   add_contractor: "maintenance", update_contractor: "maintenance", reactivate_supplier: "maintenance",
   // finance (bank import + reconciliation sign-off; payment/arrears/trust actions are call-site gated)
   create_bank_import: "finance", sign_off_recon: "finance",
