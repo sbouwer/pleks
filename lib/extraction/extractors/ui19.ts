@@ -4,7 +4,7 @@
  * Spec: ADDENDUM_14L §4.6, §4.7
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { UI19_EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractors/ui19"
 import { toMediaBlock } from "../mediaReader"
 import type { Document, UI19Extraction } from "../types"
@@ -44,8 +44,7 @@ export async function extractUI19(doc: Document, aiOpts: AiOpts): Promise<UI19Ex
         system: [{ type: "text", text: UI19_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
           role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [{ type: "text", text: "Extract fields from this UI-19 form." }, mediaBlock] as any,
+          content: [{ type: "text", text: "Extract fields from this UI-19 form." }, mediaBlock] as MessageContent,
         }],
       },
       { orgId: aiOpts.orgId, purpose: "document_extraction", suppressLogging: aiOpts.suppressLogging, harnessMode: aiOpts.harnessMode },

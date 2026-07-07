@@ -25,8 +25,7 @@ export default async function TenantsPage({
 
   await queryClient.prefetchQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchTenants(supabase as any, orgId),
+    queryFn: () => fetchTenants(supabase, orgId),
     staleTime: STALE_TIME.tenants,
   })
 

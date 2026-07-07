@@ -15,8 +15,10 @@
  *         organisations.* principal/sole-prop PII (id_number, date_of_birth, gender, mobile, emergency_*,
  *         addr2_*, lease_* — VERIFIED 2026-06-12 to be the LIVE "Organisation Details" settings feature
  *         (settings/details form + api/org/details ALL_FIELDS allowlist + reportBranding), NOT dead legacy.
- *         They are account-holder PII, not data-subject PII — outside erasure scope, so never anonymised
- *         and NEVER dropped (dropping 42703-breaks the org-details save); carried in the PII baseline);
+ *         They are account-holder PII (the Responsible Party's own identity), not data-subject PII — outside erasure
+ *         scope, so never anonymised and NEVER dropped (dropping 42703-breaks the org-details save). Classified
+ *         ACCOUNTABILITY in the PII ratchet (CD 2026-07-07); the required retention endpoint is an account-closure
+ *         erasure path (tracked follow-up — accountability must not silently become "retained forever", s14));
  *         supplier-subject tables
  *         (deferred from v1 per §7.2 — supplier erasure routes to manual admin, D-14); free-text /
  *         incidental PII (D-16 manual carve-out review, not auto-stripped).
@@ -151,6 +153,11 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
     fields: { recipient_name: null, recipient_email: null } },
   { id: "D.property_info_requests", table: "property_info_requests", keyColumn: "recipient_contact_id", keyFrom: "contactId", appliesTo: ["landlord"],
     fields: { recipient_email: null, recipient_phone: null } },
+  // CD PII-disposition 2026-07-07 (Group C): the recipient MSISDN on an outbound WhatsApp. Strip the IDENTIFIER on a
+  // tenant erasure; the message/comm record itself is retained under s17 (accountability) — purpose-based retention
+  // applies to the event log, not the phone number. NOT NULL → REDACTED.
+  { id: "D.whatsapp_messages", table: "whatsapp_messages", keyColumn: "tenant_id", keyFrom: "tenantId", appliesTo: ["tenant"],
+    fields: { phone_number: REDACTED } },
 
   // ── §7 E — denormalised landlord/owner PII ───────────────────────────────────
   { id: "E.properties", table: "properties", keyColumn: "landlord_id", keyFrom: "landlordId", appliesTo: ["landlord"],

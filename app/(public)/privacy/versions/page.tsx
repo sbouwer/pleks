@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   description: "All historical versions of the Pleks Privacy Notice, preserved as required by POPIA.",
 }
 
+// Build-safe: this static page reads privacy_policy_versions at SSG time. Race it against a timeout so a
+// slow/unreachable DB during `next build` can't hang the homepage-class 60s limit and fail the whole build;
+// revalidate refills the list within the hour once the DB is healthy. (Incident 2026-07-07: Supabase outage.)
+export const revalidate = 3600
+const DB_TIMEOUT_MS = 8000
+
 interface PolicyVersion {
   version: string
   title: string
@@ -28,13 +34,18 @@ interface PolicyVersion {
 }
 
 export default async function PrivacyVersionsPage() {
-  const db = createServiceClient()
-  const { data: versions, error } = await (await db)
-    .from("privacy_policy_versions")
-    .select("version, title, change_type, change_summary, effective_from, superseded_at, is_current")
-    .order("effective_from", { ascending: false })
+  const db = await createServiceClient()
+  const { data: versions, error } = await Promise.race([
+    db
+      .from("privacy_policy_versions")
+      .select("version, title, change_type, change_summary, effective_from, superseded_at, is_current")
+      .order("effective_from", { ascending: false }),
+    new Promise<{ data: null; error: { message: string } }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: { message: `timed out after ${DB_TIMEOUT_MS}ms` } }), DB_TIMEOUT_MS),
+    ),
+  ])
 
-  if (error) console.error("privacy versions:", error.message)
+  if (error) console.error("privacy versions (falling back to empty list):", error.message)
   const rows = (versions ?? []) as PolicyVersion[]
 
   return (
