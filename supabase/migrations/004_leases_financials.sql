@@ -2510,3 +2510,16 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION verify_apply_invoice_payment_atomicity() FROM PUBLIC, anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  SECURITY 2026-07-07: rent_invoices one-per-lease-per-period (kills the double-invoice race)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The invoice-generate cron dedups by (lease_id, period_from) with a SELECT-then-INSERT. Two concurrent runs
+-- (daily-orchestrator overlap or a manual re-trigger racing the schedule) can both pass the existence check and
+-- INSERT — double-invoicing the tenant. A unique index makes it structurally impossible AND lets the cron do
+-- INSERT … ON CONFLICT (lease_id, period_from) DO NOTHING. A PLAIN (non-partial) unique index is used so it can
+-- serve as the ON CONFLICT arbiter; ad-hoc invoices with period_from IS NULL stay unconstrained anyway, because
+-- Postgres treats NULLs as DISTINCT in a unique index (multiple (lease, NULL) rows are allowed). Only the
+-- recurring rent invoices (which always set period_from) are enforced one-per-period.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rent_invoices_lease_period
+  ON rent_invoices(lease_id, period_from);

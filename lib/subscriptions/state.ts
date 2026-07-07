@@ -28,7 +28,7 @@ export interface SubscriptionState {
 export type AgentWriteAction =
   | "create_lease" | "create_property" | "create_tenant" | "create_application"
   | "activate_lease" | "renew_lease" | "terminate_lease"
-  | "sign_off_inspection" | "assign_maintenance" | "accept_quote"
+  | "sign_off_inspection" | "assign_maintenance" | "accept_quote" | "sign_off_maintenance"
   | "send_manual_comm" | "invite_user" | "change_team_role"
   | "edit_lease" | "edit_property" | "edit_tenant"
   | "run_searchworx_check" | "run_ai_clause_draft"

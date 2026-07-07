@@ -37,6 +37,38 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
 }
 
+type TenantViewRow = { first_name: string | null; last_name: string | null; email: string | null; phone: string | null }
+type PropRow = { address_line1: string | null; suburb: string | null; city: string | null }
+type UnitRow = { unit_number: string | null; properties: PropRow | PropRow[] | null }
+
+/** Fire the rent.invoice_issued comm for a freshly-created invoice (no-op if the tenant has no email). Extracted
+ *  from the generation loop so the handler stays under the cognitive-complexity gate. */
+async function notifyInvoiceIssued(a: {
+  tenantView: TenantViewRow | null; prop: PropRow | null; unit: UnitRow | null
+  orgId: string; tenantId: string; leaseId: string; rentAmountCents: number
+  invoiceId: string; invoiceNumber: string; invoiceDate: string; dueDate: string
+  periodFrom: string; periodTo: string; otherChargesCents: number; totalAmountCents: number
+  paymentReference: string; chargesBreakdown: Array<{ type: string; description: string; amount_cents: number }>
+}): Promise<void> {
+  const { tenantView, prop, unit } = a
+  if (!tenantView?.email) return
+  const propertyLabel = prop
+    ? [prop.address_line1, unit?.unit_number ? `Unit ${unit.unit_number}` : null, prop.suburb ?? prop.city].filter(Boolean).join(", ")
+    : "your property"
+  try {
+    await fireInvoiceIssuedComm({
+      orgId: a.orgId, tenantId: a.tenantId, tenantEmail: tenantView.email, tenantPhone: tenantView.phone ?? null,
+      tenantName: [tenantView.first_name, tenantView.last_name].filter(Boolean).join(" ") || "Tenant",
+      propertyLabel, invoiceId: a.invoiceId, invoiceNumber: a.invoiceNumber, invoiceDate: a.invoiceDate,
+      dueDate: a.dueDate, periodFrom: a.periodFrom, periodTo: a.periodTo, rentAmountCents: a.rentAmountCents,
+      otherChargesCents: a.otherChargesCents, totalAmountCents: a.totalAmountCents,
+      paymentReference: a.paymentReference, chargesBreakdown: a.chargesBreakdown,
+    })
+  } catch (err) {
+    console.error("[invoice-generate] comm failed for lease", a.leaseId, err)
+  }
+}
+
 interface ChargeRow {
   lease_id: string
   charge_type: string
@@ -168,9 +200,6 @@ export async function GET(req: Request) {
     const dueDay = Math.min(lease.payment_due_day || 1, 28)
     const dueDate = setDate(today, dueDay).toISOString().split("T")[0]
 
-    type TenantViewRow = { first_name: string | null; last_name: string | null; email: string | null; phone: string | null }
-    type PropRow = { address_line1: string | null; suburb: string | null; city: string | null }
-    type UnitRow = { unit_number: string | null; properties: PropRow | PropRow[] | null }
     const tenantView = lease.tenant_view as unknown as TenantViewRow | null
     const unit = lease.units as unknown as UnitRow | null
     const rawProps = unit?.properties ?? null
@@ -186,7 +215,7 @@ export async function GET(req: Request) {
     }))
     const totalAmountCents = lease.rent_amount_cents + otherChargesCents
 
-    const { data: inserted, error: insertError } = await supabase.from("rent_invoices").insert({
+    const { data: inserted, error: insertError } = await supabase.from("rent_invoices").upsert({
       org_id: lease.org_id,
       lease_id: lease.id,
       unit_id: lease.unit_id,
@@ -203,43 +232,29 @@ export async function GET(req: Request) {
       balance_cents: totalAmountCents,
       payment_reference: paymentReference,
       status: "open",
-    }).select("id").single()
+    }, { onConflict: "lease_id,period_from", ignoreDuplicates: true }).select("id").maybeSingle()
 
     if (insertError) {
       console.error("[invoice-generate] insert failed for lease", lease.id, insertError.message)
       continue
     }
+    if (!inserted) {
+      // Lost the race to a concurrent run: the unique (lease_id, period_from) index turned this into
+      // ON CONFLICT DO NOTHING, so the invoice already exists. Skip so we don't double-notify.
+      // (double-invoice race fix 2026-07-07 — the pre-check SELECT above is now just a fast path.)
+      continue
+    }
 
     generated++
 
-    if (tenantView?.email) {
-      const propertyLabel = prop
-        ? [prop.address_line1, unit?.unit_number ? `Unit ${unit.unit_number}` : null, prop.suburb ?? prop.city].filter(Boolean).join(", ")
-        : "your property"
-      try {
-        await fireInvoiceIssuedComm({
-          orgId:            lease.org_id as string,
-          tenantId:         lease.tenant_id as string,
-          tenantEmail:      tenantView.email,
-          tenantPhone:      tenantView.phone ?? null,
-          tenantName:       [tenantView.first_name, tenantView.last_name].filter(Boolean).join(" ") || "Tenant",
-          propertyLabel,
-          invoiceId:        inserted.id,
-          invoiceNumber,
-          invoiceDate:      today.toISOString().split("T")[0],
-          dueDate,
-          periodFrom,
-          periodTo,
-          rentAmountCents:  lease.rent_amount_cents,
-          otherChargesCents,
-          totalAmountCents,
-          paymentReference,
-          chargesBreakdown,
-        })
-      } catch (err) {
-        console.error("[invoice-generate] comm failed for lease", lease.id, err)
-      }
-    }
+    await notifyInvoiceIssued({
+      tenantView, prop, unit,
+      orgId: lease.org_id as string, tenantId: lease.tenant_id as string, leaseId: lease.id as string,
+      rentAmountCents: lease.rent_amount_cents,
+      invoiceId: inserted.id, invoiceNumber, invoiceDate: today.toISOString().split("T")[0], dueDate,
+      periodFrom, periodTo, otherChargesCents, totalAmountCents, paymentReference,
+      chargesBreakdown,
+    })
   }
 
   if (process.env.HEARTBEAT_INVOICE_GENERATE) {
