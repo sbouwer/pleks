@@ -11,7 +11,9 @@
  *         workmanshipGuaranteeMonths > 0 auto-creates a warranty row (ADDENDUM_60B Step 3).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { recordTrustTransaction } from "@/lib/trust/invariants"
 import * as Sentry from "@sentry/nextjs"
 import * as React from "react"
@@ -240,19 +242,22 @@ async function createWorkmanshipWarranty(
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const service = await createServiceClient()
-  const { data: membership, error: membershipError } = await service
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  // Financial write: posts trust-ledger + tenant lease_charges. Gate like every other financial write —
+  // requireAgentWriteAccess enforces auth + org membership + the maintenance capability + subscription lockdown.
+  // (was bare auth.getUser() + membership: a low-privilege member, or a paused/cancelled org in write-lockdown,
+  // could create tenant charges + trust postings.)
+  let gw: Awaited<ReturnType<typeof requireAgentWriteAccess>>
+  try {
+    gw = await requireAgentWriteAccess("sign_off_maintenance")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const service = gw.db
+  const orgId = gw.orgId
+  const userId = gw.userId
 
   const { requestId, allocations, workmanshipGuaranteeMonths, workmanshipGuaranteeTerms } = await req.json() as {
     requestId: string
@@ -269,7 +274,7 @@ export async function POST(req: NextRequest) {
     .from("maintenance_requests")
     .select("id, org_id, unit_id, property_id, lease_id, actual_cost_cents, status, tenant_id, title, contractor_id")
     .eq("id", requestId)
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .single()
     logQueryError("POST maintenance_requests", requestError)
 
@@ -288,22 +293,22 @@ export async function POST(req: NextRequest) {
       status: "completed",
       completed_at: new Date().toISOString(),
       agent_signoff_at: new Date().toISOString(),
-      agent_signoff_by: user.id,
+      agent_signoff_by: userId,
     })
     .eq("id", requestId)
 
   if (statusError) return NextResponse.json({ error: statusError.message }, { status: 500 })
 
   const { data: created, error: allocError } = await insertAllocations(
-    service, membership.org_id, requestId, user.id, allocations,
+    service, orgId, requestId, userId, allocations,
   )
   if (allocError) return NextResponse.json({ error: allocError.message }, { status: 500 })
 
-  await writeFinancialRecords(service, membership.org_id, requestId, user.id, request, allocations, created ?? [])
+  await writeFinancialRecords(service, orgId, requestId, userId, request, allocations, created ?? [])
 
   // Auto-create workmanship warranty (ADDENDUM_60B)
   const warrantyId = await createWorkmanshipWarranty(
-    service, membership.org_id, requestId, user.id,
+    service, orgId, requestId, userId,
     request as { property_id: string | null; unit_id: string | null; title: string | null; contractor_id: string | null },
     workmanshipGuaranteeMonths ?? 0,
     workmanshipGuaranteeTerms,
@@ -311,11 +316,11 @@ export async function POST(req: NextRequest) {
 
   // Audit
   await service.from("audit_log").insert({
-    org_id: membership.org_id,
+    org_id: orgId,
     table_name: "maintenance_requests",
     record_id: requestId,
     action: "UPDATE",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { status: "completed", allocation_count: allocations.length, warranty_id: warrantyId },
   })
 
@@ -327,8 +332,8 @@ export async function POST(req: NextRequest) {
         requestId,
         request.tenant_id as string,
         request.unit_id as string,
-        membership.org_id,
-        user.id,
+        orgId,
+        userId,
         request.title as string,
       )
     } catch {
