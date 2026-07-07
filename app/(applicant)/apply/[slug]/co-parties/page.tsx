@@ -189,6 +189,7 @@ export default async function CoPartiesPage({
                     coApplicantId={coApp.id}
                     applicationId={applicationId}
                     orgId={line.org_id}
+                    token={token}
                   />
                 </div>
               )}

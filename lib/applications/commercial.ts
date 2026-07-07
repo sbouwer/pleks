@@ -15,6 +15,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { buildDirectorInviteElement } from "@/lib/applications/commercial-emails"
+import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 
 const DIRECTOR_TOKEN_TTL_DAYS = 14
 
@@ -42,8 +43,15 @@ export async function declareDirectors(
   applicationId: string,
   orgId: string,
   directors: DirectorDeclaration[],
+  token: string,
 ): Promise<DeclareDirectorsResult> {
   const service = await createServiceClient()
+
+  // Auth: applicant token bound to this application. Gate-before-wiring — unwired today; when wired to the
+  // commercial flow (Step 1.5), this blocks unauthenticated director declaration for an arbitrary application.
+  if (!(await verifyApplicantToken(service, token, applicationId))) {
+    return { directors: [], invited: 0 }
+  }
 
   const results: DeclareDirectorsResult["directors"] = []
   let invited = 0
@@ -196,8 +204,16 @@ export async function resendDirectorInvite(
   coApplicantId: string,
   applicationId: string,
   orgId: string,
+  token: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const service = await createServiceClient()
+
+  // Auth: the primary applicant's token bound to this application (was ungated — anyone with a valid
+  // (coApplicantId, applicationId) pair could regenerate a director's access_token, invalidating the live
+  // invite link (DoS) and re-firing the invite email).
+  if (!(await verifyApplicantToken(service, token, applicationId))) {
+    return { ok: false, error: "Invalid or expired token" }
+  }
 
   const tokenExpires = new Date(Date.now() + DIRECTOR_TOKEN_TTL_DAYS * 86_400_000).toISOString()
   const newToken = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")
@@ -252,8 +268,14 @@ export async function replaceDirector(
   applicationId: string,
   orgId: string,
   replacement: ReplacementDirector,
+  token: string,
 ): Promise<{ ok: boolean; newCoApplicantId?: string; error?: string }> {
   const service = await createServiceClient()
+
+  // Auth: applicant token bound to this application (gate-before-wiring — unwired today).
+  if (!(await verifyApplicantToken(service, token, applicationId))) {
+    return { ok: false, error: "Invalid or expired token" }
+  }
 
   // Mark old line as declined
   const { error: declineErr } = await service
