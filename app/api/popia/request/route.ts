@@ -11,7 +11,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { createDataSubjectRequest } from "@/lib/popia/requests"
+import { createDataSubjectRequest, listControllersForSubject } from "@/lib/popia/requests"
 import type { RequestType } from "@/lib/popia/requests"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -46,6 +46,14 @@ export async function POST(req: NextRequest) {
 
   if (!org) {
     return NextResponse.json({ error: "Organisation not found" }, { status: 404 })
+  }
+
+  // Bind the request to an org the subject is ACTUALLY linked to (tenant / landlord / supplier / agent) — else any
+  // authenticated user could file DSARs against arbitrary orgs by supplying a valid org_id (inbox spam / nuisance).
+  // listControllersForSubject enumerates exactly the subject's controller relationships.
+  const controllers = await listControllersForSubject(user.id)
+  if (!controllers.some((c) => c.org_id === body.org_id)) {
+    return NextResponse.json({ error: "You are not linked to this organisation" }, { status: 403 })
   }
 
   try {
