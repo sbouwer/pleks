@@ -3797,3 +3797,36 @@ COMMENT ON COLUMN organisations.product_line IS
 ALTER TABLE organisations DROP CONSTRAINT IF EXISTS organisations_type_check;
 ALTER TABLE organisations ADD CONSTRAINT organisations_type_check
   CHECK (type IN ('agency', 'landlord', 'sole_prop', 'hoa_manager'));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  SECURITY 2026-07-07: AI-route rate limiting (denial-of-wallet)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The applicant AI routes (detect-document → Haiku, documents → Sonnet) and the portal maintenance triage had no
+-- rate limit — a holder of a valid applicant token could spam expensive model calls. A fixed-window counter per
+-- (scope, window) makes it cheap + durable across serverless invocations. Pruned to the current window per scope
+-- by bump_ai_rate_limit itself, so the table stays tiny (no cleanup cron needed).
+CREATE TABLE IF NOT EXISTS ai_rate_limits (
+  scope_key    text        NOT NULL,   -- e.g. "detect-document:{application_id}"
+  window_start timestamptz NOT NULL,   -- floor(now) to the window size
+  count        integer     NOT NULL DEFAULT 0,
+  PRIMARY KEY (scope_key, window_start)
+);
+
+-- Atomic increment: bump the (scope, window) counter and return the new count. INSERT … ON CONFLICT DO UPDATE is a
+-- single statement, so concurrent invocations serialise on the row (no lost increments). Also prunes stale windows
+-- for this scope so the table can't grow unbounded.
+CREATE OR REPLACE FUNCTION bump_ai_rate_limit(p_scope_key text, p_window_start timestamptz)
+RETURNS integer LANGUAGE plpgsql AS $BUMP$
+DECLARE v_count integer;
+BEGIN
+  INSERT INTO ai_rate_limits (scope_key, window_start, count)
+  VALUES (p_scope_key, p_window_start, 1)
+  ON CONFLICT (scope_key, window_start) DO UPDATE SET count = ai_rate_limits.count + 1
+  RETURNING count INTO v_count;
+
+  DELETE FROM ai_rate_limits WHERE scope_key = p_scope_key AND window_start < p_window_start;
+  RETURN v_count;
+END $BUMP$;
+
+REVOKE EXECUTE ON FUNCTION bump_ai_rate_limit(text, timestamptz) FROM PUBLIC, anon, authenticated;
+ALTER TABLE ai_rate_limits ENABLE ROW LEVEL SECURITY;   -- service-role only; no policy = deny all client access.

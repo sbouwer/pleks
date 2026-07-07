@@ -19,6 +19,7 @@ import { decryptProtectedPdf } from "@/lib/extraction/pdfDecrypt"
 import { registerApplicationDocument } from "@/lib/applications/documentRegistry"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 import { pathBelongsToApplication } from "@/lib/applications/applicationStoragePath"
+import { checkAiRateLimit } from "@/lib/ai/rateLimit"
 
 function getServiceClient() {
   return createClient(
@@ -60,6 +61,11 @@ export async function POST(req: NextRequest, { params }: Props) {
   const orgId = app?.org_id as string | undefined
   if (appErr || !orgId || !pathBelongsToApplication(orgId, id, body.path)) {
     return NextResponse.json({ error: "Invalid document path" }, { status: 403 })
+  }
+
+  // Rate limit (denial-of-wallet): a token holder could otherwise spam Haiku detections. Cap per application/hour.
+  if (!(await checkAiRateLimit(service, `detect-document:${id}`, 30, 60)).allowed) {
+    return NextResponse.json({ error: "Too many document scans — please wait a moment and try again." }, { status: 429 })
   }
 
   // Register in the doc→subject registry (14P 0b). Infer the SUBJECT from the (now-verified-owned) path:

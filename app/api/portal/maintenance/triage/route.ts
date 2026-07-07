@@ -9,6 +9,8 @@
 import { NextResponse } from "next/server"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createMessage } from "@/lib/ai/client"
+import { createServiceClient } from "@/lib/supabase/server"
+import { checkAiRateLimit } from "@/lib/ai/rateLimit"
 
 export async function POST(req: Request) {
   // Verify tenant session
@@ -20,6 +22,12 @@ export async function POST(req: Request) {
 
   if (!description || description.length < 10) {
     return NextResponse.json({ urgency: null, rationale: null })
+  }
+
+  // Rate limit (denial-of-wallet): cap triage AI calls per tenant per hour.
+  const db = await createServiceClient()
+  if (!(await checkAiRateLimit(db, `triage:${session.tenantId}`, 30, 60)).allowed) {
+    return NextResponse.json({ error: "Too many requests — please wait a moment and try again." }, { status: 429 })
   }
 
   try {
