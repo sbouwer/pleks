@@ -224,30 +224,38 @@ function setsEqual(a, b) {
 function getMigrationCheckValues(constraintName, migrations) {
   const nameLower = constraintName.toLowerCase()
   for (const mig of migrations) {
-    const lower = mig.searchable  // already lowercased + comments stripped
-    const idx = lower.indexOf(nameLower)
-    if (idx === -1) continue
+    // Search + extract BOTH against mig.content (indices must reference the same string — using the
+    // comment-stripped `searchable` for the index but slicing `content` for the body mislocates the CHECK
+    // by the stripped-comment length, landing on an unrelated constraint). Iterate every occurrence: the
+    // DROP CONSTRAINT site yields no quoted values (or the wrong CHECK) and is skipped; the ADD CONSTRAINT
+    // site carries the enum. Start the "check" search AFTER the name so its own `_check` suffix isn't matched.
+    const contentLower = mig.content.toLowerCase()
+    let from = 0
+    for (;;) {
+      const idx = contentLower.indexOf(nameLower, from)
+      if (idx === -1) break
+      const afterName = idx + nameLower.length
+      from = afterName
 
-    // Find the opening paren of CHECK ( after the constraint name, within 512 chars
-    const window = lower.slice(idx, idx + 512)
-    const checkIdx = window.indexOf("check")
-    if (checkIdx === -1) continue
+      const window = contentLower.slice(afterName, afterName + 512)
+      const checkIdx = window.indexOf("check")
+      if (checkIdx === -1) continue
 
-    // Walk forward from the CHECK keyword in the original content to find opening paren
-    let absStart = idx + checkIdx
-    while (absStart < mig.content.length && mig.content[absStart] !== "(") absStart++
-    if (absStart >= mig.content.length) continue
+      let absStart = afterName + checkIdx
+      while (absStart < mig.content.length && mig.content[absStart] !== "(") absStart++
+      if (absStart >= mig.content.length) continue
 
-    // Extract balanced parens
-    let depth = 0
-    let end = absStart
-    for (let i = absStart; i < mig.content.length; i++) {
-      if (mig.content[i] === "(")      depth++
-      else if (mig.content[i] === ")") { depth--; if (depth === 0) { end = i; break } }
+      // Extract balanced parens
+      let depth = 0
+      let end = absStart
+      for (let i = absStart; i < mig.content.length; i++) {
+        if (mig.content[i] === "(")      depth++
+        else if (mig.content[i] === ")") { depth--; if (depth === 0) { end = i; break } }
+      }
+
+      const vals = extractQuotedValues(mig.content.slice(absStart, end + 1))
+      if (vals.size > 0) return vals
     }
-
-    const vals = extractQuotedValues(mig.content.slice(absStart, end + 1))
-    if (vals.size > 0) return vals
   }
   return null
 }

@@ -51,6 +51,13 @@ export interface AiCallUsage {
 }
 
 /**
+ * The `content` field of a message param (string | ContentBlockParam[]), re-exported from the SDK type so callers
+ * (e.g. the extractors, which are ESLint-barred from importing @anthropic-ai/sdk directly) can precisely type a
+ * mixed text+media content array instead of casting through `any`.
+ */
+export type MessageContent = MessageCreateParamsNonStreaming["messages"][number]["content"]
+
+/**
  * Create an Anthropic message and log usage to ai_usage.
  * Returns the raw Message + metrics. Caller parses the content.
  * Re-throws on error after logging the failure — callers handle fallback.

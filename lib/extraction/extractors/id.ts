@@ -5,7 +5,7 @@
  * Spec: ADDENDUM_14L §4.6, §4.7
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { ID_EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractors/id"
 import { toMediaBlock } from "../mediaReader"
 import type { Document, IDExtraction } from "../types"
@@ -46,8 +46,7 @@ export async function extractId(doc: Document, aiOpts: AiOpts): Promise<IDExtrac
         system: [{ type: "text", text: ID_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
           role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [{ type: "text", text: "Extract fields from this identity document." }, mediaBlock] as any,
+          content: [{ type: "text", text: "Extract fields from this identity document." }, mediaBlock] as MessageContent,
         }],
       },
       { orgId: aiOpts.orgId, purpose: "document_extraction", suppressLogging: aiOpts.suppressLogging, harnessMode: aiOpts.harnessMode },

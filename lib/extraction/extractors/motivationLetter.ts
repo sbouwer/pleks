@@ -4,7 +4,7 @@
  * Spec: ADDENDUM_14L §4.6, §4.7
  */
 import { createMessage } from "@/lib/ai/client"
-import type { AiCallOptions } from "@/lib/ai/client"
+import type { AiCallOptions, MessageContent } from "@/lib/ai/client"
 import { MOTIVATION_LETTER_EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractors/motivationLetter"
 import { toMediaBlock } from "../mediaReader"
 import type { Document, MotivationLetterExtraction } from "../types"
@@ -42,8 +42,7 @@ export async function extractMotivationLetter(doc: Document, aiOpts: AiOpts): Pr
         system: [{ type: "text", text: MOTIVATION_LETTER_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages: [{
           role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [{ type: "text", text: "Extract fields from this motivation letter." }, mediaBlock] as any,
+          content: [{ type: "text", text: "Extract fields from this motivation letter." }, mediaBlock] as MessageContent,
         }],
       },
       { orgId: aiOpts.orgId, purpose: "document_extraction", suppressLogging: aiOpts.suppressLogging, harnessMode: aiOpts.harnessMode },
