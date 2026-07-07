@@ -7,6 +7,7 @@
  * Notes:  Always returns 200 to prevent AT retries even on internal errors
  */
 import { NextRequest, NextResponse } from "next/server"
+import { maskPhone } from "@/lib/log/maskPii"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { verifyWebhookSignature, parseWebhookEvent } from "@/lib/messaging/whatsapp/provider"
@@ -197,7 +198,7 @@ async function lookupTenantByPhone(
     return null
   }
   if (!cp) {
-    console.warn("[wa-webhook] no contact found for phone", normalized)
+    console.warn("[wa-webhook] no contact found for phone", maskPhone(normalized))
     return null
   }
 

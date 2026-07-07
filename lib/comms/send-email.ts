@@ -26,6 +26,7 @@ import { canSend, ensurePreferences } from "./preferences"
 import type { OrgBranding } from "./templates/layout"
 export type { OrgBranding } from "./templates/layout"
 import type { ReactElement } from "react"
+import { maskEmail } from "@/lib/log/maskPii"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getResend() {
@@ -306,7 +307,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
     if (result.error) {
       const message = result.error.message ?? "Resend rejected the send"
       logId = await logToDb(service, { ...params, ...auditFields, status: "failed", failedReason: message })
-      console.error(`[sendEmail] Resend rejected ${params.templateKey} to ${params.to.email}:`, message)
+      console.error(`[sendEmail] Resend rejected ${params.templateKey} to ${maskEmail(params.to.email)}:`, message)
       return { success: false, logId, error: message }
     }
 
@@ -332,7 +333,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
       status: "failed",
       failedReason: message,
     })
-    console.error(`[sendEmail] Failed to send ${params.templateKey} to ${params.to.email}:`, message)
+    console.error(`[sendEmail] Failed to send ${params.templateKey} to ${maskEmail(params.to.email)}:`, message)
     return { success: false, logId, error: message }
   }
 }
