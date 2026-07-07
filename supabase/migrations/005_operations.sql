@@ -3104,3 +3104,13 @@ ALTER TABLE applications DROP COLUMN IF EXISTS huru_check_id;
 ALTER TABLE applications DROP COLUMN IF EXISTS huru_check_status;
 ALTER TABLE applications DROP COLUMN IF EXISTS huru_check_completed_at;
 ALTER TABLE applications DROP COLUMN IF EXISTS huru_check_purged_at;
+
+-- -----------------------------------------------------------------------------
+-- Section 44  SECURITY 2026-07-07: levy_invoices one-per-owner-per-period
+-- -----------------------------------------------------------------------------
+-- levy-generate dedups by (owner_id, period_month) with a SELECT-then-INSERT — concurrent runs can double-levy
+-- an HOA owner. A unique index makes it impossible + lets the cron INSERT … ON CONFLICT DO NOTHING. (Same money-
+-- integrity fix as rent_invoices(lease_id, period_from). HOA is post-launch scaffold; the constraint is inert
+-- until levy-generate runs.)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_levy_invoices_owner_period
+  ON levy_invoices(owner_id, period_month);

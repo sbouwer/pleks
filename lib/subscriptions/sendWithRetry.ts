@@ -8,6 +8,7 @@
  *        cron) re-sends T+1h/6h/24h and surrenders after; a surrender surfaces in the daily cron digest.
  */
 import { render } from "@react-email/components"
+import { maskEmail } from "@/lib/log/maskPii"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, type SendEmailParams, type SendEmailResult } from "@/lib/comms/send-email"
 
@@ -109,7 +110,7 @@ export async function drainPlatformEmailRetries(): Promise<{ resent: number; sur
       }).eq("id", row.id)
       // The original failure already hit the daily digest; this records that all retries also failed, so the
       // agency-admin email (e.g. payment-failed) never landed — visible in Vercel logs / Sentry.
-      console.error(`[platform-email] SURRENDERED after ${MAX_ATTEMPTS} attempts — ${row.template_key} to ${row.to_email} (org ${row.org_id}): ${result.error ?? "unknown"}`)
+      console.error(`[platform-email] SURRENDERED after ${MAX_ATTEMPTS} attempts — ${row.template_key} to ${maskEmail(row.to_email)} (org ${row.org_id}): ${result.error ?? "unknown"}`)
       surrendered++
     } else {
       await db.from("platform_email_retries").update({
