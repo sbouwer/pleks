@@ -9,10 +9,25 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { timingSafeEqual } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
+export const runtime = "nodejs"
+
 const AT_USERNAME = process.env.AT_WEBHOOK_USERNAME
+
+/** Constant-time compare of the AT webhook username against the configured secret env (no timing side-channel). */
+function usernameMatches(provided: string | null): boolean {
+  if (!provided || !AT_USERNAME) return false
+  try {
+    const a = Buffer.from(provided)
+    const b = Buffer.from(AT_USERNAME)
+    return a.length === b.length && timingSafeEqual(a, b)
+  } catch {
+    return false
+  }
+}
 
 interface ATDeliveryReport {
   id:         string   // AT message ID
@@ -39,7 +54,7 @@ export async function POST(req: NextRequest) {
   const form = await req.formData()
   const username = form.get("username") as string | null
 
-  if (!AT_USERNAME || username !== AT_USERNAME) {
+  if (!usernameMatches(username)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
