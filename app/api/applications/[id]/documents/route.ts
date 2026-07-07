@@ -13,6 +13,7 @@ import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 import { pathBelongsToApplication } from "@/lib/applications/applicationStoragePath"
+import { checkAiRateLimit } from "@/lib/ai/rateLimit"
 import { createMessage } from "@/lib/ai/client"
 import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
@@ -53,6 +54,12 @@ export async function POST(
   // files. Reject a foreign/traversal path before any mutation or AI call. (hotfix 2026-07-07.)
   if (bankStatementPath && !pathBelongsToApplication(application.org_id as string, applicationId, bankStatementPath)) {
     return NextResponse.json({ error: "Invalid document path" }, { status: 403 })
+  }
+
+  // Rate limit (denial-of-wallet): the Sonnet bank-statement extraction below is the expensive path — cap the
+  // number of extractions per application per hour so a token holder can't run up the AI bill.
+  if (bankStatementPath && !(await checkAiRateLimit(supabase, `doc-extract:${applicationId}`, 15, 60)).allowed) {
+    return NextResponse.json({ error: "Too many extractions — please wait a moment and try again." }, { status: 429 })
   }
 
   // Mark as extracting (moved AFTER auth + existence — no unauthenticated state pollution).
