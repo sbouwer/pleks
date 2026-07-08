@@ -13,6 +13,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { tenantHasInForceLease } from "@/lib/parties/archive"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { idNumberColumns } from "@/lib/crypto/idNumber"
 
 interface TenantPatchBody {
   tenantId: string; contactId: string
@@ -38,7 +39,8 @@ function buildTenantContactUpdate(body: TenantPatchBody): Record<string, unknown
   if (body.phone !== undefined) u.primary_phone = body.phone?.trim() || null
   if (body.notes !== undefined) u.notes = body.notes?.trim() || null
   if (body.nationality !== undefined) u.nationality = body.nationality?.trim() || null
-  if (body.idNumber !== undefined) u.id_number = body.idNumber?.trim() || null
+  // id_number encrypted at rest + hashed for lookup (was raw, and the hash was never written — breaking dedup).
+  if (body.idNumber !== undefined) Object.assign(u, idNumberColumns(body.idNumber))
   if (body.idType !== undefined) u.id_type = body.idType || null
   if (body.dateOfBirth !== undefined) u.date_of_birth = body.dateOfBirth || null
   return u

@@ -14,7 +14,7 @@ import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
 import { checkLeasePrerequisites } from "@/lib/leases/checkPrerequisites"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
-import { decryptNullable } from "@/lib/crypto/encryption"
+import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { BackLink } from "@/components/ui/BackLink"
 import { LeaseTabs } from "./LeaseTabs"
 import { OverviewTab } from "./OverviewTab"
@@ -86,15 +86,11 @@ function buildComplianceItems(
   return items
 }
 
-function maskSAId(encrypted: string | null | undefined): string | null {
-  if (!encrypted) return null
-  try {
-    const plain = decryptNullable(encrypted)
-    if (!plain || plain.length < 6) return null
-    return `${plain.slice(0, 6)} ${plain.slice(6, 7)}** ***`
-  } catch {
-    return null
-  }
+function maskSAId(stored: string | null | undefined): string | null {
+  // Tolerant decrypt (handles both encrypted-at-rest and legacy/plaintext values) then mask.
+  const plain = decryptIdNumber(stored)
+  if (!plain || plain.length < 6) return null
+  return `${plain.slice(0, 6)} ${plain.slice(6, 7)}** ***`
 }
 
 function getIdOrReg(

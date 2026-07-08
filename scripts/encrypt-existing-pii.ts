@@ -1,172 +1,150 @@
 /**
- * Encrypt existing plaintext PII in the database.
- * Run ONCE per environment (dev, then prod).
+ * scripts/encrypt-existing-pii.ts — one-time retrofit: encrypt existing plaintext PII at rest.
  *
- * Usage: npx tsx scripts/encrypt-existing-pii.ts
+ * Run ONCE per environment. SAFE-BY-DEFAULT: dry-run unless BOTH gates are passed.
  *
- * Requires: ENCRYPTION_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
- * in .env.local
+ *   npx tsx scripts/encrypt-existing-pii.ts                 # DRY RUN — reports what it WOULD do, writes nothing
+ *   npx tsx scripts/encrypt-existing-pii.ts --commit --i-have-key-escrow-and-snapshot   # actually writes
+ *
+ * ⚠ This is the highest-risk, IRREVERSIBLE operation in the PII programme — it overwrites plaintext with
+ *   ciphertext. Before --commit (CD ruling 2026-07-07, non-negotiable):
+ *     1. KEY ESCROW FIRST — back up ENCRYPTION_KEY somewhere recoverable. Encrypt-then-lose-the-key = permanent,
+ *        unrecoverable data loss. This is the #1 risk and the reason for the --i-have-key-escrow-and-snapshot gate.
+ *     2. A VERIFIED, TEST-RESTORED DB snapshot taken immediately prior.
+ *     3. Ship the encrypt-aware READ paths FIRST (done in the same PR) so nothing renders ciphertext mid-run.
+ *   The script is idempotent (skips already-ciphertext rows via isEncrypted), round-trip-verifies every row
+ *   before writing, and backfills id_number_hash (from the RAW value, same salt as the app) where a hash column
+ *   exists — so cross-path dedup-by-hash keeps working. Re-runnable safely.
+ *
+ * Requires: ENCRYPTION_KEY, ID_NUMBER_HASH_SALT, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY in .env.local.
  */
 
 import { createClient } from "@supabase/supabase-js"
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto"
 import * as dotenv from "dotenv"
 import * as path from "path"
+// Import the APP's crypto so ciphertext format + the hash salt match exactly (a re-implementation would drift).
+import { encryptIdNumber, decryptIdNumber, hashIdNumber } from "../lib/crypto/idNumber"
+import { isEncrypted } from "../lib/crypto/encryption"
 
-// Load .env.local
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") })
 
-const ALGORITHM = "aes-256-gcm"
-const IV_LENGTH = 12
+const COMMIT = process.argv.includes("--commit")
+const ESCROW_CONFIRMED = process.argv.includes("--i-have-key-escrow-and-snapshot")
+const WRITE = COMMIT && ESCROW_CONFIRMED
 
-function getKey(): Buffer {
-  const keyHex = process.env.ENCRYPTION_KEY
-  if (!keyHex || keyHex.length !== 64) {
-    throw new Error("ENCRYPTION_KEY must be 64 hex chars in .env.local")
-  }
-  return Buffer.from(keyHex, "hex")
-}
-
-function encrypt(plaintext: string): string {
-  const key = getKey()
-  const iv = randomBytes(IV_LENGTH)
-  const cipher = createCipheriv(ALGORITHM, key, iv)
-  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()])
-  const authTag = cipher.getAuthTag()
-  return [iv.toString("hex"), encrypted.toString("hex"), authTag.toString("hex")].join(":")
-}
-
-function decrypt(ciphertext: string): string {
-  const key = getKey()
-  const [ivHex, encryptedHex, authTagHex] = ciphertext.split(":")
-  const iv = Buffer.from(ivHex, "hex")
-  const encrypted = Buffer.from(encryptedHex, "hex")
-  const authTag = Buffer.from(authTagHex, "hex")
-  const decipher = createDecipheriv(ALGORITHM, key, iv)
-  decipher.setAuthTag(authTag)
-  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8")
-}
-
-function isEncrypted(value: string): boolean {
-  const parts = value.split(":")
-  if (parts.length !== 3) return false
-  return parts.every((p) => /^[0-9a-f]+$/.test(p))
-}
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 interface EncryptTask {
   table: string
   column: string
-  idColumn?: string
+  /** When set, backfill this hash column from the RAW value (id_number surfaces). Omit where no hash column exists. */
+  hashColumn?: string
 }
 
+// id_number surfaces first (this build's scope). The bank/passport rows are pre-existing PII-retrofit tasks.
 const TASKS: EncryptTask[] = [
-  { table: "contacts", column: "id_number" },
+  { table: "contacts", column: "id_number", hashColumn: "id_number_hash" },
+  { table: "contacts", column: "contact_id_number", hashColumn: "contact_id_number_hash" }, // company-signatory snapshot
+  { table: "applications", column: "id_number", hashColumn: "id_number_hash" },
+  { table: "application_co_applicants", column: "id_number", hashColumn: "id_number_hash" },
+  { table: "application_directors", column: "id_number", hashColumn: "id_number_hash" },
+  { table: "application_guarantors", column: "id_number" }, // no hash column on this table
+  { table: "organisations", column: "id_number" },          // owner/principal SA ID — no hash column
+  // Pre-existing non-id_number PII retrofit (kept from the original script; separate scope):
   { table: "contractors", column: "bank_account_number" },
   { table: "tenant_bank_accounts", column: "account_number" },
-  { table: "applications", column: "id_number" },
   { table: "applications", column: "passport_number" },
   { table: "applications", column: "permit_number" },
-  { table: "application_co_applicants", column: "id_number" },
-  { table: "application_guarantors", column: "id_number" },
 ]
 
-async function encryptTable(task: EncryptTask): Promise<number> {
-  const { table, column } = task
-  let migrated = 0
+interface TaskStat { table: string; column: string; total: number; encrypted: number; skipped: number; hashBackfilled: number }
 
-  // Fetch all rows where the column is not null
-  const { data: rows, error } = await supabase
-    .from(table)
-    .select(`id, ${column}`)
-    .not(column, "is", null)
+async function encryptTable(task: EncryptTask): Promise<TaskStat> {
+  const { table, column, hashColumn } = task
+  const stat: TaskStat = { table, column, total: 0, encrypted: 0, skipped: 0, hashBackfilled: 0 }
 
+  const selectCols = hashColumn ? `id, ${column}, ${hashColumn}` : `id, ${column}`
+  const { data: rows, error } = await supabase.from(table).select(selectCols).not(column, "is", null)
   if (error) {
-    console.error(`  Error reading ${table}.${column}:`, error.message)
-    return 0
+    console.error(`  ✗ ${table}.${column}: read failed — ${error.message}`)
+    return stat
   }
-
+  stat.total = rows?.length ?? 0
   if (!rows || rows.length === 0) {
-    console.log(`  ${table}.${column}: 0 rows (empty or all null)`)
-    return 0
+    console.log(`  ${table}.${column}: 0 rows`)
+    return stat
   }
 
-  for (const row of rows) {
-    const value = row[column] as string
+  for (const row of rows as Array<Record<string, string | null>>) {
+    const value = row[column]
     if (!value) continue
 
-    // Skip if already encrypted
     if (isEncrypted(value)) {
+      // Already ciphertext — but still backfill a missing hash (dedup key) from... we can't (no raw). Skip.
+      stat.skipped++
       continue
     }
 
-    // Encrypt
-    const encrypted = encrypt(value)
+    const encrypted = encryptIdNumber(value) // AES-GCM; idempotent; null-safe
+    if (!encrypted) { stat.skipped++; continue }
 
-    // Verify round-trip
-    const decrypted = decrypt(encrypted)
-    if (decrypted !== value) {
-      console.error(`  ❌ Round-trip verification FAILED for ${table}.${column} id=${row.id}`)
-      console.error(`     Original: ${value.slice(0, 4)}...`)
-      console.error(`     Decrypted: ${decrypted.slice(0, 4)}...`)
+    // Round-trip verify BEFORE writing — never persist a value we can't read back.
+    if (decryptIdNumber(encrypted) !== value) {
+      console.error(`  ✗ ${table}.${column} id=${row.id}: round-trip FAILED — skipped`)
       continue
     }
 
-    // Update
-    const { error: updateError } = await supabase
-      .from(table)
-      .update({ [column]: encrypted })
-      .eq("id", row.id)
-
-    if (updateError) {
-      console.error(`  ❌ Update failed for ${table}.${column} id=${row.id}:`, updateError.message)
-    } else {
-      migrated++
+    const update: Record<string, string | null> = { [column]: encrypted }
+    // Backfill the lookup hash from the RAW value (same salt as the app) when a hash column exists + is empty.
+    if (hashColumn && !row[hashColumn]) {
+      update[hashColumn] = hashIdNumber(value)
+      stat.hashBackfilled++
     }
+
+    if (WRITE) {
+      const { error: upErr } = await supabase.from(table).update(update).eq("id", row.id)
+      if (upErr) { console.error(`  ✗ ${table}.${column} id=${row.id}: write failed — ${upErr.message}`); continue }
+    }
+    stat.encrypted++
   }
 
-  console.log(`  ${table}.${column}: ${migrated} rows encrypted (${rows.length} total, ${rows.length - migrated} skipped/already encrypted)`)
-  return migrated
+  const verb = WRITE ? "encrypted" : "WOULD encrypt"
+  console.log(`  ${table}.${column}: ${stat.encrypted} ${verb}, ${stat.hashBackfilled} hash-backfilled, ${stat.skipped} already-encrypted (${stat.total} total)`)
+  return stat
 }
 
 async function main() {
   console.log("=== PII Encryption Retrofit ===")
-  console.log(`Key: ${process.env.ENCRYPTION_KEY?.slice(0, 8)}...`)
-  console.log(`Supabase: ${process.env.NEXT_PUBLIC_SUPABASE_URL}`)
-  console.log("")
+  console.log(WRITE ? "MODE: COMMIT (writing)" : "MODE: DRY RUN (no writes) — pass --commit --i-have-key-escrow-and-snapshot to write")
+  if (COMMIT && !ESCROW_CONFIRMED) {
+    console.error("\n✗ --commit given WITHOUT --i-have-key-escrow-and-snapshot. Refusing to write.")
+    console.error("  Back up ENCRYPTION_KEY (escrow) + take a verified DB snapshot FIRST, then re-run with both flags.")
+    process.exit(1)
+  }
+  if (!process.env.ENCRYPTION_KEY || !process.env.ID_NUMBER_HASH_SALT) {
+    console.error("\n✗ ENCRYPTION_KEY and ID_NUMBER_HASH_SALT must be set in .env.local (the hash salt must match the app).")
+    process.exit(1)
+  }
+  console.log(`Key: ${process.env.ENCRYPTION_KEY.slice(0, 8)}…  Supabase: ${process.env.NEXT_PUBLIC_SUPABASE_URL}\n`)
 
-  let totalMigrated = 0
-
+  let totalEncrypted = 0
   for (const task of TASKS) {
-    totalMigrated += await encryptTable(task)
+    const stat = await encryptTable(task)
+    totalEncrypted += stat.encrypted
   }
 
-  console.log("")
-  console.log(`=== Complete: ${totalMigrated} total rows encrypted ===`)
+  console.log(`\n=== ${WRITE ? "Complete" : "Dry run complete"}: ${totalEncrypted} row(s) ${WRITE ? "encrypted" : "would be encrypted"} ===`)
 
-  // Spot check: read back 1 row from contacts if any exist
-  const { data: spotCheck } = await supabase
-    .from("contacts")
-    .select("id, id_number")
-    .not("id_number", "is", null)
-    .limit(1)
-
-  if (spotCheck && spotCheck.length > 0 && spotCheck[0].id_number) {
-    const stored = spotCheck[0].id_number
-    if (isEncrypted(stored)) {
-      const decrypted = decrypt(stored)
-      console.log(`\nSpot check (contacts): stored=${stored.slice(0, 20)}... decrypted=${decrypted.slice(0, 4)}••••`)
-      console.log("✅ Spot check passed")
-    } else {
-      console.log(`\nSpot check: value does not appear encrypted: ${stored.slice(0, 10)}...`)
+  // Post-run verification: decrypt a sample from contacts (round-trip proof on real stored data).
+  if (WRITE) {
+    const { data: sample } = await supabase.from("contacts").select("id, id_number").not("id_number", "is", null).limit(1)
+    const stored = sample?.[0]?.id_number
+    if (stored && isEncrypted(stored)) {
+      console.log(`\nSpot check (contacts): stored=${stored.slice(0, 20)}… decrypts=${decryptIdNumber(stored)?.slice(0, 4)}•••• ✅`)
+    } else if (stored) {
+      console.log(`\n⚠ Spot check: a contacts.id_number is NOT encrypted after the run: ${stored.slice(0, 8)}…`)
     }
-  } else {
-    console.log("\nNo contact records with id_number to spot check.")
   }
 }
 
-main().catch(console.error)
+main().catch((e) => { console.error(e); process.exit(1) })

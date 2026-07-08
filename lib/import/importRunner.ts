@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { normaliseDate, normaliseCurrencyCents } from "./normalise"
 import { normaliseBranchCode, hashBankAccount, maskBankAccount } from "./bankImport"
+import { idNumberColumns } from "@/lib/crypto/idNumber"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -502,7 +503,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         company_name: tenantCompany || null,
         primary_email: email,
         primary_phone: getField(entry.row, "phone", ctx.mapping) || null,
-        id_number: getField(entry.row, "id_number", ctx.mapping) || null,
+        ...idNumberColumns(getField(entry.row, "id_number", ctx.mapping)), // encrypted at rest + lookup hash
         ...(normIdType ? { id_type: normIdType } : {}),
         date_of_birth: dobRaw ? normaliseDate(dobRaw) : null,
         nationality: getField(entry.row, "nationality", ctx.mapping) || null,
@@ -619,7 +620,7 @@ async function insertSingleTenant(params: {
       last_name: lastName || "Unknown",
       primary_email: email,
       primary_phone: phone || null,
-      id_number: idNumber || null,
+      ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
     })
     .select("id").single()
 
@@ -1321,7 +1322,7 @@ async function importLandlords(
           company_name: landlordCompany || null,
           primary_email: email,
           primary_phone: phone,
-          id_number: idNumber,
+          ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
           vat_number: vatNumber,
         })
         .select("id").single()

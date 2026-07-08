@@ -13,6 +13,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { landlordHasInForceLease } from "@/lib/parties/archive"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { idNumberColumns } from "@/lib/crypto/idNumber"
 
 export async function GET() {
   const supabase = await createClient()
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
     company_name: companyName?.trim() || null,
     primary_email: email?.trim() || null,
     primary_phone: phone?.trim() || null,
-    id_number: idNumber?.trim() || null,
+    ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
     created_by: user.id,
   }).select("id").single()
 

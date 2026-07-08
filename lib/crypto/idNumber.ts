@@ -33,10 +33,37 @@ export function decryptIdNumber(stored: string | null | undefined): string | nul
   return isEncrypted(v) ? decrypt(v) : v
 }
 
-// date_of_birth is encrypted at rest with the SAME generic string crypto (its column was widened date→text because
-// AES-GCM ciphertext can't live in a date column). Aliases for call-site clarity; tolerant decrypt as above.
+// date_of_birth is encrypted at rest with the SAME generic string crypto ONLY where its column is text
+// (applications / application_co_applicants — widened date→text because AES-GCM ciphertext can't live in a date
+// column). On contacts/tenants the dob column is still a real `date` and stays PLAINTEXT (CD ruling 2026-07-07:
+// encrypt id_number only; DOB is derivable from the ID's first 6 digits, and it's used for age/affordability math).
+// Aliases kept for the apply-flow call sites that DO write the text dob columns; tolerant decrypt as above.
 export const encryptDob = encryptIdNumber
 export const decryptDob = decryptIdNumber
+
+/**
+ * The persisted columns for an SA id_number at an AGENT write boundary: AES-GCM ciphertext + its deterministic
+ * lookup hash. Spread into an insert/update so `id_number` + `id_number_hash` ALWAYS move together — a raw
+ * id_number write, or an encrypted write that forgets the hash (which silently breaks cross-path dedup), is the
+ * exact drift this prevents. null/empty → both null. Idempotent: encryptIdNumber passes already-ciphertext through.
+ * The ESLint guard `pleks/require-id-number-encryption` requires every `id_number:` write to route through this.
+ */
+export function idNumberColumns(raw: string | null | undefined): {
+  id_number: string | null
+  id_number_hash: string | null
+} {
+  const v = (raw ?? "").trim() || null
+  return { id_number: encryptIdNumber(v), id_number_hash: v ? hashIdNumber(v) : null }
+}
+
+/** As idNumberColumns, for the contacts within-row snapshot pair (`contact_id_number` / `contact_id_number_hash`). */
+export function contactIdNumberColumns(raw: string | null | undefined): {
+  contact_id_number: string | null
+  contact_id_number_hash: string | null
+} {
+  const { id_number, id_number_hash } = idNumberColumns(raw)
+  return { contact_id_number: id_number, contact_id_number_hash: id_number_hash }
+}
 
 /** spouse_info jsonb carries an `idNumber` (the linked spouse's ID) — encrypt/decrypt JUST that field, leaving the
  *  rest of the object intact. Encrypt before store; decrypt at the read boundary before matching/display. */

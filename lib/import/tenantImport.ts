@@ -13,6 +13,7 @@ import { parseCSV, detectTpnFormat, type ImportResult } from "./csvParser"
 import { convertTpnExport } from "./tpnParser"
 import { validateTenantRow } from "./validators"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { idNumberColumns } from "@/lib/crypto/idNumber"
 
 export async function importTenants(
   csvText: string,
@@ -73,7 +74,7 @@ export async function importTenants(
       primary_email: row.email,
       primary_phone: row.phone ?? null,
       id_type: row.id_type ?? "sa_id",
-      id_number: row.id_number ?? null,
+      ...idNumberColumns(row.id_number), // encrypted at rest + lookup hash (was raw, no hash)
       created_by: agentId,
     }).select("id").single()
     logQueryError("importTenants contacts", contactError)

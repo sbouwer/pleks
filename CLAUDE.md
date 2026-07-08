@@ -699,8 +699,20 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 2. RLS on every new table
 3. audit_log on every state change
 4. consent_log for any new POPIA-sensitive operation
-5. Encrypt before INSERT, decrypt after SELECT for all PII fields
-6. Mask before display — never show raw decrypted ID/account in UI
+5. Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. The SA **`id_number`** is
+   encrypted at rest everywhere (AES-256-GCM `iv:ct:tag`, random IV) via `idNumberColumns(raw)` /
+   `encryptIdNumber(raw)` — the write helper bundles the ciphertext + a RAW-derived `id_number_hash` (the
+   deterministic dedup/lookup key; match on the hash, NEVER on ciphertext). Decrypt with the TOLERANT
+   `decryptIdNumber` at every read boundary. Enforced by `pleks/require-id-number-encryption` (ESLint). Also
+   encrypted at rest: `passport_number`, `permit_number`, bank account numbers.
+   **Intentionally PLAINTEXT (CD ruling 2026-07-07, POPIA-owner nod required before merge):** `date_of_birth`
+   and `gender`. Rationale — the SA ID's first six digits already encode the DOB, so with `id_number` encrypted a
+   separate DOB ciphertext is marginal, and `date_of_birth` is a `date` type used for age/affordability math
+   (text-for-ciphertext breaks date arithmetic); `gender` is not POPIA "special personal information" and is
+   low-cardinality (~3 values → encryption is theatre). This carve-out is a deliberate deviation from "all PII" —
+   do not "fix" it by encrypting DOB/gender.
+6. Mask before display — never show raw decrypted ID/account in UI (a lease *document* legitimately carries the
+   full ID; a UI surface masks via `maskIdNumber`)
 7. No PII in console.log, no PII in audit_log values
 
 ---
