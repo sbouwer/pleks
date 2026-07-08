@@ -56,6 +56,11 @@
       "status",
       "created_at"
     ],
+    "ai_rate_limits": [
+      "scope_key",
+      "window_start",
+      "count"
+    ],
     "ai_usage": [
       "id",
       "org_id",
@@ -438,15 +443,6 @@
       "bank_statement_holder_match",
       "bank_statement_holder_confidence",
       "bank_statement_holder_name_extracted",
-      "criminal_check_consent_given_at",
-      "criminal_check_consent_ip",
-      "criminal_check_consent_log_id",
-      "criminal_check_consent_withdrawn_at",
-      "criminal_check_consent_withdrawal_reason",
-      "huru_check_id",
-      "huru_check_status",
-      "huru_check_completed_at",
-      "huru_check_purged_at",
       "prior_pleks_tenant_signal",
       "fitscore_document_path",
       "fitscore_generated_at",
@@ -2548,7 +2544,8 @@
       "linkedin_url",
       "facebook_url",
       "instagram_url",
-      "x_url"
+      "x_url",
+      "product_line"
     ],
     "owner_statements": [
       "id",
@@ -2751,7 +2748,6 @@
       "notes",
       "managing_agent_id",
       "owner_id",
-      "hoa_id",
       "landlord_id",
       "owner_name",
       "owner_email",
@@ -3752,6 +3748,10 @@
     ],
     "assert_deduction_justification": [],
     "audit_applications_fitscore_changes": [],
+    "bump_ai_rate_limit": [
+      "p_scope_key",
+      "p_window_start"
+    ],
     "check_email_exists": [
       "p_email"
     ],
@@ -3855,7 +3855,9 @@
       "p_rate_config_id",
       "p_statement_month",
       "p_is_opening_balance",
-      "p_trust_reference"
+      "p_trust_reference",
+      "p_advance_last_accrued_to",
+      "p_expected_last_accrued"
     ],
     "record_payment_atomic": [
       "p_org_id",

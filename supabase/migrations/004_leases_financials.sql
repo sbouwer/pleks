@@ -2523,3 +2523,90 @@ REVOKE EXECUTE ON FUNCTION verify_apply_invoice_payment_atomicity() FROM PUBLIC,
 -- recurring rent invoices (which always set period_from) are enforced one-per-period.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_rent_invoices_lease_period
   ON rent_invoices(lease_id, period_from);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  SECURITY 2026-07-07: deposit-interest accrual — fold the last_accrued watermark
+--     advance INTO record_deposit_atomic (ledger 4c — kills the double-accrual gap)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- accrueDepositInterest posted interest via record_deposit_atomic and THEN advanced
+-- leases.deposit_interest_last_accrued_date in a SEPARATE statement (step-2 left it "out of
+-- scope, post-commit in the caller"). Two failure modes double-accrue the SAME window:
+--   (1) crash/error between the RPC commit and the watermark UPDATE → next run re-posts;
+--   (2) two concurrent runs (monthly cron overlapping a manual/lease-end accrual) both read the
+--       stale watermark, both compute the same window, both post.
+-- Fix: the RPC that already owns both ledgers now owns the watermark too. Two new OPTIONAL params
+-- (interest callers set them; deposit-received / opening-balance callers omit → NULL → unchanged
+-- behaviour). When advancing, we SELECT … FOR UPDATE the lease (serialises concurrent accruals)
+-- and compare-and-set: if the watermark already moved off the value the caller read, the window was
+-- already accrued elsewhere → RAISE rolls back the ledger posts too (no double-post). IS DISTINCT
+-- FROM handles the first-ever accrual (NULL watermark) correctly.
+DROP FUNCTION IF EXISTS record_deposit_atomic(uuid,uuid,uuid,bigint,text,text,text,text,text,uuid,uuid,uuid,text,numeric,uuid,date,boolean,text);
+CREATE OR REPLACE FUNCTION record_deposit_atomic(
+  p_org_id                uuid,
+  p_lease_id              uuid,
+  p_tenant_id             uuid,
+  p_amount_cents          bigint,
+  p_dep_txn_type          text,
+  p_dep_description       text,
+  p_trust_txn_type        text,
+  p_trust_description      text,
+  p_initiated_by          text,
+  p_created_by            uuid,
+  p_property_id           uuid,
+  p_unit_id               uuid,
+  p_reference             text,
+  p_effective_rate_percent numeric,
+  p_rate_config_id        uuid,
+  p_statement_month       date,
+  p_is_opening_balance    boolean DEFAULT false,  -- step-2 callers omit → false
+  p_trust_reference       text    DEFAULT NULL,   -- trust_transactions.reference (import migration ref)
+  p_advance_last_accrued_to date  DEFAULT NULL,   -- interest callers only: advance the watermark atomically
+  p_expected_last_accrued   date  DEFAULT NULL    -- CAS guard: the watermark value the caller read
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE v_dep_id uuid; v_current_accrued date;
+BEGIN
+  -- Deposit-interest accrual: lock the lease + compare-and-set the watermark BEFORE posting, so
+  -- concurrent accruals serialise and a duplicate window aborts the whole transaction.
+  IF p_advance_last_accrued_to IS NOT NULL THEN
+    SELECT deposit_interest_last_accrued_date INTO v_current_accrued
+      FROM leases WHERE id = p_lease_id FOR UPDATE;
+    IF v_current_accrued IS DISTINCT FROM p_expected_last_accrued THEN
+      -- Deterministic duplicate-window rejection (NOT a transient conflict): default P0001 so PostgREST
+      -- returns it immediately. A retryable code (40001) would be re-run and re-fail forever.
+      RAISE EXCEPTION 'record_deposit_atomic: deposit-interest watermark moved for lease % (expected %, found %) — window already accrued',
+        p_lease_id, p_expected_last_accrued, v_current_accrued;
+    END IF;
+  END IF;
+
+  INSERT INTO deposit_transactions (
+    org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description,
+    created_by, reference, effective_rate_percent, rate_config_id
+  ) VALUES (
+    p_org_id, p_lease_id, p_tenant_id, p_dep_txn_type, 'credit', p_amount_cents, p_dep_description,
+    p_created_by, p_reference, p_effective_rate_percent, p_rate_config_id
+  ) RETURNING id INTO v_dep_id;
+
+  INSERT INTO trust_transactions (
+    org_id, transaction_type, direction, amount_cents, description,
+    property_id, unit_id, lease_id, statement_month, created_by, source, initiated_by,
+    is_opening_balance, reference
+  ) VALUES (
+    p_org_id, p_trust_txn_type, 'credit', p_amount_cents, p_trust_description,
+    p_property_id, p_unit_id, p_lease_id, p_statement_month, p_created_by, 'agency_bank', p_initiated_by,
+    p_is_opening_balance, p_trust_reference
+  );
+
+  -- Advance the watermark inside the same transaction as the posts (was a separate post-commit UPDATE).
+  IF p_advance_last_accrued_to IS NOT NULL THEN
+    UPDATE leases SET deposit_interest_last_accrued_date = p_advance_last_accrued_to WHERE id = p_lease_id;
+  END IF;
+
+  RETURN v_dep_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION record_deposit_atomic(uuid,uuid,uuid,bigint,text,text,text,text,text,uuid,uuid,uuid,text,numeric,uuid,date,boolean,text,date,date) FROM PUBLIC, anon, authenticated;
