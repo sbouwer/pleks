@@ -44,6 +44,8 @@ next-env.d.ts
 schema-drift-report.md
 sonar-report.txt
 sonar-results.json
+# npm run test:report output (self-contained HTML dashboards; keeps newest 3)
+test/reports/
 
 # generated PDF samples (render script outputs)
 lib/reports/screening/_pdf/__samples__/
