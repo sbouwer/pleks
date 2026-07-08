@@ -2610,3 +2610,65 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION record_deposit_atomic(uuid,uuid,uuid,bigint,text,text,text,text,text,uuid,uuid,uuid,text,numeric,uuid,date,boolean,text,date,date) FROM PUBLIC, anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  SECURITY 2026-07-08: deposit-charge settlement (Pattern B/C) in ONE transaction
+--     (ledger 4b — folds settlePatternB/C into an atomic RPC, killing the trust imbalance)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- lib/deposits/disburse.ts settlePatternB inserted a deposit_transactions debit, THEN posted the trust
+-- deposit_deduction credit via recordTrustTransaction — if that trust post threw (sovereignty / any error),
+-- the outer try/catch returned an error but the deposit_transactions debit had ALREADY committed with no trust
+-- credit: a D-TRUST-01 imbalance (the same class already closed in record_payment_atomic / disburse_deposit_atomic).
+-- settlePatternC had the smaller sibling gap: a deposit_transactions insert then a SEPARATE settling_deposit_txn_id
+-- link update — a failure between them leaves the charge unlinked, so a re-run re-inserts the debit (double-settle).
+-- This RPC does the deposit debit + (Pattern B) the trust credit + the charge link in ONE transaction, so a RAISE
+-- (the trust insert fires the §step-0 sovereignty + §4 closed-period triggers) rolls the whole settlement back.
+-- Column set + trust semantics (charge_applied debit / deposit_deduction credit, agency_bank / agent, no
+-- statement_month) taken verbatim from disburse_deposit_atomic. Pattern A is NOT here — it settles via a payment +
+-- allocate_payment_atomic (already atomic); folding its residual payment/deposit_txn writes is a separate follow-up.
+CREATE OR REPLACE FUNCTION settle_deposit_charge_atomic(
+  p_org_id            uuid,
+  p_lease_id          uuid,
+  p_tenant_id         uuid,
+  p_charge_id         uuid,
+  p_amount_cents      bigint,
+  p_dep_description   text,
+  p_actor             uuid,
+  p_with_trust        boolean DEFAULT false,  -- Pattern B sets true (cost recovery); Pattern C omits → false
+  p_trust_description text    DEFAULT NULL
+) RETURNS uuid                                 -- the deposit_transactions id (linked back on the charge)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE v_dep_id uuid;
+BEGIN
+  -- Org + lease scope guard (service_role bypasses RLS; the caller already scoped, this is defense-in-depth).
+  IF NOT EXISTS (SELECT 1 FROM deposit_charges WHERE id = p_charge_id AND org_id = p_org_id AND lease_id = p_lease_id) THEN
+    RAISE EXCEPTION 'settle_deposit_charge_atomic: charge % not found in org %/lease %', p_charge_id, p_org_id, p_lease_id
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  INSERT INTO deposit_transactions (
+    org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description, charge_id, created_by
+  ) VALUES (
+    p_org_id, p_lease_id, p_tenant_id, 'charge_applied', 'debit', p_amount_cents, p_dep_description, p_charge_id, p_actor
+  ) RETURNING id INTO v_dep_id;
+
+  -- Pattern B only: trust credit recovering the expense that was paid from trust. A RAISE here rolls the
+  -- deposit_transactions insert back too (the imbalance this RPC exists to prevent).
+  IF p_with_trust THEN
+    INSERT INTO trust_transactions (
+      org_id, transaction_type, direction, amount_cents, description, lease_id, created_by, source, initiated_by
+    ) VALUES (
+      p_org_id, 'deposit_deduction', 'credit', p_amount_cents, p_trust_description, p_lease_id, p_actor, 'agency_bank', 'agent'
+    );
+  END IF;
+
+  UPDATE deposit_charges SET settling_deposit_txn_id = v_dep_id WHERE id = p_charge_id;
+  RETURN v_dep_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION settle_deposit_charge_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,boolean,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION settle_deposit_charge_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,boolean,text) TO service_role;

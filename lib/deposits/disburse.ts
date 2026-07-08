@@ -14,17 +14,16 @@
  *         payments, rent_invoices, arrears_cases via service client
  * Notes:  ADDENDUM_63B: three settlement patterns for deposit_charges before disbursement.
  *         Pattern A — tenant-debt: inserts a deposit_offset payment + allocate_payment_atomic() (clause 6.6).
- *         Pattern B — cost recovery: deposit_transactions + trust_transactions credit.
- *         Pattern C — ad-hoc: deposit_transactions only.
- *         Pre-flight validation runs before any DB writes (fail-fast). The main disbursement
- *         (refund/deductions/forfeiture/recon/timer) is one atomic RPC (disburse_deposit_atomic)
- *         so a failed trust posting rolls the whole sequence back.
+ *         Pattern B — cost recovery: settle_deposit_charge_atomic (deposit debit + trust credit + charge link, 1 tx).
+ *         Pattern C — ad-hoc: settle_deposit_charge_atomic (deposit debit + charge link, 1 tx; no trust).
+ *         Pre-flight validation runs before any DB writes (fail-fast). Each settlement pattern AND the main
+ *         disbursement (refund/deductions/forfeiture/recon/timer via disburse_deposit_atomic) are atomic RPCs,
+ *         so a failed trust posting rolls that unit back — no committed deposit debit without its trust credit.
  *         BUILD_63 Phase 3: fires deposit.returned (mandatory) after status → refunded.
  */
 import * as React from "react"
 import { gateway } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
-import { recordTrustTransaction } from "@/lib/trust/invariants"
 import { formatZAR } from "@/lib/constants"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
@@ -212,41 +211,21 @@ async function settlePatternB(
     ? `supplier invoice ${charge.source_supplier_invoice_id.slice(0, 8).toUpperCase()}`
     : `municipal bill ${charge.source_municipal_bill_id?.slice(0, 8).toUpperCase()}`
 
-  const { data: depTxn, error: dtErr } = await supabase
-    .from("deposit_transactions")
-    .insert({
-      org_id:           recon.org_id,
-      lease_id:         recon.lease_id,
-      tenant_id:        recon.tenant_id,
-      transaction_type: "charge_applied",
-      direction:        "debit",
-      amount_cents:     charge.deduction_amount_cents,
-      description:      `${charge.description} — cost recovery (${sourceLabel})`,
-      charge_id:        charge.id,
-      created_by:       actorId,
-    })
-    .select("id")
-    .single()
-
-  if (dtErr) throw new Error(`Pattern B deposit_transactions insert failed: ${dtErr.message}`)
-
-  // Trust credit — recovers the expense that was paid from trust
-  await recordTrustTransaction({
-    orgId:           recon.org_id,
-    leaseId:         recon.lease_id,
-    transactionType: "deposit_deduction",
-    direction:       "credit",
-    amountCents:     charge.deduction_amount_cents,
-    description:     `${charge.description} — cost recovery from deposit (${sourceLabel})`,
-    createdBy:       actorId,
-    source:          "agency_bank",
-    initiatedBy:     "agent",
+  // deposit debit + trust deposit_deduction credit + charge link in ONE transaction (ledger 4b). Was: a
+  // deposit_transactions insert THEN a throwable recordTrustTransaction — a failed trust post left a committed
+  // deposit debit with no trust credit (D-TRUST-01 imbalance). Now they commit together or roll back together.
+  const { error } = await supabase.rpc("settle_deposit_charge_atomic", {
+    p_org_id:            recon.org_id,
+    p_lease_id:          recon.lease_id,
+    p_tenant_id:         recon.tenant_id,
+    p_charge_id:         charge.id,
+    p_amount_cents:      charge.deduction_amount_cents,
+    p_dep_description:   `${charge.description} — cost recovery (${sourceLabel})`,
+    p_actor:             actorId,
+    p_with_trust:        true,
+    p_trust_description: `${charge.description} — cost recovery from deposit (${sourceLabel})`,
   })
-
-  await supabase
-    .from("deposit_charges")
-    .update({ settling_deposit_txn_id: depTxn?.id })
-    .eq("id", charge.id)
+  if (error) throw new Error(`Pattern B settlement failed for charge "${charge.description}": ${error.message}`)
 }
 
 async function settlePatternC(
@@ -255,28 +234,19 @@ async function settlePatternC(
   recon: { org_id: string; lease_id: string; tenant_id: string },
   actorId: string
 ) {
-  const { data: depTxn, error: dtErr } = await supabase
-    .from("deposit_transactions")
-    .insert({
-      org_id:           recon.org_id,
-      lease_id:         recon.lease_id,
-      tenant_id:        recon.tenant_id,
-      transaction_type: "charge_applied",
-      direction:        "debit",
-      amount_cents:     charge.deduction_amount_cents,
-      description:      charge.description,
-      charge_id:        charge.id,
-      created_by:       actorId,
-    })
-    .select("id")
-    .single()
-
-  if (dtErr) throw new Error(`Pattern C deposit_transactions insert failed: ${dtErr.message}`)
-
-  await supabase
-    .from("deposit_charges")
-    .update({ settling_deposit_txn_id: depTxn?.id })
-    .eq("id", charge.id)
+  // deposit debit + charge link in ONE transaction (ledger 4b). Was: a deposit_transactions insert THEN a
+  // separate settling_deposit_txn_id update — a failure between them left the charge unlinked, so a re-run
+  // re-inserted the debit (double-settle). No trust post for ad-hoc charges (p_with_trust omitted → false).
+  const { error } = await supabase.rpc("settle_deposit_charge_atomic", {
+    p_org_id:          recon.org_id,
+    p_lease_id:        recon.lease_id,
+    p_tenant_id:       recon.tenant_id,
+    p_charge_id:       charge.id,
+    p_amount_cents:    charge.deduction_amount_cents,
+    p_dep_description: charge.description,
+    p_actor:           actorId,
+  })
+  if (error) throw new Error(`Pattern C settlement failed for charge "${charge.description}": ${error.message}`)
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────

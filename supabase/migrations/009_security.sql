@@ -315,3 +315,25 @@ BEGIN
     ALTER TABLE application_co_applicants ALTER COLUMN date_of_birth TYPE text USING date_of_birth::text;
   END IF;
 END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  SECURITY 2026-07-08: restore the deposit-charge settlement transaction_types
+--     (008 regression — dropped charge_applied / charge_reversed / arrears_offset_to_invoice)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 004 §"non-damage charge patterns" deliberately added charge_applied (Pattern B/C cost-recovery + ad-hoc),
+-- charge_reversed, and arrears_offset_to_invoice (Pattern A tenant-debt offset) to
+-- deposit_transactions.transaction_type — the exact values lib/deposits/disburse.ts writes when settling
+-- deposit_charges. 008_enhancements2.sql then REDEFINED the CHECK and silently dropped all three, so EVERY
+-- deposit-charge settlement (Patterns A/B/C) has been latently broken (the deposit_transactions insert fails
+-- the CHECK — masked only because no real settlement has run pre-launch). This restores the intended union.
+-- It lives in 009 (not 004) because it must replay AFTER 008's narrowing to win; DROP-then-ADD is idempotent.
+ALTER TABLE deposit_transactions DROP CONSTRAINT IF EXISTS deposit_transactions_transaction_type_check;
+ALTER TABLE deposit_transactions ADD CONSTRAINT deposit_transactions_transaction_type_check
+  CHECK (transaction_type IN (
+    'deposit_received', 'deposit_topup', 'interest_accrued', 'interest_capitalised',
+    'deposit_partial_release', 'deposit_partial_replenish', 'deduction_applied', 'deduction_reversed',
+    'deposit_returned_to_tenant', 'deduction_paid_to_landlord', 'forfeited',
+    'charge_applied',            -- non-damage charge (Pattern B cost recovery, Pattern C ad-hoc) — restored
+    'charge_reversed',           -- reversal of the above — restored
+    'arrears_offset_to_invoice'  -- Pattern A tenant-debt offset leg — restored
+  ));
