@@ -3887,6 +3887,16 @@
       "p_with_trust",
       "p_trust_description"
     ],
+    "sign_off_maintenance_financials_atomic": [
+      "p_org_id",
+      "p_request_id",
+      "p_actor",
+      "p_property_id",
+      "p_unit_id",
+      "p_lease_id",
+      "p_statement_month",
+      "p_allocations"
+    ],
     "sync_decision_columns_on_stage_write": [],
     "sync_profile_from_self_landlord": [],
     "sync_property_has_managing_scheme": [],

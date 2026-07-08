@@ -37,6 +37,17 @@ export function svc(): SupabaseClient {
   )
 }
 
+/** Seed a bare auth.users row and return its id — for the FK-required created_by/actor columns some tables carry
+ *  (e.g. maintenance_cost_allocations.created_by → auth.users). Not org-scoped, so clean it up with teardownUser. */
+export function seedUser(): string {
+  const id = randomUUID()
+  psql(`INSERT INTO auth.users (id, email) VALUES ('${id}', '${id}@dbtest.local') ON CONFLICT DO NOTHING;`)
+  return id
+}
+export function teardownUser(id: string): void {
+  psql(`DELETE FROM auth.users WHERE id = '${id}';`)
+}
+
 const DAY_MS = 86_400_000
 // Fixed anchor so seeded dates are deterministic across a run (no Date.now flakiness in ordering).
 const ANCHOR = new Date("2026-07-01T00:00:00Z").getTime()
