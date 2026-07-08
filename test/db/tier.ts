@@ -309,3 +309,20 @@ CREATE TRIGGER _test_fail_trust_trg BEFORE INSERT ON trust_transactions FOR EACH
 DROP FUNCTION IF EXISTS _test_fail_trust();`)
   }
 }
+
+/**
+ * Toggle a temporary BEFORE INSERT trigger on deposit_transactions that always raises — the deposit-side
+ * analogue of forceTrustInsertFailure. Lets a test force a failure at the deposit_transactions step of a
+ * multi-write RPC (e.g. settle_deposit_charge_pattern_a_atomic, which posts no trust row — the money moves
+ * deposit→invoice internally — so the trust injector can't reach it). Always toggle off in a finally/afterEach.
+ */
+export function forceDepositTxnInsertFailure(on: boolean): void {
+  if (on) {
+    psql(`CREATE OR REPLACE FUNCTION _test_fail_deptxn() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN RAISE EXCEPTION 'test-forced-deposit-txn-failure' USING ERRCODE = 'check_violation'; END; $fn$;
+DROP TRIGGER IF EXISTS _test_fail_deptxn_trg ON deposit_transactions;
+CREATE TRIGGER _test_fail_deptxn_trg BEFORE INSERT ON deposit_transactions FOR EACH ROW EXECUTE FUNCTION _test_fail_deptxn();`)
+  } else {
+    psql(`DROP TRIGGER IF EXISTS _test_fail_deptxn_trg ON deposit_transactions;
+DROP FUNCTION IF EXISTS _test_fail_deptxn();`)
+  }
+}
