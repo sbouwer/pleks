@@ -61,6 +61,8 @@ interface Props {
   cpaDetermination: CpaDetermination
   /** durable default carried from the unit (BUILD_69); drives the auto end-date instead of a hardcoded year. */
   defaultLeasePeriodMonths?: number | null
+  /** durable furnishing-derived deposit multiple (× rent) from the unit (O-22); seeds the deposit on rent entry. */
+  defaultDepositMultiple?: number | null
   /** live SA prime (prime_rates) resolved server-side; drives the arrears-interest preview. Null → degrade. */
   currentPrimePercent?: number | null
 }
@@ -111,7 +113,7 @@ function CpaChip({ cpa }: Readonly<{ cpa: CpaDetermination }>) {
   )
 }
 
-export function TermsSection({ value, onChange, isResidential, cpaDetermination, defaultLeasePeriodMonths, currentPrimePercent }: Readonly<Props>) {
+export function TermsSection({ value, onChange, isResidential, cpaDetermination, defaultLeasePeriodMonths, defaultDepositMultiple, currentPrimePercent }: Readonly<Props>) {
   function set<K extends keyof TermsState>(key: K, v: TermsState[K]) {
     onChange({ ...value, [key]: v })
   }
@@ -129,9 +131,16 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
     onChange({ ...value, ...patch })
   }
 
-  // Deposit is entered manually — no auto-derive. The furnishing-based default (O-22) will seed it later.
+  // O-22: seed the deposit from the unit's durable furnishing-derived multiple (rent × multiple) when the
+  // agent hasn't entered one yet. Only fills an empty deposit, so a manually-set amount is never overwritten.
   function handleRentChange(next: string) {
-    onChange({ ...value, rent: next })
+    const patch: Partial<TermsState> = { rent: next }
+    const mult = defaultDepositMultiple
+    const rentNum = Number(next)
+    if (next && !value.deposit && mult && mult > 0 && Number.isFinite(rentNum) && rentNum > 0) {
+      patch.deposit = String(Math.round(rentNum * mult * 100) / 100)
+    }
+    onChange({ ...value, ...patch })
   }
 
   const margin = Number(value.arrearsMargin || 0)

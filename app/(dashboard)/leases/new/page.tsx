@@ -163,7 +163,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
       ? supabase.from("properties").select("name").eq("id", propertyId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
     unitId
-      ? supabase.from("units").select("unit_number, bedrooms, bathrooms, asking_rent_cents, default_lease_period_months").eq("id", unitId).eq("org_id", orgId).single()
+      ? supabase.from("units").select("unit_number, bedrooms, bathrooms, asking_rent_cents, default_lease_period_months, default_deposit_multiple").eq("id", unitId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
     tenantId && !resolvedTenantName
       ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", tenantId).eq("org_id", orgId).single()
@@ -175,7 +175,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
     ),
   ])
 
-  const unitData = unitRes.data as { unit_number: string | null; bedrooms: number | null; bathrooms: number | null; asking_rent_cents: number | null; default_lease_period_months: number | null } | null
+  const unitData = unitRes.data as { unit_number: string | null; bedrooms: number | null; bathrooms: number | null; asking_rent_cents: number | null; default_lease_period_months: number | null; default_deposit_multiple: number | null } | null
   const finalCoTenants = resolvedCoTenants.length > 0
     ? resolvedCoTenants
     : coTenantResults.map((r) => ({ id: r.id, name: displayName(r.data) ?? r.id }))
@@ -214,6 +214,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
         unitLabel: buildUnitLabel(unitData),
         askingRentCents: unitData?.asking_rent_cents ?? null,
         defaultLeasePeriodMonths: unitData?.default_lease_period_months ?? null,
+        defaultDepositMultiple: unitData?.default_deposit_multiple ?? null,
         currentPrimePercent,
         availableAccounts,
         trustAccountId,

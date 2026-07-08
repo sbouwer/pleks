@@ -13,7 +13,7 @@ import { Plus, Trash2, Copy } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { buildSkeletonUnits, type SkeletonUnit } from "@/lib/properties/skeletonUnits"
 import { getScenario } from "@/lib/properties/scenarios"
-import { FURNISHING_OPTIONS } from "@/lib/properties/furnishing"
+import { FURNISHING_OPTIONS, defaultDepositMultiple, DEPOSIT_MULTIPLE_RANGE_LABEL, type FurnishingStatus } from "@/lib/properties/furnishing"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useWizard } from "../WizardContext"
 
@@ -112,7 +112,8 @@ function UnitRow({ unit, index, segment, canRemove, onPatch, onRemove }: Readonl
             </label>
             <Select
               value={unit.furnishing_status ?? "unfurnished"}
-              onValueChange={(v) => onPatch({ furnishing_status: v })}
+              // O-22: furnishing drives the deposit-multiple default; changing it re-seeds the multiple.
+              onValueChange={(v) => onPatch({ furnishing_status: v as FurnishingStatus, default_deposit_multiple: defaultDepositMultiple(v) })}
             >
               <SelectTrigger className="h-7 w-32 text-xs">
                 {/* B4: Base UI <SelectValue> renders the raw value unless given a render fn → map to label */}
@@ -126,6 +127,26 @@ function UnitRow({ unit, index, segment, canRemove, onPatch, onRemove }: Readonl
                 ))}
               </SelectContent>
             </Select>
+            {/* O-22: durable deposit multiple (× rent), furnishing-defaulted; range shown on hover. Seeds the lease wizard. */}
+            <label
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+              title={`Default deposit — ${DEPOSIT_MULTIPLE_RANGE_LABEL[(unit.furnishing_status ?? "unfurnished") as FurnishingStatus]}`}
+            >
+              Deposit
+              <Select
+                value={String(unit.default_deposit_multiple ?? defaultDepositMultiple(unit.furnishing_status))}
+                onValueChange={(v) => onPatch({ default_deposit_multiple: Number(v) })}
+              >
+                <SelectTrigger className="h-7 w-20 text-xs">
+                  <SelectValue>{(v: string) => `${v}× rent`}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {["1", "1.5", "2", "2.5", "3"].map((m) => (
+                    <SelectItem key={m} value={m} className="text-xs">{m}× rent</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
           </>
         )}
 

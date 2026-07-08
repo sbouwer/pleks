@@ -29,6 +29,7 @@ import {
   getFurnishingPlaceholder,
   type FurnishingItem,
 } from "@/lib/units/furnishingTemplates"
+import { defaultDepositMultiple } from "@/lib/properties/furnishing"
 import { X } from "lucide-react"
 import { RoomList } from "@/components/units/RoomList"
 import type { RoomEntry } from "@/lib/units/roomListGenerator"
@@ -186,15 +187,11 @@ function saveLabel(isCreate: boolean): string {
 }
 
 // ── Deposit helpers ───────────────────────────────────────────────────────────
-
-const DEPOSIT_MULTIPLIERS: Record<string, number> = {
-  semi_furnished: 1.5,
-  furnished: 2,
-}
+// Uses the canonical furnishing→multiple SSOT (O-22) rather than a local table, so the suggestion here
+// matches what the lease wizard seeds (unfurnished 1×, semi 1.5×, furnished 2×) — one source of truth.
 
 function calcSuggestedDeposit(rent: number, status: string): number | null {
-  const mult = DEPOSIT_MULTIPLIERS[status]
-  return mult != null && rent > 0 ? Math.round(rent * mult) : null
+  return rent > 0 ? Math.round(rent * defaultDepositMultiple(status)) : null
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -423,10 +420,8 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
 
   function handleFurnishingChange(status: string) {
     setFurnishingStatus(status)
-    const rent = Number.parseFloat(askingRent)
-    const suggested = calcSuggestedDeposit(rent, status)
+    const suggested = calcSuggestedDeposit(Number.parseFloat(askingRent), status)
     if (suggested != null) setDepositAmount(String(suggested))
-    else if (status === "unfurnished") setDepositAmount(askingRent) // default 1× for unfurnished
     markDirty()
   }
 
@@ -772,7 +767,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
               />
               {suggestedDeposit != null && (
                 <p className="text-xs text-muted-foreground">
-                  Auto-calculated: R {suggestedDeposit.toLocaleString("en-ZA")} ({DEPOSIT_MULTIPLIERS[furnishingStatus]}× rent). Edit to override.
+                  Auto-calculated: R {suggestedDeposit.toLocaleString("en-ZA")} ({defaultDepositMultiple(furnishingStatus)}× rent). Edit to override.
                 </p>
               )}
             </div>
