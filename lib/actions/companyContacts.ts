@@ -10,7 +10,7 @@
  *         primary promotes another remaining person so the "exactly one primary" invariant holds.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
-import { hashIdNumber } from "@/lib/crypto/idNumber"
+import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { validateSAId } from "@/lib/parties/partyValidation"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -70,8 +70,7 @@ export async function addCompanyPerson(input: AddCompanyPersonInput): Promise<{ 
       is_primary_contact: !!input.isPrimary,
       is_signatory: !!input.isSignatory,
       id_type: input.isSignatory ? (input.idType || "sa_id") : null,
-      id_number: sigId,
-      id_number_hash: sigId ? hashIdNumber(sigId) : null,
+      ...idNumberColumns(sigId),
       first_name: input.firstName?.trim() || null,
       last_name: input.lastName?.trim() || null,
       primary_email: input.email?.trim() || null,

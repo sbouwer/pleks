@@ -13,7 +13,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { decryptIdNumber, decryptDob } from "@/lib/crypto/idNumber"
+import { decryptIdNumber, decryptDob, idNumberColumns } from "@/lib/crypto/idNumber"
 
 export async function createTenantFromCoApplicant(
   coApplicantId: string,
@@ -60,14 +60,16 @@ export async function createTenantFromCoApplicant(
     }
   }
 
-  // Create contact + tenant (the co's identity is decrypted before copy, like the primary path).
+  // Create contact + tenant. id_number stays ENCRYPTED into contacts (was decrypt-then-write-PLAINTEXT, like the
+  // old primary path): decryptIdNumber tolerates a raw/encrypted source, idNumberColumns re-encrypts + recomputes
+  // the hash. dob decrypts to a real date — contacts.date_of_birth is a `date` column, plaintext (CD 2026-07-07).
   const { data: contact, error: contactError } = await supabase
     .from("contacts")
     .insert({
       org_id: co.org_id, entity_type: "individual", primary_role: "tenant",
       first_name: co.first_name, last_name: co.last_name,
       primary_email: co.applicant_email, primary_phone: co.applicant_phone,
-      id_type: co.id_type, id_number: decryptIdNumber(co.id_number), id_number_hash: co.id_number_hash,
+      id_type: co.id_type, ...idNumberColumns(decryptIdNumber(co.id_number)),
       date_of_birth: decryptDob(co.date_of_birth),
       created_by: authUserId,
     })

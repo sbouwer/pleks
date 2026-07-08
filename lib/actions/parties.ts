@@ -5,15 +5,15 @@
  *
  * Auth:   requireAgentWriteAccess (agent write gate + subscription lockdown)
  * Data:   contacts (+ contact_addresses for company FICA) + the role extension table
- * Notes:  One DRY contact-row builder serves all three roles. FICA roles (landlord/tenant) capture
- *         id_number + id_number_hash (hashIdNumber; at-rest encryption is the DB's job — same pattern
- *         as lib/actions/tenants.ts) and put the company's mandated signatory in the contact_* columns;
- *         contractors are non-FICA (no ID). Tenant consent writes a real consent_log row (POPIA).
+ * Notes:  One DRY contact-row builder serves all three roles. FICA roles (landlord/tenant) capture the SA
+ *         id_number ENCRYPTED at rest + its lookup hash via idNumberColumns (app-side AES-GCM — there is no
+ *         DB-level encryption), and put the company's mandated signatory in the contact_* columns; contractors
+ *         are non-FICA (no ID). Reads decryptIdNumber for the edit form. Tenant consent writes a consent_log row.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
 import { headers } from "next/headers"
-import { hashIdNumber } from "@/lib/crypto/idNumber"
+import { idNumberColumns, decryptIdNumber } from "@/lib/crypto/idNumber"
 import { PARTY_ROLES, toContactEntityType, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
 import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson, PartyAddressInput, PartyBankAccountInput } from "@/lib/parties/partyValidation"
 
@@ -83,10 +83,9 @@ function buildPartyContactData(
     d.primary_email = f.email?.trim() || null
     d.primary_phone = f.phone?.trim() || null
     // ID kept for every individual — required for FICA parties (landlord/tenant), optional for suppliers; null if blank.
+    // id_number is encrypted at rest + hashed for lookup via idNumberColumns (the two always move together).
     d.id_type = f.idType || null
-    const id = f.idNumber?.trim() || null
-    d.id_number = id
-    d.id_number_hash = id ? hashIdNumber(id) : null
+    Object.assign(d, idNumberColumns(f.idNumber))
     return d
   }
 
@@ -125,8 +124,7 @@ async function insertCompanyPeople(db: Db, orgId: string, userId: string, compan
       // Signatory + FICA ID (FICA company contacts only) — the person who signs for the company.
       is_signatory: !!p.isSignatory,
       id_type: p.isSignatory ? (p.idType || "sa_id") : null,
-      id_number: sigId,
-      id_number_hash: sigId ? hashIdNumber(sigId) : null,
+      ...idNumberColumns(sigId),
       title: p.title?.trim() || null,
       first_name: p.firstName?.trim() || null,
       last_name: p.lastName?.trim() || null,
@@ -193,7 +191,6 @@ async function auditPartyUpdate(db: Db, orgId: string, userId: string, table: st
  *  ID round-trips for every individual (pre-filled by fetch → editable here); required only for FICA in the UI. */
 function buildContactScalarUpdate(entity: PartyEntity, f: PartyFormState, primary?: PartyPerson): Record<string, unknown> {
   if (entity === "individual") {
-    const id = f.idNumber?.trim() || null
     return {
       title: f.title?.trim() || null, initials: f.initials?.trim() || null,
       first_name: f.firstName?.trim() || null, middle_names: f.middleNames?.trim() || null,
@@ -203,7 +200,7 @@ function buildContactScalarUpdate(entity: PartyEntity, f: PartyFormState, primar
       preferred_channel: f.preferredChannel || null,
       primary_email: f.email?.trim() || null, primary_phone: f.phone?.trim() || null,
       vat_number: f.vatNumber?.trim() || null,
-      id_type: f.idType || "sa_id", id_number: id, id_number_hash: id ? hashIdNumber(id) : null,
+      id_type: f.idType || "sa_id", ...idNumberColumns(f.idNumber),
     }
   }
   return {
@@ -242,8 +239,7 @@ async function upsertCompanyPeople(db: Db, orgId: string, userId: string, compan
       is_primary_contact: i === primaryIdx,
       is_signatory: !!p.isSignatory,
       id_type: p.isSignatory ? (p.idType || "sa_id") : null,
-      id_number: sigId,
-      id_number_hash: sigId ? hashIdNumber(sigId) : null,
+      ...idNumberColumns(sigId),
       title: p.title?.trim() || null,
       first_name: p.firstName?.trim() || null,
       last_name: p.lastName?.trim() || null,
@@ -293,7 +289,7 @@ async function fetchCompanyPeopleAsParty(db: Db, orgId: string, companyContactId
     isPrimary: !!p.is_primary_contact,
     isSignatory: !!p.is_signatory,
     idType: (p.id_type as string | null) ?? undefined,
-    idNumber: (p.id_number as string | null) ?? undefined,
+    idNumber: decryptIdNumber(p.id_number as string | null) ?? undefined,
   }))
 }
 
@@ -331,7 +327,7 @@ async function individualIdentityForm(db: Db, contactId: string): Promise<Partia
     dob: ((c.date_of_birth as string | null) ?? undefined)?.slice(0, 10),
     preferredChannel: (c.preferred_channel as string | null) ?? undefined,
     idType: (c.id_type as string | null) ?? undefined,
-    idNumber: (c.id_number as string | null) ?? undefined,
+    idNumber: decryptIdNumber(c.id_number as string | null) ?? undefined,
     vatNumber: (c.vat_number as string | null) ?? undefined,
   }
 }
@@ -664,13 +660,12 @@ async function syncSelfLandlordContact(db: Db, orgId: string, landlordId: string
     .select("contact_id").eq("id", landlordId).eq("org_id", orgId).maybeSingle()
   if (error) { console.error("[syncSelfLandlordContact] landlord read failed:", error.message); return }
   if (!ll?.contact_id) return
-  const id = f.idNumber?.trim() || null
   const { error: upErr } = await db.from("contacts").update({
     title: f.title?.trim() || null, initials: f.initials?.trim() || null,
     first_name: f.firstName?.trim() || null, middle_names: f.middleNames?.trim() || null,
     last_name: f.lastName?.trim() || null, suffix: f.suffix?.trim() || null,
     gender: f.gender || null, date_of_birth: f.dob || null,
-    id_type: f.idType || "sa_id", id_number: id, id_number_hash: id ? hashIdNumber(id) : null,
+    id_type: f.idType || "sa_id", ...idNumberColumns(f.idNumber),
   }).eq("id", ll.contact_id as string).eq("org_id", orgId)
   if (upErr) console.error("[syncSelfLandlordContact] sync failed:", upErr.message)
 }
@@ -768,7 +763,7 @@ export async function fetchTenantParty(tenantId: string): Promise<PartyEditData>
     companyEmail: entity === "company" ? ((t.email as string | null) ?? undefined) : undefined,
     companyPhone: entity === "company" ? ((t.phone as string | null) ?? undefined) : undefined,
     idType: (t.id_type as string | null) ?? undefined,
-    idNumber: (t.id_number as string | null) ?? undefined,
+    idNumber: decryptIdNumber(t.id_number as string | null) ?? undefined,
     people,
     employer: (t.employer_name as string | null) ?? undefined,
     occupation: (t.occupation as string | null) ?? undefined,

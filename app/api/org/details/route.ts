@@ -13,6 +13,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"
+import { encryptIdNumber, decryptIdNumber } from "@/lib/crypto/idNumber"
 
 const ALL_FIELDS = [
   "name", "trading_as", "reg_number", "eaab_number", "vat_number",
@@ -60,9 +61,26 @@ export async function GET() {
   for (const field of ALL_FIELDS) {
     result[field] = d[field] ?? null
   }
+  // id_number (the owner/principal's SA ID) is encrypted at rest — decrypt for the owner-only edit form.
+  // organisations has no id_number_hash column, so this surface is encrypt/decrypt only (no lookup hash).
+  result["id_number"] = decryptIdNumber(d["id_number"])
   const pcUser = (d as unknown as Record<string, unknown>)["primary_contact_is_user"]
   result["primary_contact_is_user"] = typeof pcUser === "boolean" ? pcUser : true
   return NextResponse.json(result)
+}
+
+/** Validate + build the string-column patch from the body (ALL_FIELDS allowlist). id_number is encrypted at
+ *  rest here (organisations has no hash column → encrypt only). Returns an error message on a wrong-typed field. */
+function buildOrgStringPatch(body: Record<string, unknown>): { patch: Record<string, string | null> } | { error: string } {
+  const patch: Record<string, string | null> = {}
+  for (const field of ALL_FIELDS) {
+    if (!(field in body)) continue
+    const value = body[field]
+    if (value !== null && typeof value !== "string") return { error: `Field "${field}" must be a string or null` }
+    patch[field] = value as string | null
+  }
+  if ("id_number" in patch) patch.id_number = encryptIdNumber(patch.id_number)
+  return { patch }
 }
 
 export async function PATCH(req: NextRequest) {
@@ -79,20 +97,13 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Body must be a JSON object" }, { status: 400 })
   }
 
-  const patch: Record<string, string | null> = {}
-  for (const field of ALL_FIELDS) {
-    if (field in (body as Record<string, unknown>)) {
-      const value = (body as Record<string, unknown>)[field]
-      if (value !== null && typeof value !== "string") {
-        return NextResponse.json({ error: `Field "${field}" must be a string or null` }, { status: 400 })
-      }
-      patch[field] = value as string | null
-    }
-  }
+  const bodyObj = body as Record<string, unknown>
+  const parsed = buildOrgStringPatch(bodyObj)
+  if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  const patch = parsed.patch
 
   // Accept primary_contact_is_user as a boolean alongside string fields
   const boolPatch: Record<string, boolean> = {}
-  const bodyObj = body as Record<string, unknown>
   if ("primary_contact_is_user" in bodyObj) {
     if (typeof bodyObj["primary_contact_is_user"] !== "boolean") {
       return NextResponse.json({ error: "primary_contact_is_user must be a boolean" }, { status: 400 })
