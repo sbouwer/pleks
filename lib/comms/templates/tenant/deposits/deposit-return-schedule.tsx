@@ -91,8 +91,8 @@ export function DepositReturnScheduleEmail({
 
       <Text style={para}>
         In accordance with section 5(7) of the Rental Housing Act 50 of 1999, please find below
-        the itemised schedule of your deposit return. You have <strong>{returnDays} days</strong>{" "}
-        from the date of vacation to dispute any deductions listed herein.
+        the itemised schedule of your deposit return. You have{" "}
+        <strong>until {deadlineDate}</strong> to dispute any deductions listed herein.
       </Text>
 
       <Section style={box}>
@@ -139,7 +139,7 @@ export function DepositReturnScheduleEmail({
 
       <Text style={para}>
         The refund of <strong>{refundToTenantDisplay}</strong> will be processed within{" "}
-        {returnDays} days of the date of this notice, subject to no valid dispute being received.
+        {returnDays} days of restoration of the property, subject to no valid dispute being received.
         If a dispute is lodged, the disputed portion will be held pending resolution in accordance
         with {DEPOSIT_RETURN_SCHEDULE_BASIS}.
       </Text>

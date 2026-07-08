@@ -22,11 +22,17 @@ export function deriveSmsFromWhatsApp(body: string): string {
   const stripped = body
     .replaceAll(/\*([^*\n]+)\*/g, "$1")
     .replaceAll(/_([^_\n]+)_/g, "$1")
+    .trim()
 
   if (stripped.length <= MAX_SMS_LENGTH) return stripped
 
+  // Truncate on a word boundary so a legal claim (e.g. "proceedings in 5 business days") is not
+  // severed mid-word (O-16 R4). Fall back to a hard slice only if there's no space to break on.
   const cutoff = MAX_SMS_LENGTH - SUFFIX.length
-  return stripped.slice(0, cutoff) + SUFFIX
+  const hardSlice = stripped.slice(0, cutoff)
+  const lastSpace = hardSlice.lastIndexOf(" ")
+  const safe = lastSpace > cutoff * 0.6 ? hardSlice.slice(0, lastSpace) : hardSlice
+  return safe.trimEnd() + SUFFIX
 }
 
 // ── Fallback sender ────────────────────────────────────────────────────────────
