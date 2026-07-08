@@ -14,8 +14,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
-import { recordTrustTransaction } from "@/lib/trust/invariants"
-import * as Sentry from "@sentry/nextjs"
 import * as React from "react"
 import { addMonths } from "date-fns"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
@@ -32,82 +30,6 @@ interface AllocationInput {
   description: string
   collectionMethod?: "next_invoice" | "separate_invoice" | "deposit_deduction" | "already_paid"
   clauseRef?: string
-}
-
-type MaintenanceReq = {
-  property_id: string | null
-  unit_id: string | null
-  lease_id: string | null
-}
-
-async function writeFinancialRecords(
-  service: Service,
-  orgId: string,
-  requestId: string,
-  userId: string,
-  request: MaintenanceReq,
-  allocations: AllocationInput[],
-  created: Array<{ id: string; allocation_type: string; amount_cents: number; description: string }>,
-): Promise<void> {
-  const statementMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString().split("T")[0]
-
-  for (const alloc of created.filter((a) => a.allocation_type === "landlord_expense")) {
-    await recordTrustTransaction({
-      orgId,
-      propertyId: request.property_id ?? undefined,
-      unitId: request.unit_id ?? undefined,
-      leaseId: request.lease_id ?? undefined,
-      transactionType: "maintenance_expense",
-      direction: "debit",
-      amountCents: alloc.amount_cents,
-      description: alloc.description,
-      maintenanceRequestId: requestId,
-      statementMonth: statementMonth,
-      createdBy: userId,
-      source: "agency_bank",
-      initiatedBy: "agent",
-    }).catch(async (e) => {
-      // Surface the books-gap instead of swallowing it (CD 2026-07-02): a dropped expense posting no
-      // one sees is worse than a visible failure. The proper fix (fold into an atomic RPC with the
-      // upstream cost allocation) is tracked; until then this makes the failure loud.
-      const msg = e instanceof Error ? e.message : String(e)
-      console.error("[trust] maintenance_expense insert failed:", msg)
-      Sentry.captureException(e instanceof Error ? e : new Error(msg), {
-        tags: { invariant: "trust_write_failed", path: "maintenance_signoff" },
-      })
-      await service.from("audit_log").insert({
-        org_id: orgId,
-        table_name: "trust_transactions",
-        record_id: requestId,
-        action: "NOTE",
-        changed_by: userId,
-        new_values: { event: "trust_write_failed", type: "maintenance_expense", amount_cents: alloc.amount_cents, error: msg },
-      })
-    })
-  }
-
-  if (request.lease_id) {
-    const today = new Date().toISOString().split("T")[0]
-    for (const input of allocations) {
-      if (
-        input.type === "tenant_charge" &&
-        (input.collectionMethod === "next_invoice" || input.collectionMethod === "separate_invoice")
-      ) {
-        await service.from("lease_charges").insert({
-          org_id: orgId,
-          lease_id: request.lease_id,
-          description: input.description.trim(),
-          charge_type: "maintenance_recovery",
-          amount_cents: input.amountCents,
-          start_date: today,
-          payable_to: "landlord",
-          is_active: true,
-          created_by: userId,
-        })
-      }
-    }
-  }
 }
 
 async function fireCompletedComm(
@@ -166,29 +88,6 @@ function validateAllocations(totalCents: number, allocations: AllocationInput[])
     }
   }
   return null
-}
-
-async function insertAllocations(
-  service: Service,
-  orgId: string,
-  requestId: string,
-  userId: string,
-  allocations: AllocationInput[],
-) {
-  const records = allocations.map((a) => ({
-    org_id: orgId,
-    request_id: requestId,
-    allocation_type: a.type,
-    amount_cents: a.amountCents,
-    description: a.description.trim(),
-    lease_clause_ref: a.clauseRef?.trim() || null,
-    collection_method: a.type === "tenant_charge" ? (a.collectionMethod ?? null) : null,
-    created_by: userId,
-  }))
-  return service
-    .from("maintenance_cost_allocations")
-    .insert(records)
-    .select("id, allocation_type, amount_cents, description")
 }
 
 async function createWorkmanshipWarranty(
@@ -286,25 +185,28 @@ export async function POST(req: NextRequest) {
   const validationError = validateAllocations(request.actual_cost_cents ?? 0, allocations)
   if (validationError) return NextResponse.json({ error: validationError }, { status: 400 })
 
-  // Mark completed
-  const { error: statusError } = await service
-    .from("maintenance_requests")
-    .update({
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      agent_signoff_at: new Date().toISOString(),
-      agent_signoff_by: userId,
-    })
-    .eq("id", requestId)
-
-  if (statusError) return NextResponse.json({ error: statusError.message }, { status: 500 })
-
-  const { data: created, error: allocError } = await insertAllocations(
-    service, orgId, requestId, userId, allocations,
-  )
-  if (allocError) return NextResponse.json({ error: allocError.message }, { status: 500 })
-
-  await writeFinancialRecords(service, orgId, requestId, userId, request, allocations, created ?? [])
+  // Status flip + all cost-allocation inserts + trust maintenance_expense debits + tenant lease_charges in ONE
+  // transaction (ledger 4b). Was: a status UPDATE, then insertAllocations, then writeFinancialRecords whose trust
+  // post was `.catch()`-swallowed — a failed trust post left a 'completed' request + a committed allocation with no
+  // trust debit (D-TRUST-01 imbalance). The RPC rolls the whole sign-off back on any trust failure (no half-state).
+  const statementMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0]
+  const { error: signoffError } = await service.rpc("sign_off_maintenance_financials_atomic", {
+    p_org_id:          orgId,
+    p_request_id:      requestId,
+    p_actor:           userId,
+    p_property_id:     request.property_id,
+    p_unit_id:         request.unit_id,
+    p_lease_id:        request.lease_id,
+    p_statement_month: statementMonth,
+    p_allocations:     allocations.map((a) => ({
+      type:              a.type,
+      amount_cents:      a.amountCents,
+      description:       a.description.trim(),
+      collection_method: a.collectionMethod ?? null,
+      clause_ref:        a.clauseRef ?? null,
+    })),
+  })
+  if (signoffError) return NextResponse.json({ error: `Maintenance sign-off failed: ${signoffError.message}` }, { status: 500 })
 
   // Auto-create workmanship warranty (ADDENDUM_60B)
   const warrantyId = await createWorkmanshipWarranty(

@@ -3114,3 +3114,83 @@ ALTER TABLE applications DROP COLUMN IF EXISTS huru_check_purged_at;
 -- until levy-generate runs.)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_levy_invoices_owner_period
   ON levy_invoices(owner_id, period_month);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  SECURITY 2026-07-08: maintenance sign-off financials in ONE transaction
+--     (ledger 4b — the maintenance/sign-off half; folds the two functions atomically)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- app/api/maintenance/sign-off/route.ts marked the request 'completed' + inserted maintenance_cost_allocations,
+-- THEN posted the trust maintenance_expense debit per landlord_expense via a `.catch()`-SWALLOWED
+-- recordTrustTransaction (loud-logged to Sentry + audit, but NOT rolled back). So a failed trust post left a
+-- committed cost allocation + a request marked 'completed' with NO trust expense debit — a D-TRUST-01 imbalance
+-- (the same class closed in record_payment_atomic / disburse_deposit_atomic / settle_deposit_charge_atomic; CD's
+-- 2026-07-02 ruling bundled this "sign-off two-function restructure" into 4b). This RPC does the status flip +
+-- all cost-allocation inserts + the trust debits + the tenant lease_charges in ONE transaction: the trust insert
+-- fires the sovereignty + closed-period triggers, so any RAISE rolls the WHOLE sign-off back (no half-state).
+-- plpgsql is late-bound, so referencing maintenance_cost_allocations (defined in 008) from 005 is replay-safe.
+CREATE OR REPLACE FUNCTION sign_off_maintenance_financials_atomic(
+  p_org_id          uuid,
+  p_request_id      uuid,
+  p_actor           uuid,
+  p_property_id     uuid,
+  p_unit_id         uuid,
+  p_lease_id        uuid,
+  p_statement_month date,
+  p_allocations     jsonb   -- [{type, amount_cents, description, collection_method, clause_ref}]
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE v_alloc jsonb; v_type text; v_amount bigint; v_desc text; v_method text; v_clause text; v_rows int;
+BEGIN
+  -- Flip to completed — org-scoped + only from pending_completion (guards cross-org + double sign-off).
+  UPDATE maintenance_requests
+     SET status = 'completed', completed_at = now(), agent_signoff_at = now(), agent_signoff_by = p_actor
+   WHERE id = p_request_id AND org_id = p_org_id AND status = 'pending_completion';
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows = 0 THEN
+    RAISE EXCEPTION 'sign_off_maintenance_financials_atomic: request % not found / not pending_completion in org %', p_request_id, p_org_id
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  FOR v_alloc IN SELECT jsonb_array_elements(p_allocations)
+  LOOP
+    v_type   := v_alloc->>'type';
+    v_amount := (v_alloc->>'amount_cents')::bigint;
+    v_desc   := v_alloc->>'description';
+    v_method := v_alloc->>'collection_method';
+    v_clause := NULLIF(btrim(COALESCE(v_alloc->>'clause_ref', '')), '');
+
+    INSERT INTO maintenance_cost_allocations (
+      org_id, request_id, allocation_type, amount_cents, description, lease_clause_ref, collection_method, created_by
+    ) VALUES (
+      p_org_id, p_request_id, v_type, v_amount, v_desc, v_clause,
+      CASE WHEN v_type = 'tenant_charge' THEN v_method ELSE NULL END, p_actor
+    );
+
+    -- landlord expense → trust maintenance_expense debit (was the .catch()-swallowed post)
+    IF v_type = 'landlord_expense' THEN
+      INSERT INTO trust_transactions (
+        org_id, transaction_type, direction, amount_cents, description,
+        property_id, unit_id, lease_id, maintenance_request_id, statement_month, created_by, source, initiated_by
+      ) VALUES (
+        p_org_id, 'maintenance_expense', 'debit', v_amount, v_desc,
+        p_property_id, p_unit_id, p_lease_id, p_request_id, p_statement_month, p_actor, 'agency_bank', 'agent'
+      );
+    END IF;
+
+    -- tenant charge billed on the next/separate invoice → a lease_charge for the next rent run
+    IF v_type = 'tenant_charge' AND p_lease_id IS NOT NULL AND v_method IN ('next_invoice', 'separate_invoice') THEN
+      INSERT INTO lease_charges (
+        org_id, lease_id, description, charge_type, amount_cents, start_date, payable_to, is_active, created_by
+      ) VALUES (
+        p_org_id, p_lease_id, btrim(v_desc), 'maintenance_recovery', v_amount, CURRENT_DATE, 'landlord', true, p_actor
+      );
+    END IF;
+  END LOOP;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION sign_off_maintenance_financials_atomic(uuid,uuid,uuid,uuid,uuid,uuid,date,jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION sign_off_maintenance_financials_atomic(uuid,uuid,uuid,uuid,uuid,uuid,date,jsonb) TO service_role;
