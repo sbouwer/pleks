@@ -16,11 +16,12 @@ const orgs: string[] = []
 afterAll(() => orgs.forEach(teardownOrg))
 
 async function watermark(leaseId: string): Promise<string | null> {
-  const { data } = await db
+  const { data, error } = await db
     .from("leases")
     .select("deposit_interest_last_accrued_date")
     .eq("id", leaseId)
     .single()
+  if (error) throw error
   return data?.deposit_interest_last_accrued_date ?? null
 }
 
@@ -63,7 +64,7 @@ describe("deposit-interest accrual — double-post guard (ledger 4c)", () => {
   it("posts once + advances the watermark atomically, then rejects a stale re-accrual", async () => {
     const c = await seedLedgerCase(db, { invoices: [] })
     orgs.push(c.orgId)
-    await db.from("leases").update({ deposit_interest_last_accrued_date: "2026-06-01" }).eq("id", c.leaseId)
+    await db.from("leases").update({ deposit_interest_last_accrued_date: "2026-06-01" }).eq("id", c.leaseId).eq("org_id", c.orgId)
 
     // First accrual: expected == current watermark → posts once + advances to 2026-07-01.
     const first = await accrue(c, { expected: "2026-06-01", advanceTo: "2026-07-01" })
@@ -88,7 +89,7 @@ describe("deposit-interest accrual — double-post guard (ledger 4c)", () => {
   it("leaves the watermark untouched when the posting fails (no advance without a commit)", async () => {
     const c = await seedLedgerCase(db, { invoices: [] })
     orgs.push(c.orgId)
-    await db.from("leases").update({ deposit_interest_last_accrued_date: "2026-06-01" }).eq("id", c.leaseId)
+    await db.from("leases").update({ deposit_interest_last_accrued_date: "2026-06-01" }).eq("id", c.leaseId).eq("org_id", c.orgId)
 
     // Force the trust insert (2nd write) to fail — the whole RPC rolls back, incl. the watermark advance.
     forceTrustInsertFailure(true)
