@@ -2,11 +2,13 @@
  * lib/finance/depositInterest.ts — deposit interest calc + monthly/lease-end accrual posting
  *
  * Data:   reads leases + deposit interest config (unit→property→org hierarchy); posts via
- *         record_deposit_atomic RPC (deposit_transactions + trust_ledger commit atomically);
- *         advances leases.deposit_interest_last_accrued_date; writes audit_log
+ *         record_deposit_atomic RPC — deposit_transactions + trust_ledger + the
+ *         leases.deposit_interest_last_accrued_date watermark advance all commit atomically; writes audit_log
  * Notes:  service-client helper (no gate of its own) — driven by the deposit-interest cron and
- *         lease-end reconciliation. On RPC failure it does NOT advance last_accrued, so the next
- *         run retries the window (prevents the old swallowed-failure under-accrual).
+ *         lease-end reconciliation. The watermark advance is folded INTO the RPC (ledger 4c) behind a
+ *         FOR UPDATE + compare-and-set: a crash mid-accrual or two concurrent runs can no longer
+ *         double-accrue the same window, and on RPC failure the watermark is untouched so the next run
+ *         retries. (Replaced the old separate post-commit UPDATE that left the accrual/advance non-atomic.)
  */
 import { differenceInDays, format, startOfMonth } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -113,9 +115,13 @@ export async function accrueDepositInterest(
     return { interestCents: 0, fromDate, toDate: upToDate, ratePercent }
   }
 
-  // Atomic deposit sub-ledger + trust posting (ADDENDUM_TRUST_RPC_ATOMICITY step 2) — the two ledgers
-  // commit together or not at all. Inbound credit, so initiated_by 'pleks_system' passes the
-  // sovereignty trigger (Rule 2 blocks only outbound system movement).
+  // Atomic deposit sub-ledger + trust posting + watermark advance (ADDENDUM_TRUST_RPC_ATOMICITY step 2 +
+  // ledger 4c) — all three commit together or not at all. Inbound credit, so initiated_by 'pleks_system'
+  // passes the sovereignty trigger (Rule 2 blocks only outbound system movement). p_advance_last_accrued_to +
+  // p_expected_last_accrued fold the deposit_interest_last_accrued_date advance INTO the RPC: the lease is
+  // locked FOR UPDATE and the watermark compare-and-set inside the same transaction, so a crash between the
+  // post and the advance (old bug) or two concurrent runs reading the same stale watermark can no longer
+  // double-accrue the same window — a moved watermark RAISEs and rolls the whole posting back.
   const { error: depErr } = await supabase.rpc("record_deposit_atomic", {
     p_org_id: lease.org_id,
     p_lease_id: leaseId,
@@ -133,20 +139,16 @@ export async function accrueDepositInterest(
     p_effective_rate_percent: ratePercent,
     p_rate_config_id: rateConfigId,
     p_statement_month: format(startOfMonth(upToDate), "yyyy-MM-dd"),
+    p_advance_last_accrued_to: format(upToDate, "yyyy-MM-dd"),
+    p_expected_last_accrued: lease.deposit_interest_last_accrued_date ?? null,
   })
   if (depErr) {
-    // Accrual rolled back atomically — do NOT advance last_accrued below, so the next run retries
-    // this window (the old code advanced it even when the swallowed trust insert failed → under-accrual).
+    // Rolled back atomically — the watermark is NOT advanced (it moves only inside the RPC now), so the next
+    // run retries this window. A "watermark moved" error here means a concurrent run already accrued it (the
+    // compare-and-set aborted the duplicate) — benign; the window is not lost.
     console.error("[deposit-interest] record_deposit_atomic failed:", depErr.message)
     return { interestCents: 0, fromDate, toDate: upToDate, ratePercent }
   }
-
-  // Update last accrued date
-  await supabase
-    .from("leases")
-    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- cron/system: sole caller is the deposit-interest cron (app/api/cron/deposit-interest) iterating all leases; org derives from lease.org_id, there is no caller-org to cross
-    .update({ deposit_interest_last_accrued_date: format(upToDate, "yyyy-MM-dd") })
-    .eq("id", leaseId)
 
   await supabase.from("audit_log").insert({
     org_id: lease.org_id,
