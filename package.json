@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:db": "vitest run --config vitest.db.config.ts",
+    "test:report": "node scripts/test-report.mjs",
     "nuke-user": "node scripts/nuke-user.mjs",
     "fitscore:replay": "node scripts/fitscore-replay.mjs",
     "render:fitscore-e1": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-e1-chrome-test.ts",
