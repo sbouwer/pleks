@@ -111,94 +111,21 @@ async function settlePatternA(
   recon: { org_id: string; lease_id: string; tenant_id: string },
   actorId: string
 ) {
-  const now = new Date().toISOString()
-
-  // Insert a deposit-offset payment — allocate_payment_atomic applies interest-first then invoices
-  const { data: payment, error: paymentErr } = await supabase
-    .from("payments")
-    .insert({
-      org_id:          recon.org_id,
-      lease_id:        recon.lease_id,
-      tenant_id:       recon.tenant_id,
-      amount_cents:    charge.deduction_amount_cents,
-      payment_date:    now.slice(0, 10),
-      payment_method:  "deposit_offset",
-      reference:       `DEPOSIT-OFFSET-${charge.id.slice(0, 8).toUpperCase()}`,
-      notes:           charge.description,
-      recorded_by:     actorId,
-    })
-    .select("id")
-    .single()
-
-  if (paymentErr || !payment) {
-    throw new Error(`Pattern A payment insert failed for charge "${charge.description}": ${paymentErr?.message}`)
-  }
-
-  // Interest-first → oldest-invoice allocation (clause 6.6) — now the single plpgsql authority
-  // (allocate_payment_atomic), replacing the deleted TS allocatePayment().
-  const { error: allocErr } = await supabase.rpc("allocate_payment_atomic", {
-    p_org_id:       recon.org_id,
-    p_payment_id:   payment.id,
-    p_lease_id:     recon.lease_id,
-    p_amount_cents: charge.deduction_amount_cents,
-    p_actor:        actorId,
+  // Deposit-offset payment + clause-6.6 allocation (allocate_payment_atomic) + deposit-side debit + arrears
+  // recompute + charge link, all in ONE transaction (ledger — Pattern A fold). Was five separate awaits: a
+  // failure after the payment/allocation left the charge unlinked, so a re-run re-inserted the payment +
+  // re-allocated = double deposit consumption. The RPC rolls the whole settlement back on any failure.
+  const { error } = await supabase.rpc("settle_deposit_charge_pattern_a_atomic", {
+    p_org_id:          recon.org_id,
+    p_lease_id:        recon.lease_id,
+    p_tenant_id:       recon.tenant_id,
+    p_charge_id:       charge.id,
+    p_amount_cents:    charge.deduction_amount_cents,
+    p_description:     charge.description,
+    p_actor:           actorId,
+    p_arrears_case_id: charge.source_arrears_case_id,
   })
-  if (allocErr) throw new Error(`Pattern A allocation failed for charge "${charge.description}": ${allocErr.message}`)
-
-  // Insert deposit transaction recording the offset
-  const { data: depTxn, error: dtErr } = await supabase
-    .from("deposit_transactions")
-    .insert({
-      org_id:           recon.org_id,
-      lease_id:         recon.lease_id,
-      tenant_id:        recon.tenant_id,
-      transaction_type: "arrears_offset_to_invoice",
-      direction:        "debit",
-      amount_cents:     charge.deduction_amount_cents,
-      description:      `${charge.description} — settled via deposit offset (Payment ${(payment.id as string).slice(0, 8).toUpperCase()})`,
-      charge_id:        charge.id,
-      created_by:       actorId,
-    })
-    .select("id")
-    .single()
-
-  if (dtErr) throw new Error(`Pattern A deposit_transactions insert failed: ${dtErr.message}`)
-
-  // If an arrears case is linked, check if it's now resolved
-  if (charge.source_arrears_case_id) {
-    const { data: openInvs, error: openInvsError } = await supabase
-      .from("rent_invoices")
-      .select("balance_cents")
-      .eq("lease_id", recon.lease_id)
-      .in("status", ["open", "partial", "overdue"])
-    if (openInvsError) console.error("settlePatternA rent_invoices read failed:", openInvsError.message)
-    const remainingArrears = (openInvs ?? []).reduce((s, i) => s + ((i.balance_cents as number) ?? 0), 0)
-
-    if (remainingArrears <= 0) {
-      await supabase
-        .from("arrears_cases")
-        .update({
-          status:           "resolved",
-          resolved_at:      now,
-          resolution_notes: "Settled via deposit offset on disbursement",
-        })
-        .eq("id", charge.source_arrears_case_id)
-    } else {
-      await supabase
-        .from("arrears_cases")
-        .update({ total_arrears_cents: remainingArrears })
-        .eq("id", charge.source_arrears_case_id)
-    }
-  }
-
-  // Link payment and deposit txn back to the charge
-  await supabase
-    .from("deposit_charges")
-    .update({
-      settling_payment_id:    payment.id,
-      settling_deposit_txn_id: depTxn?.id,
-    })
-    .eq("id", charge.id)
+  if (error) throw new Error(`Pattern A settlement failed for charge "${charge.description}": ${error.message}`)
 }
 
 async function settlePatternB(

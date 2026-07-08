@@ -3772,6 +3772,13 @@
     "count_distinct_orgs": [
       "target_table"
     ],
+    "disburse_deposit_atomic": [
+      "p_org_id",
+      "p_lease_id",
+      "p_actor",
+      "p_reference",
+      "p_tenant_name"
+    ],
     "enforce_landlords_single_active": [],
     "enforce_user_orgs_single_active": [],
     "enforce_user_orgs_tenants_single_active": [],
@@ -3886,6 +3893,16 @@
       "p_actor",
       "p_with_trust",
       "p_trust_description"
+    ],
+    "settle_deposit_charge_pattern_a_atomic": [
+      "p_org_id",
+      "p_lease_id",
+      "p_tenant_id",
+      "p_charge_id",
+      "p_amount_cents",
+      "p_description",
+      "p_actor",
+      "p_arrears_case_id"
     ],
     "sign_off_maintenance_financials_atomic": [
       "p_org_id",

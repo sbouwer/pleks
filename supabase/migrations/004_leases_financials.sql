@@ -2672,3 +2672,134 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION settle_deposit_charge_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,boolean,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION settle_deposit_charge_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,boolean,text) TO service_role;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  SECURITY 2026-07-08: deposit trust postings carry statement_month + Pattern A atomicity
+--     (the last two ledger follow-ups — closed-period guard + settlePatternA fold-into-RPC)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- (1) CLOSED-PERIOD GUARD. disburse_deposit_atomic + settle_deposit_charge_atomic posted their trust rows with
+--     statement_month = NULL, and check_trust_txn_insert_period_open (004 §) returns early on NULL — so a deposit
+--     refund/deduction/cost-recovery could post into a SIGNED-OFF reconciliation period, corrupting closed books
+--     (inconsistent with record_payment_atomic / apply_invoice_payment_atomic, which set the month). Both now stamp
+--     statement_month = date_trunc('month', CURRENT_DATE) — the current OPEN period. New (correct) behaviour: if the
+--     current period is already signed-off, the trust insert RAISEs and the whole disbursement/settlement rolls back
+--     with a clear SOVEREIGN_TRUST_VIOLATION instead of silently corrupting the closed period — the agent reopens the
+--     period to proceed. (Redefined with CREATE OR REPLACE — same signatures — bodies verbatim + the month.)
+-- (2) PATTERN A ATOMICITY. settlePatternA (lib/deposits/disburse.ts) inserted a deposit-offset payment, called
+--     allocate_payment_atomic, inserted a deposit_transactions debit, recomputed arrears, and linked the charge — as
+--     FIVE separate awaits. A failure after the payment/allocation left the charge unlinked → a re-run re-inserted the
+--     payment + re-allocated = DOUBLE deposit consumption. settle_deposit_charge_pattern_a_atomic folds all of it into
+--     ONE transaction (calling allocate_payment_atomic in-tx via PERFORM).
+
+CREATE OR REPLACE FUNCTION disburse_deposit_atomic(
+  p_org_id uuid, p_lease_id uuid, p_actor uuid, p_reference text, p_tenant_name text
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE v_recon deposit_reconciliations%ROWTYPE; v_month date := date_trunc('month', CURRENT_DATE)::date;
+BEGIN
+  SELECT * INTO v_recon FROM deposit_reconciliations WHERE lease_id = p_lease_id AND org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'disburse_deposit_atomic: reconciliation for lease % not found in org %', p_lease_id, p_org_id USING ERRCODE = 'no_data_found';
+  END IF;
+
+  IF COALESCE(v_recon.refund_to_tenant_cents, 0) > 0 THEN
+    INSERT INTO deposit_transactions (org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description, reference, created_by)
+    VALUES (p_org_id, p_lease_id, v_recon.tenant_id, 'deposit_returned_to_tenant', 'debit', v_recon.refund_to_tenant_cents, 'Deposit refund — ' || p_tenant_name, p_reference, p_actor);
+    INSERT INTO trust_transactions (org_id, transaction_type, direction, amount_cents, description, lease_id, statement_month, created_by, source, initiated_by)
+    VALUES (p_org_id, 'deposit_returned', 'debit', v_recon.refund_to_tenant_cents, 'Deposit refund to tenant — ' || p_tenant_name, p_lease_id, v_month, p_actor, 'agency_bank', 'agent');
+  END IF;
+
+  IF COALESCE(v_recon.deductions_to_landlord_cents, 0) > 0 THEN
+    INSERT INTO deposit_transactions (org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description, reference, created_by)
+    VALUES (p_org_id, p_lease_id, v_recon.tenant_id, 'deduction_paid_to_landlord', 'debit', v_recon.deductions_to_landlord_cents, 'Deposit deductions to landlord', p_reference, p_actor);
+    INSERT INTO trust_transactions (org_id, transaction_type, direction, amount_cents, description, lease_id, statement_month, created_by, source, initiated_by)
+    VALUES (p_org_id, 'deposit_deduction', 'credit', v_recon.deductions_to_landlord_cents, 'Deposit deductions received', p_lease_id, v_month, p_actor, 'agency_bank', 'agent');
+  END IF;
+
+  IF COALESCE(v_recon.refund_to_tenant_cents, 0) = 0 AND COALESCE(v_recon.total_deductions_cents, 0) = 0 AND COALESCE(v_recon.deposit_held_cents, 0) > 0 THEN
+    UPDATE deposit_reconciliations SET is_forfeited = true, sars_taxable_flagged = true, forfeiture_reason = 'Tenant did not claim refund within statutory period'
+     WHERE lease_id = p_lease_id AND org_id = p_org_id;
+  END IF;
+
+  UPDATE deposit_reconciliations SET status = 'refunded', tenant_refund_paid_at = now(), tenant_refund_reference = p_reference, updated_at = now()
+   WHERE lease_id = p_lease_id AND org_id = p_org_id;
+  UPDATE deposit_timers SET status = 'completed', completed_at = now()
+   WHERE lease_id = p_lease_id AND org_id = p_org_id AND status = 'running';
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION disburse_deposit_atomic(uuid,uuid,uuid,text,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION disburse_deposit_atomic(uuid,uuid,uuid,text,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION settle_deposit_charge_atomic(
+  p_org_id uuid, p_lease_id uuid, p_tenant_id uuid, p_charge_id uuid,
+  p_amount_cents bigint, p_dep_description text, p_actor uuid,
+  p_with_trust boolean DEFAULT false, p_trust_description text DEFAULT NULL
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE v_dep_id uuid;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM deposit_charges WHERE id = p_charge_id AND org_id = p_org_id AND lease_id = p_lease_id) THEN
+    RAISE EXCEPTION 'settle_deposit_charge_atomic: charge % not found in org %/lease %', p_charge_id, p_org_id, p_lease_id USING ERRCODE = 'no_data_found';
+  END IF;
+  INSERT INTO deposit_transactions (org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description, charge_id, created_by)
+  VALUES (p_org_id, p_lease_id, p_tenant_id, 'charge_applied', 'debit', p_amount_cents, p_dep_description, p_charge_id, p_actor) RETURNING id INTO v_dep_id;
+  IF p_with_trust THEN
+    INSERT INTO trust_transactions (org_id, transaction_type, direction, amount_cents, description, lease_id, statement_month, created_by, source, initiated_by)
+    VALUES (p_org_id, 'deposit_deduction', 'credit', p_amount_cents, p_trust_description, p_lease_id, date_trunc('month', CURRENT_DATE)::date, p_actor, 'agency_bank', 'agent');
+  END IF;
+  UPDATE deposit_charges SET settling_deposit_txn_id = v_dep_id WHERE id = p_charge_id;
+  RETURN v_dep_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION settle_deposit_charge_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,boolean,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION settle_deposit_charge_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,boolean,text) TO service_role;
+
+-- Pattern A (tenant-debt offset): payment + clause-6.6 allocation + deposit debit + arrears recompute + link, in ONE tx.
+CREATE OR REPLACE FUNCTION settle_deposit_charge_pattern_a_atomic(
+  p_org_id uuid, p_lease_id uuid, p_tenant_id uuid, p_charge_id uuid,
+  p_amount_cents bigint, p_description text, p_actor uuid, p_arrears_case_id uuid DEFAULT NULL
+) RETURNS uuid                                  -- the deposit_transactions id
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+DECLARE v_payment_id uuid; v_dep_id uuid; v_remaining bigint;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM deposit_charges WHERE id = p_charge_id AND org_id = p_org_id AND lease_id = p_lease_id) THEN
+    RAISE EXCEPTION 'settle_deposit_charge_pattern_a_atomic: charge % not found in org %/lease %', p_charge_id, p_org_id, p_lease_id USING ERRCODE = 'no_data_found';
+  END IF;
+
+  -- 1. deposit-offset payment
+  INSERT INTO payments (org_id, lease_id, tenant_id, amount_cents, payment_date, payment_method, reference, notes, recorded_by)
+  VALUES (p_org_id, p_lease_id, p_tenant_id, p_amount_cents, CURRENT_DATE, 'deposit_offset',
+          'DEPOSIT-OFFSET-' || upper(left(p_charge_id::text, 8)), p_description, p_actor)
+  RETURNING id INTO v_payment_id;
+
+  -- 2. clause-6.6 allocation (interest-first, oldest-first) + trust rent_received — in-transaction sub-call
+  PERFORM allocate_payment_atomic(p_org_id, v_payment_id, p_lease_id, p_amount_cents, p_actor);
+
+  -- 3. deposit-side debit recording the offset
+  INSERT INTO deposit_transactions (org_id, lease_id, tenant_id, transaction_type, direction, amount_cents, description, charge_id, created_by)
+  VALUES (p_org_id, p_lease_id, p_tenant_id, 'arrears_offset_to_invoice', 'debit', p_amount_cents,
+          p_description || ' — settled via deposit offset (Payment ' || upper(left(v_payment_id::text, 8)) || ')', p_charge_id, p_actor)
+  RETURNING id INTO v_dep_id;
+
+  -- 4. arrears recompute (if linked): resolve when nothing open remains, else refresh the running total
+  IF p_arrears_case_id IS NOT NULL THEN
+    SELECT COALESCE(SUM(balance_cents), 0) INTO v_remaining
+      FROM rent_invoices WHERE lease_id = p_lease_id AND org_id = p_org_id AND status IN ('open', 'partial', 'overdue');
+    IF v_remaining <= 0 THEN
+      UPDATE arrears_cases SET status = 'resolved', resolved_at = now(), resolution_notes = 'Settled via deposit offset on disbursement'
+       WHERE id = p_arrears_case_id AND org_id = p_org_id;
+    ELSE
+      UPDATE arrears_cases SET total_arrears_cents = v_remaining WHERE id = p_arrears_case_id AND org_id = p_org_id;
+    END IF;
+  END IF;
+
+  -- 5. link payment + deposit txn to the charge
+  UPDATE deposit_charges SET settling_payment_id = v_payment_id, settling_deposit_txn_id = v_dep_id WHERE id = p_charge_id;
+  RETURN v_dep_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION settle_deposit_charge_pattern_a_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION settle_deposit_charge_pattern_a_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,uuid) TO service_role;
