@@ -1,10 +1,14 @@
-// scripts/test-report.mjs — run the vitest suite and write a self-contained HTML dashboard to test/reports/.
+// scripts/test-report.mjs — run the vitest suites and write a self-contained HTML dashboard to test/reports/.
 //
 // Usage:   npm run test:report
+// Runs:    the UNIT suite (vitest run) + the DB-INTEGRATION suite (test/db, vitest.db.config.ts) and MERGES
+//          both into one dashboard (test/db lands in its own category). The DB suite needs the local Supabase
+//          stack — if Docker isn't running the script PROMPTS to start it (npx supabase start), skips the DB
+//          suite, and marks it "SKIPPED (Docker down)" in the report (so the report is still generated).
 // Output:  test/reports/report-<YYYY-MM-DD-HH-MM-SS>.html  (keeps the newest 3, prunes older)
 // Notes:   The report is generated even when tests FAIL (the whole point is to see what broke); the script
-//          exits with vitest's own code afterwards. test/reports/ is gitignored — these are build artifacts.
-//          No dependencies beyond vitest's JSON reporter + Node stdlib; the HTML embeds all CSS/JS/data inline.
+//          exits with the worse of the two suites' codes afterwards. test/reports/ is gitignored (build
+//          artifacts). No deps beyond vitest's JSON reporter + Node stdlib; the HTML embeds all CSS/JS/data.
 
 import { execSync } from "node:child_process"
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync } from "node:fs"
@@ -13,27 +17,65 @@ import { fileURLToPath } from "node:url"
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const REPORT_DIR = resolve(ROOT, "test", "reports")
-const TMP_JSON = resolve(REPORT_DIR, ".last-results.json")
+const UNIT_JSON = resolve(REPORT_DIR, ".unit.json")
+const DB_JSON = resolve(REPORT_DIR, ".db.json")
 const KEEP = 3
 
 mkdirSync(REPORT_DIR, { recursive: true })
 
-// ── 1. Run the suite → JSON (default reporter still prints progress; keep going on failure) ──────────────
-let vitestCode = 0
-try {
-  execSync(`npx vitest run --reporter=default --reporter=json --outputFile.json="${TMP_JSON}"`, {
-    cwd: ROOT, stdio: ["ignore", "inherit", "inherit"],
-  })
-} catch (e) {
-  vitestCode = typeof e.status === "number" ? e.status : 1
-}
-if (!existsSync(TMP_JSON)) {
-  console.error("\n✗ test:report — vitest produced no JSON (it may have crashed before writing). No report generated.")
-  process.exit(vitestCode || 1)
+// ── 1. Run the unit suite + (if Docker is up) the DB-integration suite → merged JSON ─────────────────────
+/** Run one vitest config → { code, json }. Keeps going on failure so the report still generates. */
+function runSuite(extraArgs, outFile) {
+  let code = 0
+  try {
+    execSync(`npx vitest run ${extraArgs} --reporter=default --reporter=json --outputFile.json="${outFile}"`, {
+      cwd: ROOT, stdio: ["ignore", "inherit", "inherit"],
+    })
+  } catch (e) {
+    code = typeof e.status === "number" ? e.status : 1
+  }
+  return { code, json: existsSync(outFile) ? JSON.parse(readFileSync(outFile, "utf8")) : null }
 }
 
+/** Is the local Supabase (Docker) stack up? The DB-integration suite (test/db) needs it. */
+function dockerUp() {
+  try {
+    return execSync('docker ps --filter name=supabase_db --format "{{.Names}}"', { cwd: ROOT }).toString().trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+console.log("▶ Unit suite…\n")
+const unit = runSuite("", UNIT_JSON)
+if (!unit.json) {
+  console.error("\n✗ test:report — the unit suite produced no JSON. No report generated.")
+  process.exit(unit.code || 1)
+}
+
+let db = { code: 0, json: null }
+let dbSkipped = false
+if (dockerUp()) {
+  console.log("\n▶ DB-integration suite (test/db, local Supabase)…\n")
+  db = runSuite("--config vitest.db.config.ts", DB_JSON)
+} else {
+  dbSkipped = true
+  console.warn("\n⚠  Local Supabase (Docker) is NOT running — the DB-integration suite (test/db) was SKIPPED.")
+  console.warn("   Start it with:  npx supabase start   then re-run:  npm run test:report   for the full report.\n")
+}
+
+// Merge the two suites into one dataset (test/db files land in the "test/db" category by path).
+const data = {
+  numTotalTests: (unit.json.numTotalTests || 0) + (db.json?.numTotalTests || 0),
+  numPassedTests: (unit.json.numPassedTests || 0) + (db.json?.numPassedTests || 0),
+  numFailedTests: (unit.json.numFailedTests || 0) + (db.json?.numFailedTests || 0),
+  numPendingTests: (unit.json.numPendingTests || 0) + (db.json?.numPendingTests || 0),
+  numTodoTests: (unit.json.numTodoTests || 0) + (db.json?.numTodoTests || 0),
+  testResults: [...(unit.json.testResults || []), ...(db.json?.testResults || [])],
+}
+const vitestCode = unit.code || db.code
+
 // ── 2. Shape the data: category → file → tests ──────────────────────────────────────────────────────────
-const data = JSON.parse(readFileSync(TMP_JSON, "utf8"))
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]))
 const ms = (n) => (n == null ? "—" : n < 1000 ? `${Math.round(n)} ms` : `${(n / 1000).toFixed(2)} s`)
 const rel = (p) => p.replace(/^.*?pleks[\\/]/i, "").replace(/\\/g, "/")
@@ -88,6 +130,8 @@ const META = {
   commit: git("git rev-parse --short HEAD"),
   when: new Date().toISOString().slice(0, 16).replace("T", " "),
   cmd: "npm run test:report",
+  suites: dbSkipped ? "unit only — DB-integration SKIPPED (Docker down)" : "unit + DB-integration (test/db)",
+  dbSkipped,
 }
 
 // ── 3. Render ───────────────────────────────────────────────────────────────────────────────────────────
@@ -188,6 +232,7 @@ details[open]>summary .caret{transform:rotate(45deg)}
         ${META.branch ? `<span><span class="lbl">Branch</span><span class="mono">${esc(META.branch)}</span></span>` : ""}
         ${META.commit ? `<span><span class="lbl">Commit</span><span class="mono">${esc(META.commit)}</span></span>` : ""}
         <span><span class="lbl">Run</span>${esc(META.when)}</span>
+        <span><span class="lbl">Suites</span><span${META.dbSkipped ? ` style="color:var(--fail)"` : ""}>${esc(META.suites)}</span></span>
       </div>
     </div>
     <div class="banner ${allGreen ? "ok" : "bad"}"><div><div class="big">${allGreen ? "All passing" : `${S.failed} failing`}</div><small>${S.passed} of ${S.total} tests · ${ms(totalDur)} total</small></div></div>
@@ -237,7 +282,8 @@ writeFileSync(resolve(REPORT_DIR, outName), html)
 
 const reports = readdirSync(REPORT_DIR).filter((f) => /^report-.*\.html$/.test(f)).sort() // ISO names sort chronologically
 for (const f of reports.slice(0, Math.max(0, reports.length - KEEP))) rmSync(resolve(REPORT_DIR, f))
-rmSync(TMP_JSON, { force: true })
+rmSync(UNIT_JSON, { force: true })
+rmSync(DB_JSON, { force: true })
 
 const kept = readdirSync(REPORT_DIR).filter((f) => /^report-.*\.html$/.test(f)).sort().reverse()
 console.log(`\n${allGreen ? "✓" : "✗"} test:report — ${S.passed}/${S.total} passed${S.failed ? `, ${S.failed} FAILED` : ""} · ${ms(totalDur)}`)
