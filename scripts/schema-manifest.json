@@ -3876,6 +3876,17 @@
     "seed_default_retention_policies": [
       "org_uuid"
     ],
+    "settle_deposit_charge_atomic": [
+      "p_org_id",
+      "p_lease_id",
+      "p_tenant_id",
+      "p_charge_id",
+      "p_amount_cents",
+      "p_dep_description",
+      "p_actor",
+      "p_with_trust",
+      "p_trust_description"
+    ],
     "sync_decision_columns_on_stage_write": [],
     "sync_profile_from_self_landlord": [],
     "sync_property_has_managing_scheme": [],
