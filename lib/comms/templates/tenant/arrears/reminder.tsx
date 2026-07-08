@@ -1,9 +1,11 @@
 /**
  * lib/comms/templates/tenant/arrears/reminder.tsx — arrears reminder email (A1/A2)
  *
- * Data:   tenant name, amount owed, property, sender name, tone variant
+ * Data:   tenant name, amount owed, property, sender name, tone variant, arrears-case reference
  * Notes:  Relational template — three tone variants via single component.
  *         Used as email fallback when WhatsApp/SMS unavailable (primarily A2).
+ *         referenceNumber (arrears-case id prefix) threads the whole sequence — the LOD
+ *         and final-notice carry the SAME ref, so subject + body match from reminder onward (O-16 R8).
  */
 
 import * as React from "react"
@@ -19,6 +21,7 @@ export interface ArrearsReminderEmailProps {
   step: 1 | 2
   tone: "friendly" | "professional" | "firm"
   senderName: string          // org name or "your agent"
+  referenceNumber: string     // arrears-case id prefix — same ref the LOD/final-notice carry, so the sequence threads
 }
 
 export function ArrearsReminderEmail({
@@ -30,10 +33,11 @@ export function ArrearsReminderEmail({
   step,
   tone,
   senderName,
-}: ArrearsReminderEmailProps) {
+  referenceNumber,
+}: Readonly<ArrearsReminderEmailProps>) {
   const preview = step === 1
-    ? `Rent reminder: ${amountOwedDisplay} overdue — ${propertyLabel}`
-    : `Follow-up: ${amountOwedDisplay} still outstanding — ${propertyLabel}`
+    ? `Rent reminder: ${amountOwedDisplay} overdue — ${propertyLabel} — Ref ${referenceNumber}`
+    : `Follow-up: ${amountOwedDisplay} still outstanding — ${propertyLabel} — Ref ${referenceNumber}`
 
   const { heading, body, cta } = copy[tone][step]
 
@@ -46,6 +50,7 @@ export function ArrearsReminderEmail({
       <Text style={para}>{body(propertyLabel, amountOwedDisplay, daysOverdue, senderName)}</Text>
 
       <Section style={box}>
+        <Text style={boxRow}><strong>Reference:</strong> {referenceNumber}</Text>
         <Text style={boxRow}><strong>Property:</strong> {propertyLabel}</Text>
         <Text style={boxRow}><strong>Amount outstanding:</strong> {amountOwedDisplay}</Text>
         <Text style={boxRow}><strong>Days overdue:</strong> {daysOverdue}</Text>
