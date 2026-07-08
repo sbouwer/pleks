@@ -4,14 +4,14 @@
  * Notes:  docx classes are injected by the caller so the heavy docx import stays lazy; indent is dotLevel × 720 twips capped at depth 3.
  */
 import type { ClauseNode } from "./parseClauseBody"
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic docx Document constructor: options/instance are the docx lib types, resolved via runtime import to keep it out of the server bundle
-type DocxClass = new (options: any) => any
+// Type-only imports are erased at compile time, so referencing the docx types here keeps the heavy
+// docx runtime out of the server bundle (the caller still injects the classes) — no `any` needed.
+import type { Paragraph as DocxParagraph, TextRun as DocxTextRun, AlignmentType as DocxAlignmentType } from "docx"
 
 interface DocxImports {
-  Paragraph: DocxClass
-  TextRun: DocxClass
-  AlignmentType: { JUSTIFIED: string }
+  Paragraph: typeof DocxParagraph
+  TextRun: typeof DocxTextRun
+  AlignmentType: typeof DocxAlignmentType
 }
 
 /**
@@ -24,7 +24,7 @@ interface DocxImports {
 export function renderClauseBodyToDocx(
   nodes: ClauseNode[],
   { Paragraph, TextRun, AlignmentType }: DocxImports
-): unknown[] {
+): DocxParagraph[] {
   return nodes.map((node) => {
     const isNumbered = node.number !== undefined
 
@@ -38,7 +38,7 @@ export function renderClauseBodyToDocx(
       hanging = 720
     }
 
-    const children: unknown[] = []
+    const children: DocxTextRun[] = []
 
     if (isNumbered) {
       children.push(
