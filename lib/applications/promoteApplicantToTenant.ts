@@ -14,7 +14,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { decryptIdNumber, decryptDob } from "@/lib/crypto/idNumber"
+import { decryptIdNumber, decryptDob, idNumberColumns } from "@/lib/crypto/idNumber"
 
 export async function promoteApplicationToTenant(
   db: SupabaseClient,
@@ -69,7 +69,9 @@ export async function promoteApplicationToTenant(
     }
   }
 
-  // Create contact (decrypt id/dob before copy — the tenant table stores them raw; the hash carries over).
+  // Create contact. id_number stays ENCRYPTED into contacts (was decrypt-then-write-PLAINTEXT): decryptIdNumber
+  // tolerates a raw or encrypted source, idNumberColumns re-encrypts + recomputes the lookup hash. dob is
+  // decrypted to a real date — contacts.date_of_birth is a `date` column and stays plaintext (CD ruling 2026-07-07).
   const { data: contact, error: contactError } = await db
     .from("contacts")
     .insert({
@@ -77,7 +79,7 @@ export async function promoteApplicationToTenant(
       first_name: application.first_name, last_name: application.last_name,
       primary_email: application.applicant_email, primary_phone: application.applicant_phone,
       id_type: application.id_type,
-      id_number: decryptIdNumber(application.id_number), id_number_hash: application.id_number_hash,
+      ...idNumberColumns(decryptIdNumber(application.id_number)),
       date_of_birth: decryptDob(application.date_of_birth),
       nationality: application.nationality, created_by: createdBy,
     })

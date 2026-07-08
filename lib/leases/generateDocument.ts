@@ -5,6 +5,7 @@
  * Notes:  clause inclusion follows a 4-level priority (per-lease → org custom → org toggle default → library default) gated by clause condition; deposit-interest rate is a signing-date disclosure snapshot only — the accrual engine re-resolves per period; {{self:N}} tokens are resolved later inside buildDocx.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { resolveDepositInterestConfig, resolveEffectiveRate } from "@/lib/deposits/interestConfig"
 import { parseClauseBody, buildSelfLookup } from "./parseClauseBody"
@@ -188,7 +189,8 @@ export async function generateLeaseDocument(
     agent_name: getOrgDisplayName(orgFields),
     agent_company: org?.name ?? "",
     lessee_name: tenant?.full_name ?? `${tenant?.first_name ?? ""} ${tenant?.last_name ?? ""}`.trim(),
-    lessee_id_reg: tenant?.id_number ?? "",
+    // Lease agreement legally requires the tenant's FULL ID (not masked) — decrypt at rest for the document.
+    lessee_id_reg: decryptIdNumber(tenant?.id_number) ?? "",
     lessee_address: tenant?.address ?? "",
     lessee_email: tenant?.email ?? "",
     lessee_contact: tenant?.phone ?? "",

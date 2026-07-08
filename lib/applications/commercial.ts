@@ -16,6 +16,7 @@ import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-ema
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { buildDirectorInviteElement } from "@/lib/applications/commercial-emails"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
+import { idNumberColumns } from "@/lib/crypto/idNumber"
 
 const DIRECTOR_TOKEN_TTL_DAYS = 14
 
@@ -65,7 +66,7 @@ export async function declareDirectors(
         application_id: applicationId,
         first_name:   director.firstName,
         last_name:    director.lastName,
-        id_number:    director.idNumber ?? null,
+        ...idNumberColumns(director.idNumber), // encrypted at rest + lookup hash (was raw, no hash)
         email:        director.email,
         phone:        director.phone ?? null,
         is_signing_surety: director.isSigningSurety,
@@ -94,7 +95,7 @@ export async function declareDirectors(
         last_name:              director.lastName,
         applicant_email:        director.email,
         applicant_phone:        director.phone ?? null,
-        id_number:              director.idNumber ?? null,
+        ...idNumberColumns(director.idNumber), // encrypted at rest + lookup hash (matches the apply-flow co-applicant writes)
         is_surety_director:     true,
         individual_fee_cents:   director.feeCents,
         access_token_expires:   tokenExpires,
@@ -319,7 +320,7 @@ export async function replaceDirector(
       application_id:    applicationId,
       first_name:        replacement.firstName,
       last_name:         replacement.lastName,
-      id_number:         replacement.idNumber ?? null,
+      ...idNumberColumns(replacement.idNumber), // encrypted at rest + lookup hash (was raw, no hash)
       email:             replacement.email,
       phone:             replacement.phone ?? null,
       is_signing_surety: true,
@@ -342,7 +343,7 @@ export async function replaceDirector(
       last_name:              replacement.lastName,
       applicant_email:        replacement.email,
       applicant_phone:        replacement.phone ?? null,
-      id_number:              replacement.idNumber ?? null,
+      ...idNumberColumns(replacement.idNumber), // encrypted at rest + lookup hash (matches apply-flow co-applicant writes)
       is_surety_director:     true,
       individual_fee_cents:   replacement.feeCents,
       access_token_expires:   tokenExpires,

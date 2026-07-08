@@ -9,6 +9,7 @@
 import { redirect } from "next/navigation"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
+import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import { PortalAccountClient } from "./PortalAccountClient"
 
@@ -58,7 +59,7 @@ export default async function PortalAccountPage() {
           firstName={contact.first_name}
           lastName={contact.last_name}
           companyName={contact.company_name}
-          idNumber={contact.id_number}
+          idNumber={decryptIdNumber(contact.id_number)}
           phones={contact.contact_phones ?? []}
           emails={contact.contact_emails ?? []}
         />

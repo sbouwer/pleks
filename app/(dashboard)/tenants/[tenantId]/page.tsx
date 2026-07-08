@@ -7,6 +7,7 @@
  * Notes:  renders separate mobile (MobileTenantView) and desktop (DetailPageLayout) variants
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { redirect, notFound } from "next/navigation"
 import { Home, Wrench } from "lucide-react"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
@@ -257,7 +258,7 @@ export default async function TenantDetailPage({
         <TenantIdentitySection
           title={tenantIdentityExtra?.title ?? null}
           gender={tenantIdentityExtra?.gender ?? null}
-          idNumber={tenant.id_number ?? null}
+          idNumber={decryptIdNumber(tenant.id_number)}
           idType={tenant.id_type ?? null}
           dateOfBirth={tenant.date_of_birth ?? null}
           nationality={tenant.nationality ?? null}
