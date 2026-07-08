@@ -179,7 +179,8 @@ async function fetchLeaseFacts(
 function resolveSubject(templateKey: string, amountDisplay: string, ref: string): string {
   if (templateKey === "arrears.letter_of_demand") return `LETTER OF DEMAND — ${amountDisplay} — Ref ${ref}`
   if (templateKey === "arrears.final_notice")     return `FINAL NOTICE — Lease cancellation pending — ${amountDisplay}`
-  return `Rent reminder: ${amountDisplay} overdue`
+  // Ref threads the reminder emails (step1/step2) with the LOD/final-notice that follow — same case-id prefix (O-16 R8)
+  return `Rent reminder: ${amountDisplay} overdue — Ref ${ref}`
 }
 
 interface EmailElementParams {
@@ -216,6 +217,7 @@ function buildEmailElement(
       step:              p.nextStep <= 1 ? 1 : 2,
       tone:              p.toneVariant === "n/a" ? "professional" : p.toneVariant,
       senderName:        p.sender,
+      referenceNumber:   ref,
     })
   }
   if (templateKey === "arrears.letter_of_demand") {
