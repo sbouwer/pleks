@@ -51,6 +51,7 @@ export const MANUAL_REVIEW_TARGETS: ReadonlyArray<{ table: string; field: string
   { table: "screening_artifacts", field: "(whole row)", note: "immutable-by-RLS bureau records — Information Officer must action erasure within SLA (ADDENDUM_POPIA_LIFECYCLE P-1)" },
   { table: "contractors", field: "notification_email", note: "supplier-subject PII — human-actioned until the supplier-erasure cascade ships (v1.1, D-14; CD PII-disposition 2026-07-07)" },
   { table: "hoa_unit_owners", field: "id_number / owner_email / owner_phone", note: "active-relationship subject PII (STSMA/scheme mgmt basis) — retain while owner holds the unit; erase on ceasing-ownership or DSAR, NOT by time. Human-actioned until an event-driven owner-erasure routine ships with HOA (CD PII-disposition 2026-07-07)" },
+  { table: "lease_sureties", field: "full_name / deed_reference", note: "surety-of-record on a lease (deed of suretyship) — live contractual/accountability basis (s17): retain while the suretyship binds; erase on release (released_at) / lease end or DSAR, NOT by time or an unrelated tenant erasure. Human-actioned (LEG-NOTICES-01 A; same class as hoa_unit_owners)" },
   { table: "(documents/storage)", field: "PDF/photo contents", note: "lease docs, inspection photos — out-of-band" },
 ]
 

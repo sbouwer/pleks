@@ -76,6 +76,10 @@ const MANUAL_REVIEW_TABLES = new Set<string>([
                          // while they own the unit (can be decades). Erasure is EVENT-driven (ceasing ownership) or a
                          // DSAR — NOT time-elapsed, so a retention-purge clock would wrongly auto-delete live owners.
                          // Human-actioned now; FOLLOW-UP: build an event-driven owner-erasure routine when HOA activates.
+  "lease_sureties",      // LEG-NOTICES-01 A (disposition by analogy to hoa_unit_owners — flag to CD) — a surety of record
+                         // is ACTIVE-RELATIONSHIP subject PII bound by a deed of suretyship: live contractual/accountability
+                         // basis (s17) to retain while the suretyship binds. Erase on release (released_at) / lease end or
+                         // DSAR — NOT by time or an unrelated tenant erasure (auto-strip would break a live legal instrument).
 ])
 
 // Tables that aren't data-subject PII storage: notification toggles, usage counters, and intentional honeytokens.

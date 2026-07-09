@@ -1224,3 +1224,164 @@ CREATE INDEX IF NOT EXISTS idx_whatsapp_cs_windows_tenant_id ON whatsapp_cs_wind
 CREATE INDEX IF NOT EXISTS idx_whatsapp_cs_windows_trigger_message_id ON whatsapp_cs_windows(trigger_message_id);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_communication_log_id ON whatsapp_messages(communication_log_id);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_template_id ON whatsapp_messages(template_id);
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §25  ADDENDUM_70G (LEG-NOTICES-01): notice-of-record register + service events + review metadata
+--   Schema Phase A (documents/messaging half). Companion to 004's lease-lifecycle fields.
+--     • document_templates review metadata + version history (Rule 9 / amendment-control E13)
+--     • tenant_notices — the IMMUTABLE statutory-notice register (Rules 9–12)
+--     • notice_service_events — per-channel service log incl. MANUAL attestation (R-5, Rule 13)
+--     • R-1 DIFFERENTIAL SEED — 3 Demand-to-Vacate rows land 'draft' (net-new, blocked in prod until
+--       counsel Part F); 5 application-notice rows land 'approved' at current live copy
+--       (legal_review_ref='internal:D-POPIA-19') so nothing that currently sends ever stops.
+--   Rulings: R-1 (differential gate), R-2 (deemed-service timing lives on the service log, not the
+--   immutable notice), R-3 (Rule-10 hash over rendered body_full, never source), R-5 (manual
+--   attestation), R-9 (org_id + RLS + immutability on the record tables).
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- ── document_templates review metadata (plan §2.7) ──
+-- legal_review_status is NULLABLE with NO default — deliberately safer than R-1's default-'approved':
+--   NULL                    = grandfathered legacy (every pre-existing row; no backfill flip, nothing blocks)
+--   'draft'                 = net-new statutory template, BLOCKED in production until counsel-approved
+--   'approved'/'superseded' = counsel-reviewed
+-- The slice-F generation gate blocks ONLY on legal_review_status = 'draft'. This makes the R-1
+-- differential a pure INSERT (below) with zero risk to existing rows.
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS legal_review_status    text
+  CHECK (legal_review_status IN ('draft', 'approved', 'superseded'));
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS effective_date         date;
+ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS applicable_legislation text[];
+
+-- Version history — a superseded precedent stays retrievable (Rule 9 / E13 amendment control).
+CREATE TABLE IF NOT EXISTS document_template_versions (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id         uuid NOT NULL REFERENCES document_templates(id) ON DELETE CASCADE,
+  version             int  NOT NULL,
+  body_hash           text,                    -- SHA-256 over the rendered body at this version
+  legal_review_status text CHECK (legal_review_status IN ('draft', 'approved', 'superseded')),
+  legal_review_ref    text,
+  effective_date      date,
+  snapshot            jsonb,                   -- frozen body_blocks / body_html at this version
+  created_by          uuid REFERENCES auth.users(id),
+  created_at          timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_tmpl_versions_uniq ON document_template_versions(template_id, version);
+
+ALTER TABLE document_template_versions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "doc_tmpl_versions_read" ON document_template_versions;
+CREATE POLICY "doc_tmpl_versions_read" ON document_template_versions FOR SELECT USING (
+  template_id IN (
+    SELECT id FROM document_templates
+    WHERE scope = 'system'
+       OR org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+  )
+);
+-- Append-only version history: block UPDATE/DELETE (reuse the 010 screening-snapshot immutability fn,
+-- which exists by the time 011 replays after 010).
+DROP TRIGGER IF EXISTS trg_doc_tmpl_versions_immutable_u ON document_template_versions;
+CREATE TRIGGER trg_doc_tmpl_versions_immutable_u BEFORE UPDATE ON document_template_versions
+  FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+DROP TRIGGER IF EXISTS trg_doc_tmpl_versions_immutable_d ON document_template_versions;
+CREATE TRIGGER trg_doc_tmpl_versions_immutable_d BEFORE DELETE ON document_template_versions
+  FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+
+-- ── tenant_notices — the IMMUTABLE statutory-notice register (Rules 9–12) ──
+-- Forward-pointing `supersedes` (a new row points at the one it replaces) keeps the register truly
+-- append-only. content_hash is the Rule-10 hash over the RENDERED body_full, never a source file (R-3).
+-- deemed-service timing is NOT here (R-2): it arrives post-generation from the SMTP-accept webhook, so
+-- it lives on the append-only notice_service_events.deemed_service_at — an immutable row cannot receive
+-- a post-hoc value. This row holds only generation-time facts.
+CREATE TABLE IF NOT EXISTS tenant_notices (
+  id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                      uuid NOT NULL REFERENCES organisations(id),
+  lease_id                    uuid NOT NULL REFERENCES leases(id),
+  notice_type                 text NOT NULL CHECK (notice_type IN (
+                                'demand_vacate_breach', 'demand_vacate_expiry', 'demand_vacate_m2m')),
+  template_id                 uuid REFERENCES document_templates(id),
+  template_version            int,
+  citation_branch             text,             -- which cpaApplies branch was cited (audit of the legal basis)
+  body_full                   text NOT NULL,    -- rendered notice-of-record (the Rule-10 hash source, R-3)
+  content_hash                text NOT NULL,    -- SHA-256 over body_full (byte-identity, E13)
+  merge_snapshot              jsonb,            -- frozen merge vars incl. service_address (Rule 12)
+  cancellation_effective_date date,
+  vacate_by_date              date,             -- default dispatch + 14 calendar days (R-2)
+  supersedes                  uuid REFERENCES tenant_notices(id),  -- new→old amendment chain (E13)
+  generated_by                uuid REFERENCES auth.users(id),
+  generated_at                timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_tenant_notices_lease ON tenant_notices(lease_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_notices_org   ON tenant_notices(org_id);
+
+ALTER TABLE tenant_notices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_notices_read_org" ON tenant_notices;
+CREATE POLICY "tenant_notices_read_org" ON tenant_notices FOR SELECT
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+DROP TRIGGER IF EXISTS trg_tenant_notices_immutable_u ON tenant_notices;
+CREATE TRIGGER trg_tenant_notices_immutable_u BEFORE UPDATE ON tenant_notices
+  FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+DROP TRIGGER IF EXISTS trg_tenant_notices_immutable_d ON tenant_notices;
+CREATE TRIGGER trg_tenant_notices_immutable_d BEFORE DELETE ON tenant_notices
+  FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+
+-- ── notice_service_events — per-channel service log (Rule 13, R-5 manual attestation) ──
+-- Dedicated table (NOT communication_delivery_events reuse): R-5 manual attestation (agent records
+-- channel/address/date/time/method + proof upload) does not fit the provider-webhook shape of
+-- communication_delivery_events, and grouping ALL service evidence (electronic + manual) per notice is
+-- the affidavit annexure. Append-only: each webhook / attestation writes a NEW row (status = the state
+-- THAT event represents); deemed_service_at is set on the row that represents deemed service (R-2).
+CREATE TABLE IF NOT EXISTS notice_service_events (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id            uuid NOT NULL REFERENCES organisations(id),
+  notice_id         uuid NOT NULL REFERENCES tenant_notices(id),
+  channel           text NOT NULL CHECK (channel IN (
+                      'email', 'sms', 'whatsapp', 'physical', 'hand', 'sheriff',
+                      'registered_post', 'other')),
+  service_method    text CHECK (service_method IN ('electronic', 'manual_attested')),
+  address           text,                     -- served address (email/phone/physical line)
+  dispatched_at     timestamptz,
+  deemed_service_at timestamptz,              -- R-2 anchor; slice-D post-validates vacate_by_date − this ≥ 7
+  provider_event_id text,                     -- links to the comms delivery event for electronic channels
+  attested_by       uuid REFERENCES auth.users(id),  -- who attested manual service (R-5)
+  proof_path        text,                     -- storage path of uploaded proof of service (R-5)
+  status            text CHECK (status IN ('dispatched', 'delivered', 'bounced', 'attested', 'failed')),
+  note              text,
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_notice_service_events_notice ON notice_service_events(notice_id);
+CREATE INDEX IF NOT EXISTS idx_notice_service_events_org    ON notice_service_events(org_id);
+
+ALTER TABLE notice_service_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "notice_service_events_read_org" ON notice_service_events;
+CREATE POLICY "notice_service_events_read_org" ON notice_service_events FOR SELECT
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+DROP TRIGGER IF EXISTS trg_notice_service_events_immutable_u ON notice_service_events;
+CREATE TRIGGER trg_notice_service_events_immutable_u BEFORE UPDATE ON notice_service_events
+  FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+DROP TRIGGER IF EXISTS trg_notice_service_events_immutable_d ON notice_service_events;
+CREATE TRIGGER trg_notice_service_events_immutable_d BEFORE DELETE ON notice_service_events
+  FOR EACH ROW EXECUTE FUNCTION prevent_policy_snapshot_mutation();
+
+-- ── R-1 DIFFERENTIAL SEED — document_templates review-status anchors ──
+-- The 3 Demand-to-Vacate notices are net-new and have NEVER sent → 'draft' (blocked in prod until
+-- counsel Part F flips them). The 5 application-notice keys already send live via
+-- lib/applications/emails.tsx → 'approved' at current live copy (legal_review_ref='internal:D-POPIA-19')
+-- so the slice-F gate never stops them. Metadata-only rows (no body_blocks) — resolveTemplate fails safe
+-- to the legacy .tsx path (pickBlocks null-guards empty bodies), so these anchors cannot affect rendering.
+-- INSERT ... WHERE NOT EXISTS per (template_key, template_type): idempotent, mirrors the §20 pilot.
+INSERT INTO document_templates
+  (scope, template_type, name, category, comms_class, template_key, legal_review_status, legal_review_ref, is_deletable)
+SELECT v.scope, v.template_type, v.name, v.category, v.comms_class, v.template_key, v.legal_review_status, v.legal_review_ref, false
+FROM (VALUES
+  ('system', 'letter', 'Demand to Vacate — Material Breach',            'notice',      'statutory',      'notice.demand_vacate_breach',  'draft',    CAST(NULL AS text)),
+  ('system', 'letter', 'Demand to Vacate — Fixed-Term Expiry',          'notice',      'statutory',      'notice.demand_vacate_expiry',  'draft',    NULL),
+  ('system', 'letter', 'Demand to Vacate — Month-to-Month Termination', 'notice',      'statutory',      'notice.demand_vacate_m2m',     'draft',    NULL),
+  ('system', 'email',  'Application Received',                          'application', 'correspondence', 'application.received',         'approved', 'internal:D-POPIA-19'),
+  ('system', 'email',  'Application Shortlisted',                       'application', 'correspondence', 'application.shortlisted',      'approved', 'internal:D-POPIA-19'),
+  ('system', 'email',  'Application Approved',                          'application', 'correspondence', 'application.approved',         'approved', 'internal:D-POPIA-19'),
+  ('system', 'email',  'Application Declined (Stage 1)',                'application', 'correspondence', 'application.declined_stage1',  'approved', 'internal:D-POPIA-19'),
+  ('system', 'email',  'Application Declined (Stage 2)',                'application', 'correspondence', 'application.declined_stage2',  'approved', 'internal:D-POPIA-19')
+) AS v(scope, template_type, name, category, comms_class, template_key, legal_review_status, legal_review_ref)
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates d
+  WHERE d.scope = 'system' AND d.template_key = v.template_key AND d.template_type = v.template_type
+);
