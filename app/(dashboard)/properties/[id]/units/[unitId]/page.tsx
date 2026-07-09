@@ -236,6 +236,7 @@ export default async function UnitDetailPage({
           features: (unit.features as string[]) || [],
           asking_rent: unit.asking_rent_cents ? unit.asking_rent_cents / 100 : undefined,
           deposit_amount: unit.deposit_amount_cents ? unit.deposit_amount_cents / 100 : undefined,
+          default_deposit_multiple: (unit.default_deposit_multiple as number | null) ?? undefined,
           managed_by: unit.managed_by ?? undefined,
           notes: unit.notes ?? undefined,
           rooms: savedRooms,
