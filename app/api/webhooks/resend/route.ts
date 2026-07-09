@@ -4,13 +4,15 @@
  * Route:  POST /api/webhooks/resend
  * Auth:   Svix signature (RESEND_WEBHOOK_SECRET env var) — rejects without it
  * Data:   writes communication_delivery_events; updates communication_log status;
- *         marks hard bounces in communication_preferences (BUILD_63)
+ *         marks hard bounces in communication_preferences (BUILD_63); bridges served-notice outcomes
+ *         into notice_service_events (LEG-NOTICES-01 Phase D)
  * Notes:  Returns 200 for events we don't care about to prevent Resend retries.
  *         RESEND_WEBHOOK_SECRET must match the signing secret from Resend dashboard.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { bridgeNoticeDelivery } from "@/lib/notices/bridgeNoticeDelivery"
 
 const RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET
 
@@ -131,7 +133,7 @@ export async function POST(req: NextRequest) {
 
   const { data: logRecord, error: logErr } = await service
     .from("communication_log")
-    .select("id, sent_to_email, org_id")
+    .select("id, sent_to_email, org_id, entity_type, entity_id, channel")
     .eq("external_id", payload.data.email_id)
     .maybeSingle()
 
@@ -156,6 +158,10 @@ export async function POST(req: NextRequest) {
   if (insertErr && insertErr.code !== "23505") {
     console.error("[resend-webhook] Failed to insert delivery event:", insertErr.message)
   }
+
+  // LEG-NOTICES-01 Phase D — if this log is a served Demand-to-Vacate, append its notice_service_events
+  // row (deemed-service anchor on 'delivered'). No-op for any other comm. Fail-safe (never throws).
+  await bridgeNoticeDelivery(service, logRecord, eventType, payload.created_at, payload.data.email_id + ":" + payload.type)
 
   await Promise.all([
     updateLogStatus(service, logRecord.id, payload),
