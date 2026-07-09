@@ -16,15 +16,18 @@
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
+import { gateway } from "@/lib/supabase/gateway"
 import { isOnHold } from "@/lib/legal/holds"
 import { getOrgDisplayName } from "@/lib/org/displayName"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { gatherNoticeFacts, evaluateNoticePreconditions, type GatherLease, type PreconditionFinding } from "@/lib/notices/preconditions"
+import { gatherNoticeFacts, evaluateNoticePreconditions, type GatherLease, type PreconditionFinding, type PreconditionResult } from "@/lib/notices/preconditions"
 import { resolveNoticeContext, type ContextLease } from "@/lib/notices/resolveNoticeContext"
 import { saTodayISO } from "@/lib/notices/vacateDate"
-import { issueTenantNotice, type DemandNoticeType, type ManualOverride } from "@/lib/notices/issueTenantNotice"
+import { recordNoticeServiceEvent } from "@/lib/notices/recordServiceEvent"
+import { issueTenantNotice, renderDemandNotice, type DemandNoticeType, type ManualOverride, type IssueTenantNoticeParams } from "@/lib/notices/issueTenantNotice"
 
 export interface IssueDemandInput {
   leaseId: string
@@ -169,17 +172,150 @@ export async function issueDemandToVacate(input: IssueDemandInput): Promise<Issu
   const context = await resolveNoticeContext(db, orgId, ctxLease)
 
   // E-5 — the INSTRUMENT first (notice-of-record insert + dispatch)…
-  const issued = await issueTenantNotice({
-    db, orgId, generatedBy: userId, now: new Date(),
-    lease: noticeLeaseInput(lease, type, facts.finalNoticeSentAt, todayISO),
-    recipient: { tenantName: context.tenantName, contactId: context.contactId, tenantId: context.tenantId, serviceAddress: context.serviceAddress, emails: context.emails, phones: context.phones },
-    sureties: context.sureties.map((s) => ({ contactId: s.contactId, name: s.name, email: s.email })),
-    landlordOrAgentName: orgName, propertyLabel, referenceNumber: `DTV-${input.leaseId.slice(0, 8).toUpperCase()}-${todayISO.replaceAll("-", "")}`,
-    branding, manualOverride,
-  })
+  const issued = await issueTenantNotice(
+    buildNoticeParams({ db, orgId, userId, lease, type, finalNoticeSentAt: facts.finalNoticeSentAt, todayISO, context, orgName, propertyLabel, branding, leaseId: input.leaseId, manualOverride }),
+  )
 
   // …the EFFECT second (idempotent lease write). A failure here leaves a lagging lease row → next call converges.
   await applyLeaseEffect(db, orgId, lease, type, userId, todayISO, facts.finalNoticeSentAt)
 
   return { ok: true, noticeId: issued.noticeId, vacateByDate: issued.vacateByDate, dispatched: issued.dispatched, needsManualAttestation: context.needsManualAttestation }
+}
+
+interface NoticeParamsInput {
+  db: Db; orgId: string; userId: string | null; lease: ActionLease; type: DemandNoticeType
+  finalNoticeSentAt: string | null; todayISO: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  context: any
+  orgName: string; propertyLabel: string; branding: IssueTenantNoticeParams["branding"]; leaseId: string
+  manualOverride?: ManualOverride
+}
+
+function buildNoticeParams(o: NoticeParamsInput): IssueTenantNoticeParams {
+  const { context } = o
+  return {
+    db: o.db, orgId: o.orgId, generatedBy: o.userId, now: new Date(),
+    lease: noticeLeaseInput(o.lease, o.type, o.finalNoticeSentAt, o.todayISO),
+    recipient: { tenantName: context.tenantName, contactId: context.contactId, tenantId: context.tenantId, serviceAddress: context.serviceAddress, emails: context.emails, phones: context.phones },
+    sureties: context.sureties.map((s: { contactId: string | null; name: string; email: string | null }) => ({ contactId: s.contactId, name: s.name, email: s.email })),
+    landlordOrAgentName: o.orgName, propertyLabel: o.propertyLabel,
+    referenceNumber: `DTV-${o.leaseId.slice(0, 8).toUpperCase()}-${o.todayISO.replaceAll("-", "")}`,
+    branding: o.branding, manualOverride: o.manualOverride,
+  }
+}
+
+export interface PreviewDemandInput { leaseId: string; noticeType: DemandNoticeType }
+
+export type PreviewDemandResult =
+  | { ok: false; reason: "unauthorized" | "not_found" }
+  | {
+      ok: true
+      html: string
+      tenantName: string
+      propertyLabel: string
+      dates: { today: string; vacateBy: string; cancellationEffective: string | null }
+      precondition: PreconditionResult
+      service: { emails: string[]; phones: string[]; suretyEmails: string[]; needsManualAttestation: boolean }
+    }
+
+/**
+ * Preview a Demand to Vacate — renders the notice + runs the guards, WITHOUT recording anything (P-2). Uses
+ * the SAME renderDemandNotice path as issue, so the preview is byte-identical to what would be sent. Read
+ * gate (gateway), never requireAgentWriteAccess: previewing is not value creation and must never write.
+ */
+export async function previewDemandToVacate(input: PreviewDemandInput): Promise<PreviewDemandResult> {
+  const gw = await gateway()
+  // gateway() gates on MEMBERSHIP, not role — and tenant sessions carry user_orgs memberships. The preview
+  // reads privileged, adverse-party material (guard posture, arrears, Q13 flags, the rendered instrument)
+  // through a service-role client, so it MUST enforce the agent 'leases' capability, not bare membership
+  // (CD Phase E-3 walk). A tenant-role session gets 'unauthorized', not HTML.
+  if (!gw || !(await hasCapability(gw, "leases"))) return { ok: false, reason: "unauthorized" }
+  const { db, orgId, userId } = gw
+  const type = input.noticeType
+  const todayISO = saTodayISO()
+
+  const fetched = await fetchActionLease(db as Db, orgId, input.leaseId)
+  if (!fetched) return { ok: false, reason: "not_found" }
+  const { lease, propertyLabel, orgName, branding } = fetched
+
+  const activeLegalHold = (await isOnHold(db, { scopeType: "lease", scopeId: input.leaseId })) !== null
+  const facts = await gatherNoticeFacts(db as Db, orgId, lease, type, todayISO, activeLegalHold)
+  const precondition = evaluateNoticePreconditions(facts, type)
+
+  const ctxLease: ContextLease = { id: lease.id, tenant_id: lease.tenant_id as string, service_address: lease.service_address as ContextLease["service_address"] }
+  const context = await resolveNoticeContext(db as Db, orgId, ctxLease)
+
+  // The SAME render path as issue — but nothing is written.
+  const rendered = await renderDemandNotice(buildNoticeParams({ db: db as Db, orgId, userId, lease, type, finalNoticeSentAt: facts.finalNoticeSentAt, todayISO, context, orgName, propertyLabel, branding, leaseId: input.leaseId }))
+
+  return {
+    ok: true,
+    html: rendered.bodyFull,
+    tenantName: context.tenantName,
+    propertyLabel,
+    dates: { today: rendered.todaysDate, vacateBy: rendered.vacateByDateDisplay, cancellationEffective: type === "demand_vacate_breach" ? rendered.todaysDate : null },
+    precondition,
+    service: { emails: context.emails, phones: context.phones, suretyEmails: context.sureties.map((s) => s.email).filter(Boolean) as string[], needsManualAttestation: context.needsManualAttestation },
+  }
+}
+
+// ── E-6 physical-service-outstanding state (persistent on the notice) ─────────────────────────────────
+const PHYSICAL_CHANNELS = new Set(["physical", "hand", "sheriff", "registered_post"])
+
+export interface NoticeServiceState { physicalServiceOutstanding: boolean }
+
+/** Derived E-6 state: outstanding until an attested physical/R-5 event OR a logged waiver exists. */
+export async function getNoticeServiceState(noticeId: string): Promise<NoticeServiceState> {
+  const gw = await gateway()
+  // Agent 'leases' capability, not bare membership (see previewDemandToVacate) — this reads a notice's
+  // service posture, adverse-party material a tenant-role member must not see.
+  if (!gw || !(await hasCapability(gw, "leases"))) return { physicalServiceOutstanding: false }
+  const { db, orgId } = gw
+  const { data, error } = await db.from("notice_service_events")
+    .select("channel, service_method, status, note").eq("org_id", orgId).eq("notice_id", noticeId)
+  logQueryError("getNoticeServiceState", error)
+  const rows = data ?? []
+  const attested = rows.some((r) => PHYSICAL_CHANNELS.has(r.channel as string) && r.service_method === "manual_attested")
+  const waived = rows.some((r) => r.status === "attested" && typeof r.note === "string" && (r.note as string).startsWith("physical_service_waived"))
+  return { physicalServiceOutstanding: !(attested || waived) }
+}
+
+/** Verify a notice belongs to the org (IDOR guard) before writing a service event against it. */
+async function noticeBelongsToOrg(db: Db, orgId: string, noticeId: string): Promise<boolean> {
+  const { data, error } = await db.from("tenant_notices").select("id").eq("org_id", orgId).eq("id", noticeId).maybeSingle()
+  logQueryError("noticeBelongsToOrg", error)
+  return Boolean(data)
+}
+
+export interface RecordPhysicalServiceInput { noticeId: string; channel: "physical" | "hand" | "sheriff" | "registered_post"; address?: string; servedAt: string; proofPath?: string }
+
+/** Record an attested physical service event (R-5), clearing the E-6 outstanding state.
+ *  NOTE (v1): gated requireAgentWriteAccess for census cleanliness. Follow-up: a paused org must still be
+ *  able to COMPLETE service of an already-issued instrument (your-data-always) — move to gateway() + census
+ *  allowlist when the lockdown edge matters (post-launch; no notices exist pre-Part-F). */
+export async function recordPhysicalService(input: RecordPhysicalServiceInput): Promise<{ ok: boolean }> {
+  const { db, orgId, userId } = await requireAgentWriteAccess("issue_demand_to_vacate")
+  if (!(await noticeBelongsToOrg(db as Db, orgId, input.noticeId))) return { ok: false }
+  await recordNoticeServiceEvent(db as Db, {
+    orgId, noticeId: input.noticeId, channel: input.channel, serviceMethod: "manual_attested",
+    address: input.address ?? null, deemedServiceAt: input.servedAt, attestedBy: userId, proofPath: input.proofPath ?? null,
+    status: "attested", note: "physical service attested",
+  })
+  return { ok: true }
+}
+
+/** Waive physical service with a mandatory logged reason (E-4 mechanics), clearing the E-6 outstanding state.
+ *  ⚠ ANNEXURE NOTE (CD walk, non-blocking): a waiver is stored as a notice_service_events row with
+ *  status='attested' + a `physical_service_waived:` note prefix (so the append-only log stays one shape).
+ *  In a future affidavit-annexure export, "attested" on a waiver row would READ WRONGLY — the export layer
+ *  must translate waiver rows (note prefix) distinctly from genuine attestations. Solve when that export exists. */
+export async function waivePhysicalService(input: { noticeId: string; reason: string }): Promise<{ ok: boolean }> {
+  if (!input.reason?.trim()) return { ok: false }
+  const { db, orgId, userId } = await requireAgentWriteAccess("issue_demand_to_vacate")
+  if (!(await noticeBelongsToOrg(db as Db, orgId, input.noticeId))) return { ok: false }
+  await recordNoticeServiceEvent(db as Db, {
+    orgId, noticeId: input.noticeId, channel: "other", serviceMethod: "manual_attested",
+    attestedBy: userId, status: "attested", note: `physical_service_waived: ${input.reason.trim()}`,
+  })
+  return { ok: true }
 }

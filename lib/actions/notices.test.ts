@@ -17,6 +17,7 @@ const H = vi.hoisted(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     factsOverride: {} as Partial<any>,
     hold: null as unknown,
+    hasLeasesCap: true,   // agent 'leases' capability — false = a tenant-role session
     context: { tenantName: "John", contactId: "c1", tenantId: "t1", serviceAddress: "1 Main Rd", emails: ["a@x.test"], phones: [] as string[], sureties: [] as unknown[], needsManualAttestation: false },
     captured: { callOrder: [] as string[], leaseUpdates: [] as unknown[], lifecycle: [] as unknown[] },
   }
@@ -48,6 +49,8 @@ const H = vi.hoisted(() => {
 })
 
 vi.mock("@/lib/auth/server", () => ({ requireAgentWriteAccess: vi.fn(async () => ({ db: H.db, userId: "u1", orgId: "o1" })) }))
+vi.mock("@/lib/supabase/gateway", () => ({ gateway: vi.fn(async () => ({ db: H.db, userId: "u1", orgId: "o1", role: "agent", isAdmin: false })) }))
+vi.mock("@/lib/auth/can", () => ({ hasCapability: vi.fn(async () => H.state.hasLeasesCap) }))
 vi.mock("@/lib/legal/holds", () => ({ isOnHold: vi.fn(async () => H.state.hold) }))
 vi.mock("@/lib/notices/resolveNoticeContext", () => ({ resolveNoticeContext: vi.fn(async () => H.state.context) }))
 vi.mock("@/lib/comms/send-email", () => ({ buildBranding: vi.fn(() => ({ orgName: "Acme" })), fetchOrgSettings: vi.fn(async () => ({})) }))
@@ -58,6 +61,10 @@ vi.mock("@/lib/notices/issueTenantNotice", () => ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(H.state.captured as any).lastManualOverride = p.manualOverride
     return { noticeId: "n1", vacateByDate: "2026-07-23", dispatched: [] }
+  }),
+  renderDemandNotice: vi.fn(async () => {
+    H.state.captured.callOrder.push("renderDemandNotice")
+    return { bodyFull: "<html>DEMAND TO VACATE</html>", contentHash: "h", vacateByDateISO: "2026-07-23", vacateByDateDisplay: "23 July 2026", todaysDate: "9 July 2026", citationBranch: "breach:cpa", mergeSnapshot: {} }
   }),
 }))
 // Keep the REAL evaluator; mock only the gatherer so it echoes the action-supplied activeLegalHold.
@@ -76,7 +83,7 @@ vi.mock("@/lib/notices/preconditions", async (orig) => {
   }
 })
 
-import { issueDemandToVacate } from "./notices"
+import { issueDemandToVacate, previewDemandToVacate } from "./notices"
 import { issueTenantNotice } from "@/lib/notices/issueTenantNotice"
 
 const baseLease = {
@@ -93,6 +100,7 @@ beforeEach(() => {
   H.state.priorNotices = []
   H.state.factsOverride = {}
   H.state.hold = null
+  H.state.hasLeasesCap = true
   H.state.context = { tenantName: "John", contactId: "c1", tenantId: "t1", serviceAddress: "1 Main Rd", emails: ["a@x.test"], phones: [], sureties: [], needsManualAttestation: false }
   H.state.captured = { callOrder: [], leaseUpdates: [], lifecycle: [] }
 })
@@ -162,5 +170,39 @@ describe("issueDemandToVacate — E-2 wiring", () => {
     H.state.lease.status = "active"
     const r = await issueDemandToVacate({ leaseId: "l1", noticeType: "demand_vacate_breach" })
     expect(r).toMatchObject({ ok: true, needsManualAttestation: true })
+  })
+})
+
+describe("previewDemandToVacate — P-2: renders, never records", () => {
+  it("returns html + precondition but writes ZERO rows anywhere (no issue, no lease effect)", async () => {
+    H.state.lease.status = "active"
+    const r = await previewDemandToVacate({ leaseId: "l1", noticeType: "demand_vacate_breach" })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.html).toContain("DEMAND TO VACATE")
+    expect(r.precondition.decision).toBe("allow")
+    expect(r.dates.cancellationEffective).toBe("9 July 2026")
+    // The single boolean of distance: preview renders, never issues.
+    expect(H.state.captured.callOrder).toContain("renderDemandNotice")
+    expect(issueTenantNotice).not.toHaveBeenCalled()
+    expect(H.state.captured.callOrder).not.toContain("leaseUpdate")
+    expect(H.state.captured.leaseUpdates).toHaveLength(0)
+    expect(H.state.captured.lifecycle).toHaveLength(0)
+  })
+
+  it("still surfaces block findings in preview so the agent sees why before confirming", async () => {
+    H.state.factsOverride = { leaseType: "commercial" }
+    const r = await previewDemandToVacate({ leaseId: "l1", noticeType: "demand_vacate_breach" })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.precondition.decision).toBe("block")
+    expect(issueTenantNotice).not.toHaveBeenCalled()
+  })
+
+  it("ADVERSARIAL: a tenant-role session (member without the 'leases' capability) gets unauthorized, not HTML", async () => {
+    H.state.hasLeasesCap = false   // tenant sessions carry a membership but no agent capability
+    const r = await previewDemandToVacate({ leaseId: "l1", noticeType: "demand_vacate_breach" })
+    expect(r).toEqual({ ok: false, reason: "unauthorized" })
+    expect(H.state.captured.callOrder).not.toContain("renderDemandNotice")   // never reaches the render
   })
 })
