@@ -18,6 +18,87 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { DepositInterestStatementEmail } from "@/lib/comms/templates/tenant/deposits/deposit-interest-statement"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
+type Svc = Awaited<ReturnType<typeof createServiceClient>>
+interface DepositLease { id: string; org_id: string; tenant_id: string; start_date: string; deposit_amount_cents: number; deposit_interest_rate_percent: number | null }
+
+const fmtR = (cents: number) => "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+const fmtDate = (d: Date) => d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+
+async function resolvePropertyLabel(service: Svc, leaseId: string): Promise<string> {
+  const { data: unitRow, error } = await service
+    .from("leases").select("units(unit_number, properties(address_line1, suburb, city))").eq("id", leaseId).maybeSingle()
+  logQueryError("deposit-interest property label", error)
+  type PropRow = { address_line1: string; suburb: string | null; city: string }
+  type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }
+  const unitRaw = (unitRow as unknown as { units: UnitRow | UnitRow[] | null } | null)?.units
+  const unitData = Array.isArray(unitRaw) ? unitRaw[0] : unitRaw
+  const rawProps = unitData?.properties ?? null
+  const propData = Array.isArray(rawProps) ? rawProps[0] : rawProps
+  if (!propData) return "your property"
+  return [propData.address_line1, `Unit ${unitData?.unit_number}`, propData.suburb ?? propData.city].filter(Boolean).join(", ")
+}
+
+/** Process one anniversary lease. Returns true if a statement was sent, false if skipped (incl. the
+ *  idempotency guard). Extracted to keep GET under the cognitive-complexity limit. */
+async function sendDepositInterestStatement(service: Svc, lease: DepositLease, today: Date, currentMonth: number, currentYear: number): Promise<boolean> {
+  if (new Date(lease.start_date).getFullYear() >= currentYear) return false   // not yet one year old
+
+  const { data: tenant, error: tenantError } = await service
+    .from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id).single()
+  logQueryError("deposit-interest tenant_view", tenantError)
+  if (!tenant?.email) return false
+
+  // Idempotency (replay/double-send guard): an annual anniversary statement — one send per lease per
+  // anniversary month. A same-month re-fire (cPanel retry, manual re-run) must not re-send. Same
+  // check-before-write the monthly-statement + invoice crons carry.
+  const cycleStart = `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`
+  const { data: alreadySent, error: dupError } = await service
+    .from("communication_log").select("id")
+    .eq("entity_type", "lease").eq("entity_id", lease.id)
+    // M-2 (comms audit): only a SUCCESSFUL prior send blocks — a failed one must not suppress the retry.
+    .eq("template_key", "deposit.interest_statement").eq("status", "sent").gte("created_at", cycleStart).limit(1)
+  logQueryError("deposit-interest-statement dedupe", dupError)
+  if (alreadySent && alreadySent.length > 0) return false
+
+  const periodTo = new Date(today)
+  const periodFrom = new Date(today); periodFrom.setFullYear(periodFrom.getFullYear() - 1)
+
+  const { data: interestTxns, error: interestTxnsError } = await service
+    .from("deposit_transactions").select("amount_cents, effective_rate_percent")
+    .eq("lease_id", lease.id).eq("transaction_type", "interest_accrued")
+    .gte("created_at", periodFrom.toISOString().split("T")[0]).lte("created_at", periodTo.toISOString().split("T")[0])
+  logQueryError("deposit-interest txns period", interestTxnsError)
+  const interestThisPeriod = (interestTxns ?? []).reduce((s, t) => s + (t.amount_cents as number), 0)
+
+  const { data: allInterest, error: allInterestError } = await service
+    .from("deposit_transactions").select("amount_cents").eq("lease_id", lease.id).eq("transaction_type", "interest_accrued")
+  logQueryError("deposit-interest txns all", allInterestError)
+  const cumulativeInterest = (allInterest ?? []).reduce((s, t) => s + (t.amount_cents as number), 0)
+
+  const lastTxn = interestTxns?.at(-1)
+  const effectiveRate = (lastTxn?.effective_rate_percent as number | null) ?? lease.deposit_interest_rate_percent ?? 0
+
+  const propertyLabel = await resolvePropertyLabel(service, lease.id)
+  const orgSettings = await fetchOrgSettings(lease.org_id)
+  const branding = buildBranding(orgSettings)
+  const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+
+  const result = await routeAndSend({
+    orgId: lease.org_id, tenantId: lease.tenant_id, templateKey: "deposit.interest_statement",
+    to: { email: tenant.email, phone: (tenant.phone as string | null) ?? undefined, name: tenantName },
+    subject: `Deposit interest statement — ${fmtDate(periodFrom)} to ${fmtDate(periodTo)}`,
+    emailElement: React.createElement(DepositInterestStatementEmail, {
+      branding, tenantName, propertyLabel, periodFrom: fmtDate(periodFrom), periodTo: fmtDate(periodTo),
+      depositHeldDisplay: fmtR(lease.deposit_amount_cents), interestThisPeriodDisplay: fmtR(interestThisPeriod),
+      cumulativeInterestDisplay: fmtR(cumulativeInterest), effectiveRateDisplay: `${effectiveRate.toFixed(2)}%`,
+      senderName: orgSettings?.name ?? branding.orgName,
+    }),
+    entityType: "lease", entityId: lease.id, triggerEventType: "cron:deposit_interest_statement",
+    triggerEventId: lease.id, toneVariant: "n/a",
+  })
+  return result.success
+}
+
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -51,117 +132,7 @@ export async function GET(req: NextRequest) {
 
   for (const lease of leases ?? []) {
     try {
-      // Skip leases that started this year (not yet one year old)
-      const leaseStartYear = new Date(lease.start_date as string).getFullYear()
-      if (leaseStartYear >= currentYear) { skipped++; continue }
-
-      const { data: tenant, error: tenantError } = await service
-        .from("tenant_view")
-        .select("first_name, last_name, email, phone")
-        .eq("id", lease.tenant_id)
-        .single()
-        logQueryError("GET tenant_view", tenantError)
-
-      if (!tenant?.email) { skipped++; continue }
-
-      // Sum interest accrued in the last 12 months
-      const periodTo = new Date(today)
-      const periodFrom = new Date(today)
-      periodFrom.setFullYear(periodFrom.getFullYear() - 1)
-
-      const { data: interestTxns, error: interestTxnsError } = await service
-        .from("deposit_transactions")
-        .select("amount_cents, effective_rate_percent")
-        .eq("lease_id", lease.id)
-        .eq("transaction_type", "interest_accrued")
-        .gte("created_at", periodFrom.toISOString().split("T")[0])
-        .lte("created_at", periodTo.toISOString().split("T")[0])
-        logQueryError("GET deposit_transactions", interestTxnsError)
-
-      const interestThisPeriod = (interestTxns ?? []).reduce(
-        (sum, t) => sum + (t.amount_cents as number),
-        0,
-      )
-
-      // Sum all interest ever accrued (cumulative)
-      const { data: allInterest, error: allInterestError } = await service
-        .from("deposit_transactions")
-        .select("amount_cents")
-        .eq("lease_id", lease.id)
-        .eq("transaction_type", "interest_accrued")
-        logQueryError("GET deposit_transactions", allInterestError)
-
-      const cumulativeInterest = (allInterest ?? []).reduce(
-        (sum, t) => sum + (t.amount_cents as number),
-        0,
-      )
-
-      // Use last effective rate from most recent transaction, or lease setting
-      const lastTxn = interestTxns?.at(-1)
-      const effectiveRate = (lastTxn?.effective_rate_percent as number | null)
-        ?? (lease.deposit_interest_rate_percent as number | null)
-        ?? 0
-
-      // Property label
-      const { data: unitRow, error: unitRowError } = await service
-        .from("leases")
-        .select("units(unit_number, properties(address_line1, suburb, city))")
-        .eq("id", lease.id)
-        .maybeSingle()
-        logQueryError("GET leases", unitRowError)
-
-      type PropRow = { address_line1: string; suburb: string | null; city: string }
-      type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }
-      const unitRaw = (unitRow as unknown as { units: UnitRow | UnitRow[] | null } | null)?.units
-      const unitData = Array.isArray(unitRaw) ? unitRaw[0] : unitRaw
-      const rawProps = unitData?.properties ?? null
-      const propData = Array.isArray(rawProps) ? rawProps[0] : rawProps
-      const propertyLabel = propData
-        ? [propData.address_line1, `Unit ${unitData?.unit_number}`, propData.suburb ?? propData.city].filter(Boolean).join(", ")
-        : "your property"
-
-      const orgSettings = await fetchOrgSettings(lease.org_id as string)
-      const branding = buildBranding(orgSettings)
-      const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-      const senderName = orgSettings?.name ?? branding.orgName
-
-      function fmt(cents: number) {
-        return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
-      }
-      function fmtDate(d: Date) {
-        return d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
-      }
-
-      const result = await routeAndSend({
-        orgId:     lease.org_id as string,
-        tenantId:  lease.tenant_id as string,
-        templateKey: "deposit.interest_statement",
-        to: {
-          email: tenant.email,
-          phone: (tenant.phone as string | null) ?? undefined,
-          name: tenantName,
-        },
-        subject: `Deposit interest statement — ${fmtDate(periodFrom)} to ${fmtDate(periodTo)}`,
-        emailElement: React.createElement(DepositInterestStatementEmail, {
-          branding,
-          tenantName,
-          propertyLabel,
-          periodFrom:                  fmtDate(periodFrom),
-          periodTo:                    fmtDate(periodTo),
-          depositHeldDisplay:          fmt(lease.deposit_amount_cents as number),
-          interestThisPeriodDisplay:   fmt(interestThisPeriod),
-          cumulativeInterestDisplay:   fmt(cumulativeInterest),
-          effectiveRateDisplay:        `${effectiveRate.toFixed(2)}%`,
-          senderName,
-        }),
-        entityType:       "lease",
-        entityId:         lease.id as string,
-        triggerEventType: "cron:deposit_interest_statement",
-        triggerEventId:   lease.id as string,
-        toneVariant:      "n/a",
-      })
-
-      if (result.success) sent++
+      if (await sendDepositInterestStatement(service, lease as unknown as DepositLease, today, currentMonth, currentYear)) sent++
       else skipped++
     } catch (err) {
       console.error("[deposit-interest-statement] lease", lease.id, "failed:", err)
