@@ -2822,3 +2822,79 @@ ALTER TABLE lease_lifecycle_events ADD CONSTRAINT lease_lifecycle_events_event_t
   'lease_expired', 'lease_renewed', 'lease_cancelled',
   'lease_sent_for_signing', 'lease_signing_declined', 'lease_signing_expired'
 ));
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  ADDENDUM_70G (LEG-NOTICES-01): tenant statutory-notice suite — lease lifecycle + sureties
+--   Schema Phase A (leases half). Adds the lease legal-lifecycle fields the notices read
+--   (cancellation/termination dates, domicilium service address, Q13 review flags), the
+--   sureties-of-record register, and the three notice lifecycle event types. The notice-of-record
+--   register + service-events store + template review metadata live in 011 (documents/messaging).
+--   Residential only. Rulings folded: R-3 (service_address jsonb; Q13 flags as
+--   {value,set_by,set_at,note} objects), R-9 (org_id + RLS on every new table; issuance audit_log
+--   lands with the slice-E generation action).
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- 1. Lease legal-lifecycle fields — notices READ these; giveNotice/termination WRITE them (slice E).
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS cancellation_effective_date date;
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS terminated_at               timestamptz;
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS final_notice_date           date;
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS termination_notice_date     date;
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS vacated                     boolean NOT NULL DEFAULT false;
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS vacated_at                  timestamptz;
+
+-- 2. Domicilium / service address (R-3): lease-level jsonb, auto-derived for residential (70F).
+--    The per-notice FROZEN copy lives in tenant_notices.merge_snapshot (Rule 12) — this column is
+--    the current/default source, snapshotted at generation and never read retrospectively.
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS service_address jsonb;
+COMMENT ON COLUMN leases.service_address IS
+  'Domicilium citandi et executandi for statutory service (LEG-NOTICES-01 R-3). jsonb '
+  '{ line1, line2, city, province, postal_code, email, phone }. Frozen per-notice into '
+  'tenant_notices.merge_snapshot at generation.';
+
+-- 3. Q13 legal-review flags (R-3): each flag is an OBJECT {value, set_by, set_at, note} so a review
+--    trigger carries its own audit trail. Review TRIGGERS, not prohibitions (R7.3 framing). Pending
+--    litigation stays in legal_hold_events; these are the Q13 conditions it does not cover.
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS legal_review_flags jsonb NOT NULL DEFAULT '{}'::jsonb;
+COMMENT ON COLUMN leases.legal_review_flags IS
+  'Q13 review triggers (LEG-NOTICES-01 R-3). Keyed map; each value {value:boolean, set_by:uuid, '
+  'set_at:timestamptz, note:text}. Known keys: court_order_granted, business_rescue, debt_review, '
+  'tenant_deceased, occupation_by_others. A Demand-to-Vacate still generates but the slice-E agent '
+  'flow surfaces any set flag.';
+
+-- 4. Sureties of record (plan §2.4). Surety data is application-stage only today; a lease can carry
+--    its own sureties (Notice 3 / commercial director surety). MUTABLE by design — a surety can be
+--    released (released_at) — so NO immutability trigger here (contrast tenant_notices in 011).
+--    org_id + RLS; the app audits add/release (R-9). Writes go through the service client.
+CREATE TABLE IF NOT EXISTS lease_sureties (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id         uuid NOT NULL REFERENCES organisations(id),
+  lease_id       uuid NOT NULL REFERENCES leases(id) ON DELETE CASCADE,
+  contact_id     uuid REFERENCES contacts(id),
+  full_name      text,                      -- snapshot (contact_id may be null for an off-platform surety)
+  deed_reference text,                       -- deed-of-suretyship reference / document id
+  released_at    timestamptz,               -- non-null once the surety is released
+  created_by     uuid REFERENCES auth.users(id),
+  created_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_lease_sureties_lease ON lease_sureties(lease_id);
+CREATE INDEX IF NOT EXISTS idx_lease_sureties_org   ON lease_sureties(org_id);
+
+ALTER TABLE lease_sureties ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "lease_sureties_read_org" ON lease_sureties;
+CREATE POLICY "lease_sureties_read_org" ON lease_sureties FOR SELECT
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+-- 5. Notice lifecycle event types (amend-forward CHECK — the last DROP+ADD of the named constraint
+--    wins on replay; full list = existing + the three notice events). Idempotent.
+ALTER TABLE lease_lifecycle_events DROP CONSTRAINT IF EXISTS lease_lifecycle_events_event_type_check;
+ALTER TABLE lease_lifecycle_events ADD CONSTRAINT lease_lifecycle_events_event_type_check CHECK (event_type IN (
+  'lease_created', 'lease_signed', 'cpa_notice_sent',
+  'renewal_offer_sent', 'renewal_accepted', 'renewal_declined',
+  'escalation_processed', 'escalation_amendment_signed',
+  'notice_given_tenant', 'notice_given_landlord',
+  'converted_to_month_to_month', 'deposit_timer_started',
+  'lease_expired', 'lease_renewed', 'lease_cancelled',
+  'lease_sent_for_signing', 'lease_signing_declined', 'lease_signing_expired',
+  'lease_cancelled_for_breach', 'demand_to_vacate_issued', 'termination_notice_issued'
+));

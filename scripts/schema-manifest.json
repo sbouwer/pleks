@@ -1435,6 +1435,18 @@
       "sent_at",
       "updated_at"
     ],
+    "document_template_versions": [
+      "id",
+      "template_id",
+      "version",
+      "body_hash",
+      "legal_review_status",
+      "legal_review_ref",
+      "effective_date",
+      "snapshot",
+      "created_by",
+      "created_at"
+    ],
     "document_templates": [
       "id",
       "org_id",
@@ -1474,7 +1486,10 @@
       "legal_reviewed_at",
       "legal_review_ref",
       "content_hash",
-      "legal_citations"
+      "legal_citations",
+      "legal_review_status",
+      "effective_date",
+      "applicable_legislation"
     ],
     "external_links": [
       "key",
@@ -1895,6 +1910,17 @@
       "created_at",
       "updated_at"
     ],
+    "lease_sureties": [
+      "id",
+      "org_id",
+      "lease_id",
+      "contact_id",
+      "full_name",
+      "deed_reference",
+      "released_at",
+      "created_by",
+      "created_at"
+    ],
     "lease_templates": [
       "id",
       "org_id",
@@ -1965,7 +1991,15 @@
       "escalation_notice_sent_at",
       "payment_reference",
       "deposit_account_id",
-      "trust_account_id"
+      "trust_account_id",
+      "cancellation_effective_date",
+      "terminated_at",
+      "final_notice_date",
+      "termination_notice_date",
+      "vacated",
+      "vacated_at",
+      "service_address",
+      "legal_review_flags"
     ],
     "legal_hold_events": [
       "id",
@@ -2398,6 +2432,22 @@
       "uploaded_by",
       "created_at",
       "updated_at"
+    ],
+    "notice_service_events": [
+      "id",
+      "org_id",
+      "notice_id",
+      "channel",
+      "service_method",
+      "address",
+      "dispatched_at",
+      "deemed_service_at",
+      "provider_event_id",
+      "attested_by",
+      "proof_path",
+      "status",
+      "note",
+      "created_at"
     ],
     "org_lease_clause_defaults": [
       "id",
@@ -3303,6 +3353,23 @@
       "is_emergency",
       "is_guarantor",
       "created_at"
+    ],
+    "tenant_notices": [
+      "id",
+      "org_id",
+      "lease_id",
+      "notice_type",
+      "template_id",
+      "template_version",
+      "citation_branch",
+      "body_full",
+      "content_hash",
+      "merge_snapshot",
+      "cancellation_effective_date",
+      "vacate_by_date",
+      "supersedes",
+      "generated_by",
+      "generated_at"
     ],
     "tenant_portal_tokens": [
       "id",
