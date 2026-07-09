@@ -47,18 +47,10 @@ type NoticeLease = {
 }
 
 async function handleCpaRenewal(supabase: Supabase, lease: CpaLease): Promise<void> {
-  await supabase.from("leases").update({
-    auto_renewal_notice_sent_at: new Date().toISOString(),
-  }).eq("id", lease.id)
-
-  await supabase.from("audit_log").insert({
-    org_id: lease.org_id,
-    table_name: "leases",
-    record_id: lease.id,
-    action: "UPDATE",
-    new_values: { event: "cpa_renewal_notice_sent" },
-  })
-
+  // H-1 (comms audit 2026-07-09): stamp auto_renewal_notice_sent_at ONLY after a confirmed successful
+  // send. The Demand-to-Vacate Rule 5 guard reads this column as "CPA s14(2)(b)(ii) expiry notification
+  // duly given" — stamping a failed send poisons that predicate and could route a Notice 2 at a tenant who
+  // was never notified. (Previously stamped up-front, before the send.)
   if (!lease.tenant_id || !lease.end_date) return
 
   const [{ data: tenant }, { data: org }, orgSettings] = await Promise.all([
@@ -69,9 +61,7 @@ async function handleCpaRenewal(supabase: Supabase, lease: CpaLease): Promise<vo
   const unit = lease.units as { unit_number: string; properties: { name: string } } | null
   if (!tenant?.email) return
 
-  // C-1 belt: await (serverless-freeze-safe) + log — was a floating void (silent loss). The helper is awaited
-  // by GET, so this completes before the response. Per-lease failure logged, not thrown (non-fatal).
-  await sendLeaseRenewalNotice(
+  const result = await sendLeaseRenewalNotice(
     { email: tenant.email, name: [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant" },
     {
       id: lease.id,
@@ -80,10 +70,18 @@ async function handleCpaRenewal(supabase: Supabase, lease: CpaLease): Promise<vo
       unitLabel: unit?.unit_number ? `Unit ${unit.unit_number}` : "Unit",
     },
     { orgId: lease.org_id, orgName: org ? getOrgDisplayName(org) : "Pleks", orgPhone: org?.phone ?? undefined, orgEmail: org?.email ?? undefined, branding: buildBranding(orgSettings) }
-  ).catch((e) => console.error("[lease-expiry-check] CPA renewal notice failed:", e instanceof Error ? e.message : String(e)))
+  ).catch((e) => { console.error("[lease-expiry-check] CPA renewal notice failed:", e instanceof Error ? e.message : String(e)); return { success: false } })
+
+  if (!result.success) return   // failed send → leave the column null so the cron retries; never stamp "notified"
+
+  await supabase.from("leases").update({ auto_renewal_notice_sent_at: new Date().toISOString() }).eq("id", lease.id)
+  await supabase.from("audit_log").insert({
+    org_id: lease.org_id, table_name: "leases", record_id: lease.id, action: "UPDATE",
+    new_values: { event: "cpa_renewal_notice_sent" },
+  })
 }
 
-async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Promise<void> {
+export async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Promise<void> {
   try {
     const [tenantRes, unitRes, orgSettings] = await Promise.all([
       supabase.from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id).single(),
@@ -99,7 +97,7 @@ async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Pro
     const endDateDisplay = new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
     const daysRemaining = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / 86_400_000)
 
-    await routeAndSend({
+    const result = await routeAndSend({
       orgId: lease.org_id,
       tenantId: lease.tenant_id,
       templateKey: "lease.expiry_reminder",
@@ -124,7 +122,12 @@ async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Pro
       triggerEventId: lease.id,
       toneVariant: "n/a",
     })
-    await supabase.from("leases").update({ expiry_reminder_sent_at: new Date().toISOString() }).eq("id", lease.id)
+    // H-1 (comms audit): stamp ONLY on a successful send. routeAndSend returns {success:false} (it does not
+    // throw), so an unchecked stamp marked leases "notified" during the June outage — poisoning the same
+    // predicate the Demand-to-Vacate Rule 5 guard reads. A failed send leaves the column null → the cron retries.
+    if (result.success) {
+      await supabase.from("leases").update({ expiry_reminder_sent_at: new Date().toISOString() }).eq("id", lease.id)
+    }
   } catch {
     // Per-lease failure is non-fatal
   }
