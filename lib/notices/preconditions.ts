@@ -54,6 +54,7 @@ export interface NoticeFacts {
   // Rule 6 (m2m)
   terminationNoticeGivenAt: string | null   // leases.notice_given_date
   noticePeriodEnd: string | null            // leases.notice_period_end
+  terminationServiceEvidence: boolean       // a communication_log service record exists for the termination notice
   // Rule 7 (all — cutoff-relative, computed by the gatherer per requested type)
   postTerminationReceipt: boolean
   // Rule 4 (all)
@@ -130,14 +131,21 @@ function ruleExpiryRouting(f: NoticeFacts, reviews: PreconditionFinding[]): Dema
   return "demand_vacate_m2m"
 }
 
-function ruleM2m(f: NoticeFacts, blocks: PreconditionFinding[]): void {
-  // Rule 6 — a written termination notice must be recorded AND its notice period expired.
+function ruleM2m(f: NoticeFacts, blocks: PreconditionFinding[], reviews: PreconditionFinding[]): void {
+  // Rule 6 — a written termination notice must be recorded, its notice period expired, AND its service
+  // evidenced. A recorded date with no findable service record (migrated / off-platform notice) degrades
+  // to manual review, not allow — a m2m demand whose foundation notice can't be evidenced is the first
+  // thing a tenant's attorney attacks (CD walk).
   if (!f.terminationNoticeGivenAt) {
     blocks.push({ rule: "Rule 6", code: "no_termination_notice", message: "No written termination notice is recorded for this lease. Serve one (with notice period) before a Demand to Vacate." })
     return
   }
   if (f.noticePeriodEnd && f.noticePeriodEnd > f.today) {
     blocks.push({ rule: "Rule 6", code: "notice_period_open", message: `The termination notice period has not yet expired (ends ${f.noticePeriodEnd}).` })
+    return
+  }
+  if (!f.terminationServiceEvidence) {
+    reviews.push({ rule: "Rule 6", code: "service_evidence_unverified", message: "A termination notice date is recorded but no service record can be found for it (migrated or off-platform notice). Confirm and attest service before proceeding." })
   }
 }
 
@@ -184,7 +192,7 @@ export function evaluateNoticePreconditions(facts: NoticeFacts, type: DemandNoti
   } else {
     ruleRenewal(facts, type, blocks)           // Rule 3 — expiry / m2m
     if (type === "demand_vacate_expiry") suggestedNoticeType = ruleExpiryRouting(facts, reviews)  // Rule 5
-    if (type === "demand_vacate_m2m") ruleM2m(facts, blocks)                                       // Rule 6
+    if (type === "demand_vacate_m2m") ruleM2m(facts, blocks, reviews)                              // Rule 6
   }
 
   return { decision: decide(blocks, reviews), blocks, reviews, suggestedNoticeType }
@@ -199,6 +207,7 @@ export interface GatherLease {
   cpa_applies_at_signing: CpaAppliesState
   status: string | null
   unit_id: string | null
+  tenant_id: string | null
   start_date: string | null
   end_date: string | null
   cancellation_effective_date: string | null
@@ -216,20 +225,25 @@ function receiptCutoff(lease: GatherLease, type: DemandNoticeType): string | nul
   return lease.cancellation_effective_date   // breach — only if a prior cancellation date exists
 }
 
+/** Closed arrears states — a Final Notice under one of these cannot ground a NEW cancellation. */
+const CLOSED_ARREARS = new Set(["resolved", "written_off", "vacated_with_debt"])
+
 async function gatherFinalNotice(db: Db, orgId: string, leaseId: string): Promise<{ sentAt: string | null; resolved: boolean }> {
   // Final Notice of Breach is the arrears ladder's 'pre_legal_notice' step, reached via arrears_cases.lease_id.
   const { data: cases, error } = await db.from("arrears_cases").select("id, status").eq("org_id", orgId).eq("lease_id", leaseId)
   logQueryError("gatherNoticeFacts arrears_cases", error)
-  const caseIds = (cases ?? []).map((c) => c.id as string)
-  if (caseIds.length === 0) return { sentAt: null, resolved: false }
-  const resolved = (cases ?? []).every((c) => c.status === "resolved")
+  // MUST-FIX (CD walk): a Final Notice only counts if it belongs to a CURRENTLY OPEN case. A remedied /
+  // written-off / vacated 2025 episode's paperwork can never ground a 2026 cancellation — scope the action
+  // query to open case ids only, so a stale notice from a closed episode returns sentAt=null → Rule 1 blocks.
+  const openIds = (cases ?? []).filter((c) => !CLOSED_ARREARS.has(c.status as string)).map((c) => c.id as string)
+  if (openIds.length === 0) return { sentAt: null, resolved: (cases ?? []).length > 0 }
   const { data: actions, error: aErr } = await db.from("arrears_actions")
-    .select("sent_at, created_at").in("case_id", caseIds).eq("action_type", "pre_legal_notice")
+    .select("sent_at, created_at").in("case_id", openIds).eq("action_type", "pre_legal_notice")
     .order("created_at", { ascending: false }).limit(1)
   logQueryError("gatherNoticeFacts arrears_actions", aErr)
   const row = actions?.[0]
   const sentAtRaw = (row?.sent_at ?? row?.created_at) as string | undefined
-  return { sentAt: sentAtRaw ? sentAtRaw.slice(0, 10) : null, resolved }
+  return { sentAt: sentAtRaw ? sentAtRaw.slice(0, 10) : null, resolved: false }
 }
 
 async function gatherPriorNotices(db: Db, orgId: string, leaseId: string, type: DemandNoticeType): Promise<{ sameType: boolean; anyCancellation: boolean }> {
@@ -246,12 +260,25 @@ async function gatherPriorNotices(db: Db, orgId: string, leaseId: string, type: 
 
 async function gatherRenewal(db: Db, orgId: string, lease: GatherLease): Promise<boolean> {
   // Proxy: a newer active/pending lease for the same unit (lease_renewal_offers is schema-only, no writers).
-  if (!lease.unit_id) return false
+  // SHOULD-FIX 2 (CD walk): renewal means the SAME tenant. A re-let to a NEW tenant while the old one holds
+  // over is the suite's PRIMARY use case — it must NOT trip this. Filter on tenant overlap.
+  if (!lease.unit_id || !lease.tenant_id) return false
   const { data, error } = await db.from("leases").select("id, start_date, status")
-    .eq("org_id", orgId).eq("unit_id", lease.unit_id).neq("id", lease.id)
+    .eq("org_id", orgId).eq("unit_id", lease.unit_id).eq("tenant_id", lease.tenant_id).neq("id", lease.id)
     .in("status", ["active", "pending_signing"])
   logQueryError("gatherNoticeFacts renewal proxy", error)
   return (data ?? []).some((l) => (l.start_date as string | null) && lease.start_date && (l.start_date as string) > lease.start_date)
+}
+
+async function gatherTerminationServiceEvidence(db: Db, orgId: string, leaseId: string): Promise<boolean> {
+  // SHOULD-FIX 1 (CD walk): giveNotice sends templateKey 'lease.notice_acknowledged' (entity_type='lease',
+  // entity_id=leaseId). Its presence is the findable service record for the termination notice; its absence
+  // (migrated / off-platform notice) degrades Rule 6 to manual review rather than allow.
+  const { data, error } = await db.from("communication_log").select("id")
+    .eq("org_id", orgId).eq("entity_type", "lease").eq("entity_id", leaseId)
+    .eq("template_key", "lease.notice_acknowledged").limit(1)
+  logQueryError("gatherNoticeFacts termination service evidence", error)
+  return Boolean(data?.length)
 }
 
 async function gatherReceipts(db: Db, orgId: string, leaseId: string, cutoff: string | null): Promise<boolean> {
@@ -279,11 +306,12 @@ function q13SetFlags(flags: GatherLease["legal_review_flags"]): string[] {
 export async function gatherNoticeFacts(
   db: Db, orgId: string, lease: GatherLease, type: DemandNoticeType, today: string, activeLegalHold: boolean,
 ): Promise<NoticeFacts> {
-  const [finalNotice, prior, renewal, postTerminationReceipt] = await Promise.all([
+  const [finalNotice, prior, renewal, postTerminationReceipt, terminationServiceEvidence] = await Promise.all([
     gatherFinalNotice(db, orgId, lease.id),
     gatherPriorNotices(db, orgId, lease.id, type),
     gatherRenewal(db, orgId, lease),
     gatherReceipts(db, orgId, lease.id, receiptCutoff(lease, type)),
+    gatherTerminationServiceEvidence(db, orgId, lease.id),
   ])
   return {
     today,
@@ -297,6 +325,7 @@ export async function gatherNoticeFacts(
     expiryNotificationSent: Boolean(lease.auto_renewal_notice_sent_at || lease.expiry_reminder_sent_at),
     terminationNoticeGivenAt: lease.notice_given_date,
     noticePeriodEnd: lease.notice_period_end,
+    terminationServiceEvidence,
     postTerminationReceipt,
     q13Flags: q13SetFlags(lease.legal_review_flags),
     activeLegalHold,

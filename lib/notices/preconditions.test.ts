@@ -6,7 +6,7 @@
  * receipt must ALWAYS trip manual review.
  */
 import { describe, it, expect } from "vitest"
-import { evaluateNoticePreconditions, addBusinessDays, type NoticeFacts } from "./preconditions"
+import { evaluateNoticePreconditions, gatherNoticeFacts, addBusinessDays, type NoticeFacts, type GatherLease } from "./preconditions"
 
 const clear: NoticeFacts = {
   today: "2026-07-09",
@@ -20,11 +20,44 @@ const clear: NoticeFacts = {
   expiryNotificationSent: false,
   terminationNoticeGivenAt: "2026-05-01",
   noticePeriodEnd: "2026-06-01",         // past → notice period expired
+  terminationServiceEvidence: true,
   postTerminationReceipt: false,
   q13Flags: [],
   activeLegalHold: false,
 }
 const f = (o: Partial<NoticeFacts>): NoticeFacts => ({ ...clear, ...o })
+
+// A filter-applying fake DB: each table has configured rows; .eq/.neq/.in/.gt narrow them; awaiting the
+// chain (or .limit) resolves { data, error }. Enough of the PostgREST surface for the gatherer.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function gatherDb(tables: Record<string, any[]>): any {
+  return {
+    from(table: string) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let rows: any[] = (tables[table] ?? []).slice()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chain: any = {
+        select: () => chain,
+        eq: (c: string, v: unknown) => { rows = rows.filter((r) => r[c] === v); return chain },
+        neq: (c: string, v: unknown) => { rows = rows.filter((r) => r[c] !== v); return chain },
+        in: (c: string, vs: unknown[]) => { rows = rows.filter((r) => vs.includes(r[c])); return chain },
+        gt: (c: string, v: unknown) => { rows = rows.filter((r) => (r[c] as never) > (v as never)); return chain },
+        order: () => chain,
+        limit: (n: number) => Promise.resolve({ data: rows.slice(0, n), error: null }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        then: (resolve: (x: { data: any[]; error: null }) => unknown) => resolve({ data: rows, error: null }),
+      }
+      return chain
+    },
+  }
+}
+
+const baseLease: GatherLease = {
+  id: "l1", lease_type: "residential", cpa_applies_at_signing: "no", status: "notice",
+  unit_id: "u1", tenant_id: "t1", start_date: "2025-01-01", end_date: "2026-06-01",
+  cancellation_effective_date: null, auto_renewal_notice_sent_at: null, expiry_reminder_sent_at: null,
+  notice_given_date: "2026-05-01", notice_period_end: "2026-06-01", legal_review_flags: null,
+}
 
 describe("addBusinessDays", () => {
   it("skips weekends (20 business days ≈ 4 weeks)", () => {
@@ -150,6 +183,11 @@ describe("Rule 6 — m2m termination preconditions", () => {
     const r = evaluateNoticePreconditions(f({ noticePeriodEnd: "2026-08-01" }), "demand_vacate_m2m")
     expect(r.blocks.some((b) => b.code === "notice_period_open")).toBe(true)
   })
+  it("degrades to manual_review when the termination notice has no findable service record (should-fix 1)", () => {
+    const r = evaluateNoticePreconditions(f({ terminationServiceEvidence: false }), "demand_vacate_m2m")
+    expect(r.decision).toBe("manual_review")
+    expect(r.reviews.some((x) => x.code === "service_evidence_unverified")).toBe(true)
+  })
 })
 
 // ── Rule 7 — post-termination receipts (E-1), adversarial ─────────────────────────────────────────────
@@ -163,6 +201,51 @@ describe("Rule 7 — post-termination receipts always trip manual review", () =>
     for (const t of ["demand_vacate_breach", "demand_vacate_expiry", "demand_vacate_m2m"] as const) {
       expect(evaluateNoticePreconditions(f({ postTerminationReceipt: true }), t).reviews.some((x) => x.rule === "Rule 7")).toBe(true)
     }
+  })
+})
+
+// ── Gatherer integration (filter-aware fake DB) — the CD walk fixes ───────────────────────────────────
+describe("gatherNoticeFacts — Rule 1 stale-notice scoping (MUST-FIX)", () => {
+  it("a Final Notice under a CLOSED case cannot ground a fresh cancellation → finalNoticeSentAt=null", async () => {
+    const db = gatherDb({
+      arrears_cases: [
+        { id: "c2025", org_id: "o1", lease_id: "l1", status: "resolved" },   // remedied 2025 episode
+        { id: "c2026", org_id: "o1", lease_id: "l1", status: "open" },        // fresh 2026 case, no notice yet
+      ],
+      arrears_actions: [
+        { case_id: "c2025", action_type: "pre_legal_notice", sent_at: "2025-03-01", created_at: "2025-03-01" },
+      ],
+    })
+    const facts = await gatherNoticeFacts(db, "o1", baseLease, "demand_vacate_breach", "2026-07-09", false)
+    expect(facts.finalNoticeSentAt).toBeNull()
+    expect(evaluateNoticePreconditions(facts, "demand_vacate_breach").blocks.some((b) => b.code === "no_final_notice")).toBe(true)
+  })
+
+  it("a Final Notice under the OPEN case does ground it → finalNoticeSentAt set", async () => {
+    const db = gatherDb({
+      arrears_cases: [{ id: "c2026", org_id: "o1", lease_id: "l1", status: "open" }],
+      arrears_actions: [{ case_id: "c2026", action_type: "pre_legal_notice", sent_at: "2026-05-01", created_at: "2026-05-01" }],
+    })
+    const facts = await gatherNoticeFacts(db, "o1", baseLease, "demand_vacate_breach", "2026-07-09", false)
+    expect(facts.finalNoticeSentAt).toBe("2026-05-01")
+  })
+})
+
+describe("gatherNoticeFacts — Rule 3 renewal is tenant-scoped (SHOULD-FIX 2)", () => {
+  it("a re-let to a NEW tenant on the same unit does NOT count as a renewal (holdover use case)", async () => {
+    const db = gatherDb({
+      leases: [{ id: "lNew", org_id: "o1", unit_id: "u1", tenant_id: "tOTHER", status: "active", start_date: "2026-07-01" }],
+    })
+    const facts = await gatherNoticeFacts(db, "o1", baseLease, "demand_vacate_m2m", "2026-07-09", false)
+    expect(facts.renewalSignedOrInitiated).toBe(false)
+  })
+
+  it("a newer lease for the SAME tenant on the same unit DOES count as a renewal", async () => {
+    const db = gatherDb({
+      leases: [{ id: "lRenew", org_id: "o1", unit_id: "u1", tenant_id: "t1", status: "active", start_date: "2026-07-01" }],
+    })
+    const facts = await gatherNoticeFacts(db, "o1", baseLease, "demand_vacate_m2m", "2026-07-09", false)
+    expect(facts.renewalSignedOrInitiated).toBe(true)
   })
 })
 
