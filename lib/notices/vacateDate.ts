@@ -10,7 +10,18 @@
  *         dates → deterministic tests (no new Date() inside).
  */
 
-/** R-2 default: the vacate deadline printed in the notice = dispatch date + 14 calendar days (YYYY-MM-DD). */
+/**
+ * The current calendar date in South African Standard Time (UTC+2, no DST) as YYYY-MM-DD. Legal dates on a
+ * notice MUST be SAST, not UTC (CD walk): between 00:00–02:00 SAST the UTC calendar date is still yesterday,
+ * so a cancellation effective date computed off `toISOString()` would print a date that pre-dates its own
+ * generation and service — a free argument for a tenant's attorney. Agents issue at odd hours; this fires
+ * on late-night issuance before a morning deadline. `at` is injectable for deterministic tests.
+ */
+export function saTodayISO(at: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit" }).format(at)
+}
+
+/** R-2 default: the vacate deadline printed in the notice = base date + 14 calendar days (YYYY-MM-DD). */
 export function computeVacateByDate(dispatchDate: Date, days = 14): string {
   const d = new Date(dispatchDate.getTime())
   d.setUTCDate(d.getUTCDate() + days)

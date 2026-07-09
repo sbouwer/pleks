@@ -23,7 +23,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { sendEmail } from "@/lib/comms/send-email"
 import { sendSMS } from "@/lib/sms/sendSMS"
 import { recordNoticeServiceEvent } from "./recordServiceEvent"
-import { computeVacateByDate } from "./vacateDate"
+import { computeVacateByDate, saTodayISO } from "./vacateDate"
 import { renderServiceNotificationSms } from "./serviceNotification"
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import type { CpaAppliesState } from "@/lib/comms/templates/legalCitations"
@@ -64,6 +64,16 @@ export interface IssueTenantNoticeParams {
   propertyLabel: string
   referenceNumber: string
   branding: OrgBranding
+  /** E-4 override — set ONLY when a manual-review halt was overridden. Recorded on the immutable row at insert. */
+  manualOverride?: ManualOverride
+}
+
+/** The E-4 override block persisted on tenant_notices.manual_override (set-at-insert only). */
+export interface ManualOverride {
+  overridden_by: string | null
+  overridden_at: string
+  reason: string
+  codes: string[]
 }
 
 export interface IssueTenantNoticeResult {
@@ -227,8 +237,11 @@ export async function issueTenantNotice(params: IssueTenantNoticeParams): Promis
   await assertNoticeApproved(db, templateKey, tmpl?.legal_review_status, (recipient.phones ?? []).some(Boolean))
 
   // ── Render ONCE → body_full; hash + every transmitted copy derive from this string (R-3 byte-identity) ─
-  const vacateByDateISO = computeVacateByDate(now)
-  const todaysDate = fmtDate(now.toISOString().slice(0, 10))
+  // Legal dates are SAST calendar dates (not UTC) — see saTodayISO. The dispatch instant (now) is still used
+  // for service-event timestamps, but the PRINTED effective/today/vacate dates derive from the SA date.
+  const baseIso = saTodayISO(now)
+  const vacateByDateISO = computeVacateByDate(new Date(`${baseIso}T00:00:00.000Z`))
+  const todaysDate = fmtDate(baseIso)
   const element = buildElement(params, fmtDate(vacateByDateISO), todaysDate)
   const bodyFull = await render(element)
   const contentHash = createHash("sha256").update(bodyFull).digest("hex")
@@ -250,7 +263,7 @@ export async function issueTenantNotice(params: IssueTenantNoticeParams): Promis
       template_id: tmpl?.id ?? null, template_version: tmpl?.version ?? null, citation_branch: branch,
       body_full: bodyFull, content_hash: contentHash, merge_snapshot: mergeSnapshot,
       cancellation_effective_date: lease.cancellationEffectiveISO ?? null, vacate_by_date: vacateByDateISO,
-      generated_by: generatedBy,
+      generated_by: generatedBy, manual_override: params.manualOverride ?? null,
     })
     .select("id").single()
   if (noticeErr || !notice) {

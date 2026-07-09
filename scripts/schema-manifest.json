@@ -3369,7 +3369,8 @@
       "vacate_by_date",
       "supersedes",
       "generated_by",
-      "generated_at"
+      "generated_at",
+      "manual_override"
     ],
     "tenant_portal_tokens": [
       "id",

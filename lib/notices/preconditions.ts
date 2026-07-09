@@ -225,7 +225,17 @@ function receiptCutoff(lease: GatherLease, type: DemandNoticeType): string | nul
   return lease.cancellation_effective_date   // breach — only if a prior cancellation date exists
 }
 
-/** Closed arrears states — a Final Notice under one of these cannot ground a NEW cancellation. */
+/**
+ * Closed arrears states — a Final Notice under one of these cannot ground a NEW cancellation. Each terminal
+ * has its OWN justification (do NOT "simplify" back to resolved-only — CD walk):
+ *   • resolved          — the breach was remedied; cancelling on a cured episode is unlawful.
+ *   • written_off       — the write-off changes the factual matrix: a Tribunal reasonably asks why a landlord
+ *                         who abandoned collection now cancels on that same episode. The honest answer is
+ *                         "get a fresh Final Notice on the current facts."
+ *   • vacated_with_debt — a demand to vacate against someone who already vacated is incoherent as an
+ *                         instrument. (The vacated state matters for SERVING an existing notice — Q12
+ *                         escalation — never for GROUNDING a new one.)
+ */
 const CLOSED_ARREARS = new Set(["resolved", "written_off", "vacated_with_debt"])
 
 async function gatherFinalNotice(db: Db, orgId: string, leaseId: string): Promise<{ sentAt: string | null; resolved: boolean }> {

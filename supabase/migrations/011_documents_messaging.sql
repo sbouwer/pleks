@@ -1408,3 +1408,17 @@ WHERE NOT EXISTS (
 UPDATE document_templates SET version = 2
 WHERE scope = 'system' AND template_key = 'notice.service_notification' AND template_type = 'sms'
   AND legal_review_status = 'draft' AND version < 2;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §27  ADDENDUM_70G (LEG-NOTICES-01) Phase E-2: manual_override on tenant_notices (E-4)
+--   When a precondition guard halts generation for manual review (a Q13 flag, a CPA-routing ambiguity, a
+--   post-termination receipt), the E-4 override records who/when/why/which review codes were overridden.
+--   It lands ONLY at insert (tenant_notices is immutable, 011 §25) — which is precisely what makes it
+--   trustworthy: a halt cannot be clicked through and then back-filled. jsonb:
+--   { overridden_by:uuid, overridden_at:timestamptz, reason:text (mandatory, non-empty), codes:text[] }.
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE tenant_notices ADD COLUMN IF NOT EXISTS manual_override jsonb;
+COMMENT ON COLUMN tenant_notices.manual_override IS
+  'E-4 manual-review override, set at insert only (immutable row): { overridden_by, overridden_at, reason, codes }. '
+  'NULL = the notice passed all guards cleanly. Non-null = a named human overrode a manual-review halt for the recorded reason.';
