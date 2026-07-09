@@ -33,6 +33,7 @@ const baseSnap: ComponentSnapshot = {
     totalVerifiedIncomeCents:              5_000_000,
     proposedRentCents:                     1_200_000,
     rentToIncomeRatio:                     0.24,
+    debtToIncomeRatio:                     null,
     affordabilityScore:                    0.8,
     stabilityScore:                        0.7,
     creditBehaviourScore:                  0.75,
