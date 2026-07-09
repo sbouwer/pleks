@@ -17,8 +17,15 @@ import {
   DEPOSIT_RETURNED_BASIS,
   DEPOSIT_INTEREST_BASIS,
   INSPECTION_BASIS,
+  demandVacateBreachBasis,
+  demandVacateExpiryBasis,
+  demandVacateM2mBasis,
+  RENTAL_HOUSING_TRIBUNAL_LINE,
 } from "./legalCitations"
 import { LegalFooter } from "./LegalFooter"
+import { DemandToVacateBreachEmail } from "./tenant/leases/demand-to-vacate-breach"
+import { DemandToVacateExpiryEmail } from "./tenant/leases/demand-to-vacate-expiry"
+import { DemandToVacateM2mEmail } from "./tenant/leases/demand-to-vacate-m2m"
 import { FinalNoticeEmail } from "./tenant/arrears/final-notice"
 import { LetterOfDemandEmail } from "./tenant/arrears/letter-of-demand"
 import { DepositInterestStatementEmail } from "./tenant/deposits/deposit-interest-statement"
@@ -65,6 +72,76 @@ describe("legalCitations — counsel-authorized strings (F-1)", () => {
     expect(ECTA_FOOTER_TEXT).toContain("Sections 11(1), 12, and 13(2)–(3)")
     expect(ECTA_FOOTER_TEXT).toContain("Electronic Communications and Transactions Act 25 of 2002")
     expect(ECTA_FOOTER_TEXT).toContain("Dispatch and receipt governed by Section 23")
+  })
+})
+
+// LEG-NOTICES-01 / R7.3 — Demand-to-Vacate citation bases. The load-bearing property (R-8 lesson): the
+// 3-state cpa_applies_at_signing must cite the CPA ONLY on an explicit "yes" — never on a truthy
+// "no"/"indeterminate"/null string. These helpers own that rule so no caller can re-introduce the mis-cast.
+describe("legalCitations — Demand-to-Vacate bases (3-state CPA safety)", () => {
+  it("breach basis: CPA s14(2)(b)(i)(bb) ONLY on 'yes'; safe contractual+common-law otherwise", () => {
+    expect(demandVacateBreachBasis("yes")).toContain("section 14(2)(b)(i)(bb) of the Consumer Protection Act 68 of 2008")
+    for (const s of ["no", "indeterminate", null, undefined] as const) {
+      expect(demandVacateBreachBasis(s)).not.toContain("Consumer Protection")
+      expect(demandVacateBreachBasis(s)).toContain("common law")
+    }
+  })
+
+  it("expiry basis: CPA s14(2) ONLY on 'yes'; both branches carry the RHA; never CPA on non-yes", () => {
+    expect(demandVacateExpiryBasis("yes")).toContain("section 14(2) of the Consumer Protection Act 68 of 2008")
+    for (const s of ["no", "indeterminate", null, undefined] as const) {
+      expect(demandVacateExpiryBasis(s)).not.toContain("Consumer Protection")
+      expect(demandVacateExpiryBasis(s)).toContain("Rental Housing Act 50 of 1999")
+    }
+    expect(demandVacateExpiryBasis("yes")).toContain("Rental Housing Act 50 of 1999")
+  })
+
+  it("month-to-month basis: RHA s5(5), never the CPA (no fixed term to invoke s14)", () => {
+    expect(demandVacateM2mBasis()).toContain("section 5(5) of the Rental Housing Act 50 of 1999")
+    expect(demandVacateM2mBasis()).not.toContain("Consumer Protection")
+  })
+
+  it("Tribunal signpost names the responsible department (rename-proof), not a namable body", () => {
+    expect(RENTAL_HOUSING_TRIBUNAL_LINE).toContain("provincial department responsible for human settlements")
+  })
+})
+
+describe("Demand-to-Vacate templates — verbatim citation branch + ECTA/Tribunal footer", () => {
+  const base = {
+    branding, tenantName: "John Doe", serviceAddress: "1 Main Rd, Cape Town, 8001",
+    propertyLabel: "Unit 1, The Heights", referenceNumber: "DTV-1", landlordOrAgentName: "Acme Lettings",
+    vacateByDate: "20 July 2026", todaysDate: "6 July 2026",
+  }
+
+  it("breach: CPA branch on 'yes', contractual on 'no'; PIE + ECTA + Tribunal present", async () => {
+    const cpa = await render(DemandToVacateBreachEmail({ ...base, finalNoticeDate: "1 June 2026", cancellationEffectiveDate: "1 July 2026", cpaApplies: "yes" }))
+    expect(cpa).toContain("section 14(2)(b)(i)(bb) of the Consumer Protection Act 68 of 2008")
+    expect(cpa).toContain("Prevention of Illegal Eviction")
+    expect(cpa).toContain("Electronic Communications and Transactions Act 25 of 2002")
+    expect(cpa).toContain("provincial department responsible for human settlements")
+
+    const noCpa = await render(DemandToVacateBreachEmail({ ...base, finalNoticeDate: "1 June 2026", cancellationEffectiveDate: "1 July 2026", cpaApplies: "no" }))
+    expect(noCpa).not.toContain("Consumer Protection")
+    expect(noCpa).toContain("common law")
+  })
+
+  it("expiry: CPA s14(2) on 'yes'; both branches carry RHA; ECTA + Tribunal present", async () => {
+    const cpa = await render(DemandToVacateExpiryEmail({ ...base, leaseEndDate: "30 June 2026", cpaApplies: "yes" }))
+    expect(cpa).toContain("section 14(2) of the Consumer Protection Act 68 of 2008")
+    expect(cpa).toContain("Rental Housing Act 50 of 1999")
+    expect(cpa).toContain("provincial department responsible for human settlements")
+
+    const indeterminate = await render(DemandToVacateExpiryEmail({ ...base, leaseEndDate: "30 June 2026", cpaApplies: "indeterminate" }))
+    expect(indeterminate).not.toContain("Consumer Protection")
+    expect(indeterminate).toContain("Rental Housing Act 50 of 1999")
+  })
+
+  it("month-to-month: RHA s5(5), no CPA; ECTA + Tribunal present", async () => {
+    const html = await render(DemandToVacateM2mEmail({ ...base, terminationNoticeDate: "1 June 2026", leaseEndDate: "30 June 2026" }))
+    expect(html).toContain("section 5(5) of the Rental Housing Act 50 of 1999")
+    expect(html).not.toContain("Consumer Protection")
+    expect(html).toContain("Electronic Communications and Transactions Act 25 of 2002")
+    expect(html).toContain("provincial department responsible for human settlements")
   })
 })
 
@@ -143,6 +220,9 @@ describe("70F §8 #1 — every statutory email component carries the canonical E
     { name: "inspection-dispute-window", el: InspectionDisputeWindowEmail({ branding, tenantName: "J", propertyLabel: "U", conductedDate: "1 Jan 2026", disputeWindowClosesAt: "8 Jan 2026", referenceNumber: "R" }) },
     { name: "lease-expiry-reminder", el: LeaseExpiryReminderEmail({ branding, tenantName: "J", propertyLabel: "U", leaseEndDate: "1 Jun 2026", daysRemaining: 30, senderName: "Acme" }) },
     { name: "lease-terminated", el: LeaseTerminatedEmail({ branding, tenantName: "J", propertyLabel: "U", leaseEndDate: "1 Jun 2026", senderName: "Acme" }) },
+    { name: "demand-to-vacate-breach", el: DemandToVacateBreachEmail({ branding, tenantName: "J", serviceAddress: "1 Main Rd", propertyLabel: "U", referenceNumber: "R", landlordOrAgentName: "Acme", finalNoticeDate: "1 Jun 2026", cancellationEffectiveDate: "1 Jul 2026", vacateByDate: "20 Jul 2026", todaysDate: "6 Jul 2026", cpaApplies: "yes" }) },
+    { name: "demand-to-vacate-expiry", el: DemandToVacateExpiryEmail({ branding, tenantName: "J", serviceAddress: "1 Main Rd", propertyLabel: "U", referenceNumber: "R", landlordOrAgentName: "Acme", leaseEndDate: "30 Jun 2026", vacateByDate: "20 Jul 2026", todaysDate: "6 Jul 2026", cpaApplies: "no" }) },
+    { name: "demand-to-vacate-m2m", el: DemandToVacateM2mEmail({ branding, tenantName: "J", serviceAddress: "1 Main Rd", propertyLabel: "U", referenceNumber: "R", landlordOrAgentName: "Acme", terminationNoticeDate: "1 Jun 2026", leaseEndDate: "30 Jun 2026", vacateByDate: "20 Jul 2026", todaysDate: "6 Jul 2026" }) },
   ]
   it.each(cases)("$name carries the ECTA footer", async ({ el }) => {
     expect(await render(el)).toContain(ECTA_MARK)
