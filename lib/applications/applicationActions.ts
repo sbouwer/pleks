@@ -247,7 +247,9 @@ export async function declineStage2Action(applicationId: string, decision: Decli
   const policy = await resolveActiveScreeningPolicy(db, orgId)
   const ratios = extractDecisionRatios(
     (appRow?.fitscore_component_snapshot ?? null) as ComponentSnapshot | null,
-    INCOME_AFFORDABILITY_THRESHOLD,   // v0 policy == the platform constant; wire through policy.policy when authoring lands
+    // O-19: the threshold actually in force for this org (authored at /settings/compliance), not the bare
+    // constant — falls back to the platform default when the org has no policy / on a resolver error.
+    policy?.affordabilityThreshold ?? INCOME_AFFORDABILITY_THRESHOLD,
   )
   const discretionText = isDiscretionDecline(decision.declineReasonCode) ? (decision.declineReasonText ?? "").trim() : null
 
