@@ -244,6 +244,7 @@ async function getSubscriptionState(orgId: string): Promise<SubscriptionState> {
 const ACTION_CAPABILITY: Record<string, string> = {
   // leases
   create_lease: "leases", activate_lease: "leases", renew_lease: "leases", terminate_lease: "leases",
+  issue_demand_to_vacate: "leases",   // LEG-NOTICES-01 — a Demand to Vacate is a lease-capability action (agent role required, not bare membership)
   // properties (+ warranties, which are property records)
   create_property: "properties", edit_property: "properties",
   create_warranty: "properties", archive_warranty: "properties",

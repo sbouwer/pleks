@@ -16,6 +16,7 @@
  */
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 import { gateway } from "@/lib/supabase/gateway"
 import { isOnHold } from "@/lib/legal/holds"
 import { getOrgDisplayName } from "@/lib/org/displayName"
@@ -224,7 +225,11 @@ export type PreviewDemandResult =
  */
 export async function previewDemandToVacate(input: PreviewDemandInput): Promise<PreviewDemandResult> {
   const gw = await gateway()
-  if (!gw) return { ok: false, reason: "unauthorized" }
+  // gateway() gates on MEMBERSHIP, not role — and tenant sessions carry user_orgs memberships. The preview
+  // reads privileged, adverse-party material (guard posture, arrears, Q13 flags, the rendered instrument)
+  // through a service-role client, so it MUST enforce the agent 'leases' capability, not bare membership
+  // (CD Phase E-3 walk). A tenant-role session gets 'unauthorized', not HTML.
+  if (!gw || !(await hasCapability(gw, "leases"))) return { ok: false, reason: "unauthorized" }
   const { db, orgId, userId } = gw
   const type = input.noticeType
   const todayISO = saTodayISO()
@@ -262,7 +267,9 @@ export interface NoticeServiceState { physicalServiceOutstanding: boolean }
 /** Derived E-6 state: outstanding until an attested physical/R-5 event OR a logged waiver exists. */
 export async function getNoticeServiceState(noticeId: string): Promise<NoticeServiceState> {
   const gw = await gateway()
-  if (!gw) return { physicalServiceOutstanding: false }
+  // Agent 'leases' capability, not bare membership (see previewDemandToVacate) — this reads a notice's
+  // service posture, adverse-party material a tenant-role member must not see.
+  if (!gw || !(await hasCapability(gw, "leases"))) return { physicalServiceOutstanding: false }
   const { db, orgId } = gw
   const { data, error } = await db.from("notice_service_events")
     .select("channel, service_method, status, note").eq("org_id", orgId).eq("notice_id", noticeId)
@@ -297,7 +304,11 @@ export async function recordPhysicalService(input: RecordPhysicalServiceInput): 
   return { ok: true }
 }
 
-/** Waive physical service with a mandatory logged reason (E-4 mechanics), clearing the E-6 outstanding state. */
+/** Waive physical service with a mandatory logged reason (E-4 mechanics), clearing the E-6 outstanding state.
+ *  ⚠ ANNEXURE NOTE (CD walk, non-blocking): a waiver is stored as a notice_service_events row with
+ *  status='attested' + a `physical_service_waived:` note prefix (so the append-only log stays one shape).
+ *  In a future affidavit-annexure export, "attested" on a waiver row would READ WRONGLY — the export layer
+ *  must translate waiver rows (note prefix) distinctly from genuine attestations. Solve when that export exists. */
 export async function waivePhysicalService(input: { noticeId: string; reason: string }): Promise<{ ok: boolean }> {
   if (!input.reason?.trim()) return { ok: false }
   const { db, orgId, userId } = await requireAgentWriteAccess("issue_demand_to_vacate")
