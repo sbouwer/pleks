@@ -85,8 +85,10 @@ export async function checkFrequencyLimit(
     const { count, error } = await service
       .from("communication_log")
       .select("id", { count: "exact", head: true })
-      .eq("entity_type", "tenant")
-      .eq("entity_id", tenantId)
+      // C-2 fix (comms audit 2026-07-09): count by the tenant_id COLUMN, not entity_type/entity_id — no
+      // sender ever writes entity_type='tenant' (they log arrears_case / lease / invoice / application), so
+      // every cap counted zero and always allowed. tenant_id is populated on outbound rows.
+      .eq("tenant_id", tenantId)
       .in("template_key", Object.keys(TOPIC_BY_KEY).filter((k) => TOPIC_BY_KEY[k] === topic))
       .eq("status", "sent")
       .gte("created_at", windowStart)
