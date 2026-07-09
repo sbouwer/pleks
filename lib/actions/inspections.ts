@@ -106,11 +106,14 @@ async function fireStatusComm(
   }
 
   if (isAwaitingReview && inspectionType === "move_in") {
-    // I4: mandatory move-in report (RHA s5(3)(e))
+    // I4: mandatory move-in report (RHA s5(3)(e)). Objection window = 7 days from this notice; render it
+    // as an absolute date (O-16 R1) rather than a relative "within 7 days" the tenant has to compute.
+    const objectionDeadlineDate = new Date()
+    objectionDeadlineDate.setDate(objectionDeadlineDate.getDate() + 7)
     await routeAndSend({
       orgId, tenantId, templateKey: "inspection.move_in_report", to: toParams,
       subject:      `Move-in Inspection Report — ${propertyLabel} — Ref ${refNum}`,
-      emailElement: React.createElement(InspectionMoveInReportEmail, { branding, tenantName, propertyLabel, conductedDate, referenceNumber: refNum }),
+      emailElement: React.createElement(InspectionMoveInReportEmail, { branding, tenantName, propertyLabel, conductedDate, referenceNumber: refNum, objectionDeadline: formatDateLocal(objectionDeadlineDate.toISOString()) }),
       entityType: "inspection", entityId: inspectionId, triggerEventType: "inspection_move_in_report", triggerEventId: inspectionId, toneVariant: "n/a",
     })
   } else if ((isAwaitingReview && inspectionType === "periodic") || isCommercialCompleted) {
