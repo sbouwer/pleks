@@ -56,15 +56,22 @@ export async function bridgeNoticeDelivery(
     if (!status) return
 
     const channel = noticeChannel(log.channel)
-    const deemedServiceAt = status === "delivered" ? occurredAt : null
+
+    // M-4: ONLY an email 'delivered' event is the legal deemed-service anchor. SMS/WhatsApp delivery
+    // reports arrive via the Africa's Talking webhook, whose inbound auth (AT account username in a
+    // form field) is weaker than a forgery-proof anchor demands. A phone 'delivered' is still APPENDED
+    // as a corroborating service event, but with deemed_service_at = null — it cannot, on its own,
+    // manufacture the ≥7-calendar-day vacate floor. Email (Resend, signature-verified) stays primary.
+    const isDeemedServiceAnchor = status === "delivered" && channel === "email"
+    const deemedServiceAt = isDeemedServiceAnchor ? occurredAt : null
 
     await recordNoticeServiceEvent(db, {
       orgId: log.org_id, noticeId: log.entity_id, channel, serviceMethod: "electronic",
       address: log.sent_to_email ?? log.sent_to_phone ?? null, status, deemedServiceAt, providerEventId,
     })
 
-    // R-2 post-validation on the deemed-service anchor.
-    if (status === "delivered") {
+    // R-2 post-validation runs only on a real deemed-service anchor (email delivered).
+    if (isDeemedServiceAnchor) {
       const { data: notice, error } = await db
         .from("tenant_notices").select("vacate_by_date").eq("id", log.entity_id).maybeSingle()
       logQueryError("bridgeNoticeDelivery notice lookup", error)
