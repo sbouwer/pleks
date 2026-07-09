@@ -10,6 +10,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, type SendEmailParams } from "@/lib/comms/send-email"
+import { canSend } from "@/lib/comms/preferences"
 import { sendSMS } from "@/lib/sms/sendSMS"
 import { sendWhatsApp, type WhatsAppTemplate } from "@/lib/whatsapp/sendWhatsApp"
 import { getTemplate } from "@/lib/comms/template-registry"
@@ -115,6 +116,21 @@ async function dispatchChannel(
   params: RouteAndSendParams,
   isMandatory: boolean,
 ): Promise<{ success: boolean; logId?: string; error?: string }> {
+  // Email opt-out is enforced inside sendEmail's own canSend. SMS + WhatsApp had NO opt-out gate
+  // (M-3): a hard-bounce/unsubscribe/category opt-out only blocked the email leg, so a cascade
+  // fell through and delivered on SMS/WhatsApp anyway. Gate the phone legs here (non-mandatory
+  // only — mandatory notices are never suppressed) so a skip falls through to the next channel.
+  if (channel !== "email" && !isMandatory) {
+    const pref = await canSend({
+      orgId:       params.orgId,
+      templateKey: params.templateKey,
+      email:       params.to.email,
+      contactId:   params.to.contactId,
+      channel:     "sms",
+    })
+    if (!pref.allowed) return { success: false, error: `${channel}_skipped:${pref.reason}` }
+  }
+
   if (channel === "whatsapp") return attemptWhatsApp(params)
   if (channel === "sms") return attemptSms(params)
   return attemptEmail(params, isMandatory)

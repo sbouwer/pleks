@@ -64,4 +64,17 @@ describe("bridgeNoticeDelivery (append-only, deemed-service anchor on 'delivered
     await bridgeNoticeDelivery(db, noticeLog, "opened", "2026-07-08T06:00:00Z", "evt-1")
     expect(inserts["notice_service_events"]).toBeUndefined()
   })
+
+  // M-4: an SMS/WhatsApp 'delivered' (arriving via the weaker-authenticated AT webhook) is corroborating
+  // only — it records a service event but must NOT set the deemed_service_at anchor, so a forged AT report
+  // cannot manufacture the ≥7-day vacate floor. Even with a short vacate window it raises no R-2 flag.
+  it("sms delivered → corroborating event with NO deemed_service_at (never the legal anchor)", async () => {
+    const { db, inserts } = makeDb({ vacateByDate: "2026-07-10" })  // 2 days < 7 — would flag if email
+    await bridgeNoticeDelivery(db, { ...noticeLog, channel: "sms", sent_to_phone: "+2711", sent_to_email: null }, "delivered", "2026-07-08T06:00:00Z", "evt-1")
+    const ev = inserts["notice_service_events"][0]
+    expect(ev.status).toBe("delivered")
+    expect(ev.channel).toBe("sms")
+    expect(ev.deemed_service_at).toBeNull()
+    expect(inserts["audit_log"]).toBeUndefined()
+  })
 })

@@ -12,6 +12,10 @@ interface CanSendParams {
   templateKey: string
   email?: string
   contactId?: string
+  /** The channel actually being dispatched. When set, it (not the template's single `channel`
+   *  field) selects the SMS-vs-email opt-out branch — required for cascade templates whose
+   *  declared channel is email but which fall through to an SMS/WhatsApp leg. */
+  channel?: "email" | "sms"
 }
 
 interface CanSendResult {
@@ -61,8 +65,11 @@ export async function canSend(params: CanSendParams): Promise<CanSendResult> {
 
   if (!prefs) return { allowed: true }  // no record = default allow
 
-  // Hard bounce suppresses all future emails
-  if (prefs.email_hard_bounced && template.channel !== "sms") {
+  // The leg being dispatched drives the branch — fall back to the template's declared channel.
+  const effectiveChannel = params.channel ?? template.channel
+
+  // Hard bounce suppresses all future emails (not phone channels)
+  if (prefs.email_hard_bounced && effectiveChannel !== "sms") {
     return { allowed: false, reason: "email_hard_bounced" }
   }
 
@@ -72,7 +79,7 @@ export async function canSend(params: CanSendParams): Promise<CanSendResult> {
   }
 
   // Category-level opt-out
-  const isSms = template.channel === "sms"
+  const isSms = effectiveChannel === "sms"
   const colMap = isSms ? SMS_CATEGORY_TO_COLUMN : CATEGORY_TO_COLUMN
   const col = colMap[template.category]
   if (col && prefs[col as keyof typeof prefs] === false) {

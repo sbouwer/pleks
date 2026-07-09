@@ -279,6 +279,16 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
     firstAttemptLogId: params.firstAttemptLogId,
   }
 
+  // M-1: idempotency key so a replayed send (overlapping cron runs picking up the same retry row,
+  // or an SDK network retry) collapses provider-side instead of duplicating. Keyed per logical
+  // attempt: (template, event anchor, attempt#). A genuine retry increments attempt# → new key → a
+  // real re-send; the same attempt processed twice → same key → Resend returns the original result.
+  // Only set when we have a stable anchor; ad-hoc sends without one keep today's (no-key) behaviour.
+  const idemAnchor = params.triggerEventId ?? params.firstAttemptLogId
+  const idempotencyKey = idemAnchor
+    ? `${template.key}:${idemAnchor}:${params.attemptNumber ?? 1}`
+    : undefined
+
   try {
     const result = await getResend().emails.send({
       from: fromAddress,
@@ -299,7 +309,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
         ...(params.entityType ? [{ name: "entity_type", value: tagValue(params.entityType) }] : []),
         ...(params.entityId ? [{ name: "entity_id", value: tagValue(params.entityId) }] : []),
       ],
-    })
+    }, idempotencyKey ? { idempotencyKey } : undefined)
 
     // The Resend SDK does NOT throw on API-level rejections (unverified domain, test-key recipient
     // restriction, invalid address, rate limit) — it returns them in result.error. Without this check a
