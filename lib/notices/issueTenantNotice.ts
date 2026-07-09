@@ -64,6 +64,16 @@ export interface IssueTenantNoticeParams {
   propertyLabel: string
   referenceNumber: string
   branding: OrgBranding
+  /** E-4 override — set ONLY when a manual-review halt was overridden. Recorded on the immutable row at insert. */
+  manualOverride?: ManualOverride
+}
+
+/** The E-4 override block persisted on tenant_notices.manual_override (set-at-insert only). */
+export interface ManualOverride {
+  overridden_by: string | null
+  overridden_at: string
+  reason: string
+  codes: string[]
 }
 
 export interface IssueTenantNoticeResult {
@@ -250,7 +260,7 @@ export async function issueTenantNotice(params: IssueTenantNoticeParams): Promis
       template_id: tmpl?.id ?? null, template_version: tmpl?.version ?? null, citation_branch: branch,
       body_full: bodyFull, content_hash: contentHash, merge_snapshot: mergeSnapshot,
       cancellation_effective_date: lease.cancellationEffectiveISO ?? null, vacate_by_date: vacateByDateISO,
-      generated_by: generatedBy,
+      generated_by: generatedBy, manual_override: params.manualOverride ?? null,
     })
     .select("id").single()
   if (noticeErr || !notice) {
