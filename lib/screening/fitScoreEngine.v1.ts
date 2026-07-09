@@ -164,6 +164,9 @@ export interface LeaseSnapshot {
   totalVerifiedIncomeCents: number
   proposedRentCents: number
   rentToIncomeRatio: number
+  /** Bureau-instalment DTI: credit-bureau-reported monthly instalments ÷ verified income. NULL when NO bureau
+   *  reported an instalment amount — distinct from a verified 0 (the immutable-record accountability figure, O-18). */
+  debtToIncomeRatio: number | null
   affordabilityScore: number
   stabilityScore: number
   creditBehaviourScore: number
@@ -925,6 +928,17 @@ export function runFitScoreEngine(input: EngineInput): EngineResult {
   )
   const leaseAff = computeAffordability(totalVerifiedIncomeCents, proposedRentCents, totalMonthlyDebtCents)
 
+  // O-18: DTI for the immutable decision-accountability record (dti_ratio_at_decision). Bureau-instalment-based —
+  // the monthly instalments the credit bureau reports ÷ verified income — NOT declared or bank-statement
+  // obligations, which don't feed this figure (same debt the FitScore's servicing cap above uses). NULL when NO
+  // bureau reported an instalment amount: a Tribunal reading "DTI 0%" must mean "verified no bureau-tracked debt",
+  // never "we had no debt data". The `?? 0` in the sum collapses that distinction, so the known-flag is derived
+  // here from the raw per-bureau nulls, upstream of the total.
+  const bureauInstalmentKnown = applicants.some((a) => a.bureauScores.some((b) => b.monthlyInstalmentCents !== null))
+  const debtToIncomeRatio = bureauInstalmentKnown && totalVerifiedIncomeCents > 0
+    ? Math.round((totalMonthlyDebtCents / totalVerifiedIncomeCents) * 1000) / 1000
+    : null
+
   // Per-applicant weighted composite (§4.6 steps 2-3)
   const hasBureauCredit = applicants.some(a => a.bureauScores.some(b => b.delphiScore !== null))
   const { isLDP, missingSources } = checkLDP(applicants, hasBureauCredit)
@@ -996,6 +1010,7 @@ export function runFitScoreEngine(input: EngineInput): EngineResult {
     rentToIncomeRatio: totalVerifiedIncomeCents > 0
       ? Math.round((proposedRentCents / totalVerifiedIncomeCents) * 1000) / 1000
       : 0,
+    debtToIncomeRatio,
     affordabilityScore: leaseAff,
     stabilityScore: leaseSta,
     creditBehaviourScore: leaseCre,

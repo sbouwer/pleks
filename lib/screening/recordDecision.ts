@@ -94,7 +94,9 @@ export interface DecisionRatios {
  *
  *  - rent_to_income: read straight from the snapshot's lease ratio (the figure the agent saw).
  *  - affordability_threshold: the org's active-policy threshold at decision time.
- *  - dti: NULL — there is no DTI computation upstream yet (documented gap; wire when the input lands).
+ *  - dti: the snapshot's bureau-instalment DTI (credit-bureau monthly instalments ÷ verified income) — the same
+ *    debt the FitScore servicing cap uses. NULL when no bureau reported an instalment amount (means "no
+ *    bureau-tracked debt data", never a verified 0). Declared/bank-statement obligations are excluded by design (O-18).
  *  - income_verification_status: derived from how many applicants had verified income (no fuzzy grade).
  */
 export function extractDecisionRatios(
@@ -114,7 +116,7 @@ export function extractDecisionRatios(
 
   return {
     rent_to_income_ratio_at_decision: typeof ratio === "number" && Number.isFinite(ratio) ? ratio : null,
-    dti_ratio_at_decision: null,
+    dti_ratio_at_decision: snapshot?.lease?.debtToIncomeRatio ?? null,
     affordability_threshold_at_decision: affordabilityThreshold,
     income_verification_status_at_decision: incomeStatus,
   }

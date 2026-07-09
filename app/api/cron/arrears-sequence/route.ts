@@ -123,7 +123,13 @@ function buildWhatsAppTemplate(
   return undefined
 }
 
-/** SMS body for A1/A2 per tone (≤160 chars GSM-7). */
+/**
+ * SMS body per template (≤160 chars GSM-7). A1/A2 vary by tone; the LOD (A3) + final notice (A4) are formal
+ * and tone-independent. Giving the legal steps their OWN SMS body (O-16 R4) means their WhatsApp body — which
+ * carries an exact "5 business days" statutory countdown — is never derived-and-truncated into an SMS that
+ * could sever the claim mid-word. The SMS states the seriousness truthfully; the precise deadline lives in the
+ * formal email/letter, not a 160-char SMS. Avoids non-GSM-7 chars (em-dash, curly quotes) to stay single-segment.
+ */
 function buildSmsBody(
   templateKey: string,
   tenantFirstName: string,
@@ -132,6 +138,12 @@ function buildSmsBody(
   sender: string,
 ): string {
   const name = tenantFirstName || "Tenant"
+  if (templateKey === "arrears.letter_of_demand") {
+    return `LETTER OF DEMAND: ${amountDisplay} rent arrears unpaid. Please settle or contact us urgently; formal recovery follows if unresolved. - ${sender}`
+  }
+  if (templateKey === "arrears.final_notice") {
+    return `FINAL NOTICE: ${amountDisplay} rent arrears unpaid. Final notice before formal legal steps. Please contact us immediately. - ${sender}`
+  }
   if (templateKey === "arrears.reminder_step1") {
     if (tone === "friendly")      return `Hi ${name}, just a reminder - your rent (${amountDisplay}) is overdue. Please pay or contact us soon. - ${sender}`
     if (tone === "firm")          return `${name}: Rent of ${amountDisplay} is overdue. Pay immediately or contact us to avoid escalation. - ${sender}`
@@ -372,9 +384,12 @@ async function advanceSequenceStep(
 
   const firstName = tenant?.first_name ?? "Tenant"
 
-  // Build SMS body (for relational steps)
-  const smsBody = (toneVariant !== "n/a" && tenant?.phone)
-    ? buildSmsBody(templateKey, firstName, amountDisplay, toneVariant, sender)
+  // Build SMS body. Toned reminders (A1/A2) pass their tone; the formal legal steps (LOD/final notice) are
+  // tone-independent but STILL get a dedicated SMS body (O-16 R4) so they never fall through to the
+  // WhatsApp-derived-and-truncated fallback. Only the relational steps carry a WhatsApp template.
+  const smsTone: ToneVariant = toneVariant === "n/a" ? "firm" : toneVariant
+  const smsBody = tenant?.phone
+    ? buildSmsBody(templateKey, firstName, amountDisplay, smsTone, sender)
     : undefined
 
   // Build WhatsApp template params (for relational steps A1/A2)

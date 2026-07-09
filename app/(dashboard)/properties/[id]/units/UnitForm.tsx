@@ -29,7 +29,7 @@ import {
   getFurnishingPlaceholder,
   type FurnishingItem,
 } from "@/lib/units/furnishingTemplates"
-import { defaultDepositMultiple } from "@/lib/properties/furnishing"
+import { defaultDepositMultiple, DEPOSIT_MULTIPLE_RANGE_LABEL, type FurnishingStatus } from "@/lib/properties/furnishing"
 import { X } from "lucide-react"
 import { RoomList } from "@/components/units/RoomList"
 import type { RoomEntry } from "@/lib/units/roomListGenerator"
@@ -59,6 +59,7 @@ export interface UnitFormProps {
     features?: string[]
     asking_rent?: number
     deposit_amount?: number
+    default_deposit_multiple?: number
     managed_by?: string
     notes?: string
     /** Saved profile rooms from DB — used to initialise the room list */
@@ -187,11 +188,13 @@ function saveLabel(isCreate: boolean): string {
 }
 
 // ── Deposit helpers ───────────────────────────────────────────────────────────
-// Uses the canonical furnishing→multiple SSOT (O-22) rather than a local table, so the suggestion here
-// matches what the lease wizard seeds (unfurnished 1×, semi 1.5×, furnished 2×) — one source of truth.
+// The absolute deposit suggestion = rent × the durable multiple (O-22). The multiple itself is a durable
+// per-unit field, furnishing-seeded but agent-editable — the same value the lease wizard reads to seed a lease.
 
-function calcSuggestedDeposit(rent: number, status: string): number | null {
-  return rent > 0 ? Math.round(rent * defaultDepositMultiple(status)) : null
+const DEPOSIT_MULTIPLE_CHOICES = ["1", "1.5", "2", "2.5", "3"]
+
+function calcSuggestedDeposit(rent: number, multiple: number): number | null {
+  return rent > 0 && multiple > 0 ? Math.round(rent * multiple) : null
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -229,6 +232,10 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
   const [depositAmount, setDepositAmount] = useState<string>(
     defaultValues?.deposit_amount != null ? String(defaultValues.deposit_amount) : ""
   )
+  // O-22: durable deposit multiple (× rent) — furnishing-seeded, editable; drives the absolute suggestion + seeds the wizard.
+  const [depositMultiple, setDepositMultiple] = useState<string>(
+    String(defaultValues?.default_deposit_multiple ?? defaultDepositMultiple(defaultValues?.furnishing_status))
+  )
   const [inventory, setInventory] = useState<InventoryState>(
     () => buildInitialInventory(defaultValues?.furnishings)
   )
@@ -255,6 +262,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
       // Controlled inputs — write current values into formData
       if (askingRent) formData.set("asking_rent", askingRent)
       if (depositAmount) formData.set("deposit_amount", depositAmount)
+      if (depositMultiple) formData.set("default_deposit_multiple", depositMultiple)
 
       // Serialize furnishing inventory as JSON
       const furnishingRows: Array<{
@@ -411,21 +419,32 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
 
   // ── Deposit auto-calc ─────────────────────────────────────────────────────
 
+  const currentMultiple = Number.parseFloat(depositMultiple) || defaultDepositMultiple(furnishingStatus)
+
   function handleRentChange(val: string) {
     setAskingRent(val)
-    const rent = Number.parseFloat(val)
-    const suggested = calcSuggestedDeposit(rent, furnishingStatus)
+    const suggested = calcSuggestedDeposit(Number.parseFloat(val), currentMultiple)
     if (suggested != null) setDepositAmount(String(suggested))
   }
 
   function handleFurnishingChange(status: string) {
     setFurnishingStatus(status)
-    const suggested = calcSuggestedDeposit(Number.parseFloat(askingRent), status)
+    // Re-seed the durable multiple from the new furnishing, then recompute the absolute suggestion from it.
+    const mult = defaultDepositMultiple(status)
+    setDepositMultiple(String(mult))
+    const suggested = calcSuggestedDeposit(Number.parseFloat(askingRent), mult)
     if (suggested != null) setDepositAmount(String(suggested))
     markDirty()
   }
 
-  const suggestedDeposit = calcSuggestedDeposit(Number.parseFloat(askingRent), furnishingStatus)
+  function handleMultipleChange(val: string) {
+    setDepositMultiple(val)
+    const suggested = calcSuggestedDeposit(Number.parseFloat(askingRent), Number.parseFloat(val))
+    if (suggested != null) setDepositAmount(String(suggested))
+    markDirty()
+  }
+
+  const suggestedDeposit = calcSuggestedDeposit(Number.parseFloat(askingRent), currentMultiple)
 
   // ── Ordered feature list ───────────────────────────────────────────────────
 
@@ -767,10 +786,28 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
               />
               {suggestedDeposit != null && (
                 <p className="text-xs text-muted-foreground">
-                  Auto-calculated: R {suggestedDeposit.toLocaleString("en-ZA")} ({defaultDepositMultiple(furnishingStatus)}× rent). Edit to override.
+                  Auto-calculated: R {suggestedDeposit.toLocaleString("en-ZA")} ({currentMultiple}× rent). Edit to override.
                 </p>
               )}
             </div>
+          </div>
+
+          {/* O-22: the durable deposit multiple — furnishing-seeded, editable; what the lease wizard reads to seed a lease. */}
+          <div className="space-y-2 max-w-[220px]">
+            <Label htmlFor="default_deposit_multiple">Deposit default (× rent)</Label>
+            <Select value={depositMultiple} onValueChange={(v) => handleMultipleChange(v ?? "1")}>
+              <SelectTrigger id="default_deposit_multiple">
+                <SelectValue placeholder="Select multiple..." />
+              </SelectTrigger>
+              <SelectContent>
+                {DEPOSIT_MULTIPLE_CHOICES.map((m) => (
+                  <SelectItem key={m} value={m}>{m}× rent</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The durable default the lease wizard uses to seed a new lease&apos;s deposit — {DEPOSIT_MULTIPLE_RANGE_LABEL[(furnishingStatus ?? "unfurnished") as FurnishingStatus]}. Seeded from furnishing; adjust as needed.
+            </p>
           </div>
 
           {members.length > 0 && (
