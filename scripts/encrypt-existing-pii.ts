@@ -50,11 +50,9 @@ const TASKS: EncryptTask[] = [
   { table: "application_directors", column: "id_number", hashColumn: "id_number_hash" },
   { table: "application_guarantors", column: "id_number" }, // no hash column on this table
   { table: "organisations", column: "id_number" },          // owner/principal SA ID — no hash column
-  // Pre-existing non-id_number PII retrofit (kept from the original script; separate scope):
-  { table: "contractors", column: "bank_account_number" },
-  { table: "tenant_bank_accounts", column: "account_number" },
-  { table: "applications", column: "passport_number" },
-  { table: "applications", column: "permit_number" },
+  // SCOPE: id_number ONLY (the PII-at-rest build wired encrypt+decrypt for id_number). bank_account_number /
+  // account_number / passport_number / permit_number are NOT encrypt-aware on the read side yet — encrypting them
+  // would render ciphertext the app can't decrypt. They stay OUT until their own read paths + build ship.
 ]
 
 interface TaskStat { table: string; column: string; total: number; encrypted: number; skipped: number; hashBackfilled: number }
@@ -121,9 +119,15 @@ async function main() {
     console.error("  Back up ENCRYPTION_KEY (escrow) + take a verified DB snapshot FIRST, then re-run with both flags.")
     process.exit(1)
   }
-  if (!process.env.ENCRYPTION_KEY || !process.env.ID_NUMBER_HASH_SALT) {
-    console.error("\n✗ ENCRYPTION_KEY and ID_NUMBER_HASH_SALT must be set in .env.local (the hash salt must match the app).")
+  if (!process.env.ENCRYPTION_KEY) {
+    console.error("\n✗ ENCRYPTION_KEY must be set in .env.local — the SAME key the app encrypts with.")
     process.exit(1)
+  }
+  // ID_NUMBER_HASH_SALT is OPTIONAL: hashIdNumber falls back to 'pleks-default-salt' when unset, exactly as the app
+  // does. We only recompute hashes for rows MISSING one, so the salt is moot unless a backfill happens — but if it
+  // does, it MUST match the app's runtime salt (default when unset). Warn so the operator can confirm.
+  if (!process.env.ID_NUMBER_HASH_SALT) {
+    console.warn("⚠ ID_NUMBER_HASH_SALT not set — using the app's fallback salt ('pleks-default-salt') for any hash backfill. Confirm the app's runtime salt matches.")
   }
   console.log(`Key: ${process.env.ENCRYPTION_KEY.slice(0, 8)}…  Supabase: ${process.env.NEXT_PUBLIC_SUPABASE_URL}\n`)
 
