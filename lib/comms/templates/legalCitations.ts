@@ -109,10 +109,14 @@ export function demandVacateM2mBasis(): string {
   return "Pursuant to section 5(5) of the Rental Housing Act 50 of 1999, the lease agreement and the common law."
 }
 
-/** POPIA processing line for external-PII recipients (70F §3). orgName is a token in seed review. */
+/** POPIA processing line for external-PII recipients (70F §3). orgName is a token in seed review.
+ *  "where applicable" (not "at any time") — the POPIA erasure right is conditional (s24 grounds, and
+ *  retention obligations under other law can override); an unqualified deletion promise is exactly the
+ *  Q10 / D-POPIA-19 discipline PR #173's applicant footer established. The ONE POPIA-rights sentence —
+ *  info-requests POPIALine routes through this so the two can't drift to different strengths. */
 export function popiaProcessingLine(orgName: string): string {
   return (
     `Your information is processed by ${orgName} under the Protection of Personal Information Act ` +
-    `(POPIA). You may request access to, correction of, or deletion of this information at any time.`
+    `(POPIA). You may request access to, correction of, or deletion of this information where applicable.`
   )
 }

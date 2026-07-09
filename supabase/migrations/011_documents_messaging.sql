@@ -1385,3 +1385,21 @@ WHERE NOT EXISTS (
   SELECT 1 FROM document_templates d
   WHERE d.scope = 'system' AND d.template_key = v.template_key AND d.template_type = v.template_type
 );
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §26  ADDENDUM_70G (LEG-NOTICES-01) Phase D: notification-of-service micro-template (R-4)
+--   The SMS/WhatsApp payload class for a served Demand-to-Vacate is a SHORT notification-of-service
+--   pointer (the full legal text goes by email/physical). That wording is legal-adjacent, so it is
+--   VERSIONED and gated: seeded 'draft' until counsel Part F sees it with the notice suite. Code twin =
+--   lib/notices/serviceNotification.ts (renderServiceNotificationSms) — bump both together. Metadata-only
+--   gate/review anchor; the SMS body renders from the code twin (no SMS resolver path).
+-- ═══════════════════════════════════════════════════════════════════════════════
+INSERT INTO document_templates
+  (scope, template_type, name, category, comms_class, template_key, version, legal_review_status, is_deletable)
+SELECT 'system', 'sms', 'Notice of Service (SMS/WhatsApp)', 'notice', 'statutory',
+       'notice.service_notification', 1, 'draft', false
+WHERE NOT EXISTS (
+  SELECT 1 FROM document_templates d
+  WHERE d.scope = 'system' AND d.template_key = 'notice.service_notification' AND d.template_type = 'sms'
+);

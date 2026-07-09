@@ -9,6 +9,7 @@
 
 import * as React from "react"
 import { Section, Text } from "@react-email/components"
+import { popiaProcessingLine } from "../legalCitations"
 
 const baseText = {
   fontFamily:
@@ -124,15 +125,11 @@ export function ExpiryLine({ days = 14, replyFallback = true }: Readonly<{ days?
   )
 }
 
-/** POPIA notice — shown on every outbound external info-request email */
+/** POPIA notice — shown on every outbound external info-request email. Routes through the
+ *  popiaProcessingLine SSOT so it can't drift to a different-strength rights statement (the
+ *  "where applicable" erasure qualifier lives in one place — CD note, Phase D). */
 export function POPIALine({ orgName }: { orgName: string }) {
-  return (
-    <Text style={styles.popia}>
-      Your information is processed by {orgName} under the Protection of
-      Personal Information Act (POPIA). You may request access to, correction
-      of, or deletion of this information at any time.
-    </Text>
-  )
+  return <Text style={styles.popia}>{popiaProcessingLine(orgName)}</Text>
 }
 
 /** "Thanks, / {orgName}" signoff block */
