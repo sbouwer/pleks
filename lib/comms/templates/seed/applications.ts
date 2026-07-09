@@ -28,6 +28,9 @@
  */
 
 import type { TemplateSeed } from "./types"
+// Single source for the applicant POPIA/IR footer — same constant the live ApplicantLegalFooter renders, so
+// the seed twin can't drift from what actually sends (O-16-R6 / ADDENDUM_70G, R7.3 Standard Applicant Footer).
+import { APPLICANT_POPIA_FOOTER_TEXT } from "@/lib/comms/templates/ApplicantLegalFooter"
 
 export const APPLICATION_SEEDS: TemplateSeed[] = [
   {
@@ -51,7 +54,7 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
       { type: "heading", text: "What happens next" },
       { type: "paragraph", text: "Your application will be reviewed within 48 hours. You'll receive an email when a decision has been made." },
       { type: "cta", label: "Check your application status", href: "{{statusUrl}}" },
-      { type: "popiaSlot" },
+      { type: "paragraph", text: APPLICANT_POPIA_FOOTER_TEXT },
     ],
   },
   {
@@ -114,7 +117,7 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
       { type: "paragraph", text: "The screening is conducted by Searchworx, an independent credit bureau. Results are shared with {{branding.orgName}} only." },
       { type: "cta", label: "Continue to screening", href: "{{inviteUrl}}" },
       { type: "paragraph", text: "This link expires in 7 days." },
-      { type: "popiaSlot" },
+      { type: "paragraph", text: APPLICANT_POPIA_FOOTER_TEXT },
     ],
   },
   {
@@ -126,16 +129,15 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
     description: "Neutral Stage-1 decline. NEUTRAL-DECLINE doctrine: no reason in subject or body (F1 — {{reason}} dropped).",
     category: "applications",
     subject: "Application update — {{unitLabel}}, {{propertyName}}",
-    mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}", "{{orgEmail}}", "{{declinedDataPurge}}"],
-    legalReviewRef: "ADDENDUM_70H A5 (live: emails.tsx:226) — F1 reason dropped · F3 single 90-day tier",
+    mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}"],
+    legalReviewRef: "ADDENDUM_70G / R7.3 (live: emails.tsx) — F1 reason dropped · Standard Applicant Footer (POPIA/IR)",
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "Thank you for your application for **{{unitLabel}}** at {{propertyName}}." },
       { type: "paragraph", text: "After careful consideration, we have decided not to proceed with your application at this time." },
       { type: "paragraph", text: "This decision does not reflect on you personally — the agent received multiple applications and had to make a selection. If you have any questions, please contact {{branding.orgName}}." },
-      { type: "heading", text: "Your data" },
-      { type: "paragraph", text: "Your personal information will be retained for {{declinedDataPurge}} in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}." },
       { type: "paragraph", text: "We wish you well in finding your next home." },
+      { type: "paragraph", text: APPLICANT_POPIA_FOOTER_TEXT },
     ],
   },
   {
@@ -182,7 +184,7 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
         "Move-in date and key collection",
       ] },
       { type: "paragraph", text: "We look forward to welcoming you as a tenant." },
-      { type: "popiaSlot" },
+      { type: "paragraph", text: APPLICANT_POPIA_FOOTER_TEXT },
     ],
   },
   {
@@ -214,16 +216,15 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
     description: "Neutral post-screening decline. NEUTRAL-DECLINE doctrine: no reason in subject or body (F1 — {{reason}} dropped; higher NCA/POPIA stakes post-screening).",
     category: "applications",
     subject: "Application update — {{unitLabel}}, {{propertyName}}",
-    mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}", "{{orgEmail}}", "{{declinedDataPurge}}"],
-    legalReviewRef: "ADDENDUM_70H A9 (live: emails.tsx:526) — F1 reason dropped · F3 single 90-day tier",
+    mergeFields: ["{{recipient.salutation}}", "{{unitLabel}}", "{{propertyName}}", "{{branding.orgName}}"],
+    legalReviewRef: "ADDENDUM_70G / R7.3 (live: emails.tsx) — F1 reason dropped · Standard Applicant Footer (POPIA/IR)",
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "Thank you for your application for **{{unitLabel}}** at {{propertyName}}." },
       { type: "paragraph", text: "After completing the full screening evaluation, we have decided not to proceed with your application. If you have any questions, please contact {{branding.orgName}}." },
       { type: "paragraph", text: "The screening fee of R399 is non-refundable as communicated at the time of payment." },
-      { type: "heading", text: "Your data" },
-      { type: "paragraph", text: "Your personal information will be retained for {{declinedDataPurge}} in accordance with POPIA. To request earlier deletion, contact {{branding.orgName}} at {{orgEmail}}." },
       { type: "paragraph", text: "We wish you well in finding your next home." },
+      { type: "paragraph", text: APPLICANT_POPIA_FOOTER_TEXT },
     ],
   },
 

@@ -7,6 +7,7 @@
 import * as React from "react"
 import { Text, Link, Hr } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../layout"
+import { INFORMATION_REGULATOR_URL } from "../ApplicantLegalFooter"
 
 export interface PopiaRequestRejectedEmailProps {
   branding: OrgBranding
@@ -58,15 +59,10 @@ export function PopiaRequestRejectedEmail({
       <Text style={footer}>
         If you believe this decision is incorrect, you have the unconditional right to complain
         to the Information Regulator of South Africa. The regulator operates independently of
-        Pleks and {agencyName}.
+        Pleks and {agencyName}. Current contact details are published at {INFORMATION_REGULATOR_URL}.
       </Text>
-      <Text style={footer}>
-        Email: complaints.IR@justice.gov.za<br />
-        Phone: +27 10 023 5207<br />
-        Address: JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001
-      </Text>
-      <Link href="https://www.justice.gov.za/inforeg/" style={irLink}>
-        www.justice.gov.za/inforeg
+      <Link href={`https://${INFORMATION_REGULATOR_URL}`} style={irLink}>
+        {INFORMATION_REGULATOR_URL}
       </Link>
     </EmailLayout>
   )
