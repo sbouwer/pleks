@@ -1,7 +1,7 @@
 /**
  * lib/comms/templates/tenant/inspections/inspection-move-in-report.tsx — move-in inspection report
  *
- * Data:   tenant name, property label, conducted date, overall condition, reference number, org branding
+ * Data:   tenant name, property label, conducted date, overall condition, reference number, org branding, objection deadline (absolute)
  * Notes:  Mandatory legal — RHA s5(3)(c) joint inspection requirement. Formal voice. Single variant. Email only.
  *         Serves as the baseline condition record for the tenancy. Fired when move_in inspection
  *         transitions to awaiting_tenant_review. BUILD_63 Phase 4 (I4).
@@ -19,6 +19,7 @@ export interface InspectionMoveInReportEmailProps {
   conductedDate: string
   overallCondition?: string | null
   referenceNumber: string
+  objectionDeadline: string   // absolute date the 7-day objection window closes (computed at the call site)
 }
 
 function formatCondition(c: string | null | undefined): string {
@@ -33,6 +34,7 @@ export function InspectionMoveInReportEmail({
   conductedDate,
   overallCondition,
   referenceNumber,
+  objectionDeadline,
 }: Readonly<InspectionMoveInReportEmailProps>) {
   const preview = `Move-in inspection report — ${propertyLabel} — Ref ${referenceNumber}`
 
@@ -65,10 +67,10 @@ export function InspectionMoveInReportEmail({
       <Section style={{ ...box, borderLeft: "3px solid #3b82f6" }}>
         <Text style={sectionHead}>Your Right to Disagree</Text>
         <Text style={boxRow}>
-          If you disagree with any aspect of this report, you must notify us in writing within
-          <strong> 7 days</strong> of receiving this notice. Please reply to this email with your
-          specific objections and supporting evidence (photographs, prior correspondence).
-          Objections received after this period may not be considered.
+          If you disagree with any aspect of this report, you must notify us in writing{" "}
+          <strong>by {objectionDeadline}</strong> (7 days from the date of this notice). Please reply
+          to this email with your specific objections and supporting evidence (photographs, prior
+          correspondence). Objections received after this date may not be considered.
         </Text>
       </Section>
 
