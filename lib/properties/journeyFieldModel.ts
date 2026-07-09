@@ -49,6 +49,7 @@ export const JOURNEY_FIELDS: JourneyField[] = [
   { key: "asking_rent",    label: "Asking rent",             fieldClass: "durable",   moment: "listing",    required: true,  source: "unit",        ref: "asking_rent_cents",          backing: "column" },
   { key: "furnishing",     label: "Furnishing",              fieldClass: "durable",   moment: "listing",    required: true,  source: "unit",        ref: "furnishing_status",          backing: "column" },
   { key: "lease_period",   label: "Lease period (default)",  fieldClass: "straddle",  moment: "listing",    required: true,  source: "unit",        ref: "default_lease_period_months", backing: "column" },
+  { key: "deposit_multiple", label: "Deposit multiple (default)", fieldClass: "straddle", moment: "listing", required: false, source: "unit",     ref: "default_deposit_multiple",   backing: "column" },
 
   // ── Moment 3: acceptance ────────────────────────────────────────────────────
   { key: "income",         label: "Applicant income",        fieldClass: "per_lease", moment: "acceptance", required: true,  source: "application", ref: "gross_monthly_income_cents", backing: "column" },

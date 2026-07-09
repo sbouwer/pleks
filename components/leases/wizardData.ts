@@ -71,6 +71,8 @@ export interface WizardData {
   askingRentCents: number | null
   /** durable straddle default carried from the unit (BUILD_69) — seeds the lease end date on a 2nd+ lease. */
   defaultLeasePeriodMonths: number | null
+  /** durable furnishing-derived deposit multiple (× rent) carried from the unit (O-22) — seeds the deposit field. */
+  defaultDepositMultiple: number | null
   /** live SA prime rate (prime_rates table) resolved server-side — drives the arrears-interest preview, never hardcoded. */
   currentPrimePercent: number | null
   /** the org's non-business bank accounts (trust/deposit/ppra), selectable in Annexure B (ADDENDUM_69A). */
@@ -135,6 +137,7 @@ export interface WizardPrefill {
   /** Durable unit fields carried so the rent/term seed even when the unit-select step is skipped (BUILD_69). */
   askingRentCents?: number | null
   defaultLeasePeriodMonths?: number | null
+  defaultDepositMultiple?: number | null
   /** live SA prime (prime_rates) resolved server-side for the arrears-interest preview. */
   currentPrimePercent?: number | null
   /** selectable org accounts + pre-selected trust/deposit ids for the banking annexure. */
@@ -158,6 +161,7 @@ export function buildInitialWizardData(prefill: WizardPrefill): WizardData {
     leaseType: "residential",
     askingRentCents: prefill.askingRentCents ?? null,
     defaultLeasePeriodMonths: prefill.defaultLeasePeriodMonths ?? null,
+    defaultDepositMultiple: prefill.defaultDepositMultiple ?? null,
     currentPrimePercent: prefill.currentPrimePercent ?? null,
     availableAccounts: prefill.availableAccounts ?? [],
     trustAccountId: prefill.trustAccountId ?? "",

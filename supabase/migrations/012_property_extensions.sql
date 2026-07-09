@@ -877,6 +877,16 @@ ALTER TABLE units ADD COLUMN IF NOT EXISTS default_lease_period_months integer;
 -- rule); sets up O-22 (furnishing-based deposit). Decoupled from the accounts/interest core.
 ALTER TABLE units ADD COLUMN IF NOT EXISTS default_deposit_cents integer;
 
+-- =============================================================================
+-- §12.7  O-22: durable default deposit MULTIPLE (× monthly rent) on the unit
+-- =============================================================================
+-- The furnishing-derived policy default the lease wizard seeds the deposit from (deposit = rent ×
+-- multiple), the relative sibling of the absolute default_deposit_cents. Defaulted from furnishing at
+-- property/unit creation (unfurnished 1, semi 1.5, furnished 2 — the low end of the practical range),
+-- straddle-classified like default_lease_period_months (confirmed/overridden per lease). numeric so
+-- half-month multiples (1.5) are exact. A prefill the agent confirms, not a binding rule.
+ALTER TABLE units ADD COLUMN IF NOT EXISTS default_deposit_multiple numeric;
+
 -- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 -- Ã‚Â§13  SECURITY BATCH 2026-07-02: index erasure-path + high-growth foreign keys.
 --     Rule: index unindexed FKs that are erasure/cascade paths or hot joins Ã¢â‚¬â€

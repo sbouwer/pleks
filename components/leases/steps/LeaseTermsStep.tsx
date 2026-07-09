@@ -106,6 +106,7 @@ export function LeaseTermsStep({ register }: Readonly<Props>) {
         tenantIsJuristic={data.tenantIsJuristic}
         cpaDetermination={cpaDetermination}
         defaultLeasePeriodMonths={data.defaultLeasePeriodMonths}
+        defaultDepositMultiple={data.defaultDepositMultiple}
         currentPrimePercent={data.currentPrimePercent}
       />
       {error && <p className="text-sm text-danger">{error}</p>}

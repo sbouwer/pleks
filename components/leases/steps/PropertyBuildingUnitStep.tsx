@@ -45,6 +45,7 @@ interface Unit {
   building_id: string | null
   asking_rent_cents: number | null
   default_lease_period_months: number | null
+  default_deposit_multiple: number | null
   bedrooms: number | null
   bathrooms: number | null
   parking_bays: number | null
@@ -210,7 +211,7 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
           .order("name"),
         supabase
           .from("units")
-          .select("id, unit_number, status, building_id, asking_rent_cents, default_lease_period_months, bedrooms, bathrooms, parking_bays, prospective_tenant_id, prospective_co_tenant_ids")
+          .select("id, unit_number, status, building_id, asking_rent_cents, default_lease_period_months, default_deposit_multiple, bedrooms, bathrooms, parking_bays, prospective_tenant_id, prospective_co_tenant_ids")
           .eq("property_id", propertyId)
           .is("deleted_at", null)
           .eq("is_archived", false)
@@ -313,6 +314,7 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
       leaseType,
       askingRentCents: selectedUnit.asking_rent_cents,
       defaultLeasePeriodMonths: unit?.default_lease_period_months ?? null,
+      defaultDepositMultiple: unit?.default_deposit_multiple ?? null,
       bcLevyCents: prop?.levy_amount_cents ?? null,
       isSectionalTitle: prop?.is_sectional_title ?? false,
       parkingBays: unit?.parking_bays ?? 0,

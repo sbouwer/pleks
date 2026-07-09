@@ -16,6 +16,7 @@ import type { GatewayContext } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { buildProfile, type UniversalAnswers } from "@/lib/properties/buildProfile"
 import { buildSkeletonUnits, type SkeletonUnit } from "@/lib/properties/skeletonUnits"
+import { defaultDepositMultiple } from "@/lib/properties/furnishing"
 import type { ScenarioType } from "@/lib/properties/scenarios"
 import { createPropertyInfoRequest } from "./propertyInfoRequests"
 import { initializeInsuranceChecklist } from "@/lib/insurance-checklist/initializeChecklist"
@@ -313,6 +314,12 @@ function buildUnitRows(
     floor:                  u.floor,
     size_m2:                u.size_m2,
     furnishing_status:      u.furnishing_status,
+    // O-22: persist the durable defaults the create flow previously dropped on the floor. The deposit multiple
+    // is furnishing-derived when not set; lease-period + deposit-cents write through (cents stays null until
+    // rent resolves it downstream — the multiple is the create-time policy default, cents the resolved absolute).
+    default_deposit_multiple:    u.default_deposit_multiple ?? defaultDepositMultiple(u.furnishing_status),
+    default_lease_period_months: u.default_lease_period_months,
+    default_deposit_cents:       u.default_deposit_cents,
     is_lettable:            u.is_lettable,
     status:                 u.status,
     business_use_permitted: u.business_use_permitted,

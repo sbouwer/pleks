@@ -20,6 +20,9 @@ export interface SkeletonUnit {
   floor:                  number | null
   size_m2:                number | null
   furnishing_status:      "unfurnished" | "semi_furnished" | "furnished" | null
+  default_deposit_multiple:  number | null  // O-22: durable deposit multiple (× rent), furnishing-defaulted
+  default_lease_period_months: number | null // straddle default lease length (was never written by any flow)
+  default_deposit_cents:     number | null  // resolved absolute deposit default (null at create — no rent yet)
   is_lettable:            boolean
   status:                 "vacant"
   business_use_permitted: "not_permitted" | "home_office_only" | "practice_consultancy" | "commercial_activity"
@@ -54,6 +57,9 @@ function baseUnit(overrides: Partial<SkeletonUnit> & { unit_number: string }): S
     floor:                  null,
     size_m2:                null,
     furnishing_status:      null,
+    default_deposit_multiple:  null,
+    default_lease_period_months: null,
+    default_deposit_cents:     null,
     is_lettable:            true,
     status:                 "vacant",
     business_use_permitted: "not_permitted",
