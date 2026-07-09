@@ -25,6 +25,7 @@ export interface HealthReport {
     email:   { status: ComponentStatus; error?: string }
     storage: { status: ComponentStatus; error?: string }
     crons:   { status: ComponentStatus; stale_jobs?: string[] }
+    delivery_feedback: { status: ComponentStatus; error?: string }
   }
 }
 
@@ -83,7 +84,10 @@ async function checkDb(supabase: SupabaseClient): Promise<HealthReport["componen
 }
 
 async function checkEmail(): Promise<HealthReport["components"]["email"]> {
-  if (!process.env.RESEND_API_KEY) return { status: "ok" }
+  // Env preflight (comms audit 2026-07-09): a MISSING key is an OUTAGE, not "ok". The June 4–10 outage was
+  // a missing RESEND_API_KEY that health reported green precisely because this returned ok — every send
+  // failed silently for a week. A missing critical key must show as down.
+  if (!process.env.RESEND_API_KEY) return { status: "down", error: "RESEND_API_KEY not configured" }
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     const { error } = await withTimeout(resend.domains.list(), COMPONENT_TIMEOUT_MS)
@@ -168,22 +172,45 @@ async function checkCrons(supabase: SupabaseClient): Promise<HealthReport["compo
   }
 }
 
+// Delivery-feedback silence monitor (comms audit 2026-07-09): the Resend/AT webhooks write
+// communication_delivery_events. If outbound EMAIL sends happened in the last 7 days but ZERO delivery
+// events arrived, the webhook is not configured (the audit found the table empty all-time) — "sent" then
+// means only "Resend accepted", hard-bounce suppression never fires, and the notice suite's deemed-service
+// anchors never populate. Surfaces as degraded so it can't stay silently dark.
+async function checkDeliveryFeedback(supabase: SupabaseClient): Promise<HealthReport["components"]["delivery_feedback"]> {
+  try {
+    const since = new Date(Date.now() - 7 * 86_400_000).toISOString()
+    const [sendsRes, eventsRes] = await Promise.all([
+      withTimeout(supabase.from("communication_log").select("id", { count: "exact", head: true }).eq("channel", "email").gte("created_at", since), COMPONENT_TIMEOUT_MS),
+      withTimeout(supabase.from("communication_delivery_events").select("id", { count: "exact", head: true }).gte("received_at", since), COMPONENT_TIMEOUT_MS),
+    ])
+    const sends = (sendsRes as { count: number | null }).count ?? 0
+    const events = (eventsRes as { count: number | null }).count ?? 0
+    if (sends > 0 && events === 0) {
+      return { status: "degraded", error: `no delivery events in 7d despite ${sends} email sends — Resend webhook likely unconfigured` }
+    }
+    return { status: "ok" }
+  } catch (e) {
+    return { status: "degraded", error: e instanceof Error ? e.message : "unknown" }
+  }
+}
+
 export async function checkHealth(): Promise<HealthReport> {
   const supabase = await createServiceClient()
-  const [db, email, storage, crons] = await Promise.all([
-    checkDb(supabase), checkEmail(), checkStorage(supabase), checkCrons(supabase),
+  const [db, email, storage, crons, delivery_feedback] = await Promise.all([
+    checkDb(supabase), checkEmail(), checkStorage(supabase), checkCrons(supabase), checkDeliveryFeedback(supabase),
   ])
 
   let aggregate: ComponentStatus = "ok"
   if (db.status === "down") aggregate = "down"
-  else if (email.status !== "ok" || storage.status !== "ok" || crons.status !== "ok") aggregate = "degraded"
+  else if (email.status !== "ok" || storage.status !== "ok" || crons.status !== "ok" || delivery_feedback.status !== "ok") aggregate = "degraded"
 
   return {
     status:      aggregate,
     version:     process.env.NEXT_PUBLIC_APP_VERSION ?? "unknown",
     environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "unknown",
     timestamp:   new Date().toISOString(),
-    components:  { db, email, storage, crons },
+    components:  { db, email, storage, crons, delivery_feedback },
   }
 }
 
