@@ -108,6 +108,18 @@ async function getClosingBalance(service: ServiceClient, leaseId: string): Promi
 }
 
 async function sendLeaseStatement(service: ServiceClient, ctx: LeaseStatementContext): Promise<boolean> {
+  // Idempotency (replay/double-send guard): the statement fires once per calendar cycle. If a
+  // rent.monthly_statement was already logged for this lease since the start of the current send month
+  // (the day after periodTo), a re-fire (cPanel retry, manual re-run) must NOT re-email it. The other
+  // money crons carry the same check-before-write (ADDENDUM_TRUST_RPC_ATOMICITY §7).
+  const cycleStart = new Date(new Date(`${ctx.periodTo}T00:00:00.000Z`).getTime() + 86_400_000).toISOString().slice(0, 10)
+  const { data: alreadySent, error: dupError } = await service
+    .from("communication_log").select("id")
+    .eq("entity_type", "lease").eq("entity_id", ctx.leaseId)
+    .eq("template_key", "rent.monthly_statement").gte("created_at", cycleStart).limit(1)
+  logQueryError("sendLeaseStatement dedupe", dupError)
+  if (alreadySent && alreadySent.length > 0) return false
+
   const { data: tenant, error: tenantError } = await service
     .from("tenant_view")
     .select("first_name, last_name, email, phone")
