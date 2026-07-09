@@ -17,6 +17,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { createDeliveryNoticeToken } from "@/lib/comms/delivery-notice-tokens"
 import { drainPlatformEmailRetries } from "@/lib/subscriptions/sendWithRetry"
 import { withCronRun } from "@/lib/cron/withCronRun"
+import * as Sentry from "@sentry/nextjs"
 
 const MAX_ATTEMPTS = 4
 
@@ -108,6 +109,14 @@ async function settleRetry(
       last_failure_reason: failureReason ?? null,
       updated_at:          new Date().toISOString(),
     }).eq("id", retryId)
+    // H-2 (comms audit): a MANDATORY comm surrendering is a real failure that was previously silent — the
+    // June outage exhausted 212 retries with no alert (a cascade can't heal an env problem). Fire Sentry so
+    // a surrender is visible, not just a row in mandatory_comm_retries.
+    Sentry.captureMessage("mandatory comm surrendered after cascade exhausted", {
+      level: "error",
+      tags: { area: "comms", kind: "mandatory_surrender" },
+      extra: { retryId, attempts: newAttemptCount, lastFailureReason: failureReason ?? "unknown" },
+    })
     return "surrendered"
   }
   await service.from("mandatory_comm_retries").update({
