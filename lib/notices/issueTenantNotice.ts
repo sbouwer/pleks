@@ -217,6 +217,43 @@ async function runEscalatedFanOut(ctx: FanOutCtx): Promise<IssueTenantNoticeResu
   return dispatched
 }
 
+export interface RenderedDemandNotice {
+  bodyFull: string
+  contentHash: string
+  vacateByDateISO: string
+  vacateByDateDisplay: string
+  todaysDate: string
+  citationBranch: string
+  mergeSnapshot: Record<string, unknown>
+}
+
+/**
+ * Render a Demand to Vacate to its canonical body_full + hash + frozen dates. THE single render path (P-2):
+ * both issueTenantNotice (before insert) and the preview action call this, so what an agent previews is
+ * byte-identical to what gets issued. Pure — NO gate, NO DB writes. Legal dates are SAST (saTodayISO).
+ */
+export async function renderDemandNotice(params: IssueTenantNoticeParams): Promise<RenderedDemandNotice> {
+  const { lease, recipient } = params
+  const baseIso = saTodayISO(params.now)
+  const vacateByDateISO = computeVacateByDate(new Date(`${baseIso}T00:00:00.000Z`))
+  const todaysDate = fmtDate(baseIso)
+  const vacateByDateDisplay = fmtDate(vacateByDateISO)
+  const bodyFull = await render(buildElement(params, vacateByDateDisplay, todaysDate))
+  return {
+    bodyFull,
+    contentHash: createHash("sha256").update(bodyFull).digest("hex"),
+    vacateByDateISO, vacateByDateDisplay, todaysDate,
+    citationBranch: citationBranch(lease.noticeType, lease.cpaApplies),
+    mergeSnapshot: {
+      tenantName: recipient.tenantName, serviceAddress: recipient.serviceAddress, propertyLabel: params.propertyLabel,
+      landlordOrAgentName: params.landlordOrAgentName, referenceNumber: params.referenceNumber,
+      todaysDate, vacateByDate: vacateByDateDisplay, cpaApplies: lease.cpaApplies ?? null,
+      finalNoticeDate: lease.finalNoticeDate ?? null, cancellationEffectiveDate: lease.cancellationEffectiveDate ?? null,
+      leaseEndDate: lease.leaseEndDate ?? null, terminationNoticeDate: lease.terminationNoticeDate ?? null,
+    },
+  }
+}
+
 /**
  * Issue a Demand to Vacate. Creates the immutable notice-of-record, then serves it across every channel
  * and address. Returns the notice id + the dispatch outcomes. Throws NoticeGateError outside the allowlisted
@@ -236,24 +273,8 @@ export async function issueTenantNotice(params: IssueTenantNoticeParams): Promis
   logQueryError("issueTenantNotice template lookup", tmplErr)
   await assertNoticeApproved(db, templateKey, tmpl?.legal_review_status, (recipient.phones ?? []).some(Boolean))
 
-  // ── Render ONCE → body_full; hash + every transmitted copy derive from this string (R-3 byte-identity) ─
-  // Legal dates are SAST calendar dates (not UTC) — see saTodayISO. The dispatch instant (now) is still used
-  // for service-event timestamps, but the PRINTED effective/today/vacate dates derive from the SA date.
-  const baseIso = saTodayISO(now)
-  const vacateByDateISO = computeVacateByDate(new Date(`${baseIso}T00:00:00.000Z`))
-  const todaysDate = fmtDate(baseIso)
-  const element = buildElement(params, fmtDate(vacateByDateISO), todaysDate)
-  const bodyFull = await render(element)
-  const contentHash = createHash("sha256").update(bodyFull).digest("hex")
-  const branch = citationBranch(lease.noticeType, lease.cpaApplies)
-
-  const mergeSnapshot = {
-    tenantName: recipient.tenantName, serviceAddress: recipient.serviceAddress, propertyLabel: params.propertyLabel,
-    landlordOrAgentName: params.landlordOrAgentName, referenceNumber: params.referenceNumber,
-    todaysDate, vacateByDate: fmtDate(vacateByDateISO), cpaApplies: lease.cpaApplies ?? null,
-    finalNoticeDate: lease.finalNoticeDate ?? null, cancellationEffectiveDate: lease.cancellationEffectiveDate ?? null,
-    leaseEndDate: lease.leaseEndDate ?? null, terminationNoticeDate: lease.terminationNoticeDate ?? null,
-  }
+  // ── Render ONCE → body_full via the shared path (P-2); hash + every transmitted copy derive from it ───
+  const { bodyFull, contentHash, vacateByDateISO, citationBranch: branch, mergeSnapshot } = await renderDemandNotice(params)
 
   // ── The immutable notice-of-record ────────────────────────────────────────────────────────────────
   const { data: notice, error: noticeErr } = await db
