@@ -43,15 +43,17 @@ type ProspectiveTenantResult = { tenantId: string; resolvedTenantName: string | 
 
 async function resolveProspectiveTenant(
   supabase: SupabaseService,
+  orgId: string,
   prospectiveTenantId: string,
   prospCoIds: string[],
 ): Promise<ProspectiveTenantResult> {
+  // O-23: service client bypasses RLS — every read carries the explicit org_id boundary (not just the id).
   const fetchCoTenant = (id: string) =>
-    supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
+    supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).eq("org_id", orgId).single()
       .then((r) => ({ id, data: r.data as TenantRow }))
 
   const [primRes, ...coResArr] = await Promise.all([
-    supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospectiveTenantId).single(),
+    supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospectiveTenantId).eq("org_id", orgId).single(),
     ...prospCoIds.map(fetchCoTenant),
   ])
   if (!primRes.data) return null
@@ -80,8 +82,8 @@ async function prefillOwnerTier(
   const { data: ownerUnit, error: ownerUnitError } = await supabase
     .from("units")
     .select("id, prospective_tenant_id, prospective_co_tenant_ids")
+    .eq("org_id", orgId)   // O-23: explicit org boundary (service client bypasses RLS)
     .eq("property_id", ownerProp.id)
-    .is("deleted_at", null)
     .is("deleted_at", null)
     .limit(1)
     .maybeSingle()
@@ -93,7 +95,7 @@ async function prefillOwnerTier(
   if (!u) return noTenantResult
   if (existingTenantId || !u.prospective_tenant_id) return noTenantResult
 
-  const resolved = await resolveProspectiveTenant(supabase, u.prospective_tenant_id, u.prospective_co_tenant_ids ?? [])
+  const resolved = await resolveProspectiveTenant(supabase, orgId, u.prospective_tenant_id, u.prospective_co_tenant_ids ?? [])
   if (!resolved) return noTenantResult
   return { propertyId: ownerProp.id, unitId: u.id, ...resolved }
 }
