@@ -3830,3 +3830,13 @@ END $BUMP$;
 
 REVOKE EXECUTE ON FUNCTION bump_ai_rate_limit(text, timestamptz) FROM PUBLIC, anon, authenticated;
 ALTER TABLE ai_rate_limits ENABLE ROW LEVEL SECURITY;   -- service-role only; no policy = deny all client access.
+
+-- =============================================================================
+-- §  O-18: label the DTI accountability column precisely (Tribunal defensibility)
+-- =============================================================================
+-- dti_ratio_at_decision holds a BUREAU-INSTALMENT DTI (credit-bureau-reported monthly instalments / verified
+-- income) — NOT declared or bank-statement obligations. NULL means no bureau reported an instalment amount
+-- ("no bureau-tracked debt data"), which is distinct from a verified 0. Documented so the immutable record
+-- means exactly what it says. Idempotent (COMMENT replaces).
+COMMENT ON COLUMN applications.dti_ratio_at_decision IS
+  'Bureau-instalment DTI at decision: credit-bureau monthly instalments / verified income. NULL = no bureau instalment source (not a verified 0). Excludes declared/bank-statement obligations. O-18.';

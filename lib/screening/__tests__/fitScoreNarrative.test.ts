@@ -319,6 +319,7 @@ const BASE_RESULT: EngineResult = {
       totalVerifiedIncomeCents:          4500000,
       proposedRentCents:                 1200000,
       rentToIncomeRatio:                 0.267,
+      debtToIncomeRatio:                 null,
       affordabilityScore:                70,
       stabilityScore:                    75,
       creditBehaviourScore:              80,

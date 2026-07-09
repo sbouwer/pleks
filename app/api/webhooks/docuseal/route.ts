@@ -7,14 +7,17 @@
  *         INERT until that env is set — returns 503 when unset, so while DocuSeal e-signing is go-live-gated no
  *         forged payload can write. Setting the secret at go-live activates it with NO code change.
  *         WEBHOOK_PREFIXES bypass proxy.ts gates — this validates its own secret.
- * Data:   leases (docuseal_submission_id → docuseal_document_url) + lease-documents storage + activateLeaseCascade.
+ * Data:   leases (docuseal_submission_id → docuseal_document_url, status) + lease-documents storage + activateLeaseCascade.
  * Notes:  Was a 503 stub with the impl parked in a comment (O-4). Now real, type-checked, env-gated code so it
- *         can't rot against activateLeaseCascade / the docuseal_* columns / the bucket.
+ *         can't rot against activateLeaseCascade / the docuseal_* columns / the bucket. Handles three events:
+ *         submission.completed → activate; submission.declined / .expired → return the lease to draft (D1) so it
+ *         can't strand in pending_signing. An app-level timeout sweep lives in the lease-lifecycle cron.
  */
 import { NextResponse } from "next/server"
 import { timingSafeEqual } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 import { activateLeaseCascade } from "@/lib/leases/activateLeaseCascade"
+import { revertPendingSigningToDraft, type SigningRevertReason } from "@/lib/leases/revertSigning"
 
 export const runtime = "nodejs"
 
@@ -29,34 +32,19 @@ function secretMatches(provided: string | null, secret: string): boolean {
   }
 }
 
-export async function POST(req: Request) {
-  const secret = process.env.DOCUSEAL_WEBHOOK_SECRET
-  if (!secret) {
-    // DocuSeal e-signing not live yet — stay dormant + reject so no forged payload can write.
-    return NextResponse.json({ error: "Not yet active" }, { status: 503 })
-  }
+/** DocuSeal event_type → the terminal reason that returns a lease to draft (D1). null for non-terminal events. */
+function terminalReasonFor(eventType: string): SigningRevertReason | null {
+  if (eventType === "submission.declined") return "declined"
+  if (eventType === "submission.expired") return "expired"
+  return null
+}
 
-  if (!secretMatches(req.headers.get("x-docuseal-secret"), secret)) {
-    return NextResponse.json({ error: "Invalid secret" }, { status: 401 })
-  }
+type SigningLease = { id: string; org_id: string; status: string }
 
-  let body: Record<string, unknown>
-  try {
-    body = (await req.json()) as Record<string, unknown>
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
-  }
-
-  if (body.event_type !== "submission.completed") {
-    return NextResponse.json({ ok: true }) // not a completion event — ack + ignore
-  }
-
-  const data = body.data as Record<string, unknown> | undefined
-  const submissionId =
-    typeof data?.id === "string" || typeof data?.id === "number" ? String(data.id) : null
-  if (!submissionId) return NextResponse.json({ ok: true })
-
-  const supabase = await createServiceClient()
+async function findLeaseBySubmission(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  submissionId: string,
+): Promise<SigningLease | null> {
   const { data: lease, error } = await supabase
     .from("leases")
     .select("id, org_id, status")
@@ -64,15 +52,21 @@ export async function POST(req: Request) {
     .maybeSingle()
   if (error) {
     console.error("[docuseal] lease lookup failed:", error.message)
-    return NextResponse.json({ ok: true }) // ack on our error so DocuSeal doesn't retry-storm
+    return null
   }
-  if (!lease) return NextResponse.json({ ok: true })
-  // Idempotency: DocuSeal delivers at-least-once + retries on timeout. If we've already activated this lease,
-  // ack and skip the redundant PDF re-fetch/upload + cascade. (activateLeaseCascade also self-guards atomically,
-  // which covers the concurrent first-delivery race; this is the fast path for sequential retries.)
-  if (lease.status === "active") return NextResponse.json({ ok: true })
+  return (lease as SigningLease | null) ?? null
+}
 
-  // Store the signed PDF — best-effort; never block lease activation on a storage hiccup.
+/** submission.completed → store the signed PDF (best-effort) + run the activation cascade. */
+async function handleCompleted(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  lease: SigningLease,
+  data: Record<string, unknown> | undefined,
+): Promise<void> {
+  // Idempotency: DocuSeal delivers at-least-once + retries on timeout. Already-active → skip the redundant
+  // PDF re-fetch/upload + cascade. (activateLeaseCascade also self-guards atomically for the first-delivery race.)
+  if (lease.status === "active") return
+
   const documents = data?.documents as Array<Record<string, unknown>> | undefined
   const pdfUrl = typeof documents?.[0]?.url === "string" ? documents[0].url : null
   if (pdfUrl) {
@@ -98,5 +92,47 @@ export async function POST(req: Request) {
   }
 
   await activateLeaseCascade(supabase, lease.id, lease.org_id, "docuseal")
+}
+
+export async function POST(req: Request) {
+  const secret = process.env.DOCUSEAL_WEBHOOK_SECRET
+  if (!secret) {
+    // DocuSeal e-signing not live yet — stay dormant + reject so no forged payload can write.
+    return NextResponse.json({ error: "Not yet active" }, { status: 503 })
+  }
+
+  if (!secretMatches(req.headers.get("x-docuseal-secret"), secret)) {
+    return NextResponse.json({ error: "Invalid secret" }, { status: 401 })
+  }
+
+  let body: Record<string, unknown>
+  try {
+    body = (await req.json()) as Record<string, unknown>
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const eventType = typeof body.event_type === "string" ? body.event_type : ""
+  const terminalReason = terminalReasonFor(eventType)
+  // We handle completion + the two terminal outcomes; everything else is acked + ignored.
+  if (!terminalReason && eventType !== "submission.completed") {
+    return NextResponse.json({ ok: true })
+  }
+
+  const data = body.data as Record<string, unknown> | undefined
+  const submissionId =
+    typeof data?.id === "string" || typeof data?.id === "number" ? String(data.id) : null
+  if (!submissionId) return NextResponse.json({ ok: true })
+
+  const supabase = await createServiceClient()
+  const lease = await findLeaseBySubmission(supabase, submissionId)
+  if (!lease) return NextResponse.json({ ok: true }) // unknown/already-cleared submission — ack, no retry-storm
+
+  if (terminalReason) {
+    // Declined by the signer, or the submission expired → return the lease to draft so the agent can re-send.
+    await revertPendingSigningToDraft(supabase, lease, terminalReason, terminalReason === "declined" ? "tenant" : "system")
+  } else {
+    await handleCompleted(supabase, lease, data)
+  }
   return NextResponse.json({ ok: true })
 }

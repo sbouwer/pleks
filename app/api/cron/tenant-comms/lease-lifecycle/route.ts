@@ -18,6 +18,11 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { resolveOrgTone } from "@/lib/comms/resolveOrgTone"
 import { LeaseSignReminderEmail } from "@/lib/comms/templates/tenant/leases/lease-sign-reminder"
 import { LeaseEscalationNoticeEmail } from "@/lib/comms/templates/tenant/leases/lease-escalation-notice"
+import { revertPendingSigningToDraft } from "@/lib/leases/revertSigning"
+
+// L2b: a lease left unsigned this long past sent_for_signing_at is timed out and returned to draft (D1).
+// The L2 sign reminder fires at T+3, so this gives ~11 days after that nudge before the app-level timeout.
+const SIGNING_TIMEOUT_DAYS = 14
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -123,6 +128,38 @@ async function handleEscalationNotice(service: Service, lease: EscalationLease):
   return false
 }
 
+/**
+ * L2b: return leases stuck in pending_signing past the timeout to draft (D1). Belt-and-braces for when no
+ * DocuSeal submission.expired webhook arrives (or the submission id was never recorded) — so the agent can
+ * re-send instead of the lease stranding. Extracted as a helper to keep the handler under SonarJS S3776.
+ */
+async function sweepSigningTimeouts(service: Service, today: Date): Promise<{ reverted: number; skipped: number }> {
+  const cutoff = new Date(today)
+  cutoff.setDate(cutoff.getDate() - SIGNING_TIMEOUT_DAYS)
+  const { data: timedOut, error } = await service
+    .from("leases")
+    .select("id, org_id, status")
+    .eq("status", "pending_signing")
+    .not("sent_for_signing_at", "is", null)
+    .lte("sent_for_signing_at", cutoff.toISOString())
+  if (error) console.error("[lease-lifecycle] L2b signing-timeout query failed:", error.message)
+
+  let reverted = 0
+  let skipped = 0
+  for (const lease of timedOut ?? []) {
+    try {
+      const ok = await revertPendingSigningToDraft(
+        service, lease as { id: string; org_id: string; status: string }, "expired", "cron",
+      )
+      if (ok) reverted++; else skipped++
+    } catch (err) {
+      console.error("[lease-lifecycle] L2b lease", lease.id, "failed:", err)
+      skipped++
+    }
+  }
+  return { reverted, skipped }
+}
+
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -162,6 +199,11 @@ export async function GET(req: NextRequest) {
       skipped++
     }
   }
+
+  // ── L2b: signing timeout — pending_signing leases unsigned past the timeout → back to draft (D1) ──
+  const timeout = await sweepSigningTimeouts(service, today)
+  sent += timeout.reverted
+  skipped += timeout.skipped
 
   // ── L7: escalation notice — active leases with escalation_review_date within 30 days ──
   // .lte window catches cron misses; idempotency column prevents double-send.
