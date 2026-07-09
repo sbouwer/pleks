@@ -36,7 +36,7 @@ type ExpiryLease = {
   tenant_id: string
   end_date: string
   unit_id: string
-  cpa_applies_at_signing: boolean | null
+  cpa_applies_at_signing: string | null   // 3-state TEXT ('yes'|'no'|'indeterminate') — NOT a boolean
 }
 
 type NoticeLease = {
@@ -113,8 +113,10 @@ async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Pro
         daysRemaining,
         senderName: orgSettings?.name ?? "Pleks",
         // F-1 #10: this cron fires for ALL fixed-term leases (not CPA-filtered), so the notice basis must
-        // reflect each lease's own snapshot — not a blanket default.
-        cpaApplies: lease.cpa_applies_at_signing ?? undefined,
+        // reflect each lease's own snapshot — not a blanket default. cpa_applies_at_signing is 3-state TEXT
+        // ('yes'|'no'|'indeterminate'); only an explicit 'yes' takes the CPA branch (passing the raw string
+        // let truthy 'no'/'indeterminate' mis-cite CPA s14(2)(d) on leases the CPA does not govern).
+        cpaApplies: lease.cpa_applies_at_signing === "yes",
       }),
       entityType: "lease",
       entityId: lease.id,

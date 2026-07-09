@@ -183,8 +183,11 @@ async function fetchLeaseFacts(
   if (error) console.error("fetchLeaseFacts leases read failed:", error.message)
   return {
     startDate: data?.start_date ? formatDate(data.start_date as string) : undefined,
-    // The final notice's cancellation-cure citation branches on this (F-1 #1); undefined → safe contractual default.
-    cpaApplies: (data?.cpa_applies_at_signing as boolean | null) ?? undefined,
+    // The final notice's cancellation-cure citation branches on this (F-1 #1). cpa_applies_at_signing is
+    // 3-state TEXT ('yes'|'no'|'indeterminate'), NOT a boolean — the old `as boolean` cast let 'no' and
+    // 'indeterminate' (truthy strings) render the CPA s14 citation on leases the CPA does not govern. Only
+    // an explicit 'yes' takes the CPA branch; everything else falls to the safe contractual/common-law basis.
+    cpaApplies: data?.cpa_applies_at_signing === "yes",
   }
 }
 
