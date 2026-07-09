@@ -85,6 +85,32 @@ const SUBJECTS: Record<DemandNoticeType, string> = {
   demand_vacate_m2m: "Demand to vacate following termination on notice",
 }
 
+// Fail-CLOSED gate (CD, Phase D walk). Only recognised dev/preview/test environments may render a
+// NON-approved notice; an unknown or absent env gates ON. The single control between a draft legal
+// instrument and a tenant's inbox must NOT depend on an env var being present — only on it being a
+// recognised safe value. (Inverting the Phase-A default-'draft' polarity mistake I'd already ruled against.)
+const DRAFT_RENDER_ENVS = new Set(["development", "preview", "test"])
+function allowDraftRender(): boolean {
+  return DRAFT_RENDER_ENVS.has(process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "")
+}
+
+/** Production gate: every suite template that WILL actually be sent must be counsel-approved. Outside the
+ *  allowlisted render envs, a non-approved letter — or (when SMS will send) a non-approved
+ *  notice.service_notification micro-template (same approval event) — refuses generation. */
+async function assertNoticeApproved(db: Db, letterKey: string, letterStatus: string | null | undefined, willSendSms: boolean): Promise<void> {
+  if (allowDraftRender()) return
+  if (letterStatus !== "approved") throw new NoticeGateError(letterKey, letterStatus ?? null)
+  if (!willSendSms) return
+  const { data: micro, error: microErr } = await db
+    .from("document_templates").select("legal_review_status")
+    .eq("scope", "system").eq("template_key", "notice.service_notification").eq("template_type", "sms").maybeSingle()
+  logQueryError("assertNoticeApproved micro lookup", microErr)
+  // Fail closed: a lookup error means we cannot confirm approval → block.
+  if (microErr || micro?.legal_review_status !== "approved") {
+    throw new NoticeGateError("notice.service_notification", micro?.legal_review_status ?? null)
+  }
+}
+
 const fmtDate = (iso: string): string =>
   new Date(`${iso}T00:00:00.000Z`).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
 
@@ -183,23 +209,22 @@ async function runEscalatedFanOut(ctx: FanOutCtx): Promise<IssueTenantNoticeResu
 
 /**
  * Issue a Demand to Vacate. Creates the immutable notice-of-record, then serves it across every channel
- * and address. Returns the notice id + the dispatch outcomes. Throws NoticeGateError in production when the
- * template is not counsel-approved.
+ * and address. Returns the notice id + the dispatch outcomes. Throws NoticeGateError outside the allowlisted
+ * dev/preview/test render environments when the notice (or, when SMS will send, the micro-template) is not
+ * counsel-approved — fail-closed.
  */
 export async function issueTenantNotice(params: IssueTenantNoticeParams): Promise<IssueTenantNoticeResult> {
   const { db, orgId, generatedBy, now, lease, recipient, sureties = [] } = params
   const templateKey = `notice.${lease.noticeType}`
 
-  // ── Production draft-gate (R-1 / plan §0) ─────────────────────────────────────────────────────────
+  // ── Fail-closed draft-gate (R-1 / plan §0; polarity per CD Phase D walk) ─────────────────────────────
   const { data: tmpl, error: tmplErr } = await db
     .from("document_templates")
     .select("id, version, legal_review_status")
     .eq("scope", "system").eq("template_key", templateKey).eq("template_type", "letter")
     .maybeSingle()
   logQueryError("issueTenantNotice template lookup", tmplErr)
-  if (process.env.VERCEL_ENV === "production" && tmpl?.legal_review_status !== "approved") {
-    throw new NoticeGateError(templateKey, tmpl?.legal_review_status ?? null)
-  }
+  await assertNoticeApproved(db, templateKey, tmpl?.legal_review_status, (recipient.phones ?? []).some(Boolean))
 
   // ── Render ONCE → body_full; hash + every transmitted copy derive from this string (R-3 byte-identity) ─
   const vacateByDateISO = computeVacateByDate(now)

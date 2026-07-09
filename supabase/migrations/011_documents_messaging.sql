@@ -1398,8 +1398,13 @@ WHERE NOT EXISTS (
 INSERT INTO document_templates
   (scope, template_type, name, category, comms_class, template_key, version, legal_review_status, is_deletable)
 SELECT 'system', 'sms', 'Notice of Service (SMS/WhatsApp)', 'notice', 'statutory',
-       'notice.service_notification', 1, 'draft', false
+       'notice.service_notification', 2, 'draft', false
 WHERE NOT EXISTS (
   SELECT 1 FROM document_templates d
   WHERE d.scope = 'system' AND d.template_key = 'notice.service_notification' AND d.template_type = 'sms'
 );
+-- Converge an already-seeded row to the current draft copy version (idempotent). Safe because the row is
+-- still counsel-pending — this only changes which draft copy counsel reviews (v2: "sent" not "delivered").
+UPDATE document_templates SET version = 2
+WHERE scope = 'system' AND template_key = 'notice.service_notification' AND template_type = 'sms'
+  AND legal_review_status = 'draft' AND version < 2;

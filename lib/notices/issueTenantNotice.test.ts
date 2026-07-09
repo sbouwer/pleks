@@ -11,17 +11,24 @@ import { sendEmail } from "@/lib/comms/send-email"
 import { sendSMS } from "@/lib/sms/sendSMS"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function makeDb(opts: { template?: any } = {}) {
+function makeDb(opts: { template?: any; microTemplate?: any } = {}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inserts: Record<string, any[]> = {}
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: any = {
     from(table: string) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const filters: Record<string, any> = {}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const chain: any = {
         select: () => chain,
-        eq: () => chain,
-        maybeSingle: () => Promise.resolve({ data: table === "document_templates" ? (opts.template ?? null) : null, error: null }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        eq: (col: string, val: any) => { filters[col] = val; return chain },
+        maybeSingle: () => {
+          if (table !== "document_templates") return Promise.resolve({ data: null, error: null })
+          const data = filters["template_key"] === "notice.service_notification" ? (opts.microTemplate ?? null) : (opts.template ?? null)
+          return Promise.resolve({ data, error: null })
+        },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         insert(row: any) {
           inserts[table] = inserts[table] ?? []
@@ -116,13 +123,37 @@ describe("issueTenantNotice", () => {
     expect(inserts["lease_lifecycle_events"][0].event_type).toBe("demand_to_vacate_issued")
   })
 
-  it("refuses a non-approved template in production (R-1 gate)", async () => {
+  it("refuses a non-approved letter in production (R-1 gate)", async () => {
     process.env.VERCEL_ENV = "production"
     const { db } = makeDb({ template: { id: "t", version: 1, legal_review_status: "draft" } })
     await expect(issueTenantNotice(baseParams(db))).rejects.toThrow(/not counsel-approved|refused|NoticeGate/i)
   })
 
-  it("allows a draft template outside production (dev/preview testing)", async () => {
+  it("fail-CLOSED: an UNKNOWN env (not dev/preview/test) gates ON even without VERCEL_ENV", async () => {
+    delete process.env.VERCEL_ENV
+    const prev = process.env.NODE_ENV
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(process.env as any).NODE_ENV = "staging"   // not in the allowlist → gate must engage
+    const { db } = makeDb({ template: { id: "t", version: 1, legal_review_status: "draft" } })
+    await expect(issueTenantNotice(baseParams(db))).rejects.toThrow(/NoticeGate|approved/i)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(process.env as any).NODE_ENV = prev
+  })
+
+  it("gates the SMS micro-template too: approved letter + draft micro + phones → refused in production", async () => {
+    process.env.VERCEL_ENV = "production"
+    const { db } = makeDb({ template: approvedTmpl, microTemplate: { legal_review_status: "draft" } })
+    await expect(issueTenantNotice(baseParams(db))).rejects.toThrow(/service_notification|NoticeGate/i)
+  })
+
+  it("production send succeeds when BOTH the letter and the micro-template are approved", async () => {
+    process.env.VERCEL_ENV = "production"
+    const { db } = makeDb({ template: approvedTmpl, microTemplate: { legal_review_status: "approved" } })
+    const res = await issueTenantNotice(baseParams(db))
+    expect(res.noticeId).toBe("notice-1")
+  })
+
+  it("allows a draft template outside production (dev/preview/test)", async () => {
     const { db } = makeDb({ template: { id: "t", version: 1, legal_review_status: "draft" } })
     const res = await issueTenantNotice(baseParams(db))
     expect(res.noticeId).toBe("notice-1")

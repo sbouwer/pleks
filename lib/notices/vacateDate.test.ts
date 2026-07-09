@@ -25,10 +25,11 @@ describe("deemedServiceMeetsFloor (≥7 calendar days)", () => {
 })
 
 describe("service-notification micro-template (R-4)", () => {
-  it("is a short pointer naming no statutory consequence, and is versioned", () => {
+  it("is a short pointer naming no statutory consequence; says 'sent' (accurate at dispatch), and is versioned", () => {
     const body = renderServiceNotificationSms()
-    expect(body).toContain("legal notice regarding your tenancy has been delivered")
+    expect(body).toContain("legal notice regarding your tenancy has been sent")
+    expect(body).not.toContain("delivered")   // written at dispatch, before any delivery confirmation
     expect(body).not.toMatch(/evict|PIE|cancel/i)
-    expect(SERVICE_NOTIFICATION_VERSION).toBe(1)
+    expect(SERVICE_NOTIFICATION_VERSION).toBe(2)
   })
 })
