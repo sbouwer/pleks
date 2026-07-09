@@ -116,7 +116,8 @@ async function sendLeaseStatement(service: ServiceClient, ctx: LeaseStatementCon
   const { data: alreadySent, error: dupError } = await service
     .from("communication_log").select("id")
     .eq("entity_type", "lease").eq("entity_id", ctx.leaseId)
-    .eq("template_key", "rent.monthly_statement").gte("created_at", cycleStart).limit(1)
+    // M-2 (comms audit): only a SUCCESSFUL prior send blocks — a failed one must not suppress the retry.
+    .eq("template_key", "rent.monthly_statement").eq("status", "sent").gte("created_at", cycleStart).limit(1)
   logQueryError("sendLeaseStatement dedupe", dupError)
   if (alreadySent && alreadySent.length > 0) return false
 
