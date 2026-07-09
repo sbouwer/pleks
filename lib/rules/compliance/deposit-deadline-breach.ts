@@ -10,11 +10,16 @@
  *           • no deductions + a joint inspection happened → s5(3)(g)(i): 7 days (+ interest)
  *           • no deductions + no inspection (landlord failed to inspect) → s5(3)(g)(ii): 14 days, full refund
  *           • deductions claimed → s5(7): 14 days FROM RESTORATION
- *         Two documented limitations (no schema for them yet — see O-15 follow-up): (a) s5(7) runs from the
- *         restoration date, which isn't captured — we use lease end + 14 as a CONSERVATIVE EARLY bound (the
- *         alarm may fire before the true statutory deadline, never after); (b) the s5(3)(g)(iii) 21-day
- *         tenant-no-show case isn't distinguishable from the data, so it's not modelled (folds into the
- *         scenarios above — also early-biased, which is safe for a breach alarm).
+ *         Restoration anchor (O-21): the s5(7) damages window runs from RESTORATION of the property. When a
+ *         move-out inspection exists (recon.inspection_id → inspections, type 'move_out') its conducted_date
+ *         IS that restoration anchor and the deadline counts from it; otherwise we fall back to lease end as a
+ *         CONSERVATIVE EARLY bound (the alarm may fire before the true statutory deadline, never after). The
+ *         breach action also surfaces interest_accrued_cents — a late refund owes deposit PLUS accrued interest.
+ *         One documented limitation remains: the s5(3)(g)(iii) 21-day tenant-no-show case isn't distinguishable
+ *         from the data (the only proxy, inspections.tenant_present, can't tell a tenant no-show from a landlord
+ *         who never inspected), so it's not modelled — it folds into the scenarios above, also early-biased,
+ *         which is safe for a breach alarm. It pairs naturally with a real "did not attend exit inspection"
+ *         flag captured at move-out, if that's ever added.
  *
  *         ⚠ COMMENCEMENT WATCH (RHA): these windows cite the principal Act §5 because the Rental Housing
  *         Amendment Act 35 of 2014 is NOT in force (no presidential proclamation as of 2026-06-18). If it
@@ -45,14 +50,30 @@ export function resolveDepositReturnDays(recon: DepositReconForDeadline): { days
       ? { days: 7, scenario: "no_damage_inspected" }   // s5(3)(g)(i)
       : { days: 14, scenario: "no_inspection" }         // s5(3)(g)(ii)
   }
-  return { days: 14, scenario: "damages_claimed" }      // s5(7) — early bound (restoration date not captured)
+  return { days: 14, scenario: "damages_claimed" }      // s5(7) — 14 days FROM RESTORATION (anchored below)
 }
 
-/** Deadline = lease end + the statutory window for the reconciliation's scenario. */
-function depositDeadline(endDate: string, recon: DepositReconForDeadline): Date {
-  const d = new Date(endDate)
+/**
+ * Deadline = anchor + the statutory window for the reconciliation's scenario.
+ * Anchor (O-21) = the move-out inspection's conducted_date (the point of restoration/handback that s5(7)
+ * runs from) when a move-out inspection exists, else lease end as a conservative EARLY bound. On an early
+ * handback the inspection date precedes lease end, so anchoring on it fires the alarm at the true statutory
+ * deadline instead of late — the one direction that matters for a breach alarm.
+ */
+export function depositDeadline(endDate: string, moveOutConductedDate: string | null, recon: DepositReconForDeadline): Date {
+  const d = new Date(moveOutConductedDate ?? endDate)
   d.setDate(d.getDate() + resolveDepositReturnDays(recon).days)
   return d
+}
+
+/**
+ * The restoration anchor from the reconciliation's linked inspection: its conducted_date, but ONLY when the
+ * linked inspection is the move-out one (recon.inspection_id can point at any inspection type). Null → the
+ * caller falls back to lease end. The embed is a many-to-one FK, so Supabase returns a single object or null.
+ */
+export function moveOutConductedDate(inspections: unknown): string | null {
+  const insp = inspections as { conducted_date: string | null; inspection_type: string } | null
+  return insp?.inspection_type === "move_out" ? insp.conducted_date : null
 }
 
 export const depositDeadlineBreachRule: OrgRule = {
@@ -66,7 +87,7 @@ export const depositDeadlineBreachRule: OrgRule = {
   async condition({ supabase, org, now }) {
     const { data: recons, error } = await supabase
       .from("deposit_reconciliations")
-      .select("id, total_deductions_cents, inspection_id, leases!inner(end_date)")
+      .select("id, total_deductions_cents, inspection_id, leases!inner(end_date), inspections(conducted_date, inspection_type)")
       .eq("org_id", org.id)
       .not("status", "in", "(refunded,finalised)")
 
@@ -80,7 +101,7 @@ export const depositDeadlineBreachRule: OrgRule = {
       const lease = recon.leases as unknown as { end_date: string }
       if (!lease?.end_date) continue
 
-      if (now <= depositDeadline(lease.end_date, recon)) continue // deadline not yet passed
+      if (now <= depositDeadline(lease.end_date, moveOutConductedDate(recon.inspections), recon)) continue // deadline not yet passed
 
       const alreadyFlagged = await hasBeenActionedFor(supabase, RULE_ID, recon.id)
       if (!alreadyFlagged) return true
@@ -92,19 +113,20 @@ export const depositDeadlineBreachRule: OrgRule = {
   async action({ supabase, org, now }) {
     const { data: recons, error } = await supabase
       .from("deposit_reconciliations")
-      .select("id, status, total_deductions_cents, inspection_id, leases!inner(end_date)")
+      .select("id, status, total_deductions_cents, interest_accrued_cents, inspection_id, leases!inner(end_date), inspections(conducted_date, inspection_type)")
       .eq("org_id", org.id)
       .not("status", "in", "(refunded,finalised)")
 
     if (error || !recons?.length) return { summary: "No qualifying leases", count: 0 }
 
     const breached: string[] = []
+    let totalInterestCents = 0   // a late refund owes deposit + accrued interest (O-21) — surface it
 
     for (const recon of recons) {
       const lease = recon.leases as unknown as { end_date: string }
       if (!lease?.end_date) continue
 
-      if (now <= depositDeadline(lease.end_date, recon)) continue
+      if (now <= depositDeadline(lease.end_date, moveOutConductedDate(recon.inspections), recon)) continue
 
       const alreadyFlagged = await hasBeenActionedFor(supabase, RULE_ID, recon.id)
       if (alreadyFlagged) continue
@@ -118,14 +140,16 @@ export const depositDeadlineBreachRule: OrgRule = {
       }
 
       breached.push(recon.id)
+      totalInterestCents += recon.interest_accrued_cents ?? 0
     }
 
     if (!breached.length) return { summary: "All breach cases already flagged", count: 0 }
 
+    const interestNote = totalInterestCents > 0 ? ` (incl. R${(totalInterestCents / 100).toFixed(2)} accrued interest owed)` : ""
     return {
-      summary: `Deposit return deadline breached on ${breached.length} lease(s)`,
+      summary: `Deposit return deadline breached on ${breached.length} lease(s)${interestNote}`,
       count:   breached.length,
-      data:    { entity_id: breached[0], reconciliation_ids: breached },
+      data:    { entity_id: breached[0], reconciliation_ids: breached, interest_accrued_cents: totalInterestCents },
     }
   },
 }
