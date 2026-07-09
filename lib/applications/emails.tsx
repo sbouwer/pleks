@@ -5,9 +5,9 @@
 
 import { EmailLayout, EmailButton, EmailSectionHeading, EmailDetail } from "@/lib/comms/templates/layout"
 import type { OrgBranding } from "@/lib/comms/templates/layout"
+import { ApplicantLegalFooter } from "@/lib/comms/templates/ApplicantLegalFooter"
 import { sendEmail } from "@/lib/comms/send-email"
 import { formatZAR } from "@/lib/constants"
-import { retentionDisplay } from "@/lib/popia/retention"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 
@@ -105,6 +105,7 @@ export async function sendApplicationReceived(
         <EmailSectionHeading>What happens next</EmailSectionHeading>
         <p style={S.body}>Your application will be reviewed within 48 hours. You&apos;ll receive an email when a decision has been made.</p>
         <EmailButton href={statusUrl(opts.slug, app.id, opts.accessToken)} accentColor={org.branding.accentColor}>Check your application status →</EmailButton>
+        <ApplicantLegalFooter />
       </EmailLayout>
     ),
     bodyPreview: `Thank you for applying for ${listing.unitLabel} at ${listing.propertyName}. Reference: ${ref}.`,
@@ -354,6 +355,7 @@ export async function sendShortlistInvitation(
         <p style={S.body}>The screening is conducted by Searchworx, an independent credit bureau. Results are shared with {org.orgName} only.</p>
         <EmailButton href={inviteLink} accentColor={org.branding.accentColor}>Continue to screening →</EmailButton>
         <p style={S.footer}>This link expires in 7 days.{org.orgPhone ? ` Contact: ${org.orgPhone}` : ""}{org.orgEmail ? ` · ${org.orgEmail}` : ""}</p>
+        <ApplicantLegalFooter />
       </EmailLayout>
     ),
     bodyPreview: `Your application for ${listing.unitLabel} at ${listing.propertyName} has been shortlisted.`,
@@ -383,9 +385,8 @@ export async function sendDeclinedStage1(
           ? `After careful consideration, we have decided not to proceed with your application. ${opts.reason}`
           : "After careful consideration, we have decided not to proceed with your application at this time."}</p>
         <p style={S.body}>This decision does not reflect on you personally — the agent received multiple applications and had to make a selection.</p>
-        <EmailSectionHeading>Your data</EmailSectionHeading>
-        <p style={S.body}>Your personal information will be retained for {retentionDisplay("rejected_applications")} in accordance with POPIA. To request earlier deletion, contact {org.orgName}{org.orgEmail ? ` at ${org.orgEmail}` : ""}.</p>
         <p style={S.body}>We wish you well in finding your next home.</p>
+        <ApplicantLegalFooter />
       </EmailLayout>
     ),
     bodyPreview: "Thank you for your application. Unfortunately we are unable to proceed.",
@@ -565,6 +566,7 @@ export async function sendApproved(
         <p style={S.body}>• Move-in date and key collection</p>
         <p style={{ ...S.body, marginTop: 16 }}>Contact: {org.orgName}{org.orgPhone ? ` · ${org.orgPhone}` : ""}{org.orgEmail ? ` · ${org.orgEmail}` : ""}</p>
         <p style={{ ...S.body, marginTop: 8 }}>We look forward to welcoming you as a tenant.</p>
+        <ApplicantLegalFooter />
       </EmailLayout>
     ),
     bodyPreview: `Your application for ${listing.unitLabel} at ${listing.propertyName} has been approved.`,
@@ -683,9 +685,8 @@ export async function sendDeclinedStage2(
           ? `After completing the full screening, we have decided not to proceed. ${opts.reason}`
           : "After completing the full screening evaluation, we have decided not to proceed with your application."}</p>
         <p style={S.body}>The screening fee of R399 is non-refundable as communicated at the time of payment.</p>
-        <EmailSectionHeading>Your data</EmailSectionHeading>
-        <p style={S.body}>Your personal information will be retained for {retentionDisplay("rejected_applications")} in accordance with POPIA. To request earlier deletion, contact {org.orgName}{org.orgEmail ? ` at ${org.orgEmail}` : ""}.</p>
         <p style={S.body}>We wish you well in finding your next home.</p>
+        <ApplicantLegalFooter />
       </EmailLayout>
     ),
     bodyPreview: "Thank you for your application. After full screening we are unable to proceed.",
