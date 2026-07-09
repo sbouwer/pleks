@@ -14,8 +14,11 @@ import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
 import { createServiceClient } from "@/lib/supabase/server"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
-import { ROUTE_MANIFEST } from "@/lib/routing/manifest"
 import { resolveHostContext } from "@/lib/routing/hostname"
+import {
+  isWebhookPath, isApexPath, isAdminPath, matchManifest, deriveTierFromSub,
+  orgCookieHasRole, extractCachedOrgId, cookieUserId,
+} from "@/lib/routing/gate"
 import { resolveUserMembership } from "@/lib/auth/membership"
 import { verifyAdminToken } from "@/lib/auth/admin-token"
 import { collectGateFacts } from "@/lib/auth/facts"
@@ -23,21 +26,9 @@ import { routeGateDecision } from "@/lib/auth/decisions"
 import type { User } from "@supabase/supabase-js"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
-const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/health", "/api/status", "/api/legal"]
+// Bypass lists + apex/admin path predicates live in lib/routing/gate.ts (pure + unit-tested).
 
 // ── Subdomain split ───────────────────────────────────────────────────────────
-const APEX_PREFIXES = [
-  "/pricing",
-  "/privacy", "/terms", "/credit-check-policy", "/cookie-policy", "/paia-manual",
-  "/popia-register", "/definitions", "/contact", "/demo", "/marketing",
-  "/api/paia-manual-pdf",
-]
-
-function isApexPath(pathname: string): boolean {
-  if (pathname === "/") return true
-  return APEX_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))
-}
-
 const APP_HOSTNAME       = "app.pleks.co.za"
 // Canonical marketing host — Vercel 308-redirects bare pleks.co.za → www at the
 // infrastructure level. Point at www to avoid an extra redirect hop on every
@@ -45,22 +36,6 @@ const APP_HOSTNAME       = "app.pleks.co.za"
 const MARKETING_HOSTNAME = "www.pleks.co.za"
 const ADMIN_HOSTNAME     = "admin.pleks.co.za"
 const STATUS_HOSTNAME    = "status.pleks.co.za"
-
-function isAdminPath(pathname: string): boolean {
-  return pathname === "/admin"     || pathname.startsWith("/admin/") ||
-         pathname === "/api/admin" || pathname.startsWith("/api/admin/")
-}
-
-// ── Manifest lookup — longest prefix wins ────────────────────────────────────
-function matchManifest(pathname: string) {
-  let best: string | null = null
-  for (const prefix of Object.keys(ROUTE_MANIFEST)) {
-    if (pathname === prefix || pathname.startsWith(prefix + "/")) {
-      if (!best || prefix.length > best.length) best = prefix
-    }
-  }
-  return best ? ROUTE_MANIFEST[best] : null
-}
 
 // ── Admin page gate (/admin/* UI routes) ─────────────────────────────────────
 async function checkAdminAuth(pathname: string, request: NextRequest): Promise<NextResponse | null> {
@@ -149,48 +124,6 @@ function logGate(
 }
 
 // ── Org cookie helpers ────────────────────────────────────────────────────────
-function deriveTierFromSub(sub: {
-  tier: string; status: string
-  trial_tier?: string | null; trial_ends_at?: string | null; trial_converted?: boolean | null
-} | null | undefined): string {
-  if (!sub) return "owner"
-  if (sub.status === "trialing" && sub.trial_ends_at && !sub.trial_converted &&
-      sub.trial_tier && new Date(sub.trial_ends_at) > new Date()) {
-    return sub.trial_tier
-  }
-  return sub.tier ?? "owner"
-}
-
-// True only if pleks_org parses and carries a non-empty role — what the gate needs to
-// authorise an agent-class route. A present-but-role-less cookie returns false so
-// ensureOrgCookies re-hydrates instead of trusting it (prevents the redirect loop).
-function orgCookieHasRole(raw: string): boolean {
-  try {
-    return !!(JSON.parse(raw) as { role?: string }).role
-  } catch {
-    return false
-  }
-}
-
-function extractCachedOrgId(raw: string): string | null {
-  try {
-    return (JSON.parse(raw) as { org_id?: string }).org_id ?? null
-  } catch {
-    return null
-  }
-}
-
-// The user_id the cookie was written for — used to detect a different user on the
-// same browser (agency shared desk) so we never authorise B with A's org cookie.
-function cookieUserId(raw: string | undefined): string | null {
-  if (!raw) return null
-  try {
-    return (JSON.parse(raw) as { user_id?: string }).user_id ?? null
-  } catch {
-    return null
-  }
-}
-
 async function refreshOrgCookieParallel(
   service: Awaited<ReturnType<typeof createServiceClient>>,
   userId: string, orgId: string, request: NextRequest, supabaseResponse: NextResponse
@@ -456,7 +389,7 @@ async function handleSubdomainSplit(
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (WEBHOOK_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next()
+  if (isWebhookPath(pathname)) return NextResponse.next()
 
   const adminApiResponse = await checkAdminApiAuth(pathname, request)
   if (adminApiResponse) return adminApiResponse
