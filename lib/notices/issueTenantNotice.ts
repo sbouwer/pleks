@@ -23,7 +23,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { sendEmail } from "@/lib/comms/send-email"
 import { sendSMS } from "@/lib/sms/sendSMS"
 import { recordNoticeServiceEvent } from "./recordServiceEvent"
-import { computeVacateByDate } from "./vacateDate"
+import { computeVacateByDate, saTodayISO } from "./vacateDate"
 import { renderServiceNotificationSms } from "./serviceNotification"
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import type { CpaAppliesState } from "@/lib/comms/templates/legalCitations"
@@ -237,8 +237,11 @@ export async function issueTenantNotice(params: IssueTenantNoticeParams): Promis
   await assertNoticeApproved(db, templateKey, tmpl?.legal_review_status, (recipient.phones ?? []).some(Boolean))
 
   // ── Render ONCE → body_full; hash + every transmitted copy derive from this string (R-3 byte-identity) ─
-  const vacateByDateISO = computeVacateByDate(now)
-  const todaysDate = fmtDate(now.toISOString().slice(0, 10))
+  // Legal dates are SAST calendar dates (not UTC) — see saTodayISO. The dispatch instant (now) is still used
+  // for service-event timestamps, but the PRINTED effective/today/vacate dates derive from the SA date.
+  const baseIso = saTodayISO(now)
+  const vacateByDateISO = computeVacateByDate(new Date(`${baseIso}T00:00:00.000Z`))
+  const todaysDate = fmtDate(baseIso)
   const element = buildElement(params, fmtDate(vacateByDateISO), todaysDate)
   const bodyFull = await render(element)
   const contentHash = createHash("sha256").update(bodyFull).digest("hex")

@@ -23,6 +23,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { gatherNoticeFacts, evaluateNoticePreconditions, type GatherLease, type PreconditionFinding } from "@/lib/notices/preconditions"
 import { resolveNoticeContext, type ContextLease } from "@/lib/notices/resolveNoticeContext"
+import { saTodayISO } from "@/lib/notices/vacateDate"
 import { issueTenantNotice, type DemandNoticeType, type ManualOverride } from "@/lib/notices/issueTenantNotice"
 
 export interface IssueDemandInput {
@@ -90,14 +91,14 @@ async function applyLeaseEffect(db: Db, orgId: string, lease: ActionLease, type:
 }
 
 /** An existing non-superseded notice of this type on the lease (for converge / duplicate detection). */
-async function findLiveNoticeOfType(db: Db, orgId: string, leaseId: string, type: DemandNoticeType): Promise<{ id: string; cancellation_effective_date: string | null } | null> {
+async function findLiveNoticeOfType(db: Db, orgId: string, leaseId: string, type: DemandNoticeType): Promise<{ id: string; cancellation_effective_date: string | null; vacate_by_date: string | null } | null> {
   const { data, error } = await db.from("tenant_notices")
-    .select("id, notice_type, supersedes, cancellation_effective_date").eq("org_id", orgId).eq("lease_id", leaseId)
+    .select("id, notice_type, supersedes, cancellation_effective_date, vacate_by_date").eq("org_id", orgId).eq("lease_id", leaseId)
   logQueryError("findLiveNoticeOfType", error)
   const rows = data ?? []
   const supersededIds = new Set(rows.map((r) => r.supersedes).filter(Boolean))
   const row = rows.find((r) => r.notice_type === type && !supersededIds.has(r.id))
-  return row ? { id: row.id as string, cancellation_effective_date: (row.cancellation_effective_date as string | null) ?? null } : null
+  return row ? { id: row.id as string, cancellation_effective_date: (row.cancellation_effective_date as string | null) ?? null, vacate_by_date: (row.vacate_by_date as string | null) ?? null } : null
 }
 
 /** Build the issueTenantNotice `lease` sub-object (display dates) for a type. cancellationISO = today (Option A). */
@@ -133,7 +134,7 @@ export async function issueDemandToVacate(input: IssueDemandInput): Promise<Issu
   const gw = await requireAgentWriteAccess("issue_demand_to_vacate")
   const { db, userId, orgId } = gw
   const type = input.noticeType
-  const todayISO = new Date().toISOString().slice(0, 10)
+  const todayISO = saTodayISO()   // SAST calendar date — legal dates must not be UTC (see saTodayISO)
 
   const fetched = await fetchActionLease(db, orgId, input.leaseId)
   if (!fetched) return { ok: false, reason: "not_found" }
@@ -141,11 +142,13 @@ export async function issueDemandToVacate(input: IssueDemandInput): Promise<Issu
 
   // Converge / duplicate — reconcile via the notice-id link BEFORE the guards, so a retry after a failed
   // lease-write neither re-generates (Rule 13) nor self-flags Rule 2 against its own instrument (E-5).
+  // A legal hold arriving between instrument and converge deliberately does NOT stop the converge: the
+  // instrument already exists, so the lease row must be made to match it. The hold gates NEW instruments only.
   const existing = await findLiveNoticeOfType(db, orgId, input.leaseId, type)
   if (existing) {
     if (leaseEffectComplete(lease, type)) return { ok: false, reason: "duplicate", noticeId: existing.id }
     await applyLeaseEffect(db, orgId, lease, type, userId, existing.cancellation_effective_date ?? todayISO, null)
-    return { ok: true, noticeId: existing.id, vacateByDate: "", dispatched: [], needsManualAttestation: false, converged: true }
+    return { ok: true, noticeId: existing.id, vacateByDate: existing.vacate_by_date ?? "", dispatched: [], needsManualAttestation: false, converged: true }
   }
 
   // Real-path hold read — the guard's input is fetched HERE, never trusted from a caller.

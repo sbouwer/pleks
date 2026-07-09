@@ -2,8 +2,20 @@
  * lib/notices/vacateDate.test.ts — R-2 service-date arithmetic
  */
 import { describe, it, expect } from "vitest"
-import { computeVacateByDate, deemedServiceMeetsFloor } from "./vacateDate"
+import { computeVacateByDate, deemedServiceMeetsFloor, saTodayISO } from "./vacateDate"
 import { renderServiceNotificationSms, SERVICE_NOTIFICATION_VERSION } from "./serviceNotification"
+
+describe("saTodayISO (SAST calendar date, never UTC)", () => {
+  it("returns the SA date even when UTC is still the previous day (the late-night skew the notice must not print)", () => {
+    // 2026-07-06T22:30:00Z = 2026-07-07 00:30 SAST → SA date is the 7th
+    expect(saTodayISO(new Date("2026-07-06T22:30:00Z"))).toBe("2026-07-07")
+    // the bug it fixes: raw toISOString would print the 6th — a cancellation date pre-dating its own service
+    expect(new Date("2026-07-06T22:30:00Z").toISOString().slice(0, 10)).toBe("2026-07-06")
+  })
+  it("matches the UTC date outside the 00:00–02:00 SAST skew window", () => {
+    expect(saTodayISO(new Date("2026-07-06T09:00:00Z"))).toBe("2026-07-06")
+  })
+})
 
 describe("computeVacateByDate (R-2 default 14 calendar days)", () => {
   it("adds 14 days, crossing a month boundary", () => {

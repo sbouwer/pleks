@@ -140,11 +140,11 @@ describe("issueDemandToVacate — E-2 wiring", () => {
     expect(issueTenantNotice).not.toHaveBeenCalled()
   })
 
-  it("CONVERGE: a prior incomplete notice re-applies the effect without re-generating", async () => {
-    H.state.priorNotices = [{ id: "nPrior", notice_type: "demand_vacate_breach", supersedes: null, cancellation_effective_date: "2026-07-01" }]
+  it("CONVERGE: a prior incomplete notice re-applies the effect without re-generating, returning its date", async () => {
+    H.state.priorNotices = [{ id: "nPrior", notice_type: "demand_vacate_breach", supersedes: null, cancellation_effective_date: "2026-07-01", vacate_by_date: "2026-07-15" }]
     H.state.lease.status = "active"   // effect NOT complete (not cancelled)
     const r = await issueDemandToVacate({ leaseId: "l1", noticeType: "demand_vacate_breach" })
-    expect(r).toMatchObject({ ok: true, converged: true, noticeId: "nPrior" })
+    expect(r).toMatchObject({ ok: true, converged: true, noticeId: "nPrior", vacateByDate: "2026-07-15" })
     expect(issueTenantNotice).not.toHaveBeenCalled()
     expect(H.state.captured.leaseUpdates.length).toBeGreaterThan(0)
   })
