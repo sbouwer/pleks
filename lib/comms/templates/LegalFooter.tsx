@@ -15,22 +15,26 @@
 
 import * as React from "react"
 import { Text, Hr } from "@react-email/components"
-import { ECTA_FOOTER_TEXT } from "./legalCitations"
+import { ECTA_FOOTER_TEXT, RENTAL_HOUSING_TRIBUNAL_LINE } from "./legalCitations"
 
 export interface LegalFooterProps {
   /** Substantive issuing-basis line, e.g. "This notice is issued in terms of {basis}." Optional. */
   issuedUnder?: React.ReactNode
   /** F3 signing-capacity statement. Pass reviewed wording to render; pending counsel → off by default. */
   capacityStatement?: string
+  /** Render the rename-proof Rental Housing Tribunal signpost (LEG-NOTICES-01 House format). Off by
+   *  default — only Demand-to-Vacate / eviction-adjacent notices carry it. */
+  tribunal?: boolean
 }
 
-export function LegalFooter({ issuedUnder, capacityStatement }: Readonly<LegalFooterProps>) {
+export function LegalFooter({ issuedUnder, capacityStatement, tribunal }: Readonly<LegalFooterProps>) {
   return (
     <>
       <Hr style={divider} />
       {issuedUnder && <Text style={legalNote}>{issuedUnder}</Text>}
       {capacityStatement && <Text style={legalNote}>{capacityStatement}</Text>}
       <Text style={legalNote}>{ECTA_FOOTER_TEXT}</Text>
+      {tribunal && <Text style={legalNote}>{RENTAL_HOUSING_TRIBUNAL_LINE}</Text>}
     </>
   )
 }

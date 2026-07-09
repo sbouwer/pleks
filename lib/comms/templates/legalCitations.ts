@@ -68,6 +68,47 @@ export const DEPOSIT_INTEREST_BASIS =
 export const INSPECTION_BASIS =
   "Section 5(3)(c) of the Rental Housing Act 50 of 1999"
 
+// ── Demand to Vacate — LEG-NOTICES-01 / R7.3 (ADDENDUM_70G) ──────────────────────────────────────
+// ⚠ COUNSEL-PENDING: the exact subsection strings below are R7.3 verbatim copy awaiting counsel Part F
+// sign-off. The three demand_vacate_* document_templates rows are seeded 'draft' (011 §25) and the
+// slice-F gate blocks production generation until counsel flips them 'approved' — so this copy renders
+// in dev/preview only until then. Do NOT hand-edit subsections here; a counsel change lands as one edit.
+
+/** The 3-state CPA-applicability snapshot (leases.cpa_applies_at_signing). ONLY "yes" invokes the CPA
+ *  branch — the R-8 lesson (a raw 'no'/'indeterminate' string is truthy and must never cite the CPA).
+ *  Threading this type (not a boolean) end-to-end keeps the "only yes" rule in this SSOT, so no caller
+ *  can re-introduce the truthy-cast bug. */
+export type CpaAppliesState = "yes" | "no" | "indeterminate" | null | undefined
+const cpaGoverns = (s: CpaAppliesState): boolean => s === "yes"
+
+/** Rename-proof Rental Housing Tribunal signpost (R7.2 — names the responsible department, not a body
+ *  that can be renamed). The ONE Tribunal string; rendered via LegalFooter `tribunal`. */
+export const RENTAL_HOUSING_TRIBUNAL_LINE =
+  "Information regarding the relevant Rental Housing Tribunal is available from the applicable " +
+  "provincial department responsible for human settlements."
+
+/** Notice 1 — Demand to Vacate, breach cancellation. CPA governs → s14(2)(b)(i)(bb) + lease; else the
+ *  lease breach/cancellation provisions + common law. */
+export function demandVacateBreachBasis(cpa: CpaAppliesState): string {
+  return cpaGoverns(cpa)
+    ? "Pursuant to section 14(2)(b)(i)(bb) of the Consumer Protection Act 68 of 2008 and the lease agreement."
+    : "Pursuant to the breach and cancellation provisions of the lease agreement and the common law."
+}
+
+/** Notice 2 — Demand to Vacate, fixed-term expiry. CPA governs → s14(2) + lease + RHA; else lease +
+ *  common law + RHA. */
+export function demandVacateExpiryBasis(cpa: CpaAppliesState): string {
+  return cpaGoverns(cpa)
+    ? "Pursuant to section 14(2) of the Consumer Protection Act 68 of 2008, the fixed-term expiry provisions of the lease agreement and the Rental Housing Act 50 of 1999."
+    : "Pursuant to the fixed-term expiry provisions of the lease agreement, the common law and the Rental Housing Act 50 of 1999."
+}
+
+/** Notice 3 — Demand to Vacate, month-to-month termination. RHA s5(5); NO CPA branch (the deemed
+ *  periodic lease is an RHA construct, not a CPA fixed term). */
+export function demandVacateM2mBasis(): string {
+  return "Pursuant to section 5(5) of the Rental Housing Act 50 of 1999, the lease agreement and the common law."
+}
+
 /** POPIA processing line for external-PII recipients (70F §3). orgName is a token in seed review. */
 export function popiaProcessingLine(orgName: string): string {
   return (
