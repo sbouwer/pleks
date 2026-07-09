@@ -12,7 +12,7 @@ import {
  * after which a re-read yields `racedWinner`.
  */
 function makePolicyDb(opts: {
-  existing?: { id: string; version: string } | null
+  existing?: { id: string; version: string; policy?: Record<string, unknown> } | null
   readError?: boolean
   seedError?: boolean
   racedWinner?: { id: string; version: string } | null
@@ -49,17 +49,17 @@ function makePolicyDb(opts: {
 }
 
 describe("resolveActiveScreeningPolicy", () => {
-  it("returns the org's latest existing policy without seeding", async () => {
-    const { db, inserts } = makePolicyDb({ existing: { id: "p1", version: "v3" } })
+  it("returns the org's latest existing policy without seeding + reads its authored threshold (O-17)", async () => {
+    const { db, inserts } = makePolicyDb({ existing: { id: "p1", version: "v3", policy: { affordability_threshold: 0.28 } } })
     const r = await resolveActiveScreeningPolicy(db, "org-1")
-    expect(r).toEqual({ id: "p1", version: "v3" })
+    expect(r).toEqual({ id: "p1", version: "v3", affordabilityThreshold: 0.28 })
     expect(inserts).toHaveLength(0)              // no seed when one exists
   })
 
   it("seeds a platform-default v0 when the org has no policy, linking to it", async () => {
     const { db, inserts } = makePolicyDb({ existing: null })
     const r = await resolveActiveScreeningPolicy(db, "org-2")
-    expect(r).toEqual({ id: "seeded-id", version: PLATFORM_DEFAULT_SCREENING_POLICY_VERSION })
+    expect(r).toEqual({ id: "seeded-id", version: PLATFORM_DEFAULT_SCREENING_POLICY_VERSION, affordabilityThreshold: 0.3 })
     expect(inserts).toHaveLength(1)
     expect(inserts[0]).toMatchObject({ org_id: "org-2", version: PLATFORM_DEFAULT_SCREENING_POLICY_VERSION })
     // captures the affordability threshold as a snapshot (derived, not hardcoded)
@@ -69,7 +69,7 @@ describe("resolveActiveScreeningPolicy", () => {
   it("is race-safe: a seed unique-violation falls back to the concurrent winner", async () => {
     const { db } = makePolicyDb({ existing: null, seedError: true, racedWinner: { id: "winner", version: PLATFORM_DEFAULT_SCREENING_POLICY_VERSION } })
     const r = await resolveActiveScreeningPolicy(db, "org-3")
-    expect(r).toEqual({ id: "winner", version: PLATFORM_DEFAULT_SCREENING_POLICY_VERSION })
+    expect(r).toEqual({ id: "winner", version: PLATFORM_DEFAULT_SCREENING_POLICY_VERSION, affordabilityThreshold: 0.3 })
   })
 
   it("returns null on an unrecoverable read error (decision proceeds without linkage)", async () => {

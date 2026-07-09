@@ -19,7 +19,7 @@ import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFo
 import { Check, AlertTriangle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { DepositInterestConfig } from "@/components/deposits/DepositInterestConfig"
-import { getCompanyPoolingRule, setCompanyPoolingRule } from "./screeningPolicyActions"
+import { getCompanyPoolingRule, setCompanyPoolingRule, getCompanyAffordabilityThreshold, setCompanyAffordabilityThreshold } from "./screeningPolicyActions"
 import type { PoolingRule } from "@/lib/applications/companyRuling"
 
 const SCOPE_OPTIONS = [
@@ -284,6 +284,49 @@ function PoolingRuleSection({
   )
 }
 
+function AffordabilityThresholdSection({
+  value,
+  onChange,
+  saving,
+  dirty,
+  onSave,
+}: Readonly<{
+  value: number
+  onChange: (v: number) => void
+  saving: boolean
+  dirty: boolean
+  onSave: () => void
+}>) {
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-lg">Affordability threshold</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          The maximum share of a tenant&apos;s gross monthly income that rent may represent for an application to be considered affordable. The platform default is <strong className="text-foreground">30%</strong>. This exact threshold is stamped onto every screening decision, so a Tribunal can see the standard applied on the decision date.
+        </p>
+        <div className="flex items-center gap-2 max-w-[180px]">
+          <Input
+            type="number"
+            min={10}
+            max={50}
+            step={1}
+            value={value}
+            onChange={(e) => onChange(Number.parseInt(e.target.value) || 0)}
+            aria-label="Affordability threshold percent of income"
+          />
+          <span className="text-sm text-muted-foreground whitespace-nowrap">% of income</span>
+        </div>
+        <ActionButton tone="primary" disabled={saving || !dirty} onClick={onSave}>
+          {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
+          Save
+        </ActionButton>
+      </CardContent>
+    </Card>
+  )
+}
+
 function AddAccountForm({
   isPractitioner,
   orgId,
@@ -455,6 +498,9 @@ export function ComplianceSettingsClient() {
   const [poolingRule, setPoolingRule] = useState<PoolingRule>("strongestSingle")
   const [savedPoolingRule, setSavedPoolingRule] = useState<PoolingRule>("strongestSingle")
   const [savingPooling, setSavingPooling] = useState(false)
+  const [affordabilityPct, setAffordabilityPct] = useState(30)
+  const [savedAffordabilityPct, setSavedAffordabilityPct] = useState(30)
+  const [savingAffordability, setSavingAffordability] = useState(false)
 
   useEffect(() => {
     if (!orgId) return
@@ -481,8 +527,9 @@ export function ComplianceSettingsClient() {
         if (error) { console.error("bank_accounts fetch:", error.message); return }
         setAccounts((data ?? []) as BankAccount[])
       })
-    // Pooling rule resolves server-side (latest immutable screening-policy version) — RLS-safe action, not a client query.
+    // Pooling rule + affordability threshold resolve server-side (latest immutable screening-policy version) — RLS-safe actions, not client queries.
     getCompanyPoolingRule().then((rule) => { setPoolingRule(rule); setSavedPoolingRule(rule) })
+    getCompanyAffordabilityThreshold().then((t) => { const pct = Math.round(t * 100); setAffordabilityPct(pct); setSavedAffordabilityPct(pct) })
   }, [orgId])
 
   async function saveScope() {
@@ -525,6 +572,15 @@ export function ComplianceSettingsClient() {
     setSavingPooling(false)
     if (!r.ok) { toast.error(r.error ?? "Failed to save pooling rule"); return }
     setSavedPoolingRule(poolingRule)
+    toast.success("Screening policy saved")
+  }
+
+  async function saveAffordability() {
+    setSavingAffordability(true)
+    const r = await setCompanyAffordabilityThreshold(affordabilityPct / 100)
+    setSavingAffordability(false)
+    if (!r.ok) { toast.error(r.error ?? "Failed to save affordability threshold"); return }
+    setSavedAffordabilityPct(affordabilityPct)
     toast.success("Screening policy saved")
   }
 
@@ -588,6 +644,13 @@ export function ComplianceSettingsClient() {
         saving={savingPooling}
         dirty={poolingRule !== savedPoolingRule}
         onSave={savePooling}
+      />
+      <AffordabilityThresholdSection
+        value={affordabilityPct}
+        onChange={setAffordabilityPct}
+        saving={savingAffordability}
+        dirty={affordabilityPct !== savedAffordabilityPct}
+        onSave={saveAffordability}
       />
     </div>
   )
