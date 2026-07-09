@@ -65,21 +65,26 @@ describe("isDiscretionDecline", () => {
   })
 })
 
-function snapshot(rentToIncomeRatio: number, verifiedCents: number[]): ComponentSnapshot {
+function snapshot(rentToIncomeRatio: number, verifiedCents: number[], debtToIncomeRatio: number | null = null): ComponentSnapshot {
   return {
     engineVersion: "fitscore.v1.0.1",
     applicants: verifiedCents.map((c, i) => ({ id: `a${i}`, verifiedIncomeCents: c })) as ComponentSnapshot["applicants"],
-    lease: { rentToIncomeRatio } as ComponentSnapshot["lease"],
+    lease: { rentToIncomeRatio, debtToIncomeRatio } as ComponentSnapshot["lease"],
   }
 }
 
 describe("extractDecisionRatios", () => {
-  it("reads rent-to-income from the snapshot and threshold from the policy; DTI stays a documented null gap", () => {
+  it("reads rent-to-income + threshold; DTI is null when the snapshot carries no bureau instalment source", () => {
     const r = extractDecisionRatios(snapshot(0.452, [200000, 0]), 0.3)
     expect(r.rent_to_income_ratio_at_decision).toBe(0.452)
     expect(r.affordability_threshold_at_decision).toBe(0.3)
     expect(r.dti_ratio_at_decision).toBeNull()
     expect(r.income_verification_status_at_decision).toBe("partially_verified")  // 1 of 2 verified
+  })
+
+  it("reads the bureau-instalment DTI from the snapshot, null when unknown (O-18)", () => {
+    expect(extractDecisionRatios(snapshot(0.3, [100000], 0.42), 0.3).dti_ratio_at_decision).toBe(0.42)
+    expect(extractDecisionRatios(snapshot(0.3, [100000], null), 0.3).dti_ratio_at_decision).toBeNull()
   })
 
   it("marks income verified when every applicant has verified income, unverifiable when none", () => {
