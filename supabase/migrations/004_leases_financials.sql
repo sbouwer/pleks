@@ -2803,3 +2803,22 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION settle_deposit_charge_pattern_a_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION settle_deposit_charge_pattern_a_atomic(uuid,uuid,uuid,uuid,bigint,text,uuid,uuid) TO service_role;
+
+-- =============================================================================
+-- §  D1: lease-signing lifecycle event types (fix silent-fail + DocuSeal terminal states)
+-- =============================================================================
+-- lease_sent_for_signing was inserted by sendForSigning() but was NEVER in this CHECK, so that lifecycle row
+-- has been silently rejected (the insert isn't error-checked). Add it, plus the two terminal outcomes a lease
+-- can hit while out for signing (DocuSeal submission.declined / .expired, and the app-level signing timeout) —
+-- both return the lease to 'draft' so the agent can edit + re-send instead of it stranding in pending_signing.
+-- Idempotent: drop-then-add the named constraint.
+ALTER TABLE lease_lifecycle_events DROP CONSTRAINT IF EXISTS lease_lifecycle_events_event_type_check;
+ALTER TABLE lease_lifecycle_events ADD CONSTRAINT lease_lifecycle_events_event_type_check CHECK (event_type IN (
+  'lease_created', 'lease_signed', 'cpa_notice_sent',
+  'renewal_offer_sent', 'renewal_accepted', 'renewal_declined',
+  'escalation_processed', 'escalation_amendment_signed',
+  'notice_given_tenant', 'notice_given_landlord',
+  'converted_to_month_to_month', 'deposit_timer_started',
+  'lease_expired', 'lease_renewed', 'lease_cancelled',
+  'lease_sent_for_signing', 'lease_signing_declined', 'lease_signing_expired'
+));
