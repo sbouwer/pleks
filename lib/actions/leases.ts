@@ -536,7 +536,9 @@ export async function sendForSigning(leaseId: string) {
 
   await db.from("leases").update({ status: "pending_signing", sent_for_signing_at: new Date().toISOString() }).eq("id", leaseId).eq("org_id", orgId)
 
-  await db.from("lease_lifecycle_events").insert({
+  // event_type 'lease_sent_for_signing' was previously rejected by the CHECK constraint (silent-fail, D1);
+  // the constraint now allows it. Surface any future regression instead of swallowing it.
+  const { error: lifecycleErr } = await db.from("lease_lifecycle_events").insert({
     org_id: orgId,
     lease_id: leaseId,
     event_type: "lease_sent_for_signing",
@@ -544,6 +546,7 @@ export async function sendForSigning(leaseId: string) {
     triggered_by: "agent",
     triggered_by_user: userId,
   })
+  if (lifecycleErr) console.error("[sendForSigning] lifecycle event insert failed:", lifecycleErr.message)
 
   // L1 — send lease.created comm to tenant
   if (lease.tenant_id) {

@@ -12,7 +12,8 @@
  *         org (no separate active-flag — newest by created_at wins). If the org has no policy row yet, this
  *         seeds a platform-default "v0" capturing the current thresholds and links to that (the spec's
  *         "backfill from a policy v0 default" — prospective-only model, no legacy free-text re-decode).
- *         Policy rows are immutable (mutation trigger); a real per-agency authoring surface is deferred.
+ *         Policy rows are immutable (mutation trigger); per-agency authoring lives at /settings/compliance —
+ *         each save inserts a NEW version (newest wins), so the decision-time snapshot is never mutated (O-17).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { INCOME_AFFORDABILITY_THRESHOLD } from "@/lib/constants"
@@ -23,6 +24,14 @@ import type { PoolingRule } from "@/lib/applications/companyRuling"
 export interface ResolvedScreeningPolicy {
   id: string
   version: string
+  /** The active policy's affordability threshold (rent-to-income ceiling), or the platform default (O-19). */
+  affordabilityThreshold: number
+}
+
+/** Read the affordability threshold from a policy jsonb, falling back to the platform constant when absent/invalid. */
+function readAffordabilityThreshold(policy: unknown): number {
+  const t = (policy as { affordability_threshold?: unknown } | null)?.affordability_threshold
+  return typeof t === "number" && t > 0 && t <= 1 ? t : INCOME_AFFORDABILITY_THRESHOLD
 }
 
 /** Platform-default policy version seeded for an org on first decision when none exists. */
@@ -52,7 +61,7 @@ const PLATFORM_DEFAULT_SCREENING_POLICY = {
 async function readLatestPolicy(db: SupabaseClient, orgId: string): Promise<ResolvedScreeningPolicy | null | "error"> {
   const { data, error } = await db
     .from("screening_policies")
-    .select("id, version")
+    .select("id, version, policy")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -61,7 +70,9 @@ async function readLatestPolicy(db: SupabaseClient, orgId: string): Promise<Reso
     logQueryError("resolveActiveScreeningPolicy read", error)
     return "error"
   }
-  return data ? { id: data.id as string, version: data.version as string } : null
+  return data
+    ? { id: data.id as string, version: data.version as string, affordabilityThreshold: readAffordabilityThreshold(data.policy) }
+    : null
 }
 
 /**
@@ -88,7 +99,7 @@ export async function resolveActiveScreeningPolicy(
       version: PLATFORM_DEFAULT_SCREENING_POLICY_VERSION,
       policy: PLATFORM_DEFAULT_SCREENING_POLICY,
     })
-    .select("id, version")
+    .select("id, version, policy")
     .single()
 
   if (error) {
@@ -98,7 +109,7 @@ export async function resolveActiveScreeningPolicy(
     logQueryError("resolveActiveScreeningPolicy seed", error)
     return null
   }
-  return { id: data.id as string, version: data.version as string }
+  return { id: data.id as string, version: data.version as string, affordabilityThreshold: readAffordabilityThreshold(data.policy) }
 }
 
 /**
