@@ -11,7 +11,7 @@
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import { SovereignBadge } from "@/components/trust/SovereignBadge"
-import { fmtDateZA, saDateISO } from "@/lib/dates"
+import { fmtDateZA, fmtZA, saDateISO } from "@/lib/dates"
 
 interface OrgRow {
   id: string
@@ -114,7 +114,7 @@ export default async function TrustHealthPage() {
     .filter((r): r is { period: PeriodRow; org: OrgRow } => r.org !== undefined)
     .sort((a, b) => Math.abs(b.period.variance_cents) - Math.abs(a.period.variance_cents))
 
-  const priorMonthLabel = new Date(priorStart).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+  const priorMonthLabel = fmtZA(priorStart, { month: "long", year: "numeric" })
 
   return (
     <div className="space-y-8">

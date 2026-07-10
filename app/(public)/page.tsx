@@ -17,6 +17,7 @@ import { PricingSVG }             from "./svgs/PricingSVG"
 import { FounderSection }         from "@/components/marketing/founder/FounderSection"
 import { WorkTabsClient }         from "./WorkTabsClient"
 import { CharterSection }         from "@/components/marketing/charter/CharterSection"
+import { fmtZA } from "@/lib/dates"
 
 export const revalidate = 3600
 
@@ -97,15 +98,15 @@ export default async function HomePage() {
   const now      = new Date()
   const prev     = new Date(now.getFullYear(), now.getMonth() - 1, 1) // 1st of last month
   const lastDay  = new Date(now.getFullYear(), now.getMonth(), 0)     // last day of last month
-  const stmtMonLong  = prev.toLocaleString("en-ZA", { month: "long"  })   // "March"
-  const stmtMonAbbr  = prev.toLocaleString("en-ZA", { month: "short" })   // "Mar"
+  const stmtMonLong  = fmtZA(prev, { month: "long"  })   // "March"
+  const stmtMonAbbr  = fmtZA(prev, { month: "short" })   // "Mar"
   const stmtYear     = prev.getFullYear()
   const stmtMM       = String(prev.getMonth() + 1).padStart(2, "0")        // "03"
   const stmtSlug     = `${stmtYear}-${stmtMM}`                             // "2026-03"
   const lastDayDD    = String(lastDay.getDate()).padStart(2, "0")           // "31"
   const lastDayLabel = `${lastDayDD} ${stmtMonAbbr}`                       // "31 Mar"
-  const todayLabel   = `${String(now.getDate()).padStart(2, "0")} ${now.toLocaleString("en-ZA", { month: "short" })} ${now.getFullYear()}`
-  const auditLabel   = `${now.toLocaleString("en-ZA", { month: "short" })} ${now.getFullYear()}`
+  const todayLabel   = `${String(now.getDate()).padStart(2, "0")} ${fmtZA(now, { month: "short" })} ${now.getFullYear()}`
+  const auditLabel   = `${fmtZA(now, { month: "short" })} ${now.getFullYear()}`
 
   return (
     <>

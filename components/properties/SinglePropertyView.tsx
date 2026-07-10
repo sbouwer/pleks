@@ -17,6 +17,7 @@ import { UpgradeCta } from "@/components/shared/UpgradeCta"
 import { AskingRentCard } from "./AskingRentCard"
 import { VacantSection } from "./VacantSection"
 import { formatZAR, TIER_LIMITS } from "@/lib/constants"
+import { fmtDateZA, fmtZA } from "@/lib/dates"
 
 export interface SinglePropertyData {
   id: string
@@ -148,7 +149,7 @@ function TenantCard({ lease }: Readonly<{
   const initials = [contact.first_name[0], contact.last_name[0]].filter(Boolean).join("").toUpperCase()
   const phone = contact.primary_phone
   const since = lease?.start_date
-    ? new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+    ? fmtDateZA(lease.start_date)
     : null
 
   return (
@@ -196,15 +197,15 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
     )
   }
 
-  const start = new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })
+  const start = fmtZA(lease.start_date, { day: "numeric", month: "short", year: "2-digit" })
   const end = lease.end_date
-    ? new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })
+    ? fmtZA(lease.end_date, { day: "numeric", month: "short", year: "2-digit" })
     : "Month to month"
 
   // Next payment due: approximate as first of next month
   const now = new Date()
   const nextDue = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  const nextDueLabel = nextDue.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  const nextDueLabel = fmtDateZA(nextDue)
 
   return (
     <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
@@ -229,7 +230,7 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
             <span className="text-muted-foreground">Escalation</span>
             <span className="font-medium">
               {lease.escalation_percent}% on{" "}
-              {new Date(lease.escalation_review_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+              {fmtDateZA(lease.escalation_review_date)}
             </span>
           </div>
         )}

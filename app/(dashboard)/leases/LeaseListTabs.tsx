@@ -30,6 +30,7 @@ import { isExpiringSoon, getExpiryUrgency, getExpiryColor } from "@/lib/leases/e
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
 import { isInForceLease } from "@/lib/leases/rentRoll"
 import { formatZAR } from "@/lib/constants"
+import { fmtZA } from "@/lib/dates"
 
 type StatusFilter = "active" | "notice" | "expiring" | "draft" | "all"
 
@@ -111,7 +112,7 @@ function LeaseCard({ lease }: Readonly<{ lease: SerializedLease }>) {
   if (lease.start_date && lease.end_date) {
     const start = new Date(lease.start_date)
     const end = new Date(lease.end_date)
-    const fmt = (d: Date) => d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })
+    const fmt = (d: Date) => fmtZA(d, { day: "numeric", month: "short", year: "2-digit" })
     termLabel = `${fmt(start)} → ${fmt(end)}`
   }
 

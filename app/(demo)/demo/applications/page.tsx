@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { useDemoData, useDemoAction } from "@/lib/demo/DemoContext"
 import { ClipboardList } from "lucide-react"
+import { fmtZA } from "@/lib/dates"
 
 type AppStatus = "new" | "screening" | "approved" | "declined"
 
@@ -38,7 +39,7 @@ function FitScoreBadge({ score }: { score: number | null }) {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  return fmtZA(dateStr, { day: "numeric", month: "short" })
 }
 
 const PIPELINE: AppStatus[] = ["new", "screening", "approved", "declined"]

@@ -20,10 +20,17 @@
  *      production and wrong on every dev machine. If you find one, it is a bug — see lib/dates §3.
  *
  *   3. localeWithoutTimeZone — `toLocaleDateString`/`toLocaleString` with no `timeZone` option renders in
- *      the SERVER's zone: UTC on Vercel, SAST on a dev machine. Same code, two answers. The baselined
- *      remainder is the bare-call form (`toLocaleDateString()` with no option bag), where the fix also
- *      changes the visible LOCALE and so needs a human. Use fmtDateZA / fmtDateLongZA / fmtDateTimeZA /
- *      fmtZA from @/lib/dates.
+ *      the SERVER's zone: UTC on Vercel, SAST on a dev machine. Same code, two answers. Use fmtDateZA /
+ *      fmtDateLongZA / fmtDateTimeZA / fmtZA from @/lib/dates.
+ *
+ *      162 files → 67. Everything that passed an explicit option bag was mechanically converted (the option
+ *      bag is carried through verbatim, so only the timezone changes). What is left is deliberately left,
+ *      in three shapes a machine must not touch:
+ *        · `toLocaleDateString("en-ZA")` with no options — the fix also changes the visible FORMAT
+ *        · `toLocaleDateString("en-ZA", opts)` where `opts` is a variable — unresolvable statically
+ *        · a `new Date()` / `new Date(y, m, d)` receiver — formatting a clock read or a local-time
+ *          construction, both of which are their own bug before the timezone is even considered
+ *      Each of those is a judgement call, so each is baselined rather than guessed at. Baselines only shrink.
  *
  * Baselines only SHRINK. Remove a file as you fix it. A centre without a lint rule is a suggestion.
  */

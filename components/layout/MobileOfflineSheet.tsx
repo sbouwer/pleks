@@ -18,6 +18,7 @@ import { isSyncing, onSyncStatusChange, runBackgroundSync } from "@/lib/offline/
 import { getAllPendingPhotos, listSavedInspectionIds } from "@/lib/offline/inspectionStore"
 import { getAllPendingWrites } from "@/lib/offline/pendingWrites"
 import { cacheReferenceData, getReferenceCounts, type ReferenceCounts } from "@/lib/offline/referenceCache"
+import { fmtZA } from "@/lib/dates"
 
 interface MobileOfflineSheetProps {
   readonly open: boolean
@@ -95,7 +96,7 @@ export function MobileOfflineSheet({ open, onOpenChange }: MobileOfflineSheetPro
   }
 
   const lastSyncedLabel = reference.lastSynced
-    ? new Date(reference.lastSynced).toLocaleString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    ? fmtZA(new Date(reference.lastSynced), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
     : "never"
 
   let connectivitySub: string

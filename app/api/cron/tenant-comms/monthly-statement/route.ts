@@ -17,7 +17,7 @@ import { fetchOrgSettings, buildBranding, type OrgBranding } from "@/lib/comms/s
 import { MonthlyStatementEmail, type StatementInvoiceRow, type StatementPaymentRow } from "@/lib/comms/templates/tenant/rent/monthly-statement"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { addCalendarDays, addCalendarMonths, fmtZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
+import { addCalendarDays, addCalendarMonths, fmtDateZA, fmtZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -26,7 +26,7 @@ function fmt(cents: number) {
 }
 
 function fmtShort(d: string) {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  return fmtZA(d, { day: "numeric", month: "short" })
 }
 
 function getStatementDay(settings: Record<string, unknown> | null): number {
@@ -91,7 +91,7 @@ async function buildPaymentRows(service: ServiceClient, leaseId: string, periodF
     .order("payment_date", { ascending: true })
   if (error) return null
   return (data ?? []).map((r) => ({
-    paymentDate:   new Date(r.payment_date as string).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }),
+    paymentDate:   fmtDateZA(r.payment_date as string),
     amountDisplay: fmt(r.amount_cents as number),
     method:        (r.payment_method as string).toUpperCase(),
     receiptNumber: r.receipt_number as string,

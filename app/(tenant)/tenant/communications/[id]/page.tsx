@@ -18,6 +18,7 @@ import { DetailCard } from "@/components/detail/DetailCard"
 import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateLongZA, fmtZA } from "@/lib/dates"
 
 function isTemplateMandatory(key: string | null): boolean {
   if (!key) return false
@@ -82,7 +83,7 @@ export default async function CommDetailPage({ params }: { params: Promise<{ id:
   const facts: DetailFact[] = [
     { k: "Channel", v: (comm.channel as string) === "sms" ? "SMS" : "Email" },
     { k: "Type", v: templateLabel(comm.template_key as string | null) },
-    { k: "Date", v: new Date(comm.created_at as string).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" }) },
+    { k: "Date", v: fmtDateLongZA(comm.created_at as string) },
   ]
 
   return (
@@ -121,8 +122,8 @@ export default async function CommDetailPage({ params }: { params: Promise<{ id:
                     }
                     <span className="text-foreground">{EVENT_LABELS[ev.event_type as string] ?? ev.event_type}</span>
                     <span className="ml-auto text-muted-foreground">
-                      {new Date(ev.occurred_at as string).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}{" "}
-                      {new Date(ev.occurred_at as string).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                      {fmtZA(ev.occurred_at as string, { hour: "2-digit", minute: "2-digit" })}{" "}
+                      {fmtZA(ev.occurred_at as string, { day: "numeric", month: "short" })}
                     </span>
                   </div>
                 )

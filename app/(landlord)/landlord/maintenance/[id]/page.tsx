@@ -15,6 +15,7 @@ import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { formatZAR } from "@/lib/constants"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateZA, fmtZA } from "@/lib/dates"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -172,19 +173,19 @@ export default async function LandlordMaintenanceDetailPage({ params }: Props) {
           <div className="space-y-2.5">
             <div className="flex items-center gap-3 text-sm">
               <div className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
-              <span className="text-foreground">Logged — {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>
+              <span className="text-foreground">Logged — {fmtDateZA(req.created_at)}</span>
             </div>
             {(updates ?? []).map((u, i) => (
               <div key={i} className="flex items-center gap-3 text-sm text-muted-foreground">
                 <div className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/50" />
                 <span className="capitalize">{u.new_status.replace(/_/g, " ")}{u.notes ? ` — ${u.notes}` : ""}</span>
-                <span className="ml-auto text-xs">{new Date(u.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}</span>
+                <span className="ml-auto text-xs">{fmtZA(u.created_at, { day: "numeric", month: "short" })}</span>
               </div>
             ))}
             {req.completed_at && (
               <div className="flex items-center gap-3 text-sm">
                 <div className="h-2 w-2 shrink-0 rounded-full bg-success" />
-                <span className="text-foreground">Completed — {new Date(req.completed_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>
+                <span className="text-foreground">Completed — {fmtDateZA(req.completed_at)}</span>
               </div>
             )}
           </div>

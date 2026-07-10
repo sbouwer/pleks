@@ -16,6 +16,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { getTemplate } from "@/lib/comms/template-registry"
 import { ChevronLeft } from "lucide-react"
 import { PrintButton } from "./PrintButton"
+import { fmtDateLongZA } from "@/lib/dates"
 
 function templateLabel(key: string | null): string {
   if (!key) return "Communication"
@@ -106,9 +107,7 @@ export default async function DataExportPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs font-medium">
-                      {new Date(comm.created_at as string).toLocaleDateString("en-ZA", {
-                        day: "numeric", month: "long", year: "numeric",
-                      })}
+                      {fmtDateLongZA(comm.created_at as string)}
                     </p>
                     <p className="text-xs text-muted-foreground capitalize">
                       {comm.channel as string} · {comm.status as string}

@@ -7,6 +7,7 @@
 
 import React from "react"
 import { formatZAR } from "@/lib/constants"
+import { fmtZA } from "@/lib/dates"
 
 interface Props {
   status: string
@@ -44,7 +45,7 @@ function age(from: string): string {
 
 function buildTimeRange(scheduledDate: string | null, from: string | null, to: string | null): string | null {
   if (!scheduledDate) return null
-  const label = new Date(scheduledDate).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" })
+  const label = fmtZA(scheduledDate, { weekday: "short", day: "numeric", month: "short" })
   if (!from) return label
   const toSuffix = to ? `–${to}` : ""
   return `${label} · ${from}${toSuffix}`

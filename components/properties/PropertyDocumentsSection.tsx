@@ -13,6 +13,7 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
+import { fmtDateZA } from "@/lib/dates"
 
 const DOCUMENT_TYPES = [
   { value: "title_deed", label: "Title deed" },
@@ -199,7 +200,7 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
               </div>
               {doc.expiry_date && (
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Expires {new Date(doc.expiry_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                  Expires {fmtDateZA(doc.expiry_date)}
                 </p>
               )}
             </div>

@@ -12,6 +12,7 @@ import { queryAuditLog, getDistinctTableNames, PAGE_SIZE } from "@/lib/admin/aud
 import { classifyAuditSeverity, SEVERITY_COLORS } from "@/lib/admin/audit-severity"
 import { AuditFiltersBar } from "./AuditFiltersBar"
 import Link from "next/link"
+import { fmtZA } from "@/lib/dates"
 
 interface SearchParams {
   start?: string
@@ -72,7 +73,7 @@ function toArray(v: string | string[] | undefined): string[] {
 
 function formatDatetime(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleString("en-ZA", { dateStyle: "short", timeStyle: "short" })
+  return fmtZA(d, { dateStyle: "short", timeStyle: "short" })
 }
 
 export default async function AdminAuditPage({ searchParams }: Readonly<{ searchParams: Promise<SearchParams> }>) {

@@ -19,7 +19,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { LeaseAmendedEmail } from "@/lib/comms/templates/tenant/leases/lease-amended"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { saTodayISO } from "@/lib/dates"
+import { fmtDateLongZA, saTodayISO } from "@/lib/dates"
 
 type ChargeComm = { description: string; amountCents: number; dateStr: string; changeType: "added" | "removed" }
 
@@ -51,7 +51,7 @@ async function fireLeaseAmendedComm(
   const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
   const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
   const chargeAmountDisplay = "R " + (charge.amountCents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
-  const effectiveDateDisplay = new Date(charge.dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  const effectiveDateDisplay = fmtDateLongZA(charge.dateStr)
   const action = charge.changeType === "removed" ? "charge removed" : "new charge added"
 
   await routeAndSend({

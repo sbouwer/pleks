@@ -13,6 +13,7 @@ import { Shield, Check, ArrowRight } from "lucide-react"
 import { formatZAR, formatZARAbbrev } from "@/lib/constants"
 import type { FinanceHubData, TenantBalance, OwnerBalance, UnmatchedLine } from "@/lib/finance/financeHub"
 import type { CollectionRateData } from "@/lib/dashboard/collectionRate"
+import { fmtZA } from "@/lib/dates"
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -246,7 +247,7 @@ function UnmatchedCard({ rows }: Readonly<{ rows: UnmatchedLine[] }>) {
             <span className="size-1.5 shrink-0 rounded-full bg-primary" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-foreground">{formatZAR(r.amount_cents)} · {r.import_source}</p>
-              <p className="truncate text-xs text-muted-foreground">{new Date(r.transaction_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })} · {r.description_clean}</p>
+              <p className="truncate text-xs text-muted-foreground">{fmtZA(r.transaction_date, { day: "numeric", month: "short" })} · {r.description_clean}</p>
             </div>
             <span className="font-mono text-[10.5px] text-muted-foreground">{r.age_days}d</span>
             <Link href="/billing/reconciliation" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">Match<ArrowRight className="size-3" /></Link>

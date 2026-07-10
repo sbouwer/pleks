@@ -21,7 +21,7 @@ import {
 } from "@/lib/comms/templates/tenant/deposits/deposit-pre-moveout"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { addCalendarDays, saTodayISO } from "@/lib/dates"
+import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 
 const DAYS_BEFORE = 15
 
@@ -79,9 +79,7 @@ export async function GET(req: NextRequest) {
       const orgSettings = await fetchOrgSettings(lease.org_id as string)
       const branding = buildBranding(orgSettings)
       const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-      const leaseEndDisplay = new Date(lease.end_date as string).toLocaleDateString("en-ZA", {
-        day: "numeric", month: "long", year: "numeric",
-      })
+      const leaseEndDisplay = fmtDateLongZA(lease.end_date as string)
       const senderName = orgSettings?.name ?? branding.orgName
 
       const firstName = (tenant.first_name as string | null) ?? "Tenant"

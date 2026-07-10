@@ -10,6 +10,7 @@ import { ReportShell, MetricCard } from "./ReportShell"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import type { RentRollData, ReportPeriodType } from "@/lib/reports/types"
+import { fmtZA } from "@/lib/dates"
 
 interface Props {
   orgId: string
@@ -62,9 +63,9 @@ export function RentRollTab({ orgId, filters }: Props) {
                     if (!r.lease_start) {
                       leasePeriod = "—"
                     } else {
-                      const startStr = new Date(r.lease_start).toLocaleDateString("en-ZA", { month: "short", year: "2-digit" })
+                      const startStr = fmtZA(r.lease_start, { month: "short", year: "2-digit" })
                       const endStr = r.lease_end
-                        ? `–${new Date(r.lease_end).toLocaleDateString("en-ZA", { month: "short", year: "2-digit" })}`
+                        ? `–${fmtZA(r.lease_end, { month: "short", year: "2-digit" })}`
                         : " (M2M)"
                       leasePeriod = `${startStr}${endStr}`
                     }

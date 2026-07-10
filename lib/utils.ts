@@ -3,6 +3,7 @@
  */
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { fmtZA } from "@/lib/dates"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -19,5 +20,5 @@ export function relativeTime(date: Date): string {
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays === 1) return "Yesterday"
   if (diffDays < 7) return `${diffDays} days ago`
-  return date.toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  return fmtZA(date, { day: "numeric", month: "short" })
 }

@@ -20,6 +20,7 @@ import { closeTrustPeriod, type OutstandingItem } from "@/lib/trust/close"
 import { AlertTriangle, CheckCircle2, Plus, X } from "lucide-react"
 import { SovereignBadge, type SovereignBadgeProps } from "@/components/trust/SovereignBadge"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 const ITEM_TYPES: { value: OutstandingItem["item_type"]; label: string }[] = [
   { value: "deposit_in_transit", label: "Deposit in transit" },
@@ -34,7 +35,7 @@ function centsFromZAR(value: string): number {
 }
 
 function formatPeriod(start: string) {
-  return new Date(start).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+  return fmtZA(start, { month: "long", year: "numeric" })
 }
 
 function maskAccount(num: string | null | undefined) {

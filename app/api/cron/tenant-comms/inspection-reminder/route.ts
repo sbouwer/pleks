@@ -20,7 +20,7 @@ import {
 } from "@/lib/comms/templates/tenant/inspections/inspection-reminder"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { addCalendarDays, saTodayISO } from "@/lib/dates"
+import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 
 const INSPECTION_TYPE_LABELS: Record<string, string> = {
   move_in:     "Move-in Inspection",
@@ -88,9 +88,7 @@ export async function GET(req: NextRequest) {
       const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
       const senderName = orgSettings?.name ?? branding.orgName
       const inspectionTypeLabel = INSPECTION_TYPE_LABELS[inspection.inspection_type as string] ?? "Inspection"
-      const scheduledDateDisplay = new Date(inspection.scheduled_date as string).toLocaleDateString("en-ZA", {
-        day: "numeric", month: "long", year: "numeric",
-      })
+      const scheduledDateDisplay = fmtDateLongZA(inspection.scheduled_date as string)
 
       const firstName = (tenant.first_name as string | null) ?? "Tenant"
 

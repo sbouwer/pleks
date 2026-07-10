@@ -7,6 +7,7 @@
  */
 import { InlineLink } from "@/components/ui/actions"
 import { Calendar, Wrench, Building2 } from "lucide-react"
+import { fmtZA } from "@/lib/dates"
 
 const AUDIT_DOT: Record<string, string> = {
   lease_created: "#7F77DD", lease_signed: "#7F77DD", lease_renewed: "#7F77DD",
@@ -77,7 +78,7 @@ interface OperationsTabProps {
 }
 
 function fmt(d: string) {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })
+  return fmtZA(d, { day: "2-digit", month: "short", year: "numeric" })
 }
 
 function urgencyLabel(urgency: string | null): string {
@@ -262,7 +263,7 @@ export function OperationsTab({
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold">{eventLabel(e.event_type, e.description)}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(e.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}
+                        {fmtZA(e.created_at, { day: "2-digit", month: "short", year: "numeric" })}
                       </p>
                     </div>
                   </div>

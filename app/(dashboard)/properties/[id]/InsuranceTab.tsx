@@ -13,6 +13,7 @@ import { ShieldCheck, User, Building2, AlertTriangle, Pencil } from "lucide-reac
 import { cn } from "@/lib/utils"
 import { InsuranceChecklist, type ChecklistItemRow } from "./InsuranceChecklist"
 import { RenewalBanner } from "./RenewalBanner"
+import { fmtDateLongZA, fmtDateZA } from "@/lib/dates"
 
 export interface InsurancePolicy {
   insurance_policy_number:          string | null
@@ -140,9 +141,7 @@ export function InsuranceTab({
   )
 
   const renewalDate = policy.insurance_renewal_date
-    ? new Date(policy.insurance_renewal_date).toLocaleDateString("en-ZA", {
-        day: "numeric", month: "long", year: "numeric",
-      })
+    ? fmtDateLongZA(policy.insurance_renewal_date)
     : null
 
   const daysUntilRenewal = computeDaysUntilRenewal(policy.insurance_renewal_date)
@@ -273,7 +272,7 @@ export function InsuranceTab({
                   </td>
                   <td className="py-1.5 text-right text-muted-foreground">
                     {b.last_valuation_date
-                      ? new Date(b.last_valuation_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+                      ? fmtDateZA(b.last_valuation_date)
                       : "—"}
                   </td>
                 </tr>

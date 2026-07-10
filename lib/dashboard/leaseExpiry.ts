@@ -6,6 +6,7 @@
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateZA } from "@/lib/dates"
 
 export interface ExpiringLease {
   id: string
@@ -70,7 +71,7 @@ export async function getExpiringLeases(orgId: string): Promise<ExpiringLease[]>
     else { color = "#378ADD" }
 
     const fmt = (d: Date) =>
-      d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+      fmtDateZA(d)
 
     const cpaDue =
       l.cpa_applies === true &&

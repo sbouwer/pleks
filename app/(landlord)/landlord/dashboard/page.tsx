@@ -14,7 +14,7 @@ import { DetailCard } from "@/components/detail/DetailCard"
 import { formatZAR } from "@/lib/constants"
 import { AlertTriangle, ChevronRight, CheckCircle2, Clock } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { addCalendarDays, saDateISO } from "@/lib/dates"
+import { addCalendarDays, fmtDateZA, saDateISO } from "@/lib/dates"
 
 export default async function LandlordDashboardPage() {
   const session = await getLandlordSession()
@@ -145,7 +145,7 @@ export default async function LandlordDashboardPage() {
                       {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
                       {tenant ? ` — ${tenant.first_name} ${tenant.last_name[0]}.` : ""}
                     </p>
-                    <p className="text-xs text-muted-foreground">Expires: {l.end_date ? new Date(l.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "—"}</p>
+                    <p className="text-xs text-muted-foreground">Expires: {l.end_date ? fmtDateZA(l.end_date) : "—"}</p>
                   </div>
                 </div>
               )

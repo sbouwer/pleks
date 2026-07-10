@@ -16,7 +16,7 @@ import {
   TrendingUp, Wallet, ShieldCheck, ArrowRight,
 } from "lucide-react"
 import Link from "next/link"
-import { saDateISO } from "@/lib/dates"
+import { fmtZA, saDateISO } from "@/lib/dates"
 
 function greeting(): string {
   const h = new Date().getHours()
@@ -26,7 +26,7 @@ function greeting(): string {
 }
 
 function formatShortDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  return fmtZA(dateStr, { day: "numeric", month: "short" })
 }
 
 function daysLeft(dateStr: string): number {

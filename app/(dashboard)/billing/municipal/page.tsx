@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared/EmptyState"
 import { FileText } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 const EXTRACTION_MAP: Record<string, "pending" | "active" | "completed" | "arrears"> = {
   pending: "pending",
@@ -56,7 +57,7 @@ export default async function MunicipalBillsPage() {
                     <div>
                       <p className="font-medium">{property?.name || "—"} — {account?.municipality_name || "Municipality"}</p>
                       <p className="text-sm text-muted-foreground">
-                        {bill.billing_month ? new Date(bill.billing_month).toLocaleDateString("en-ZA", { month: "long", year: "numeric" }) : bill.original_filename}
+                        {bill.billing_month ? fmtZA(bill.billing_month, { month: "long", year: "numeric" }) : bill.original_filename}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">

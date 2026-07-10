@@ -10,7 +10,7 @@ import { formatOfficeHours, formatEmergencyLine } from "@/lib/org/operatingHours
 import { letterhead } from "./generatePDF"
 import type { WelcomePackData, WelcomePackUnit } from "./types"
 import type { Recommendation } from "./welcomePackRecommendations"
-import { fmtDateZA } from "@/lib/dates"
+import { fmtDateZA, fmtZA } from "@/lib/dates"
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -248,7 +248,7 @@ function buildProjection(data: WelcomePackData): MonthProjection[] {
 
   for (let i = 0; i < 12; i++) {
     const monthDate = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    const monthLabel = monthDate.toLocaleDateString("en-ZA", { month: "short", year: "numeric" })
+    const monthLabel = fmtZA(monthDate, { month: "short", year: "numeric" })
     const notes: string[] = []
 
     // Apply escalations that fall in this month

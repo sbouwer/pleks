@@ -25,7 +25,7 @@ import { DocumentsTab, type CommLogRow, type LeaseDocRow } from "./DocumentsTab"
 import { OperationsTab } from "./OperationsTab"
 import { resolveDepositInterestConfig, getPrimeRateOn, describeRate } from "@/lib/deposits/interestConfig"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { saDateISO } from "@/lib/dates"
+import { fmtZA, saDateISO } from "@/lib/dates"
 
 const VALID_TABS = ["overview", "details", "contacts", "operations", "finance", "communications"] as const
 type Tab = (typeof VALID_TABS)[number]
@@ -50,7 +50,7 @@ function buildComplianceItems(
   today: Date,
   nextInspectionDate: string | null,
 ): ComplianceItem[] {
-  const fmt = (d: Date) => d.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })
+  const fmt = (d: Date) => fmtZA(d, { day: "2-digit", month: "short", year: "numeric" })
   const items: ComplianceItem[] = []
 
   if (lease.escalation_review_date) {

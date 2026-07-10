@@ -6,6 +6,7 @@
  *         all four product types via a discriminated union on productType. Helvetica throughout.
  */
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer"
+import { fmtZA } from "@/lib/dates"
 import type {
   DeedsSearchFacts,
   LightstoneErfShortFacts,
@@ -97,7 +98,7 @@ const formatCents = (cents: number | null): string =>
 
 const formatDate = (d: string | null): string => {
   if (!d) return "—"
-  try { return new Date(d).toLocaleDateString("en-ZA", { day: "2-digit", month: "long", year: "numeric" }) }
+  try { return fmtZA(d, { day: "2-digit", month: "long", year: "numeric" }) }
   catch { return d }
 }
 

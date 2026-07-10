@@ -28,6 +28,7 @@ import { formatZAR } from "@/lib/constants"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { DepositReturnedEmail } from "@/lib/comms/templates/tenant/deposits/deposit-returned"
+import { fmtDateLongZA } from "@/lib/dates"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -302,7 +303,7 @@ export async function disburseDeposit(leaseId: string) {
       const orgSettings = await fetchOrgSettings(recon.org_id as string)
       const branding    = buildBranding(orgSettings)
       const refundDisplay  = formatZAR(recon.refund_to_tenant_cents as number)
-      const disbursedDate  = now.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+      const disbursedDate  = fmtDateLongZA(now)
 
       await routeAndSend({
         orgId:          recon.org_id as string,

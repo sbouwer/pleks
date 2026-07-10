@@ -17,6 +17,7 @@
  *         are retained for that tab to call).
  */
 import { InlineLink } from "@/components/ui/actions"
+import { fmtZA } from "@/lib/dates"
 
 export interface SurrenderedCommRow {
   id: string
@@ -79,7 +80,7 @@ export function SurrenderedCommsWidget({ items }: Readonly<{ items: SurrenderedC
             <p className="truncate text-[11px] text-muted-foreground">
               {g.recipient}
               {g.ids.length > 1 && <> · failed {g.ids.length}×</>}
-              {" · "}latest {new Date(g.latest).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+              {" · "}latest {fmtZA(g.latest, { day: "numeric", month: "short" })}
             </p>
           </div>
           {g.leaseId && (

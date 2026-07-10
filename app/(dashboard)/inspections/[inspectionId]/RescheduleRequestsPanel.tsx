@@ -16,6 +16,7 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { toast } from "sonner"
 import { Loader2, CalendarX } from "lucide-react"
 import { respondToRescheduleRequest } from "./actions"
+import { fmtZA } from "@/lib/dates"
 
 export interface RescheduleRequest {
   id: string
@@ -89,7 +90,7 @@ function RequestCard({ req, inspectionId }: Readonly<{ req: RescheduleRequest; i
           <p className="text-sm font-medium">{req.reason}</p>
           {req.note && <p className="text-xs text-muted-foreground mt-0.5">{req.note}</p>}
           <p className="text-xs text-muted-foreground mt-1">
-            Submitted {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+            Submitted {fmtZA(req.created_at, { day: "numeric", month: "short" })}
           </p>
         </div>
         <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${STATUS_COLOR[currentStatus] ?? "text-muted-foreground"}`}>
@@ -103,7 +104,7 @@ function RequestCard({ req, inspectionId }: Readonly<{ req: RescheduleRequest; i
           <div className="flex flex-wrap gap-1.5">
             {req.proposed_dates.map((d) => (
               <span key={d} className="text-xs bg-surface-elevated border border-border/60 px-2 py-0.5 rounded">
-                {new Date(d).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" })}
+                {fmtZA(d, { weekday: "short", day: "numeric", month: "short" })}
               </span>
             ))}
           </div>

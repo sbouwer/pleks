@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { Check, AlertTriangle, Loader2, RefreshCw, Plug, Unplug } from "lucide-react"
 import { toast } from "sonner"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 interface BankFeedConnection {
   id: string
@@ -176,7 +177,7 @@ export function BankFeedSection({ tier }: Readonly<BankFeedSectionProps>) {
   function formatLastSync(conn: BankFeedConnection): string {
     if (!conn.last_synced_at) return "Never synced"
     const date = new Date(conn.last_synced_at)
-    return `Last synced ${date.toLocaleDateString("en-ZA", { day: "numeric", month: "short" })} ${date.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}`
+    return `Last synced ${fmtZA(date, { day: "numeric", month: "short" })} ${fmtZA(date, { hour: "2-digit", minute: "2-digit" })}`
   }
 
   if (!isEligible) {

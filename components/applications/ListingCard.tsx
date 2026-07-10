@@ -13,6 +13,7 @@ import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Copy, Check, ExternalLink, Pause, Play, CheckSquare } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
+import { fmtDateZA } from "@/lib/dates"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
@@ -84,7 +85,7 @@ export function ListingCard({ listing, unitLabel, propertyName }: Props) {
         {/* Rent + date */}
         <p className="text-sm text-muted-foreground">
           {formatZAR(listing.asking_rent_cents)}/mo
-          {listing.available_from && ` · Available ${new Date(listing.available_from).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`}
+          {listing.available_from && ` · Available ${fmtDateZA(listing.available_from)}`}
           {" "}· Published {daysSincePublished === 0 ? "today" : `${daysSincePublished}d ago`}
         </p>
 

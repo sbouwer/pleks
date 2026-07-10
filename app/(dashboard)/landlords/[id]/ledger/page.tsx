@@ -11,6 +11,7 @@ import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { getOwnerLedger, type OwnerLedgerEntry } from "@/lib/finance/ownerLedger"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateZA } from "@/lib/dates"
 
 function BalancePill({ cents }: Readonly<{ cents: number }>) {
   return (
@@ -128,7 +129,7 @@ export default async function OwnerLedgerPage({
                 {entriesWithBalance.map((e) => (
                   <tr key={e.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
-                      {new Date(e.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                      {fmtDateZA(e.date)}
                     </td>
                     <td className="px-4 py-2.5 whitespace-nowrap">
                       <span className="text-[11px] px-2 py-0.5 rounded bg-muted font-medium">{e.type}</span>

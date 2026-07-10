@@ -20,6 +20,7 @@ import { ApplyPortalShell, ApplyAgentCard, Eyebrow } from "../../applyPortalChro
 import { StepPanel, type ResumeState } from "../../[slug]/applyOrchestrator"
 import { buildCoResumeState } from "./buildCoResume"
 import { getServerUser } from "@/lib/auth/server"
+import { fmtDateZA } from "@/lib/dates"
 
 type CoListing = {
   public_slug: string | null; asking_rent_cents: number | null; available_from: string | null
@@ -74,7 +75,7 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
   }
   const orgLogoUrl = org?.brand_logo_path ? service.storage.from("org-assets").getPublicUrl(org.brand_logo_path).data.publicUrl : null
   const stripTitle = [property?.name, unit?.unit_number ? `Unit ${unit.unit_number}` : null, property?.suburb ?? property?.city].filter(Boolean).join(" · ") || unitLabel
-  const availStr = listing?.available_from ? new Date(listing.available_from).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "Now"
+  const availStr = listing?.available_from ? fmtDateZA(listing.available_from) : "Now"
   const rentStr = listing?.asking_rent_cents != null ? formatZAR(listing.asking_rent_cents) : null
 
   // Source the co as a full peer via the adapter (decrypts id/dob/spouse + folds section_data); map → ResumeState.

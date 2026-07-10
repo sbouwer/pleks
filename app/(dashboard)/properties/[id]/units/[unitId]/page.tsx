@@ -25,6 +25,7 @@ import { updateUnit } from "@/lib/actions/units"
 import type { FurnishingItem } from "@/lib/units/furnishingTemplates"
 import { getUnitDescription } from "@/lib/units/typeAwareFields"
 import { WarrantiesCard } from "@/components/properties/WarrantiesCard"
+import { fmtZA } from "@/lib/dates"
 
 export default async function UnitDetailPage({
   params,
@@ -169,7 +170,7 @@ export default async function UnitDetailPage({
         null)
     : null
   const leaseEndDate = lease?.end_date
-    ? new Date(lease.end_date).toLocaleDateString("en-ZA", { month: "short", year: "numeric" })
+    ? fmtZA(lease.end_date, { month: "short", year: "numeric" })
     : null
 
   const unitDescription = getUnitDescription(unit, "residential")

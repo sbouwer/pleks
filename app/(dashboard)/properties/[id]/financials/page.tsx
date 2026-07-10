@@ -12,6 +12,7 @@ import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { getPropertyPnL } from "@/lib/finance/propertyPnL"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 const PERIOD_PRESETS = [
   { label: "This month", value: "this_month" },
@@ -23,7 +24,7 @@ const PERIOD_PRESETS = [
 function getLastMonth(now: Date) {
   const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const to = new Date(now.getFullYear(), now.getMonth(), 0)
-  return { from, to, label: from.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }) }
+  return { from, to, label: fmtZA(from, { month: "long", year: "numeric" }) }
 }
 
 function getThisQuarter(now: Date) {
@@ -48,7 +49,7 @@ function getPeriod(preset?: string): { from: Date; to: Date; label: string } {
   if (preset === "tax_year") return getTaxYear(now)
   const from = new Date(now.getFullYear(), now.getMonth(), 1)
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  return { from, to, label: from.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }) }
+  return { from, to, label: fmtZA(from, { month: "long", year: "numeric" }) }
 }
 
 export default async function PropertyFinancialsPage({

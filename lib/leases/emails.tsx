@@ -7,6 +7,7 @@ import { EmailLayout, EmailSectionHeading, EmailDetail } from "@/lib/comms/templ
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { LegalFooter } from "@/lib/comms/templates/LegalFooter"
 import { sendEmail } from "@/lib/comms/send-email"
+import { fmtDateLongZA } from "@/lib/dates"
 
 const S = {
   body: { fontSize: 14, color: "#3f3f46", lineHeight: "1.6", margin: "0 0 8px" },
@@ -26,9 +27,7 @@ export async function sendLeaseRenewalNotice(
   lease: { id: string; endDate: string; propertyName: string; unitLabel: string },
   org: OrgContact
 ) {
-  const endDate = new Date(lease.endDate).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
-  })
+  const endDate = fmtDateLongZA(lease.endDate)
 
   return sendEmail({
     orgId: org.orgId,

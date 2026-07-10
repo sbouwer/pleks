@@ -164,7 +164,7 @@ async function stepSendDepositReceived(
     const branding = buildBranding(orgSettings)
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
     const depositDisplay = "R " + (lease.deposit_amount_cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
-    const leaseStartDisplay = new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    const leaseStartDisplay = fmtDateLongZA(lease.start_date)
 
     await routeAndSend({
       orgId,

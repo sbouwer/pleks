@@ -573,7 +573,7 @@ export async function sendForSigning(leaseId: string) {
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
         const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
         const rentDisplay = "R " + ((lease.rent_amount_cents as number) / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
-        const leaseStartDisplay = new Date(lease.start_date as string).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+        const leaseStartDisplay = fmtDateLongZA(lease.start_date as string)
         await routeAndSend({
           orgId,
           tenantId: lease.tenant_id as string,

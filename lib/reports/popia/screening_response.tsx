@@ -8,6 +8,7 @@
  */
 
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer"
+import { fmtZA } from "@/lib/dates"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ const ID_VERIFY_LABELS: Record<string, string> = {
 
 function fmtDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+    return fmtZA(iso, { day: 'numeric', month: 'long', year: 'numeric' })
   } catch {
     return iso
   }

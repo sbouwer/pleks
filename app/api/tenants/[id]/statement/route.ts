@@ -9,6 +9,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { buildTenantStatementHTML } from "@/lib/pdf/tenantStatement"
 import { redirect } from "next/navigation"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateZA } from "@/lib/dates"
 
 export async function GET(
   req: NextRequest,
@@ -107,7 +108,7 @@ export async function GET(
         return true
       })
       .map((i) => ({
-        date: new Date(i.due_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }),
+        date: fmtDateZA(i.due_date),
         description: "Rent invoice" + (i.period_from ? ` · ${i.period_from} to ${i.period_to ?? ""}` : ""),
         debitCents: i.total_amount_cents,
         creditCents: 0,
@@ -120,7 +121,7 @@ export async function GET(
         return true
       })
       .map((p) => ({
-        date: new Date(p.payment_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }),
+        date: fmtDateZA(p.payment_date),
         description: "Payment received · " + p.payment_method.replaceAll("_", " "),
         debitCents: 0,
         creditCents: p.amount_cents,

@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Copy, Check, ExternalLink } from "lucide-react"
+import { fmtDateLongZA } from "@/lib/dates"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
@@ -122,7 +123,7 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
 
   const listingUrl = publishedSlug ? `${APP_URL}/apply/${publishedSlug}` : ""
   const cityPart = property.city ? `, ${property.city}` : ""
-  const availablePart = form.available_from ? ` · Available ${new Date(form.available_from).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}` : ""
+  const availablePart = form.available_from ? ` · Available ${fmtDateLongZA(form.available_from)}` : ""
   const whatsappText = publishedSlug
     ? encodeURIComponent(`Available to rent: ${unit.unit_number} at ${property.name}${cityPart}\n${formatRent(form.asking_rent)}/month${availablePart}\nApply here: ${listingUrl}`)
     : ""

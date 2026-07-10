@@ -13,6 +13,7 @@ import { formatZAR } from "@/lib/constants"
 import { ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PropertyVerificationCard, type LatestPull } from "./PropertyVerificationCard"
+import { fmtDateZA, fmtZA } from "@/lib/dates"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -198,9 +199,7 @@ export function OverviewTab({
   )
 
   const insuranceRenewalDate = property.insurance_renewal_date
-    ? new Date(property.insurance_renewal_date).toLocaleDateString("en-ZA", {
-        day: "numeric", month: "short", year: "numeric",
-      })
+    ? fmtDateZA(property.insurance_renewal_date)
     : null
   const insurancePeekLabel = insuranceRenewalDate
     ? `${property.insurance_provider} · renews ${insuranceRenewalDate}`
@@ -357,7 +356,7 @@ export function OverviewTab({
                     {item.sub && <p className="text-xs text-muted-foreground">{item.sub}</p>}
                   </div>
                   <span className="text-xs text-muted-foreground shrink-0 mt-0.5">
-                    {new Date(item.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                    {fmtZA(item.date, { day: "numeric", month: "short" })}
                   </span>
                 </div>
               ))}

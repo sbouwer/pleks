@@ -20,6 +20,7 @@ import {
   sendCancelledConfirm,
 } from "@/lib/subscriptions/emails"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { fmtDateLongZA } from "@/lib/dates"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 
@@ -323,7 +324,7 @@ async function confirmCancellationInner(
 
   const contact = await fetchOrgContact(service, orgId)
   if (contact) {
-    const cancelledDate = now.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    const cancelledDate = fmtDateLongZA(now)
     void sendCancelledConfirm(contact, {
       cancelledDate,
       exportUrl: `${APP_URL}/reports`,

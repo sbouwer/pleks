@@ -16,6 +16,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { MapPin, Clock, CheckCircle2, RefreshCw } from "lucide-react"
 import { getRecentCompletedCheck } from "@/lib/screening/checkRecentReport"
+import { fmtDateLongZA } from "@/lib/dates"
 
 export default async function InvitePage({
   params,
@@ -121,11 +122,7 @@ export default async function InvitePage({
             <Clock className="size-4" />
             <span>
               Expires in {daysRemaining} day{daysRemaining !== 1 ? "s" : ""} —{" "}
-              {expiresAt.toLocaleDateString("en-ZA", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
+              {fmtDateLongZA(expiresAt)}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -145,7 +142,7 @@ export default async function InvitePage({
             </div>
             <p className="text-sm">
               You had a credit check done on{" "}
-              {new Date(recentCheck.checked_at).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
+              {fmtDateLongZA(recentCheck.checked_at)}
               {recentCheck.property_address && <> for <strong>{recentCheck.property_address}</strong></>}.
             </p>
             <p className="text-xs text-muted-foreground">

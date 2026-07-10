@@ -7,6 +7,7 @@ import { NextRequest } from "next/server"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildTenantStatementHTML } from "@/lib/pdf/tenantStatement"
+import { fmtDateZA } from "@/lib/dates"
 
 export async function GET(req: NextRequest) {
   const session = await getTenantSession()
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
     ...invoices
       .filter((i) => (!fromDate || i.due_date >= fromDate) && (!toDate || i.due_date <= toDate))
       .map((i) => ({
-        date: new Date(i.due_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }),
+        date: fmtDateZA(i.due_date),
         description: "Rent invoice" + (i.period_from ? ` · ${i.period_from} to ${i.period_to ?? ""}` : ""),
         debitCents: i.total_amount_cents,
         creditCents: 0,
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
     ...payments
       .filter((p) => (!fromDate || p.payment_date >= fromDate) && (!toDate || p.payment_date <= toDate))
       .map((p) => ({
-        date: new Date(p.payment_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }),
+        date: fmtDateZA(p.payment_date),
         description: "Payment received · " + p.payment_method.replaceAll("_", " "),
         debitCents: 0,
         creditCents: p.amount_cents,

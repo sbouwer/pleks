@@ -20,7 +20,7 @@ import { LeaseSignReminderEmail } from "@/lib/comms/templates/tenant/leases/leas
 import { LeaseEscalationNoticeEmail } from "@/lib/comms/templates/tenant/leases/lease-escalation-notice"
 import { revertPendingSigningToDraft } from "@/lib/leases/revertSigning"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { addCalendarDays, saTodayISO } from "@/lib/dates"
+import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 
 // L2b: a lease left unsigned this long past sent_for_signing_at is timed out and returned to draft (D1).
 // The L2 sign reminder fires at T+3, so this gives ~11 days after that nudge before the app-level timeout.
@@ -98,7 +98,7 @@ async function handleEscalationNotice(service: Service, lease: EscalationLease):
   const pct = lease.escalation_percent ?? 10
   const fmt = (c: number) => "R " + (c / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
   const newCents = Math.round(lease.rent_amount_cents * (1 + pct / 100))
-  const effectiveDateDisplay = new Date(lease.escalation_review_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  const effectiveDateDisplay = fmtDateLongZA(lease.escalation_review_date)
 
   const result = await routeAndSend({
     orgId: lease.org_id,

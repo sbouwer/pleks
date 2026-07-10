@@ -17,6 +17,7 @@ import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ListCard } from "@/components/ui/resource-list"
 import { getTemplate } from "@/lib/comms/template-registry"
 import { Mail, MessageSquare, AlertTriangle, CheckCircle2, XCircle } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 function isTemplateMandatory(templateKey: string | null): boolean {
   if (!templateKey) return false
@@ -129,11 +130,7 @@ export default async function CommunicationsPage() {
                     {status.label}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {new Date(comm.created_at as string).toLocaleDateString("en-ZA", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    {fmtDateZA(comm.created_at as string)}
                   </p>
                 </div>
               </Link>

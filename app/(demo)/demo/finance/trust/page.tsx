@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { useDemoData } from "@/lib/demo/DemoContext"
 import { formatZAR } from "@/lib/constants"
+import { fmtZA } from "@/lib/dates"
 
 const TYPE_CONFIG: Record<string, { label: string; className: string }> = {
   rent_received:    { label: "Rent received",    className: "bg-green-500/10 text-green-600" },
@@ -20,7 +21,7 @@ const TYPE_CONFIG: Record<string, { label: string; className: string }> = {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  return fmtZA(dateStr, { day: "numeric", month: "short" })
 }
 
 export default function DemoTrustPage() {

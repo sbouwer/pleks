@@ -24,6 +24,7 @@ import type { SerializedLease } from "./LeaseRow"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchLeasesAction } from "@/lib/queries/portfolioActions"
 import { formatZAR } from "@/lib/constants"
+import { fmtZA } from "@/lib/dates"
 
 const LEASE_STATUS_STYLES: Record<string, string> = {
   active:          "bg-emerald-100 text-emerald-700",
@@ -182,7 +183,7 @@ export function LeasesPageClient({ orgId, gate, isOwner }: Props) {
                     {unitLabel && <p className="text-xs text-muted-foreground mt-0.5">{unitLabel}</p>}
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {formatZAR(lease.rent_amount_cents)}/mo
-                      {lease.end_date ? ` · ends ${new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })}` : ""}
+                      {lease.end_date ? ` · ends ${fmtZA(lease.end_date, { day: "numeric", month: "short", year: "2-digit" })}` : ""}
                     </p>
                   </div>
                   <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${LEASE_STATUS_STYLES[lease.status] ?? LEASE_STATUS_STYLES.draft}`}>

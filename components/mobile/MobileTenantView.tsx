@@ -6,6 +6,7 @@
 import Link from "next/link"
 import { ActionButton } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
+import { fmtZA } from "@/lib/dates"
 
 interface MobileLeaseInfo {
   id: string
@@ -116,8 +117,8 @@ export function MobileTenantView({
             <p className="text-sm text-muted-foreground">{formatZAR(activeLease.rentAmountCents)}/mo</p>
             {(activeLease.startDate || activeLease.endDate) && (
               <p className="text-xs text-muted-foreground">
-                {activeLease.startDate ? new Date(activeLease.startDate).toLocaleDateString("en-ZA", { month: "short", year: "numeric" }) : ""}
-                {activeLease.endDate ? ` → ${new Date(activeLease.endDate).toLocaleDateString("en-ZA", { month: "short", year: "numeric" })}` : " · Month-to-month"}
+                {activeLease.startDate ? fmtZA(activeLease.startDate, { month: "short", year: "numeric" }) : ""}
+                {activeLease.endDate ? ` → ${fmtZA(activeLease.endDate, { month: "short", year: "numeric" })}` : " · Month-to-month"}
               </p>
             )}
             {activeLease.depositAmountCents != null && (

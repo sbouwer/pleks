@@ -3,9 +3,11 @@
  *
  * Notes:  Presentational, aria-hidden. Amber-ink watermark; shows live current-month and previous-month-end date labels.
  */
+import { fmtZA } from "@/lib/dates"
+
 function liveDate() {
   const now = new Date()
-  const month = now.toLocaleString("en-ZA", { month: "short" }).toUpperCase()
+  const month = fmtZA(now, { month: "short" }).toUpperCase()
   const year  = now.getFullYear()
   return `${month} ${year}`
 }

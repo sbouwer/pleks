@@ -96,7 +96,7 @@ export async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLeas
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
-    const endDateDisplay = new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    const endDateDisplay = fmtDateLongZA(lease.end_date)
     const daysRemaining = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / 86_400_000)
 
     const result = await routeAndSend({

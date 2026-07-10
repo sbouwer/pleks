@@ -16,6 +16,7 @@ import { getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
 import { formatZAR } from "@/lib/constants"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { DeleteDraftButton } from "./DeleteDraftButton"
+import { fmtZA } from "@/lib/dates"
 
 export interface SerializedLease {
   id: string
@@ -116,7 +117,7 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
     const elapsed = Math.max(0, (now.getTime() - start.getTime()) / 86400000)
     progressPct = Math.min(100, Math.round((elapsed / total) * 100))
     daysRemaining = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000))
-    const fmt = (d: Date) => d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })
+    const fmt = (d: Date) => fmtZA(d, { day: "numeric", month: "short", year: "2-digit" })
     termLabel = now < start
       ? `${fmt(start)} → ${fmt(end)} · starts in ${Math.ceil((start.getTime() - now.getTime()) / 86400000)}d`
       : `${fmt(start)} → ${fmt(end)}`

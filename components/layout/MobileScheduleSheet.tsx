@@ -14,6 +14,7 @@ import { ChevronRight, CalendarClock } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useUpcomingSchedule } from "@/hooks/useUpcomingSchedule"
 import { type ScheduleStop } from "@/hooks/useTodaySchedule"
+import { fmtZA } from "@/lib/dates"
 
 interface MobileScheduleSheetProps {
   readonly open: boolean
@@ -30,7 +31,7 @@ function dayLabel(d: Date, today: Date): string {
   const diffDays = Math.round((d.getTime() - today.getTime()) / 86_400_000)
   if (diffDays === 0) return "Today"
   if (diffDays === 1) return "Tomorrow"
-  return d.toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "short" })
+  return fmtZA(d, { weekday: "long", day: "numeric", month: "short" })
 }
 
 function groupByDay(stops: ScheduleStop[]): DayGroup[] {

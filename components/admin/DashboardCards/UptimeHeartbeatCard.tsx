@@ -7,7 +7,7 @@
  *         7-day sparkline squares show per-day pass/fail/miss status.
  */
 import { createServiceClient } from "@/lib/supabase/server"
-import { addCalendarDays, saDateISO } from "@/lib/dates"
+import { addCalendarDays, fmtZA, saDateISO } from "@/lib/dates"
 
 const DAILY_JOBS = [
   "daily",
@@ -188,7 +188,7 @@ export async function UptimeHeartbeatCard() {
                 textAlign: "center",
                 display: "block",
               }}>
-                {new Date(d + "T12:00:00Z").toLocaleDateString("en", { weekday: "narrow" })}
+                {fmtZA(d + "T12:00:00Z", { weekday: "narrow" })}
               </span>
             ))}
           </div>

@@ -20,6 +20,7 @@ import { ChangeContractorDialog } from "@/components/maintenance/dialogs/ChangeC
 import { updateMaintenanceStatus } from "@/lib/actions/maintenance"
 import { useOrg } from "@/hooks/useOrg"
 import { OPERATIONAL_QUERY_KEYS, DASHBOARD_QUERY_KEYS } from "@/lib/queries/portfolio"
+import { fmtZA } from "@/lib/dates"
 
 interface Contractor { id: string; name: string }
 
@@ -40,7 +41,7 @@ const TERMINAL = new Set(["completed", "closed", "cancelled", "rejected"])
 const PRE_WO   = new Set(["pending_review", "pending_landlord", "approved"])
 
 function formatEdited(iso: string) {
-  return new Date(iso).toLocaleDateString("en-ZA", {
+  return fmtZA(iso, {
     day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   })
 }

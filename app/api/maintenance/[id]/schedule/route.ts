@@ -13,6 +13,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceScheduledEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-scheduled"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateLongZA } from "@/lib/dates"
 
 export async function POST(
   req: NextRequest,
@@ -134,9 +135,7 @@ async function sendM3Comm(
         [contractor.first_name, contractor.last_name].filter(Boolean).join(" ") ||
         undefined
       : undefined
-    const scheduledDateDisplay = new Date(body.scheduledDate).toLocaleDateString("en-ZA", {
-      day: "numeric", month: "long", year: "numeric",
-    })
+    const scheduledDateDisplay = fmtDateLongZA(body.scheduledDate)
 
     await routeAndSend({
       orgId,

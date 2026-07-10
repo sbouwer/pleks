@@ -14,6 +14,7 @@ import { sendEmail, buildBranding, fetchOrgSettings, type SendEmailResult } from
 import { EmailLayout, EmailButton, EmailDetail, EmailSectionHeading } from "@/lib/comms/templates/layout"
 import { formatZAR } from "@/lib/constants"
 import { inviteLandlord } from "@/lib/portal/inviteLandlord"
+import { fmtDateLongZA } from "@/lib/dates"
 
 export async function inviteLandlordPortal(landlordId: string): Promise<{ success?: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("invite_user")
@@ -60,13 +61,9 @@ export async function emailLeaseToTenant(leaseId: string): Promise<SendEmailResu
     unit?.properties?.city,
   ].filter(Boolean).join(", ")
 
-  const startDate = new Date(lease.start_date as string).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
-  })
+  const startDate = fmtDateLongZA(lease.start_date as string)
   const endDate = lease.end_date
-    ? new Date(lease.end_date as string).toLocaleDateString("en-ZA", {
-        day: "numeric", month: "long", year: "numeric",
-      })
+    ? fmtDateLongZA(lease.end_date as string)
     : "Month-to-month"
 
   const orgSettings = await fetchOrgSettings(orgId)

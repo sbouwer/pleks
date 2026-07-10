@@ -30,6 +30,7 @@ import { ToolbarFilter } from "@/components/ui/resource-list"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { Modal } from "@/components/ui/actions"
 import type { CalendarEvent, EventType, CalendarSearchEntity } from "@/lib/calendar/events"
+import { fmtDateZA, fmtZA } from "@/lib/dates"
 
 const ALERT_LABEL: Record<string, string> = {
   cpa_deadline: "CPA notice missed",
@@ -435,7 +436,7 @@ export function CalendarClient({ events, alerts, searchEntities }: CalendarClien
                 <p className="text-xs text-muted-foreground">
                   {a.unitNumber ?? "Unit"}{a.propertyName ? `, ${a.propertyName}` : ""}
                   {" · "}
-                  {new Date(a.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                  {fmtDateZA(a.date)}
                 </p>
               </div>
               <span className="shrink-0 text-muted-foreground">→</span>
@@ -448,7 +449,7 @@ export function CalendarClient({ events, alerts, searchEntities }: CalendarClien
         open={addForDate !== null}
         onClose={() => setAddForDate(null)}
         title={addForDate
-          ? `Add for ${new Date(addForDate).toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })}`
+          ? `Add for ${fmtZA(addForDate, { weekday: "long", day: "numeric", month: "long" })}`
           : "Add"}
       >
         <div className="space-y-4">
