@@ -6,7 +6,8 @@
  *        nothing (no-news-is-good-news). Best-effort + guarded: no-op (logged) if ADMIN_EMAIL/RESEND_API_KEY
  *        unset. Mirrors the check-links ADMIN_EMAIL alert pattern.
  */
-import { Resend } from "resend"
+import { sendEmail } from "@/lib/comms/send-email"
+import { PLATFORM_ORG_ID, preformatted } from "@/lib/comms/platform-org"
 
 export interface CronJobDetail {
   status: string            // "ok" | "failed" | "error" | "partial" | "skipped (…)"
@@ -49,22 +50,26 @@ export async function sendCronDigest(
     })
     .join("\n")
 
-  const resend = new Resend(resendKey)
-  const { error } = await resend.emails.send({
-    from:    "Pleks <noreply@pleks.co.za>",
-    to:      adminEmail,
-    subject: `[Pleks] daily cron — ${issues.length} issue${issues.length === 1 ? "" : "s"}`,
-    text: [
-      `The daily cron run at ${ranAt} completed with ${issues.length} issue${issues.length === 1 ? "" : "s"}:\n`,
-      issueLines,
-      "\n— full run —",
-      allLines,
-      "\nThis digest is sent only when something fails. A clean run sends nothing.",
-    ].join("\n"),
+  // Was a raw resend.emails.send with a `text:` body. sendEmail has no text channel, and this report is
+  // column-aligned, so it ships as a monospace <pre> fragment through the central branded template.
+  const body = [
+    `The daily cron run at ${ranAt} completed with ${issues.length} issue${issues.length === 1 ? "" : "s"}:\n`,
+    issueLines,
+    "\n— full run —",
+    allLines,
+    "\nThis digest is sent only when something fails. A clean run sends nothing.",
+  ].join("\n")
+
+  const result = await sendEmail({
+    orgId:       PLATFORM_ORG_ID,
+    templateKey: "ops.cron_digest",
+    to:          { email: adminEmail, name: "Pleks admin" },
+    subject:     `[Pleks] daily cron — ${issues.length} issue${issues.length === 1 ? "" : "s"}`,
+    contentHtml: preformatted(body),
   })
 
-  if (error) {
-    console.error("[cron-digest] email failed:", error)
+  if (!result.success) {
+    console.error("[cron-digest] email failed:", result.error)
     return { emailed: false, issueCount: issues.length }
   }
   return { emailed: true, issueCount: issues.length }

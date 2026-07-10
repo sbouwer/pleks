@@ -10,7 +10,8 @@
  *         Sends Resend email to ADMIN_EMAIL when complete (no-op if RESEND_API_KEY unset).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { Resend } from "resend"
+import { sendEmail } from "@/lib/comms/send-email"
+import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
 import { render } from "@react-email/components"
 import { createServiceClient } from "@/lib/supabase/server"
 import { streamAuditCsv, type ExportFilterParams } from "@/lib/admin/csv-export"
@@ -44,12 +45,14 @@ async function sendExportEmail(jobId: string, db: Db, signedUrl: string, rowCoun
     })
   )
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  await resend.emails.send({
-    from:    "Pleks Platform <admin@pleks.co.za>",
-    to:      [adminEmail],
-    subject: `Audit export ready — ${rowCount.toLocaleString()} rows`,
-    html,
+  // rawHtml, NOT contentHtml: `html` is already a complete rendered document — wrapping it would
+  // double-chrome the email.
+  await sendEmail({
+    orgId:       PLATFORM_ORG_ID,
+    templateKey: "ops.audit_export",
+    to:          { email: adminEmail, name: "Pleks admin" },
+    subject:     `Audit export ready — ${rowCount.toLocaleString()} rows`,
+    rawHtml:     html,
   })
 
   await db.from("audit_exports")

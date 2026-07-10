@@ -11,7 +11,8 @@
  *         transient/bot-block flaps). Fix = update URL in admin panel (or lib/external-links.ts + re-seed).
  */
 import { NextRequest } from "next/server"
-import { Resend } from "resend"
+import { sendEmail } from "@/lib/comms/send-email"
+import { PLATFORM_ORG_ID, preformatted } from "@/lib/comms/platform-org"
 import { createServiceClient } from "@/lib/supabase/server"
 import { withCronRun } from "@/lib/cron/withCronRun"
 
@@ -129,18 +130,22 @@ async function alertFailures(failures: LinkResult[]) {
     })
     .join("\n\n")
 
-  const resend = new Resend(resendKey)
-  const { error } = await resend.emails.send({
-    from:    "Pleks <noreply@pleks.co.za>",
-    to:      adminEmail,
-    subject: `[Pleks] ${failures.length} broken external link${failures.length === 1 ? "" : "s"} detected`,
-    text:    [
-      `The daily link check found ${failures.length} unreachable external link${failures.length === 1 ? "" : "s"}:\n`,
-      lines,
-      "\nFix: update the URL in the admin panel (/admin/external-links) or directly in Supabase.",
-      "The next daily check will clear the alert once the URL is reachable again.",
-    ].join("\n"),
+  // Was a raw resend.emails.send with a `text:` body — now the central branded template. preformatted()
+  // escapes first: a broken URL legitimately contains & and can contain <.
+  const body = [
+    `The daily link check found ${failures.length} unreachable external link${failures.length === 1 ? "" : "s"}:\n`,
+    lines,
+    "\nFix: update the URL in the admin panel (/admin/external-links) or directly in Supabase.",
+    "The next daily check will clear the alert once the URL is reachable again.",
+  ].join("\n")
+
+  const result = await sendEmail({
+    orgId:       PLATFORM_ORG_ID,
+    templateKey: "ops.link_check",
+    to:          { email: adminEmail, name: "Pleks admin" },
+    subject:     `[Pleks] ${failures.length} broken external link${failures.length === 1 ? "" : "s"} detected`,
+    contentHtml: preformatted(body),
   })
 
-  if (error) console.error("check-links alert email failed:", error)
+  if (!result.success) console.error("check-links alert email failed:", result.error)
 }

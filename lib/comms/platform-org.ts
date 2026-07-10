@@ -32,3 +32,19 @@ export const PLATFORM_ORG_ID = "00000000-0000-0000-0000-000000000002"
 export function excludePlatformOrg<T extends { eq(col: string, val: boolean): T }>(query: T): T {
   return query.eq("is_platform", false)
 }
+
+/**
+ * Render a plain-text ops report as an HTML fragment for sendEmail({ contentHtml }).
+ *
+ * sendEmail has no `text` channel — the ops crons used to pass Resend a `text:` body directly. Their
+ * reports are column-aligned (cron names, HTTP statuses, URLs), so they need a monospace <pre>, not <p>.
+ * Escapes first: a broken link's URL can contain `&` or `<`, and these bodies are interpolated, not
+ * literal.
+ */
+export function preformatted(text: string): string {
+  const escaped = text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+  return `<pre style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin:0">${escaped}</pre>`
+}

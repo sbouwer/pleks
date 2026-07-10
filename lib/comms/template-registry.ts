@@ -323,6 +323,40 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     tone_profile: "relational", allowed_channels: ["email"],
     description: "Email inviting a colleague to join the agency as a team member — accept link to /invite/[token]",
   },
+  // ── Platform mail (sent by the Pleks system org — see lib/comms/platform-org.ts) ──────────────────
+  // is_mandatory on the two security notices is load-bearing, NOT a formality: canSend bypasses mandatory
+  // templates, so a recipient who unsubscribes still gets "your account was accessed from a new device".
+  // These are transactional security notices, not marketing — suppressing one is a security failure.
+  "security.login_notification": {
+    key: "security.login_notification", channel: "email", category: "portal", is_mandatory: true,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Alerts the account holder to a sign-in from an unrecognised device (Pleks-branded, never agency-branded)",
+  },
+  "security.account_alert": {
+    key: "security.account_alert", channel: "email", category: "portal", is_mandatory: true,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Alerts the account holder to a security-relevant account change (MFA, passkey, password)",
+  },
+  "ops.cron_digest": {
+    key: "ops.cron_digest", channel: "email", category: "portal", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Daily cron failure digest to the Pleks admin address",
+  },
+  "ops.link_check": {
+    key: "ops.link_check", channel: "email", category: "portal", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Broken-link report from the check-links cron to the Pleks admin address",
+  },
+  "ops.feedback_digest": {
+    key: "ops.feedback_digest", channel: "email", category: "portal", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "User-feedback digest to the Pleks admin address",
+  },
+  "ops.audit_export": {
+    key: "ops.audit_export", channel: "email", category: "portal", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "POPIA audit-export ready notification to the Pleks admin address",
+  },
   "team.ownership_transferred_new_owner": {
     key: "team.ownership_transferred_new_owner", channel: "email", category: "portal", is_mandatory: false,
     tone_profile: "transactional", allowed_channels: ["email"],

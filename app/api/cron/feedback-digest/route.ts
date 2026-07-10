@@ -7,7 +7,8 @@
  * Notes:  Sends to ADMIN_EMAIL env var. Skips silently if no submissions today.
  */
 import { NextRequest } from "next/server"
-import { Resend } from "resend"
+import { sendEmail } from "@/lib/comms/send-email"
+import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
 import { getTodayFeedbackDigest } from "@/lib/feedback/queries"
 import { FeedbackDailyDigestEmail } from "@/lib/comms/templates/feedback/feedback-daily-digest"
 
@@ -27,7 +28,6 @@ export async function GET(req: NextRequest) {
     return Response.json({ ok: false, error: "ADMIN_EMAIL not configured" }, { status: 500 })
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
   const date = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })
   const inboxUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"}/admin/feedback`
 
@@ -37,16 +37,20 @@ export async function GET(req: NextRequest) {
     logoUrl:     undefined,
   }
 
-  const { error } = await resend.emails.send({
-    from:    "Pleks <noreply@pleks.co.za>",
-    to:      adminEmail,
-    subject: `[Pleks] Feedback digest — ${items.length} new submission${items.length === 1 ? "" : "s"} (${date})`,
-    react:   FeedbackDailyDigestEmail({ branding, date, items, inboxUrl }),
+  // emailElement, not contentHtml: the digest is a real React Email template that renders its own
+  // EmailLayout. Resend's `react:` option bypassed sendEmail entirely — this routes it through the
+  // choke point, so it now gets a communication_log row and appears in the delivery-feedback loop.
+  const result = await sendEmail({
+    orgId:        PLATFORM_ORG_ID,
+    templateKey:  "ops.feedback_digest",
+    to:           { email: adminEmail, name: "Pleks admin" },
+    subject:      `[Pleks] Feedback digest — ${items.length} new submission${items.length === 1 ? "" : "s"} (${date})`,
+    emailElement: FeedbackDailyDigestEmail({ branding, date, items, inboxUrl }),
   })
 
-  if (error) {
-    console.error("feedback-digest email failed:", error)
-    return Response.json({ ok: false, error: error.message }, { status: 500 })
+  if (!result.success) {
+    console.error("feedback-digest email failed:", result.error)
+    return Response.json({ ok: false, error: result.error }, { status: 500 })
   }
 
   return Response.json({ ok: true, sent: items.length })

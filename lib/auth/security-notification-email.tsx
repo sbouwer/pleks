@@ -10,7 +10,8 @@
 import * as React from "react"
 import { EmailLayout, type OrgBranding } from "@/lib/comms/templates/layout"
 import { render } from "@react-email/components"
-import { Resend } from "resend"
+import { sendEmail } from "@/lib/comms/send-email"
+import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
 
 const PLEKS_BRANDING: OrgBranding = { orgName: "Pleks", accentColor: "#E8A838" }
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.pleks.co.za"
@@ -77,11 +78,11 @@ function SecurityNotificationEmail({ userName, eventType, deviceLabel, location 
 // Guard construction — new Resend(undefined) THROWS at module load, and this module is imported by
 // logAuthEvent, so an unset key would crash every sensitive auth event. Null = dark (auth_events still logs).
 const resendKey = process.env.RESEND_API_KEY
-const resend = resendKey ? new Resend(resendKey) : null
+// RESEND_API_KEY unset → security emails go dark; the auth_events row is still written.
 
 /** Send a Pleks-branded security notification. Best-effort; caller swallows errors/timeouts. */
 export async function sendSecurityNotificationEmail(params: SecurityNotificationParams): Promise<void> {
-  if (!resend) return  // RESEND_API_KEY unset → security emails dark; the auth_events row was still written
+  if (!resendKey) return  // RESEND_API_KEY unset → security emails dark; the auth_events row was still written
   const html = await render(
     React.createElement(SecurityNotificationEmail, {
       userName: params.userName,
@@ -90,10 +91,13 @@ export async function sendSecurityNotificationEmail(params: SecurityNotification
       location: params.location,
     })
   )
-  await resend.emails.send({
-    from: "Pleks Security <noreply@pleks.co.za>",
-    to: params.to,
-    subject: COPY[params.eventType].subject,
-    html,
+  // rawHtml, NOT contentHtml: the component already renders EmailLayout, so `html` is a complete
+  // document. templateKey is is_mandatory, so canSend can never suppress a security alert.
+  await sendEmail({
+    orgId:       PLATFORM_ORG_ID,
+    templateKey: "security.account_alert",
+    to:          { email: params.to, name: params.userName },
+    subject:     COPY[params.eventType].subject,
+    rawHtml:     html,
   })
 }

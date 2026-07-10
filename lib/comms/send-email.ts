@@ -21,6 +21,7 @@ import { createElement } from "react"
 import { Resend } from "resend"
 import { render } from "@react-email/components"
 import { SystemEmail } from "./templates/system-email"
+import { PLATFORM_ORG_ID } from "./platform-org"
 import { resolveOrgCorrespondenceHtml } from "./orgTemplateOverride"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTemplate } from "./template-registry"
@@ -285,7 +286,12 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
   // Display name: the agency's configured "From name" (notification_settings.email_from_name), else the org name.
   let fromAddress: string
   const displayName = orgSettings?.from_name?.trim() || orgSettings?.name
-  if (orgSettings?.custom_from_address) {
+  if (params.orgId === PLATFORM_ORG_ID) {
+    // The Pleks system org sends AS Pleks. Without this it would fall into the agency branch below and
+    // address itself "Pleks via Pleks <…>", because the "via Pleks" suffix exists to disambiguate an
+    // AGENCY sending through our infrastructure. Pleks is not sending on behalf of anyone.
+    fromAddress = DEFAULT_FROM
+  } else if (orgSettings?.custom_from_address) {
     fromAddress = `${displayName} <${orgSettings.custom_from_address}>`
   } else if (displayName) {
     fromAddress = `${displayName} via Pleks <notifications@pleks.co.za>`

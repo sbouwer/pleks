@@ -7,7 +7,8 @@
 import * as React from "react"
 import { EmailLayout, type OrgBranding } from "@/lib/comms/templates/layout"
 import { render } from "@react-email/components"
-import { Resend } from "resend"
+import { sendEmail } from "@/lib/comms/send-email"
+import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
 
 const PLEKS_BRANDING: OrgBranding = {
   orgName: "Pleks",
@@ -92,12 +93,11 @@ function LoginNotificationEmail({ userName, deviceLabel, city, country, method, 
   )
 }
 
-// Guard construction — new Resend(undefined) THROWS at module load (not caught by the try below). Null = dark.
+// RESEND_API_KEY unset → the notification goes dark (sendEmail's own send would fail); keep the guard.
 const resendKey = process.env.RESEND_API_KEY
-const resend = resendKey ? new Resend(resendKey) : null
 
 export async function sendLoginNotificationEmail(params: LoginNotificationParams): Promise<void> {
-  if (!resend) return  // RESEND_API_KEY unset → login-notification dark
+  if (!resendKey) return  // RESEND_API_KEY unset → login-notification dark
   try {
     const html = await render(
       React.createElement(LoginNotificationEmail, {
@@ -111,11 +111,15 @@ export async function sendLoginNotificationEmail(params: LoginNotificationParams
       })
     )
 
-    await resend.emails.send({
-      from:    "Pleks Security <noreply@pleks.co.za>",
-      to:      params.to,
-      subject: "New sign-in to your Pleks account",
-      html,
+    // rawHtml, NOT contentHtml: `html` is already a COMPLETE document (the component renders
+    // EmailLayout itself), so wrapping it again would double-chrome the email.
+    // templateKey is is_mandatory, so canSend can never suppress a security alert.
+    await sendEmail({
+      orgId:       PLATFORM_ORG_ID,
+      templateKey: "security.login_notification",
+      to:          { email: params.to, name: params.userName },
+      subject:     "New sign-in to your Pleks account",
+      rawHtml:     html,
     })
   } catch (err) {
     console.error("[login-notification] send failed:", err)
