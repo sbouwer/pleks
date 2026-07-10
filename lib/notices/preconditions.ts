@@ -17,6 +17,7 @@ import type { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import type { CpaAppliesState } from "@/lib/comms/templates/legalCitations"
 import type { DemandNoticeType } from "./issueTenantNotice"
+import { addBusinessDays } from "@/lib/dates/saPublicHolidays"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -66,17 +67,10 @@ export interface NoticeFacts {
  *  whose final notice stated a longer contractual cure is the agent's responsibility (later enhancement). */
 const CURE_BUSINESS_DAYS = 20
 
-/** Add N business days (skip Sat/Sun) to a YYYY-MM-DD date, returning YYYY-MM-DD. */
-export function addBusinessDays(fromIso: string, n: number): string {
-  const d = new Date(`${fromIso}T00:00:00.000Z`)
-  let added = 0
-  while (added < n) {
-    d.setUTCDate(d.getUTCDate() + 1)
-    const day = d.getUTCDay()
-    if (day !== 0 && day !== 6) added++
-  }
-  return d.toISOString().slice(0, 10)
-}
+// addBusinessDays now lives in lib/dates/saPublicHolidays.ts, holiday-aware. The copy that lived here
+// skipped only Sat/Sun, so a cure period spanning any SA public holiday expired EARLY and the Rule 1 guard
+// below stopped blocking early — letting a Demand to Vacate issue before the tenant's lawful cure window
+// had run. Two implementations of one statutory concept; the one the gate used was the wrong one.
 
 // ── Per-rule helpers (keep the evaluator flat + each rule independently readable) ─────────────────────
 
@@ -88,8 +82,22 @@ function ruleBreach(f: NoticeFacts, blocks: PreconditionFinding[]): void {
   if (f.arrearsResolved) {
     blocks.push({ rule: "Rule 1", code: "breach_remedied", message: "The arrears case appears resolved — the breach may have been remedied. A Demand to Vacate cannot follow a remedied breach." })
   }
-  if (addBusinessDays(f.finalNoticeSentAt, CURE_BUSINESS_DAYS) > f.today) {
-    blocks.push({ rule: "Rule 1", code: "cure_not_expired", message: `The Final Notice cure period (${CURE_BUSINESS_DAYS} business days) has not yet expired.` })
+  // The cure period runs from DEEMED RECEIPT of the Final Notice, not from the moment we sent it. Our
+  // standard lease's domicilium clause deems an emailed notice received "on the first business day after
+  // the successful transmission thereof" — so anchoring on `finalNoticeSentAt` expired the cure a business
+  // day early, and this guard therefore permitted a Demand to Vacate a business day before the tenant's
+  // s14 cure period had run. Fail-open, on our own clause's arithmetic.
+  //
+  // ⚠ INTERIM, NOT A LEGAL RULING (counsel pack Q20). This does NOT decide whether s14 runs from deemed
+  // receipt, actual receipt, or dispatch — it refuses to act earlier than the most tenant-favourable
+  // reading, pending counsel. The direction is strictly conservative: the guard blocks LONGER, so it can
+  // never newly permit a notice. Once the per-lease deeming rule exists (Q18–Q22), this constant is
+  // replaced by that lease's clause limb, and a lease with no modelled clause routes to manual review
+  // rather than assuming ours.
+  const DEEMED_RECEIPT_BUSINESS_DAYS = 1
+  const deemedReceipt = addBusinessDays(f.finalNoticeSentAt, DEEMED_RECEIPT_BUSINESS_DAYS)
+  if (addBusinessDays(deemedReceipt, CURE_BUSINESS_DAYS) > f.today) {
+    blocks.push({ rule: "Rule 1", code: "cure_not_expired", message: `The Final Notice cure period (${CURE_BUSINESS_DAYS} business days from deemed receipt) has not yet expired.` })
   }
 }
 

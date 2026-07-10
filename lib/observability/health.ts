@@ -12,6 +12,8 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
+import { HOLIDAY_TABLE_COVERS_THROUGH } from "@/lib/dates/saPublicHolidays"
+import { saDateISO } from "@/lib/notices/vacateDate"
 
 export type ComponentStatus = "ok" | "degraded" | "down"
 
@@ -26,6 +28,7 @@ export interface HealthReport {
     storage: { status: ComponentStatus; error?: string }
     crons:   { status: ComponentStatus; stale_jobs?: string[] }
     delivery_feedback: { status: ComponentStatus; error?: string }
+    holiday_table: { status: ComponentStatus; error?: string }
   }
 }
 
@@ -195,22 +198,52 @@ async function checkDeliveryFeedback(supabase: SupabaseClient): Promise<HealthRe
   }
 }
 
+
+// ── SA public-holiday table horizon (the statutory backstop's early-warning) ─────────────────────────
+// addBusinessDays THROWS past the table's horizon rather than silently shortening a tenant's cure period.
+// That throw must be the backstop, never the plan — so nag from 90 days out, while there is still an ops
+// calendar to act on. When this fires, extend the table AND check the Gazette for newly proclaimed
+// once-off holidays: the table is a compliance process, not a code artefact.
+const HOLIDAY_HORIZON_WARN_DAYS = 90
+
+export function checkHolidayTable(now: Date = new Date()): HealthReport["components"]["holiday_table"] {
+  const todayIso = saDateISO(now)
+  if (todayIso > HOLIDAY_TABLE_COVERS_THROUGH) {
+    return {
+      status: "down",
+      error: `SA public-holiday table expired on ${HOLIDAY_TABLE_COVERS_THROUGH} — statutory business-day ` +
+        `computations are now THROWING. Extend SA_PUBLIC_HOLIDAYS_* in lib/dates/saPublicHolidays.ts.`,
+    }
+  }
+  const warnFrom = new Date(now.getTime() + HOLIDAY_HORIZON_WARN_DAYS * 86_400_000)
+  if (saDateISO(warnFrom) > HOLIDAY_TABLE_COVERS_THROUGH) {
+    return {
+      status: "degraded",
+      error: `SA public-holiday table runs out on ${HOLIDAY_TABLE_COVERS_THROUGH} (inside ` +
+        `${HOLIDAY_HORIZON_WARN_DAYS} days). Extend it and check the Government Gazette for newly ` +
+        `proclaimed once-off holidays before statutory deadline computations start failing.`,
+    }
+  }
+  return { status: "ok" }
+}
+
 export async function checkHealth(): Promise<HealthReport> {
   const supabase = await createServiceClient()
   const [db, email, storage, crons, delivery_feedback] = await Promise.all([
     checkDb(supabase), checkEmail(), checkStorage(supabase), checkCrons(supabase), checkDeliveryFeedback(supabase),
   ])
+  const holiday_table = checkHolidayTable()
 
   let aggregate: ComponentStatus = "ok"
   if (db.status === "down") aggregate = "down"
-  else if (email.status !== "ok" || storage.status !== "ok" || crons.status !== "ok" || delivery_feedback.status !== "ok") aggregate = "degraded"
+  else if (email.status !== "ok" || storage.status !== "ok" || crons.status !== "ok" || delivery_feedback.status !== "ok" || holiday_table.status !== "ok") aggregate = "degraded"
 
   return {
     status:      aggregate,
     version:     process.env.NEXT_PUBLIC_APP_VERSION ?? "unknown",
     environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "unknown",
     timestamp:   new Date().toISOString(),
-    components:  { db, email, storage, crons, delivery_feedback },
+    components:  { db, email, storage, crons, delivery_feedback, holiday_table },
   }
 }
 

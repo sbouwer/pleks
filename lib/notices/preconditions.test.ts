@@ -6,7 +6,8 @@
  * receipt must ALWAYS trip manual review.
  */
 import { describe, it, expect } from "vitest"
-import { evaluateNoticePreconditions, gatherNoticeFacts, addBusinessDays, type NoticeFacts, type GatherLease } from "./preconditions"
+import { evaluateNoticePreconditions, gatherNoticeFacts, type NoticeFacts, type GatherLease } from "./preconditions"
+import { addBusinessDays } from "@/lib/dates/saPublicHolidays"
 
 const clear: NoticeFacts = {
   today: "2026-07-09",
@@ -109,6 +110,22 @@ describe("Rule 1 — breach preconditions", () => {
   it("blocks when the cure period has not yet expired", () => {
     const r = evaluateNoticePreconditions(f({ finalNoticeSentAt: "2026-07-07" }), "demand_vacate_breach")
     expect(r.blocks.some((b) => b.code === "cure_not_expired")).toBe(true)
+  })
+
+  // The cure runs from DEEMED RECEIPT (standard-lease email limb: "the first business day after the
+  // successful transmission"), not from the sent date. Sent 2026-06-08 → deemed received 06-09 → the
+  // 20-business-day period expires 07-08. Anchoring on `sent` expired it on 07-07 — so on 07-07 the guard
+  // PERMITTED a Demand to Vacate a business day before the tenant's cure period had run.
+  // Interim per counsel pack Q20: conservative, and deliberately does not decide the legal question.
+  it("blocks a business day LONGER because the cure runs from deemed receipt, not from sending", () => {
+    const onTheSentAnchoredExpiry = f({ finalNoticeSentAt: "2026-06-08", today: "2026-07-07" })
+    const r = evaluateNoticePreconditions(onTheSentAnchoredExpiry, "demand_vacate_breach")
+    expect(r.blocks.some((b) => b.code === "cure_not_expired")).toBe(true)   // sent-anchored would ALLOW
+
+    // ...and it does lift the day after the deemed-receipt-anchored expiry. Conservative, not permanent.
+    const theDayAfter = f({ finalNoticeSentAt: "2026-06-08", today: "2026-07-08" })
+    const r2 = evaluateNoticePreconditions(theDayAfter, "demand_vacate_breach")
+    expect(r2.blocks.some((b) => b.code === "cure_not_expired")).toBe(false)
   })
   it("blocks when the arrears appear resolved (breach remedied)", () => {
     const r = evaluateNoticePreconditions(f({ arrearsResolved: true }), "demand_vacate_breach")
