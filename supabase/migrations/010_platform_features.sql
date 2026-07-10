@@ -3840,3 +3840,62 @@ ALTER TABLE ai_rate_limits ENABLE ROW LEVEL SECURITY;   -- service-role only; no
 -- means exactly what it says. Idempotent (COMMENT replaces).
 COMMENT ON COLUMN applications.dti_ratio_at_decision IS
   'Bureau-instalment DTI at decision: credit-bureau monthly instalments / verified income. NULL = no bureau instalment source (not a verified 0). Excludes declared/bank-statement obligations. O-18.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §50  Platform system org — the operator identity behind platform-level email
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- WHY: communication_log.org_id is NOT NULL. Platform mail (security alerts, cron digests, the contact
+-- form) has no agency behind it, so nine handlers bypassed sendEmail and posted straight to Resend —
+-- shipping unbranded, unlogged, and invisible to the delivery-feedback webhook (which joins on the
+-- communication_log row's external_id). A single system org gives that mail a valid org_id, an identity
+-- to brand from ("Pleks", the Responsible Party per /privacy), and a row in the delivery-feedback loop.
+--
+-- ⚠ ZERO PRIVILEGE, BY DESIGN. This org grants nothing. It has NO members (no user_orgs rows) and MUST
+-- never gain any: recipients of platform mail are addressed by email string, not by membership. Admin
+-- power lives where it already lives — user_orgs.is_admin and the HMAC gate on admin.pleks.co.za. If a
+-- future change hangs a permission off membership in this org, org membership becomes an escalation path.
+--
+-- ⚠ EVERY "for each org" QUERY MUST EXCLUDE IT: `.eq("is_platform", false)`. It is not a customer. The
+-- subscription-lifecycle crons (dormancy / dunning / purge-warnings) would otherwise act on a
+-- subscription-less org and treat it as a dormant agency. Prefer the is_platform flag over comparing the
+-- UUID: a flag is greppable and enforceable, a scattered magic UUID rots.
+
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS is_platform boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN organisations.is_platform IS
+  'True for the single Pleks system org that owns platform-level email (no members, no subscription, zero privilege). Every all-org iterator must filter it out: .eq("is_platform", false).';
+
+-- Widen the org type CHECK for the system org. This REDEFINES the constraint §49 created — the bottom
+-- definition wins on replay and is what is live (the amend-forward pattern).
+ALTER TABLE organisations DROP CONSTRAINT IF EXISTS organisations_type_check;
+ALTER TABLE organisations ADD CONSTRAINT organisations_type_check
+  CHECK (type IN ('agency', 'landlord', 'sole_prop', 'hoa_manager', 'platform'));
+
+-- Exactly one system org, enforced by the database rather than by convention.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_organisations_single_platform
+  ON organisations ((true)) WHERE is_platform;
+
+-- Retention policies are seeded per-org by trigger on INSERT. The system org holds no agency data, so it
+-- needs none. Redefine the trigger to skip ANY platform org (it already skips the ADDENDUM_57G purge
+-- sentinel ...0001 by UUID). Amend-forward: this CREATE OR REPLACE supersedes the §-earlier definition.
+CREATE OR REPLACE FUNCTION trigger_seed_retention_policies()
+RETURNS trigger AS $$
+BEGIN
+  -- Skip the ADDENDUM_57G purge sentinel and the platform system org — neither holds agency data.
+  IF NEW.id = '00000000-0000-0000-0000-000000000001'::uuid OR NEW.is_platform THEN
+    RETURN NEW;
+  END IF;
+  PERFORM seed_default_retention_policies(NEW.id);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- The system org itself. Fixed UUID so PLATFORM_ORG_ID in lib/comms/platform-org.ts is stable across
+-- environments. ⚠ ...0000 / ...0001 / ...0003 are ALREADY RESERVED (null-org, ADDENDUM_57G purge
+-- sentinel, and one other) — this is ...0002. Do not reuse a sentinel UUID.
+-- `name` is the only NOT NULL column without a default, and it is what buildBranding puts in the email
+-- footer — hence "Pleks" (the operator / Responsible Party per /privacy), NOT "Yoros" (the builder).
+INSERT INTO organisations (id, name, type, is_platform, email)
+VALUES ('00000000-0000-0000-0000-000000000002'::uuid, 'Pleks', 'platform', true, 'no-reply@pleks.co.za')
+ON CONFLICT (id) DO NOTHING;

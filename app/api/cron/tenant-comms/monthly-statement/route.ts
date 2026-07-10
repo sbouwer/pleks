@@ -182,7 +182,10 @@ export async function GET(req: NextRequest) {
   const periodTo   = endOfMonth(prevMonth).toISOString().split("T")[0]
   const statementMonthLabel = prevMonth.toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
 
-  const { data: orgs, error: orgError } = await service.from("organisations").select("id, name, settings")
+  // The Pleks system org is not a customer (010 §50; lib/comms/platform-org.ts) — exclude it so this
+  // loop never treats it as an agency.
+  const { data: orgs, error: orgError } = await service
+    .from("organisations").select("id, name, settings").eq("is_platform", false)
   if (orgError) {
     console.error("[monthly-statement] org query failed:", orgError.message)
     return Response.json({ ok: false, error: orgError.message }, { status: 500 })

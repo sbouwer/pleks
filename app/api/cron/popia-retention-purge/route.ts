@@ -184,6 +184,7 @@ export async function GET(req: NextRequest) {
   const { data: orgs, error: orgsErr } = await db
     .from("organisations")
     .select("id")
+    .eq("is_platform", false)  // the Pleks system org holds no agency data (010 §50)
     .is("deleted_at", null)   // purge sets deleted_at — this already excludes purged orgs
 
   if (orgsErr || !orgs) {

@@ -99,12 +99,13 @@ export async function getAdminDashboardData(): Promise<DashboardSnapshot> {
     db.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "trialing"),
     db.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").neq("tier", "owner"),
 
-    // Org count
-    db.from("organisations").select("id", { count: "exact", head: true }),
+    // Org count — the Pleks system org is not a customer, so it must not inflate the count (010 §50).
+    db.from("organisations").select("id", { count: "exact", head: true }).eq("is_platform", false),
 
-    // Recent signups
+    // Recent signups — likewise: the system org never "signed up".
     db.from("organisations")
       .select("id, name, created_at, subscriptions(tier, status, created_at)")
+      .eq("is_platform", false)
       .order("created_at", { ascending: false })
       .limit(7),
 

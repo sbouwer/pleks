@@ -2595,7 +2595,8 @@
       "facebook_url",
       "instagram_url",
       "x_url",
-      "product_line"
+      "product_line",
+      "is_platform"
     ],
     "owner_statements": [
       "id",
