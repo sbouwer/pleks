@@ -23,7 +23,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { sendEmail } from "@/lib/comms/send-email"
 import { sendSMS } from "@/lib/sms/sendSMS"
 import { recordNoticeServiceEvent } from "./recordServiceEvent"
-import { computeVacateByDate, saTodayISO } from "./vacateDate"
+import { computeVacateByDate, saDateISO } from "./vacateDate"
 import { renderServiceNotificationSms } from "./serviceNotification"
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import type { CpaAppliesState } from "@/lib/comms/templates/legalCitations"
@@ -234,7 +234,7 @@ export interface RenderedDemandNotice {
  */
 export async function renderDemandNotice(params: IssueTenantNoticeParams): Promise<RenderedDemandNotice> {
   const { lease, recipient } = params
-  const baseIso = saTodayISO(params.now)
+  const baseIso = saDateISO(params.now)
   const vacateByDateISO = computeVacateByDate(new Date(`${baseIso}T00:00:00.000Z`))
   const todaysDate = fmtDate(baseIso)
   const vacateByDateDisplay = fmtDate(vacateByDateISO)

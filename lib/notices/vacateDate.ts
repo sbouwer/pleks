@@ -10,15 +10,31 @@
  *         dates → deterministic tests (no new Date() inside).
  */
 
+/** The one timezone this codebase reasons in. SAST is UTC+2, no DST. */
+export const SA_TIMEZONE = "Africa/Johannesburg"
+
 /**
- * The current calendar date in South African Standard Time (UTC+2, no DST) as YYYY-MM-DD. Legal dates on a
- * notice MUST be SAST, not UTC (CD walk): between 00:00–02:00 SAST the UTC calendar date is still yesterday,
- * so a cancellation effective date computed off `toISOString()` would print a date that pre-dates its own
- * generation and service — a free argument for a tenant's attorney. Agents issue at odd hours; this fires
- * on late-night issuance before a morning deadline. `at` is injectable for deterministic tests.
+ * Resolve an INSTANT to its calendar date in South African Standard Time, as YYYY-MM-DD.
+ *
+ * This is a timezone RESOLUTION, and it is the operation people reach for `toISOString().slice(0,10)` to do
+ * — wrongly. Legal dates on a notice MUST be SAST, not UTC (CD walk): between 00:00–02:00 SAST the UTC
+ * calendar date is still yesterday, so a cancellation effective date computed off `toISOString()` would
+ * print a date that pre-dates its own generation and service — a free argument for a tenant's attorney.
+ * Agents issue at odd hours; this fires on late-night issuance before a morning deadline. Equally, a
+ * provider's delivered-at timestamp arriving after 22:00 UTC belongs to the NEXT SA day.
+ *
+ * ⚠ NOT for calendar arithmetic on a date that is ALREADY SA-resolved (see computeVacateByDate) — passing
+ * such a date's UTC-midnight carrier through here is a no-op, but reaching for it there means you have
+ * confused "resolve a zone" with "add days", which is the distinction this module exists to keep straight.
  */
-export function saTodayISO(at: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit" }).format(at)
+export function saDateISO(at: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: SA_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(at)
+}
+
+/** Today's SA calendar date (YYYY-MM-DD). Convenience for the zero-arg case; prefer saDateISO(at) when you
+ *  hold an instant, so the reader can see WHICH instant is being resolved. */
+export function saTodayISO(): string {
+  return saDateISO(new Date())
 }
 
 /** R-2 default: the vacate deadline printed in the notice = base date + 14 calendar days (YYYY-MM-DD). */
@@ -28,11 +44,24 @@ export function computeVacateByDate(dispatchDate: Date, days = 14): string {
   return d.toISOString().slice(0, 10)
 }
 
-/** R-2 post-validation: does (vacateByDate − deemed service date) meet the calendar-day floor?
- *  Compares whole calendar days in UTC. false → the notice's vacate period is too short; flag for re-issue. */
+/**
+ * R-2 post-validation: does (vacateByDate − deemed service date) meet the calendar-day floor?
+ * false → the notice's vacate period is too short; flag for re-issue.
+ *
+ * Both operands are SAST CALENDAR DATES carried at UTC midnight, so the subtraction is whole-day
+ * arithmetic. `deemedServiceAt` is a real INSTANT (the provider's delivered-at timestamp), so it must be
+ * resolved to its SAST date via saDateISO — slicing its toISOString() would resolve it in UTC, and SAST
+ * is UTC+2: a delivery between 22:00 and 24:00 UTC belongs to the NEXT SAST day. Getting that wrong
+ * recorded deemed service a day EARLY, which makes (vac − deemedDay) LARGER and so PASSES a notice whose
+ * vacate period is actually short of the floor — a fail-open on the exact check that exists to catch it.
+ *
+ * ⚠ Note computeVacateByDate above also ends in `.toISOString().slice(0,10)` and is CORRECT: its input is
+ * already a SAST-resolved date at UTC midnight, so that call is pure calendar arithmetic, not a timezone
+ * resolution. Same syntax, opposite meaning — classify per site, never sweep.
+ */
 export function deemedServiceMeetsFloor(vacateByDate: string, deemedServiceAt: Date, floorDays = 7): boolean {
   const vac = new Date(`${vacateByDate}T00:00:00.000Z`).getTime()
-  const deemedDay = new Date(`${deemedServiceAt.toISOString().slice(0, 10)}T00:00:00.000Z`).getTime()
+  const deemedDay = new Date(`${saDateISO(deemedServiceAt)}T00:00:00.000Z`).getTime()
   const diffDays = Math.round((vac - deemedDay) / 86_400_000)
   return diffDays >= floorDays
 }
