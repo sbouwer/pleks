@@ -55,6 +55,7 @@ import type {
   MaterialFlag,
 } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
+import { fmtZA } from "@/lib/dates"
 
 // ─── Re-export engine types used across all primitives ────────────────────────
 
@@ -363,7 +364,7 @@ export function fmtZAR(cents: number): string {
 
 export function fmtDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('en-ZA', {
+    return fmtZA(iso, {
       day: 'numeric', month: 'long', year: 'numeric',
     })
   } catch {
@@ -384,7 +385,7 @@ export function fmtTime(iso: string): string {
 
 export function fmtShortDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('en-ZA', {
+    return fmtZA(iso, {
       day: 'numeric', month: 'short', year: 'numeric',
     })
   } catch {

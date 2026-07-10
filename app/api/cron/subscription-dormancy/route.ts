@@ -19,6 +19,7 @@ import { sendDormancyWarning, sendDormancyFinal } from "@/lib/subscriptions/emai
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarDays, fmtDateLongZA, saDateISO } from "@/lib/dates"
 
 const DORMANCY_DAYS       = parseInt(process.env.DORMANCY_DAYS       ?? "60", 10)
 const DORMANCY_WARN_DAYS  = parseInt(process.env.DORMANCY_WARN_DAYS  ?? "30", 10)
@@ -60,8 +61,7 @@ async function processFirstWarningOrg(supabase: SupabaseClient, org: OrgRow, now
   ])
   if ((propCount ?? 0) > 0 || (leaseCount ?? 0) > 0 || (appCount ?? 0) > 0) return false
 
-  const purgeDateStr = new Date(now.getTime() + DORMANCY_WARN_DAYS * 24 * 60 * 60 * 1000)
-    .toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  const purgeDateStr = fmtDateLongZA(addCalendarDays(saDateISO(now), DORMANCY_WARN_DAYS))
 
   const contact = await fetchOrgContact(supabase, org.id, org.name, org)
   if (!contact) return false
@@ -93,8 +93,7 @@ async function processFinalWarningOrg(
   org: FinalCandidateRow,
   now: Date,
 ): Promise<boolean> {
-  const purgeDateStr = new Date(now.getTime() + DORMANCY_FINAL_DAYS * 24 * 60 * 60 * 1000)
-    .toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  const purgeDateStr = fmtDateLongZA(addCalendarDays(saDateISO(now), DORMANCY_FINAL_DAYS))
 
   const contact = await fetchOrgContact(supabase, org.id, org.name, org)
   if (!contact) return false

@@ -16,6 +16,7 @@ import { ListCard } from "@/components/ui/resource-list"
 import { ActionButton } from "@/components/ui/actions"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Wrench, Plus } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 const STATUS_MAP: Record<string, "pending" | "active" | "completed" | "arrears"> = {
   pending_review: "pending",
@@ -103,7 +104,7 @@ export default async function PortalMaintenancePage() {
                 <p className="truncate font-medium text-foreground">{req.title}</p>
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   {req.category && <span className="capitalize">{req.category.replaceAll("_", " ")} · </span>}
-                  {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                  {fmtDateZA(req.created_at)}
                   {req.work_order_number && ` · ${req.work_order_number}`}
                 </p>
               </div>

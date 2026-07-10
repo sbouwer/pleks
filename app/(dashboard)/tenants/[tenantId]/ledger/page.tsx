@@ -13,6 +13,7 @@ import { ArrowLeft, Download } from "lucide-react"
 import { PrintButton } from "./PrintButton"
 import { InlineLink } from "@/components/ui/actions"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateZA } from "@/lib/dates"
 
 type LedgerEntry = {
   id: string
@@ -248,7 +249,7 @@ export default async function TenantLedgerPage({
                 {rentWithBalance.map((entry) => (
                   <tr key={entry.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
-                      {new Date(entry.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                      {fmtDateZA(entry.date)}
                     </td>
                     <td className="px-4 py-2.5">
                       <span className={"text-[11px] px-2 py-0.5 rounded font-medium " + (TYPE_BADGE[entry.type] ?? "")}>
@@ -297,7 +298,7 @@ export default async function TenantLedgerPage({
                 {depositsWithBalance.map((entry) => (
                   <tr key={entry.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
-                      {new Date(entry.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                      {fmtDateZA(entry.date)}
                     </td>
                     <td className="px-4 py-2.5">
                       <span className="block">{entry.description}</span>

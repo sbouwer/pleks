@@ -7,6 +7,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTrustBalance, type TrustBalanceSummary } from "@/lib/dashboard/trustBalance"
+import { saTodayISO } from "@/lib/dates"
 
 export type { TrustBalanceSummary }
 
@@ -127,7 +128,7 @@ async function fetchTenantBalances(db: Awaited<ReturnType<typeof createServiceCl
     })
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = saTodayISO()
 
   return Array.from(byTenant.entries())
     .map(([tenant_id, t]) => {

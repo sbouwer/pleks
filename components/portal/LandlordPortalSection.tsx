@@ -11,6 +11,7 @@ import { Mail, CheckCircle2, Clock, AlertCircle } from "lucide-react"
 import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { SidebarSection } from "@/components/contacts/SidebarSection"
 import { toast } from "sonner"
+import { fmtZA } from "@/lib/dates"
 
 type PortalStatus = "none" | "invited" | "active" | "suspended"
 
@@ -105,7 +106,7 @@ export function LandlordPortalSection({
               <Clock className="h-3.5 w-3.5 shrink-0" />
               <span>
                 Invite sent
-                {portalInvitedAt ? ` on ${new Date(portalInvitedAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}` : ""}
+                {portalInvitedAt ? ` on ${fmtZA(portalInvitedAt, { day: "numeric", month: "short" })}` : ""}
                 {" "}— awaiting landlord setup
               </span>
             </div>

@@ -11,6 +11,7 @@ describe("saDateISO (resolve an instant to its SA calendar date, never UTC)", ()
     // 2026-07-06T22:30:00Z = 2026-07-07 00:30 SAST → SA date is the 7th
     expect(saDateISO(new Date("2026-07-06T22:30:00Z"))).toBe("2026-07-07")
     // the bug it fixes: raw toISOString would print the 6th — a cancellation date pre-dating its own service
+    // eslint-disable-next-line pleks/no-adhoc-dates -- deliberately demonstrates the UTC bug this module fixes
     expect(new Date("2026-07-06T22:30:00Z").toISOString().slice(0, 10)).toBe("2026-07-06")
   })
   it("matches the UTC date outside the 00:00–02:00 SAST skew window", () => {
@@ -44,6 +45,7 @@ describe("deemedServiceMeetsFloor (≥7 calendar days)", () => {
     // 2026-07-01T23:59Z = 2026-07-02 01:59 SAST. Gap to the 8th is therefore 6 days, not 7 → short.
     expect(deemedServiceMeetsFloor("2026-07-08", new Date("2026-07-01T23:59:00Z"))).toBe(false)
     // Proof of the old arithmetic: slicing the instant in UTC yields the 1st, which would read as 7 days.
+    // eslint-disable-next-line pleks/no-adhoc-dates -- deliberately demonstrates the UTC bug this module fixes
     expect(new Date("2026-07-01T23:59:00Z").toISOString().slice(0, 10)).toBe("2026-07-01")
     expect(saDateISO(new Date("2026-07-01T23:59:00Z"))).toBe("2026-07-02")
   })

@@ -15,6 +15,7 @@ import { resolveCompanyContact } from "@/lib/contacts/resolveCompanyContact"
 import { fetchBrokerBriefData, renderBrokerBriefHTML } from "./generateBrokerBriefHTML"
 import { ChecklistBriefEmail } from "@/lib/comms/templates/insurance/checklist-brief-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saTodayISO } from "@/lib/dates"
 
 export interface SendBrokerBriefResult {
   ok:     boolean
@@ -63,7 +64,7 @@ export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBri
 
   // Convert to base64 for Resend attachment
   const htmlBase64 = Buffer.from(html, "utf-8").toString("base64")
-  const filename = `insurance-brief-${data.propertyShortId}-${new Date().toISOString().slice(0, 10)}.html`
+  const filename = `insurance-brief-${data.propertyShortId}-${saTodayISO()}.html`
 
   const brokerName = [broker.first_name, broker.last_name].filter(Boolean).join(" ") || broker.company_name || "Broker"
 

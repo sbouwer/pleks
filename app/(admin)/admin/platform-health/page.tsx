@@ -10,6 +10,7 @@
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import Link from "next/link"
+import { saDateISO } from "@/lib/dates"
 
 interface SnapshotRow {
   id: string
@@ -82,7 +83,7 @@ export default async function PlatformHealthPage() {
   const twelveMthsAgo = new Date()
   twelveMthsAgo.setUTCMonth(twelveMthsAgo.getUTCMonth() - 11)
   twelveMthsAgo.setUTCDate(1)
-  const sinceStr = twelveMthsAgo.toISOString().slice(0, 10)
+  const sinceStr = saDateISO(twelveMthsAgo)
 
   const { data: snapshots, error: snapErr } = await db
     .from("platform_cost_snapshots")

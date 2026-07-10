@@ -15,6 +15,7 @@ import { useState, useCallback } from "react"
 import { CheckCircle2, AlertTriangle, Clock, RefreshCw } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { PayFastForm } from "@/components/payfast/PayFastForm"
+import { fmtDateZA } from "@/lib/dates"
 
 export interface LatestPull {
   id:                   string
@@ -50,7 +51,7 @@ const PRODUCT_PRICES = {
 
 function formatDate(d: string | null): string {
   if (!d) return ""
-  try { return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) }
+  try { return fmtDateZA(d) }
   catch { return d }
 }
 

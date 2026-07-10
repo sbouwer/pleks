@@ -14,6 +14,7 @@ import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 export default async function LandlordStatementsPage() {
   const session = await getLandlordSession()
@@ -82,7 +83,7 @@ export default async function LandlordStatementsPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {(stmts ?? []).map((s) => {
-                  const period = new Date(s.period_month).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+                  const period = fmtZA(s.period_month, { month: "long", year: "numeric" })
                   return (
                     <tr key={s.id}>
                       <td className="py-2.5 text-muted-foreground">{period}</td>

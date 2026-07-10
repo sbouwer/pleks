@@ -22,6 +22,7 @@ import {
   type ManagementFeeRow,
 } from "./TrustAuditPdf"
 import type { OutstandingItem } from "./close"
+import { fmtZA } from "@/lib/dates"
 
 export interface GenerateAuditExportParams {
   periodId: string
@@ -401,7 +402,7 @@ async function fetchManagementFees(
       ? [prop.address_line1, prop.suburb].filter(Boolean).join(", ")
       : "Unknown property"
     const periodMonth = fee.period_month
-      ? new Date(fee.period_month).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+      ? fmtZA(fee.period_month, { month: "long", year: "numeric" })
       : ""
 
     return {

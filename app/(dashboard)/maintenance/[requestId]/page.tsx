@@ -29,6 +29,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildUnifiedTimeline } from "@/lib/maintenance/timeline"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 const INSURANCE_BADGE: Record<string, { label: string; cls: string }> = {
   reported: { label: "Reported to broker",  cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
@@ -336,7 +337,7 @@ export default async function MaintenanceDetailPage({
                     </span>
                     {req.insurance_decision_at && (
                       <span className="text-xs text-muted-foreground">
-                        · {new Date(req.insurance_decision_at as string).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        · {fmtZA(req.insurance_decision_at as string, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     )}
                   </div>
@@ -358,7 +359,7 @@ export default async function MaintenanceDetailPage({
                             <span>{party}{name ? ` · ${name}` : ""}</span>
                             <span className="text-muted-foreground/60">· {n.channel as string}</span>
                             <span className="ml-auto">
-                              {new Date(n.sent_at as string).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                              {fmtZA(n.sent_at as string, { hour: "2-digit", minute: "2-digit" })}
                             </span>
                           </div>
                         )

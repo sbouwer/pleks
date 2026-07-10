@@ -10,6 +10,7 @@ import { sendEmail } from "@/lib/comms/send-email"
 import { formatZAR } from "@/lib/constants"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
+import { fmtDateLongZA } from "@/lib/dates"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 const SCREENING_FEE = "R399"
@@ -58,7 +59,7 @@ function formatEmployment(type = ""): string {
 }
 function formatDate(d?: string) {
   if (!d) return ""
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(d)
 }
 
 const S = {

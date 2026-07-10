@@ -12,6 +12,7 @@ import { BackLink } from "@/components/ui/BackLink"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 export default async function StatementDetailPage({
   params,
@@ -35,7 +36,7 @@ export default async function StatementDetailPage({
 
   const property = stmt.properties as unknown as { name: string; address_line1: string; city: string; owner_name: string; owner_email: string } | null
   const periodDate = new Date(stmt.period_month)
-  const periodLabel = periodDate.toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+  const periodLabel = fmtZA(periodDate, { month: "long", year: "numeric" })
   const incomeLines = (stmt.income_lines as { unit: string; tenant: string; invoice_ref: string; amount_cents: number; amount_paid_cents: number; status: string }[]) || []
   const expenseLines = (stmt.expense_lines as { description: string; contractor: string; invoice_ref: string; amount_cents: number }[]) || []
   const arrearsLines = (stmt.arrears_lines as { unit: string; tenant: string; overdue_amount_cents: number }[]) || []

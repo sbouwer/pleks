@@ -17,6 +17,7 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { toast } from "sonner"
 import { Loader2, Plus, Clock } from "lucide-react"
 import { recordMaintenanceDelay } from "./actions"
+import { fmtZA } from "@/lib/dates"
 
 interface DelayEvent {
   id: string
@@ -178,12 +179,12 @@ export function RecordDelayPanel({ requestId, initialDelays }: Props) {
                     <span className="font-medium">{option?.label ?? d.delay_type}</span>
                     {d.note && <p className="text-xs text-muted-foreground mt-0.5">{d.note}</p>}
                     {d.rescheduled_to && (
-                      <p className="text-xs text-muted-foreground">→ Rescheduled to {new Date(d.rescheduled_to).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}</p>
+                      <p className="text-xs text-muted-foreground">→ Rescheduled to {fmtZA(d.rescheduled_to, { day: "numeric", month: "short" })}</p>
                     )}
                   </div>
                   <div className="shrink-0 text-right">
                     <p className={`text-xs font-medium capitalize ${attrColor}`}>{d.attributed_to}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(d.occurred_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}</p>
+                    <p className="text-xs text-muted-foreground">{fmtZA(d.occurred_at, { day: "numeric", month: "short" })}</p>
                   </div>
                 </div>
               )

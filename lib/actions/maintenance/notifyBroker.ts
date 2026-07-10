@@ -18,6 +18,7 @@ import {
   type CriticalIncidentBrokerProps,
 } from "@/lib/comms/templates/maintenance/critical-incident-broker"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateLongZA } from "@/lib/dates"
 
 interface NotifyBrokerParams {
   orgId: string
@@ -98,7 +99,7 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
     .filter((d): d is string => !!d)
   const latestConfirmedAt = confirmedDates.toSorted((a, b) => a.localeCompare(b)).at(-1) ?? null
   const coverageLastVerified = latestConfirmedAt
-    ? new Date(latestConfirmedAt).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    ? fmtDateLongZA(latestConfirmedAt)
     : null
 
   const branding = buildBranding(orgSettings)

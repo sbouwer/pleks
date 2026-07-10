@@ -16,6 +16,7 @@ import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { ApplicationTriageList, type TriageApp } from "./ApplicationTriageList"
 import { ListingQuickbar } from "./ListingQuickbar"
+import { fmtDateZA } from "@/lib/dates"
 
 const LISTING_STATUS: Record<string, DetailStatus> = {
   active: { kind: "occupied", label: "Active" },
@@ -111,7 +112,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const facts: DetailFact[] = [
     { k: "Rent", v: `${formatZAR(listing.asking_rent_cents)}/mo` },
     { k: "Available", v: listing.available_from ?? "Now" },
-    { k: "Closes", v: listing.closes_at ? new Date(listing.closes_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "—" },
+    { k: "Closes", v: listing.closes_at ? fmtDateZA(listing.closes_at) : "—" },
     { k: "Application fee", v: formatZAR(listing.application_fee_cents) },
     { k: "Views", v: String(listing.views_count ?? 0) },
     { k: "Submitted", v: String(triage.length) },

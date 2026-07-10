@@ -120,6 +120,45 @@ export function addCalendarDays(iso: string, days: number): string {
 }
 
 /**
+ * Shift a calendar date by whole months, on a UTC anchor.
+ *
+ * ⚠ Overflow ROLLS OVER, matching JS `setUTCMonth` and the local-time code this replaced: 31 Jan + 1 month
+ * is 3 March, not 28 February. Whether a lease term should clamp instead is a product decision that has
+ * never been made — this function deliberately preserves the existing behaviour rather than silently
+ * changing every lease end date. It fixes only the coordinate mixing: the callers used LOCAL setMonth/
+ * setDate and then sliced in UTC, so the answer depended on the server's timezone.
+ *
+ * Open, not permanent: OUTSTANDING.md, "addCalendarMonths rolls over rather than clamping".
+ */
+export function addCalendarMonths(iso: string, months: number): string {
+  if (!Number.isInteger(months)) {
+    throw new TypeError(`addCalendarMonths: months must be a whole number, got ${months}.`)
+  }
+  const d = calendarDate(iso)
+  d.setUTCMonth(d.getUTCMonth() + months)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * The first / last calendar day of a date's month.
+ *
+ * These exist because date-fns `startOfMonth`/`endOfMonth` are LOCAL-time operations returning a `Date`,
+ * and every caller then sliced that Date in UTC. On a UTC server the two coordinate systems coincide and
+ * the bug is invisible; on any machine east of Greenwich `endOfMonth` yields local 23:59 of the 31st,
+ * which is the 31st in UTC — but `startOfMonth` yields local 00:00 of the 1st, which is the LAST DAY OF
+ * THE PREVIOUS MONTH in UTC. A whole month of invoices, statements and levies hung off that.
+ *
+ * `monthEnd` cannot hit the addCalendarMonths rollover: a day-01 anchor has no day to overflow.
+ */
+export function monthStart(iso: string): string {
+  return `${assertSaDateISO(iso, "monthStart").slice(0, 7)}-01`
+}
+
+export function monthEnd(iso: string): string {
+  return addCalendarDays(addCalendarMonths(monthStart(iso), 1), -1)
+}
+
+/**
  * Whole SA calendar days from `from` to `to` (negative if `to` is earlier).
  *
  * NOT a millisecond division: that answers "how many 24-hour spans", so 23:00 Monday → 08:00 Tuesday
@@ -160,6 +199,17 @@ function toInstant(value: Date | string, fn: string): Date {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) throw new RangeError(`${fn}: ${JSON.stringify(value)} is not a real date.`)
   return d
+}
+
+/**
+ * The generic escape hatch: any Intl option bag you like, with `timeZone` injected.
+ *
+ * Reach for the named helpers below first. This exists so a bespoke shape (a weekday, a day-and-time with
+ * no year) never becomes an excuse to call `toLocaleDateString` directly and silently render in the
+ * server's zone. One helper, no sprawl.
+ */
+export function fmtZA(value: Date | string, options: Intl.DateTimeFormatOptions): string {
+  return fmt(options).format(toInstant(value, "fmtZA"))
 }
 
 /** "8 Jul 2026" — the default for tenant-facing dates. Never `toLocaleDateString()` without a timeZone. */

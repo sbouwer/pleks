@@ -20,6 +20,7 @@ import {
   type CommExportDeliveryEvent,
 } from "@/lib/comms/CommExportPdf"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saTodayISO } from "@/lib/dates"
 
 export const dynamic = "force-dynamic"
 
@@ -134,7 +135,7 @@ export async function GET(req: NextRequest) {
   })
 
   const buffer = await renderToBuffer(pdfElement as unknown as Parameters<typeof renderToBuffer>[0])
-  const filename = `comm-audit-${leaseId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.pdf`
+  const filename = `comm-audit-${leaseId.slice(0, 8)}-${saTodayISO()}.pdf`
 
   return new Response(buffer as unknown as BodyInit, {
     headers: {

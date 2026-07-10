@@ -16,6 +16,7 @@ import { AlertTriangle, Building2 } from "lucide-react"
 import { NoticeAcknowledge } from "./NoticeAcknowledge"
 import { recordNoticePageView } from "@/lib/actions/delivery-notice"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateLongZA } from "@/lib/dates"
 
 interface Props {
   params: Promise<{ token: string }>
@@ -97,9 +98,7 @@ export default async function NoticePage({ params }: Props) {
   void recordNoticePageView(row.id)
 
   const categoryLabel = CATEGORY_LABELS[comm.template_key as string] ?? "Important Notice"
-  const sentDate = new Date(comm.created_at as string).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
-  })
+  const sentDate = fmtDateLongZA(comm.created_at as string)
   const remaining = daysRemaining(comm.created_at as string, comm.template_key as string)
   const accentColor = (org?.document_brand_colour as string | null) ?? "#1a3a5c"
 

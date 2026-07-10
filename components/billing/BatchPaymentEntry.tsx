@@ -17,6 +17,7 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { formatZAR } from "@/lib/constants"
 import { Plus, Trash2 } from "lucide-react"
+import { saTodayISO } from "@/lib/dates"
 
 interface OpenInvoice {
   id: string
@@ -50,7 +51,7 @@ const PAYMENT_METHODS = [
 ]
 
 function today() {
-  return new Date().toISOString().split("T")[0]
+  return saTodayISO()
 }
 
 function tenantLabel(inv: OpenInvoice): string {

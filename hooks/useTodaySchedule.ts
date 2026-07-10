@@ -11,6 +11,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
+import { fmtZA } from "@/lib/dates"
 
 export interface ScheduleStop {
   id: string
@@ -49,7 +50,7 @@ export function inspectionToStop(r: InspectionRow): ScheduleStop {
     kind: "inspection",
     title: INSPECTION_LABEL[r.inspection_type] ?? "Inspection",
     location: [propertyName, unitNo].filter(Boolean).join(" · "),
-    time: when ? when.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }) : "—",
+    time: when ? fmtZA(when, { hour: "2-digit", minute: "2-digit" }) : "—",
     scheduledAt: r.scheduled_date ?? "",
     href: `/inspections/${r.id}`,
   }

@@ -11,6 +11,7 @@
 
 import { useState, useTransition } from "react"
 import { saveExternalLink } from "./actions"
+import { fmtZA } from "@/lib/dates"
 
 interface LinkRow {
   key:            string
@@ -51,7 +52,7 @@ function LinkRow({ row }: Readonly<{ row: LinkRow }>) {
   else if (row.is_healthy === false) healthColor = "var(--destructive)"
 
   const checkedAt = row.last_checked_at
-    ? new Date(row.last_checked_at).toLocaleString("en-ZA", { dateStyle: "short", timeStyle: "short" })
+    ? fmtZA(row.last_checked_at, { dateStyle: "short", timeStyle: "short" })
     : "never"
 
   return (

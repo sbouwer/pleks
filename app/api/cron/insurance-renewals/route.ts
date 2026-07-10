@@ -18,6 +18,7 @@ import { createClient } from "@supabase/supabase-js"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { RenewalReminderEmail } from "@/lib/comms/templates/insurance/renewal-reminder"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 
 function getServiceClient() {
   return createClient(
@@ -27,8 +28,6 @@ function getServiceClient() {
 }
 
 type Db = ReturnType<typeof getServiceClient>
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 // ── Health tracking ───────────────────────────────────────────────────────────
 
@@ -173,9 +172,7 @@ async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, re
   const agentEmail = authUser?.user?.email
   if (!agentEmail) return
 
-  const renewalFormatted = new Date(renewalDate).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
-  })
+  const renewalFormatted = fmtDateLongZA(renewalDate)
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://app.pleks.co.za"
   const checklistUrl = `${baseUrl}/properties/${propertyId}?tab=insurance`
 
@@ -221,9 +218,9 @@ export async function GET(req: NextRequest) {
   const runId = await startJob(db)
 
   try {
-    const today = new Date().toISOString().slice(0, 10)
-    const sevenDaysAgo = new Date(Date.now() - 7 * DAY_MS).toISOString().slice(0, 10)
-    const sixDaysAgo = new Date(Date.now() - 6 * DAY_MS).toISOString().slice(0, 10)
+    const today = saTodayISO()
+    const sevenDaysAgo = addCalendarDays(saTodayISO(), -7)
+    const sixDaysAgo = addCalendarDays(saTodayISO(), -6)
 
     // 1. Find properties whose renewal date is today → reset checklist
     const { data: dueToday, error: dueTodayError } = await db

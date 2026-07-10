@@ -20,6 +20,7 @@ import { FormSelect } from "@/components/ui/FormSelect"
 import { Download } from "lucide-react"
 import { SovereignBadge, type SovereignBadgeProps } from "@/components/trust/SovereignBadge"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { fmtDateZA, saTodayISO } from "@/lib/dates"
 
 const TYPE_FILTER_OPTIONS = [
   { value: "", label: "All types" },
@@ -141,7 +142,7 @@ export default function TrustLedgerPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `trust-ledger-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `trust-ledger-${saTodayISO()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -154,7 +155,7 @@ export default function TrustLedgerPage() {
         headline={summary ? `${formatZAR(summary.total_in_trust_cents)} in trust` : "Trust account ledger"}
         sub={
           summary?.last_recon_date
-            ? `Last reconciled ${new Date(summary.last_recon_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`
+            ? `Last reconciled ${fmtDateZA(summary.last_recon_date)}`
             : "Every trust movement with a running balance."
         }
         action={
@@ -216,7 +217,7 @@ export default function TrustLedgerPage() {
                 {entriesWithBalance.map((e) => (
                   <tr key={e.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
-                      {new Date(e.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                      {fmtDateZA(e.date)}
                     </td>
                     <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{e.reference ?? "—"}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap">

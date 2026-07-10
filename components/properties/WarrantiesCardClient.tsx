@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Plus, Archive, ChevronDown, ChevronUp } from "lucide-react"
+import { fmtDateZA, saTodayISO } from "@/lib/dates"
 
 export interface WarrantyRow {
   id: string
@@ -54,7 +55,7 @@ const WARRANTY_TYPES = [
 const TYPE_LABEL: Record<string, string> = Object.fromEntries(WARRANTY_TYPES.map((t) => [t.value, t.label]))
 
 function today(): string {
-  return new Date().toISOString().split("T")[0]
+  return saTodayISO()
 }
 
 function formatExpiry(expiresOn: string | null): string {
@@ -62,7 +63,7 @@ function formatExpiry(expiresOn: string | null): string {
   const expiry = new Date(expiresOn)
   const now = new Date()
   const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  const dateStr = expiry.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  const dateStr = fmtDateZA(expiry)
   if (daysLeft < 0) return `${dateStr} (expired)`
   if (daysLeft < 14) return `${dateStr} (${daysLeft}d left)`
   if (daysLeft < 60) return `${dateStr} (${Math.ceil(daysLeft / 7)} weeks left)`

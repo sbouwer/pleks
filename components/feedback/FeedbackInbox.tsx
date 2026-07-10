@@ -9,6 +9,7 @@
 
 import Link from "next/link"
 import type { FeedbackSubmission } from "@/lib/feedback/queries"
+import { fmtDateZA } from "@/lib/dates"
 
 const STATUS_LABELS: Record<string, string> = {
   open:        "Open",
@@ -83,5 +84,5 @@ export function FeedbackInbox({ submissions, detailBasePath, showRole = false }:
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }

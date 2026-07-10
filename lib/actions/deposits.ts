@@ -25,13 +25,14 @@ import {
 } from "@/lib/comms/templates/tenant/deposits/deposit-return-schedule"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { isValidJustification } from "@/lib/deposits/justification"
+import { fmtDateLongZA } from "@/lib/dates"
 
 function formatZARLocal(cents: number): string {
   return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
 }
 
 function formatDateLocal(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(iso)
 }
 
 // Deposit actions are finance writes (RBAC P4) — owner/is_admin exempt; others need the 'finance' capability.

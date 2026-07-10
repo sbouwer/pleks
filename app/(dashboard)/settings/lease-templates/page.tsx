@@ -26,6 +26,7 @@ import { toast } from "sonner"
 import { Eye, ExternalLink } from "lucide-react"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
+import { fmtDateLongZA } from "@/lib/dates"
 
 interface OrgInfo {
   orgId: string
@@ -148,9 +149,7 @@ export default function LeaseTemplatesPage() {
         <div className="flex items-center justify-between mt-6 mb-4 text-xs text-muted-foreground border-b border-border/40 pb-3">
           <span>
             Custom clause editing enabled — you accepted responsibility on{" "}
-            {new Date(orgInfo.clauseEditConfirmedAt).toLocaleDateString("en-ZA", {
-              day: "numeric", month: "long", year: "numeric",
-            })}
+            {fmtDateLongZA(orgInfo.clauseEditConfirmedAt)}
           </span>
           <ActionButton tone="secondary" onClick={() => setShowConfirmRecord(true)}>
             View record

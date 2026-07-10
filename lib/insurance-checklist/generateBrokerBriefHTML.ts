@@ -6,6 +6,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateLongZA } from "@/lib/dates"
 
 interface BriefItem {
   sort_order: number
@@ -46,7 +47,7 @@ function formatRand(cents: number | null): string | null {
 
 function formatDate(iso: string | null): string | null {
   if (!iso) return null
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(iso)
 }
 
 function buildTenancyText(tenantName: string | null, leaseStart: string | null): string {

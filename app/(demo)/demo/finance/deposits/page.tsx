@@ -11,9 +11,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useDemoData, useDemoAction } from "@/lib/demo/DemoContext"
 import { formatZAR } from "@/lib/constants"
 import { Shield } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(dateStr)
 }
 
 function daysUntil(dateStr: string): number {

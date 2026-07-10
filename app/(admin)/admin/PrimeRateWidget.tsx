@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { fmtDateZA } from "@/lib/dates"
 
 interface PrimeRateWidgetProps {
   currentRate: number
@@ -70,7 +71,7 @@ export function PrimeRateWidget({ currentRate, effectiveSince }: Readonly<PrimeR
             <p className="text-xs text-muted-foreground">SA Prime Rate</p>
             <p className="font-heading text-2xl text-brand">{currentRate}%</p>
             <p className="text-xs text-muted-foreground">
-              Since {new Date(effectiveSince).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+              Since {fmtDateZA(effectiveSince)}
             </p>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>

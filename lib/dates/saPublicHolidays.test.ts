@@ -101,13 +101,13 @@ describe("the horizon — fail CLOSED on the statutory path", () => {
 
 describe("subtractBusinessDays — ADVISORY: warns and degrades, never throws", () => {
   it("does not throw past the horizon (a lease ending in 2029 must not blank the calendar)", () => {
-    expect(() => subtractBusinessDays(new Date("2029-06-30T00:00:00Z"), 20)).not.toThrow()
+    expect(() => subtractBusinessDays("2029-06-30", 20)).not.toThrow()
   })
 
   it("is UTC-anchored, so it cannot drift with the server timezone", () => {
     // Fri 2026-07-10 minus 1 business day → Thu 2026-07-09.
-    expect(subtractBusinessDays(new Date("2026-07-10T00:00:00Z"), 1).toISOString().slice(0, 10)).toBe("2026-07-09")
+    expect(subtractBusinessDays("2026-07-10", 1)).toBe("2026-07-09")
     // Mon 2026-07-06 minus 1 → Fri 2026-07-03 (skips the weekend).
-    expect(subtractBusinessDays(new Date("2026-07-06T00:00:00Z"), 1).toISOString().slice(0, 10)).toBe("2026-07-03")
+    expect(subtractBusinessDays("2026-07-06", 1)).toBe("2026-07-03")
   })
 })

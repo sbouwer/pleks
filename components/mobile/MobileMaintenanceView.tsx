@@ -17,6 +17,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { updateMaintenanceStatus } from "@/lib/actions/maintenance"
 import { useOrg } from "@/hooks/useOrg"
 import { createClient } from "@/lib/supabase/client"
+import { fmtZA } from "@/lib/dates"
 
 // Web Speech API — not in default TS lib, defined locally
 interface SpeechRecognitionResult {
@@ -414,7 +415,7 @@ export function MobileMaintenanceView({
           <div key={note.id} className="text-sm bg-muted/50 rounded p-2">
             <p>{note.note}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {new Date(note.createdAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              {fmtZA(note.createdAt, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
             </p>
           </div>
         ))}
@@ -423,7 +424,7 @@ export function MobileMaintenanceView({
           <div key={note.id} className="text-sm bg-muted/50 rounded p-2">
             <p>{note.text}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {new Date(note.createdAt).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+              {fmtZA(note.createdAt, { hour: "2-digit", minute: "2-digit" })}
             </p>
           </div>
         ))}

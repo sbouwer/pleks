@@ -9,6 +9,7 @@
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
 import { getDiscretionDeclineFlags } from "./discretionDeclineRate"
+import { fmtDateZA, fmtZA } from "@/lib/dates"
 
 export interface AttentionItem {
   id: string
@@ -91,7 +92,7 @@ function buildCpaItem(l: {
   return {
     id: l.id, type: "compliance", priority: 2,
     title: `CPA s14 notice due — ${tenantName}`,
-    subtitle: `${location} · ends ${endDate.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`,
+    subtitle: `${location} · ends ${fmtDateZA(endDate)}`,
     href: `/leases/${l.id}`,
     badge: { text: `${daysLeft}d left`, variant: "amber" },
     dotColor: "#EF9F27",
@@ -114,9 +115,9 @@ function buildInspectionItem(i: {
   return {
     id: i.id, type: "inspection", priority: 3,
     title: `${typeLabel} — ${tenantName}`,
-    subtitle: `${location} · ${scheduledDate.toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" })}`,
+    subtitle: `${location} · ${fmtZA(scheduledDate, { weekday: "short", day: "numeric", month: "short" })}`,
     href: `/inspections/${i.id}`,
-    badge: { text: scheduledDate.toLocaleDateString("en-ZA", { day: "numeric", month: "short" }), variant: "blue" },
+    badge: { text: fmtZA(scheduledDate, { day: "numeric", month: "short" }), variant: "blue" },
     dotColor: "#378ADD",
     sortDate: scheduledDate,
   }

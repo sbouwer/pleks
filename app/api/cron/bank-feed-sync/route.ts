@@ -10,13 +10,14 @@ import { yodlee } from "@/lib/yodlee/client"
 import { transformYodleeTransaction } from "@/lib/yodlee/transform"
 import { syncYodleeTransactions } from "@/lib/actions/recon"
 import { withCronRun } from "@/lib/cron/withCronRun"
+import { addCalendarDays, saDateISO } from "@/lib/dates"
 
 export const GET = withCronRun("bank_feed_sync", handler)
 
 async function handler(_req: NextRequest): Promise<Response> {
   const db = await createServiceClient()
   const now = new Date()
-  const toDate = now.toISOString().slice(0, 10)
+  const toDate = saDateISO(now)
 
   const { data: connections, error } = await db
     .from("bank_feed_connections")
@@ -52,8 +53,8 @@ async function handler(_req: NextRequest): Promise<Response> {
       const userToken = await yodlee.getUserToken(cobrandToken, loginName)
 
       const fromDate = conn.last_synced_at
-        ? new Date(conn.last_synced_at as string).toISOString().slice(0, 10)
-        : new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10)
+        ? saDateISO(new Date(conn.last_synced_at as string))
+        : addCalendarDays(saDateISO(now), -30)
 
       const rawTxns = await yodlee.getTransactions(
         userToken,

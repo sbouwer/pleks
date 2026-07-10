@@ -17,6 +17,7 @@ import { toast } from "sonner"
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort } from "@/lib/reports/periods"
 import { Loader2, ChevronDown, ChevronUp, Plus } from "lucide-react"
+import { saTodayISO } from "@/lib/dates"
 
 interface LevySchedule {
   id: string
@@ -83,7 +84,7 @@ export function LevyScheduleManager({ hoaId, initialSchedules, unitOwnerMap }: P
     schedule_type: "admin_levy",
     calculation_method: "participation_quota",
     total_budget_rands: "",
-    effective_from: new Date().toISOString().split("T")[0],
+    effective_from: saTodayISO(),
     include_vacant_units: true,
   })
 
@@ -123,7 +124,7 @@ export function LevyScheduleManager({ hoaId, initialSchedules, unitOwnerMap }: P
         schedule_type: "admin_levy",
         calculation_method: "participation_quota",
         total_budget_rands: "",
-        effective_from: new Date().toISOString().split("T")[0],
+        effective_from: saTodayISO(),
         include_vacant_units: true,
       })
       toast.success("Schedule created")

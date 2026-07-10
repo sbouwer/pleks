@@ -7,6 +7,7 @@
 
 import { Clock } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { fmtZA } from "@/lib/dates"
 
 interface DelayEvent {
   id: string
@@ -48,11 +49,11 @@ const ATTRIBUTION_LABEL: Record<string, string> = {
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" })
+  return fmtZA(iso, { weekday: "short", day: "numeric", month: "short" })
 }
 
 function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+  return fmtZA(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 }
 
 export function DelayCard({ delays }: Readonly<Props>) {

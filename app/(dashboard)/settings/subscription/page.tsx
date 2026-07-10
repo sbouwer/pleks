@@ -44,6 +44,7 @@ import {
 } from "./actions"
 import type { SubscriptionStatus } from "@/lib/subscriptions/state"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { addCalendarMonths, fmtDateLongZA, saDateISO } from "@/lib/dates"
 
 // ── AI usage section ──────────────────────────────────────────────────────────
 
@@ -518,11 +519,7 @@ function BillingPageInner() {
         <div className="rounded-md border border-rule bg-muted/40 p-4 space-y-2">
           <p className="text-sm font-medium">
             Account closing on{" "}
-            {new Date(
-              new Date(fullSub.cancelled_at).setFullYear(
-                new Date(fullSub.cancelled_at).getFullYear() + 1,
-              ),
-            ).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
+            {fmtDateLongZA(addCalendarMonths(saDateISO(new Date(fullSub.cancelled_at)), 12))}
           </p>
           <p className="text-xs text-muted-foreground">
             Reads and exports are available until then. You can reactivate at any time.

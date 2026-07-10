@@ -6,6 +6,7 @@
 import { formatZARAbbrev } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { MetricCard as KpiCard } from "@/components/ui/metric-card"
+import { fmtZA } from "@/lib/dates"
 
 interface MetricCardProps {
   label: string
@@ -50,7 +51,7 @@ function thisMonthLabel(
   return {
     label: `${formatZARAbbrev(total)} due`,
     cls: "text-amber-500",
-    sub: `on ${due.toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}`,
+    sub: `on ${fmtZA(due, { day: "numeric", month: "short" })}`,
   }
 }
 

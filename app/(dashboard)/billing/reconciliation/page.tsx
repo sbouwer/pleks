@@ -23,6 +23,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 interface ImportRecord {
   id: string
@@ -165,7 +166,7 @@ export default function ReconciliationPage() {
                   {conn.account_mask && <span className="text-muted-foreground ml-1">{conn.account_mask}</span>}
                   {conn.last_synced_at && (
                     <span className="text-muted-foreground ml-2 text-xs">
-                      · Last sync: {new Date(conn.last_synced_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                      · Last sync: {fmtZA(conn.last_synced_at, { hour: "2-digit", minute: "2-digit" })}
                       {" · "}{conn.last_sync_txn_count} txns · {conn.last_sync_matched_count} matched
                     </span>
                   )}

@@ -22,6 +22,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { PaymentReceivedEmail } from "@/lib/comms/templates/tenant/rent/payment-received"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateLongZA } from "@/lib/dates"
 
 export async function recordPayment(formData: FormData) {
   const gw = await requireAgentWriteAccess("record_payment")
@@ -121,7 +122,7 @@ export async function recordPayment(formData: FormData) {
             tenantName,
             propertyLabel: "your property",
             receiptNumber,
-            paymentDate:              new Date(paymentDate).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" }),
+            paymentDate:              fmtDateLongZA(paymentDate),
             paymentMethod:            paymentMethod.toUpperCase(),
             amountDisplay:            fmt(amountCents),
             outstandingBalanceDisplay: fmt(outstandingBalance),

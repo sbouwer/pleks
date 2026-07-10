@@ -14,10 +14,12 @@ import { getOrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
+/** `periodFrom`/`periodTo` are calendar dates ("YYYY-MM-DD"), not instants — they bound a statement MONTH.
+ *  They used to be `Date`s sliced in UTC here, while the cron built them with local-time startOfMonth. */
 export async function generateOwnerStatement(
   propertyId: string,
-  periodFrom: Date,
-  periodTo: Date
+  periodFrom: string,
+  periodTo: string
 ) {
   const supabase = await createServiceClient()
 
@@ -35,8 +37,6 @@ export async function generateOwnerStatement(
     ((org.type as OrgType) ?? "agency"),
     ((org.name as string) ?? ""),
   )
-  const periodFromStr = periodFrom.toISOString().split("T")[0]
-  const periodToStr = periodTo.toISOString().split("T")[0]
 
   // Income: rent invoices for units at this property
   const { data: units, error: unitsError } = await supabase
@@ -53,8 +53,8 @@ export async function generateOwnerStatement(
         .from("rent_invoices")
         .select("*, leases(tenant_id, tenant_view(first_name, last_name, company_name, entity_type)), units(unit_number)")
         .in("unit_id", unitIds)
-        .gte("period_from", periodFromStr)
-        .lte("period_to", periodToStr)
+        .gte("period_from", periodFrom)
+        .lte("period_to", periodTo)
     : { data: [] }
 
   const incomeLines = (invoices || []).map((inv) => {
@@ -84,7 +84,7 @@ export async function generateOwnerStatement(
     .select("*, contractor_view(first_name, last_name, company_name)")
     .eq("property_id", propertyId)
     .in("status", ["paid", "owner_direct_recorded"])
-    .eq("statement_month", periodFromStr)
+    .eq("statement_month", periodFrom)
     logQueryError("generateOwnerStatement supplier_invoices", expensesError)
 
   const expenseLines = (expenses || []).map((exp) => ({
@@ -123,9 +123,9 @@ export async function generateOwnerStatement(
     .insert({
       org_id: property.org_id,
       property_id: propertyId,
-      period_month: periodFromStr,
-      period_from: periodFromStr,
-      period_to: periodToStr,
+      period_month: periodFrom,
+      period_from: periodFrom,
+      period_to: periodTo,
       gross_income_cents: grossIncomeCents,
       total_expenses_cents: totalExpensesCents,
       management_fee_cents: fee.feeExclVat,

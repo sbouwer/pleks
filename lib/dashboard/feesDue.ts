@@ -4,6 +4,7 @@
  * Data:   reads management_fee_invoices and rent_invoices for the current month, org-scoped; splits fees into collected vs uncollected by the month's rent collection rate.
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
+import { fmtZA } from "@/lib/dates"
 
 export interface FeesDueWidget {
   total_fees_due_cents: number
@@ -54,6 +55,6 @@ export async function getFeesDue(orgId: string): Promise<FeesDueWidget> {
     fees_in_collected_rent: feesInCollected,
     fees_in_uncollected_rent: totalFees - feesInCollected,
     fee_percent: feePercent,
-    period_label: now.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }),
+    period_label: fmtZA(now, { month: "long", year: "numeric" }),
   }
 }

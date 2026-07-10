@@ -10,6 +10,7 @@ import { WarrantiesCard } from "@/components/properties/WarrantiesCard"
 import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { fmtZA } from "@/lib/dates"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -151,7 +152,7 @@ export function OperationsTab({
                   <div className="flex items-center gap-2 shrink-0">
                     {insp.scheduled_date && (
                       <span className="text-xs text-muted-foreground">
-                        {new Date(insp.scheduled_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                        {fmtZA(insp.scheduled_date, { day: "numeric", month: "short" })}
                       </span>
                     )}
                     {statusPill(INSPECTION_STATUS_PILL, insp.status)}
@@ -183,7 +184,7 @@ export function OperationsTab({
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground">
-                      {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                      {fmtZA(req.created_at, { day: "numeric", month: "short" })}
                     </span>
                     {statusPill(MAINTENANCE_STATUS_PILL, req.status)}
                   </div>
@@ -218,7 +219,7 @@ export function OperationsTab({
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground shrink-0 mt-0.5">
-                    {new Date(item.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })}
+                    {fmtZA(item.date, { day: "numeric", month: "short", year: "2-digit" })}
                   </span>
                 </div>
               ))}
@@ -244,7 +245,7 @@ export function OperationsTab({
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground shrink-0 mt-0.5">
-                    {new Date(item.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                    {fmtZA(item.created_at, { day: "numeric", month: "short" })}
                   </span>
                 </div>
               ))}

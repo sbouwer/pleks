@@ -10,9 +10,10 @@ import { getAuditEntry } from "@/lib/admin/audit-queries"
 import { classifyAuditSeverity, SEVERITY_COLORS } from "@/lib/admin/audit-severity"
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import { fmtZA } from "@/lib/dates"
 
 function formatDatetime(iso: string): string {
-  return new Date(iso).toLocaleString("en-ZA", { dateStyle: "long", timeStyle: "long" })
+  return fmtZA(iso, { dateStyle: "long", timeStyle: "long" })
 }
 
 function FieldRow({ label, value }: { label: string; value: string | null | undefined }) {

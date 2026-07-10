@@ -15,6 +15,7 @@ import { FileText } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 const STATUS_MAP: Record<string, "draft" | "scheduled" | "active" | "completed"> = {
   draft: "draft",
@@ -57,7 +58,7 @@ export default async function StatementsPage() {
           {list.map((stmt) => {
             const property = stmt.properties as unknown as { name: string } | null
             const periodDate = new Date(stmt.period_month)
-            const periodLabel = periodDate.toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+            const periodLabel = fmtZA(periodDate, { month: "long", year: "numeric" })
 
             return (
               <Link key={stmt.id} href={`/statements/${stmt.id}`}>

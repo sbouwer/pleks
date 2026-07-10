@@ -7,6 +7,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { resolveDepositInterestConfig } from "@/lib/deposits/interestConfig"
 import { describeRate } from "@/lib/deposits/rateUtils"
+import { addCalendarDays, saTodayISO } from "@/lib/dates"
 
 export interface TenantWelcomePackData {
   // Tenant
@@ -84,9 +85,9 @@ function buildPaymentReference(
 }
 
 function addDays(isoDate: string, days: number): string {
-  const d = new Date(`${isoDate}T00:00:00`)
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
+  // Was three bugs in four lines: a zone-less literal (parsed in the SERVER's zone), local setDate/getDate,
+  // and a UTC slice of the result. Pure calendar arithmetic now.
+  return addCalendarDays(isoDate, days)
 }
 
 const ORDINAL_SUFFIX: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" }
@@ -255,7 +256,7 @@ export async function buildTenantWelcomePackData(
   const moveInInspectionDate = inspRow?.conducted_date ?? inspRow?.scheduled_date ?? null
 
   // Deposit interest — resolve actual config to get correct rate type description
-  const today = new Date().toISOString().slice(0, 10)
+  const today = saTodayISO()
   const depositConfig = await resolveDepositInterestConfig(
     orgId,
     lease.property_id ?? null,

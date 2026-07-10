@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { getTemplate } from "@/lib/comms/template-registry"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateZA, fmtZA, saTodayISO } from "@/lib/dates"
 
 function isTemplateMandatory(key: string | null): boolean {
   if (!key) return false
@@ -80,7 +81,7 @@ export default async function PortalDashboard() {
       .eq("unit_id", unitId)
       .eq("org_id", orgId)
       .in("status", ["scheduled", "pending"])
-      .gte("scheduled_date", new Date().toISOString().slice(0, 10))
+      .gte("scheduled_date", saTodayISO())
       .order("scheduled_date", { ascending: true })
       .limit(1)
       .maybeSingle(),
@@ -204,8 +205,8 @@ export default async function PortalDashboard() {
             <div className="space-y-1">
               <p className="font-semibold text-foreground">{property?.name ?? "Property"}</p>
               <p className="text-sm text-muted-foreground">
-                {lease.start_date && new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
-                {lease.end_date && ` – ${new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`}
+                {lease.start_date && fmtDateZA(lease.start_date)}
+                {lease.end_date && ` – ${fmtDateZA(lease.end_date)}`}
               </p>
               {lease.monthly_rent_cents && (
                 <p className="text-sm font-medium text-foreground">{formatZAR(lease.monthly_rent_cents)}/month</p>
@@ -255,7 +256,7 @@ export default async function PortalDashboard() {
             <div className="space-y-1">
               <p className="font-medium capitalize text-foreground">{inspection.inspection_type.replaceAll("_", " ")} inspection</p>
               <p className="text-sm text-muted-foreground">
-                {new Date(inspection.scheduled_date).toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })}
+                {fmtZA(inspection.scheduled_date, { weekday: "long", day: "numeric", month: "long" })}
               </p>
             </div>
           ) : (

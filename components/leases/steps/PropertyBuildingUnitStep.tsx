@@ -20,6 +20,7 @@ import { contactDisplayName } from "@/lib/contacts/displayName"
 import { useLeaseWizard } from "../LeaseWizardContext"
 import type { LocalCharge } from "../wizardData"
 import type { StepHandle } from "../stepHandle"
+import { saTodayISO } from "@/lib/dates"
 
 interface Property {
   id: string
@@ -294,7 +295,7 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
         description: "Body corporate levy",
         charge_type: "body_corporate_levy",
         amount_cents: prop.levy_amount_cents,
-        start_date: new Date().toISOString().slice(0, 10),
+        start_date: saTodayISO(),
         end_date: null,
         payable_to: "body_corporate",
         deduct_from_owner_payment: true,

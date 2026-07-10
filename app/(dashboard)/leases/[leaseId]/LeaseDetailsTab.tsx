@@ -15,6 +15,7 @@ import { PrerequisitesCard } from "./PrerequisitesCard"
 import { SigningOptions } from "./SigningOptions"
 import { MigratedDocSection } from "./MigratedDocSection"
 import type { PrerequisitesCheck } from "@/lib/leases/checkPrerequisites"
+import { fmtDateZA } from "@/lib/dates"
 
 type SpecialTerm = { type: string; detail: string }
 type Amendment = { id: string; amendment_type: string; effective_date: string; signed_at: string | null }
@@ -61,7 +62,7 @@ function KVRow({ label, value }: { readonly label: string; readonly value: React
 }
 
 function fmt(d: string) {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(d)
 }
 
 function formatDueDay(v: string | null): string {

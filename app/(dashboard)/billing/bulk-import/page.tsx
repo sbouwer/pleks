@@ -19,6 +19,7 @@ import { matchCsvRows, confirmBulkPayments } from "./actions"
 import type { ParsedRow, MatchedRow, ConfirmedPayment } from "./actions"
 import { formatZAR } from "@/lib/constants"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
+import { fmtZA } from "@/lib/dates"
 
 function confirmLabel(count: number): string {
   return "Record " + count + " payment" + (count === 1 ? "" : "s")
@@ -270,7 +271,7 @@ export default function BulkImportPage() {
                         />
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">
-                        {new Date(row.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                        {fmtZA(row.date, { day: "numeric", month: "short" })}
                       </td>
                       <td className="px-3 py-2.5 max-w-[200px]">
                         <p className="truncate">{row.description}</p>

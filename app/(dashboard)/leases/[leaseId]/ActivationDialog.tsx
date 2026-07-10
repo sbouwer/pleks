@@ -19,6 +19,7 @@ import {
 import { ActionButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { markAsSigned } from "@/lib/actions/leases"
+import { fmtDateLongZA } from "@/lib/dates"
 
 export interface CascadeStep {
   step: string
@@ -46,11 +47,7 @@ function formatRand(cents: number) {
 
 function formatDate(iso: string | null) {
   if (!iso) return "move-in date"
-  return new Date(iso).toLocaleDateString("en-ZA", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
+  return fmtDateLongZA(iso)
 }
 
 export function ActivationDialog({

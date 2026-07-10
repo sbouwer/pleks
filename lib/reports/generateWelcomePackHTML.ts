@@ -10,12 +10,12 @@ import { formatOfficeHours, formatEmergencyLine } from "@/lib/org/operatingHours
 import { letterhead } from "./generatePDF"
 import type { WelcomePackData, WelcomePackUnit } from "./types"
 import type { Recommendation } from "./welcomePackRecommendations"
+import { fmtDateZA, fmtZA } from "@/lib/dates"
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function formatDateLocal(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`)
-  return d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }
 
 function occupancyPct(occupied: number, total: number): string {
@@ -248,7 +248,7 @@ function buildProjection(data: WelcomePackData): MonthProjection[] {
 
   for (let i = 0; i < 12; i++) {
     const monthDate = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    const monthLabel = monthDate.toLocaleDateString("en-ZA", { month: "short", year: "numeric" })
+    const monthLabel = fmtZA(monthDate, { month: "short", year: "numeric" })
     const notes: string[] = []
 
     // Apply escalations that fall in this month

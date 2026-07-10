@@ -9,6 +9,7 @@
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import Link from "next/link"
+import { saDateISO } from "@/lib/dates"
 
 interface AiPurposeRow {
   purpose: string
@@ -57,7 +58,7 @@ export default async function OrgCostDrillDownPage({
       db.from("platform_cost_snapshots")
         .select("*")
         .eq("org_id", orgId)
-        .gte("period", twelveMthsAgo.toISOString().slice(0, 10))
+        .gte("period", saDateISO(twelveMthsAgo))
         .order("period", { ascending: false }),
       db.from("organisations").select("id, name").eq("id", orgId).single(),
       // RPC aggregates in Postgres — avoids PostgREST 1,000-row default truncation.

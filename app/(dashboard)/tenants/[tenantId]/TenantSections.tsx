@@ -17,6 +17,7 @@ import { updateContactJuristicFields } from "@/lib/actions/contacts"
 import { ActionButton, EditButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { fmtDateLongZA, fmtDateZA } from "@/lib/dates"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,7 +137,7 @@ export function TenantIdentitySection({ title, gender, idNumber, idType, dateOfB
     : idNumber ?? null
 
   const formattedDob = dateOfBirth
-    ? new Date(dateOfBirth).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    ? fmtDateLongZA(dateOfBirth)
     : null
 
   return (
@@ -289,7 +290,7 @@ function bandLabel(val: boolean | null): string {
 }
 
 function capturedLabel(date: string, stale: boolean): string {
-  const fmt = new Date(date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  const fmt = fmtDateZA(date)
   return stale ? `Confirm or update — last confirmed ${fmt}` : `Last confirmed ${fmt}`
 }
 

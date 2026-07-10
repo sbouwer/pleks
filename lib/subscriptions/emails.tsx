@@ -13,6 +13,7 @@ import {
   PurgeWarningFinalEmail, PURGE_WARNING_FINAL_SUBJECT,
   PurgedConfirmEmail,     PURGED_CONFIRM_SUBJECT,
 } from "@/lib/comms/templates/agent/subscriptions/cancellation"
+import { fmtDateLongZA } from "@/lib/dates"
 
 interface PurgeWarningData {
   cancelledDate:   string
@@ -23,7 +24,7 @@ interface PurgeWarningData {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(iso)
 }
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
@@ -80,9 +81,7 @@ export async function sendTrialExpired(org: OrgContact, prevTier: string) {
 }
 
 export async function sendTrialEndingSoon(org: OrgContact, trialEndsAt: string) {
-  const endsDate = new Date(trialEndsAt).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
-  })
+  const endsDate = fmtDateLongZA(trialEndsAt)
 
   return sendPlatformEmail({
     orgId: org.orgId,
@@ -110,9 +109,7 @@ export async function sendTrialEndingSoon(org: OrgContact, trialEndsAt: string) 
 }
 
 export async function sendFoundingExpiryWarning(org: OrgContact, expiresAt: string) {
-  const expiresDate = new Date(expiresAt).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
-  })
+  const expiresDate = fmtDateLongZA(expiresAt)
 
   return sendPlatformEmail({
     orgId: org.orgId,

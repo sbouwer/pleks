@@ -17,6 +17,7 @@
 import { useRef, useState, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import { generateSignOffImage } from "@/lib/inspection/generateSignOffImage"
+import { fmtDateZA } from "@/lib/dates"
 
 type Step = "agent" | "handoff" | "tenant" | "complete"
 
@@ -265,7 +266,7 @@ export function SignOffFlow({
   const [filename, setFilename] = useState("")
 
   const dateLabel = scheduledDate
-    ? new Date(scheduledDate).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+    ? fmtDateZA(scheduledDate)
     : new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
 
   const uploadSignature = useCallback(async (blob: Blob, sigType: "agent" | "tenant" | "sign_off") => {

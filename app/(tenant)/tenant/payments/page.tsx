@@ -15,9 +15,10 @@ import { formatZAR } from "@/lib/constants"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { CheckCircle2, AlertTriangle, Download } from "lucide-react"
+import { fmtDateLongZA, fmtDateZA } from "@/lib/dates"
 
 function fmtDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(d)
 }
 
 function Row({ label, value, mono }: Readonly<{ label: string; value: string; mono?: boolean }>) {
@@ -139,7 +140,7 @@ export default async function PortalPaymentsPage() {
                   <div>
                     <p className="text-sm font-medium text-foreground">{p.reference ?? "Rental payment"}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(p.payment_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                      {fmtDateZA(p.payment_date)}
                       {p.payment_method && ` · ${p.payment_method.replaceAll("_", " ")}`}
                       {p.reference && ` · Ref: ${p.reference}`}
                     </p>

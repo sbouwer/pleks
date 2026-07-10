@@ -10,6 +10,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useState, useEffect, useTransition } from "react"
+import { addCalendarDays, saDateISO, saTodayISO } from "@/lib/dates"
 
 interface Props {
   readonly tableNames: string[]
@@ -60,13 +61,12 @@ const EXPORT_LABELS: Record<"idle" | "queuing" | "queued", string> = {
 const PRESET_KEY = "pleks-admin-audit-presets"
 
 function daysAgo(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
+  // setDate/getDate are LOCAL-time accessors; slicing the result in UTC mixed coordinates.
+  return addCalendarDays(saTodayISO(), -n)
 }
 
 function isoDateStr(d: Date) {
-  return d.toISOString().slice(0, 10)
+  return saDateISO(d)
 }
 
 function presetStart(days: number): string {

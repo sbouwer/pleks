@@ -15,9 +15,9 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { generateOwnerStatement } from "@/lib/statements/generateOwnerStatement"
 import { buildStatementReadyElement } from "@/lib/statements/statementReadyEmail"
 import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
-import { startOfMonth, endOfMonth, subMonths, format } from "date-fns"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarMonths, fmtZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 
@@ -29,11 +29,12 @@ export async function GET(req: Request) {
   if (denied) return denied
 
   const supabase = await createServiceClient()
-  const lastMonth = subMonths(new Date(), 1)
-  const periodFrom = startOfMonth(lastMonth)
-  const periodTo = endOfMonth(lastMonth)
-  const periodFromStr = periodFrom.toISOString().split("T")[0]
-  const statementMonth = format(periodFrom, "MMMM yyyy")
+  // Calendar dates: date-fns startOfMonth is LOCAL midnight, and slicing that in UTC named the last day
+  // of the month BEFORE the one being statemented.
+  const periodFrom = addCalendarMonths(monthStart(saTodayISO()), -1)
+  const periodTo = monthEnd(periodFrom)
+  const periodFromStr = periodFrom
+  const statementMonth = fmtZA(periodFrom, { month: "long", year: "numeric" })
   let generated = 0
   const sends: Promise<unknown>[] = []   // best-effort owner notices — collected + settled, never thrown
 

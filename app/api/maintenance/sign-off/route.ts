@@ -15,12 +15,12 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import * as React from "react"
-import { addMonths } from "date-fns"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceCompletedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-completed"
 import { deriveWarrantySubject } from "@/lib/maintenance/warranty"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { addCalendarMonths, monthStart, saTodayISO } from "@/lib/dates"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -117,7 +117,7 @@ async function createWorkmanshipWarranty(
     contractorContactId = contractor?.contact_id ?? null
   }
 
-  const completedAt = new Date()
+  const startsOn = saTodayISO()
   const { data: warranty, error: warrantyError } = await service
     .from("warranties")
     .insert({
@@ -129,8 +129,8 @@ async function createWorkmanshipWarranty(
       source_type:                   "maintenance_signoff",
       source_maintenance_request_id: requestId,
       contractor_id:                 contractorContactId,
-      starts_on:                     completedAt.toISOString().split("T")[0],
-      expires_on:                    addMonths(completedAt, guaranteeMonths).toISOString().split("T")[0],
+      starts_on:                     startsOn,
+      expires_on:                    addCalendarMonths(startsOn, guaranteeMonths),
       claim_notes:                   guaranteeTerms ?? null,
       created_by:                    userId,
     })
@@ -189,7 +189,7 @@ export async function POST(req: NextRequest) {
   // transaction (ledger 4b). Was: a status UPDATE, then insertAllocations, then writeFinancialRecords whose trust
   // post was `.catch()`-swallowed — a failed trust post left a 'completed' request + a committed allocation with no
   // trust debit (D-TRUST-01 imbalance). The RPC rolls the whole sign-off back on any trust failure (no half-state).
-  const statementMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0]
+  const statementMonth = monthStart(saTodayISO())
   const { error: signoffError } = await service.rpc("sign_off_maintenance_financials_atomic", {
     p_org_id:          orgId,
     p_request_id:      requestId,

@@ -17,6 +17,7 @@ import { contactDisplayName } from "@/lib/contacts/displayName"
 import { NewLeaseRoute } from "./NewLeaseRoute"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getPrimeRateOn } from "@/lib/deposits/interestConfig"
+import { saTodayISO } from "@/lib/dates"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -183,7 +184,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
     : coTenantResults.map((r) => ({ id: r.id, name: displayName(r.data) ?? r.id }))
 
   // Live SA prime (prime_rates) for the arrears-interest preview — derived, never hardcoded.
-  const currentPrimePercent = await getPrimeRateOn(new Date().toISOString().slice(0, 10))
+  const currentPrimePercent = await getPrimeRateOn(saTodayISO())
 
   // Selectable org accounts for the banking annexure (trust / deposit / ppra — NEVER business, per
   // D-TRUST-01 + ADDENDUM_69A). Account numbers masked to last 4 for the wizard; the full number only

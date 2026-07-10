@@ -18,6 +18,7 @@ import { Plus, Trash2 } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { saTodayISO } from "@/lib/dates"
 
 interface LeaseCharge {
   id: string
@@ -73,7 +74,7 @@ export function LeaseCharges({ leaseId }: Readonly<LeaseChargesProps>) {
   const [description, setDescription] = useState("")
   const [chargeType, setChargeType] = useState("other")
   const [amount, setAmount] = useState("")
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
+  const [startDate, setStartDate] = useState(saTodayISO())
   const [endDate, setEndDate] = useState("")
   const [payableTo, setPayableTo] = useState("landlord")
   const [deductFromOwner, setDeductFromOwner] = useState(false)
@@ -151,7 +152,7 @@ export function LeaseCharges({ leaseId }: Readonly<LeaseChargesProps>) {
     setDescription("")
     setChargeType("other")
     setAmount("")
-    setStartDate(new Date().toISOString().slice(0, 10))
+    setStartDate(saTodayISO())
     setEndDate("")
     setPayableTo("landlord")
     setDeductFromOwner(false)

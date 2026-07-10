@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 export default async function OwnerPortalPage({
   params,
@@ -55,7 +56,7 @@ export default async function OwnerPortalPage({
 
   const property = stmt.properties as unknown as { name: string; address_line1: string; city: string; owner_name: string } | null
   const periodDate = new Date(stmt.period_month)
-  const periodLabel = periodDate.toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+  const periodLabel = fmtZA(periodDate, { month: "long", year: "numeric" })
   const incomeLines = (stmt.income_lines as { unit: string; tenant: string; amount_paid_cents: number; status: string }[]) || []
   const expenseLines = (stmt.expense_lines as { description: string; contractor: string; amount_cents: number }[]) || []
 

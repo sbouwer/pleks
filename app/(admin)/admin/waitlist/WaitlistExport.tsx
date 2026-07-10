@@ -7,6 +7,7 @@
  *         entries prop — no fetch.
  */
 import { ActionButton } from "@/components/ui/actions"
+import { saDateISO, saTodayISO } from "@/lib/dates"
 
 export function WaitlistExport({
   entries,
@@ -17,14 +18,14 @@ export function WaitlistExport({
     const header = "Email,Role,Signed Up"
     const rows = entries.map(
       (e) =>
-        `"${e.email}","${e.role ?? ""}","${new Date(e.created_at).toISOString().split("T")[0]}"`
+        `"${e.email}","${e.role ?? ""}","${saDateISO(new Date(e.created_at))}"`
     )
     const csv = [header, ...rows].join("\n")
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `pleks-waitlist-${new Date().toISOString().split("T")[0]}.csv`
+    a.download = `pleks-waitlist-${saTodayISO()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }

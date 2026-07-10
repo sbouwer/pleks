@@ -21,6 +21,7 @@ import {
 } from "./insuranceChecklistActions"
 import { sendBrokerBrief } from "@/lib/insurance-checklist/sendBrokerBrief"
 import { createInsuranceChecklistOwnerRequest } from "@/lib/actions/insurance"
+import { fmtDateZA } from "@/lib/dates"
 
 export interface ChecklistItemRow {
   id: string
@@ -65,8 +66,7 @@ const VIA_LABELS: Record<string, string> = {
 
 function formatRelativeDate(iso: string | null): string {
   if (!iso) return ""
-  const date = new Date(iso)
-  return date.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }
 
 function StateIcon({ state, severity }: { state: ChecklistItemRow["state"]; severity: ChecklistItemRow["severity"] }) {

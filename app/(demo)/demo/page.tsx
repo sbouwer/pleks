@@ -16,6 +16,7 @@ import {
   TrendingUp, Wallet, ShieldCheck, ArrowRight,
 } from "lucide-react"
 import Link from "next/link"
+import { fmtZA, saDateISO } from "@/lib/dates"
 
 function greeting(): string {
   const h = new Date().getHours()
@@ -25,7 +26,7 @@ function greeting(): string {
 }
 
 function formatShortDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  return fmtZA(dateStr, { day: "numeric", month: "short" })
 }
 
 function daysLeft(dateStr: string): number {
@@ -144,7 +145,7 @@ function useUpcomingEvents() {
   if (daysToFirst <= 14) {
     const rentTotal = data.leases.reduce((s, l) => s + l.rent_amount_cents, 0)
     events.push({
-      date: firstNext.toISOString().slice(0, 10),
+      date: saDateISO(firstNext),
       label: `Rent collection day (${data.leases.length} invoices, ${formatZAR(rentTotal)})`,
       href: "/demo/finance/billing",
     })

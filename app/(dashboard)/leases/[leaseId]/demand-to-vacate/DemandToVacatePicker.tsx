@@ -19,6 +19,7 @@ import {
   type PreviewDemandResult, type IssueDemandResult,
 } from "@/lib/actions/notices"
 import type { DemandNoticeType } from "@/lib/notices/issueTenantNotice"
+import { saTodayISO } from "@/lib/dates"
 
 type Preview = Extract<PreviewDemandResult, { ok: true }>
 type Issued = Extract<IssueDemandResult, { ok: true }>
@@ -209,7 +210,7 @@ function IssuedPanel({ leaseId, issued, type }: Readonly<{ leaseId: string; issu
 
   const doRecord = async () => {
     setBusy(true)
-    await recordPhysicalService({ noticeId: issued.noticeId, channel: "physical", servedAt: new Date().toISOString().slice(0, 10) })
+    await recordPhysicalService({ noticeId: issued.noticeId, channel: "physical", servedAt: saTodayISO() })
     setBusy(false); await refresh()
   }
   const doWaive = async () => {

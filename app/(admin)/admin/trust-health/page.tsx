@@ -11,6 +11,7 @@
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import { SovereignBadge } from "@/components/trust/SovereignBadge"
+import { fmtDateZA, fmtZA, saDateISO } from "@/lib/dates"
 
 interface OrgRow {
   id: string
@@ -41,7 +42,7 @@ function priorMonthRange(): { start: string; end: string; in90Days: string } {
   return {
     start: `${y}-${ms}-01`,
     end: `${y}-${ms}-${String(lastDay).padStart(2, "0")}`,
-    in90Days: future.toISOString().slice(0, 10),
+    in90Days: saDateISO(future),
   }
 }
 
@@ -53,7 +54,7 @@ function daysOverdue(periodEnd: string): number {
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }
 
 function fmtZAR(cents: number): string {
@@ -113,7 +114,7 @@ export default async function TrustHealthPage() {
     .filter((r): r is { period: PeriodRow; org: OrgRow } => r.org !== undefined)
     .sort((a, b) => Math.abs(b.period.variance_cents) - Math.abs(a.period.variance_cents))
 
-  const priorMonthLabel = new Date(priorStart).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+  const priorMonthLabel = fmtZA(priorStart, { month: "long", year: "numeric" })
 
   return (
     <div className="space-y-8">

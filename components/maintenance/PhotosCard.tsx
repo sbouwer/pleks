@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { togglePhotoVisibilityToTenant } from "@/lib/actions/maintenance"
+import { fmtZA } from "@/lib/dates"
 
 export interface MaintenancePhoto {
   id: string
@@ -40,7 +41,7 @@ const PHASE_ORDER = ["before", "during", "after"]
 const PHASE_LABEL: Record<string, string> = { before: "Before", during: "During", after: "After" }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+  return fmtZA(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 }
 
 function PhotoThumb({ photo, isReadOnly }: Readonly<{ photo: MaintenancePhoto; isReadOnly: boolean }>) {

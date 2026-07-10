@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { createHash } from "node:crypto"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saTodayISO } from "@/lib/dates"
 
 function sha256(input: string) {
   return createHash("sha256").update(input).digest("hex")
@@ -35,7 +36,9 @@ export async function POST(req: NextRequest) {
 
   // Daily salt for IP hashing — re-derive per request from today's date.
   // Correlation possible within a 24h window; historical tracking impossible beyond that day.
-  const dailySalt = new Date().toISOString().slice(0, 10)
+  // This is a rotation BUCKET, not a calendar date: the boundary is arbitrary. It uses the SA day only
+  // so every "today" in this codebase means the same thing — do not read significance into it.
+  const dailySalt = saTodayISO()
 
   const { data: exists, error: existsError } = await supabase.rpc("check_email_exists", {
     p_email: email.trim(),

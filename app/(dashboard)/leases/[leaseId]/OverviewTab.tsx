@@ -14,6 +14,7 @@ import { ContactCard } from "@/components/contacts/ContactCard"
 import { CoTenantAvatars } from "@/components/contacts/CoTenantAvatars"
 import { CollectionChart, type MonthBar } from "./CollectionChart"
 import type { TenantContactInfo } from "./ContactsTab"
+import { fmtDateZA, fmtZA } from "@/lib/dates"
 
 const EVENT_DOT: Record<string, string> = {
   lease_created: "#7F77DD", lease_signed: "#7F77DD", lease_renewed: "#7F77DD",
@@ -101,7 +102,7 @@ function buildMonthBars(
   const bars: MonthBar[] = []
   for (let i = 0; i < 12; i++) {
     const d = new Date(taxYearStart.getFullYear(), taxYearStart.getMonth() + i, 1)
-    const label = d.toLocaleDateString("en-ZA", { month: "short" })
+    const label = fmtZA(d, { month: "short" })
     // Month before lease start → no expected rent
     const leaseActive = !leaseStartDate || d >= new Date(leaseStartDate.getFullYear(), leaseStartDate.getMonth(), 1)
     const expectedForMonth = leaseActive ? rentCents : 0
@@ -125,7 +126,7 @@ function getTaxYear(today: Date): { start: Date; label: string } {
 }
 
 function buildPeriodText(startDate: string | null, endDate: string | null): string {
-  const fmt = (d: string) => new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  const fmt = (d: string) => fmtDateZA(d)
   return [startDate ? fmt(startDate) : null, endDate ? fmt(endDate) : null].filter(Boolean).join(" — ")
 }
 
@@ -478,7 +479,7 @@ export function OverviewTab({
                     {e.description && <p className="text-xs text-muted-foreground">{e.description}</p>}
                   </div>
                   <span className="text-xs text-muted-foreground shrink-0">
-                    {new Date(e.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                    {fmtZA(e.created_at, { day: "numeric", month: "short" })}
                   </span>
                 </div>
               ))}

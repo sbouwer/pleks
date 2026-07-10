@@ -19,6 +19,7 @@ import { LeaseExpiryReminderEmail } from "@/lib/comms/templates/tenant/leases/le
 import { LeaseTerminatedEmail } from "@/lib/comms/templates/tenant/leases/lease-terminated"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 
 type Supabase = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -95,7 +96,7 @@ export async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLeas
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
-    const endDateDisplay = new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    const endDateDisplay = fmtDateLongZA(lease.end_date)
     const daysRemaining = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / 86_400_000)
 
     const result = await routeAndSend({
@@ -150,7 +151,7 @@ async function handleNoticeExpired(supabase: Supabase, lease: NoticeLease, today
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
-    const endDateDisplay = new Date(today).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    const endDateDisplay = fmtDateLongZA(today)
 
     await routeAndSend({
       orgId: lease.org_id,
@@ -201,7 +202,7 @@ export async function GET(req: Request) {
   if (denied) return denied
 
   const supabase = await createServiceClient()
-  const today = new Date().toISOString().split("T")[0]
+  const today = saTodayISO()
   let processed = 0
 
   // 1. CPA auto-renewal notices due
@@ -221,9 +222,7 @@ export async function GET(req: Request) {
   }
 
   // 2. L9 — expiry reminder T-30: fixed-term active leases expiring in exactly 30 days
-  const reminderTarget = new Date(today)
-  reminderTarget.setDate(reminderTarget.getDate() + 30)
-  const reminderTargetStr = reminderTarget.toISOString().split("T")[0]
+  const reminderTargetStr = addCalendarDays(today, 30)
 
   const { data: expiringLeases, error: expiringLeasesError } = await supabase
     .from("leases")

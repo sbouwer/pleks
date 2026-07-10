@@ -9,6 +9,7 @@
  *         subscription_charges table is not yet built (ADDENDUM_57F); revenue_cents = 0 until then.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { saDateISO } from "@/lib/dates"
 
 // ── Anthropic token prices (USD cents per million tokens) ─────────────────────
 // Source: https://docs.anthropic.com/en/docs/about-claude/models/overview
@@ -153,8 +154,8 @@ export async function buildCostSnapshots(params: {
     return { orgsProcessed: 0, totalSpendCents: 0 }
   }
 
-  const periodStr    = periodStart.toISOString().slice(0, 10)
-  const periodEndStr = periodEnd.toISOString().slice(0, 10)
+  const periodStr    = saDateISO(periodStart)
+  const periodEndStr = saDateISO(periodEnd)
 
   // Fetch per-org counts from source tables
   const [messagingRows, aiRows, orgRows] = await Promise.all([

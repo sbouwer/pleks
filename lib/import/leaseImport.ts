@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { parseCSV, type ImportResult } from "./csvParser"
 import { validateLeaseRow } from "./validators"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saTodayISO } from "@/lib/dates"
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -107,7 +108,7 @@ async function createOpeningBalances(
       p_rate_config_id: null,
       p_statement_month: null,
       p_is_opening_balance: true,
-      p_trust_reference: `MIGRATION-${new Date().toISOString().slice(0, 10)}`,
+      p_trust_reference: `MIGRATION-${saTodayISO()}`,
     })
     if (depErr) console.error("[leaseImport] record_deposit_atomic (migration) failed:", depErr.message)
   }

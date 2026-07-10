@@ -23,6 +23,7 @@ import {
 import { purgeOrg } from "@/lib/subscriptions/purge"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { fmtDateLongZA } from "@/lib/dates"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 const ELEVEN_MONTHS_MS = 11 * 30 * 24 * 60 * 60 * 1000
@@ -92,12 +93,8 @@ async function processWarn30dSub(
 
   const { contact } = await fetchOrgContact(supabase, sub.org_id)
   if (contact) {
-    const cancelledDateStr = new Date(sub.cancelled_at ?? "").toLocaleDateString("en-ZA", {
-      day: "numeric", month: "long", year: "numeric",
-    })
-    const purgeEligibleStr = purgeEligibleAt.toLocaleDateString("en-ZA", {
-      day: "numeric", month: "long", year: "numeric",
-    })
+    const cancelledDateStr = fmtDateLongZA(sub.cancelled_at ?? "")
+    const purgeEligibleStr = fmtDateLongZA(purgeEligibleAt)
     await sendPurgeWarning30d(contact, {
       cancelledDate:   cancelledDateStr,
       purgeEligibleAt: purgeEligibleStr,
@@ -134,11 +131,9 @@ async function processFinalWarnSub(
   const { contact } = await fetchOrgContact(supabase, sub.org_id)
   if (contact) {
     const cancelledDateStr = sub.cancelled_at
-      ? new Date(sub.cancelled_at).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+      ? fmtDateLongZA(sub.cancelled_at)
       : ""
-    const purgeEligibleStr = new Date(sub.purge_eligible_at ?? "").toLocaleDateString("en-ZA", {
-      day: "numeric", month: "long", year: "numeric",
-    })
+    const purgeEligibleStr = fmtDateLongZA(sub.purge_eligible_at ?? "")
     await sendPurgeWarningFinal(contact, {
       cancelledDate:   cancelledDateStr,
       purgeEligibleAt: purgeEligibleStr,

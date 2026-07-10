@@ -20,6 +20,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { LeaseCreatedEmail } from "@/lib/comms/templates/tenant/leases/lease-created"
 import { LeaseNoticeAcknowledgedEmail } from "@/lib/comms/templates/tenant/leases/lease-notice-acknowledged"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { addCalendarDays, addCalendarMonths, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 
 type LeaseFormFields = {
   unitId: string
@@ -54,15 +55,23 @@ function parseLeaseFormData(formData: FormData): LeaseFormFields {
   const endDate = (formData.get("end_date") as string) || null
   const isFixedTerm = formData.get("is_fixed_term") !== "false"
 
-  const startDateObj = new Date(startDate)
-  const escalationReviewDate = new Date(startDateObj)
-  escalationReviewDate.setFullYear(escalationReviewDate.getFullYear() + 1)
+  // setFullYear/getFullYear are LOCAL-time accessors and the result was sliced in UTC — mixed coordinates.
+  const escalationReviewDate = addCalendarMonths(startDate, 12)
 
   let autoRenewalNoticeDue: string | null = null
   if (endDate && cpaApplies && isFixedTerm) {
-    const endDateObj = new Date(endDate)
-    endDateObj.setDate(endDateObj.getDate() - 40)
-    autoRenewalNoticeDue = endDateObj.toISOString().split("T")[0]
+    // ⚠ STATUTORY DEFECT, NOT FIXED HERE — see OUTSTANDING.md "CPA s14(2)(b)(ii) expiry notice".
+    // CPA s14(2)(b)(ii) requires the expiry notification not more than 80 nor less than 40 BUSINESS days
+    // before expiry. Forty CALENDAR days is ~27 business days — statutorily TOO LATE on every CPA
+    // fixed-term lease. One live row (lease c7b4a009…, end 2027-06-29) already stores 2027-05-20, which is
+    // 13 business days short of the floor; its lawful window is 2027-03-02..2027-05-03. Nothing has been
+    // served (auto_renewal_notice_sent_at is null everywhere), so this is a wrong value at rest, not an
+    // unlawful notice. Fixing the UNITS needs a decision this file cannot make: a statutory business-day
+    // walk must throw past the holiday table's horizon, yet this is stamped at lease CREATION and end
+    // dates legitimately sit years out. The answer is to compute it in lease-expiry-check instead, where
+    // the walk is always ~4 months from expiry and never reaches the horizon. Ratify, then remediate rows.
+    // Converted here only to kill the coordinate mixing (local setDate + UTC slice). Units unchanged.
+    autoRenewalNoticeDue = addCalendarDays(endDate, -40)
   }
 
   const depositInterestRateRaw = formData.get("deposit_interest_rate") as string
@@ -94,7 +103,7 @@ function parseLeaseFormData(formData: FormData): LeaseFormFields {
     arrearsInterestEnabled: formData.get("arrears_interest_enabled") !== "false",
     arrearsInterestMarginPercent: Number.parseFloat(formData.get("arrears_interest_margin") as string) || 2,
     specialTerms,
-    escalationReviewDate: escalationReviewDate.toISOString().split("T")[0],
+    escalationReviewDate: escalationReviewDate,
     autoRenewalNoticeDue,
   }
 }
@@ -214,9 +223,9 @@ async function findLeaseOverlapBlock(
       return "This unit has an ongoing month-to-month lease. End that lease before creating a new one for this unit."
     }
     if (startDate <= l.end_date) {
-      const next = new Date(l.end_date)
-      next.setDate(next.getDate() + 1)
-      return `This unit is leased until ${l.end_date}. A new lease must start on or after ${next.toISOString().slice(0, 10)}.`
+      // setDate/getDate were LOCAL-time accessors and the result was sliced in UTC — mixed coordinates.
+      const next = addCalendarDays(l.end_date as string, 1)
+      return `This unit is leased until ${l.end_date}. A new lease must start on or after ${next}.`
     }
   }
   return null
@@ -344,15 +353,23 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
   const uploadOverlap = await findLeaseOverlapBlock(db, orgId, unitId, startDate)
   if (uploadOverlap) return { error: uploadOverlap }
 
-  const startDateObj = new Date(startDate)
-  const escalationReviewDate = new Date(startDateObj)
-  escalationReviewDate.setFullYear(escalationReviewDate.getFullYear() + 1)
+  // setFullYear/getFullYear are LOCAL-time accessors and the result was sliced in UTC — mixed coordinates.
+  const escalationReviewDate = addCalendarMonths(startDate, 12)
 
   let autoRenewalNoticeDue: string | null = null
   if (endDate && cpaApplies && isFixedTerm) {
-    const endDateObj = new Date(endDate)
-    endDateObj.setDate(endDateObj.getDate() - 40)
-    autoRenewalNoticeDue = endDateObj.toISOString().split("T")[0]
+    // ⚠ STATUTORY DEFECT, NOT FIXED HERE — see OUTSTANDING.md "CPA s14(2)(b)(ii) expiry notice".
+    // CPA s14(2)(b)(ii) requires the expiry notification not more than 80 nor less than 40 BUSINESS days
+    // before expiry. Forty CALENDAR days is ~27 business days — statutorily TOO LATE on every CPA
+    // fixed-term lease. One live row (lease c7b4a009…, end 2027-06-29) already stores 2027-05-20, which is
+    // 13 business days short of the floor; its lawful window is 2027-03-02..2027-05-03. Nothing has been
+    // served (auto_renewal_notice_sent_at is null everywhere), so this is a wrong value at rest, not an
+    // unlawful notice. Fixing the UNITS needs a decision this file cannot make: a statutory business-day
+    // walk must throw past the holiday table's horizon, yet this is stamped at lease CREATION and end
+    // dates legitimately sit years out. The answer is to compute it in lease-expiry-check instead, where
+    // the walk is always ~4 months from expiry and never reaches the horizon. Ratify, then remediate rows.
+    // Converted here only to kill the coordinate mixing (local setDate + UTC slice). Units unchanged.
+    autoRenewalNoticeDue = addCalendarDays(endDate, -40)
   }
 
   const { data: lease, error } = await db
@@ -373,7 +390,7 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
       payment_due_day: paymentDueDay,
       escalation_percent: escalationPercent,
       escalation_type: escalationType,
-      escalation_review_date: escalationReviewDate.toISOString().split("T")[0],
+      escalation_review_date: escalationReviewDate,
       deposit_amount_cents: depositCents,
       deposit_account_id: (formData.get("deposit_account_id") as string) || null,
       trust_account_id:   (formData.get("trust_account_id") as string) || null,
@@ -562,7 +579,7 @@ export async function sendForSigning(leaseId: string) {
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
         const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
         const rentDisplay = "R " + ((lease.rent_amount_cents as number) / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
-        const leaseStartDisplay = new Date(lease.start_date as string).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+        const leaseStartDisplay = fmtDateLongZA(lease.start_date as string)
         await routeAndSend({
           orgId,
           tenantId: lease.tenant_id as string,
@@ -604,15 +621,18 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
     logQueryError("giveNotice leases", leaseError)
   if (!lease) return { error: "Lease not found" }
 
-  const noticeDate = new Date()
-  const noticePeriodEnd = new Date(noticeDate)
-  noticePeriodEnd.setDate(noticePeriodEnd.getDate() + (lease.notice_period_days || 20))
+  // Both are LEGAL dates — Rule 6 of the Demand-to-Vacate guards reads them. Previously `new Date()`
+  // sliced in UTC (an agent giving notice at 00:30 SAST recorded YESTERDAY) and the period end was
+  // computed with local setDate/getDate and then sliced in UTC, so the tenant's notice period could end
+  // a day early. Both now resolve in SAST and use pure calendar arithmetic.
+  const noticeGivenDate = saTodayISO()
+  const noticePeriodEnd = addCalendarDays(noticeGivenDate, lease.notice_period_days || 20)
 
   await db.from("leases").update({
     status: "notice",
     notice_given_by: givenBy,
-    notice_given_date: noticeDate.toISOString().split("T")[0],
-    notice_period_end: noticePeriodEnd.toISOString().split("T")[0],
+    notice_given_date: noticeGivenDate,
+    notice_period_end: noticePeriodEnd,
   }).eq("id", leaseId).eq("org_id", orgId)
 
   await db.from("units").update({ status: "notice" }).eq("id", lease.unit_id).eq("org_id", orgId)
@@ -632,7 +652,7 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
     record_id: leaseId,
     action: "UPDATE",
     changed_by: userId,
-    new_values: { status: "notice", notice_given_by: givenBy, notice_given_date: noticeDate.toISOString() },
+    new_values: { status: "notice", notice_given_by: givenBy, notice_given_date: noticeGivenDate },
   })
 
   // L10 — send notice acknowledgement comm to tenant (only when tenant gives notice)
@@ -648,8 +668,8 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
       if (tenant?.email) {
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
         const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
-        const noticeDateDisplay = noticeDate.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
-        const vacateDateDisplay = noticePeriodEnd.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+        const noticeDateDisplay = fmtDateLongZA(noticeGivenDate)
+        const vacateDateDisplay = fmtDateLongZA(noticePeriodEnd)
         await routeAndSend({
           orgId: lease.org_id as string,
           tenantId: lease.tenant_id as string,

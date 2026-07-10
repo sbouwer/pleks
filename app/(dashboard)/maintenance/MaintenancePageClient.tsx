@@ -31,6 +31,7 @@ import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 import { formatZAR } from "@/lib/constants"
+import { fmtZA } from "@/lib/dates"
 
 type MaintenanceItem = Awaited<ReturnType<typeof fetchMaintenanceAction>>[number]
 type MaintenanceItemExtended = MaintenanceItem & { logged_by?: string; reported_via?: string }
@@ -131,7 +132,7 @@ function sortList(list: MaintenanceItem[], field: SortField, dir: SortDir): Main
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
-  const base = d.toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  const base = fmtZA(d, { day: "numeric", month: "short" })
   const yy = (d.getFullYear() % 100).toString().padStart(2, "0")
   return `${base} '${yy}`
 }

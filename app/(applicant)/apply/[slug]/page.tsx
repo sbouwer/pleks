@@ -25,6 +25,7 @@ import { getServerUser } from "@/lib/auth/server"
 import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
 import { fetchAgentContactParty } from "@/lib/actions/parties"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
+import { fmtDateZA } from "@/lib/dates"
 
 type UnitRow = {
   unit_number: string | null
@@ -267,7 +268,7 @@ export default async function ApplyPreviewPage({ params, searchParams }: Readonl
   // One short value per cell so nothing truncates in the narrow 2-col grid (bed/bath/size were one long line).
   const facts: ReadonlyArray<{ label: string; value: string; tone?: "ok" }> = [
     { label: "Rent / month", value: formatZAR(listing.asking_rent_cents) },
-    { label: "Available", value: listing.available_from ? new Date(listing.available_from).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "Now" },
+    { label: "Available", value: listing.available_from ? fmtDateZA(listing.available_from) : "Now" },
     { label: "Bedrooms", value: numOrDash(unit?.bedrooms) },
     { label: "Bathrooms", value: numOrDash(unit?.bathrooms) },
     { label: "Size", value: areaLabel(unit?.size_m2) },

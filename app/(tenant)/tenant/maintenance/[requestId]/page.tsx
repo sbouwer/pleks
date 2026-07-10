@@ -13,6 +13,7 @@ import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPag
 import { DetailCard } from "@/components/detail/DetailCard"
 import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateLongZA, fmtDateZA } from "@/lib/dates"
 
 const URGENCY_LABEL: Record<string, string> = {
   emergency: "🚨 Emergency",
@@ -44,7 +45,7 @@ function detailStatus(status: string): DetailStatus {
 }
 
 function fmtDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(d)
 }
 
 function Row({ label, value }: Readonly<{ label: string; value: string }>) {
@@ -146,7 +147,7 @@ export default async function PortalMaintenanceDetailPage({
                 <div className="pb-4">
                   <p className="text-sm font-medium text-foreground">Reported</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(req.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                    {fmtDateZA(req.created_at)}
                   </p>
                 </div>
               </div>
@@ -162,7 +163,7 @@ export default async function PortalMaintenanceDetailPage({
                     </p>
                     {u.notes && <p className="mt-0.5 text-sm text-muted-foreground">{u.notes}</p>}
                     <p className="text-xs text-muted-foreground">
-                      {new Date(u.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                      {fmtDateZA(u.created_at)}
                     </p>
                   </div>
                 </div>

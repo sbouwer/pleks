@@ -15,9 +15,9 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding, type OrgBranding } from "@/lib/comms/send-email"
 import { MonthlyStatementEmail, type StatementInvoiceRow, type StatementPaymentRow } from "@/lib/comms/templates/tenant/rent/monthly-statement"
-import { startOfMonth, endOfMonth, subMonths } from "date-fns"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarDays, addCalendarMonths, fmtDateZA, fmtZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -26,7 +26,7 @@ function fmt(cents: number) {
 }
 
 function fmtShort(d: string) {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  return fmtZA(d, { day: "numeric", month: "short" })
 }
 
 function getStatementDay(settings: Record<string, unknown> | null): number {
@@ -91,7 +91,7 @@ async function buildPaymentRows(service: ServiceClient, leaseId: string, periodF
     .order("payment_date", { ascending: true })
   if (error) return null
   return (data ?? []).map((r) => ({
-    paymentDate:   new Date(r.payment_date as string).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }),
+    paymentDate:   fmtDateZA(r.payment_date as string),
     amountDisplay: fmt(r.amount_cents as number),
     method:        (r.payment_method as string).toUpperCase(),
     receiptNumber: r.receipt_number as string,
@@ -113,7 +113,7 @@ async function sendLeaseStatement(service: ServiceClient, ctx: LeaseStatementCon
   // rent.monthly_statement was already logged for this lease since the start of the current send month
   // (the day after periodTo), a re-fire (cPanel retry, manual re-run) must NOT re-email it. The other
   // money crons carry the same check-before-write (ADDENDUM_TRUST_RPC_ATOMICITY §7).
-  const cycleStart = new Date(new Date(`${ctx.periodTo}T00:00:00.000Z`).getTime() + 86_400_000).toISOString().slice(0, 10)
+  const cycleStart = addCalendarDays(ctx.periodTo, 1)   // calendar arithmetic on an SA-resolved date
   const { data: alreadySent, error: dupError } = await service
     .from("communication_log").select("id")
     .eq("entity_type", "lease").eq("entity_id", ctx.leaseId)
@@ -174,13 +174,13 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const service = await createServiceClient()
-  const today = new Date()
-  const dayOfMonth = today.getUTCDate()
+  const today = saTodayISO()
+  const dayOfMonth = Number(today.slice(8, 10))
 
-  const prevMonth = subMonths(today, 1)
-  const periodFrom = startOfMonth(prevMonth).toISOString().split("T")[0]
-  const periodTo   = endOfMonth(prevMonth).toISOString().split("T")[0]
-  const statementMonthLabel = prevMonth.toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+  const prevMonth = addCalendarMonths(monthStart(today), -1)
+  const periodFrom = prevMonth
+  const periodTo   = monthEnd(prevMonth)
+  const statementMonthLabel = fmtZA(prevMonth, { month: "long", year: "numeric" })
 
   // The Pleks system org is not a customer (010 §50; lib/comms/platform-org.ts) — exclude it so this
   // loop never treats it as an agency.

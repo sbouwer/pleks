@@ -12,6 +12,7 @@ import { parseClauseBody, buildSelfLookup } from "./parseClauseBody"
 import { renderClauseBodyToDocx } from "./renderClauseDocx"
 import { getOrgDisplayName, getOrgLegalName } from "@/lib/org/displayName"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import {fmtDateLongZA, saTodayISO} from "@/lib/dates"
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ export async function generateLeaseDocument(
   // rate per period via deposit_interest_config, so a variable (prime/repo-linked) rate stays correct over
   // time and is never frozen by this snapshot. Resolve for the lease's selected deposit account; fall back
   // to the manual flat rate, then the legacy 5% default.
-  const signingDate = new Date().toISOString().slice(0, 10)
+  const signingDate = saTodayISO()
   let depositRateAsAtSigning: number | null = lease.deposit_interest_rate_percent ?? null
   const depositRateConfig = await resolveDepositInterestConfig(
     orgId, lease.property_id ?? null, lease.unit_id ?? null, signingDate,
@@ -800,11 +801,7 @@ function formatZARDocument(cents: number): string {
 }
 
 function formatDateLong(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString("en-ZA", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
+  return fmtDateLongZA(isoDate)
 }
 
 function ordinal(n: number): string {

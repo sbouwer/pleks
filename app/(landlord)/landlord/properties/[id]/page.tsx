@@ -17,6 +17,7 @@ import { Download } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -192,7 +193,7 @@ export default async function LandlordPropertyDetailPage({ params }: Props) {
           <DetailCard title="Recent statements" action={{ label: "View all", href: "/landlord/statements" }} flush>
             <div className="divide-y divide-border">
               {statements.map((s) => {
-                const period = new Date(s.period_month).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+                const period = fmtZA(s.period_month, { month: "long", year: "numeric" })
                 return (
                   <div key={s.id} className="flex items-center gap-4 px-5 py-2.5 text-sm">
                     <span className="flex-1 text-muted-foreground">{period}</span>

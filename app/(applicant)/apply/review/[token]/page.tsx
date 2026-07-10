@@ -15,6 +15,7 @@ import { ApplyPortalShell } from "../../applyPortalChrome"
 import { ReadOnlyAssessment } from "../../[slug]/applyReview"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import type { Emp } from "../../[slug]/applyDomain"
+import { fmtDateZA } from "@/lib/dates"
 
 export const metadata = { referrer: "no-referrer" as const }
 
@@ -56,7 +57,7 @@ export default async function ReviewViewPage({ params }: Readonly<{ params: Prom
   const property = unit?.properties ?? null
   const stripTitle = [property?.name, unit?.unit_number ? `Unit ${unit.unit_number}` : null, property?.suburb ?? property?.city].filter(Boolean).join(" · ") || "Your application"
   const rentCents = listing?.asking_rent_cents ?? 0
-  const availStr = listing?.available_from ? new Date(listing.available_from).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "Now"
+  const availStr = listing?.available_from ? fmtDateZA(listing.available_from) : "Now"
   const emp: Emp = { employment_type: (app.employment_type as string | null) ?? "", employer: (app.employer_name as string | null) ?? "", start_date: "" }
 
   return (

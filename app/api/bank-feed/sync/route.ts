@@ -10,6 +10,7 @@ import { yodlee } from "@/lib/yodlee/client"
 import { transformYodleeTransaction } from "@/lib/yodlee/transform"
 import { syncYodleeTransactions } from "@/lib/actions/recon"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saTodayISO, saDateISO, addCalendarDays } from "@/lib/dates"
 
 const RATE_LIMIT_HOURS = 1
 const MAX_SYNCS_PER_WINDOW = 4
@@ -50,11 +51,13 @@ export async function POST(req: NextRequest) {
     const cobrandToken = await yodlee.getCobrandToken()
     const userToken = await yodlee.getUserToken(cobrandToken, org.yodlee_user_id as string)
 
+    // Yodlee reports SA bank transactions against SA calendar days. Slicing an instant in UTC put the
+    // window boundary two hours early, so a sync running before 02:00 SAST asked for the wrong day.
     const fromDate = conn.last_synced_at
-      ? new Date(conn.last_synced_at as string).toISOString().slice(0, 10)
-      : new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10) // 30 days back on first sync
+      ? saDateISO(new Date(conn.last_synced_at as string))
+      : addCalendarDays(saTodayISO(), -30) // 30 days back on first sync
 
-    const toDate = new Date().toISOString().slice(0, 10)
+    const toDate = saTodayISO()
 
     const rawTxns = await yodlee.getTransactions(
       userToken,

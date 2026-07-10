@@ -9,6 +9,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saTodayISO } from "@/lib/dates"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -266,7 +267,7 @@ export async function assignRequest(
 
 export async function getOverdueRequests(orgId: string): Promise<DataSubjectRequest[]> {
   const db = createServiceClient()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = saTodayISO()
 
   const { data, error } = await (await db)
     .from("data_subject_requests")

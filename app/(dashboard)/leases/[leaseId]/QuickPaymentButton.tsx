@@ -15,6 +15,7 @@ import { FormSelect } from "@/components/ui/FormSelect"
 import { PlusCircle, Loader2, X } from "lucide-react"
 import { toast } from "sonner"
 import { recordPayment } from "@/lib/actions/payments"
+import { saTodayISO } from "@/lib/dates"
 
 const PAYMENT_METHODS = [
   { value: "eft", label: "EFT" },
@@ -33,7 +34,7 @@ export function QuickPaymentButton({ invoiceId, balanceCents }: QuickPaymentButt
   const formRef = useRef<HTMLFormElement>(null)
 
   const balanceRands = (balanceCents / 100).toFixed(2)
-  const today = new Date().toISOString().split("T")[0]
+  const today = saTodayISO()
   const [paymentDate, setPaymentDate] = useState(today)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

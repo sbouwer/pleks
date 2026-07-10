@@ -12,6 +12,7 @@ import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { toast } from "sonner"
 import { Mail, CheckCircle2, Clock } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 type PortalStatus = "none" | "invited" | "active" | "suspended"
 
@@ -99,7 +100,7 @@ export function ContractorPortalSection({
               <span>
                 Invite sent
                 {portalInviteSentAt
-                  ? ` on ${new Date(portalInviteSentAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`
+                  ? ` on ${fmtDateZA(portalInviteSentAt)}`
                   : ""}
                 {" — "}awaiting acceptance
               </span>

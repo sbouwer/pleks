@@ -13,6 +13,7 @@ import { CheckCircle2, XCircle, Clock } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { fmtZA } from "@/lib/dates"
 
 export interface ConsentEntry {
   id: string
@@ -83,7 +84,7 @@ function ConsentRow({
   onWithdraw,
 }: Readonly<{ entry: ConsentEntry; onWithdraw?: () => void }>) {
   const label = TYPE_LABELS[entry.consent_type] ?? entry.consent_type
-  const date = new Date(entry.created_at).toLocaleDateString("en-ZA", {
+  const date = fmtZA(entry.created_at, {
     day: "numeric",
     month: "short",
     year: "numeric",

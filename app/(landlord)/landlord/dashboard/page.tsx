@@ -14,6 +14,7 @@ import { DetailCard } from "@/components/detail/DetailCard"
 import { formatZAR } from "@/lib/constants"
 import { AlertTriangle, ChevronRight, CheckCircle2, Clock } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { addCalendarDays, fmtDateZA, saDateISO } from "@/lib/dates"
 
 export default async function LandlordDashboardPage() {
   const session = await getLandlordSession()
@@ -63,7 +64,7 @@ export default async function LandlordDashboardPage() {
 
   // Leases expiring within 60 days
   const now = new Date()
-  const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const in60Days = addCalendarDays(saDateISO(now), 60)
   const expiringLeases = (leases ?? []).filter((l) => l.end_date && l.end_date <= in60Days && l.status !== "month_to_month")
 
   // Stats
@@ -144,7 +145,7 @@ export default async function LandlordDashboardPage() {
                       {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
                       {tenant ? ` — ${tenant.first_name} ${tenant.last_name[0]}.` : ""}
                     </p>
-                    <p className="text-xs text-muted-foreground">Expires: {l.end_date ? new Date(l.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" }) : "—"}</p>
+                    <p className="text-xs text-muted-foreground">Expires: {l.end_date ? fmtDateZA(l.end_date) : "—"}</p>
                   </div>
                 </div>
               )

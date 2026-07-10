@@ -13,6 +13,7 @@ import { getUserEmail } from "@/lib/auth/userEmail"
 import { SENTINEL_ORG_ID } from "@/lib/subscriptions/retention"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendPurgedConfirm } from "@/lib/subscriptions/emails"
+import { fmtDateLongZA } from "@/lib/dates"
 
 const DECOY_ORG_ID = "00000000-0000-0000-0000-000000000003" as const
 
@@ -98,9 +99,9 @@ export async function purgeOrg(orgId: string, reason: PurgeReason): Promise<void
   // Send purged_confirm email (fire-and-forget — org is already anonymised)
   if (adminEmail) {
     const now = new Date()
-    const purgedDate = now.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    const purgedDate = fmtDateLongZA(now)
     const cancelledDate = sub?.cancelled_at
-      ? new Date(sub.cancelled_at).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+      ? fmtDateLongZA(sub.cancelled_at)
       : ""
     void sendPurgedConfirm(
       {

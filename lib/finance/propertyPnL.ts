@@ -5,6 +5,7 @@
  * Notes:  read-only helper — caller passes an already-gated db client + orgId
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { saDateISO } from "@/lib/dates"
 
 type SupabaseServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -38,8 +39,8 @@ export async function getPropertyPnL(
     .select("id, period_month, period_from, period_to, gross_income_cents, total_expenses_cents, management_fee_cents, management_fee_vat_cents, net_to_owner_cents, income_lines, expense_lines")
     .eq("org_id", orgId)
     .eq("property_id", propertyId)
-    .gte("period_from", from.toISOString().slice(0, 10))
-    .lte("period_to", to.toISOString().slice(0, 10))
+    .gte("period_from", saDateISO(from))
+    .lte("period_to", saDateISO(to))
     .order("period_from", { ascending: true })
 
   if (stmtErr) console.error("propertyPnL statements:", stmtErr.message)

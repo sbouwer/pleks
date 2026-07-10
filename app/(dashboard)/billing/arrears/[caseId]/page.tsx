@@ -16,6 +16,7 @@ import { ArrearsActions } from "./ArrearsActions"
 import { InterestSection } from "./InterestSection"
 import { BackLink } from "@/components/ui/BackLink"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 function getArrearsBadgeStatus(status: string) {
   if (status === "open") return "arrears"
@@ -154,7 +155,7 @@ export default async function ArrearsDetailPage({
                     {action.subject && <p className="text-muted-foreground">{action.subject}</p>}
                     {action.body && <p className="text-muted-foreground whitespace-pre-wrap">{action.body}</p>}
                     <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(action.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      {fmtZA(action.created_at, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
                 </div>

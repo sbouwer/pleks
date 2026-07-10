@@ -12,6 +12,7 @@ import { BackLink } from "@/components/ui/BackLink"
 import { formatZAR } from "@/lib/constants"
 import { MunicipalBillActions } from "./MunicipalBillActions"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtZA } from "@/lib/dates"
 
 export default async function MunicipalBillDetailPage({
   params,
@@ -36,7 +37,7 @@ export default async function MunicipalBillDetailPage({
   const property = bill.properties as unknown as { name: string; address_line1: string } | null
   const account = bill.municipal_accounts as unknown as { municipality_name: string; account_number: string } | null
   const periodLabel = bill.billing_month
-    ? new Date(bill.billing_month).toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+    ? fmtZA(bill.billing_month, { month: "long", year: "numeric" })
     : "Unknown period"
 
   return (
