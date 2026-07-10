@@ -18,6 +18,7 @@ import { runStandardBundle } from "@/lib/screening/bundle-runner"
 import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { withCronRun } from "@/lib/cron/withCronRun"
+import { optionalEnv } from "@/lib/env"
 
 const BATCH_SIZE = 50
 
@@ -151,7 +152,7 @@ async function maybeRunOrchestrator(
   service: Awaited<ReturnType<typeof createServiceClient>>,
   applicationId: string,
 ): Promise<void> {
-  if (!process.env.FITSCORE_V1_ENABLED) return
+  if (!optionalEnv("FITSCORE_V1_ENABLED")) return
 
   // Primary applicant must be complete
   const { data: app, error: appErr } = await service

@@ -57,7 +57,7 @@ import type { createServiceClient } from "@/lib/supabase/server"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { assertScreeningConsent } from "@/lib/screening/consentGuard"
-import { gitCommitSha } from "@/lib/env"
+import { gitCommitSha, optionalEnv } from "@/lib/env"
 
 export const CURRENT_INTERPRETATION_VERSION = 'interpretation.v1.0'
 const RUNTIME_CODE_HASH = gitCommitSha()
@@ -210,7 +210,7 @@ export async function runFitScoreOrchestrator(
   applicationId: string,
   supabase: Awaited<ReturnType<typeof createServiceClient>>,
 ): Promise<{ ok: true; result: EngineResult } | { ok: false; reason: string }> {
-  if (!process.env.FITSCORE_V1_ENABLED) return { ok: false, reason: 'feature_flag_disabled' }
+  if (!optionalEnv("FITSCORE_V1_ENABLED")) return { ok: false, reason: 'feature_flag_disabled' }
 
   // POPIA s11 / BUILD_69 P3: never compute a FitScore for an application without recorded stage-2 consent.
   // Belt over the ready_to_run view-gate (covers any non-cron caller). Throws on breach — loud, never silent.

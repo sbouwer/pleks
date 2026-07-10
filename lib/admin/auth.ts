@@ -8,12 +8,13 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { verifyAdminToken } from "@/lib/auth/admin-token"
+import { optionalEnv } from "@/lib/env"
 
 /** Server-component gate — redirects to /admin/login if the session is invalid or expired. */
 export async function requireAdminAuth(): Promise<void> {
   const cookieStore = await cookies()
   const token = cookieStore.get("pleks_admin_token")?.value
-  const valid = await verifyAdminToken(token, process.env.ADMIN_SECRET)
+  const valid = await verifyAdminToken(token, optionalEnv("ADMIN_SECRET"))
   if (!valid) redirect("/admin/login")
 }
 
@@ -21,5 +22,5 @@ export async function requireAdminAuth(): Promise<void> {
 export async function isAdminAuthenticated(): Promise<boolean> {
   const cookieStore = await cookies()
   const token = cookieStore.get("pleks_admin_token")?.value
-  return verifyAdminToken(token, process.env.ADMIN_SECRET)
+  return verifyAdminToken(token, optionalEnv("ADMIN_SECRET"))
 }

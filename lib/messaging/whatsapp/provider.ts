@@ -52,15 +52,15 @@ export interface WAWebhookEvent {
 // ── Env helpers ────────────────────────────────────────────────────────────────
 
 function getApiKey(): string {
-  return process.env.WA_API_KEY ?? optionalEnv("AT_API_KEY", "")
+  return optionalEnv("WA_API_KEY") || optionalEnv("AT_API_KEY", "")
 }
 
 function getUsername(): string {
-  return process.env.WA_USERNAME ?? optionalEnv("AT_USERNAME", "")
+  return optionalEnv("WA_USERNAME") || optionalEnv("AT_USERNAME", "")
 }
 
 function isSandbox(): boolean {
-  return process.env.WA_SANDBOX === "true" || process.env.AT_USERNAME === "sandbox"
+  return optionalEnv("WA_SANDBOX") === "true" || optionalEnv("AT_USERNAME") === "sandbox"
 }
 
 function getBaseUrl(): string {
@@ -84,7 +84,7 @@ export async function sendWhatsAppMessage(params: WASendParams): Promise<WASendR
   const env = checkAtEnvironment(username, isSandbox())
   if (!env.ok) return { error: env.reason }
 
-  const phoneId = process.env.WA_BUSINESS_PHONE_ID
+  const phoneId = optionalEnv("WA_BUSINESS_PHONE_ID")
   if (!phoneId) {
     return { error: "WA_BUSINESS_PHONE_ID not configured" }
   }
@@ -148,7 +148,7 @@ function extractMessageId(data: Record<string, unknown>): string | undefined {
 // ── Webhook verification ───────────────────────────────────────────────────────
 
 export function verifyWebhookSignature(rawBody: string, signature: string): boolean {
-  const secret = process.env.WA_WEBHOOK_SECRET
+  const secret = optionalEnv("WA_WEBHOOK_SECRET")
   if (!secret) return false
 
   try {

@@ -9,6 +9,7 @@ import { EmailLayout, type OrgBranding } from "@/lib/comms/templates/layout"
 import { render } from "@react-email/components"
 import { sendEmail } from "@/lib/comms/send-email"
 import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
+import { optionalEnv } from "@/lib/env"
 
 const PLEKS_BRANDING: OrgBranding = {
   orgName: "Pleks",
@@ -94,7 +95,7 @@ function LoginNotificationEmail({ userName, deviceLabel, city, country, method, 
 }
 
 // RESEND_API_KEY unset → the notification goes dark (sendEmail's own send would fail); keep the guard.
-const resendKey = process.env.RESEND_API_KEY
+const resendKey = optionalEnv("RESEND_API_KEY")
 
 export async function sendLoginNotificationEmail(params: LoginNotificationParams): Promise<void> {
   if (!resendKey) return  // RESEND_API_KEY unset → login-notification dark

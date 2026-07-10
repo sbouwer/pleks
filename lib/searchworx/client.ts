@@ -10,7 +10,7 @@
  *         Exports _mintToken, _validateToken, _resetCache for unit-test access only.
  */
 import * as Sentry from "@sentry/nextjs"
-import { isProductionNode } from "@/lib/env"
+import { isProductionNode, optionalEnv } from "@/lib/env"
 
 // ─── Result envelope ──────────────────────────────────────────────────────────
 
@@ -57,8 +57,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // ─── Config readers (fail-loud) ───────────────────────────────────────────────
 
 function getCredentials(): { username: string; password: string } {
-  const username = process.env.SEARCHWORX_USERNAME
-  const password = process.env.SEARCHWORX_PASSWORD
+  const username = optionalEnv("SEARCHWORX_USERNAME")
+  const password = optionalEnv("SEARCHWORX_PASSWORD")
   if (!username || !password) {
     if (isProductionNode()) {
       throw new Error("SEARCHWORX_USERNAME and SEARCHWORX_PASSWORD required in production")
@@ -71,7 +71,7 @@ function getCredentials(): { username: string; password: string } {
 }
 
 export function getSearchworxBaseUrl(): string {
-  const url = process.env.SEARCHWORX_BASE_URL
+  const url = optionalEnv("SEARCHWORX_BASE_URL")
   if (!url) {
     if (isProductionNode()) {
       throw new Error("SEARCHWORX_BASE_URL required in production")

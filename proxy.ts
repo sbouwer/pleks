@@ -24,7 +24,7 @@ import { verifyAdminToken } from "@/lib/auth/admin-token"
 import { collectGateFacts } from "@/lib/auth/facts"
 import { routeGateDecision } from "@/lib/auth/decisions"
 import type { User } from "@supabase/supabase-js"
-import { isProductionNode, isProductionRuntime } from "@/lib/env"
+import { isProductionNode, isProductionRuntime, optionalEnv } from "@/lib/env"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
 // Bypass lists + apex/admin path predicates live in lib/routing/gate.ts (pure + unit-tested).
@@ -43,7 +43,7 @@ async function checkAdminAuth(pathname: string, request: NextRequest): Promise<N
   if (!pathname.startsWith("/admin")) return null
   if (pathname === "/admin/login") return NextResponse.next()
   const adminToken = request.cookies.get("pleks_admin_token")?.value
-  const adminSecret = process.env.ADMIN_SECRET
+  const adminSecret = optionalEnv("ADMIN_SECRET")
   if (!await verifyAdminToken(adminToken, adminSecret))
     return NextResponse.redirect(new URL("/admin/login", request.url))
   return NextResponse.next()
@@ -54,7 +54,7 @@ async function checkAdminApiAuth(pathname: string, request: NextRequest): Promis
   if (!pathname.startsWith("/api/admin")) return null
   if (pathname === "/api/admin/auth") return null
   const adminToken = request.cookies.get("pleks_admin_token")?.value
-  const adminSecret = process.env.ADMIN_SECRET
+  const adminSecret = optionalEnv("ADMIN_SECRET")
   if (!await verifyAdminToken(adminToken, adminSecret))
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   return NextResponse.next()

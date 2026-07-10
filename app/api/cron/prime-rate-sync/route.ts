@@ -20,6 +20,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_PRIME_REPO_SPREAD } from "@/lib/constants"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { saDateISO, saTodayISO } from "@/lib/dates"
+import { optionalEnv } from "@/lib/env"
 
 interface PrimeFetch {
   rate: number
@@ -84,7 +85,7 @@ export async function GET(req: NextRequest) {
   let result = await fetchSarbPrime()
   let source = "SARB"
   if (!result) {
-    const apiKey = process.env.API_NINJAS_KEY
+    const apiKey = optionalEnv("API_NINJAS_KEY")
     if (apiKey) {
       result = await fetchApiNinjasPrime(apiKey)
       source = "API Ninjas (SARB fallback)"

@@ -10,6 +10,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { checkHealth } from "@/lib/observability/health"
+import { optionalEnv } from "@/lib/env"
 
 export const runtime         = "nodejs"
 export const dynamic         = "force-dynamic"
@@ -17,7 +18,7 @@ export const preferredRegion = "fra1"  // Co-locate with Supabase EU to avoid tr
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token")
-  if (!token || token !== process.env.HEALTH_PROBE_TOKEN) {
+  if (!token || token !== optionalEnv("HEALTH_PROBE_TOKEN")) {
     return new NextResponse("Unauthorised", { status: 401 })
   }
 

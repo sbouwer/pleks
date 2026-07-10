@@ -8,6 +8,7 @@
  *         Monitor names are cleaned to strip query params (prevents token leakage).
  */
 
+import { optionalEnv } from "@/lib/env"
 const BASE = "https://uptime.betterstack.com/api/v2"
 
 export type MonitorStatus = "up" | "down" | "paused" | "pending" | "maintenance" | "validating"
@@ -71,7 +72,7 @@ interface RawSlaDay {
 }
 
 async function bsFetch<T>(path: string, revalidate = 60): Promise<T | null> {
-  const key = process.env.BETTERSTACK_API_KEY
+  const key = optionalEnv("BETTERSTACK_API_KEY")
   if (!key) return null
   try {
     const res = await fetch(`${BASE}${path}`, {

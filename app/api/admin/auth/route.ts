@@ -9,11 +9,11 @@
  */
 import { NextResponse } from "next/server"
 import { signAdminToken } from "@/lib/auth/admin-token"
-import { isProductionNode } from "@/lib/env"
+import { isProductionNode, optionalEnv } from "@/lib/env"
 
 export async function POST(req: Request) {
   const { secret } = await req.json() as { secret?: string }
-  const adminSecret = process.env.ADMIN_SECRET
+  const adminSecret = optionalEnv("ADMIN_SECRET")
 
   if (!adminSecret || secret !== adminSecret) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 })

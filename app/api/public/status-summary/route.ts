@@ -8,9 +8,10 @@
  *         on any upstream error so the footer widget never alarms visitors.
  */
 import { NextResponse } from "next/server"
+import { optionalEnv } from "@/lib/env"
 
 const BETTERSTACK_API   = "https://uptime.betterstack.com/api/v2/monitors"
-const BETTERSTACK_TOKEN = process.env.BETTERSTACK_API_KEY
+const BETTERSTACK_TOKEN = optionalEnv("BETTERSTACK_API_KEY")
 
 export const revalidate = 60
 

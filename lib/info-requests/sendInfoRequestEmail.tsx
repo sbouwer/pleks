@@ -220,7 +220,7 @@ export async function sendInfoRequestEmail(params: SendInfoRequestParams): Promi
   const branding = buildBranding(orgSettings)
   const firmness = pickFirmness(tone, reminderCount)
 
-  const baseUrl = APP_URL?.replace(/\/$/, "") ?? "https://pleks.co.za"
+  const baseUrl = APP_URL.replace(/\/$/, "")
   const secureUrl = `${baseUrl}/property-info/${params.token}`
 
   const ctx: RenderContext = {
@@ -280,7 +280,7 @@ export async function sendInfoRequestCompletionNotify(
   ])
 
   const branding = buildBranding(orgSettings)
-  const baseUrl = APP_URL?.replace(/\/$/, "") ?? "https://pleks.co.za"
+  const baseUrl = APP_URL.replace(/\/$/, "")
   const propertyUrl = `${baseUrl}/properties/${params.propertyId}?tab=overview`
 
   const topicLabel = TOPIC_LABELS[params.topic]
@@ -332,7 +332,7 @@ export async function sendInfoRequestSelfTrackNudge(
   ])
 
   const branding = buildBranding(orgSettings)
-  const baseUrl = APP_URL?.replace(/\/$/, "") ?? "https://pleks.co.za"
+  const baseUrl = APP_URL.replace(/\/$/, "")
   const propertyUrl = `${baseUrl}/properties/${params.propertyId}?tab=overview`
 
   const topicLabel = TOPIC_LABELS[params.topic]

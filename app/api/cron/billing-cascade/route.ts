@@ -17,6 +17,7 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { optionalEnv } from "@/lib/env"
 
 function pingHeartbeat(url: string | undefined): void {
   if (url) void fetch(url, { method: "POST" }).catch(() => undefined)
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
     markedPastDue++
   }
 
-  pingHeartbeat(process.env.HEARTBEAT_BILLING_CASCADE)
+  pingHeartbeat(optionalEnv("HEARTBEAT_BILLING_CASCADE"))
 
   return Response.json({ ok: true, marked_past_due: markedPastDue })
 }

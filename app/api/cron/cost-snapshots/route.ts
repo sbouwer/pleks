@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { buildCostSnapshots } from "@/lib/observability/cost"
 import * as Sentry from "@sentry/nextjs"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { optionalEnv } from "@/lib/env"
 
 export const runtime     = "nodejs"
 export const maxDuration = 300
@@ -42,8 +43,8 @@ export async function GET(request: NextRequest) {
       metadata:       { total_spend_cents: result.totalSpendCents },
     }).eq("id", runId)
 
-    if (process.env.HEARTBEAT_COST_SNAPSHOTS) {
-      await fetch(process.env.HEARTBEAT_COST_SNAPSHOTS, { method: "POST" }).catch(() => undefined)
+    if (optionalEnv("HEARTBEAT_COST_SNAPSHOTS")) {
+      await fetch(optionalEnv("HEARTBEAT_COST_SNAPSHOTS"), { method: "POST" }).catch(() => undefined)
     }
 
     return NextResponse.json({ ok: true, ...result })

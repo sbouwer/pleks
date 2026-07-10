@@ -174,7 +174,7 @@ async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, re
   if (!agentEmail) return
 
   const renewalFormatted = fmtDateLongZA(renewalDate)
-  const baseUrl = APP_URL?.replace(/\/$/, "") ?? "https://app.pleks.co.za"
+  const baseUrl = APP_URL.replace(/\/$/, "")
   const checklistUrl = `${baseUrl}/properties/${propertyId}?tab=insurance`
 
   const orgSettings = await fetchOrgSettings(orgId)

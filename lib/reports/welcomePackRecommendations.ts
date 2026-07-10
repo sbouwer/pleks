@@ -4,6 +4,7 @@
  * Data:   consumes pre-built WelcomePackData; calls the Anthropic API when ANTHROPIC_API_KEY is set, else returns the static fallback recommendations
  */
 import type { WelcomePackData } from "./types"
+import { optionalEnv } from "@/lib/env"
 
 export interface Recommendation {
   priority: "high" | "medium" | "low"
@@ -86,7 +87,7 @@ function staticFallback(data: WelcomePackData): Recommendation[] {
 export async function generateWelcomePackRecommendations(
   data: WelcomePackData,
 ): Promise<Recommendation[]> {
-  if (!process.env.ANTHROPIC_API_KEY) return staticFallback(data)
+  if (!optionalEnv("ANTHROPIC_API_KEY")) return staticFallback(data)
 
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default

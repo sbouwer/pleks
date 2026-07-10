@@ -13,6 +13,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendCreditReportToApplicant } from "@/lib/screening/sendCreditReport"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { optionalEnv } from "@/lib/env"
 
 export const runtime = "nodejs"
 
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
   // known application id could overwrite searchworx_extracted_data with an arbitrary payload, flip stage2_status
   // to "screening_complete", and email a forged credit report to the applicant. (When Searchworx creds land, swap
   // the header/compare for their real signature scheme; the 503-when-unset keeps it safe until then.)
-  const secret = process.env.SEARCHWORX_WEBHOOK_SECRET
+  const secret = optionalEnv("SEARCHWORX_WEBHOOK_SECRET")
   if (!secret) {
     return NextResponse.json({ error: "Not yet active" }, { status: 503 })
   }

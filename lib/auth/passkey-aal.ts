@@ -12,6 +12,7 @@
  *         signal grants AAL2 for ROUTING only — it never satisfies a step-up (Slice B).
  */
 import { createHmac, timingSafeEqual } from "node:crypto"
+import { optionalEnv } from "@/lib/env"
 
 export const PASSKEY_AAL_COOKIE = "pleks_aal"
 export const PASSKEY_AAL_TTL_MS = 12 * 60 * 60 * 1000 // 12h — bounds the revoked-but-unexpired gate window
@@ -27,7 +28,7 @@ interface AalPayload {
 }
 
 function getSecret(): string | null {
-  const s = process.env.PASSKEY_AAL_SECRET
+  const s = optionalEnv("PASSKEY_AAL_SECRET")
   return s && s.length >= 32 ? s : null
 }
 

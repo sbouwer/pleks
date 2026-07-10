@@ -1,8 +1,8 @@
 /**
  * lib/payfast/config.ts — PayFast merchant configuration (sandbox vs live)
  */
-import { optionalEnv } from "@/lib/env"
-const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === "true"
+import { PAYFAST_SANDBOX_PUBLIC, optionalEnv } from "@/lib/env"
+const isSandbox = PAYFAST_SANDBOX_PUBLIC
 
 export const PAYFAST_CONFIG = {
   merchantId: isSandbox

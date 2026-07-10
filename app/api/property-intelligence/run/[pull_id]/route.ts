@@ -27,6 +27,7 @@ import { IntelligenceReportPdf, type IntelligenceReportData } from "@/lib/proper
 import { PRODUCT_LABELS } from "@/lib/property-intelligence/types"
 import { SearchworxError, type SearchworxResult } from "@/lib/searchworx/client"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { optionalEnv } from "@/lib/env"
 
 // ─── Product dispatch ─────────────────────────────────────────────────────────
 
@@ -164,7 +165,7 @@ export async function POST(
   { params }: { params: Promise<{ pull_id: string }> },
 ) {
   const secret = req.headers.get("x-internal-secret")
-  if (!secret || secret !== process.env.INTERNAL_API_SECRET) {
+  if (!secret || secret !== optionalEnv("INTERNAL_API_SECRET")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

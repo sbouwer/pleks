@@ -12,7 +12,7 @@ import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
 import { getTodayFeedbackDigest } from "@/lib/feedback/queries"
 import { FeedbackDailyDigestEmail } from "@/lib/comms/templates/feedback/feedback-daily-digest"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { APP_URL } from "@/lib/env"
+import { APP_URL, optionalEnv } from "@/lib/env"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     return Response.json({ ok: true, skipped: true, reason: "No submissions today" })
   }
 
-  const adminEmail = process.env.ADMIN_EMAIL
+  const adminEmail = optionalEnv("ADMIN_EMAIL")
   if (!adminEmail) {
     return Response.json({ ok: false, error: "ADMIN_EMAIL not configured" }, { status: 500 })
   }

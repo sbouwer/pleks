@@ -5,12 +5,13 @@
  *         "iv:ciphertext:authtag" (all hex); decrypt() throws on tamper (GCM auth tag mismatch).
  */
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto"
+import { optionalEnv } from "@/lib/env"
 
 const ALGORITHM = "aes-256-gcm"
 const IV_LENGTH = 12
 
 function getKey(): Buffer {
-  const keyHex = process.env.ENCRYPTION_KEY
+  const keyHex = optionalEnv("ENCRYPTION_KEY")
   if (!keyHex) throw new Error("ENCRYPTION_KEY environment variable is not set")
   if (keyHex.length !== 64) {
     throw new Error(

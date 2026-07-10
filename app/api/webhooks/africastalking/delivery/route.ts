@@ -17,11 +17,12 @@ import { timingSafeEqual } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { bridgeNoticeDelivery } from "@/lib/notices/bridgeNoticeDelivery"
+import { optionalEnv } from "@/lib/env"
 
 export const runtime = "nodejs"
 
-const AT_USERNAME = process.env.AT_WEBHOOK_USERNAME
-const AT_SECRET = process.env.AT_WEBHOOK_SECRET
+const AT_USERNAME = optionalEnv("AT_WEBHOOK_USERNAME")
+const AT_SECRET = optionalEnv("AT_WEBHOOK_SECRET")
 
 /** Constant-time string compare (no timing side-channel). */
 function secretEquals(provided: string | null, expected: string | undefined): boolean {

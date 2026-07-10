@@ -15,6 +15,7 @@ import { sendEmail } from "@/lib/comms/send-email"
 import { PLATFORM_ORG_ID, preformatted } from "@/lib/comms/platform-org"
 import { createServiceClient } from "@/lib/supabase/server"
 import { withCronRun } from "@/lib/cron/withCronRun"
+import { optionalEnv } from "@/lib/env"
 
 // Browser-like UA — Google/CDNs bot-block UA-less HEAD/GET requests, which is what produced the false-positive
 // 404s (a live support.google.com page reported broken). Sent on both the HEAD and the GET (C-2).
@@ -116,8 +117,8 @@ async function checkLinks(links: DbLink[]): Promise<LinkResult[]> {
 }
 
 async function alertFailures(failures: LinkResult[]) {
-  const adminEmail = process.env.ADMIN_EMAIL
-  const resendKey  = process.env.RESEND_API_KEY
+  const adminEmail = optionalEnv("ADMIN_EMAIL")
+  const resendKey  = optionalEnv("RESEND_API_KEY")
   if (!adminEmail || !resendKey) {
     console.error("check-links: failures detected but ADMIN_EMAIL/RESEND_API_KEY not set", failures)
     return
