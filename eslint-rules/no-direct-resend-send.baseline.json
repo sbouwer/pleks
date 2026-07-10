@@ -1,15 +1,14 @@
 {
   "_comment": "Pre-existing resend.emails.send() bypasses, grandfathered and burning down. Each of these ships UNBRANDED and writes no communication_log row, so it is invisible to the delivery-feedback loop. This list only SHRINKS — delete a file from it as you migrate it to sendEmail({ contentHtml }). A new bypass anywhere else fails CI immediately.",
-  "_migration": "Recipient-facing (do first — these are the unbranded ones users see): lib/actions/documents.ts, lib/auth/login-notification-email.tsx, lib/auth/security-notification-email.tsx, app/api/team/transfer-ownership/route.ts. Ops/admin-facing (Pleks-branded, needs the platform-org decision — sendEmail requires an orgId + registered templateKey, these have neither): lib/actions/submitContactForm.ts, lib/cron/cronDigest.ts, app/api/cron/check-links/route.ts, app/api/cron/feedback-digest/route.ts, app/api/cron/process-audit-exports/route.ts",
+  "_migrated": "DONE — org-branded, now through sendEmail({ contentHtml }): lib/actions/documents.ts, app/api/team/transfer-ownership/route.ts (plus app/api/team/invite + screening-portal-reminders, which used sendEmail already but with unwrapped rawHtml).",
+  "_remaining": "ALL are PLATFORM mail: no orgId, and Pleks-voiced by design — org branding would be WRONG for them. sendEmail cannot take them as-is (it requires an orgId + a registered templateKey, and communication_log.org_id is NOT NULL). Needs a design call: a sentinel platform org, or a sendPlatformNotice() that shares the SystemEmail shell but logs separately. NOTE: the two lib/auth/*-notification-email.tsx files are already correctly branded — they render EmailLayout with PLEKS_BRANDING; they bypass only the sendEmail choke point, not the template.",
   "files": [
-    "lib/actions/documents.ts",
     "lib/actions/submitContactForm.ts",
     "lib/auth/login-notification-email.tsx",
     "lib/auth/security-notification-email.tsx",
     "lib/cron/cronDigest.ts",
     "app/api/cron/check-links/route.ts",
     "app/api/cron/feedback-digest/route.ts",
-    "app/api/cron/process-audit-exports/route.ts",
-    "app/api/team/transfer-ownership/route.ts"
+    "app/api/cron/process-audit-exports/route.ts"
   ]
 }

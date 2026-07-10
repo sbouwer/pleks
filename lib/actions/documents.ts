@@ -10,7 +10,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { hasCapability } from "@/lib/auth/can"
 import { gateway } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
-import { Resend } from "resend"
+import { sendEmail } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function uploadPropertyDocument(formData: FormData) {
@@ -208,21 +208,25 @@ export async function sendDocument(
 
   const resolvedHtml = resolveMergeFields(bodyHtml, mergeValues)
 
-  // 3. Send via Resend
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  const { error: sendError } = await resend.emails.send({
-    from: "Pleks <noreply@pleks.co.za>",
-    to: recipientEmail,
+  // 3. Send through the single choke point — sendEmail wraps the agent's body in the central
+  //    EmailLayout and injects the org's branding (this used to hit Resend directly, from a hardcoded
+  //    "Pleks <noreply@…>", so an agency's document went out with no agency branding at all).
+  const sendResult = await sendEmail({
+    orgId,
+    templateKey: "lease.document_emailed",
+    to: { email: recipientEmail, name: recipientEmail },
     subject,
-    html: resolvedHtml,
+    contentHtml: resolvedHtml,
+    triggeredBy: userId,
+    ...(leaseId ? { entityType: "lease", entityId: leaseId } : {}),
   })
 
-  if (sendError) {
+  if (!sendResult.success) {
     await db
       .from("document_generation_jobs")
       .update({ status: "failed" })
       .eq("id", job.id)
-    return { error: sendError.message }
+    return { error: sendResult.error ?? "Send failed" }
   }
 
   // 4. Mark job sent + create lease_documents record
@@ -231,23 +235,11 @@ export async function sendDocument(
     .update({ status: "sent", sent_at: new Date().toISOString() })
     .eq("id", job.id)
 
-  if (leaseId) {
-    // lease_documents requires doc_type, title, storage_path — email sends don't produce
-    // a file, so we only log to communication_log for the audit trail.
-
-    // 5. Communication log
-    await db.from("communication_log").insert({
-      org_id: orgId,
-      lease_id: leaseId,
-      channel: "email",
-      direction: "outbound",
-      subject,
-      body: resolvedHtml,
-      sent_to_email: recipientEmail,
-      sent_by: userId,
-      status: "sent",
-    })
-  }
+  // 5. No communication_log insert here — sendEmail already wrote the row, carrying the Resend
+  //    external_id the delivery webhook joins on. The hand-rolled insert this replaced produced a
+  //    SECOND, external_id-less row: a duplicate in the audit trail, invisible to the delivery-feedback
+  //    loop, and double-counted by the frequency limiter. The lease linkage rides on entity_type/entity_id.
+  //    (lease_documents needs doc_type/title/storage_path; an email send produces no file, so none is made.)
 
   revalidatePath("/documents")
   return {}

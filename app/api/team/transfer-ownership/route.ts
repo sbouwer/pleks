@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { recordAudit } from "@/lib/audit/recordAudit";
 import { requireStepUp } from "@/lib/auth/step-up";
-import { Resend } from "resend";
+import { sendEmail } from "@/lib/comms/send-email";
 
 const MARKETING = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
@@ -181,29 +181,33 @@ export async function POST(req: NextRequest) {
 
     // Notify both parties — best-effort. The transfer has already committed; a Resend hiccup must NOT
     // throw to the outer catch and misreport a completed ownership change as a 500.
+    // contentHtml, not a hand-rolled Resend call: sendEmail wraps these in the central EmailLayout and
+    // injects the org's branding. The "The Pleks Team" sign-off is gone — the layout footer now carries
+    // the org identity, and a hardcoded Pleks sign-off under an agency's logo reads wrong.
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: "Pleks <noreply@pleks.co.za>",
-        to: newOwnerEmail,
+      await sendEmail({
+        orgId,
+        templateKey: "team.ownership_transferred_new_owner",
+        to: { email: newOwnerEmail, name: newOwnerEmail },
         subject: `You are now the owner of ${orgName}`,
-        html: `
+        previewText: `Ownership of ${orgName} has been transferred to you.`,
+        contentHtml: `
           <p>Hi,</p>
           <p>Ownership of <strong>${orgName}</strong> has been transferred to you. You are now the owner of this organisation on Pleks.</p>
           <p>You can manage your organisation settings by logging in to <a href="${MARKETING}">pleks.co.za</a>.</p>
-          <p>The Pleks Team</p>
         `,
       });
-      await resend.emails.send({
-        from: "Pleks <noreply@pleks.co.za>",
-        to: callerEmail,
+      await sendEmail({
+        orgId,
+        templateKey: "team.ownership_transferred_previous_owner",
+        to: { email: callerEmail, name: callerEmail },
         subject: `Ownership of ${orgName} has been transferred`,
-        html: `
+        previewText: `You transferred ownership of ${orgName}.`,
+        contentHtml: `
           <p>Hi,</p>
           <p>You have successfully transferred ownership of <strong>${orgName}</strong> to another member of your organisation.</p>
           <p>You remain a member of the organisation with the Property Manager role.</p>
           <p>If you did not initiate this transfer, please contact support immediately.</p>
-          <p>The Pleks Team</p>
         `,
       });
     } catch (mailErr) {

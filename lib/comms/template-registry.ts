@@ -323,6 +323,16 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     tone_profile: "relational", allowed_channels: ["email"],
     description: "Email inviting a colleague to join the agency as a team member — accept link to /invite/[token]",
   },
+  "team.ownership_transferred_new_owner": {
+    key: "team.ownership_transferred_new_owner", channel: "email", category: "portal", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Confirms to the incoming owner that org ownership has been transferred to them",
+  },
+  "team.ownership_transferred_previous_owner": {
+    key: "team.ownership_transferred_previous_owner", channel: "email", category: "portal", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Confirms to the outgoing owner that they transferred org ownership and now hold property_manager",
+  },
   "portal.tenant_link": {
     key: "portal.tenant_link", channel: "sms", category: "portal", is_mandatory: false,
     description: "WhatsApp/SMS token link for tenants without email (generated link flow)",
