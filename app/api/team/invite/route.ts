@@ -77,7 +77,10 @@ export async function POST(req: NextRequest) {
       templateKey: "team.member_invite",
       to: { email: cleanEmail, name: cleanEmail },
       subject: `You've been invited to join ${orgName} on Pleks`,
-      rawHtml: `
+      previewText: `Accept your invitation to join ${orgName} as ${roleLabel}.`,
+      // contentHtml (NOT rawHtml): sendEmail wraps this in the central EmailLayout and injects the org's
+      // branding — Pleks branding when the org has configured none. rawHtml would ship this bare.
+      contentHtml: `
         <p>Hi,</p>
         <p>You've been invited to join <strong>${orgName}</strong> on Pleks as <strong>${roleLabel}</strong>.</p>
         <p><a href="${acceptUrl}" style="display:inline-block;padding:10px 16px;background:#1a1a1a;color:#fff;border-radius:3px;text-decoration:none;font-weight:600">Accept invitation</a></p>

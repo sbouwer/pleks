@@ -17,8 +17,10 @@
  */
 
 import { createHash } from "node:crypto"
+import { createElement } from "react"
 import { Resend } from "resend"
 import { render } from "@react-email/components"
+import { SystemEmail } from "./templates/system-email"
 import { resolveOrgCorrespondenceHtml } from "./orgTemplateOverride"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTemplate } from "./template-registry"
@@ -51,8 +53,23 @@ export interface SendEmailParams {
   subject: string
   /** The rendered React Email element (from the template component). Mutually exclusive with rawHtml. */
   emailElement?: ReactElement
-  /** Pre-rendered HTML string (for reports/documents). Mutually exclusive with emailElement. */
+  /**
+   * A COMPLETE, pre-rendered HTML document — sent byte-for-byte, NOT wrapped.
+   *
+   * ⚠ Reserve this for content that must not be re-chromed: the tenant-notice register (byte-identity
+   * between preview and issue is a Tribunal-defensibility invariant) and every retry/replay path, which
+   * re-sends a stored `body_full`/`body_html` that ALREADY contains the layout — wrapping those would
+   * double-chrome them. Composing new copy? You want `contentHtml`.
+   */
   rawHtml?: string
+  /**
+   * An HTML FRAGMENT (no <html>/<body>) — sendEmail wraps it in the central EmailLayout and injects the
+   * org's branding, falling back to Pleks branding when the org has none. This is the default for any new
+   * system email: the caller writes the message, never the chrome, and cannot forget the branding.
+   */
+  contentHtml?: string
+  /** Preview text for the contentHtml path (the snippet clients show before open). Defaults to the subject. */
+  previewText?: string
   /** BUILD_70 Phase 2b — opt-in {{token}} → value map. When provided, a non-statutory send prefers the
    *  org's Customised correspondence template (by templateKey) over the React-Email default; absent →
    *  unchanged behaviour. */
@@ -219,7 +236,24 @@ async function resolveSendHtml(
       overrideDb, params.orgId, params.templateKey, params.mergeValues, buildBranding(orgSettings))
     if (override) return override
   }
-  if (!params.emailElement && !params.rawHtml) throw new Error("sendEmail: provide emailElement or rawHtml")
+
+  // contentHtml — the branded path. The caller supplies only the message body; the central EmailLayout
+  // supplies the chrome and the org's branding (Pleks branding when the org has configured none). This
+  // is why a caller can no longer ship an unbranded system email by forgetting to pass `branding`.
+  if (params.contentHtml) {
+    return render(
+      createElement(SystemEmail, {
+        preview: params.previewText ?? params.subject,
+        branding: buildBranding(orgSettings),
+        contentHtml: params.contentHtml,
+      }),
+    )
+  }
+
+  if (!params.emailElement && !params.rawHtml) {
+    throw new Error("sendEmail: provide contentHtml (branded), emailElement, or rawHtml")
+  }
+  // rawHtml is a COMPLETE document (notice byte-identity / retry replay) — never re-wrap it.
   return params.rawHtml ?? await render(params.emailElement!)
 }
 

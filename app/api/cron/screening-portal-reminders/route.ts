@@ -175,7 +175,7 @@ async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppR
     templateKey: "application.director_expired_refund",
     to: { email: coApp.applicant_email, name: coApp.first_name ?? "Director" },
     subject: `Your application portion has expired — ${propertyLabel}`,
-    rawHtml: buildExpiryHtml({ directorFirstName: coApp.first_name ?? "Director", propertyLabel, primaryContactName, paid: !!line.paid_at }),
+    contentHtml: buildExpiryHtml({ directorFirstName: coApp.first_name ?? "Director", propertyLabel, primaryContactName, paid: !!line.paid_at }),
     entityType: "application_co_applicant", entityId: line.subject_id,
     triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id,
   })
@@ -249,19 +249,20 @@ async function notifyPrimaryContact(
   if (!app?.applicant_email) return
 
   const urgency = ctx.stage === "t10" ? "Final reminder: " : ""
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:-apple-system,sans-serif;color:#111;max-width:600px;margin:0 auto;padding:24px}p{line-height:1.6}</style></head><body>
+  // A FRAGMENT — sendEmail wraps it in the central EmailLayout and injects the org's branding. This used
+  // to hand-roll a bare <!DOCTYPE> document, so the email went to applicants unbranded.
+  const html = `
 <p>Hi ${ctx.primaryContactName},</p>
 <p>${urgency}<strong>${ctx.directorName}</strong> has not yet completed their portion of the application for <strong>${ctx.propertyLabel}</strong>.</p>
 <p>The application cannot proceed until all directors have completed payment and consent.</p>
-<p>If ${ctx.directorName} is unable to proceed, you can replace them from your application portal.</p>
-</body></html>`
+<p>If ${ctx.directorName} is unable to proceed, you can replace them from your application portal.</p>`
 
   await sendEmail({
     orgId: line.org_id,
     templateKey: "application.primary_contact_director_pending",
     to: { email: app.applicant_email as string, name: ctx.primaryContactName },
     subject: `Action needed: ${ctx.directorName} has not completed their portion`,
-    rawHtml: html,
+    contentHtml: html,
     entityType: "application",
     entityId: line.application_id,
     triggerEventType: "cron:screening_portal_reminders",
@@ -273,10 +274,10 @@ function buildExpiryHtml(p: { directorFirstName: string; propertyLabel: string; 
   const refundNote = p.paid
     ? `<p>You had paid your screening fee. The agency will process your refund — please contact them directly if you have not received it within 5 business days.</p>`
     : ""
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:-apple-system,sans-serif;color:#111;max-width:600px;margin:0 auto;padding:24px}p{line-height:1.6}</style></head><body>
+  // A FRAGMENT — sendEmail wraps it in the central EmailLayout and injects the org's branding.
+  return `
 <p>Hi ${p.directorFirstName},</p>
 <p>Your portion of the application for <strong>${p.propertyLabel}</strong> has expired as the 14-day window has passed without completion.</p>
 ${refundNote}
-<p>The application has been notified to ${p.primaryContactName}. If you still want to participate, please ask them to add you again.</p>
-</body></html>`
+<p>The application has been notified to ${p.primaryContactName}. If you still want to participate, please ask them to add you again.</p>`
 }

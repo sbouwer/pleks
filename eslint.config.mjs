@@ -10,6 +10,7 @@ import settingsUseDetailTabs from "./eslint-rules/settings-use-detail-tabs.mjs";
 import noCookieClientFrom from "./eslint-rules/no-cookie-client-from.mjs";
 import requireOrgScopeOnServiceWrite from "./eslint-rules/require-org-scope-on-service-write.mjs";
 import requireIdNumberEncryption from "./eslint-rules/require-id-number-encryption.mjs";
+import noDirectResendSend from "./eslint-rules/no-direct-resend-send.mjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -52,8 +53,8 @@ const eslintConfig = defineConfig([
     // Part 1 of ADDENDUM_SCHEMA_SELECT_GUARD: make a Supabase query that ignores `error`
     // a build failure, so column drift / RLS / timeout failures are loud, not silent.
     files: ["**/*.ts", "**/*.tsx"],
-    plugins: { pleks: { rules: { "require-supabase-error-check": requireSupabaseErrorCheck, "no-popia-raw-delete": noPopiaRawDelete, "require-audit-on-sensitive-mutation": requireAuditOnSensitiveMutation, "require-scope-on-delete": requireScopeOnDelete, "settings-use-detail-tabs": settingsUseDetailTabs, "no-cookie-client-from": noCookieClientFrom, "require-org-scope-on-service-write": requireOrgScopeOnServiceWrite, "require-id-number-encryption": requireIdNumberEncryption } } },
-    rules: { "pleks/require-supabase-error-check": "error", "pleks/no-popia-raw-delete": "error", "pleks/require-audit-on-sensitive-mutation": "error", "pleks/require-scope-on-delete": "error", "pleks/settings-use-detail-tabs": "error", "pleks/no-cookie-client-from": "error", "pleks/require-org-scope-on-service-write": "error", "pleks/require-id-number-encryption": "error" },
+    plugins: { pleks: { rules: { "require-supabase-error-check": requireSupabaseErrorCheck, "no-popia-raw-delete": noPopiaRawDelete, "require-audit-on-sensitive-mutation": requireAuditOnSensitiveMutation, "require-scope-on-delete": requireScopeOnDelete, "settings-use-detail-tabs": settingsUseDetailTabs, "no-cookie-client-from": noCookieClientFrom, "require-org-scope-on-service-write": requireOrgScopeOnServiceWrite, "require-id-number-encryption": requireIdNumberEncryption, "no-direct-resend-send": noDirectResendSend } } },
+    rules: { "pleks/require-supabase-error-check": "error", "pleks/no-popia-raw-delete": "error", "pleks/require-audit-on-sensitive-mutation": "error", "pleks/require-scope-on-delete": "error", "pleks/settings-use-detail-tabs": "error", "pleks/no-cookie-client-from": "error", "pleks/require-org-scope-on-service-write": "error", "pleks/require-id-number-encryption": "error", "pleks/no-direct-resend-send": "error" },
   },
   {
     rules: {

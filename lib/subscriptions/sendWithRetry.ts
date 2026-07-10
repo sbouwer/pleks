@@ -26,6 +26,12 @@ function nextAttemptAt(attemptCount: number): string | null {
  * failure it enqueues a platform_email_retries row that the hourly drain re-sends.
  */
 export async function sendPlatformEmail(params: SendEmailParams): Promise<SendEmailResult> {
+  // contentHtml is branded INSIDE sendEmail (it needs orgSettings to build the layout), so we cannot
+  // snapshot the final HTML here — the retry row would be enqueued with `html: undefined` and the
+  // enqueue guard below would silently skip it, losing the retry net. Fail loudly instead of quietly.
+  if (params.contentHtml) {
+    throw new Error("sendPlatformEmail: contentHtml is not supported — pass emailElement or rawHtml so the retry can replay the exact HTML")
+  }
   // Render once up front so the retry can replay the exact HTML without the React element.
   const html = params.rawHtml ?? (params.emailElement ? await render(params.emailElement) : undefined)
   const result = await sendEmail({ ...params, rawHtml: html, emailElement: undefined })
