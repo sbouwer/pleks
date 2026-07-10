@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
@@ -806,13 +806,12 @@ export function MembersTab() {
       )}
 
       {pendingInvites.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader><CardTitle className="text-lg">Pending Invites</CardTitle></CardHeader>
-          <CardContent>
+        <div className="mb-6">
+          <DetailCard title="Pending invites" count={pendingInvites.length}>
             <div className="space-y-2">
               {pendingInvites.map((inv) => (
                 <div key={inv.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-4 py-2.5">
+                  className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-border px-4 py-2.5">
                   <div className="min-w-0">
                     <p className="text-sm truncate">{inv.email}</p>
                     <p className="text-xs text-muted-foreground">{roleLabelOf(inv.role)} · pending</p>
@@ -821,8 +820,8 @@ export function MembersTab() {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </DetailCard>
+        </div>
       )}
 
       {accessStepUpModal}
