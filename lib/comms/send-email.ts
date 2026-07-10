@@ -31,9 +31,10 @@ export type { OrgBranding } from "./templates/layout"
 import type { ReactElement } from "react"
 import { maskEmail } from "@/lib/log/maskPii"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { APP_URL, requireEnv } from "@/lib/env"
 
 function getResend() {
-  return new Resend(process.env.RESEND_API_KEY)
+  return new Resend(requireEnv("RESEND_API_KEY"))
 }
 
 const DEFAULT_FROM = "Pleks <notifications@pleks.co.za>"
@@ -397,7 +398,7 @@ export function buildBranding(orgSettings: OrgSettings | null, unsubscribeToken?
     orgAddress: orgSettings?.address,
     logoUrl: orgSettings?.brand_logo_url,
     accentColor: orgSettings?.brand_accent_color,
-    unsubscribeUrl: unsubscribeToken ? `${process.env.NEXT_PUBLIC_APP_URL}/unsubscribe/${unsubscribeToken}` : undefined,
+    unsubscribeUrl: unsubscribeToken ? `${APP_URL}/unsubscribe/${unsubscribeToken}` : undefined,
     emergencyPhone: orgSettings?.emergency_phone,
     emergencyContactName: orgSettings?.emergency_contact_name,
   }

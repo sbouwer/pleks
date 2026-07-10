@@ -24,6 +24,7 @@
 
 import { cache } from "react"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 import { cookies } from "next/headers"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -102,8 +103,8 @@ export const gatewaySSR = cache(async (): Promise<GatewayContext | null> => {
   // Use cached service client for SSR (deduplicates across render tree)
   const { createClient: createSupa } = await import("@supabase/supabase-js")
   const db = createSupa(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY")
   )
 
   return {

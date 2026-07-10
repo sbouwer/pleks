@@ -16,14 +16,13 @@
  *         its sandbox flag from AT_USERNAME/WA_SANDBOX, so a live WA_USERNAME can pair with a sandbox host.
  */
 import * as Sentry from "@sentry/nextjs"
+import { isProductionRuntime } from "@/lib/env"
 
 /** The AT account username that selects the sandbox host. Not a placeholder — a real AT account name. */
 export const AT_SANDBOX_USERNAME = "sandbox"
 
-/** True only on Vercel production. Preview and local dev may legitimately use the sandbox. */
-export function isProductionRuntime(): boolean {
-  return process.env.VERCEL_ENV === "production"
-}
+/** True only on Vercel production. The gate now lives in lib/env; re-exported here for existing callers. */
+export { isProductionRuntime }
 
 export type AtEnvironmentCheck = { ok: true } | { ok: false; reason: string }
 

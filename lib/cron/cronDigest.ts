@@ -8,6 +8,7 @@
  */
 import { sendEmail } from "@/lib/comms/send-email"
 import { PLATFORM_ORG_ID, preformatted } from "@/lib/comms/platform-org"
+import { optionalEnv } from "@/lib/env"
 
 export interface CronJobDetail {
   status: string            // "ok" | "failed" | "error" | "partial" | "skipped (…)"
@@ -27,8 +28,8 @@ export async function sendCronDigest(
   const issues = Object.entries(detail).filter(([, d]) => isIssue(d))
   if (issues.length === 0) return { emailed: false, issueCount: 0 }   // clean run → silence
 
-  const adminEmail = process.env.ADMIN_EMAIL
-  const resendKey = process.env.RESEND_API_KEY
+  const adminEmail = optionalEnv("ADMIN_EMAIL")
+  const resendKey = optionalEnv("RESEND_API_KEY")
   if (!adminEmail || !resendKey) {
     console.error("[cron-digest] issues detected but ADMIN_EMAIL/RESEND_API_KEY not set:", issues.map(([n]) => n))
     return { emailed: false, issueCount: issues.length }
