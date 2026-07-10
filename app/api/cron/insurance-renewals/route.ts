@@ -18,6 +18,7 @@ import { createClient } from "@supabase/supabase-js"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { RenewalReminderEmail } from "@/lib/comms/templates/insurance/renewal-reminder"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { saTodayISO } from "@/lib/dates"
 
 function getServiceClient() {
   return createClient(
@@ -221,7 +222,7 @@ export async function GET(req: NextRequest) {
   const runId = await startJob(db)
 
   try {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = saTodayISO()
     const sevenDaysAgo = new Date(Date.now() - 7 * DAY_MS).toISOString().slice(0, 10)
     const sixDaysAgo = new Date(Date.now() - 6 * DAY_MS).toISOString().slice(0, 10)
 

@@ -11,6 +11,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { resolveSubject, subjectLeaseIds } from "./anonymiseIdentity"
+import { saTodayISO } from "@/lib/dates"
 
 // ─── Category enum ────────────────────────────────────────────────────────────
 // Every table-group purged by the cron or erasure cascade is mapped to a category.
@@ -281,7 +282,7 @@ export async function getRetentionPolicies(orgId: string): Promise<RetentionPoli
 
   return {
     org_id: orgId,
-    effective_from: new Date().toISOString().slice(0, 10),
+    effective_from: saTodayISO(),
     policies: PLATFORM_DEFAULTS,
   }
 }

@@ -20,6 +20,7 @@ import { FormSelect } from "@/components/ui/FormSelect"
 import { Download } from "lucide-react"
 import { SovereignBadge, type SovereignBadgeProps } from "@/components/trust/SovereignBadge"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { saTodayISO } from "@/lib/dates"
 
 const TYPE_FILTER_OPTIONS = [
   { value: "", label: "All types" },
@@ -141,7 +142,7 @@ export default function TrustLedgerPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `trust-ledger-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `trust-ledger-${saTodayISO()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }

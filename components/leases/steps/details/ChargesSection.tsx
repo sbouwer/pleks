@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { Trash2, X } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import type { LocalCharge, LocalOnceOffCharge } from "../../wizardData"
+import { saTodayISO } from "@/lib/dates"
 
 const CHARGE_TYPES = [
   { value: "body_corporate_levy", label: "Body corporate levy" },
@@ -83,7 +84,7 @@ function RecurringForm({ onAdd, onCancel }: Readonly<{ onAdd: (c: LocalCharge) =
   const [description, setDescription] = useState("")
   const [chargeType, setChargeType] = useState("other")
   const [amount, setAmount] = useState("")
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
+  const [startDate, setStartDate] = useState(saTodayISO())
   const [endDate, setEndDate] = useState("")
   const [payableTo, setPayableTo] = useState("landlord")
   const [deductFromOwner, setDeductFromOwner] = useState(false)

@@ -7,6 +7,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { resolveDepositInterestConfig } from "@/lib/deposits/interestConfig"
 import { describeRate } from "@/lib/deposits/rateUtils"
+import { saTodayISO } from "@/lib/dates"
 
 export interface TenantWelcomePackData {
   // Tenant
@@ -255,7 +256,7 @@ export async function buildTenantWelcomePackData(
   const moveInInspectionDate = inspRow?.conducted_date ?? inspRow?.scheduled_date ?? null
 
   // Deposit interest — resolve actual config to get correct rate type description
-  const today = new Date().toISOString().slice(0, 10)
+  const today = saTodayISO()
   const depositConfig = await resolveDepositInterestConfig(
     orgId,
     lease.property_id ?? null,

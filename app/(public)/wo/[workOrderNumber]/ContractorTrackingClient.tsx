@@ -14,6 +14,7 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { CheckCircle2, Truck, ClipboardCheck, Calendar, XCircle, Loader2, FileText, Receipt, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import { saTodayISO } from "@/lib/dates"
 
 interface Props {
   requestId: string
@@ -246,7 +247,7 @@ function InvoicePanel({ requestId, workOrderNumber, token, onSubmitted }: {
   onSubmitted: () => void
 }) {
   const [invoiceNumber, setInvoiceNumber] = useState("")
-  const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [invoiceDate, setInvoiceDate] = useState(() => saTodayISO())
   const [description, setDescription] = useState("")
   const [amountExclStr, setAmountExclStr] = useState("")
   const [vatRate, setVatRate] = useState<15 | 0>(15)

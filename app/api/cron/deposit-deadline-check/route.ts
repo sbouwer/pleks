@@ -12,13 +12,14 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { saTodayISO } from "@/lib/dates"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
   if (denied) return denied
 
   const supabase = await createServiceClient()
-  const today = new Date().toISOString().slice(0, 10)  // deadline is a date column
+  const today = saTodayISO()  // deadline is a date column
 
   const { data, error } = await supabase
     .from("deposit_timers")

@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { getTemplate } from "@/lib/comms/template-registry"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saTodayISO } from "@/lib/dates"
 
 function isTemplateMandatory(key: string | null): boolean {
   if (!key) return false
@@ -80,7 +81,7 @@ export default async function PortalDashboard() {
       .eq("unit_id", unitId)
       .eq("org_id", orgId)
       .in("status", ["scheduled", "pending"])
-      .gte("scheduled_date", new Date().toISOString().slice(0, 10))
+      .gte("scheduled_date", saTodayISO())
       .order("scheduled_date", { ascending: true })
       .limit(1)
       .maybeSingle(),

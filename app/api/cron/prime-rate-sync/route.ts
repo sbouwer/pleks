@@ -19,6 +19,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_PRIME_REPO_SPREAD } from "@/lib/constants"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { saTodayISO } from "@/lib/dates"
 
 interface PrimeFetch {
   rate: number
@@ -102,7 +103,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = await createServiceClient()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = saTodayISO()
   // Date the row to the source's published date; fall back to today only if it's missing/garbled.
   const effectiveDate = result.changeDate ?? today
 

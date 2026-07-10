@@ -15,12 +15,13 @@ import { SinglePropertyView, NoPropertyYet } from "@/components/properties/Singl
 import { PropertyListView } from "@/components/properties/PropertyListView"
 import type { SinglePropertyData } from "@/components/properties/SinglePropertyView"
 import type { PropertyListItem } from "@/components/properties/PropertyList"
+import { saTodayISO } from "@/lib/dates"
 
 type GatewayDB = NonNullable<Awaited<ReturnType<typeof gatewaySSR>>>["db"]
 
 /** Org-wide arrears: % of due rent currently unpaid (drives the Arrears KPI card). */
 async function fetchArrearsPct(db: GatewayDB, orgId: string): Promise<number> {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = saTodayISO()
   const { data, error } = await db
     .from("rent_invoices")
     .select("total_amount_cents, amount_paid_cents")
@@ -84,7 +85,7 @@ async function attachCollection(db: GatewayDB, orgId: string, properties: Proper
     for (const u of p.units) unitToProp.set(u.id, p.id)
   }
   if (unitToProp.size === 0) return properties
-  const today = new Date().toISOString().slice(0, 10)
+  const today = saTodayISO()
   const { data, error } = await db
     .from("rent_invoices")
     .select("unit_id, total_amount_cents, amount_paid_cents")

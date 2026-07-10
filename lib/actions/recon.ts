@@ -19,6 +19,7 @@ import { parseCSVBank } from "@/lib/recon/csvBankParser"
 import type { ParsedTransaction } from "@/lib/recon/ofxParser"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saTodayISO } from "@/lib/dates"
 
 type ImportSource = "upload" | "ofx" | "csv" | "qif" | "yodlee"
 
@@ -463,7 +464,7 @@ export async function syncYodleeTransactions(
     .insert({
       org_id: orgId,
       bank_account_id: bankAccountId,
-      original_filename: `yodlee-sync-${new Date().toISOString().slice(0, 10)}.json`,
+      original_filename: `yodlee-sync-${saTodayISO()}.json`,
       storage_path: "",
       file_size_bytes: 0,
       import_source: "yodlee",
