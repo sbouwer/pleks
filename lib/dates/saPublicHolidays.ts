@@ -367,9 +367,19 @@ export function isBusinessDayISO(dateStr: string): boolean {
   return !isPublicHoliday(dateStr)
 }
 
-function assertDateOnly(iso: string, fn: string): string {
+/**
+ * A walker input must be a REAL calendar day, not merely a well-formed string. `assertHolidayCoverage` is a
+ * lexical string comparison, so "2026-11-31" passes the range check unharmed — and then `shiftISO` builds
+ * `new Date("2026-11-31T00:00:00Z")`, which V8 silently rolls to 1 December, so the walk proceeds from an
+ * anchor one day off. That is the exact rollover class the caretaker round-trips every table entry to
+ * prevent; the walkers, whose whole identity is "fail closed", must round-trip their inputs the same way.
+ */
+function assertRealDateOnly(iso: string, fn: string): string {
   if (!DATE_ONLY.test(iso)) {
     throw new TypeError(`${fn}: expected a "YYYY-MM-DD" calendar date, got ${JSON.stringify(iso)}.`)
+  }
+  if (!isRealCalendarDay(iso)) {
+    throw new RangeError(`${fn}: ${JSON.stringify(iso)} is not a real date (the day does not exist in its month).`)
   }
   return iso
 }
@@ -391,6 +401,7 @@ function assertWholeCount(n: number, fn: string): void {
  */
 export function addBusinessDays(fromIso: string, n: number): string {
   assertWholeCount(n, "addBusinessDays")
+  assertRealDateOnly(fromIso, "addBusinessDays")
   assertHolidayCoverage(fromIso, "addBusinessDays")
   let cursor = fromIso
   let added = 0
@@ -414,6 +425,7 @@ export function addBusinessDays(fromIso: string, n: number): string {
  */
 export function subtractBusinessDaysStrict(fromIso: string, n: number): string {
   assertWholeCount(n, "subtractBusinessDaysStrict")
+  assertRealDateOnly(fromIso, "subtractBusinessDaysStrict")
   assertHolidayCoverage(fromIso, "subtractBusinessDaysStrict")
   let cursor = fromIso
   let removed = 0
@@ -439,7 +451,8 @@ export function subtractBusinessDaysStrict(fromIso: string, n: number): string {
  * was a chance to slice an INSTANT (a timezone resolution) rather than a carrier (arithmetic).
  */
 export function subtractBusinessDays(fromIso: string, days: number): string {
-  let cursor = assertDateOnly(fromIso, "subtractBusinessDays")
+  assertWholeCount(days, "subtractBusinessDays")
+  let cursor = assertRealDateOnly(fromIso, "subtractBusinessDays")
   let warned = false
   let remaining = days
   while (remaining > 0) {

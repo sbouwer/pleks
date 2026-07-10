@@ -76,6 +76,13 @@ describe("addBusinessDays — STATUTORY: weekends AND public holidays", () => {
     expect(() => addBusinessDays("2026-07-03", 2.5)).toThrow(/whole number/)
     expect(() => addBusinessDays("2026-07-03", -1)).toThrow(/whole number/)
   })
+
+  it("rejects a well-formed UNREAL date rather than V8-rolling it (the fail-open-#12 guard)", () => {
+    // "2026-11-31" passes the lexical range check, then new Date(...) rolls it to 1 December and the walk
+    // proceeds from an anchor a day off. A statutory walker must round-trip its input like the caretaker does.
+    expect(() => addBusinessDays("2026-11-31", 1)).toThrow(/not a real date/)
+    expect(() => addBusinessDays("2026-02-29", 1)).toThrow(/not a real date/)  // 2026 is not a leap year
+  })
 })
 
 describe("the horizon — fail CLOSED on the statutory path", () => {
@@ -110,6 +117,11 @@ describe("subtractBusinessDays — ADVISORY: warns and degrades, never throws", 
     // Mon 2026-07-06 minus 1 → Fri 2026-07-03 (skips the weekend).
     expect(subtractBusinessDays("2026-07-06", 1)).toBe("2026-07-03")
   })
+
+  it("still round-trips its input and whole-count-checks, even though it is advisory", () => {
+    expect(() => subtractBusinessDays("2026-11-31", 1)).toThrow(/not a real date/)
+    expect(() => subtractBusinessDays("2026-07-06", 1.5)).toThrow(/whole number/)
+  })
 })
 
 describe("subtractBusinessDaysStrict — STATUTORY backward walker (D-7g)", () => {
@@ -127,6 +139,11 @@ describe("subtractBusinessDaysStrict — STATUTORY backward walker (D-7g)", () =
     expect(subtractBusinessDaysStrict("2026-08-11", 1)).toBe("2026-08-07")  // clears obs Women's Day Mon 08-10
     expect(subtractBusinessDaysStrict("2027-03-23", 1)).toBe("2027-03-19")  // clears obs Human Rights Mon 03-22
     expect(subtractBusinessDaysStrict("2026-07-08", 0)).toBe("2026-07-08")  // zero is a no-op
+  })
+
+  it("rejects a well-formed UNREAL date rather than V8-rolling it (fail-open #12, mirror of addBusinessDays)", () => {
+    expect(() => subtractBusinessDaysStrict("2026-11-31", 1)).toThrow(/not a real date/)
+    expect(() => subtractBusinessDaysStrict("2027-02-29", 1)).toThrow(/not a real date/)
   })
 
   it("throws at BOTH horizon ends — reaching for the advisory walker on a statutory path is the fail-open", () => {
