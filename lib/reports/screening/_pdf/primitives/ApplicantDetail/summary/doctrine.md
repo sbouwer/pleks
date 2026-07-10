@@ -35,4 +35,4 @@ Vertical household synthesis. The agent reads one applicant fully, then moves do
 
 - Adjacent mode downward: Interpretive (N=2) — full bureau names, job title, full rail. Summary is the household-synthesis counterpart with a narrower rail.
 - Adjacent mode upward: Comparative (N=4) — horizontal reading direction. Summary's vertical stack is the contrasting posture.
-- Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.4 (Zone behaviour by mode, critical note on rail discipline).
+- Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.4 (Zone behaviour by mode, critical note on rail discipline).

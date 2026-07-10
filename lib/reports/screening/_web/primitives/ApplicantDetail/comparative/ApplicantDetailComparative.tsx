@@ -5,7 +5,7 @@
  * Web-native comparison table: metric rows, applicant columns. Horizontal scroll on narrow
  * viewports. Spread-first cognitive posture — same metric is compared across all 4 applicants
  * on the same row. Not a port of the PDF 2×2 card grid.
- * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.4/§10.3; doctrine.md co-located on PDF side.
+ * Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.4/§10.3; doctrine.md co-located on PDF side.
  */
 import type { JSX } from "react"
 import { fmtZAR } from "@/lib/reports/screening/_primitives/theme"

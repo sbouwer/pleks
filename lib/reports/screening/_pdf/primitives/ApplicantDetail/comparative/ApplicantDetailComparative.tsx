@@ -4,7 +4,7 @@
  * §1 ApplicantDetail — Comparative mode (N=4). 2×2 card grid; horizontal-across-applicants
  * reading direction. Context rail dissolved into comparison rows inside each card.
  * Zone 4 = Flag row (aggregate across all cards). Framing: C.surface.paperSunk on card heads.
- * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.4/§10.3; see doctrine.md co-located.
+ * Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.4/§10.3; see doctrine.md co-located.
  */
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp, fmtZAR } from "../../theme"

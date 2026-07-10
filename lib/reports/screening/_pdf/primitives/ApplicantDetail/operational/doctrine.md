@@ -34,4 +34,4 @@ Row scanning. The agent scans down the table, reading one applicant per row. The
 
 - Adjacent mode downward: Comparative (N=4) — card-per-applicant structure still held. Operational dissolves it entirely.
 - Smaller cases: at N<5, the system dispatches to interpretive (N=2), summary (N=3), or comparative (N=4) — each with progressively less depth. Operational is the endpoint of this progression, where depth is replaced by ergonomics.
-- Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.2 (Operational reading posture), §4.4 (Zone behaviour — "rail isn't compressed, it's absent"), §8.7 (Operational-miniaturisation anti-pattern).
+- Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.2 (Operational reading posture), §4.4 (Zone behaviour — "rail isn't compressed, it's absent"), §8.7 (Operational-miniaturisation anti-pattern).

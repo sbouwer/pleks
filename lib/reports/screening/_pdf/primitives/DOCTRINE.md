@@ -5,7 +5,7 @@ and primitive scoping work in the FitScore PDF **and web** primitives.
 Established 2026-05-23 after a normalization pass; extended with breakpoint +
 scoping doctrine 2026-05-23 after E.6/E.7 completion; extended with
 parity-atomic invariant + web anchor convention 2026-05-24 (F.2 respec);
-extended with full editorial-mode framework + surface-token doctrine + methodology-variant dispatch + anti-patterns 2026-05-26 (Q0–Q5 Density & Surface Pass lock — see `ADDENDUM_14H_DENSITY_SURFACE_PASS.md`).
+extended with full editorial-mode framework + surface-token doctrine + methodology-variant dispatch + anti-patterns 2026-05-26 (Q0–Q5 Density & Surface Pass lock — see `ADDENDUM_14U_DENSITY_SURFACE_PASS.md`).
 
 **This document is authoritative for both `_pdf/primitives/` and
 `_web/primitives/`.** The web primitives implement the same doctrine;
@@ -200,7 +200,7 @@ It represents an absence of placement, not a low-confidence placement.
 > (`rich` / `medium` / `compact` / `tabular`) has been retired and replaced with
 > editorial-mode names that describe reading posture. The migration retires the
 > density vocabulary across both PDF and web primitives — see
-> `ADDENDUM_14H_DENSITY_SURFACE_PASS.md` for the implementation phasing.
+> `ADDENDUM_14U_DENSITY_SURFACE_PASS.md` for the implementation phasing.
 
 The ApplicantDetail primitive family renders all applicants on a dedicated §1 page
 (positioned after BandLadder, before DimensionCardEditorial). The dispatched mode
@@ -357,7 +357,7 @@ residential code for commercial via config flags.
 
 Doctrine: preserve clean extension seams, not speculative convergence.
 
-See `brief/build/_ADDENDUM/ADDENDUM_14H_FITSCORE_COMMERCIAL.md` for the
+See `brief/build/_ADDENDUM/ADDENDUM_14S_FITSCORE_COMMERCIAL.md` for the
 commercial scaffold + non-goals section.
 
 ## Editorial-mode framework (full lock — 2026-05-26)
@@ -427,7 +427,7 @@ inherits the muddiness; the architectural cost of unwinding it grows with
 every new commercial primitive.
 
 **Gate:** Commercial Build Phase is blocked until the Density & Surface Pass
-(ADDENDUM_14H_DENSITY_SURFACE_PASS.md) is complete, including smoke-render
+(ADDENDUM_14U_DENSITY_SURFACE_PASS.md) is complete, including smoke-render
 validation across N=2/3/4/5 applicant variants.
 
 ## Methodology-variant dispatch (locked 2026-05-26)
@@ -582,7 +582,7 @@ corrected to `C.surface.paperDeeper` per the inset analytical/secondary
 plane row of the table above.
 
 **Web-side token unification** (2026-05-26 lock — implementation pending
-Phase 1 of `ADDENDUM_14H_DENSITY_SURFACE_PASS.md`): Tailwind extension
+Phase 1 of `ADDENDUM_14U_DENSITY_SURFACE_PASS.md`): Tailwind extension
 exposes the four `bg-paper-*` semantic classes; web primitives migrate from
 `bg-muted/20` and `bg-muted/10` to the semantic vocabulary; raw `bg-muted/*`
 references inside editorial primitives become forbidden post-migration.
@@ -717,6 +717,6 @@ verify?"* — not *"do we have enough combinations?"*
 Each fixture in the canonical suite (`__samples__/density-pass/fixtures/`)
 carries an inline comment identifying the doctrine claim it exercises. The
 suite is the gold-master set against which future PRs render for visual
-regression review. See `ADDENDUM_14H_DENSITY_SURFACE_PASS.md` §7 for the
+regression review. See `ADDENDUM_14U_DENSITY_SURFACE_PASS.md` §7 for the
 15-fixture matrix and §8 for the anti-patterns each edge fixture is
 designed to surface.

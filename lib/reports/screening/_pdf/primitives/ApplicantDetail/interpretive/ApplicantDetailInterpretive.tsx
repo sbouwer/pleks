@@ -4,7 +4,7 @@
  * §1 ApplicantDetail — Interpretive mode (N=2). Four-zone composition: Header / Context rail /
  * Verification body / Signal strip. Vertical-within-applicant reading; full evidentiary depth
  * per applicant. Framing surface: C.surface.paperSunk on card header strip.
- * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.3/§4.4/§10.3; see doctrine.md co-located.
+ * Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.3/§4.4/§10.3; see doctrine.md co-located.
  */
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp, fmtZAR } from "../../theme"

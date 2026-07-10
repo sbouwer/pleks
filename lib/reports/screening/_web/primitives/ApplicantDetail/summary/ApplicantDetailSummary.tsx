@@ -5,7 +5,7 @@
  * vertically; narrow left rail (identity only, visually subordinated) beside a right column of
  * household metrics. No job title; bureau count not names. Web-native projection of the
  * household-synthesis cognitive task; not a port of the PDF render tree.
- * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.4/§10.3; doctrine.md co-located on PDF side.
+ * Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.4/§10.3; doctrine.md co-located on PDF side.
  */
 import type { JSX } from "react"
 import { fmtZAR } from "@/lib/reports/screening/_primitives/theme"

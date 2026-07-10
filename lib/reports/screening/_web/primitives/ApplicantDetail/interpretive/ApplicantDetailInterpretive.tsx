@@ -4,7 +4,7 @@
  * §1 ApplicantDetail — Interpretive mode (N=2). Vertical-within-applicant reading; full
  * evidentiary depth per applicant. Card-per-applicant with two-column body: identity/employment
  * left, income/verification/bureaus/network right. Framing: bg-paper-sunk on card header.
- * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.3/§4.4/§10.3; see doctrine.md (PDF-side co-located).
+ * Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.3/§4.4/§10.3; see doctrine.md (PDF-side co-located).
  */
 import type { JSX } from "react"
 import { fmtZAR } from "@/lib/reports/screening/_primitives/theme"

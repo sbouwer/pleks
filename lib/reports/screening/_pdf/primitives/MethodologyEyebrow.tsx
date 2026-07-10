@@ -5,7 +5,7 @@
  * evidentiary class changes methodology (all-foreign = three-dimension methodology).
  * Carries rationale for topology change; styled as structural declaration (not alert).
  * Rendered by parent composition layer; DimensionCardEditorial handles topology.
- * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §6.3/§6.4; D-DSP-16/17/18.
+ * Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §6.3/§6.4; D-DSP-16/17/18.
  */
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp } from "./theme"

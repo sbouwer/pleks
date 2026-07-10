@@ -35,4 +35,4 @@ Vertical within applicant. The agent reads one applicant fully before moving to 
 - Adjacent mode upward: Summary (N=3) — same card metaphor, narrower rail, no job title. Interpretive keeps full employer depth that Summary drops.
 - Adjacent mode downward: not applicable (N=2 is the smallest multi-applicant case).
 - Comparative (N=4) — horizontal-across-applicants reading direction; the contrasting cognitive task to interpretive's vertical-within-applicant.
-- Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.3 (Zone composition, interpretive), §4.4 (Zone behaviour by mode).
+- Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.3 (Zone composition, interpretive), §4.4 (Zone behaviour by mode).

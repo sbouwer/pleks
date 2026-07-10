@@ -4,7 +4,7 @@
  * Framing primitive: full-width strip rendered above DimensionCardEditorial when the
  * evidentiary class changes methodology. Structural declaration styling (not alert banner).
  * Web parity for _pdf/primitives/MethodologyEyebrow.tsx.
- * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §6.3/§6.4; D-DSP-16/17/18.
+ * Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §6.3/§6.4; D-DSP-16/17/18.
  */
 import type { JSX } from "react"
 

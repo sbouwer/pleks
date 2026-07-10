@@ -4,13 +4,13 @@
  * Run:    npm run render:density-pass
  * Output: lib/reports/screening/__samples__/density-pass/{fixtures,pdf,web,lock2-shared}/
  *
- * Notes:  Validates ADDENDUM_14H_DENSITY_SURFACE_PASS per-mode dispatch (interpretive/summary/
+ * Notes:  Validates ADDENDUM_14U_DENSITY_SURFACE_PASS per-mode dispatch (interpretive/summary/
  *         comparative/operational), MethodologyEyebrow presence/absence (D-DSP-16/17/21), and
  *         DimensionCardEditorial three-case dispatch (D-DSP-15/20). All 15 fixtures have N>=2
  *         applicants — single-applicant cases are covered by render:fitscore-samples.
  *         Web HTML snapshots render the density-pass section (ApplicantDetail + MethodologyEyebrow +
  *         DimensionCardEditorial) for structural/doctrinal review; styling is approximate (Tailwind CDN).
- *         Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §7.2 (fixture matrix), §10.4 (Phase 3 acceptance).
+ *         Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §7.2 (fixture matrix), §10.4 (Phase 3 acceptance).
  */
 import { renderToBuffer }       from "@react-pdf/renderer"
 import { renderToStaticMarkup } from "react-dom/server"

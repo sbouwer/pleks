@@ -4,7 +4,7 @@
  * §1 ApplicantDetail — Summary mode (N=3). Compact header; narrow vertical rail
  * visually subordinated; household-first reading posture. No job title; bureau count
  * (not full names). Framing surface: C.surface.paperSunk on card header strip.
- * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.4/§10.3; see doctrine.md co-located.
+ * Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.4/§10.3; see doctrine.md co-located.
  */
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp, fmtZAR } from "../../theme"

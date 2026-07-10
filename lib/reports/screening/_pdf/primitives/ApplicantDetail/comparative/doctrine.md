@@ -34,4 +34,4 @@ Horizontal across applicants. The agent reads each metric across all four cards 
 
 - Adjacent mode downward: Summary (N=3) — vertical household synthesis. Comparative's horizontal direction is the contrasting posture.
 - Adjacent mode upward: Operational (N>=5) — row scanning, card metaphor dissolved. Comparative still maintains card-per-applicant structure within the horizontal grid.
-- Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.4 (Zone behaviour by mode); §8.6 (Mode-leakage anti-pattern); D-DSP-29/30 (parity is semantic, not structural; substrate-as-canonical forbidden).
+- Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.4 (Zone behaviour by mode); §8.6 (Mode-leakage anti-pattern); D-DSP-29/30 (parity is semantic, not structural; substrate-as-canonical forbidden).

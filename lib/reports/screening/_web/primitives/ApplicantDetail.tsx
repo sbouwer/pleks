@@ -4,7 +4,7 @@
  * Notes:  Web parity for _pdf/primitives/ApplicantDetail.tsx.
  *         Delegates to per-mode primitives: interpretive (N=2), summary (N=3),
  *         comparative (N=4), operational (N>=5). Returns null for single-applicant leases.
- *         Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.5/§10.3.
+ *         Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.5/§10.3.
  */
 import type { JSX } from "react"
 import type { FitScoreApplicantEntry } from "@/lib/reports/screening/_primitives/theme"

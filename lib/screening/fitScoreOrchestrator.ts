@@ -7,7 +7,7 @@
  *         Bureau scores and VCCB income read from searchworx_extracted_data JSONB (written by bundle-runner).
  *         Email 7 (application.screening_complete) fires after DB write — non-blocking (void).
  *         Narrative generation via Sonnet 4.6 (lib/screening/fitScoreNarrative.ts) runs between engine and write.
- *         Spec: ADDENDUM_14H_FITSCORE_COMPOSITE.md §§2-5, ADDENDUM_14H_FITSCORE_DELIVERY.md §§7, §10.
+ *         Spec: ADDENDUM_14J_FITSCORE_COMPOSITE.md §§2-5, ADDENDUM_14H_FITSCORE_DELIVERY.md §§7, §10.
  *
  * ─── Known transitional state at Phase C landing ─────────────────────────────
  * The following inputs are hardcoded null/zero because their upstream sources are not yet built.

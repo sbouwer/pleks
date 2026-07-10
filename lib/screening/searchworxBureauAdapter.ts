@@ -6,7 +6,7 @@
  * Notes:  Only XDS exposes hasSAFPS. Only XDS has reliable monthly instalment totals.
  *         Bureaus offline at time of report yield no BureauScore entry; engine handles absent bureaus.
  *         idReissueAgeMonths from VeriCred Home Affairs: recently-issued IDs are a fraud signal.
- *         Spec: ADDENDUM_14H_FITSCORE_COMPOSITE.md §3.
+ *         Spec: ADDENDUM_14J_FITSCORE_COMPOSITE.md §3.
  */
 import type { CombinedParsed } from "@/lib/searchworx/products/combinedConsumerCreditReport"
 import type { BureauScore } from "@/lib/screening/fitScoreEngine.v1"

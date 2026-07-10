@@ -4,7 +4,7 @@
  * §1 ApplicantDetail — Operational mode (N>=5). Throughput-first scanning; row-per-applicant
  * table with horizontally scrollable overflow. Context rail is absent — all data in columns.
  * Alternating row stripe (bg-paper-deeper). Framing: bg-paper-sunk on header row.
- * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4.4/§10.3; doctrine.md co-located on PDF side.
+ * Spec: ADDENDUM_14U_DENSITY_SURFACE_PASS §4.4/§10.3; doctrine.md co-located on PDF side.
  */
 import type { JSX } from "react"
 import { fmtZAR } from "@/lib/reports/screening/_primitives/theme"
