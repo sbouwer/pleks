@@ -16,7 +16,11 @@ describe("hasFeature — residential line (NR-2: unchanged)", () => {
     expect(hasFeature("owner", "bank_recon")).toBe(false) // Steward+
     expect(hasFeature("steward", "bank_recon")).toBe(true)
     expect(hasFeature("portfolio", "arrears_automation")).toBe(true)
-    expect(hasFeature("firm", "hoa_module")).toBe(true) // "HOAs on the side" stays on the Firm ladder (NR-1)
+    // HOA is a STANDALONE service (2026-07-10 ruling) — never bundled into a rental-agent package.
+    // "HOAs on the side" (NR-1) is retired: no residential tier carries the HOA feature literals.
+    expect(hasFeature("firm", "hoa_module")).toBe(false)
+    expect(hasFeature("firm", "body_corporate")).toBe(false)
+    expect(hasFeature("firm", "sectional_title")).toBe(false)
     expect(hasFeature("firm", "opus_ai")).toBe(true)
   })
 })
@@ -90,7 +94,10 @@ describe("productLineForTier — line inferred from the tier literal", () => {
 
 describe("tierFloorForPath — line-aware route floors", () => {
   it("residential line is unchanged (NR-2) — longest-prefix floor", () => {
-    expect(tierFloorForPath("/hoa")).toBe("firm") // HOAs on the side stay Firm-gated
+    // "/hoa" has NO residential tier floor: it is product-line-gated, not tier-gated (2026-07-10 ruling).
+    // A floor here would GRANT Firm orgs access — the opposite of the intent. The hard gate is in
+    // app/(dashboard)/hoa/layout.tsx. Asserting null keeps anyone from "helpfully" re-adding a floor.
+    expect(tierFloorForPath("/hoa")).toBeNull()
     expect(tierFloorForPath("/finance/trust-ledger")).toBe("steward")
     expect(tierFloorForPath("/settings/templates")).toBe("steward")
     expect(tierFloorForPath("/dashboard")).toBeNull() // untiered

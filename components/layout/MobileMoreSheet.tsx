@@ -80,7 +80,9 @@ export function MobileMoreSheet({ open, onOpenChange, onOpenOffline }: MobileMor
       .filter((item) => {
         if (!canSee(item.href)) return false  // capability + tier (shared SSOT predicate)
         if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
-        if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
+        // FAIL-CLOSED: HOA is standalone (2026-07-10) and off for every residential package, so an
+        // unresolved `caps` must HIDE it — not flash it and bounce the agent to /403 on click.
+        if (item.href === "/hoa" && !caps?.hasHOA) return false
         // Product-line surface gates (ADDENDUM_18C D-18C-04) — HOA line switches the rental surface off.
         if (item.href === "/leases" && caps !== null && !caps.hasLeases) return false
         if (item.href === "/tenants" && caps !== null && !caps.hasTenants) return false

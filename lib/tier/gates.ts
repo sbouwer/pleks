@@ -43,11 +43,12 @@ const TIER_FEATURES_PORTFOLIO = [
   "lease_automation",
 ] as const
 
+// NOTE (2026-07-10, Stéan product ruling — supersedes ADDENDUM_18C NR-1): HOA is a STANDALONE service,
+// never bundled into a rental-agent package. hoa_module/body_corporate/sectional_title were removed from
+// the Firm ladder and now live ONLY in the HOA product line below. Do not re-add them here — "HOAs on the
+// side" is retired. The standalone HOA product gets its own post-launch build.
 const TIER_FEATURES_FIRM = [
   ...TIER_FEATURES_PORTFOLIO,
-  "hoa_module",
-  "body_corporate",
-  "sectional_title",
   "fitscore_unlimited",
   "eaab_tools",
   "opus_ai", // Opus — tribunal submissions, legal docs
@@ -64,10 +65,10 @@ export const TIER_FEATURES: Record<Tier, readonly string[]> = {
   bespoke:   TIER_FEATURES_FIRM,
 }
 
-// ── HOA product line (ADDENDUM_18C D-18C-06) ────────────────────────────────────
-// The standalone HOA / body-corporate management line. hoa_module/body_corporate/sectional_title are
-// RE-HOMED (not moved): they stay in TIER_FEATURES_FIRM above so an existing residential Firm agency
-// keeps "HOAs on the side" (NR-1), AND appear here so the HOA line carries them at its base.
+// ── HOA product line (ADDENDUM_18C D-18C-06, amended 2026-07-10) ────────────────
+// The standalone HOA / body-corporate management line. hoa_module/body_corporate/sectional_title now live
+// EXCLUSIVELY here: the Stéan ruling retired "HOAs on the side", so no residential tier carries them and
+// no residential org can reach the /hoa surface (it is product-line-gated, not tier-gated).
 // PRIMARY AXIS is CAPACITY: the HOA tiers differ on total units under management (HOA_LIMITS), not on
 // packaging, so the feature set is MOSTLY FLAT (base below applies to all four tiers). The one exception
 // is a COST-BASED floor (not packaging): the expensive per-call / per-pull features are gated to
@@ -149,10 +150,13 @@ export function hasAccess(orgTier: AnyTier, requiredTier: AnyTier): boolean {
  *   sectional-title module (hoa_module); Calendar + Trust Ledger are Portfolio/Steward views with no feature
  *   key of their own. custom_templates stays a separate (Firm) feature — not the basic Documents settings.
  */
+// NOTE: "/hoa" is deliberately ABSENT (2026-07-10 ruling). It is NOT tier-gated on the residential line —
+// it is product-line-gated, and no residential tier reaches it at all. Do not re-add a "/hoa" floor here:
+// a tier floor would GRANT Firm orgs access, which is exactly what the ruling removes. The authoritative
+// gate is app/(dashboard)/hoa/layout.tsx (redirects /403 unless productLineForTier(tier) === "hoa").
 export const ROUTE_TIER_FLOORS = {
   "/calendar":             "portfolio",
   "/finance/trust-ledger": "steward",
-  "/hoa":                  "firm",
   "/settings/templates":      "steward",
   "/settings/lease-templates": "steward",
   "/settings/deposits":       "steward",

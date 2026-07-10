@@ -113,7 +113,9 @@ export function Sidebar() {
         // Capability + tier gate (shared SSOT predicate — desktop + mobile read the same maps)
         if (!canSee(item.href)) return false
         // Org-type gates — D-61A-04: hide, don't grey-out (a separate axis, per-component)
-        if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
+        // FAIL-CLOSED: HOA is standalone (2026-07-10) and off for every residential package, so an
+        // unresolved `caps` must HIDE it — not flash it and bounce the agent to /403 on click.
+        if (item.href === "/hoa" && !caps?.hasHOA) return false
         if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
         // Product-line surface gates (ADDENDUM_18C D-18C-04): the standalone HOA line switches off the
         // whole rental surface — leases, tenants, and the applications/listings funnel.

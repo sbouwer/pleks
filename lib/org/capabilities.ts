@@ -147,6 +147,8 @@ export function getOrgCapabilities(
         defaults: { tenantTone: "professional" },
       }
 
+    // Residential rental agency / sole proprietor — the current packages. HOA is a STANDALONE service
+    // (2026-07-10 ruling): never bundled here, so hasHOA is false and the /hoa surface is unreachable.
     case "agency":
     case "sole_prop":
     default:
@@ -155,7 +157,7 @@ export function getOrgCapabilities(
         hasCompliance: true,
         hasOpeningHours: true,
         hasLandlordsList: true,
-        hasHOA: true,
+        hasHOA: false,
         hasCommissionSplits: true,
         hasAgentAssignment: true,
         hasAgentProductivity: true,
