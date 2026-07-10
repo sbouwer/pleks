@@ -15,6 +15,7 @@ import { FileText, FileWarning, ShieldCheck, Home, FolderOpen, Upload, Archive, 
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { toast } from "sonner"
+import { fmtDateZA } from "@/lib/dates"
 
 // ── Doc types + categories ────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ function typeLabel(value: string): string {
 }
 
 function fmtDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(dateStr)
 }
 
 function daysUntilExpiry(dateStr: string): number {

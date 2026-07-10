@@ -7,6 +7,7 @@
  */
 
 import React from "react"
+import { fmtZA } from "@/lib/dates"
 
 interface StageData {
   id: string
@@ -35,7 +36,7 @@ const STATUS_ORDER = [
 
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+  return fmtZA(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 }
 
 export function StageRail({
@@ -51,7 +52,7 @@ export function StageRail({
     { id: "triaged",  label: "Triaged",     when: fmtDate(aiTriageAt), actor: aiTriageAt ? "AI" : null },
     { id: "approved", label: "Approved",    when: fmtDate(reviewedAt), actor: reviewedBy },
     { id: "wo_sent",  label: "WO sent",     when: fmtDate(workOrderSentAt) },
-    { id: "scheduled",label: "Scheduled",   when: scheduledDate ? new Date(scheduledDate).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" }) : null },
+    { id: "scheduled",label: "Scheduled",   when: scheduledDate ? fmtZA(scheduledDate, { weekday: "short", day: "numeric", month: "short" }) : null },
     { id: "in_progress", label: "In progress", when: fmtDate(inProgressAt) },
     { id: "pending_completion", label: "Sign-off", when: null },
     { id: "closed",   label: "Closed",      when: fmtDate(closedAt ?? completedAt) },

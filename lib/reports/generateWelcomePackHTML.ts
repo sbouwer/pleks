@@ -10,12 +10,12 @@ import { formatOfficeHours, formatEmergencyLine } from "@/lib/org/operatingHours
 import { letterhead } from "./generatePDF"
 import type { WelcomePackData, WelcomePackUnit } from "./types"
 import type { Recommendation } from "./welcomePackRecommendations"
+import { fmtDateZA } from "@/lib/dates"
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function formatDateLocal(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`)
-  return d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }
 
 function occupancyPct(occupied: number, total: number): string {

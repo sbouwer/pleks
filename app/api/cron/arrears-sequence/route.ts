@@ -23,6 +23,7 @@ import { ArrearsReminderEmail } from "@/lib/comms/templates/tenant/arrears/remin
 import { LetterOfDemandEmail } from "@/lib/comms/templates/tenant/arrears/letter-of-demand"
 import { FinalNoticeEmail } from "@/lib/comms/templates/tenant/arrears/final-notice"
 import { withCronRun } from "@/lib/cron/withCronRun"
+import { fmtDateLongZA } from "@/lib/dates"
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -73,9 +74,7 @@ function formatAmount(cents: number): string {
 }
 
 function formatDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
-  })
+  return fmtDateLongZA(isoDate)
 }
 
 function tenantDisplayName(info: TenantInfo): string {

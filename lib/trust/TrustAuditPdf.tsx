@@ -8,6 +8,7 @@
 
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer"
 import type { OutstandingItem } from "@/lib/trust/close"
+import { fmtDateZA } from "@/lib/dates"
 
 // ─── Shared data types ────────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ function fmtZAR(cents: number): string {
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }
 
 function fmtPeriod(start: string): string {

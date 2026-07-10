@@ -26,6 +26,7 @@ import {
   saveSignatureDataUrl, saveSignatureFile, removeSignature, createSignatureToken, checkTokenConsumed, type SignatureKind,
 } from "@/lib/actions/signatures"
 import type { SignatureFont } from "./signatureFonts"
+import { fmtDateZA } from "@/lib/dates"
 
 interface CurrentSignature {
   id: string
@@ -64,7 +65,7 @@ const METHODS: { id: Method; label: string }[] = [
 ]
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }
 
 /** Register the active method's save with the header; re-registers when canSave flips, clears on unmount. */

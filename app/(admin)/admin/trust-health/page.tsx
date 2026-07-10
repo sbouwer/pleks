@@ -11,6 +11,7 @@
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import { SovereignBadge } from "@/components/trust/SovereignBadge"
+import { fmtDateZA } from "@/lib/dates"
 
 interface OrgRow {
   id: string
@@ -53,7 +54,7 @@ function daysOverdue(periodEnd: string): number {
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }
 
 function fmtZAR(cents: number): string {

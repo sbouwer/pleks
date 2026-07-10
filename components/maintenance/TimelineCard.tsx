@@ -11,6 +11,7 @@ import { useState } from "react"
 import { History } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { TimelineEvent, TimelineEventType } from "@/lib/maintenance/timeline"
+import { fmtZA } from "@/lib/dates"
 
 interface Props {
   events: TimelineEvent[]
@@ -46,7 +47,7 @@ const TYPE_DOT: Record<TimelineEventType, string> = {
 }
 
 function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+  return fmtZA(iso, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 }
 
 function ActorLabel({ actor }: { actor: TimelineEvent["actor"] }) {

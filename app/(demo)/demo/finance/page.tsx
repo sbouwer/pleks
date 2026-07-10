@@ -15,9 +15,10 @@ import {
   ArrowRight, Send,
 } from "lucide-react"
 import Link from "next/link"
+import { fmtDateZA } from "@/lib/dates"
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(dateStr)
 }
 
 export default function DemoFinancePage() {

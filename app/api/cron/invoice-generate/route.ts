@@ -15,6 +15,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { InvoiceIssuedEmail } from "@/lib/comms/templates/tenant/rent/invoice-issued"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { fmtDateLongZA } from "@/lib/dates"
 
 function buildPaymentReference(lastName: string | null, unitNumber: string | null): string {
   const surname = (lastName ?? "TENANT")
@@ -35,7 +36,7 @@ function fmt(cents: number) {
 }
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(d)
 }
 
 type TenantViewRow = { first_name: string | null; last_name: string | null; email: string | null; phone: string | null }

@@ -16,6 +16,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { PayFastForm } from "@/components/payfast/PayFastForm"
 import { cn } from "@/lib/utils"
 import type { LatestPull } from "../../properties/[id]/PropertyVerificationCard"
+import { fmtDateZA } from "@/lib/dates"
 
 export type { LatestPull }
 
@@ -55,7 +56,7 @@ const PRODUCT_PRICE = "R25"
 function formatDate(d: string | null): string {
   if (!d) return ""
   try {
-    return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+    return fmtDateZA(d)
   } catch {
     return d
   }

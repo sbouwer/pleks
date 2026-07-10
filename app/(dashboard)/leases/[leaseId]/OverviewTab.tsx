@@ -14,6 +14,7 @@ import { ContactCard } from "@/components/contacts/ContactCard"
 import { CoTenantAvatars } from "@/components/contacts/CoTenantAvatars"
 import { CollectionChart, type MonthBar } from "./CollectionChart"
 import type { TenantContactInfo } from "./ContactsTab"
+import { fmtDateZA } from "@/lib/dates"
 
 const EVENT_DOT: Record<string, string> = {
   lease_created: "#7F77DD", lease_signed: "#7F77DD", lease_renewed: "#7F77DD",
@@ -125,7 +126,7 @@ function getTaxYear(today: Date): { start: Date; label: string } {
 }
 
 function buildPeriodText(startDate: string | null, endDate: string | null): string {
-  const fmt = (d: string) => new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  const fmt = (d: string) => fmtDateZA(d)
   return [startDate ? fmt(startDate) : null, endDate ? fmt(endDate) : null].filter(Boolean).join(" — ")
 }
 

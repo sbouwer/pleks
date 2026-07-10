@@ -9,17 +9,16 @@ import { FONT_STACKS, getFontLink, type ReportBranding } from "./reportBranding"
 import { formatOfficeHours, formatEmergencyLine } from "@/lib/org/operatingHours"
 import { letterhead } from "./generatePDF"
 import type { TenantWelcomePackData } from "./tenantWelcomePack"
+import { fmtDateLongZA, fmtDateZA } from "@/lib/dates"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDateLocal(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`)
-  return d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(iso)
 }
 
 function formatDateShort(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`)
-  return d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }
 
 function leaseTypeFriendly(type: string, isFixed: boolean): string {

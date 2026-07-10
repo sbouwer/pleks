@@ -162,6 +162,17 @@ function toInstant(value: Date | string, fn: string): Date {
   return d
 }
 
+/**
+ * The generic escape hatch: any Intl option bag you like, with `timeZone` injected.
+ *
+ * Reach for the named helpers below first. This exists so a bespoke shape (a weekday, a day-and-time with
+ * no year) never becomes an excuse to call `toLocaleDateString` directly and silently render in the
+ * server's zone. One helper, no sprawl.
+ */
+export function fmtZA(value: Date | string, options: Intl.DateTimeFormatOptions): string {
+  return fmt(options).format(toInstant(value, "fmtZA"))
+}
+
 /** "8 Jul 2026" — the default for tenant-facing dates. Never `toLocaleDateString()` without a timeZone. */
 export function fmtDateZA(value: Date | string): string {
   return fmt({ day: "numeric", month: "short", year: "numeric" }).format(toInstant(value, "fmtDateZA"))

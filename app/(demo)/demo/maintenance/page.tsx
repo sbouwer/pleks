@@ -11,9 +11,10 @@ import { Badge } from "@/components/ui/badge"
 import { useDemoData, useDemoAction } from "@/lib/demo/DemoContext"
 import { useState } from "react"
 import { Wrench, Plus, Clock, User } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(dateStr)
 }
 
 function daysSince(dateStr: string): number {

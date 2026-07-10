@@ -11,10 +11,11 @@ import { Badge } from "@/components/ui/badge"
 import { useDemoData, useDemoAction } from "@/lib/demo/DemoContext"
 import { formatZAR } from "@/lib/constants"
 import { Receipt, AlertTriangle, Plus } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(dateStr)
 }
 
 const statusStyles: Record<string, string> = {

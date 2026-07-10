@@ -26,6 +26,7 @@ import { InspectionRescheduledEmail } from "@/lib/comms/templates/tenant/inspect
 import { InspectionMoveInReportEmail } from "@/lib/comms/templates/tenant/inspections/inspection-move-in-report"
 import { InspectionReportReadyEmail } from "@/lib/comms/templates/tenant/inspections/inspection-report-ready"
 import { InspectionDisputeWindowEmail } from "@/lib/comms/templates/tenant/inspections/inspection-dispute-window"
+import { fmtDateLongZA } from "@/lib/dates"
 
 const PROFILE_REQUIRED_TYPES = new Set(["move_in", "move_out", "periodic"])
 
@@ -37,7 +38,7 @@ const INSPECTION_TYPE_LABELS: Record<string, string> = {
 }
 
 function formatDateLocal(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(iso)
 }
 
 /** Log-only Supabase error guard (loud-not-fatal); a call keeps cognitive complexity flat vs inline `if`. */

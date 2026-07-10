@@ -19,6 +19,7 @@ import { LeaseExpiryReminderEmail } from "@/lib/comms/templates/tenant/leases/le
 import { LeaseTerminatedEmail } from "@/lib/comms/templates/tenant/leases/lease-terminated"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { fmtDateLongZA } from "@/lib/dates"
 
 type Supabase = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -150,7 +151,7 @@ async function handleNoticeExpired(supabase: Supabase, lease: NoticeLease, today
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
-    const endDateDisplay = new Date(today).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    const endDateDisplay = fmtDateLongZA(today)
 
     await routeAndSend({
       orgId: lease.org_id,

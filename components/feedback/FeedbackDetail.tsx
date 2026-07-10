@@ -21,6 +21,7 @@ import {
 import type { FeedbackSubmission, FeedbackReply, FeedbackStatus } from "@/lib/feedback/queries"
 import type { BugContext } from "@/lib/feedback/bug-context"
 import { BugDiagnosticsPanel } from "./BugDiagnosticsPanel"
+import { fmtDateZA } from "@/lib/dates"
 
 const STATUS_OPTIONS: { value: FeedbackStatus; label: string }[] = [
   { value: "open",        label: "Open" },
@@ -183,5 +184,5 @@ export function FeedbackDetail({ submission, isAdmin }: FeedbackDetailProps) {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }

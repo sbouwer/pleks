@@ -15,9 +15,10 @@ import { formatZAR } from "@/lib/constants"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { CheckCircle2, AlertTriangle, Download } from "lucide-react"
+import { fmtDateLongZA } from "@/lib/dates"
 
 function fmtDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(d)
 }
 
 function Row({ label, value, mono }: Readonly<{ label: string; value: string; mono?: boolean }>) {

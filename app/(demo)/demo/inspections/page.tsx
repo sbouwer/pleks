@@ -10,9 +10,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useDemoData, useDemoAction } from "@/lib/demo/DemoContext"
 import { ClipboardCheck, Plus } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(dateStr)
 }
 
 const TYPE_CONFIG: Record<string, { label: string; className: string }> = {

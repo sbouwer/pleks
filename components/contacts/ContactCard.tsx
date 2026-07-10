@@ -6,6 +6,7 @@
  * Notes:  Presentational. WhatsApp links normalise SA numbers to the 27… wa.me form.
  */
 import { Phone, Mail, MessageCircle, ExternalLink, MapPin } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 export type PortalStatus = "none" | "invited" | "active" | "suspended" | null
 
@@ -114,7 +115,7 @@ export function ContactCard({
     : "Individual"
 
   const welcomeLabel = welcomePackSentAt
-    ? new Date(welcomePackSentAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+    ? fmtDateZA(welcomePackSentAt)
     : null
 
   const isSelfManaged = managedBy === "self-managed"

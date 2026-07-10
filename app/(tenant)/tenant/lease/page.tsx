@@ -17,6 +17,7 @@ import { DetailCard } from "@/components/detail/DetailCard"
 import { ActionButton } from "@/components/ui/actions"
 import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { FileText, Download } from "lucide-react"
+import { fmtDateLongZA } from "@/lib/dates"
 
 function termRemaining(endDate: string | null) {
   if (!endDate) return null
@@ -38,7 +39,7 @@ function leaseStatus(s: string): DetailStatus {
 }
 
 function fmtDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(d)
 }
 
 function Row({ label, value, tone }: Readonly<{ label: string; value: string; tone?: "ok" }>) {

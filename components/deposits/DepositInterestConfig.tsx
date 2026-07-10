@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { describeRate } from "@/lib/deposits/rateUtils"
 import type { DepositInterestConfig as Config } from "@/lib/deposits/rateUtils"
 import { ChevronDown, ChevronUp } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 interface Props {
   propertyId?: string | null
@@ -42,7 +43,7 @@ const COMPOUNDING_LABELS: Record<string, string> = {
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(d)
 }
 
 export function DepositInterestConfig({ propertyId = null, unitId = null, bankAccountId = null, currentPrime, title }: Props) {

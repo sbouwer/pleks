@@ -18,7 +18,7 @@ import { createClient } from "@supabase/supabase-js"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { RenewalReminderEmail } from "@/lib/comms/templates/insurance/renewal-reminder"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { saTodayISO } from "@/lib/dates"
+import {fmtDateLongZA, saTodayISO} from "@/lib/dates"
 
 function getServiceClient() {
   return createClient(
@@ -174,9 +174,7 @@ async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, re
   const agentEmail = authUser?.user?.email
   if (!agentEmail) return
 
-  const renewalFormatted = new Date(renewalDate).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
-  })
+  const renewalFormatted = fmtDateLongZA(renewalDate)
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://app.pleks.co.za"
   const checklistUrl = `${baseUrl}/properties/${propertyId}?tab=insurance`
 

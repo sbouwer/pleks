@@ -8,6 +8,7 @@
 import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { LeaseCharges } from "@/components/leases/LeaseCharges"
+import { fmtDateZA } from "@/lib/dates"
 
 // ─────────────────────────────────────────────────────────────
 // Shared types
@@ -75,9 +76,7 @@ interface FinanceTabProps {
 // ─────────────────────────────────────────────────────────────
 
 function fmtDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "short", year: "numeric",
-  })
+  return fmtDateZA(dateStr)
 }
 
 function daysHeld(since: string | null): number {

@@ -11,6 +11,7 @@ import { useState, useRef } from "react"
 import { Upload, FileText, X } from "lucide-react"
 import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { toast } from "sonner"
+import { fmtDateLongZA } from "@/lib/dates"
 
 interface HoaRulesUploadProps {
   managingSchemeId: string | null
@@ -87,11 +88,7 @@ export function HoaRulesUpload({
 
   if (currentPath) {
     const uploadDate = currentUploadedAt
-      ? new Date(currentUploadedAt).toLocaleDateString("en-ZA", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        })
+      ? fmtDateLongZA(currentUploadedAt)
       : null
 
     return (

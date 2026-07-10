@@ -17,6 +17,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { addMaintenanceNote } from "@/lib/actions/maintenance"
+import { fmtZA } from "@/lib/dates"
 
 export interface NoteItem {
   id: string
@@ -34,7 +35,7 @@ interface Props {
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", {
+  return fmtZA(iso, {
     day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   })
 }

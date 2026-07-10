@@ -8,6 +8,7 @@
  */
 
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer"
+import { fmtDateLongZA } from "@/lib/dates"
 
 const styles = StyleSheet.create({
   page:          { padding: 40, fontSize: 9, fontFamily: "Helvetica", color: "#1a1a1a" },
@@ -84,7 +85,7 @@ function fmtDateTime(d: string): string {
 }
 
 function fmtDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(d)
 }
 
 const CATEGORY_LABELS: Record<string, string> = {

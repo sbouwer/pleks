@@ -13,6 +13,7 @@ import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPag
 import { DetailCard } from "@/components/detail/DetailCard"
 import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateLongZA } from "@/lib/dates"
 
 const URGENCY_LABEL: Record<string, string> = {
   emergency: "🚨 Emergency",
@@ -44,7 +45,7 @@ function detailStatus(status: string): DetailStatus {
 }
 
 function fmtDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(d)
 }
 
 function Row({ label, value }: Readonly<{ label: string; value: string }>) {

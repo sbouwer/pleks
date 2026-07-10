@@ -15,6 +15,7 @@ import { formatZAR } from "@/lib/constants"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { ShieldCheck } from "lucide-react"
+import { fmtDateLongZA } from "@/lib/dates"
 
 interface DepositRow {
   leaseId: string
@@ -162,7 +163,7 @@ export default async function LandlordTrustSummaryPage() {
             <p className="mt-1">
               Last reconciliation signed off:{" "}
               <span className="font-medium text-foreground">
-                {new Date(lastReconDate).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
+                {fmtDateLongZA(lastReconDate)}
               </span>
             </p>
           )}

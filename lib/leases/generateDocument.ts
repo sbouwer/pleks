@@ -12,7 +12,7 @@ import { parseClauseBody, buildSelfLookup } from "./parseClauseBody"
 import { renderClauseBodyToDocx } from "./renderClauseDocx"
 import { getOrgDisplayName, getOrgLegalName } from "@/lib/org/displayName"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { saTodayISO } from "@/lib/dates"
+import {fmtDateLongZA, saTodayISO} from "@/lib/dates"
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -801,11 +801,7 @@ function formatZARDocument(cents: number): string {
 }
 
 function formatDateLong(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString("en-ZA", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
+  return fmtDateLongZA(isoDate)
 }
 
 function ordinal(n: number): string {

@@ -21,6 +21,7 @@ import { formatZAR } from "@/lib/constants"
 import { useUser } from "@/hooks/useUser"
 import { useShowScopeFilter } from "@/hooks/useShowScopeFilter"
 import { Building2, User, Globe } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 export interface ListingListRow {
   id: string
@@ -40,7 +41,7 @@ type ListingSortKey = "property" | "applications" | "rent" | "created" | "closes
 /** Short cut-off date, or a dash when the listing has no closing date set. */
 function closesLabel(iso: string | null): string {
   if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(iso)
 }
 
 const STATUS_OPTIONS = [

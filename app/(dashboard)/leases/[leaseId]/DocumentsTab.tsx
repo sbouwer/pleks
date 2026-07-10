@@ -10,6 +10,7 @@
 import { useState } from "react"
 import { FileText, Mail, MessageSquare, FileWarning, Settings, BarChart3, Upload, Send } from "lucide-react"
 import { InlineLink } from "@/components/ui/actions"
+import { fmtDateZA } from "@/lib/dates"
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -87,9 +88,7 @@ const STATEMENT_TYPES = new Set(["statement_tenant", "statement_owner", "inspect
 // ─────────────────────────────────────────────────────────────
 
 function fmtDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", {
-    day: "numeric", month: "short", year: "numeric",
-  })
+  return fmtDateZA(dateStr)
 }
 
 function fmtFileSize(bytes: number | null): string {

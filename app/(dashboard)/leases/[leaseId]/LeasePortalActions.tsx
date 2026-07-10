@@ -17,6 +17,7 @@ import { generateTenantPortalLink, revokeTenantPortalAccess } from "@/lib/portal
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { emailLeaseToTenant } from "./actions"
 import type { TenantContactInfo } from "./ContactsTab"
+import { fmtDateZA } from "@/lib/dates"
 
 interface Props {
   readonly tenantId: string
@@ -162,7 +163,7 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
 
       {portalInviteSentAt && (
         <p className="text-xs text-muted-foreground">
-          Invite sent {new Date(portalInviteSentAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+          Invite sent {fmtDateZA(portalInviteSentAt)}
           {hasAuthUser && " · Tenant has active session"}
         </p>
       )}

@@ -23,6 +23,7 @@ import { LeaseActivatedEmail } from "@/lib/comms/templates/tenant/leases/lease-a
 import { LeaseSignedEmail } from "@/lib/comms/templates/tenant/leases/lease-signed"
 import { PortalTenantInviteEmail } from "@/lib/comms/templates/tenant/portal/tenant-invite"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fmtDateLongZA } from "@/lib/dates"
 
 export interface CascadeStep {
   step: string
@@ -340,7 +341,7 @@ async function stepSendLeaseActivated(
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
     const rentDisplay = "R " + (lease.rent_amount_cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
-    const fmt = (d: string) => new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    const fmt = (d: string) => fmtDateLongZA(d)
 
     await routeAndSend({
       orgId,

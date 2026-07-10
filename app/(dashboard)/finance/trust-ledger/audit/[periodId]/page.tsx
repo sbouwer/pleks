@@ -14,9 +14,10 @@ import { InlineLink } from "@/components/ui/actions"
 import { CheckCircle2, FileText, AlertTriangle } from "lucide-react"
 import type { OutstandingItem } from "@/lib/trust/close"
 import { SovereignBadge } from "@/components/trust/SovereignBadge"
+import { fmtDateLongZA } from "@/lib/dates"
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  return fmtDateLongZA(iso)
 }
 
 function formatPeriod(start: string, _end: string) {

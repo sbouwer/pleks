@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge"
 import { useDemoData, useDemoAction } from "@/lib/demo/DemoContext"
 import { formatZAR } from "@/lib/constants"
 import { Plus, AlertCircle, CheckCircle } from "lucide-react"
+import { fmtDateZA } from "@/lib/dates"
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  return fmtDateZA(dateStr)
 }
 
 function CpaNoticeCell({ sent, expiringSoon }: Readonly<{ sent: boolean; expiringSoon: boolean }>) {
