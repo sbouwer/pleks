@@ -497,6 +497,18 @@ Sequence push / prod-SQL / deploy actions at the END of a task: complete all loc
 
 ---
 
+## AGENT DELEGATION — USE SUBAGENTS FOR SCANS, KEEP MAIN CONTEXT FOR SYNTHESIS
+
+Custom subagents live in `.claude/agents/`. Delegate to them PROACTIVELY — they run with their own context window, so repo-wide file dumps never pollute the main session:
+
+- **census** — any repo-wide count, search, classification, or find-all-usages. Never run a multi-file grep sweep inline; spawn census and receive the classified result.
+- **grounder** — at the START of every spec implementation: it maps the existing machinery the spec touches (helpers, tables + migration §, gates, SSOTs) so you extend instead of duplicate.
+- **walker** — before opening or un-drafting any PR: read-only adversarial review of the diff against origin.
+
+Run INDEPENDENT scans in parallel (multiple agents in one turn). Keep the main session for judgment and synthesis; push mechanical reading into agents. A task that starts with "first find all the places where..." is a census delegation by definition.
+
+---
+
 ## DO NOT DO
 
 - Do not deploy without running `npm run security:quick` first
