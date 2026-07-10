@@ -11,6 +11,7 @@ import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { checkAtEnvironment, AT_SANDBOX_USERNAME } from "@/lib/messaging/africastalking"
 
 export interface SMSAuditParams {
   templateKey?: string
@@ -68,6 +69,9 @@ export async function sendSMS(
   if (!apiKey || !username) {
     return { sent: false, reason: "Africa's Talking credentials not configured" }
   }
+  // A sandbox send returns 200 and delivers nothing — a false 'sent' on the mandatory-comm cascade.
+  const env = checkAtEnvironment(username, username === AT_SANDBOX_USERNAME)
+  if (!env.ok) return { sent: false, reason: env.reason }
 
   const service = await createServiceClient()
 

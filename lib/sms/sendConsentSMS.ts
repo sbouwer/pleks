@@ -9,6 +9,7 @@
  */
 
 import { createServiceClient } from "@/lib/supabase/server"
+import { checkAtEnvironment, AT_SANDBOX_USERNAME } from "@/lib/messaging/africastalking"
 
 interface ATResponse {
   SMSMessageData?: {
@@ -33,6 +34,8 @@ export async function sendConsentSMS(
   if (!apiKey || !username) {
     return { sent: false, reason: "Africa's Talking credentials not configured" }
   }
+  const env = checkAtEnvironment(username, username === AT_SANDBOX_USERNAME)
+  if (!env.ok) return { sent: false, reason: env.reason }
 
   try {
     const response = await fetch(

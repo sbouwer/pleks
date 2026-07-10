@@ -8,6 +8,7 @@
  *         verifyWebhookSignature + parseWebhookEvent used by the webhook route handler.
  */
 import { createHmac, timingSafeEqual } from "node:crypto"
+import { checkAtEnvironment } from "@/lib/messaging/africastalking"
 
 // ── Interfaces ─────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,10 @@ export async function sendWhatsAppMessage(params: WASendParams): Promise<WASendR
   if (!apiKey || !username) {
     return { error: "Africa's Talking WhatsApp credentials not configured" }
   }
+  // isSandbox() derives from AT_USERNAME/WA_SANDBOX while username may come from WA_USERNAME — pass the
+  // RESOLVED pair so a live username targeting the sandbox host is still caught.
+  const env = checkAtEnvironment(username, isSandbox())
+  if (!env.ok) return { error: env.reason }
 
   const phoneId = process.env.WA_BUSINESS_PHONE_ID
   if (!phoneId) {
