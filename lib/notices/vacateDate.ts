@@ -10,32 +10,7 @@
  *         dates → deterministic tests (no new Date() inside).
  */
 
-/** The one timezone this codebase reasons in. SAST is UTC+2, no DST. */
-export const SA_TIMEZONE = "Africa/Johannesburg"
-
-/**
- * Resolve an INSTANT to its calendar date in South African Standard Time, as YYYY-MM-DD.
- *
- * This is a timezone RESOLUTION, and it is the operation people reach for `toISOString().slice(0,10)` to do
- * — wrongly. Legal dates on a notice MUST be SAST, not UTC (CD walk): between 00:00–02:00 SAST the UTC
- * calendar date is still yesterday, so a cancellation effective date computed off `toISOString()` would
- * print a date that pre-dates its own generation and service — a free argument for a tenant's attorney.
- * Agents issue at odd hours; this fires on late-night issuance before a morning deadline. Equally, a
- * provider's delivered-at timestamp arriving after 22:00 UTC belongs to the NEXT SA day.
- *
- * ⚠ NOT for calendar arithmetic on a date that is ALREADY SA-resolved (see computeVacateByDate) — passing
- * such a date's UTC-midnight carrier through here is a no-op, but reaching for it there means you have
- * confused "resolve a zone" with "add days", which is the distinction this module exists to keep straight.
- */
-export function saDateISO(at: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: SA_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(at)
-}
-
-/** Today's SA calendar date (YYYY-MM-DD). Convenience for the zero-arg case; prefer saDateISO(at) when you
- *  hold an instant, so the reader can see WHICH instant is being resolved. */
-export function saTodayISO(): string {
-  return saDateISO(new Date())
-}
+import { saDateISO } from "@/lib/dates"
 
 /** R-2 default: the vacate deadline printed in the notice = base date + 14 calendar days (YYYY-MM-DD). */
 export function computeVacateByDate(dispatchDate: Date, days = 14): string {

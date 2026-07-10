@@ -2,7 +2,8 @@
  * lib/notices/vacateDate.test.ts — R-2 service-date arithmetic
  */
 import { describe, it, expect } from "vitest"
-import { computeVacateByDate, deemedServiceMeetsFloor, saDateISO } from "./vacateDate"
+import { computeVacateByDate, deemedServiceMeetsFloor } from "./vacateDate"
+import { saDateISO } from "@/lib/dates"
 import { renderServiceNotificationSms, SERVICE_NOTIFICATION_VERSION } from "./serviceNotification"
 
 describe("saDateISO (resolve an instant to its SA calendar date, never UTC)", () => {

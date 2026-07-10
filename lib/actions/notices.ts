@@ -25,7 +25,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { gatherNoticeFacts, evaluateNoticePreconditions, type GatherLease, type PreconditionFinding, type PreconditionResult } from "@/lib/notices/preconditions"
 import { resolveNoticeContext, type ContextLease } from "@/lib/notices/resolveNoticeContext"
-import { saTodayISO } from "@/lib/notices/vacateDate"
+import { saTodayISO } from "@/lib/dates"
 import { recordNoticeServiceEvent } from "@/lib/notices/recordServiceEvent"
 import { issueTenantNotice, renderDemandNotice, type DemandNoticeType, type ManualOverride, type IssueTenantNoticeParams } from "@/lib/notices/issueTenantNotice"
 

@@ -13,7 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
 import { HOLIDAY_TABLE_COVERS_THROUGH } from "@/lib/dates/saPublicHolidays"
-import { saDateISO } from "@/lib/notices/vacateDate"
+import { saDateISO } from "@/lib/dates"
 
 export type ComponentStatus = "ok" | "degraded" | "down"
 
