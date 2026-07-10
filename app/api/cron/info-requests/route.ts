@@ -19,6 +19,7 @@ import { createClient } from "@supabase/supabase-js"
 import { sendInfoRequestEmail, sendInfoRequestSelfTrackNudge } from "@/lib/info-requests/sendInfoRequestEmail"
 import type { InfoRequestTopic } from "@/lib/info-requests/sendInfoRequestEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 function getServiceClient() {
   return createClient(
@@ -239,10 +240,8 @@ async function sendSelfTrackNudges(service: ServiceClient): Promise<number> {
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
-  if (secret !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const service = getServiceClient()
   const runId = await startJob(service)

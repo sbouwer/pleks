@@ -16,15 +16,15 @@
 
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 function pingHeartbeat(url: string | undefined): void {
   if (url) void fetch(url, { method: "POST" }).catch(() => undefined)
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const supabase = await createServiceClient()
   const now = new Date()

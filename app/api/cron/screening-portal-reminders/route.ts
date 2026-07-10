@@ -17,12 +17,11 @@ import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-ema
 import { buildDirectorReminderElement } from "@/lib/applications/commercial-emails"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret")
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const service = await createServiceClient()
   let reminders = 0

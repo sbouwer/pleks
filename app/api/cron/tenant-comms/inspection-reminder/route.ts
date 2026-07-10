@@ -19,6 +19,7 @@ import {
   buildInspectionReminderWhatsApp,
 } from "@/lib/comms/templates/tenant/inspections/inspection-reminder"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 const INSPECTION_TYPE_LABELS: Record<string, string> = {
   move_in:     "Move-in Inspection",
@@ -28,9 +29,8 @@ const INSPECTION_TYPE_LABELS: Record<string, string> = {
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const service = await createServiceClient()
   const today = new Date()

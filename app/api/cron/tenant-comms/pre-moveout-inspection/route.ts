@@ -20,13 +20,13 @@ import {
   buildPreMoveoutWhatsApp,
 } from "@/lib/comms/templates/tenant/deposits/deposit-pre-moveout"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 const DAYS_BEFORE = 15
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const service = await createServiceClient()
   const today = new Date()

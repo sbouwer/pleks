@@ -18,6 +18,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_PRIME_REPO_SPREAD } from "@/lib/constants"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 interface PrimeFetch {
   rate: number
@@ -75,9 +76,8 @@ async function fetchApiNinjasPrime(apiKey: string): Promise<PrimeFetch | null> {
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   // SARB primary (no key); API Ninjas only if SARB is unreachable.
   let result = await fetchSarbPrime()

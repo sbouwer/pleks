@@ -11,12 +11,11 @@ import { sendEmail } from "@/lib/comms/send-email"
 import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
 import { getTodayFeedbackDigest } from "@/lib/feedback/queries"
 import { FeedbackDailyDigestEmail } from "@/lib/comms/templates/feedback/feedback-daily-digest"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
-  if (secret !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const items = await getTodayFeedbackDigest()
   if (items.length === 0) {

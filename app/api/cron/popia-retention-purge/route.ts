@@ -19,6 +19,7 @@ import { isErasableNow, type DataCategory } from "@/lib/popia/retention"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { purgeApplicationDocs } from "@/lib/applications/purgeDocs"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 type CatResult = { evaluated: number; deleted: number; skipped_carveout: number }
 type CatSummary = { orgs_processed: number; deleted: number; skipped: number; errors: string[] }
@@ -168,10 +169,8 @@ async function runForOrg(
 // ─── GET handler ──────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret")
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const db = await createServiceClient()
   const now = new Date()

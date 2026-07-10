@@ -49,6 +49,7 @@ import { runRulesEngine, type EngineRuleSummary } from "@/lib/rules/engine"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { sendCronDigest, type CronJobDetail } from "@/lib/cron/cronDigest"
 import { collectCronRunFailures } from "@/lib/cron/withCronRun"
+import { requireCronAuth, internalCronHeaders } from "@/lib/cron/auth"
 
 export const runtime     = "nodejs"
 export const maxDuration = 90   // Hobby caps at 60s; honoured on Pro. ~11s typical run.
@@ -77,19 +78,18 @@ async function runJob(
 }
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
-  if (secret !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const results: Record<string, string> = {}
   const detail: Record<string, CronJobDetail> = {}
   const today = new Date()
   const dayOfMonth = today.getUTCDate()
 
-  const cronReq = new NextRequest(req.url, {
-    headers: new Headers({ "x-cron-secret": process.env.CRON_SECRET! }),
-  })
+  // internalCronHeaders() keeps the only read of CRON_SECRET inside lib/cron/, so no-raw-cron-secret
+  // needs no allowlist. It also drops the `!` non-null assertion: an unset secret now throws a named
+  // error here instead of silently forwarding the string "undefined" to every child.
+  const cronReq = new NextRequest(req.url, { headers: internalCronHeaders() })
 
   // Track in cron_runs — read by /api/health/deep cron freshness check
   const service = await createServiceClient()

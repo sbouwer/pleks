@@ -13,12 +13,11 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret")
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const service = await createServiceClient()
   const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()

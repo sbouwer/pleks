@@ -17,14 +17,16 @@ import { buildStatementReadyElement } from "@/lib/statements/statementReadyEmail
 import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 
 export async function GET(req: Request) {
-  const cronSecret = req.headers.get("x-cron-secret") || new URL(req.url).searchParams.get("secret")
-  if (cronSecret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  // Dropped the `?secret=` query-param fallback: secrets in URLs leak into access logs, proxy logs, and
+  // browser history. Nothing invoked it that way (the daily orchestrator passes the header in-process,
+  // and the cPanel crons use -H "x-cron-secret"), so this closes the hole without breaking a caller.
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const supabase = await createServiceClient()
   const lastMonth = subMonths(new Date(), 1)

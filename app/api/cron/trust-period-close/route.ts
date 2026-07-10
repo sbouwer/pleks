@@ -11,6 +11,7 @@
 
 import { type NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 function priorMonthRange(): { start: string; end: string } {
   const now = new Date()
@@ -25,10 +26,8 @@ function priorMonthRange(): { start: string; end: string } {
 }
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret")
-  if (secret !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const db = await createServiceClient()
   const { start, end } = priorMonthRange()

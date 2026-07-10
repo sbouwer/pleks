@@ -17,11 +17,11 @@ import { resolveDunningLadderStep } from "@/lib/subscriptions/state"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { trackSend, settleSends } from "@/lib/cron/settleSends"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const supabase = await createServiceClient()
   const now = new Date()

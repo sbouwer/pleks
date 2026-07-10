@@ -10,12 +10,12 @@ import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { accrueArrearsInterest } from "@/lib/finance/arrearsInterest"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 // Daily arrears interest accrual — one charge per open case per day
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const supabase = await createServiceClient()
 

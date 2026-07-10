@@ -17,6 +17,7 @@ import { fetchOrgSettings, buildBranding, type OrgBranding } from "@/lib/comms/s
 import { MonthlyStatementEmail, type StatementInvoiceRow, type StatementPaymentRow } from "@/lib/comms/templates/tenant/rent/monthly-statement"
 import { startOfMonth, endOfMonth, subMonths } from "date-fns"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -169,9 +170,8 @@ async function sendLeaseStatement(service: ServiceClient, ctx: LeaseStatementCon
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const service = await createServiceClient()
   const today = new Date()

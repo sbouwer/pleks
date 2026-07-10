@@ -12,15 +12,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildCostSnapshots } from "@/lib/observability/cost"
 import * as Sentry from "@sentry/nextjs"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 export const runtime     = "nodejs"
 export const maxDuration = 300
 
 export async function GET(request: NextRequest) {
-  const secret = request.headers.get("x-cron-secret") ?? request.headers.get("authorization")?.replace("Bearer ", "")
-  if (secret !== process.env.CRON_SECRET) {
-    return new NextResponse("Unauthorised", { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
 
   const db    = await createServiceClient()
   const runId = crypto.randomUUID()

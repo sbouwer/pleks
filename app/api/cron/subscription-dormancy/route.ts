@@ -18,6 +18,7 @@ import { buildBranding } from "@/lib/comms/send-email"
 import { sendDormancyWarning, sendDormancyFinal } from "@/lib/subscriptions/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getUserEmail } from "@/lib/auth/userEmail"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 const DORMANCY_DAYS       = parseInt(process.env.DORMANCY_DAYS       ?? "60", 10)
 const DORMANCY_WARN_DAYS  = parseInt(process.env.DORMANCY_WARN_DAYS  ?? "30", 10)
@@ -119,9 +120,8 @@ async function processFinalWarningOrg(
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const supabase = await createServiceClient()
   const now = new Date()

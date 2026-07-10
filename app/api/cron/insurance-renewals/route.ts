@@ -17,6 +17,7 @@ import { NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { RenewalReminderEmail } from "@/lib/comms/templates/insurance/renewal-reminder"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 function getServiceClient() {
   return createClient(
@@ -213,10 +214,8 @@ async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, re
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
-  if (secret !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const db = getServiceClient()
   const runId = await startJob(db)

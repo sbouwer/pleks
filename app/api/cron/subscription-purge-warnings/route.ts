@@ -22,6 +22,7 @@ import {
 } from "@/lib/subscriptions/emails"
 import { purgeOrg } from "@/lib/subscriptions/purge"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 const ELEVEN_MONTHS_MS = 11 * 30 * 24 * 60 * 60 * 1000
@@ -249,9 +250,8 @@ async function runDormancyPurgeScan(supabase: SupabaseClient, now: Date): Promis
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const supabase = await createServiceClient()
   const now = new Date()

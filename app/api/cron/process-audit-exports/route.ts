@@ -16,6 +16,7 @@ import { render } from "@react-email/components"
 import { createServiceClient } from "@/lib/supabase/server"
 import { streamAuditCsv, type ExportFilterParams } from "@/lib/admin/csv-export"
 import { AuditExportReadyEmail } from "@/lib/comms/templates/admin/audit-export-ready"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 const MAX_PER_RUN   = 3
 const SIGNED_URL_TTL = 60 * 60 * 24 * 7 // 7 days in seconds
@@ -99,9 +100,8 @@ async function processJob(db: Db, job: { id: string; filter_params: unknown }): 
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const db = await createServiceClient()
   const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()

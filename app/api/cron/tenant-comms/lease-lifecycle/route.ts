@@ -19,6 +19,7 @@ import { resolveOrgTone } from "@/lib/comms/resolveOrgTone"
 import { LeaseSignReminderEmail } from "@/lib/comms/templates/tenant/leases/lease-sign-reminder"
 import { LeaseEscalationNoticeEmail } from "@/lib/comms/templates/tenant/leases/lease-escalation-notice"
 import { revertPendingSigningToDraft } from "@/lib/leases/revertSigning"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 // L2b: a lease left unsigned this long past sent_for_signing_at is timed out and returned to draft (D1).
 // The L2 sign reminder fires at T+3, so this gives ~11 days after that nudge before the app-level timeout.
@@ -161,9 +162,8 @@ async function sweepSigningTimeouts(service: Service, today: Date): Promise<{ re
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const service = await createServiceClient()
   const today = new Date()

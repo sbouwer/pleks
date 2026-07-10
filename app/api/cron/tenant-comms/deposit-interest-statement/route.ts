@@ -17,6 +17,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { DepositInterestStatementEmail } from "@/lib/comms/templates/tenant/deposits/deposit-interest-statement"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
 interface DepositLease { id: string; org_id: string; tenant_id: string; start_date: string; deposit_amount_cents: number; deposit_interest_rate_percent: number | null }
@@ -100,9 +101,8 @@ async function sendDepositInterestStatement(service: Svc, lease: DepositLease, t
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const service = await createServiceClient()
   const today = new Date()

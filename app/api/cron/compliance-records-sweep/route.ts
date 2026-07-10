@@ -14,14 +14,13 @@ import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { complianceRecordsSweep } from "@/lib/popia/complianceRecordsSweep"
+import { requireCronAuth } from "@/lib/cron/auth"
 
 export const runtime = "nodejs"
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret")
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   const db = await createServiceClient()
   try {
