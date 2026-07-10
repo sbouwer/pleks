@@ -10,9 +10,8 @@
  */
 import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
 import { Wordmark } from "@/components/ui/Wordmark"
+import { MARKETING_URL } from "@/lib/env"
 import "@/app/(public)/public.css"
-
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
 // Suppress manifest link — status.pleks.co.za is a different origin from
 // the manifest's start_url (app.pleks.co.za). Browser ignores start_url + logs warning.

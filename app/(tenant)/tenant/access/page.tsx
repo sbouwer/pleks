@@ -12,6 +12,7 @@ import { createHash } from "node:crypto"
 import { redirect } from "next/navigation"
 import { cookies, headers } from "next/headers"
 import { createServiceClient } from "@/lib/supabase/server"
+import { isProductionNode } from "@/lib/env"
 
 const COOKIE_NAME = "pleks_tenant_token"
 const COOKIE_MAX_AGE = 90 * 24 * 60 * 60 // 90 days
@@ -63,7 +64,7 @@ export default async function PortalAccessPage({
   const cookieStore = await cookies()
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isProductionNode(),
     sameSite: "lax",
     path: "/tenant",
     maxAge: COOKIE_MAX_AGE,

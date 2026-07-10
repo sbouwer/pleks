@@ -27,6 +27,7 @@ import {
 } from "@/lib/actions/signatures"
 import type { SignatureFont } from "./signatureFonts"
 import { fmtDateZA } from "@/lib/dates"
+import { APP_URL } from "@/lib/env"
 
 interface CurrentSignature {
   id: string
@@ -266,7 +267,7 @@ function QrCapture({ kind, onSaved }: Readonly<{ kind: SignatureKind; onSaved: (
       const result = await createSignatureToken(kind)
       if (cancelled) return
       if (result.error ?? !result.token) { setGenError(result.error ?? "Failed to generate QR code"); setLoading(false); return }
-      const base = process.env.NEXT_PUBLIC_APP_URL ?? globalThis.location.origin
+      const base = APP_URL ?? globalThis.location.origin
       const QRCode = await import("qrcode")
       const dataUrl = await QRCode.default.toDataURL(`${base}/sign-signature/${result.token}`, { width: 200, margin: 2 })
       if (cancelled) return

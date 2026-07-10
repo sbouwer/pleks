@@ -1,8 +1,35 @@
 {
-  "mcpServers": {
-    "supabase": {
-      "type": "http",
-      "url": "https://mcp.supabase.com"
-    }
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(//**/.env*)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/bash-gate.js\""
+          }
+        ]
+      }
+    ]
   }
 }

@@ -16,12 +16,10 @@ import { Wordmark } from "@/components/ui/Wordmark"
 import { createClient } from "@/lib/supabase/client"
 import { usePublicTheme } from "./PublicThemeProvider"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { APP_URL, MARKETING_URL } from "@/lib/env"
 
 // Cross-subdomain links use absolute URLs — relative paths would be RSC-prefetched
 // as same-origin, hit the apex→app redirect, and fail the browser's CORS preflight.
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
-
 // href is the absolute destination (always cross-origin-safe via MARKETING_URL);
 // section is the homepage anchor ID used for scroll-spy (null for non-hash routes).
 // Decoupled so we can render plain <a> with an absolute URL while still driving

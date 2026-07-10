@@ -9,6 +9,7 @@
  */
 import { NextResponse } from "next/server"
 import { signAdminToken } from "@/lib/auth/admin-token"
+import { isProductionNode } from "@/lib/env"
 
 export async function POST(req: Request) {
   const { secret } = await req.json() as { secret?: string }
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
       "HttpOnly",
       "SameSite=Strict",
       "Max-Age=86400",
-      process.env.NODE_ENV === "production" ? "Secure" : "",
+      isProductionNode() ? "Secure" : "",
     ].filter(Boolean).join("; ")
   )
   return response

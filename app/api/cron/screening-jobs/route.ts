@@ -15,9 +15,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { withCronRun } from "@/lib/cron/withCronRun"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  return createClient(SUPABASE_URL, requireEnv("SUPABASE_SERVICE_ROLE_KEY"))
 }
 
 const STUCK_MS = 5 * 60 * 1000   // a 'running' job older than this = a died invocation → reclaim

@@ -17,6 +17,7 @@ import {
   type CriticalIncidentSchemeProps,
 } from "@/lib/comms/templates/maintenance/critical-incident-scheme"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { APP_URL } from "@/lib/env"
 
 interface NotifySchemeParams {
   orgId: string
@@ -72,7 +73,7 @@ export async function notifyScheme(params: NotifySchemeParams): Promise<{ skippe
 
   const orgSettings = await fetchOrgSettings(params.orgId)
   const branding    = buildBranding(orgSettings)
-  const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+  const appUrl      = APP_URL
 
   const emailProps: CriticalIncidentSchemeProps = {
     branding,

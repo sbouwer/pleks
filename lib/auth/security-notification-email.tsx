@@ -12,10 +12,9 @@ import { EmailLayout, type OrgBranding } from "@/lib/comms/templates/layout"
 import { render } from "@react-email/components"
 import { sendEmail } from "@/lib/comms/send-email"
 import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
+import { APP_URL } from "@/lib/env"
 
 const PLEKS_BRANDING: OrgBranding = { orgName: "Pleks", accentColor: "#E8A838" }
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.pleks.co.za"
-
 export type SecurityEventType =
   | "password_changed"
   | "totp_enrolled" | "totp_unenrolled"

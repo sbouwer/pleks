@@ -8,6 +8,7 @@
  */
 import { cookies } from "next/headers"
 import { mintPasskeyAal, PASSKEY_AAL_COOKIE, PASSKEY_AAL_TTL_MS } from "@/lib/auth/passkey-aal"
+import { isProductionNode } from "@/lib/env"
 import {
   writePasskeyAalGrant,
   revokePasskeyAalByUser,
@@ -22,7 +23,7 @@ export async function issuePasskeyAal(userId: string, sessionId: string | null |
     const store = await cookies()
     store.set(PASSKEY_AAL_COOKIE, minted.value, {
       httpOnly: true,
-      secure:   process.env.NODE_ENV === "production",
+      secure:   isProductionNode(),
       sameSite: "lax",
       path:     "/",
       maxAge:   Math.floor(PASSKEY_AAL_TTL_MS / 1000),

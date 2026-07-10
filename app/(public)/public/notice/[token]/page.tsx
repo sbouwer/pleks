@@ -17,6 +17,7 @@ import { NoticeAcknowledge } from "./NoticeAcknowledge"
 import { recordNoticePageView } from "@/lib/actions/delivery-notice"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA } from "@/lib/dates"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 interface Props {
   params: Promise<{ token: string }>
@@ -24,8 +25,8 @@ interface Props {
 
 function getService() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
   )
 }
 

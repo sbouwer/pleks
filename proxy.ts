@@ -24,6 +24,7 @@ import { verifyAdminToken } from "@/lib/auth/admin-token"
 import { collectGateFacts } from "@/lib/auth/facts"
 import { routeGateDecision } from "@/lib/auth/decisions"
 import type { User } from "@supabase/supabase-js"
+import { isProductionNode, isProductionRuntime } from "@/lib/env"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
 // Bypass lists + apex/admin path predicates live in lib/routing/gate.ts (pure + unit-tested).
@@ -396,7 +397,7 @@ export async function proxy(request: NextRequest) {
 
   const host = request.headers.get("host") ?? ""
   const hostCtx = resolveHostContext(host)
-  const isProdLive = process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production"
+  const isProdLive = isProductionNode() && isProductionRuntime()
 
   if (isProdLive) {
     const splitResponse = await handleSubdomainSplit(hostCtx, pathname, request)

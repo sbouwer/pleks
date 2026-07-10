@@ -17,6 +17,7 @@ import {
   type CriticalIncidentOwnerProps,
 } from "@/lib/comms/templates/maintenance/critical-incident-owner"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { APP_URL } from "@/lib/env"
 
 interface NotifyOwnerParams {
   orgId: string
@@ -57,7 +58,7 @@ export async function notifyOwner(params: NotifyOwnerParams): Promise<{ logId?: 
 
   const orgSettings = await fetchOrgSettings(params.orgId)
   const branding    = buildBranding(orgSettings)
-  const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+  const appUrl      = APP_URL
 
   const emailProps: CriticalIncidentOwnerProps = {
     branding,

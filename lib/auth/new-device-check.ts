@@ -8,8 +8,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendLoginNotificationEmail } from "./login-notification-email"
 import { logAuthEvent } from "./events"
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+import { APP_URL } from "@/lib/env"
 
 interface NotifyParams {
   userId: string

@@ -11,6 +11,7 @@ import { QueryProvider } from "@/components/providers/QueryProvider"
 import { CaptureBufferProvider } from "@/components/providers/CaptureBufferProvider"
 import { OfflineIndicator } from "@/components/layout/OfflineIndicator"
 import { InstallPrompt } from "@/components/layout/InstallPrompt"
+import { APP_URL } from "@/lib/env"
 import "./globals.css"
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -43,7 +44,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   // Absolute base for OG/icon URLs — without it the og:image resolves relative and link scrapers
   // (WhatsApp/Slack/etc.) can't fetch it. NEXT_PUBLIC_APP_URL is the SSOT for absolute URLs.
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"),
+  metadataBase: new URL(APP_URL),
   title: {
     default: "Pleks — Property Management",
     template: "%s | Pleks",

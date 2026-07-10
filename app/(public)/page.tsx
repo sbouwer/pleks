@@ -18,6 +18,7 @@ import { FounderSection }         from "@/components/marketing/founder/FounderSe
 import { WorkTabsClient }         from "./WorkTabsClient"
 import { CharterSection }         from "@/components/marketing/charter/CharterSection"
 import { fmtZA } from "@/lib/dates"
+import { APP_URL, MARKETING_URL } from "@/lib/env"
 
 export const revalidate = 3600
 
@@ -49,9 +50,6 @@ function c(content: Record<string, string>, key: string): string {
 
 
 // Cross-subdomain links — absolute URLs prevent RSC prefetch CORS failures
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
-
 const AUDIT_ROWS = [
   { line: "Platform · per-user fee",            min: 400,   max: 800,   unit: "per user / mo",            pleks: "Included",            pleksNote: "whole team, no per-user fee"          },
   { line: "Credit & background checks",         min: 70,    max: 200,   unit: "per applicant",            pleks: "Applicant pays",      pleksNote: "never lands on your account"          },

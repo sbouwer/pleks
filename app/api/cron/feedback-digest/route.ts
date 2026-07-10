@@ -12,6 +12,7 @@ import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
 import { getTodayFeedbackDigest } from "@/lib/feedback/queries"
 import { FeedbackDailyDigestEmail } from "@/lib/comms/templates/feedback/feedback-daily-digest"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { APP_URL } from "@/lib/env"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   }
 
   const date = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })
-  const inboxUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"}/admin/feedback`
+  const inboxUrl = `${APP_URL}/admin/feedback`
 
   const branding = {
     orgName:     "Pleks",

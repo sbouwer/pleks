@@ -19,11 +19,12 @@ import { getUserEmail } from "@/lib/auth/userEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { trackSend, settleSends } from "@/lib/cron/settleSends"
 import { withCronRun } from "@/lib/cron/withCronRun"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY")
   )
 }
 

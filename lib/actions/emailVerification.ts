@@ -12,8 +12,8 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { gateway } from "@/lib/supabase/gateway"
+import { APP_URL } from "@/lib/env"
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 const GRACE_MS = 2 * 24 * 60 * 60 * 1000  // 2 days before the notice escalates
 
 /** Send (or resend) the verification magic link to the signed-in user's email. */

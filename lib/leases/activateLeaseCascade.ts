@@ -24,6 +24,7 @@ import { LeaseSignedEmail } from "@/lib/comms/templates/tenant/leases/lease-sign
 import { PortalTenantInviteEmail } from "@/lib/comms/templates/tenant/portal/tenant-invite"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA, monthEnd, saDateISO } from "@/lib/dates"
+import { APP_URL } from "@/lib/env"
 
 export interface CascadeStep {
   step: string
@@ -363,7 +364,7 @@ async function stepSendLeaseActivated(
         leaseStartDate: fmt(lease.start_date),
         leaseEndDate: lease.end_date ? fmt(lease.end_date) : undefined,
         isFixedTerm: lease.is_fixed_term,
-        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL}/tenant`,
+        portalUrl: `${APP_URL}/tenant`,
         senderName: capabilities.copy.tenantWelcomeSender,
         signatureAttribution: capabilities.copy.signatureAttribution,
       }),
@@ -431,7 +432,7 @@ async function stepSendPortalInvite(
       {
         email: tenant.email as string,
         data: { role: "tenant", tenant_id: lease.tenant_id, org_id: orgId, full_name: tenantName },
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/tenant`,
+        redirectTo: `${APP_URL}/tenant`,
       },
     )
     if ("error" in link) return { step: "Portal auto-invite (P1)", status: "failed", detail: link.error }

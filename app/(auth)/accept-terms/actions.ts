@@ -15,6 +15,7 @@ import { recordTosAcceptance } from "@/lib/subscriptions/acceptance"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { isProductionNode } from "@/lib/env"
 
 export async function acceptCurrentTerms(nextPath: string): Promise<never> {
   const authClient = await createClient()
@@ -47,7 +48,7 @@ export async function acceptCurrentTerms(nextPath: string): Promise<never> {
   cookieStore.set("pleks_privacy_version", LEGAL_VERSIONS.privacy, {
     sameSite: "lax",
     path: "/",
-    secure: process.env.NODE_ENV === "production",
+    secure: isProductionNode(),
     maxAge: 60 * 60 * 24 * 365,
   })
 

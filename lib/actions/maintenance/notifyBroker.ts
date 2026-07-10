@@ -19,6 +19,7 @@ import {
 } from "@/lib/comms/templates/maintenance/critical-incident-broker"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA } from "@/lib/dates"
+import { APP_URL } from "@/lib/env"
 
 interface NotifyBrokerParams {
   orgId: string
@@ -103,7 +104,7 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
     : null
 
   const branding = buildBranding(orgSettings)
-  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+  const appUrl   = APP_URL
 
   const emailProps: CriticalIncidentBrokerProps = {
     branding,

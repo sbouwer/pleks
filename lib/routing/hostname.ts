@@ -6,11 +6,12 @@
  *        status.pleks.co.za is served by this app (not Better Stack) — proxy
  *        rewrites status.* hostname to the internal /status route.
  */
+import { isDevelopment } from "@/lib/env"
 export type HostContext = "marketing" | "app" | "admin" | "status"
 
 export function resolveHostContext(host: string | null): HostContext {
   // Dev: always resolve to app context — no subdomain simulation needed locally.
-  if (process.env.NODE_ENV === "development") return "app"
+  if (isDevelopment()) return "app"
 
   // Preview: Vercel preview URLs always resolve to app context.
   // Marketing pages in preview are accessed via /marketing/* path prefix.

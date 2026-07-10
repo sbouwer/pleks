@@ -57,9 +57,10 @@ import type { createServiceClient } from "@/lib/supabase/server"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { assertScreeningConsent } from "@/lib/screening/consentGuard"
+import { gitCommitSha } from "@/lib/env"
 
 export const CURRENT_INTERPRETATION_VERSION = 'interpretation.v1.0'
-const RUNTIME_CODE_HASH = process.env.VERCEL_GIT_COMMIT_SHA ?? 'local'
+const RUNTIME_CODE_HASH = gitCommitSha()
 
 const APPLICANT_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const
 

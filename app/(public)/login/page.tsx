@@ -24,8 +24,7 @@ import { Wordmark } from "@/components/ui/Wordmark"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { FocusShell } from "@/components/layout/FocusShell"
 import { signInWithPasswordAction } from "@/lib/actions/login"
-
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
+import { MARKETING_URL } from "@/lib/env"
 
 function getButtonLabel(isMagicLink: boolean, isLoading: boolean) {
   if (isMagicLink) return isLoading ? "Sending link..." : "Send login link"

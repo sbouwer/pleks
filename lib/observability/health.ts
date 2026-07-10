@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
 import { HOLIDAY_TABLE_COVERS_THROUGH } from "@/lib/dates/saPublicHolidays"
 import { saDateISO } from "@/lib/dates"
+import { APP_VERSION, SENTRY_ENVIRONMENT_PUBLIC } from "@/lib/env"
 
 export type ComponentStatus = "ok" | "degraded" | "down"
 
@@ -240,8 +241,8 @@ export async function checkHealth(): Promise<HealthReport> {
 
   return {
     status:      aggregate,
-    version:     process.env.NEXT_PUBLIC_APP_VERSION ?? "unknown",
-    environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "unknown",
+    version:     APP_VERSION,
+    environment: SENTRY_ENVIRONMENT_PUBLIC,
     timestamp:   new Date().toISOString(),
     components:  { db, email, storage, crons, delivery_feedback, holiday_table },
   }

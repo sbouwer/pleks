@@ -7,6 +7,7 @@
  *         Does NOT touch Supabase or any downstream service — abuse-safe.
  *         Deep probe with component breakdown at /api/health/deep (token-gated).
  */
+import { APP_VERSION, SENTRY_ENVIRONMENT_PUBLIC } from "@/lib/env"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
@@ -14,8 +15,8 @@ export function GET() {
   return Response.json(
     {
       status:      "ok",
-      version:     process.env.NEXT_PUBLIC_APP_VERSION ?? "unknown",
-      environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "unknown",
+      version:     APP_VERSION,
+      environment: SENTRY_ENVIRONMENT_PUBLIC,
       timestamp:   new Date().toISOString(),
     },
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }

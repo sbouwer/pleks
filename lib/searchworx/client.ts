@@ -10,6 +10,7 @@
  *         Exports _mintToken, _validateToken, _resetCache for unit-test access only.
  */
 import * as Sentry from "@sentry/nextjs"
+import { isProductionNode } from "@/lib/env"
 
 // ─── Result envelope ──────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ function getCredentials(): { username: string; password: string } {
   const username = process.env.SEARCHWORX_USERNAME
   const password = process.env.SEARCHWORX_PASSWORD
   if (!username || !password) {
-    if (process.env.NODE_ENV === "production") {
+    if (isProductionNode()) {
       throw new Error("SEARCHWORX_USERNAME and SEARCHWORX_PASSWORD required in production")
     }
     throw new Error(
@@ -72,7 +73,7 @@ function getCredentials(): { username: string; password: string } {
 export function getSearchworxBaseUrl(): string {
   const url = process.env.SEARCHWORX_BASE_URL
   if (!url) {
-    if (process.env.NODE_ENV === "production") {
+    if (isProductionNode()) {
       throw new Error("SEARCHWORX_BASE_URL required in production")
     }
     return "https://uatrest.searchworks.co.za"

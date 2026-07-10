@@ -20,9 +20,9 @@ import { SA_PROVINCES } from "@/lib/constants"
 import { TransitionLoader } from "@/components/onboarding/TransitionLoader"
 import { toast } from "sonner"
 
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye, EyeOff, Info } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { MARKETING_URL } from "@/lib/env"
 
 type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
 

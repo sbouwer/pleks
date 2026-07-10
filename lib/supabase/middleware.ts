@@ -8,13 +8,14 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import type { User } from "@supabase/supabase-js"
 import { verifyPasskeyAal, jwtIdentity, PASSKEY_AAL_COOKIE } from "@/lib/auth/passkey-aal"
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "@/lib/env"
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!,
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
     {
       cookies: {
         getAll() {

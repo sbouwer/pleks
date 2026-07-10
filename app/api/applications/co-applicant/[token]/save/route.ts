@@ -16,9 +16,10 @@ import { encryptIdNumber, encryptDob, hashIdNumber, encryptSpouseInfo } from "@/
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  return createClient(SUPABASE_URL, requireEnv("SUPABASE_SERVICE_ROLE_KEY"))
 }
 
 interface Props { params: Promise<{ token: string }> }

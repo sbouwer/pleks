@@ -18,8 +18,7 @@ import Link from "next/link"
 import { Shield, CheckCircle2, Building2 } from "lucide-react"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
-
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+import { MARKETING_URL } from "@/lib/env"
 
 // ── Shared button styles ──────────────────────────────────────────────────────
 

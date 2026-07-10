@@ -25,8 +25,7 @@ import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { OtpCodeInput } from "@/components/auth/OtpCodeInput"
 import { PasskeyButton } from "@/components/auth/PasskeyButton"
-
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+import { MARKETING_URL } from "@/lib/env"
 
 export default function MfaPage() {
   return (

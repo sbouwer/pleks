@@ -14,6 +14,7 @@
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { isProductionNode } from "@/lib/env"
 
 export type ConsentType =
   | "standard_bundle"
@@ -46,7 +47,7 @@ export interface VerifyResult {
 function getHmacSecret(): string {
   const secret = process.env.CONSENT_HMAC_SECRET
   if (!secret) {
-    if (process.env.NODE_ENV === "production") {
+    if (isProductionNode()) {
       throw new Error("CONSENT_HMAC_SECRET env var must be set in production")
     }
     return "pleks-consent-hmac-dev"

@@ -10,6 +10,7 @@
  *         ever captured. snapshotContext() is consumed by BugReportDialog.
  */
 
+import { BUILD_ID } from "@/lib/env"
 export interface CapturedError {
   ts:      number
   level:   "error" | "unhandledrejection"
@@ -203,7 +204,7 @@ export function snapshotContext(): BugSnapshot {
     }, null),
     plekTrace:       readTraceCookie(),
     xVercelId:       lastVercelId,
-    appVersion:      process.env.NEXT_PUBLIC_BUILD_ID ?? "local",
+    appVersion:      BUILD_ID,
     userAgentParsed: safe(() => parseUA(nav?.userAgent ?? ""), "Unknown"),
     viewport:        safe(() => `${window.innerWidth}x${window.innerHeight} @${window.devicePixelRatio ?? 1}x`, "unknown"),
     onlineState:     safe(() => onlineStateOf(nav, conn), "unknown"),

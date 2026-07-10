@@ -17,6 +17,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { buildDirectorInviteElement } from "@/lib/applications/commercial-emails"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { APP_URL } from "@/lib/env"
 
 const DIRECTOR_TOKEN_TTL_DAYS = 14
 
@@ -171,7 +172,7 @@ async function sendDirectorInvite(ctx: InviteContext): Promise<void> {
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
 
   const slug = listing?.public_slug ?? ctx.applicationId
-  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/${ctx.token}`
+  const portalUrl = `${APP_URL}/apply/${slug}/director-portal/${ctx.token}`
 
   const orgSettings = await fetchOrgSettings(ctx.orgId)
   const branding = buildBranding(orgSettings)

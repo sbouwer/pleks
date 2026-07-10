@@ -8,6 +8,7 @@ import { createClient } from "@supabase/supabase-js"
 import { notFound } from "next/navigation"
 import { UnsubscribeClient } from "./UnsubscribeClient"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 interface Props {
   params: Promise<{ token: string }>
@@ -15,8 +16,8 @@ interface Props {
 
 function getServiceClient() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY")
   )
 }
 

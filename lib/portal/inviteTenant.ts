@@ -11,6 +11,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { APP_URL } from "@/lib/env"
 
 /**
  * Send a magic-link invite to the tenant's primary email.
@@ -47,7 +48,7 @@ export async function inviteTenantPortal(tenantId: string, _leaseId: string) {
         org_id: orgId,
         full_name: displayName,
       },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/tenant`,
+      redirectTo: `${APP_URL}/tenant`,
     }
   )
 
@@ -112,7 +113,7 @@ export async function generateTenantPortalLink(tenantId: string, _leaseId: strin
     new_values: { action: "portal_token_generated", tenant_id: tenantId },
   })
 
-  const url = `${process.env.NEXT_PUBLIC_APP_URL}/tenant/access?token=${tokenRecord.token}`
+  const url = `${APP_URL}/tenant/access?token=${tokenRecord.token}`
   return { success: true, url }
 }
 

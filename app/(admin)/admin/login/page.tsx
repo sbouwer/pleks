@@ -14,10 +14,9 @@ import { useState } from "react"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
 import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
+import { MARKETING_URL } from "@/lib/env"
 import "@/app/(public)/public.css"
 import "@/components/layout/focus-shell.css"
-
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
 
 export default function AdminLoginPage() {
   const [secret, setSecret] = useState("")

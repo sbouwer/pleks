@@ -18,8 +18,7 @@ import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-ema
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarMonths, fmtZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+import { APP_URL } from "@/lib/env"
 
 export async function GET(req: Request) {
   // Dropped the `?secret=` query-param fallback: secrets in URLs leak into access logs, proxy logs, and

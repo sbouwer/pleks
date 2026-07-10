@@ -22,9 +22,10 @@ import { withCronRun } from "@/lib/cron/withCronRun"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { purgeApplicationDocs } from "@/lib/applications/purgeDocs"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  return createClient(SUPABASE_URL, requireEnv("SUPABASE_SERVICE_ROLE_KEY"))
 }
 const RETENTION_FALLBACK_MS = 30 * 24 * 60 * 60 * 1000 // no closes_at → purge a draft idle this long (token TTL)
 

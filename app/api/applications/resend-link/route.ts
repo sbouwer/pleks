@@ -14,9 +14,10 @@ import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { sendApplicationResumeLink } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  return createClient(SUPABASE_URL, requireEnv("SUPABASE_SERVICE_ROLE_KEY"))
 }
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000
 

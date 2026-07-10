@@ -11,8 +11,7 @@
  */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+import { MARKETING_URL } from "@/lib/env"
 
 export default function SeveredPage() {
   const [email, setEmail] = useState<string | null>(null)

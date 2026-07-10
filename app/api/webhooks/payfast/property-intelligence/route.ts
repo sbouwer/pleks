@@ -16,6 +16,7 @@ import * as Sentry from "@sentry/nextjs"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { APP_URL, optionalEnv } from "@/lib/env"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -89,10 +90,10 @@ export async function POST(req: Request) {
     })
 
     // Fire vendor execution (non-blocking — do not await, ITN must return quickly)
-    const runUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/property-intelligence/run/${pullId}`
+    const runUrl = `${APP_URL}/api/property-intelligence/run/${pullId}`
     fetch(runUrl, {
       method:  "POST",
-      headers: { "x-internal-secret": process.env.INTERNAL_API_SECRET ?? "" },
+      headers: { "x-internal-secret": optionalEnv("INTERNAL_API_SECRET", "") },
     }).catch((e) => console.error("[payfast/property-intelligence] run trigger failed:", e))
 
     return NextResponse.json({ ok: true })

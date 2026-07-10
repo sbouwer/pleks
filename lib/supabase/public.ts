@@ -5,6 +5,7 @@
  * Notes:  ONLY for tables with USING(true) SELECT policies. Never use for org-scoped or authenticated data.
  */
 import { createClient } from "@supabase/supabase-js"
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/env"
 
 /**
  * Anon Supabase client for reading public data (no auth required).
@@ -13,8 +14,8 @@ import { createClient } from "@supabase/supabase-js"
  */
 export function publicDb() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!,
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
     { auth: { persistSession: false } }
   )
 }

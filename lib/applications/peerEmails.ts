@@ -10,8 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendApplicationReadyToSubmit, sendApplicationSubmittedToAgent, type ListingSummary, type OrgContext } from "./emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
+import { APP_URL } from "@/lib/env"
 
 export interface PeerRecipient { email: string; name: string; kind: "lead" | "co"; coToken?: string | null }
 

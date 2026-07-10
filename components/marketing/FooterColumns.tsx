@@ -9,10 +9,11 @@
 import { useState } from "react"
 import { Mail, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { MARKETING_URL } from "@/lib/env"
 
 // Absolute URLs — footer renders on app.pleks.co.za/login (and other app-subdomain
 // pages via the public layout). Relative apex-path Links would RSC-prefetch cross-origin.
-const M = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+const M = MARKETING_URL
 
 interface TextItem { label: string; href: string; type?: "link" }
 interface MailItem { label: string; mailto: string; type: "mail" }

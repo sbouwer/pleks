@@ -15,11 +15,12 @@ import { deriveDocCategories, categoryForFilename } from "@/lib/applications/doc
 import { getServerUser } from "@/lib/auth/server"
 import { resolveApplicationCredential } from "@/lib/applications/applicationCredential"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY")
   )
 }
 

@@ -9,6 +9,7 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto"
 import { checkAtEnvironment } from "@/lib/messaging/africastalking"
+import { optionalEnv } from "@/lib/env"
 
 // ── Interfaces ─────────────────────────────────────────────────────────────────
 
@@ -51,11 +52,11 @@ export interface WAWebhookEvent {
 // ── Env helpers ────────────────────────────────────────────────────────────────
 
 function getApiKey(): string {
-  return process.env.WA_API_KEY ?? process.env.AT_API_KEY ?? ""
+  return process.env.WA_API_KEY ?? optionalEnv("AT_API_KEY", "")
 }
 
 function getUsername(): string {
-  return process.env.WA_USERNAME ?? process.env.AT_USERNAME ?? ""
+  return process.env.WA_USERNAME ?? optionalEnv("AT_USERNAME", "")
 }
 
 function isSandbox(): boolean {

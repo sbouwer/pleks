@@ -8,13 +8,14 @@
  *         lib/admin/audit-severity.ts keys on (the old raw insert used action="OWNERSHIP_TRANSFERRED"
  *         with no new_values, so the severity classifier never matched it).
  */
+import { MARKETING_URL } from "@/lib/env"
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { recordAudit } from "@/lib/audit/recordAudit";
 import { requireStepUp } from "@/lib/auth/step-up";
 import { sendEmail } from "@/lib/comms/send-email";
 
-const MARKETING = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+const MARKETING = MARKETING_URL
 
 export async function POST(req: NextRequest) {
   try {
