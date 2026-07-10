@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { describeRate } from "@/lib/deposits/rateUtils"
 import type { DepositInterestConfig as Config } from "@/lib/deposits/rateUtils"
 import { ChevronDown, ChevronUp } from "lucide-react"
-import { fmtDateZA } from "@/lib/dates"
+import { fmtDateZA, saTodayISO } from "@/lib/dates"
 
 interface Props {
   propertyId?: string | null
@@ -61,7 +61,7 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, bankAc
   const [compounding, setCompounding] = useState<"daily" | "monthly">("monthly")
   const [bankName, setBankName] = useState("")
   const [accountRef, setAccountRef] = useState("")
-  const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().split("T")[0])
+  const [effectiveFrom, setEffectiveFrom] = useState(saTodayISO())
   const [changeReason, setChangeReason] = useState("")
 
   function buildParams() {
@@ -94,7 +94,7 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, bankAc
       setBankName(active.bank_name ?? "")
       setAccountRef(active.account_reference ?? "")
     }
-    setEffectiveFrom(new Date().toISOString().split("T")[0])
+    setEffectiveFrom(saTodayISO())
     setChangeReason("")
     setShowForm(true)
   }

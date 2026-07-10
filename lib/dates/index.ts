@@ -138,6 +138,25 @@ export function addCalendarMonths(iso: string, months: number): string {
 }
 
 /**
+ * The first / last calendar day of a date's month.
+ *
+ * These exist because date-fns `startOfMonth`/`endOfMonth` are LOCAL-time operations returning a `Date`,
+ * and every caller then sliced that Date in UTC. On a UTC server the two coordinate systems coincide and
+ * the bug is invisible; on any machine east of Greenwich `endOfMonth` yields local 23:59 of the 31st,
+ * which is the 31st in UTC — but `startOfMonth` yields local 00:00 of the 1st, which is the LAST DAY OF
+ * THE PREVIOUS MONTH in UTC. A whole month of invoices, statements and levies hung off that.
+ *
+ * `monthEnd` cannot hit the addCalendarMonths rollover: a day-01 anchor has no day to overflow.
+ */
+export function monthStart(iso: string): string {
+  return `${assertSaDateISO(iso, "monthStart").slice(0, 7)}-01`
+}
+
+export function monthEnd(iso: string): string {
+  return addCalendarDays(addCalendarMonths(monthStart(iso), 1), -1)
+}
+
+/**
  * Whole SA calendar days from `from` to `to` (negative if `to` is earlier).
  *
  * NOT a millisecond division: that answers "how many 24-hour spans", so 23:00 Monday → 08:00 Tuesday

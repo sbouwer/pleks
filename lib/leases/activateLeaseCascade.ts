@@ -23,7 +23,7 @@ import { LeaseActivatedEmail } from "@/lib/comms/templates/tenant/leases/lease-a
 import { LeaseSignedEmail } from "@/lib/comms/templates/tenant/leases/lease-signed"
 import { PortalTenantInviteEmail } from "@/lib/comms/templates/tenant/portal/tenant-invite"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { fmtDateLongZA } from "@/lib/dates"
+import { fmtDateLongZA, monthEnd, saDateISO } from "@/lib/dates"
 
 export interface CascadeStep {
   step: string
@@ -200,11 +200,15 @@ async function stepGenerateFirstInvoice(
   orgId: string,
 ): Promise<CascadeStep> {
   try {
-    const startDate = new Date(lease.start_date)
+    // All calendar dates. `getDate()`/`getFullYear()` are LOCAL-time accessors and were being read off
+    // UTC-midnight carriers, so the day number — and therefore the pro-rata ratio — depended on the
+    // server's timezone. Same comparison, same ratio, no coordinates crossed.
     const now = new Date()
-    const invoiceMonth = new Date(Math.max(startDate.getTime(), now.getTime()))
-    const daysInMonth = new Date(invoiceMonth.getFullYear(), invoiceMonth.getMonth() + 1, 0).getDate()
-    const startDay = startDate.getDate()
+    const startDateIso = lease.start_date
+    const todayIso = saDateISO(now)
+    const invoiceMonthIso = startDateIso > todayIso ? startDateIso : todayIso
+    const daysInMonth = Number(monthEnd(invoiceMonthIso).slice(8, 10))
+    const startDay = Number(startDateIso.slice(8, 10))
     const isProRata = startDay > 1
     const ratio = isProRata ? (daysInMonth - startDay + 1) / daysInMonth : 1
     const proRataRent = Math.round(lease.rent_amount_cents * ratio)
@@ -217,12 +221,14 @@ async function stepGenerateFirstInvoice(
     const chargesTotal = (charges ?? []).reduce((sum: number, c: { amount_cents: number }) => sum + c.amount_cents, 0)
     const proRataCharges = Math.round(chargesTotal * ratio)
     const total = proRataRent + proRataCharges
-    const periodEnd = new Date(invoiceMonth.getFullYear(), invoiceMonth.getMonth() + 1, 0).toISOString().split("T")[0]
+    // `new Date(y, m+1, 0)` is LOCAL midnight of the month's last day; slicing it in UTC returned the
+    // PREVIOUS day for any timezone east of Greenwich — a first invoice one day short, every time.
+    const periodEnd = monthEnd(invoiceMonthIso)
 
     await supabase.from("rent_invoices").insert({
       org_id: orgId, lease_id: leaseId, unit_id: lease.unit_id, tenant_id: lease.tenant_id,
       invoice_number: `PLEKS-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}`,
-      invoice_date: now.toISOString().split("T")[0],
+      invoice_date: saDateISO(now),
       due_date: lease.start_date, period_from: lease.start_date, period_to: periodEnd,
       rent_amount_cents: proRataRent, other_charges_cents: proRataCharges,
       total_amount_cents: total, balance_cents: total, status: "open",

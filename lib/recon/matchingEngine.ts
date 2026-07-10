@@ -8,6 +8,7 @@
 import { createMessage } from "@/lib/ai/client"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { addCalendarDays, diffCalendarDays, saDateISO } from "@/lib/dates"
 
 export interface MatchResult {
   matchType: "matched_exact" | "matched_fuzzy" | "matched_ai" | "matched_manual"
@@ -80,11 +81,12 @@ export async function matchFuzzy(
   const AMOUNT_TOLERANCE = 5000  // ±R50 in cents
   const DATE_WINDOW_DAYS = 14
 
-  const txDate = new Date(line.transaction_date)
-  const dateFrom = new Date(txDate)
-  dateFrom.setDate(txDate.getDate() - DATE_WINDOW_DAYS)
-  const dateTo = new Date(txDate)
-  dateTo.setDate(txDate.getDate() + DATE_WINDOW_DAYS)
+  // `transaction_date` is a date-only column and `due_date` is too: this is a calendar window, not an
+  // instant. It used to shift a Date with LOCAL setDate/getDate and slice the result in UTC, so west of
+  // Greenwich the whole window landed a day early and a legitimate payment fell outside its own tolerance.
+  const txDate = saDateISO(new Date(line.transaction_date))
+  const dateFrom = addCalendarDays(txDate, -DATE_WINDOW_DAYS)
+  const dateTo = addCalendarDays(txDate, DATE_WINDOW_DAYS)
 
   const { data: invoices, error: invoicesError } = await ctx.db
     .from("rent_invoices")
@@ -93,8 +95,8 @@ export async function matchFuzzy(
     .in("status", ["open", "partial", "overdue"])
     .gte("balance_cents", line.amount_cents - AMOUNT_TOLERANCE)
     .lte("balance_cents", line.amount_cents + AMOUNT_TOLERANCE)
-    .gte("due_date", dateFrom.toISOString().split("T")[0])
-    .lte("due_date", dateTo.toISOString().split("T")[0])
+    .gte("due_date", dateFrom)
+    .lte("due_date", dateTo)
     logQueryError("matchFuzzy rent_invoices", invoicesError)
 
   if (!invoices?.length) return null
@@ -104,8 +106,7 @@ export async function matchFuzzy(
 
   for (const inv of invoices) {
     const amountDiff = Math.abs((inv.balance_cents as number) - line.amount_cents)
-    const invDueDate = new Date(inv.due_date as string)
-    const daysDiff = Math.abs((txDate.getTime() - invDueDate.getTime()) / (1000 * 60 * 60 * 24))
+    const daysDiff = Math.abs(diffCalendarDays(txDate, inv.due_date as string))
 
     // Base confidence 0.80; penalise R10 increments and each day off
     const amountPenalty = Math.floor(amountDiff / 1000) * 0.02

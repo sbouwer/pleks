@@ -121,6 +121,18 @@ function isBusinessDayISO(dateStr: string): boolean {
   return !isPublicHoliday(dateStr)
 }
 
+/**
+ * Shape guard, kept local. This module is imported BY lib/dates/index.ts, so it may not import back —
+ * a cycle here would leave `SA_TIMEZONE` undefined at module-init depending on which file is loaded first.
+ */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+function assertDateOnly(iso: string, fn: string): string {
+  if (!DATE_ONLY.test(iso)) {
+    throw new TypeError(`${fn}: expected a "YYYY-MM-DD" calendar date, got ${JSON.stringify(iso)}.`)
+  }
+  return iso
+}
+
 function shiftISO(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00.000Z`)
   d.setUTCDate(d.getUTCDate() + days)
@@ -152,15 +164,19 @@ export function addBusinessDays(fromIso: string, n: number): string {
 }
 
 /**
- * ADVISORY (calendar reminders), not a gate. Subtract `n` business days from an instant.
+ * ADVISORY (calendar reminders), not a gate. Subtract `n` business days from a calendar date.
  *
  * Deliberately does NOT throw past the horizon: it is called with lease end dates that legitimately sit
  * years out, and a thrown error would blank the agent's calendar rather than protect anyone. Its failure
  * mode is a reminder one day off, not an unlawful notice. It warns instead, and the horizon sentinel in
  * health.ts is what actually keeps the table current.
+ *
+ * String in, string out — matching addBusinessDays. It used to take and return a `Date`, so every caller
+ * wrapped a date-only column in `new Date(...)` and then sliced the result back, and each of those hops
+ * was a chance to slice an INSTANT (a timezone resolution) rather than a carrier (arithmetic).
  */
-export function subtractBusinessDays(date: Date, days: number): Date {
-  let cursor = date.toISOString().slice(0, 10)
+export function subtractBusinessDays(fromIso: string, days: number): string {
+  let cursor = assertDateOnly(fromIso, "subtractBusinessDays")
   let warned = false
   let remaining = days
   while (remaining > 0) {
@@ -174,5 +190,5 @@ export function subtractBusinessDays(date: Date, days: number): Date {
     }
     if (isBusinessDayISO(cursor)) remaining--
   }
-  return new Date(`${cursor}T00:00:00.000Z`)
+  return cursor
 }

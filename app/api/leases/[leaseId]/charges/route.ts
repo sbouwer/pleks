@@ -19,6 +19,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { LeaseAmendedEmail } from "@/lib/comms/templates/tenant/leases/lease-amended"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saTodayISO } from "@/lib/dates"
 
 type ChargeComm = { description: string; amountCents: number; dateStr: string; changeType: "added" | "removed" }
 
@@ -220,7 +221,7 @@ export async function DELETE(
       await fireLeaseAmendedComm(db, leaseId, orgId, userId, {
         description: charge.description,
         amountCents: Number(charge.amount_cents),
-        dateStr: new Date().toISOString().split("T")[0],
+        dateStr: saTodayISO(),
         changeType: "removed",
       })
     } catch {

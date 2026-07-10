@@ -20,6 +20,7 @@ import { LeaseSignReminderEmail } from "@/lib/comms/templates/tenant/leases/leas
 import { LeaseEscalationNoticeEmail } from "@/lib/comms/templates/tenant/leases/lease-escalation-notice"
 import { revertPendingSigningToDraft } from "@/lib/leases/revertSigning"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarDays, saTodayISO } from "@/lib/dates"
 
 // L2b: a lease left unsigned this long past sent_for_signing_at is timed out and returned to draft (D1).
 // The L2 sign reminder fires at T+3, so this gives ~11 days after that nudge before the app-level timeout.
@@ -166,15 +167,13 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const service = await createServiceClient()
-  const today = new Date()
-  const todayStr = today.toISOString().split("T")[0]
+  const todayStr = saTodayISO()
 
-  const signReminderCutoff = new Date(today)
-  signReminderCutoff.setDate(signReminderCutoff.getDate() - 3)
+  // signReminderCutoff bounds `created_at` (a timestamptz), so it stays an INSTANT — 3x24h back from now,
+  // not "3 calendar days ago at midnight". The other two are calendar dates compared to date-only columns.
+  const signReminderCutoff = new Date(Date.now() - 3 * 86_400_000)
 
-  const escalationTarget = new Date(today)
-  escalationTarget.setDate(escalationTarget.getDate() + 30)
-  const escalationTargetStr = escalationTarget.toISOString().split("T")[0]
+  const escalationTargetStr = addCalendarDays(todayStr, 30)
 
   let sent = 0
   let skipped = 0
@@ -192,7 +191,7 @@ export async function GET(req: NextRequest) {
 
   for (const lease of unsignedLeases ?? []) {
     try {
-      const ok = await handleSignReminder(service, lease as SignReminderLease, today)
+      const ok = await handleSignReminder(service, lease as SignReminderLease, new Date())
       if (ok) sent++; else skipped++
     } catch (err) {
       console.error("[lease-lifecycle] L2 lease", lease.id, "failed:", err)
@@ -201,7 +200,7 @@ export async function GET(req: NextRequest) {
   }
 
   // ── L2b: signing timeout — pending_signing leases unsigned past the timeout → back to draft (D1) ──
-  const timeout = await sweepSigningTimeouts(service, today)
+  const timeout = await sweepSigningTimeouts(service, new Date())
   sent += timeout.reverted
   skipped += timeout.skipped
 

@@ -5,6 +5,7 @@
  * Notes: CPA notice window = 40 days; compliance section looks 12 months forward for escalations
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { addCalendarDays } from "@/lib/dates"
 import type {
   WelcomePackData,
   WelcomePackProperty,
@@ -237,14 +238,12 @@ export async function buildWelcomePackData(
     })
     .map((u) => {
       const prop = properties.find((p) => p.units.some((pu) => pu.unit_id === u.unit_id))
-      const endDate = new Date(u.lease_end!)
-      const noticeDueDate = new Date(endDate.getTime() - CPA_NOTICE_WINDOW_DAYS * MS_PER_DAY)
       return {
         tenant_name: u.tenant_name ?? "Unknown",
         unit: u.unit_number,
         property: prop?.name ?? "",
         lease_end: u.lease_end!,
-        notice_due_by: noticeDueDate.toISOString().split("T")[0],
+        notice_due_by: addCalendarDays(u.lease_end!, -CPA_NOTICE_WINDOW_DAYS),
         days_remaining: u.days_remaining!,
       }
     })

@@ -11,6 +11,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { calculateVAT } from "@/lib/finance/vatCalculation"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { monthStart, saTodayISO } from "@/lib/dates"
 
 export async function createSupplierInvoice(formData: FormData) {
   const gw = await requireAgentWriteAccess("accept_quote")
@@ -21,8 +22,8 @@ export async function createSupplierInvoice(formData: FormData) {
   const vatRegistered = formData.get("vat_registered") === "true"
   const vat = calculateVAT(amountExcl, vatRegistered)
 
-  const currentMonth = new Date()
-  currentMonth.setDate(1)
+  // `new Date()` + local setDate(1), sliced in UTC — the month label depended on the server timezone.
+  const statementMonth = monthStart(saTodayISO())
 
   const { data: invoice, error } = await db
     .from("supplier_invoices")
@@ -41,7 +42,7 @@ export async function createSupplierInvoice(formData: FormData) {
       vat_amount_cents: vat.vatAmount,
       amount_incl_vat_cents: vat.inclVat,
       payment_source: formData.get("payment_source") as string || "trust",
-      statement_month: currentMonth.toISOString().split("T")[0],
+      statement_month: statementMonth,
       statement_line_description: formData.get("description") as string,
       status: "submitted",
     })

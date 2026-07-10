@@ -23,7 +23,7 @@ import { ArrearsReminderEmail } from "@/lib/comms/templates/tenant/arrears/remin
 import { LetterOfDemandEmail } from "@/lib/comms/templates/tenant/arrears/letter-of-demand"
 import { FinalNoticeEmail } from "@/lib/comms/templates/tenant/arrears/final-notice"
 import { withCronRun } from "@/lib/cron/withCronRun"
-import { fmtDateLongZA } from "@/lib/dates"
+import { fmtDateLongZA, saDateISO } from "@/lib/dates"
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -511,7 +511,7 @@ async function autoResolveIfPaid(
 // ── Phase runners ────────────────────────────────────────────────────────────
 
 async function phase1DetectNewArrears(supabase: SupabaseClient, today: Date): Promise<number> {
-  const todayStr = today.toISOString().split("T")[0]
+  const todayStr = saDateISO(today)
   const { data: overdueInvoices, error: invErr } = await supabase
     .from("rent_invoices")
     .select("id, org_id, lease_id, tenant_id, unit_id, due_date, balance_cents, leases(property_id, lease_type)")

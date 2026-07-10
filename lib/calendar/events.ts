@@ -8,6 +8,7 @@
  */
 import { type SupabaseClient } from "@supabase/supabase-js"
 import { subtractBusinessDays } from "@/lib/dates/saPublicHolidays"
+import { addCalendarDays, saTodayISO } from "@/lib/dates"
 
 export type EventType =
   | "inspection"
@@ -135,8 +136,7 @@ async function buildLeaseEvents(
   }
 
   if (lease.cpa_applies && !lease.auto_renewal_notice_sent_at) {
-    const noticeDeadline = subtractBusinessDays(new Date(lease.end_date), 20)
-    const noticeDateStr = noticeDeadline.toISOString().split("T")[0]
+    const noticeDateStr = subtractBusinessDays(lease.end_date, 20)
     if (noticeDateStr >= rangeStart && noticeDateStr <= rangeEnd) {
       events.push(makeCpaDeadlineEvent(lease.id, noticeDateStr, leaseUnit))
     }
@@ -236,10 +236,10 @@ export async function fetchCalendarEvents(
   rangeStart: string,
   rangeEnd: string
 ): Promise<CalendarEvent[]> {
-  const today = new Date().toISOString().split("T")[0]
+  const today = saTodayISO()
 
   // Lease window: 90 days out for approaching expiry
-  const rangeEnd90 = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+  const rangeEnd90 = addCalendarDays(today, 90)
 
   const [
     inspectionsResult,
@@ -307,7 +307,7 @@ export async function fetchOverdueAlerts(
   service: SupabaseClient,
   orgId: string
 ): Promise<CalendarEvent[]> {
-  const today = new Date().toISOString().split("T")[0]
+  const today = saTodayISO()
 
   const [overdueInspections, overdueDeposits, cpaMissed] = await Promise.all([
     service
@@ -375,8 +375,8 @@ export async function fetchOverdueAlerts(
 
   for (const lease of cpaMissed.data ?? []) {
     if (!lease.end_date) continue
-    const noticeDeadline = subtractBusinessDays(new Date(lease.end_date), 20)
-    if (noticeDeadline <= new Date()) {
+    const noticeDeadline = subtractBusinessDays(lease.end_date, 20)
+    if (noticeDeadline <= saTodayISO()) {
       const leaseData2 = await service
         .from("leases")
         .select("units(unit_number, properties(name))")
@@ -387,7 +387,7 @@ export async function fetchOverdueAlerts(
       alerts.push({
         id: `cpa-missed-${lease.id}`,
         title: unit ? `CPA notice MISSED — ${unitNum}` : "CPA notice MISSED",
-        date: noticeDeadline.toISOString().split("T")[0],
+        date: noticeDeadline,
         eventType: "cpa_deadline",
         colour: EVENT_COLOURS.cpa_deadline,
         propertyName: unit?.properties.name ?? "",

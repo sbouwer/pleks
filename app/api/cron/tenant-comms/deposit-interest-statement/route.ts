@@ -18,12 +18,12 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { DepositInterestStatementEmail } from "@/lib/comms/templates/tenant/deposits/deposit-interest-statement"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarMonths, fmtDateLongZA, saDateISO } from "@/lib/dates"
 
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
 interface DepositLease { id: string; org_id: string; tenant_id: string; start_date: string; deposit_amount_cents: number; deposit_interest_rate_percent: number | null }
 
 const fmtR = (cents: number) => "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
-const fmtDate = (d: Date) => d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
 
 async function resolvePropertyLabel(service: Svc, leaseId: string): Promise<string> {
   const { data: unitRow, error } = await service
@@ -61,13 +61,13 @@ async function sendDepositInterestStatement(service: Svc, lease: DepositLease, t
   logQueryError("deposit-interest-statement dedupe", dupError)
   if (alreadySent && alreadySent.length > 0) return false
 
-  const periodTo = new Date(today)
-  const periodFrom = new Date(today); periodFrom.setFullYear(periodFrom.getFullYear() - 1)
+  const periodTo = saDateISO(today)
+  const periodFrom = addCalendarMonths(periodTo, -12)
 
   const { data: interestTxns, error: interestTxnsError } = await service
     .from("deposit_transactions").select("amount_cents, effective_rate_percent")
     .eq("lease_id", lease.id).eq("transaction_type", "interest_accrued")
-    .gte("created_at", periodFrom.toISOString().split("T")[0]).lte("created_at", periodTo.toISOString().split("T")[0])
+    .gte("created_at", periodFrom).lte("created_at", periodTo)
   logQueryError("deposit-interest txns period", interestTxnsError)
   const interestThisPeriod = (interestTxns ?? []).reduce((s, t) => s + (t.amount_cents as number), 0)
 
@@ -87,9 +87,9 @@ async function sendDepositInterestStatement(service: Svc, lease: DepositLease, t
   const result = await routeAndSend({
     orgId: lease.org_id, tenantId: lease.tenant_id, templateKey: "deposit.interest_statement",
     to: { email: tenant.email, phone: (tenant.phone as string | null) ?? undefined, name: tenantName },
-    subject: `Deposit interest statement — ${fmtDate(periodFrom)} to ${fmtDate(periodTo)}`,
+    subject: `Deposit interest statement — ${fmtDateLongZA(periodFrom)} to ${fmtDateLongZA(periodTo)}`,
     emailElement: React.createElement(DepositInterestStatementEmail, {
-      branding, tenantName, propertyLabel, periodFrom: fmtDate(periodFrom), periodTo: fmtDate(periodTo),
+      branding, tenantName, propertyLabel, periodFrom: fmtDateLongZA(periodFrom), periodTo: fmtDateLongZA(periodTo),
       depositHeldDisplay: fmtR(lease.deposit_amount_cents), interestThisPeriodDisplay: fmtR(interestThisPeriod),
       cumulativeInterestDisplay: fmtR(cumulativeInterest), effectiveRateDisplay: `${effectiveRate.toFixed(2)}%`,
       senderName: orgSettings?.name ?? branding.orgName,

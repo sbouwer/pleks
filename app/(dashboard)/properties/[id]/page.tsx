@@ -31,6 +31,7 @@ import { MobilePropertyView } from "@/components/mobile/MobilePropertyView"
 import { formatZAR } from "@/lib/constants"
 import { subtractBusinessDays } from "@/lib/dates/saPublicHolidays"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { diffCalendarDays, saTodayISO } from "@/lib/dates"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -319,14 +320,14 @@ function docColour(days: number): "red" | "amber" | "green" {
 }
 
 function buildLeaseCompliance(leases: LeaseRow[]): ComplianceItem[] {
-  const now    = Date.now()
+  const todayIso = saTodayISO()
   const items: ComplianceItem[] = []
   for (const lease of leases) {
     if (!lease.end_date) continue
     const unit       = lease.units as { unit_number: string } | null
     const tenantRaw  = lease.tenants as { contacts: { first_name: string | null; last_name: string | null; company_name: string | null } | null } | null
     const tenantName = tenantRaw?.contacts ? displayName(tenantRaw.contacts) : null
-    const daysUntil  = Math.ceil((new Date(lease.end_date).getTime() - now) / (1000 * 60 * 60 * 24))
+    const daysUntil  = diffCalendarDays(todayIso, lease.end_date)
     items.push({
       id:     `exp-${lease.id}`,
       colour: leaseColour(daysUntil),
@@ -335,9 +336,8 @@ function buildLeaseCompliance(leases: LeaseRow[]): ComplianceItem[] {
       link:   `/leases/${lease.id}`,
     })
     if (lease.cpa_applies && !lease.auto_renewal_notice_sent_at) {
-      const noticeDate = subtractBusinessDays(new Date(lease.end_date), 20)
-      const noticeStr  = noticeDate.toISOString().split("T")[0]
-      const noticeDays = Math.ceil((noticeDate.getTime() - now) / (1000 * 60 * 60 * 24))
+      const noticeStr  = subtractBusinessDays(lease.end_date, 20)
+      const noticeDays = diffCalendarDays(todayIso, noticeStr)
       items.push({
         id:     `cpa-${lease.id}`,
         colour: cpaColour(noticeDays),
@@ -373,7 +373,7 @@ async function fetchOperationsData(
   propertyId: string,
   orgId: string,
 ): Promise<OperationsData> {
-  const today = new Date().toISOString().split("T")[0]
+  const today = saTodayISO()
 
   const [
     { data: inspections },

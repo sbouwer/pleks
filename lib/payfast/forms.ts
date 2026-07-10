@@ -11,6 +11,7 @@
 import { generatePayFastSignature } from "./signature"
 import { PAYFAST_CONFIG } from "./config"
 import { TIER_PRICING, type Tier } from "@/lib/constants"
+import { saTodayISO } from "@/lib/dates"
 
 interface SubscriptionFormData {
   orgId: string
@@ -39,7 +40,7 @@ export function buildSubscriptionForm({ orgId, tier }: SubscriptionFormData) {
     amount,
     item_name: `Pleks ${tierLabel} — ${cycleLabel}`,
     subscription_type: "1",
-    billing_date: new Date().toISOString().split("T")[0],
+    billing_date: saTodayISO(),
     recurring_amount: amount,
     frequency,
     cycles: "0",

@@ -20,6 +20,7 @@ import {
 } from "@/lib/comms/templates/tenant/inspections/inspection-reminder"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarDays, saTodayISO } from "@/lib/dates"
 
 const INSPECTION_TYPE_LABELS: Record<string, string> = {
   move_in:     "Move-in Inspection",
@@ -33,11 +34,7 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const service = await createServiceClient()
-  const today = new Date()
-
-  const targetDate = new Date(today)
-  targetDate.setDate(targetDate.getDate() + 1)
-  const targetDateStr = targetDate.toISOString().split("T")[0]
+  const targetDateStr = addCalendarDays(saTodayISO(), 1)
 
   const { data: inspections, error } = await service
     .from("inspections")

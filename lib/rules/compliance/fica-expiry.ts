@@ -20,6 +20,7 @@
  *           surfaced in a single payload.
  */
 import type { OrgRule, RuleActionResult } from "../types"
+import { addCalendarDays, saDateISO } from "@/lib/dates"
 
 const RULE_ID    = "fica-expiry"
 const ALERT_DAYS = 30
@@ -42,10 +43,8 @@ export const ficaExpiryRule: OrgRule = {
   tags:         ["fica", "compliance", "ppra", "documents"],
 
   async condition({ supabase, org, now }) {
-    const today      = now.toISOString().split("T")[0]
-    const cutoff     = new Date(now)
-    cutoff.setDate(cutoff.getDate() + ALERT_DAYS)
-    const cutoffDate = cutoff.toISOString().split("T")[0]
+    const today      = saDateISO(now)
+    const cutoffDate = addCalendarDays(today, ALERT_DAYS)
 
     const { count, error } = await supabase
       .from("tenant_documents")
@@ -63,10 +62,8 @@ export const ficaExpiryRule: OrgRule = {
   },
 
   async action({ supabase, org, now }): Promise<RuleActionResult> {
-    const today      = now.toISOString().split("T")[0]
-    const cutoff     = new Date(now)
-    cutoff.setDate(cutoff.getDate() + ALERT_DAYS)
-    const cutoffDate = cutoff.toISOString().split("T")[0]
+    const today      = saDateISO(now)
+    const cutoffDate = addCalendarDays(today, ALERT_DAYS)
 
     const { data: docs, error } = await supabase
       .from("tenant_documents")

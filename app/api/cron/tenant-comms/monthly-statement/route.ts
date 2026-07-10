@@ -15,10 +15,9 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding, type OrgBranding } from "@/lib/comms/send-email"
 import { MonthlyStatementEmail, type StatementInvoiceRow, type StatementPaymentRow } from "@/lib/comms/templates/tenant/rent/monthly-statement"
-import { startOfMonth, endOfMonth, subMonths } from "date-fns"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { addCalendarDays } from "@/lib/dates"
+import { addCalendarDays, addCalendarMonths, fmtZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -175,13 +174,13 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const service = await createServiceClient()
-  const today = new Date()
-  const dayOfMonth = today.getUTCDate()
+  const today = saTodayISO()
+  const dayOfMonth = Number(today.slice(8, 10))
 
-  const prevMonth = subMonths(today, 1)
-  const periodFrom = startOfMonth(prevMonth).toISOString().split("T")[0]
-  const periodTo   = endOfMonth(prevMonth).toISOString().split("T")[0]
-  const statementMonthLabel = prevMonth.toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+  const prevMonth = addCalendarMonths(monthStart(today), -1)
+  const periodFrom = prevMonth
+  const periodTo   = monthEnd(prevMonth)
+  const statementMonthLabel = fmtZA(prevMonth, { month: "long", year: "numeric" })
 
   // The Pleks system org is not a customer (010 §50; lib/comms/platform-org.ts) — exclude it so this
   // loop never treats it as an agency.

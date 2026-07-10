@@ -21,6 +21,7 @@ import {
 } from "@/lib/comms/templates/tenant/deposits/deposit-pre-moveout"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarDays, saTodayISO } from "@/lib/dates"
 
 const DAYS_BEFORE = 15
 
@@ -29,12 +30,8 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const service = await createServiceClient()
-  const today = new Date()
-
   // Target: leases whose end_date is exactly DAYS_BEFORE days from today
-  const targetDate = new Date(today)
-  targetDate.setDate(targetDate.getDate() + DAYS_BEFORE)
-  const targetDateStr = targetDate.toISOString().split("T")[0]
+  const targetDateStr = addCalendarDays(saTodayISO(), DAYS_BEFORE)
 
   const { data: leases, error } = await service
     .from("leases")

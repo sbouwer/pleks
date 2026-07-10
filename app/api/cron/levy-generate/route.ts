@@ -9,6 +9,7 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { addCalendarDays, calendarDate, monthStart, saTodayISO } from "@/lib/dates"
 
 function logErr(label: string, error: { message: string } | null) {
   if (error) console.error(`${label}:`, error.message)
@@ -19,8 +20,11 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const supabase = await createServiceClient()
-  const today = new Date()
-  const periodMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+  const today = saTodayISO()
+  // `period_month` is persisted as a full timestamp and matched by a unique index, so it must be the SAME
+  // instant every run. `new Date(y, m, 1)` is LOCAL midnight — identical to this on Vercel (UTC), but two
+  // hours earlier on a SAST box, which would store the 1st as the previous month's 30th at 22:00Z.
+  const periodMonth = calendarDate(monthStart(today))
 
   // Get all active HOA entities
   const { data: hoaEntities, error: hoaEntitiesError } = await supabase
@@ -99,8 +103,7 @@ export async function GET(req: NextRequest) {
       // Generate invoice number
       const seq = `${hoa.id.slice(0, 4)}-${periodMonth.getFullYear()}${String(periodMonth.getMonth() + 1).padStart(2, "0")}-${owner.id.slice(0, 4)}`
 
-      const dueDate = new Date(today)
-      dueDate.setDate(dueDate.getDate() + 7)
+      const dueDate = addCalendarDays(today, 7)
 
       // Upsert with ON CONFLICT DO NOTHING on the unique (owner_id, period_month) index — a concurrent run that
       // already created this owner's levy for the period is a no-op (no double-levy), and the race loser gets no
@@ -114,8 +117,8 @@ export async function GET(req: NextRequest) {
           owner_id: owner.id,
           schedule_id: schedule.id,
           invoice_number: `LEV-${seq}`,
-          invoice_date: today.toISOString().split("T")[0],
-          due_date: dueDate.toISOString().split("T")[0],
+          invoice_date: today,
+          due_date: dueDate,
           period_month: periodMonth.toISOString(),
           admin_levy_cents: adminLevy,
           reserve_levy_cents: reserveLevy,

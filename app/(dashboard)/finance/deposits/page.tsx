@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { saTodayISO } from "@/lib/dates"
 
 export default async function DepositsPage() {
   const gw = await gatewaySSR()
@@ -41,7 +42,7 @@ export default async function DepositsPage() {
       .select("lease_id, deadline")
       .eq("org_id", orgId)
       .eq("status", "running")
-      .lt("deadline", new Date().toISOString().split("T")[0]),
+      .lt("deadline", saTodayISO()),
     db
       .from("deposit_reconciliations")
       .select(`id, lease_id, refund_to_tenant_cents, total_deductions_cents, status, leases(units(unit_number, properties(name)), tenant_view(first_name, last_name))`)

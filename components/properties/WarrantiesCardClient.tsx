@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Plus, Archive, ChevronDown, ChevronUp } from "lucide-react"
+import { saTodayISO } from "@/lib/dates"
 
 export interface WarrantyRow {
   id: string
@@ -54,7 +55,7 @@ const WARRANTY_TYPES = [
 const TYPE_LABEL: Record<string, string> = Object.fromEntries(WARRANTY_TYPES.map((t) => [t.value, t.label]))
 
 function today(): string {
-  return new Date().toISOString().split("T")[0]
+  return saTodayISO()
 }
 
 function formatExpiry(expiresOn: string | null): string {

@@ -9,13 +9,12 @@
 import * as React from "react"
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
-import { startOfMonth, endOfMonth, setDate } from "date-fns"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { InvoiceIssuedEmail } from "@/lib/comms/templates/tenant/rent/invoice-issued"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { fmtDateLongZA } from "@/lib/dates"
+import { fmtDateLongZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
 
 function buildPaymentReference(lastName: string | null, unitNumber: string | null): string {
   const surname = (lastName ?? "TENANT")
@@ -164,9 +163,12 @@ export async function GET(req: Request) {
   if (denied) return denied
 
   const supabase = await createServiceClient()
-  const today = new Date()
-  const periodFrom = startOfMonth(today).toISOString().split("T")[0]
-  const periodTo = endOfMonth(today).toISOString().split("T")[0]
+  // date-fns startOfMonth/endOfMonth are LOCAL-time and were sliced in UTC: east of Greenwich `periodFrom`
+  // resolved to the last day of the PREVIOUS month, so the duplicate check below matched nothing and the
+  // run could double-invoice. Calendar dates throughout now.
+  const today = saTodayISO()
+  const periodFrom = monthStart(today)
+  const periodTo = monthEnd(today)
   let generated = 0
 
   // Get all active leases with tenant + unit for payment reference
@@ -198,10 +200,10 @@ export async function GET(req: Request) {
       .eq("org_id", lease.org_id)
 
     const seq = ((count || 0) + 1).toString().padStart(5, "0")
-    const invoiceNumber = `PLEKS-${today.getFullYear()}-${seq}`
+    const invoiceNumber = `PLEKS-${today.slice(0, 4)}-${seq}`
 
     const dueDay = Math.min(lease.payment_due_day || 1, 28)
-    const dueDate = setDate(today, dueDay).toISOString().split("T")[0]
+    const dueDate = `${today.slice(0, 7)}-${String(dueDay).padStart(2, "0")}`   // dueDay is capped at 28
 
     const tenantView = lease.tenant_view as unknown as TenantViewRow | null
     const unit = lease.units as unknown as UnitRow | null
@@ -224,7 +226,7 @@ export async function GET(req: Request) {
       unit_id: lease.unit_id,
       tenant_id: lease.tenant_id,
       invoice_number: invoiceNumber,
-      invoice_date: today.toISOString().split("T")[0],
+      invoice_date: today,
       due_date: dueDate,
       period_from: periodFrom,
       period_to: periodTo,
@@ -254,7 +256,7 @@ export async function GET(req: Request) {
       tenantView, prop, unit,
       orgId: lease.org_id as string, tenantId: lease.tenant_id as string, leaseId: lease.id as string,
       rentAmountCents: lease.rent_amount_cents,
-      invoiceId: inserted.id, invoiceNumber, invoiceDate: today.toISOString().split("T")[0], dueDate,
+      invoiceId: inserted.id, invoiceNumber, invoiceDate: today, dueDate,
       periodFrom, periodTo, otherChargesCents, totalAmountCents, paymentReference,
       chargesBreakdown,
     })

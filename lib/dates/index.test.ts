@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest"
 import {
   SA_TIMEZONE, saDateISO, saTodayISO, isSameSaDay, isSaDateISO,
   calendarDate, addCalendarDays, addCalendarMonths, diffCalendarDays, saDayStartUtc,
-  fmtDateZA, fmtDateLongZA, fmtDateTimeZA,
+  monthStart, monthEnd, fmtDateZA, fmtDateLongZA, fmtDateTimeZA,
 } from "./index"
 
 // ── The 22:00 UTC day-flip: the SA day turns over two hours before the UTC day ────────────────────────
@@ -132,6 +132,37 @@ describe("addCalendarDays / diffCalendarDays", () => {
     expect(addCalendarMonths("2026-01-31", 1)).toBe("2026-03-03")    // NOT clamped to Feb 28 — see the doc
     expect(addCalendarMonths("2026-12-01", 1)).toBe("2027-01-01")
     expect(() => addCalendarMonths("2026-01-31", 1.5)).toThrow(/whole number/)
+  })
+
+  it("monthStart / monthEnd bound the month the date belongs to", () => {
+    expect(monthStart("2026-07-08")).toBe("2026-07-01")
+    expect(monthStart("2026-07-01")).toBe("2026-07-01")
+    expect(monthEnd("2026-07-08")).toBe("2026-07-31")
+    expect(monthEnd("2026-02-15")).toBe("2026-02-28")   // non-leap
+    expect(monthEnd("2024-02-15")).toBe("2024-02-29")   // leap
+    expect(monthEnd("2026-04-30")).toBe("2026-04-30")   // 30-day month, already the last day
+    expect(monthEnd("2026-12-25")).toBe("2026-12-31")   // year boundary
+    expect(() => monthStart("2026-02-30")).toThrow(/not a real date/)
+  })
+
+  it("monthEnd cannot hit the addCalendarMonths rollover — its anchor is day 01", () => {
+    // A naive `addCalendarMonths(iso, 1)` on the 31st rolls into the month after next.
+    expect(addCalendarMonths("2026-01-31", 1)).toBe("2026-03-03")
+    // monthEnd anchors on the 1st first, so January's last day is the 31st, not "March 2 minus a day".
+    expect(monthEnd("2026-01-31")).toBe("2026-01-31")
+    for (let m = 1; m <= 12; m++) {
+      const any = `2026-${String(m).padStart(2, "0")}-15`
+      expect(addCalendarDays(monthEnd(any), 1)).toBe(addCalendarMonths(monthStart(any), 1))
+    }
+  })
+
+  it("this is the local-vs-UTC bug monthStart replaced", () => {
+    // date-fns startOfMonth returns LOCAL midnight of the 1st. Sliced in UTC on a UTC+2 machine that is the
+    // last day of the PREVIOUS month. Simulated here with the equivalent Date construction.
+    const localFirst = new Date(2026, 6, 1)                       // 1 July, local midnight
+    const viaSlice = new Date(localFirst.getTime() - 2 * 3_600_000).toISOString().slice(0, 10)
+    expect(viaSlice).toBe("2026-06-30")                           // ← what shipped
+    expect(monthStart("2026-07-08")).toBe("2026-07-01")           // ← what it means
   })
 
   it("diffCalendarDays counts CALENDAR days, not 24-hour spans", () => {

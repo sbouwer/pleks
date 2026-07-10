@@ -12,6 +12,7 @@ import { CalendarDays } from "lucide-react"
 import { fetchCalendarEvents, fetchOverdueAlerts, fetchCalendarSearchEntities } from "@/lib/calendar/events"
 import { CalendarClientLoader } from "./CalendarClientLoader"
 import { InlineLink } from "@/components/ui/actions"
+import { addCalendarDays, saTodayISO } from "@/lib/dates"
 
 function getTier(membership: { tier?: string | null } | null): string {
   return membership?.tier ?? "owner"
@@ -47,10 +48,9 @@ export default async function CalendarPage() {
   const service = await createServiceClient()
 
   // Date range: 2 months back, 4 months forward (generous buffer for the client view)
-  // eslint-disable-next-line react-hooks/purity
-  const rangeStart = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-  // eslint-disable-next-line react-hooks/purity
-  const rangeEnd = new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+  const today = saTodayISO()
+  const rangeStart = addCalendarDays(today, -60)
+  const rangeEnd = addCalendarDays(today, 120)
 
   const [events, alerts, searchEntities] = await Promise.all([
     fetchCalendarEvents(service, orgId, rangeStart, rangeEnd),
