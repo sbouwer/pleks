@@ -25,7 +25,7 @@ import { updateUnit } from "@/lib/actions/units"
 import type { FurnishingItem } from "@/lib/units/furnishingTemplates"
 import { getUnitDescription } from "@/lib/units/typeAwareFields"
 import { WarrantiesCard } from "@/components/properties/WarrantiesCard"
-import { fmtZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
 
 export default async function UnitDetailPage({
   params,
@@ -330,7 +330,7 @@ export default async function UnitDetailPage({
                     {entry.reason && <span className="text-muted-foreground"> — {entry.reason}</span>}
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(entry.created_at).toLocaleDateString("en-ZA")}
+                    {new Date(entry.created_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
                   </span>
                 </div>
               ))}

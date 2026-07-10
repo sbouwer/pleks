@@ -13,6 +13,7 @@ import { DetailCard } from "@/components/detail/DetailCard"
 import { formatZAR } from "@/lib/constants"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 function invTone(s: string): string {
   if (s === "paid") return "border-success/30 bg-success/10 text-success"
@@ -91,7 +92,7 @@ export default async function ContractorInvoicesPage() {
                           {inv.status}
                         </span>
                       </td>
-                      <td className="py-2 text-xs text-muted-foreground">{new Date(inv.invoice_date).toLocaleDateString("en-ZA")}</td>
+                      <td className="py-2 text-xs text-muted-foreground">{new Date(inv.invoice_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}</td>
                     </tr>
                   )
                 })}

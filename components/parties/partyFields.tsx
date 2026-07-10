@@ -14,6 +14,7 @@ import { SA_PROVINCES, COUNTRIES, DEFAULT_COUNTRY } from "@/lib/constants"
 import { PARTY_ID_TYPES, COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
 import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson, type PartyAddressInput, type PartyBankAccountInput } from "@/lib/parties/partyValidation"
 import { formatPhone } from "@/lib/validation/contact"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean) => void
 
@@ -132,7 +133,7 @@ export function IdField({
   const idType = (f[typeKey] as string) || "sa_id"
   const isSaId = idType === "sa_id"
   const v = isSaId ? validateSAId(f[numKey] as string) : null
-  const dobStr = v?.dob ? v.dob.toLocaleDateString("en-ZA") : ""
+  const dobStr = v?.dob ? v.dob.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }) : ""
   // The number field's label + placeholder follow the chosen ID type (passport → "Passport number", etc.).
   const NUM_LABEL: Record<string, string> = { passport: "Passport number", asylum_permit: "Permit number" }
   const numLabel = NUM_LABEL[idType] ?? `${label} number`
@@ -287,7 +288,7 @@ const ID_TYPE_OPTIONS = PARTY_ID_TYPES.map((t) => ({ value: t.value, label: t.la
 function PersonIdFields({ person, onUpdate }: Readonly<{ person: PartyPerson; onUpdate: (patch: Partial<PartyPerson>) => void }>) {
   const isSaId = (person.idType || "sa_id") === "sa_id"
   const v = isSaId ? validateSAId(person.idNumber) : null
-  const dobStr = v?.dob ? v.dob.toLocaleDateString("en-ZA") : ""
+  const dobStr = v?.dob ? v.dob.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }) : ""
   return (
     <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
       <BareSelect label="ID type" value={person.idType ?? "sa_id"} onChange={(val) => onUpdate({ idType: val })} options={ID_TYPE_OPTIONS} />

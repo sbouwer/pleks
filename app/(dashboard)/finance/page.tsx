@@ -16,6 +16,7 @@ import { getFinanceHubData } from "@/lib/finance/financeHub"
 import { getCollectionRate } from "@/lib/dashboard/collectionRate"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { FinanceOverview } from "./FinanceOverview"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export default async function FinancePage() {
   const gw = await gatewaySSR()
@@ -30,7 +31,7 @@ export default async function FinancePage() {
     gw.db.from("organisations").select("name").eq("id", orgId).single(),
   ])
   const orgName = (orgRes.data?.name as string | undefined) ?? "Your agency"
-  const month = new Date().toLocaleDateString("en-ZA", { month: "long", year: "numeric" })
+  const month = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, month: "long", year: "numeric" })
 
   return (
     <div>

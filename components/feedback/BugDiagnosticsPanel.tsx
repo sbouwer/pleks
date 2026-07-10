@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { Copy, ExternalLink } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import type { BugContext } from "@/lib/feedback/bug-context"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 const VERCEL_LOGS_URL = "https://vercel.com/stean-bouwers-projects/pleks/logs"
 
@@ -52,7 +53,7 @@ export function BugDiagnosticsPanel({ ctx, submitterId }: Readonly<{ ctx: BugCon
         <dt className="text-muted-foreground">Vercel</dt>
         <dd className="font-mono break-all">{ctx.x_vercel_id ?? "—"}</dd>
         <dt className="text-muted-foreground">When</dt>
-        <dd>{ctx.client_timestamp ? new Date(ctx.client_timestamp).toLocaleString("en-ZA") : "—"}</dd>
+        <dd>{ctx.client_timestamp ? new Date(ctx.client_timestamp).toLocaleString("en-ZA", { timeZone: SA_TIMEZONE }) : "—"}</dd>
       </dl>
 
       {ctx.console_errors.length > 0 && (

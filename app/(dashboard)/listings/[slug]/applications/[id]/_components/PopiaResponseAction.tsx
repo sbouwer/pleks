@@ -11,6 +11,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { generatePopiaS23Response } from "../_actions"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface Props {
   applicationId: string
@@ -37,7 +38,7 @@ export function PopiaResponseAction({ applicationId, hasCapability }: Readonly<P
       if (result.signedUrl) {
         window.open(result.signedUrl, '_blank', 'noopener,noreferrer')
         const expiry = result.expiresAt
-          ? new Date(result.expiresAt).toLocaleString('en-ZA')
+          ? new Date(result.expiresAt).toLocaleString('en-ZA', { timeZone: SA_TIMEZONE })
           : 'unknown'
         toast.success(`POPIA s23 response generated. Link expires ${expiry}.`)
       }

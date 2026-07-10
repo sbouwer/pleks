@@ -20,6 +20,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { trackSend, settleSends } from "@/lib/cron/settleSends"
 import { withCronRun } from "@/lib/cron/withCronRun"
 import { SUPABASE_URL, requireEnv } from "@/lib/env"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 function getServiceClient() {
   return createClient(
@@ -85,7 +86,7 @@ async function handler(_req: NextRequest): Promise<Response> {
         name: `${a.first_name} ${a.last_name}`,
         listing: unit ? `${unit.unit_number}, ${unit.properties.name}` : "—",
         score: (a.prescreen_score as number) ?? 0,
-        appliedAt: new Date(a.created_at as string).toLocaleDateString("en-ZA"),
+        appliedAt: new Date(a.created_at as string).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }),
       }
     })
 

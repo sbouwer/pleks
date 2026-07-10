@@ -6,6 +6,7 @@
  */
 import { formatZAR } from "@/lib/constants"
 import { FONT_STACKS, getFontLink } from "@/lib/reports/reportBranding"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface StatementEntry {
   date: string
@@ -94,7 +95,7 @@ export function buildTenantStatementHTML(data: StatementData): string {
   const finalBalStr = `${data.current_balance_cents < 0 ? "CR " : ""}${formatZAR(Math.abs(data.current_balance_cents))}`
   const logoHtml = data.org_logo_url ? `<img src="${data.org_logo_url}" alt="${data.org_name}">` : ""
   const addressHtml = data.org_address ? `<p>${data.org_address}</p>` : ""
-  const generatedDate = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  const generatedDate = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, day: "numeric", month: "long", year: "numeric" })
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${fontLink}<style>${css}</style></head><body>
     <header>

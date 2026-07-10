@@ -12,6 +12,7 @@ import { gateway } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { sendEmail } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export async function uploadPropertyDocument(formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
@@ -174,7 +175,7 @@ export async function sendDocument(
   // 2. Resolve merge field values from lease context
   const mergeValues: Record<string, string> = {
     "today": new Date().toLocaleDateString("en-ZA", {
-      day: "numeric",
+      timeZone: SA_TIMEZONE, day: "numeric",
       month: "long",
       year: "numeric",
     }),

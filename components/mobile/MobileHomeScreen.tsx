@@ -37,6 +37,7 @@ import { useNavGate } from "@/hooks/useNavGate"
 import { useTodaySchedule, type ScheduleStop } from "@/hooks/useTodaySchedule"
 import { formatZARAbbrev } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ function getGreeting(): string {
 }
 
 function todayLabel(): string {
-  return new Date().toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" })
+  return new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, weekday: "short", day: "numeric", month: "short" })
 }
 
 // ── Greeting header ─────────────────────────────────────────────────────────────

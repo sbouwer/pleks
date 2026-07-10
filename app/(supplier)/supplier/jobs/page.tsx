@@ -16,6 +16,7 @@ import { ListCard } from "@/components/ui/resource-list"
 import { ActionButton } from "@/components/ui/actions"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 const STATUS_LABELS: Record<string, string> = {
   pending_quote: "Quote requested",
@@ -98,7 +99,7 @@ export default async function ContractorJobsPage() {
                   </p>
                   {job.scheduled_date && (
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Scheduled: {new Date(job.scheduled_date).toLocaleDateString("en-ZA")}
+                      Scheduled: {new Date(job.scheduled_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
                     </p>
                   )}
                 </div>

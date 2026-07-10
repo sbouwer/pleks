@@ -15,6 +15,7 @@ import { getRequestStats, getOverdueRequests } from "@/lib/popia/requests"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { CheckCircle2, AlertTriangle, Clock, ShieldCheck } from "lucide-react"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export const metadata = { title: "Compliance dashboard" }
 
@@ -39,7 +40,7 @@ export default async function ComplianceDashboardPage() {
 
   const lastPurge = lastPurgeResult.data
   const lastPurgeDate = lastPurge?.run_completed_at
-    ? new Date(lastPurge.run_completed_at).toLocaleDateString("en-ZA")
+    ? new Date(lastPurge.run_completed_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })
     : "Never"
 
   let complianceHealth: "healthy" | "warning" | "at-risk" = "healthy"

@@ -16,6 +16,7 @@ import { ActionButton } from "@/components/ui/actions"
 import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { ExternalLink } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Received",
@@ -64,8 +65,8 @@ export default async function RequestDetailPage({ params }: Readonly<{ params: P
   const isOverdue = sla < new Date() && !["completed", "rejected", "cancelled"].includes(request.status)
 
   const facts: DetailFact[] = [
-    { k: "Submitted", v: new Date(request.submitted_at).toLocaleDateString("en-ZA") },
-    { k: "SLA deadline", v: sla.toLocaleDateString("en-ZA") },
+    { k: "Submitted", v: new Date(request.submitted_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }) },
+    { k: "SLA deadline", v: sla.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }) },
   ]
 
   return (
@@ -93,7 +94,7 @@ export default async function RequestDetailPage({ params }: Readonly<{ params: P
           <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">SLA deadline</span>
             <span className={isOverdue ? "text-right font-medium text-destructive" : "text-right font-medium text-foreground"}>
-              {sla.toLocaleDateString("en-ZA")}{isOverdue && " — overdue"}
+              {sla.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}{isOverdue && " — overdue"}
             </span>
           </div>
           {request.resolution_notes && (

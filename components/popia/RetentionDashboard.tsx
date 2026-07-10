@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import type { DataCategory, RetentionDecision } from "@/lib/popia/retention"
 import { cn } from "@/lib/utils"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface RetentionRow {
   category: DataCategory
@@ -110,7 +111,7 @@ function RetentionRow({ category, decision }: Readonly<RetentionRow>) {
         ) : (
           <>
             <Badge variant="outline" className="text-muted-foreground">
-              Until {retained.retained_until.toLocaleDateString("en-ZA")}
+              Until {retained.retained_until.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
             </Badge>
             <p className="text-xs text-muted-foreground mt-1 max-w-[180px]">{retained.reason}</p>
           </>

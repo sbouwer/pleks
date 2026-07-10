@@ -28,6 +28,7 @@ import { ClipboardCheck, User, Users, Globe } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchInspectionsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed" | "arrears"> = {
   scheduled: "scheduled",
@@ -65,8 +66,8 @@ type Inspection = {
 }
 
 function inspectionDateLabel(insp: Inspection): string {
-  if (insp.scheduled_date) return `Scheduled: ${new Date(insp.scheduled_date).toLocaleDateString("en-ZA")}`
-  if (insp.conducted_date) return `Conducted: ${new Date(insp.conducted_date).toLocaleDateString("en-ZA")}`
+  if (insp.scheduled_date) return `Scheduled: ${new Date(insp.scheduled_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}`
+  if (insp.conducted_date) return `Conducted: ${new Date(insp.conducted_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}`
   return ""
 }
 
@@ -154,7 +155,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
       return {
         id: insp.id,
         title: insp.inspection_type?.replaceAll("_", " ") ?? "Inspection",
-        sub: [unit ? `${unit.unit_number}, ${unit.properties.name}` : null, sd ? `due ${new Date(sd).toLocaleDateString("en-ZA")}` : null].filter(Boolean).join(" · "),
+        sub: [unit ? `${unit.unit_number}, ${unit.properties.name}` : null, sd ? `due ${new Date(sd).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` : null].filter(Boolean).join(" · "),
         href: `/inspections/${insp.id}`,
       }
     })

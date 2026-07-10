@@ -16,7 +16,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { getTemplate } from "@/lib/comms/template-registry"
 import { ChevronLeft } from "lucide-react"
 import { PrintButton } from "./PrintButton"
-import { fmtDateLongZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtDateLongZA } from "@/lib/dates"
 
 function templateLabel(key: string | null): string {
   if (!key) return "Communication"
@@ -46,7 +46,7 @@ export default async function DataExportPage() {
   }
 
   const rows = comms ?? []
-  const exportDate = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  const exportDate = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, day: "numeric", month: "long", year: "numeric" })
 
   return (
     <div className="max-w-3xl">

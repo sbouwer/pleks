@@ -13,6 +13,7 @@ import { getTodayFeedbackDigest } from "@/lib/feedback/queries"
 import { FeedbackDailyDigestEmail } from "@/lib/comms/templates/feedback/feedback-daily-digest"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { APP_URL, optionalEnv } from "@/lib/env"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     return Response.json({ ok: false, error: "ADMIN_EMAIL not configured" }, { status: 500 })
   }
 
-  const date = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })
+  const date = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, weekday: "long", day: "numeric", month: "long" })
   const inboxUrl = `${APP_URL}/admin/feedback`
 
   const branding = {

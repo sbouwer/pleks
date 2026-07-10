@@ -18,6 +18,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { ChevronLeft, AlertTriangle, Clock, CheckCircle2, XCircle } from "lucide-react"
 import type { DataSubjectRequest } from "@/lib/popia/requests"
 import { resolveSubject, previewIdentityAnonymise, subjectTypeFromRole } from "@/lib/popia/anonymiseIdentity"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 const STATUS_LABELS: Record<string, string> = {
   new: "New — awaiting review",
@@ -106,7 +107,7 @@ export default async function DataSubjectRequestDetailPage({
             {r.request_type.replaceAll("_", " ")} request
           </h1>
           <p className="text-xs text-muted-foreground">
-            Submitted {new Date(r.submitted_at).toLocaleDateString("en-ZA")}
+            Submitted {new Date(r.submitted_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
           </p>
         </div>
       </div>
@@ -140,7 +141,7 @@ export default async function DataSubjectRequestDetailPage({
             <span className="text-muted-foreground">SLA deadline</span>
             <span className={isOverdue ? "text-destructive font-medium flex items-center gap-1" : ""}>
               {isOverdue && <AlertTriangle className="size-3" />}
-              {sla.toLocaleDateString("en-ZA")}
+              {sla.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
               {isOverdue && " — overdue"}
               {!isOverdue && isOpen && ` (${daysLeft}d remaining)`}
             </span>
@@ -202,7 +203,7 @@ export default async function DataSubjectRequestDetailPage({
             )}
             {r.resolved_at && (
               <p className="text-xs text-muted-foreground">
-                Resolved {new Date(r.resolved_at).toLocaleDateString("en-ZA")}
+                Resolved {new Date(r.resolved_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
               </p>
             )}
           </CardContent>

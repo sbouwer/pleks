@@ -9,6 +9,7 @@
  *  - markAsSigned() (final — result is written to the lease row)
  */
 
+import { SA_TIMEZONE } from "@/lib/dates"
 export type CpaCategory =
   | "natural_person"
   | "franchise_agreement"
@@ -82,7 +83,7 @@ export function determineCpaApplicability(
   // Rule 4: both bands under threshold → CPA applies
   if (tenant.turnoverUnder2m && tenant.assetValueUnder2m) {
     const captured = tenant.sizeBandsCapturedAt
-      ? new Date(tenant.sizeBandsCapturedAt).toLocaleDateString("en-ZA")
+      ? new Date(tenant.sizeBandsCapturedAt).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })
       : "date unknown"
     return {
       applies: "yes",
@@ -94,7 +95,7 @@ export function determineCpaApplicability(
 
   // Rule 5: at least one band at or above threshold → CPA does not apply
   const captured = tenant.sizeBandsCapturedAt
-    ? new Date(tenant.sizeBandsCapturedAt).toLocaleDateString("en-ZA")
+    ? new Date(tenant.sizeBandsCapturedAt).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })
     : "date unknown"
   return {
     applies: "no",

@@ -24,6 +24,7 @@ import { SupplierPeople } from "@/components/suppliers/SupplierPeople"
 import { fetchCompanyPeople } from "@/lib/contacts/companyPeople"
 import { ContractorPortalSection } from "@/components/contractors/ContractorPortalSection"
 import { formatZAR } from "@/lib/constants"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -457,7 +458,7 @@ export default async function ContractorDetailPage({ params }: Props) {
                   <span className="truncate">{inv.invoice_number ?? "Invoice"} — {formatZAR(inv.amount_incl_vat_cents)}</span>
                   <span className="shrink-0 text-xs capitalize text-muted-foreground">· {inv.status.replaceAll("_", " ")}</span>
                 </span>
-                <span className="shrink-0 text-xs text-muted-foreground">{new Date(inv.invoice_date).toLocaleDateString("en-ZA")}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{new Date(inv.invoice_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}</span>
               </Link>
             ))}
           </div>

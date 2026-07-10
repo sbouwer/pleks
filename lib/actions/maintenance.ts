@@ -31,6 +31,7 @@ import { ContractorChangedEmail } from "@/lib/comms/templates/maintenance/contra
 import { MemoLandlordNotifiedEmail } from "@/lib/comms/templates/maintenance/memo-landlord-notified"
 import * as React from "react"
 import { APP_URL } from "@/lib/env"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 async function fireTenantCommsOnCreate(
   orgId: string,
@@ -337,7 +338,7 @@ async function sendWorkOrderEmail({ db, userId, requestId, req, recipientEmail, 
         .createSignedUrl(ph.storage_path as string, 60 * 60 * 24 * 7)
       if (signedError) console.error("work-order photo signed-url failed:", signedError.message)
       if (signed?.signedUrl) {
-        woPhotos.push({ url: signed.signedUrl, caption: `Before · ${new Date(ph.created_at as string).toLocaleDateString("en-ZA")}` })
+        woPhotos.push({ url: signed.signedUrl, caption: `Before · ${new Date(ph.created_at as string).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` })
       }
     } catch { /* skip invalid photos */ }
   }

@@ -6,6 +6,7 @@
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InlineLink } from "@/components/ui/actions"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface LeaseConfigSectionProps {
   orgId: string
@@ -32,7 +33,7 @@ export function LeaseConfigSection({
             <div>
               <p className="text-xs font-medium text-amber-200">Clause editing enabled</p>
               <p className="text-xs text-muted-foreground">
-                Confirmed on {new Date(clauseEditConfirmedAt).toLocaleDateString("en-ZA")}
+                Confirmed on {new Date(clauseEditConfirmedAt).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
                 {clauseEditConfirmedIp && ` from ${clauseEditConfirmedIp}`}
               </p>
               <InlineLink href={`/admin/orgs/${orgId}/lease-clauses`} className="mt-1">View edited clauses</InlineLink>

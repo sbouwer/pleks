@@ -44,7 +44,7 @@ import {
 } from "./actions"
 import type { SubscriptionStatus } from "@/lib/subscriptions/state"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { addCalendarMonths, fmtDateLongZA, saDateISO } from "@/lib/dates"
+import { SA_TIMEZONE, addCalendarMonths, fmtDateLongZA, saDateISO } from "@/lib/dates"
 
 // ── AI usage section ──────────────────────────────────────────────────────────
 
@@ -623,7 +623,7 @@ function BillingPageInner() {
             <div className="text-sm text-muted-foreground space-y-1">
               <p>Active leases: {limits.leases ?? "Custom"}</p>
               {periodEnd && (
-                <p>Next billing: {new Date(periodEnd).toLocaleDateString("en-ZA")}</p>
+                <p>Next billing: {new Date(periodEnd).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}</p>
               )}
             </div>
 

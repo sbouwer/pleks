@@ -8,10 +8,11 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { buildDocx } from "@/lib/leases/generateDocument"
 import type { LeaseVariables, ResolvedClause } from "@/lib/leases/generateDocument"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 // Placeholder values used in every sample document
 function sampleVariables(leaseType: string): LeaseVariables {
-  const today = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  const today = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, day: "numeric", month: "long", year: "numeric" })
   return {
     lessor_name: "[Lessor / Agency Name]",
     lessor_reg_number: "XXXXXXXX",

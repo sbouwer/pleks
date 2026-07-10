@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { ActionButton } from "@/components/ui/actions"
 import { ChevronRight, Clock, AlertTriangle } from "lucide-react"
 import type { DataSubjectRequest } from "@/lib/popia/requests"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 const STATUS_LABELS: Record<string, string> = {
   new: "New",
@@ -166,7 +167,7 @@ export default async function DataSubjectRequestsPage({
                     </div>
                     <p className="text-xs text-muted-foreground capitalize mt-0.5">
                       {r.request_type.replaceAll("_", " ")} ·{" "}
-                      {new Date(r.submitted_at).toLocaleDateString("en-ZA")}
+                      {new Date(r.submitted_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 ml-3 shrink-0">

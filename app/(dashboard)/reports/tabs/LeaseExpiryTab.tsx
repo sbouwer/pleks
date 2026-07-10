@@ -10,6 +10,7 @@ import { ReportShell, MetricCard } from "./ReportShell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import type { LeaseExpiryData, LeaseExpiryRow, ReportPeriodType } from "@/lib/reports/types"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface Props {
   orgId: string
@@ -40,7 +41,7 @@ function LeaseTable({ rows, label }: { rows: LeaseExpiryRow[]; label: string }) 
                 <td className="py-2 pr-2 text-xs">{r.unit_number}, {r.property_name}</td>
                 <td className="py-2 pr-2">{r.tenant_name}</td>
                 <td className="py-2 pr-2 text-xs">
-                  {r.lease_end ? new Date(r.lease_end).toLocaleDateString("en-ZA") : "M2M"}
+                  {r.lease_end ? new Date(r.lease_end).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }) : "M2M"}
                   {r.days_to_expiry != null && <span className="text-muted-foreground ml-1">({r.days_to_expiry}d)</span>}
                 </td>
                 <td className="text-right py-2 px-2">{formatZAR(r.rent_amount_cents)}</td>

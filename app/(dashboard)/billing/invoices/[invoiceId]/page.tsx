@@ -13,6 +13,7 @@ import { formatZAR } from "@/lib/constants"
 import { InvoiceActions } from "./InvoiceActions"
 import { BackLink } from "@/components/ui/BackLink"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 const STATUS_MAP: Record<string, "pending" | "completed" | "arrears" | "scheduled"> = {
   submitted: "pending",
@@ -88,7 +89,7 @@ export default async function InvoiceDetailPage({
               <div className="flex justify-between"><span className="text-muted-foreground">EFT Ref</span><span>{invoice.payment_reference}</span></div>
             )}
             {invoice.paid_at && (
-              <div className="flex justify-between"><span className="text-muted-foreground">Paid</span><span>{new Date(invoice.paid_at).toLocaleDateString("en-ZA")}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Paid</span><span>{new Date(invoice.paid_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}</span></div>
             )}
           </CardContent>
         </Card>

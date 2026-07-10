@@ -12,6 +12,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { createServiceClient } from "@/lib/supabase/server"
 import { Lock, ArrowLeft } from "lucide-react"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface PolicyVersion {
   version: string
@@ -74,9 +75,9 @@ export default async function PrivacyVersionPage({
         <h1 className="text-3xl font-heading font-semibold">{v.title}</h1>
 
         <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-          <p>Effective: {new Date(v.effective_from).toLocaleDateString("en-ZA")}</p>
+          <p>Effective: {new Date(v.effective_from).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}</p>
           {v.superseded_at && (
-            <p>Superseded: {new Date(v.superseded_at).toLocaleDateString("en-ZA")}</p>
+            <p>Superseded: {new Date(v.superseded_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}</p>
           )}
           {v.change_summary && (
             <p>
@@ -106,7 +107,7 @@ export default async function PrivacyVersionPage({
         <Lock className="size-3.5 shrink-0" />
         <span>
           This policy text is immutable. Version {v.version} was published on{" "}
-          {new Date(v.effective_from).toLocaleDateString("en-ZA")} and cannot be changed.
+          {new Date(v.effective_from).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })} and cannot be changed.
         </span>
       </div>
     </div>

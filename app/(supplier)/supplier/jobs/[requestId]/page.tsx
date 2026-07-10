@@ -16,6 +16,7 @@ import { formatZAR } from "@/lib/constants"
 import { JobStatusActions } from "./JobStatusActions"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 const STATUS_LABELS: Record<string, string> = {
   pending_quote: "Quote requested",
@@ -95,7 +96,7 @@ export default async function ContractorJobDetailPage({
   ]
   if (job.work_order_number) facts.push({ k: "Ref", v: job.work_order_number, mono: true })
   if (job.category) facts.push({ k: "Category", v: job.category })
-  if (job.scheduled_date) facts.push({ k: "Scheduled", v: new Date(job.scheduled_date).toLocaleDateString("en-ZA") })
+  if (job.scheduled_date) facts.push({ k: "Scheduled", v: new Date(job.scheduled_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }) })
   if (job.estimated_cost_cents) facts.push({ k: "Estimate", v: formatZAR(job.estimated_cost_cents), mono: true })
 
   return (

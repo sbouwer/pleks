@@ -21,6 +21,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { MobileInspectionView, type InspectionItem } from "@/components/mobile/MobileInspectionView"
 import { BackLink } from "@/components/ui/BackLink"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 /** For move-out/periodic inspections: returns a map of itemId → signed move-in photo URL. */
 async function fetchMoveInPhotos(inspectionId: string): Promise<Record<string, string>> {
@@ -191,7 +192,7 @@ export default async function InspectionDetailPage({
           <CardContent className="pt-4">
             <p className="text-sm font-medium">Dispute window: {disputeDaysLeft} days remaining</p>
             <p className="text-xs text-muted-foreground">
-              Tenant can dispute items until {disputeCloses?.toLocaleDateString("en-ZA")}
+              Tenant can dispute items until {disputeCloses?.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
             </p>
           </CardContent>
         </Card>

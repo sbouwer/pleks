@@ -11,6 +11,7 @@
  */
 import { useLayoutEffect, useRef, useState, useCallback } from "react"
 import { MERGE_FIELDS, type DocumentTemplate, type LetterheadBranding, type ToneId, type AgentSignature } from "./types"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 const FILLED_RE = /\{\{[^{}]{1,120}\}\}/g
 
@@ -70,7 +71,7 @@ function SignatureBlock({ sig }: Readonly<{ sig: AgentSignature }>) {
 function LetterPaper({ t, b, html, sig }: Readonly<{ t: DocumentTemplate; b: LetterheadBranding; html: string; sig: AgentSignature }>) {
   return (
     <div className="tpl-paper" style={{ width: 560 }}>
-      <Letterhead b={b} right={`Date · ${new Date().toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}`} />
+      <Letterhead b={b} right={`Date · ${new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, day: "2-digit", month: "short", year: "numeric" })}`} />
       <div className="mt-4 h-px w-full" style={{ background: b.accentColor }} />
       <h1 className="mt-5 text-[17px] font-bold tracking-tight text-[#16110a]">{t.name}</h1>
       {t.description && <div className="mt-0.5 font-mono text-[9px] text-[#7a6f60]">{t.description}</div>}

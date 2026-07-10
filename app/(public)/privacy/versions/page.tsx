@@ -11,6 +11,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { createServiceClient } from "@/lib/supabase/server"
 import { ChevronRight, Lock } from "lucide-react"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export const metadata: Metadata = {
   title: "Privacy policy versions — Pleks",
@@ -83,8 +84,8 @@ export default async function PrivacyVersionsPage() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Version {v.version} · Effective {new Date(v.effective_from).toLocaleDateString("en-ZA")}
-                {v.superseded_at && ` · Superseded ${new Date(v.superseded_at).toLocaleDateString("en-ZA")}`}
+                Version {v.version} · Effective {new Date(v.effective_from).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
+                {v.superseded_at && ` · Superseded ${new Date(v.superseded_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}`}
               </p>
               {v.change_summary && (
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{v.change_summary}</p>

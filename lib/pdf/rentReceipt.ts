@@ -6,6 +6,7 @@
  */
 import { formatZAR } from "@/lib/constants"
 import { FONT_STACKS, getFontLink } from "@/lib/reports/reportBranding"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface ReceiptData {
   receipt_number: string
@@ -73,7 +74,7 @@ export function buildRentReceiptHTML(data: ReceiptData): string {
   const addressHtml = data.org_address ? `<p>${data.org_address}${phoneFragment}</p>` : ""
   const methodLabel = data.payment_method.replaceAll("_", " ")
   const refRow = data.reference ? `<dt>Reference</dt><dd>${data.reference}</dd>` : ""
-  const generatedDate = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  const generatedDate = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, day: "numeric", month: "long", year: "numeric" })
   const appliedSection = data.applied_lines.length > 0 ? `
     <div class="applied-section">
       <div class="title">Applied to:</div>

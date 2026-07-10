@@ -20,6 +20,7 @@ import { isOnline, onConnectivityChange, flushPhotoQueue } from "@/lib/offline/s
 import { saveItemRating, getAllRatings, queuePhoto, loadInspectionData } from "@/lib/offline/inspectionStore"
 import { queueWrite } from "@/lib/offline/pendingWrites"
 import { preparePhoto } from "@/lib/offline/compressPhoto"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 // Web Speech API — not in default TS lib, defined locally
 interface SpeechRecognitionResult {
@@ -570,7 +571,7 @@ export function MobileInspectionView({
           {tenantName && <span className="text-xs text-muted-foreground">· {tenantName}</span>}
           {scheduledDate && (
             <span className="text-xs text-muted-foreground">
-              · {new Date(scheduledDate).toLocaleDateString("en-ZA")}
+              · {new Date(scheduledDate).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
             </span>
           )}
         </div>
