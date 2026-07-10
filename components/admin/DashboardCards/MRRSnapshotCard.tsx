@@ -8,6 +8,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { MRRTrendChart } from "./MRRTrendChart"
+import { saDateISO } from "@/lib/dates"
 
 interface MRRData {
   current_cents: number
@@ -29,7 +30,7 @@ async function fetchMRRData(): Promise<{
   const [snapshotRes, subsRes] = await Promise.all([
     db.from("platform_cost_snapshots")
       .select("period, revenue_cents")
-      .gte("period", cutoff.toISOString().slice(0, 10))
+      .gte("period", saDateISO(cutoff))
       .order("period"),
 
     // Fallback: current active subs

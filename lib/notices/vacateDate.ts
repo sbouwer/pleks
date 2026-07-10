@@ -10,13 +10,11 @@
  *         dates → deterministic tests (no new Date() inside).
  */
 
-import { saDateISO } from "@/lib/dates"
+import { addCalendarDays, saDateISO } from "@/lib/dates"
 
 /** R-2 default: the vacate deadline printed in the notice = base date + 14 calendar days (YYYY-MM-DD). */
 export function computeVacateByDate(dispatchDate: Date, days = 14): string {
-  const d = new Date(dispatchDate.getTime())
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
+  return addCalendarDays(saDateISO(dispatchDate), days)
 }
 
 /**
@@ -30,9 +28,9 @@ export function computeVacateByDate(dispatchDate: Date, days = 14): string {
  * recorded deemed service a day EARLY, which makes (vac − deemedDay) LARGER and so PASSES a notice whose
  * vacate period is actually short of the floor — a fail-open on the exact check that exists to catch it.
  *
- * ⚠ Note computeVacateByDate above also ends in `.toISOString().slice(0,10)` and is CORRECT: its input is
- * already a SAST-resolved date at UTC midnight, so that call is pure calendar arithmetic, not a timezone
- * resolution. Same syntax, opposite meaning — classify per site, never sweep.
+ * ⚠ computeVacateByDate above is calendar ARITHMETIC (addCalendarDays); this is a timezone RESOLUTION
+ * (saDateISO). Both once read `.toISOString().slice(0,10)`, three lines apart — one correct, one a
+ * fail-open. Same syntax, opposite meaning. Classify per site, never sweep.
  */
 export function deemedServiceMeetsFloor(vacateByDate: string, deemedServiceAt: Date, floorDays = 7): boolean {
   const vac = new Date(`${vacateByDate}T00:00:00.000Z`).getTime()

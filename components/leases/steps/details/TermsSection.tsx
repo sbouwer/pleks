@@ -14,6 +14,7 @@ import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-for
 import { Info } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import type { CpaDetermination } from "@/lib/leases/cpaApplicability"
+import { addCalendarDays, addCalendarMonths } from "@/lib/dates"
 
 export interface TermsState {
   startDate: string
@@ -123,10 +124,10 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
     if (next && !value.endDate) {
       // Durable default from the unit (BUILD_69) drives the term; fall back to a 12-month year.
       const months = defaultLeasePeriodMonths && defaultLeasePeriodMonths > 0 ? defaultLeasePeriodMonths : 12
-      const d = new Date(next)
-      d.setMonth(d.getMonth() + months)
-      d.setDate(d.getDate() - 1)
-      patch.endDate = d.toISOString().slice(0, 10)
+      // This computed a LEASE END DATE with local-time setMonth/setDate and then sliced the result in UTC —
+      // the answer depended on the browser's timezone. Now pure calendar arithmetic. Rollover behaviour is
+      // preserved exactly (see addCalendarMonths); whether a term should clamp is an unmade product call.
+      patch.endDate = addCalendarDays(addCalendarMonths(next, months), -1)
     }
     onChange({ ...value, ...patch })
   }

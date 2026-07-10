@@ -1,18 +1,15 @@
-/**
+
+import { addCalendarDays, saTodayISO } from "@/lib/dates"/**
  * lib/demo/demoData.ts — hardcoded fixture dataset (org, properties, leases, etc.) powering the read-only demo mode
  *
  * Notes:  Static fixtures only — no DB. Dates are computed relative to today so the demo never looks stale.
  */
 function daysAgo(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
+  return addCalendarDays(saTodayISO(), -n)
 }
 
 function daysFromNow(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + n)
-  return d.toISOString().slice(0, 10)
+  return addCalendarDays(saTodayISO(), n)
 }
 
 export const DEMO_DATA = {

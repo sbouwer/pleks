@@ -120,6 +120,24 @@ export function addCalendarDays(iso: string, days: number): string {
 }
 
 /**
+ * Shift a calendar date by whole months, on a UTC anchor.
+ *
+ * ⚠ Overflow ROLLS OVER, matching JS `setUTCMonth` and the local-time code this replaced: 31 Jan + 1 month
+ * is 3 March, not 28 February. Whether a lease term should clamp instead is a product decision that has
+ * never been made — this function deliberately preserves the existing behaviour rather than silently
+ * changing every lease end date. It fixes only the coordinate mixing: the callers used LOCAL setMonth/
+ * setDate and then sliced in UTC, so the answer depended on the server's timezone.
+ */
+export function addCalendarMonths(iso: string, months: number): string {
+  if (!Number.isInteger(months)) {
+    throw new TypeError(`addCalendarMonths: months must be a whole number, got ${months}.`)
+  }
+  const d = calendarDate(iso)
+  d.setUTCMonth(d.getUTCMonth() + months)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
  * Whole SA calendar days from `from` to `to` (negative if `to` is earlier).
  *
  * NOT a millisecond division: that answers "how many 24-hour spans", so 23:00 Monday → 08:00 Tuesday

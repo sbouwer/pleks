@@ -11,6 +11,7 @@
 import { randomUUID } from "node:crypto"
 import { execSync } from "node:child_process"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { addCalendarDays, saDateISO } from "@/lib/dates"
 
 let _container: string | null = null
 function dbContainer(): string {
@@ -47,12 +48,10 @@ export function seedUser(): string {
 export function teardownUser(id: string): void {
   psql(`DELETE FROM auth.users WHERE id = '${id}';`)
 }
-
-const DAY_MS = 86_400_000
 // Fixed anchor so seeded dates are deterministic across a run (no Date.now flakiness in ordering).
 const ANCHOR = new Date("2026-07-01T00:00:00Z").getTime()
 function isoDate(offsetDays: number): string {
-  return new Date(ANCHOR + offsetDays * DAY_MS).toISOString().slice(0, 10)
+  return addCalendarDays(saDateISO(new Date(ANCHOR)), offsetDays)
 }
 
 async function ins<T = Record<string, unknown>>(

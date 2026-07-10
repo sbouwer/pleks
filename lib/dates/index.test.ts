@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest"
 import {
   SA_TIMEZONE, saDateISO, saTodayISO, isSameSaDay, isSaDateISO,
-  calendarDate, addCalendarDays, diffCalendarDays, saDayStartUtc,
+  calendarDate, addCalendarDays, addCalendarMonths, diffCalendarDays, saDayStartUtc,
   fmtDateZA, fmtDateLongZA, fmtDateTimeZA,
 } from "./index"
 
@@ -124,6 +124,14 @@ describe("addCalendarDays / diffCalendarDays", () => {
   it("rejects a fractional shift instead of truncating", () => {
     expect(() => addCalendarDays("2026-07-08", 2.5)).toThrow(/whole number/)
     expect(() => addCalendarDays("2026-07-08", NaN)).toThrow(/whole number/)
+  })
+
+  it("addCalendarMonths is UTC-anchored, and ROLLS OVER (documented, not clamped)", () => {
+    expect(addCalendarMonths("2026-01-15", 12)).toBe("2027-01-15")
+    expect(addCalendarMonths("2026-03-31", -1)).toBe("2026-03-03")   // Feb 31 rolls; matches setUTCMonth
+    expect(addCalendarMonths("2026-01-31", 1)).toBe("2026-03-03")    // NOT clamped to Feb 28 — see the doc
+    expect(addCalendarMonths("2026-12-01", 1)).toBe("2027-01-01")
+    expect(() => addCalendarMonths("2026-01-31", 1.5)).toThrow(/whole number/)
   })
 
   it("diffCalendarDays counts CALENDAR days, not 24-hour spans", () => {

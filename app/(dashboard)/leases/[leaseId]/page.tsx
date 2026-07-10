@@ -25,6 +25,7 @@ import { DocumentsTab, type CommLogRow, type LeaseDocRow } from "./DocumentsTab"
 import { OperationsTab } from "./OperationsTab"
 import { resolveDepositInterestConfig, getPrimeRateOn, describeRate } from "@/lib/deposits/interestConfig"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { saDateISO } from "@/lib/dates"
 
 const VALID_TABS = ["overview", "details", "contacts", "operations", "finance", "communications"] as const
 type Tab = (typeof VALID_TABS)[number]
@@ -327,7 +328,7 @@ async function fetchFinanceTabExtras(
   today: Date,
   taxYearStart: string,
 ): Promise<FinanceExtras> {
-  const todayStr = today.toISOString().slice(0, 10)
+  const todayStr = saDateISO(today)
   const [
     depositTxnRes,
     trustBankRes,

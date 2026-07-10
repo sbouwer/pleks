@@ -12,6 +12,7 @@
  */
 import { afterAll, describe, expect, it } from "vitest"
 import { svc, seedLedgerCase, teardownOrg, forceDepositTxnInsertFailure } from "./tier"
+import { saDateISO } from "@/lib/dates"
 
 const db = svc()
 const orgs: string[] = []
@@ -99,8 +100,8 @@ describe("deposit Pattern A + closed-period guard (ledger finale)", () => {
     }).select("id").single()
     if (bankErr) throw bankErr
     const first = new Date(); first.setUTCDate(1)
-    const start = first.toISOString().slice(0, 10)
-    const end = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).toISOString().slice(0, 10)
+    const start = saDateISO(first)
+    const end = saDateISO(new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)))
     const { error: perErr } = await db.from("trust_reconciliation_periods").insert({
       org_id: c.orgId, bank_account_id: bank!.id, period_start: start, period_end: end,
       bank_closing_balance_cents: 0, ledger_closing_balance_cents: 0, recon_computed_closing_cents: 0, status: "signed_off",

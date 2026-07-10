@@ -11,7 +11,7 @@
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import { SovereignBadge } from "@/components/trust/SovereignBadge"
-import { fmtDateZA } from "@/lib/dates"
+import { fmtDateZA, saDateISO } from "@/lib/dates"
 
 interface OrgRow {
   id: string
@@ -42,7 +42,7 @@ function priorMonthRange(): { start: string; end: string; in90Days: string } {
   return {
     start: `${y}-${ms}-01`,
     end: `${y}-${ms}-${String(lastDay).padStart(2, "0")}`,
-    in90Days: future.toISOString().slice(0, 10),
+    in90Days: saDateISO(future),
   }
 }
 

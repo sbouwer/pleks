@@ -7,6 +7,7 @@
  *         7-day sparkline squares show per-day pass/fail/miss status.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { addCalendarDays, saDateISO } from "@/lib/dates"
 
 const DAILY_JOBS = [
   "daily",
@@ -34,8 +35,7 @@ interface JobRow {
 function buildLastSevenDays(nowMs: number): string[] {
   const days: string[] = []
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(nowMs - i * 86_400_000)
-    days.push(d.toISOString().slice(0, 10))
+    days.push(addCalendarDays(saDateISO(new Date(nowMs)), -i))
   }
   return days
 }

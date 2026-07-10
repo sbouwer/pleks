@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
+import { saDateISO } from "@/lib/dates"
 
 interface GLReviewProps {
   blocks: GLPropertyBlock[]
@@ -69,8 +70,8 @@ export function GLReview({ blocks, leaseMatches, propertyMatches, onBack, onImpo
           leaseMatches,
           propertyMatches,
           dateFilter: {
-            from: minDate.toISOString().slice(0, 10),
-            to: maxDate.toISOString().slice(0, 10),
+            from: saDateISO(minDate),
+            to: saDateISO(maxDate),
           },
           importDeposits,
         }),

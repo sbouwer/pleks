@@ -20,6 +20,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { LeaseCreatedEmail } from "@/lib/comms/templates/tenant/leases/lease-created"
 import { LeaseNoticeAcknowledgedEmail } from "@/lib/comms/templates/tenant/leases/lease-notice-acknowledged"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { addCalendarDays } from "@/lib/dates"
 
 type LeaseFormFields = {
   unitId: string
@@ -214,9 +215,9 @@ async function findLeaseOverlapBlock(
       return "This unit has an ongoing month-to-month lease. End that lease before creating a new one for this unit."
     }
     if (startDate <= l.end_date) {
-      const next = new Date(l.end_date)
-      next.setDate(next.getDate() + 1)
-      return `This unit is leased until ${l.end_date}. A new lease must start on or after ${next.toISOString().slice(0, 10)}.`
+      // setDate/getDate were LOCAL-time accessors and the result was sliced in UTC — mixed coordinates.
+      const next = addCalendarDays(l.end_date as string, 1)
+      return `This unit is leased until ${l.end_date}. A new lease must start on or after ${next}.`
     }
   }
   return null

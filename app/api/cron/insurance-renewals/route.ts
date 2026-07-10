@@ -18,7 +18,7 @@ import { createClient } from "@supabase/supabase-js"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { RenewalReminderEmail } from "@/lib/comms/templates/insurance/renewal-reminder"
 import { requireCronAuth } from "@/lib/cron/auth"
-import {fmtDateLongZA, saTodayISO} from "@/lib/dates"
+import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 
 function getServiceClient() {
   return createClient(
@@ -28,8 +28,6 @@ function getServiceClient() {
 }
 
 type Db = ReturnType<typeof getServiceClient>
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 // ── Health tracking ───────────────────────────────────────────────────────────
 
@@ -221,8 +219,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const today = saTodayISO()
-    const sevenDaysAgo = new Date(Date.now() - 7 * DAY_MS).toISOString().slice(0, 10)
-    const sixDaysAgo = new Date(Date.now() - 6 * DAY_MS).toISOString().slice(0, 10)
+    const sevenDaysAgo = addCalendarDays(saTodayISO(), -7)
+    const sixDaysAgo = addCalendarDays(saTodayISO(), -6)
 
     // 1. Find properties whose renewal date is today → reset checklist
     const { data: dueToday, error: dueTodayError } = await db

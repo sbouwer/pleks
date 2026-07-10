@@ -19,7 +19,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_PRIME_REPO_SPREAD } from "@/lib/constants"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { saTodayISO } from "@/lib/dates"
+import { saDateISO, saTodayISO } from "@/lib/dates"
 
 interface PrimeFetch {
   rate: number
@@ -32,7 +32,7 @@ function parseSourceDate(raw: string | undefined | null): string | null {
   if (!raw) return null
   const d = new Date(raw)
   if (Number.isNaN(d.getTime())) return null
-  return d.toISOString().slice(0, 10)
+  return saDateISO(d)
 }
 
 /** Primary: SARB Web API — central bank, free, no key, publishes the prime lending rate directly. */
