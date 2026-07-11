@@ -12,6 +12,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { verifyWebhookSignature, parseWebhookEvent } from "@/lib/messaging/whatsapp/provider"
 import { sendSmsFallback } from "@/lib/messaging/whatsapp/sms-fallback"
+import { normalizePhone } from "@/lib/validation/contact"
 
 // STOP keywords per WhatsApp Business Policy
 const STOP_KEYWORDS = ["STOP", "OPTOUT", "OPT OUT", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"]
@@ -169,14 +170,6 @@ async function maybeSendSmsFallback(
 // ── Phone normalization ───────────────────────────────────────────────────────
 
 /** Normalise SA mobile number to E.164 (+27XXXXXXXXX) for contact_phones lookup */
-function normalizeSaPhone(phone: string): string {
-  const cleaned = phone.replaceAll(/[\s-]/g, "")
-  if (cleaned.startsWith("+27")) return cleaned
-  if (cleaned.startsWith("0")) return "+27" + cleaned.slice(1)
-  if (cleaned.startsWith("27") && !cleaned.startsWith("+")) return "+" + cleaned
-  return phone
-}
-
 // ── Inbound message handler ────────────────────────────────────────────────────
 
 /** Two-step phone → tenant lookup via contact_phones */
@@ -184,7 +177,8 @@ async function lookupTenantByPhone(
   db: Db,
   fromPhone: string,
 ): Promise<{ id: string; org_id: string } | null> {
-  const normalized = normalizeSaPhone(fromPhone)
+  const normalized = normalizePhone(fromPhone)
+  if (!normalized) return null   // unparseable inbound number → no tenant match
 
   const { data: cp, error: cpErr } = await db
     .from("contact_phones")
