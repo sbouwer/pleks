@@ -42,6 +42,7 @@ Keep the subject lowercase, imperative, under 72 chars.
 - [ ] Touches POPIA-sensitive fields (ID numbers, bank details, credit data)
 - [ ] Adds or changes webhooks (signature verification confirmed)
 - [ ] Adds or changes consent surfaces (`consent_log` entry written)
+- [ ] Adds a PERSISTED statutory-date column (a legal deadline stored on a row). If so: **needs a CD ruling** naming why evaluation-time computation is impossible — statutory dates are derived where consumed, not frozen (ADDENDUM_70K Phase E; the s14 defect was a stamped column). Touching `saHolidays.json` additionally requires `basis`/`source` filled per entry.
 
 ## Breaking changes
 

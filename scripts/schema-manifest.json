@@ -1962,7 +1962,6 @@
       "notice_given_date",
       "notice_period_end",
       "auto_renewal_notice_sent_at",
-      "auto_renewal_notice_due",
       "deposit_return_days",
       "deposit_interest_rate_percent",
       "deposit_interest_last_accrued_date",

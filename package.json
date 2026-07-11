@@ -26,7 +26,8 @@
     "render:fitscore-e1": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-e1-chrome-test.ts",
     "render:fitscore-samples": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-fitscore-samples.ts",
     "fitscore:render-smoke": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-fitscore-smoke.ts",
-    "render:density-pass": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-density-pass.ts"
+    "render:density-pass": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-density-pass.ts",
+    "audit:holidays": "tsx scripts/audit-holiday-table.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

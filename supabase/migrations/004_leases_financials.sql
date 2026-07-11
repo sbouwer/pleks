@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS leases (
   notice_period_end   date,
   -- CPA
   auto_renewal_notice_sent_at timestamptz,
-  auto_renewal_notice_due     date,
+  -- (auto_renewal_notice_due removed — ADDENDUM_70K Phase E; the s14(2)(b)(ii) notice date is derived at
+  --  evaluation time in lib/leases/cpaRenewal, never stamped. Dropped below for DBs that predate this.)
   -- Deposit return (from 015)
   deposit_return_days integer DEFAULT 30,
   -- Interest settings (from 029)
@@ -2898,3 +2899,15 @@ ALTER TABLE lease_lifecycle_events ADD CONSTRAINT lease_lifecycle_events_event_t
   'lease_sent_for_signing', 'lease_signing_declined', 'lease_signing_expired',
   'lease_cancelled_for_breach', 'demand_to_vacate_issued', 'termination_notice_issued'
 ));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  ADDENDUM_70K Phase E: drop the persisted CPA s14 notice column
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The CPA s14(2)(b)(ii) auto-renewal notice date is DERIVED at evaluation time
+-- (lib/leases/cpaRenewal → subtractBusinessDaysStrict, mid-window 60 business days),
+-- never stamped. It was previously frozen onto the row at lease creation as 40
+-- CALENDAR days (~27 business days — statutorily too late). A persisted
+-- statutory-date column cannot exist to be stamped wrong: dropped here. Removed
+-- from the CREATE TABLE above so a fresh replay never creates it; this DROP handles
+-- DBs that predate the change (idempotent). All values were nulled before the drop.
+ALTER TABLE leases DROP COLUMN IF EXISTS auto_renewal_notice_due;
