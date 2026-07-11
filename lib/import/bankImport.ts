@@ -14,6 +14,7 @@ export function normaliseBranchCode(raw: string | null): string | null {
 }
 
 export function hashBankAccount(accountNumber: string): string {
+  // eslint-disable-next-line pleks/no-raw-content-hash -- account-number dedup lookup key (like id_number_hash) — not evidence content
   return createHash("sha256").update(accountNumber.trim()).digest("hex")
 }
 

@@ -15,6 +15,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
 import { verifyPasskeyAssertion } from "@/lib/auth/passkeys/verify-assertion"
 import { logAuthEvent } from "@/lib/auth/events"
+import { hashIp } from "@/lib/crypto"
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let rp
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Verify a FRESH passkey assertion (consumes its own single-use WebAuthn challenge).
-  const result = await verifyPasskeyAssertion({ rp, response: assertion, ipHash: await hashIp(req) })
+  const result = await verifyPasskeyAssertion({ rp, response: assertion, ipHash: await clientIpHash(req) })
   if (!result.ok) {
     await logAuthEvent({
       userId: user.id, eventType: "step_up_failed", success: false,
@@ -80,9 +81,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({ ok: true })
 }
 
-async function hashIp(req: NextRequest): Promise<string | null> {
+async function clientIpHash(req: NextRequest): Promise<string | null> {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
   if (!ip) return null
-  const { createHash } = await import("node:crypto")
-  return createHash("sha256").update(ip).digest("hex")
+  return hashIp(ip)
 }
