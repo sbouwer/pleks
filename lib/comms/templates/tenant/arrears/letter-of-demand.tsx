@@ -12,6 +12,7 @@ import { Section, Text, Hr } from "@react-email/components"
 import { EmailLayout, EmailDetail, type OrgBranding } from "../../layout"
 import { LegalFooter } from "../../LegalFooter"
 import { lodCancellationBasis } from "../../legalCitations"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export interface LetterOfDemandEmailProps {
   branding: OrgBranding
@@ -39,7 +40,7 @@ export function LetterOfDemandEmail({
   referenceNumber,
 }: LetterOfDemandEmailProps) {
   const today = new Date().toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
+    timeZone: SA_TIMEZONE, day: "numeric", month: "long", year: "numeric",
   })
 
   const preview = `LETTER OF DEMAND — ${amountOwedDisplay} overdue — Ref ${referenceNumber}`

@@ -8,6 +8,7 @@ import type { JSX } from "react"
 import { fmtDate } from "@/lib/reports/screening/_primitives/theme"
 import type { FitScoreReportData } from "@/lib/reports/screening/_primitives/theme"
 import { BlockHeader } from "./BlockHeader"
+import { APP_URL } from "@/lib/env"
 
 function MetaRow({ label, value }: Readonly<{ label: string; value: string }>): JSX.Element {
   return (
@@ -23,7 +24,7 @@ interface AttestationCardProps {
 }
 
 export function AttestationCard({ data }: Readonly<AttestationCardProps>): JSX.Element {
-  const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+  const appUrl      = APP_URL
   const displayHost = appUrl.replace(/^https?:\/\//, "")
   const helpUrl     = `${displayHost}/help/fitscore-report/${data.interpretationVersion}`
 

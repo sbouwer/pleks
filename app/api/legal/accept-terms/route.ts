@@ -16,6 +16,7 @@ import { recordTosAcceptance } from "@/lib/subscriptions/acceptance"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { isProductionNode } from "@/lib/env"
 
 const ONE_YEAR = 60 * 60 * 24 * 365
 
@@ -46,7 +47,7 @@ export async function POST() {
   res.cookies.set("pleks_privacy_version", LEGAL_VERSIONS.privacy, {
     sameSite: "lax",
     path: "/",
-    secure: process.env.NODE_ENV === "production",
+    secure: isProductionNode(),
     maxAge: ONE_YEAR,
   })
   return res

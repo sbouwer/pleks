@@ -40,6 +40,7 @@ import { OtherInfoRequestReminder } from "@/lib/comms/templates/info-requests/ot
 import { InfoRequestCompletionNotify } from "@/lib/comms/templates/info-requests/completion-notify"
 import { InfoRequestSelfTrackNudge } from "@/lib/comms/templates/info-requests/self-track-nudge"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { APP_URL } from "@/lib/env"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -219,7 +220,7 @@ export async function sendInfoRequestEmail(params: SendInfoRequestParams): Promi
   const branding = buildBranding(orgSettings)
   const firmness = pickFirmness(tone, reminderCount)
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://pleks.co.za"
+  const baseUrl = APP_URL.replace(/\/$/, "")
   const secureUrl = `${baseUrl}/property-info/${params.token}`
 
   const ctx: RenderContext = {
@@ -279,7 +280,7 @@ export async function sendInfoRequestCompletionNotify(
   ])
 
   const branding = buildBranding(orgSettings)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://pleks.co.za"
+  const baseUrl = APP_URL.replace(/\/$/, "")
   const propertyUrl = `${baseUrl}/properties/${params.propertyId}?tab=overview`
 
   const topicLabel = TOPIC_LABELS[params.topic]
@@ -331,7 +332,7 @@ export async function sendInfoRequestSelfTrackNudge(
   ])
 
   const branding = buildBranding(orgSettings)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://pleks.co.za"
+  const baseUrl = APP_URL.replace(/\/$/, "")
   const propertyUrl = `${baseUrl}/properties/${params.propertyId}?tab=overview`
 
   const topicLabel = TOPIC_LABELS[params.topic]

@@ -7,6 +7,7 @@
  */
 import { createMessage } from "@/lib/ai/client"
 import { MAINTENANCE_CATEGORY_VALUES } from "@/lib/maintenance/categories"
+import { optionalEnv } from "@/lib/env"
 
 export interface TriageResult {
   category: string
@@ -49,7 +50,7 @@ export async function triageMaintenanceRequest(
   description: string,
   orgId: string | null = null,
 ): Promise<TriageResult> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!optionalEnv("ANTHROPIC_API_KEY")) {
     return fallbackTriage(title, description)
   }
 

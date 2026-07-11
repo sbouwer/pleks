@@ -24,6 +24,7 @@ import { LetterOfDemandEmail } from "@/lib/comms/templates/tenant/arrears/letter
 import { FinalNoticeEmail } from "@/lib/comms/templates/tenant/arrears/final-notice"
 import { withCronRun } from "@/lib/cron/withCronRun"
 import { fmtDateLongZA, saDateISO } from "@/lib/dates"
+import { optionalEnv } from "@/lib/env"
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -604,8 +605,8 @@ async function handler(_req: Request): Promise<Response> {
     console.error("[arrears-sequence] fatal error:", e instanceof Error ? e.message : e)
   } finally {
     // Await the ping — void/fire-and-forget is killed when the serverless function returns
-    if (process.env.HEARTBEAT_ARREARS_SEQUENCE) {
-      await fetch(process.env.HEARTBEAT_ARREARS_SEQUENCE, { method: "POST" }).catch(() => undefined)
+    if (optionalEnv("HEARTBEAT_ARREARS_SEQUENCE")) {
+      await fetch(optionalEnv("HEARTBEAT_ARREARS_SEQUENCE"), { method: "POST" }).catch(() => undefined)
     } else {
       console.warn("[arrears-sequence] HEARTBEAT_ARREARS_SEQUENCE env var missing — heartbeat skipped")
     }

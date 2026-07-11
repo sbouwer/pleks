@@ -31,7 +31,7 @@ import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 import { formatZAR } from "@/lib/constants"
-import { fmtZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
 
 type MaintenanceItem = Awaited<ReturnType<typeof fetchMaintenanceAction>>[number]
 type MaintenanceItemExtended = MaintenanceItem & { logged_by?: string; reported_via?: string }
@@ -310,7 +310,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
       return {
         id: r.id,
         title: r.title ?? "Maintenance request",
-        sub: r.scheduled_date ? `scheduled ${new Date(r.scheduled_date).toLocaleDateString("en-ZA")}` : undefined,
+        sub: r.scheduled_date ? `scheduled ${new Date(r.scheduled_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` : undefined,
         href: `/maintenance/${r.id}`,
       }
     })

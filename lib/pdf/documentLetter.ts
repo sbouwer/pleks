@@ -4,6 +4,7 @@
  * that can be opened in a new tab and printed to PDF by the browser.
  */
 
+import { SA_TIMEZONE } from "@/lib/dates"
 export interface DocumentLetterData {
   orgName: string
   agentName: string
@@ -119,7 +120,7 @@ export function buildLetterHTML(data: DocumentLetterData): string {
   const date =
     data.date ??
     new Date().toLocaleDateString("en-ZA", {
-      day: "numeric",
+      timeZone: SA_TIMEZONE, day: "numeric",
       month: "long",
       year: "numeric",
     })

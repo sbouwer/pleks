@@ -7,7 +7,8 @@
  *         blocked at the lease cap and the user is prompted to upgrade.
  */
 export const APP_NAME = "Pleks"
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+/** Re-exported from the env SSOT so existing `@/lib/constants` importers keep working (centralisation item 3). */
+export { APP_URL } from "@/lib/env"
 
 /**
  * SA prime lending rate = SARB repo rate + this spread. Fixed at 3.50% by SARB/banking convention

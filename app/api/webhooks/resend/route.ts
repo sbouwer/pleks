@@ -13,8 +13,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { bridgeNoticeDelivery } from "@/lib/notices/bridgeNoticeDelivery"
+import { optionalEnv } from "@/lib/env"
 
-const RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET
+const RESEND_WEBHOOK_SECRET = optionalEnv("RESEND_WEBHOOK_SECRET")
 
 interface ResendWebhookPayload {
   type:

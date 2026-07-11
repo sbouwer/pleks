@@ -10,6 +10,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { notifyBroker } from "./notifyBroker"
 import { notifyOwner } from "./notifyOwner"
 import { notifyScheme } from "./notifyScheme"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export type InsuranceDecision = "reported" | "declined" | "unsure"
 
@@ -81,7 +82,7 @@ export async function recordInsuranceDecision(
 
   const propertyAddress = [property.address_line1, property.city].filter(Boolean).join(", ")
   const unitLabel       = unit?.unit_number ? `Unit ${unit.unit_number}` : null
-  const incidentDate    = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
+  const incidentDate    = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
 
   // Fetch org name + acting agent display name for email body
   const [{ data: orgRow }, { data: userProfile }] = await Promise.all([

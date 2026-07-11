@@ -9,10 +9,11 @@
  */
 import { createHash } from "crypto"
 import { encrypt, decrypt, isEncrypted } from "./encryption"
+import { optionalEnv } from "@/lib/env"
 
 export function hashIdNumber(idNumber: string): string {
   const normalised = idNumber.replace(/\s/g, "").toUpperCase()
-  const salt = process.env.ID_NUMBER_HASH_SALT || "pleks-default-salt"
+  const salt = optionalEnv("ID_NUMBER_HASH_SALT", "pleks-default-salt")
   return createHash("sha256").update(normalised + salt).digest("hex")
 }
 

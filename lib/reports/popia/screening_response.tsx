@@ -9,6 +9,7 @@
 
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer"
 import { fmtZA } from "@/lib/dates"
+import { APP_URL } from "@/lib/env"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,8 +35,6 @@ export interface ScreeningResponseData {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.pleks.co.za'
 
 const S = StyleSheet.create({
   page: {

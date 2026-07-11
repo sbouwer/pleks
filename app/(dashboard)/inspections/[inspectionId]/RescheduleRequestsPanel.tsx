@@ -16,7 +16,7 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { toast } from "sonner"
 import { Loader2, CalendarX } from "lucide-react"
 import { respondToRescheduleRequest } from "./actions"
-import { fmtZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
 
 export interface RescheduleRequest {
   id: string
@@ -114,7 +114,7 @@ function RequestCard({ req, inspectionId }: Readonly<{ req: RescheduleRequest; i
       {req.agent_response && (
         <p className="text-xs text-muted-foreground border-t border-border/40 pt-2">
           Response: {req.agent_response}
-          {req.resolved_date && ` · ${new Date(req.resolved_date).toLocaleDateString("en-ZA")}`}
+          {req.resolved_date && ` · ${new Date(req.resolved_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}`}
         </p>
       )}
 

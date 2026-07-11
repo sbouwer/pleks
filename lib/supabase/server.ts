@@ -8,13 +8,14 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { cache } from "react"
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, requireEnv } from "@/lib/env"
 
 export async function createClient() {
   const cookieStore = await cookies()
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!,
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
     {
       cookies: {
         getAll() {
@@ -38,8 +39,8 @@ export async function createClient() {
 export async function createServiceClient() {
   const { createClient } = await import("@supabase/supabase-js")
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY")
   )
 }
 
@@ -51,7 +52,7 @@ export async function createServiceClient() {
 export const getCachedServiceClient = cache(async () => {
   const { createClient } = await import("@supabase/supabase-js")
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY")
   )
 })

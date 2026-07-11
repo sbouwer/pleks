@@ -11,10 +11,11 @@
 import { renderToBuffer, Font } from "@react-pdf/renderer"
 import { createElement } from "react"
 import { PaiaManualPdf } from "@/components/legal/PaiaManualPdf"
+import { APP_URL } from "@/lib/env"
 
 export const dynamic = "force-dynamic"
 
-const rawAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? ""
+const rawAppUrl = APP_URL
 const fontBase = !rawAppUrl || rawAppUrl.startsWith("http://localhost")
   ? "https://app.pleks.co.za"
   : rawAppUrl

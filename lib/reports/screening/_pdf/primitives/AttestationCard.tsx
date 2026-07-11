@@ -11,6 +11,7 @@ import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp, fmtDate } from "./theme"
 import type { FitScoreReportData } from "./theme"
 import { BlockHeader } from "./BlockHeader"
+import { APP_URL } from "@/lib/env"
 
 const S = StyleSheet.create({
   wrap: { marginBottom: D.primitiveGap },
@@ -82,7 +83,7 @@ interface AttestationCardProps {
 }
 
 export function AttestationCard({ data }: Readonly<AttestationCardProps>) {
-  const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.pleks.co.za'
+  const appUrl      = APP_URL
   const displayHost = appUrl.replace(/^https?:\/\//, '')
   const helpUrl     = `${displayHost}/help/fitscore-report/${sp(data.interpretationVersion)}`
 

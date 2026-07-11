@@ -14,6 +14,7 @@
 import { headers } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
+import { APP_URL } from "@/lib/env"
 
 const WINDOW_MS = 15 * 60 * 1000
 
@@ -32,7 +33,7 @@ export async function requestPasswordReset(email: string): Promise<{ ok: true } 
   }
 
   const supabase = await createClient()
-  const appOrigin = process.env.NEXT_PUBLIC_APP_URL ?? ""
+  const appOrigin = APP_URL
   // Don't surface whether the address exists — Supabase succeeds either way; we mirror that (no enumeration).
   await supabase.auth.resetPasswordForEmail(clean, { redirectTo: `${appOrigin}/reset-password` })
   return { ok: true }

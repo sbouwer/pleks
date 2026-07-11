@@ -18,6 +18,7 @@ import { SentryErrorsCard }      from "@/components/admin/DashboardCards/SentryE
 import { UptimeHeartbeatCard }   from "@/components/admin/DashboardCards/UptimeHeartbeatCard"
 import { PrimeRateCard }         from "@/components/admin/DashboardCards/PrimeRateCard"
 import { CostHealthCard }        from "@/components/admin/DashboardCards/CostHealthCard"
+import { optionalEnv } from "@/lib/env"
 
 // Page is dynamic via requireAdminAuth() → cookies(). No revalidate config —
 // the ISR + cookies() combination is a hard error in Next.js 16.
@@ -49,7 +50,7 @@ function buildSummaryLine(snap: Awaited<ReturnType<typeof getAdminDashboardData>
 export default async function AdminOverviewPage() {
   await requireAdminAuth()
   const snap = await getAdminDashboardData()
-  const adminName = (process.env.ADMIN_NAME ?? "").split(" ")[0] || "Admin"
+  const adminName = (optionalEnv("ADMIN_NAME", "")).split(" ")[0] || "Admin"
 
   return (
     <div>

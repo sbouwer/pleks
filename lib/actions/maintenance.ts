@@ -30,6 +30,8 @@ import { CancelledTenantEmail } from "@/lib/comms/templates/maintenance/cancelle
 import { ContractorChangedEmail } from "@/lib/comms/templates/maintenance/contractor-changed"
 import { MemoLandlordNotifiedEmail } from "@/lib/comms/templates/maintenance/memo-landlord-notified"
 import * as React from "react"
+import { APP_URL } from "@/lib/env"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 async function fireTenantCommsOnCreate(
   orgId: string,
@@ -324,7 +326,7 @@ async function sendWorkOrderEmail({ db, userId, requestId, req, recipientEmail, 
   const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
   const propertyLabel = unit?.properties.name ?? "Property"
   const unitLabel = unit?.unit_number ?? ""
-  const woUrl = `${process.env.NEXT_PUBLIC_APP_URL}/wo/${req.work_order_number}?token=${token}`
+  const woUrl = `${APP_URL}/wo/${req.work_order_number}?token=${token}`
 
   const rawPhotos = photosRes.data ?? []
   const woPhotos: Array<{ url: string; caption: string }> = []
@@ -336,7 +338,7 @@ async function sendWorkOrderEmail({ db, userId, requestId, req, recipientEmail, 
         .createSignedUrl(ph.storage_path as string, 60 * 60 * 24 * 7)
       if (signedError) console.error("work-order photo signed-url failed:", signedError.message)
       if (signed?.signedUrl) {
-        woPhotos.push({ url: signed.signedUrl, caption: `Before · ${new Date(ph.created_at as string).toLocaleDateString("en-ZA")}` })
+        woPhotos.push({ url: signed.signedUrl, caption: `Before · ${new Date(ph.created_at as string).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` })
       }
     } catch { /* skip invalid photos */ }
   }
@@ -959,7 +961,7 @@ export async function changeContractor(
       // Send fresh WO to new contractor
       if (newC.email && newToken) {
         const newContractorName = (newC.company_name as string | null) || [newC.first_name, newC.last_name].filter(Boolean).join(" ") || "Contractor"
-        const woUrl = `${process.env.NEXT_PUBLIC_APP_URL}/wo/${req.work_order_number}?token=${newToken}`
+        const woUrl = `${APP_URL}/wo/${req.work_order_number}?token=${newToken}`
         const unitLabel = unit?.unit_number ?? ""
         await sendEmail({
           orgId,

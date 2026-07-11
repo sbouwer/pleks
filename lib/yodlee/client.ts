@@ -11,6 +11,7 @@
  *   YODLEE_API_VERSION     — typically "1.1"
  */
 
+import { optionalEnv } from "@/lib/env"
 export interface YodleeAccount {
   id: number
   providerAccountId: number
@@ -56,10 +57,10 @@ export class YodleeClient {
   private apiVersion: string
 
   constructor() {
-    this.baseUrl = process.env.YODLEE_BASE_URL ?? ""
-    this.clientId = process.env.YODLEE_CLIENT_ID ?? ""
-    this.secret = process.env.YODLEE_CLIENT_SECRET ?? ""
-    this.apiVersion = process.env.YODLEE_API_VERSION ?? "1.1"
+    this.baseUrl = optionalEnv("YODLEE_BASE_URL", "")
+    this.clientId = optionalEnv("YODLEE_CLIENT_ID", "")
+    this.secret = optionalEnv("YODLEE_CLIENT_SECRET", "")
+    this.apiVersion = optionalEnv("YODLEE_API_VERSION", "1.1")
   }
 
   private headers(accessToken?: string): Record<string, string> {
@@ -158,10 +159,10 @@ export class YodleeClient {
   /** Get FastLink config for the frontend widget */
   getFastLinkConfig(userToken: string, callbackUrl: string) {
     return {
-      fastLinkURL: process.env.YODLEE_FASTLINK_URL ?? "",
+      fastLinkURL: optionalEnv("YODLEE_FASTLINK_URL", ""),
       accessToken: userToken,
       params: {
-        configName: process.env.YODLEE_CONFIG_NAME ?? "Aggregation",
+        configName: optionalEnv("YODLEE_CONFIG_NAME", "Aggregation"),
         flow: "aggregation" as const,
         callback: callbackUrl,
       },

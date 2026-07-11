@@ -17,6 +17,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { streamAuditCsv, type ExportFilterParams } from "@/lib/admin/csv-export"
 import { AuditExportReadyEmail } from "@/lib/comms/templates/admin/audit-export-ready"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { optionalEnv } from "@/lib/env"
 
 const MAX_PER_RUN   = 3
 const SIGNED_URL_TTL = 60 * 60 * 24 * 7 // 7 days in seconds
@@ -33,8 +34,8 @@ function buildFilterSummary(fp: ExportFilterParams): string {
 }
 
 async function sendExportEmail(jobId: string, db: Db, signedUrl: string, rowCount: number, fp: ExportFilterParams): Promise<void> {
-  const adminEmail = process.env.ADMIN_EMAIL
-  if (!process.env.RESEND_API_KEY || !adminEmail) return
+  const adminEmail = optionalEnv("ADMIN_EMAIL")
+  if (!optionalEnv("RESEND_API_KEY") || !adminEmail) return
 
   const html = await render(
     AuditExportReadyEmail({

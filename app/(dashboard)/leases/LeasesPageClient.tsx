@@ -24,7 +24,7 @@ import type { SerializedLease } from "./LeaseRow"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchLeasesAction } from "@/lib/queries/portfolioActions"
 import { formatZAR } from "@/lib/constants"
-import { fmtZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
 
 const LEASE_STATUS_STYLES: Record<string, string> = {
   active:          "bg-emerald-100 text-emerald-700",
@@ -118,7 +118,7 @@ export function LeasesPageClient({ orgId, gate, isOwner }: Props) {
       const tv = l.tenant_view
       const name = tv ? (tv.company_name || `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim() || "Tenant") : "Tenant"
       const unit = l.units
-      const sub = [unit ? `${unit.unit_number}, ${unit.properties.name}` : null, l.end_date ? `ends ${new Date(l.end_date).toLocaleDateString("en-ZA")}` : null].filter(Boolean).join(" · ")
+      const sub = [unit ? `${unit.unit_number}, ${unit.properties.name}` : null, l.end_date ? `ends ${new Date(l.end_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` : null].filter(Boolean).join(" · ")
       return { id: l.id, title: name, sub, href: `/leases/${l.id}` }
     })
 

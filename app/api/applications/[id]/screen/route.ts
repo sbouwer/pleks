@@ -29,6 +29,7 @@ import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { RECONCILER_VERSION, type DeclaredContext, type Document, type ReconciliationResult, type PipelineDocumentResult } from "@/lib/extraction/types"
 import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { optionalEnv } from "@/lib/env"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
 const BUCKET = "application-docs"
@@ -236,7 +237,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     let extracted: PipelineDocumentResult[] = []
     let fraudSignals: unknown[] = []
     const docs = await loadDocuments(db, app.org_id, id)
-    if (hasFeature(tier, "ai_full") && docs.length > 0 && process.env.ANTHROPIC_API_KEY) {
+    if (hasFeature(tier, "ai_full") && docs.length > 0 && optionalEnv("ANTHROPIC_API_KEY")) {
       const result = await runPipeline(
         { unitType, applicantCount, documents: docs, declared, metadata: { source: "production", orgId: app.org_id, applicationId: id } },
         { orgId: app.org_id, suppressLogging: false, harnessMode: false },

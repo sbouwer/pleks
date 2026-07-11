@@ -20,6 +20,7 @@ import { assertEmailAvailableForRole, isPersonalEmailDomain } from "@/lib/auth/e
 import { mapPostgresMembershipError, MembershipRaceLost } from "@/lib/auth/membership"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
+import { isProductionNode } from "@/lib/env"
 
 export interface OnboardingData {
   userType: "owner" | "agent" | "agency" | "family" | "exploring"
@@ -180,7 +181,7 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       // Version string is not sensitive (no XSS exfil concern). DO NOT spread AUTH_COOKIE_OPTS here.
       sameSite: "lax",
       path: "/",
-      secure: process.env.NODE_ENV === "production",
+      secure: isProductionNode(),
       maxAge: 60 * 60 * 24 * 365,
     })
   } catch (tosErr) {

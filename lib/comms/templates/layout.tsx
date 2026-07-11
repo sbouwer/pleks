@@ -24,6 +24,7 @@ import {
 } from "@react-email/components"
 import * as React from "react"
 import type { EmailFooterVariant } from "@/lib/subscriptions/state"
+import { APP_URL } from "@/lib/env"
 
 export interface OrgBranding {
   orgName: string
@@ -55,8 +56,6 @@ interface EmailLayoutProps {
 }
 
 const DEFAULT_ACCENT = "#1a56db"
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.pleks.co.za"
-
 // Dark-mode logo swap — the dark-ink Pleks wordmark vanishes on the dark card mail clients force in dark mode,
 // so show the light-ink variant there. Covers prefers-color-scheme (Apple Mail/iOS/Gmail app) + Outlook.com.
 const LOGO_SWAP_CSS =

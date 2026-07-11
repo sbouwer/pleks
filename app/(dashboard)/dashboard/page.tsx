@@ -36,6 +36,7 @@ import { getAttentionItems } from "@/lib/dashboard/attentionItems"
 import { getActivityFeed } from "@/lib/dashboard/activityFeed"
 import { getExpiringLeases } from "@/lib/dashboard/leaseExpiry"
 import { computeTrialDaysLeft } from "@/lib/trial/utils"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 type SubRow = { tier: string; status: string; trial_tier: string | null; trial_ends_at: string | null; trial_converted: boolean | null } | null
 
@@ -278,7 +279,7 @@ export default async function DashboardPage() {
   }
 
   const greeting = getGreeting()
-  const dateStr = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+  const dateStr = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, weekday: "long", day: "numeric", month: "long", year: "numeric" })
   const tier = deriveTier(sub)
   const { isTrialing, trialEndsAt } = deriveTrialInfo(sub)
   const trialDaysLeft = computeTrialDaysLeft(trialEndsAt ?? null)

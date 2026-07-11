@@ -32,6 +32,7 @@ import type { LatestPull } from "../../properties/[id]/PropertyVerificationCard"
 import { hasFeature } from "@/lib/tier/gates"
 import type { Tier } from "@/lib/constants"
 import { formatZAR } from "@/lib/constants"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -417,7 +418,7 @@ export default async function LandlordDetailPage({ params }: Props) {
             items={recentStatements.map((s) => ({
               dotColor: s.owner_payment_status === "paid" ? "#1D9E75" : "#D85A30",
               title: `${s.period_month} — ${formatZAR(s.net_to_owner_cents)} ${s.owner_payment_status}`,
-              time: s.owner_payment_date ? new Date(s.owner_payment_date).toLocaleDateString("en-ZA") : "Pending",
+              time: s.owner_payment_date ? new Date(s.owner_payment_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }) : "Pending",
             }))}
           />
         </SectionCard>

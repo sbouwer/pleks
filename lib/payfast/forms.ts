@@ -12,6 +12,7 @@ import { generatePayFastSignature } from "./signature"
 import { PAYFAST_CONFIG } from "./config"
 import { TIER_PRICING, type Tier } from "@/lib/constants"
 import { saTodayISO } from "@/lib/dates"
+import { APP_URL } from "@/lib/env"
 
 interface SubscriptionFormData {
   orgId: string
@@ -34,9 +35,9 @@ export function buildSubscriptionForm({ orgId, tier }: SubscriptionFormData) {
   const data: Record<string, string> = {
     merchant_id: PAYFAST_CONFIG.merchantId,
     merchant_key: PAYFAST_CONFIG.merchantKey,
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?onboarding=complete`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/onboarding/team`,
-    notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/subscription`,
+    return_url: `${APP_URL}/dashboard?onboarding=complete`,
+    cancel_url: `${APP_URL}/onboarding/team`,
+    notify_url: `${APP_URL}/api/webhooks/payfast/subscription`,
     amount,
     item_name: `Pleks ${tierLabel} — ${cycleLabel}`,
     subscription_type: "1",
@@ -73,9 +74,9 @@ export function buildApplicationFeeForm({
   const data: Record<string, string> = {
     merchant_id: PAYFAST_CONFIG.merchantId,
     merchant_key: PAYFAST_CONFIG.merchantKey,
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${listingId}/status`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${listingId}`,
-    notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/application`,
+    return_url: `${APP_URL}/apply/${listingId}/status`,
+    cancel_url: `${APP_URL}/apply/${listingId}`,
+    notify_url: `${APP_URL}/api/webhooks/payfast/application`,
     amount: "399.00",
     item_name: `Application Fee — ${propertyName} ${unitName}`,
     item_description: "Tenant application screening fee",
@@ -115,9 +116,9 @@ export function buildDirectorFeeForm({
   const data: Record<string, string> = {
     merchant_id: PAYFAST_CONFIG.merchantId,
     merchant_key: PAYFAST_CONFIG.merchantKey,
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/${token}/status`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/${token}/payment`,
-    notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/director`,
+    return_url: `${APP_URL}/apply/${slug}/director-portal/${token}/status`,
+    cancel_url: `${APP_URL}/apply/${slug}/director-portal/${token}/payment`,
+    notify_url: `${APP_URL}/api/webhooks/payfast/director`,
     amount,
     item_name: `Director Screening Fee — ${directorName}`,
     item_description: `Personal surety screening for ${propertyLabel}`,
@@ -180,9 +181,9 @@ export function buildPropertyIntelligenceFeeForm({
   const data: Record<string, string> = {
     merchant_id:  PAYFAST_CONFIG.merchantId,
     merchant_key: PAYFAST_CONFIG.merchantKey,
-    return_url:   `${process.env.NEXT_PUBLIC_APP_URL}/intelligence/pull/${pullId}/result`,
-    cancel_url:   `${process.env.NEXT_PUBLIC_APP_URL}/intelligence`,
-    notify_url:   `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/property-intelligence`,
+    return_url:   `${APP_URL}/intelligence/pull/${pullId}/result`,
+    cancel_url:   `${APP_URL}/intelligence`,
+    notify_url:   `${APP_URL}/api/webhooks/payfast/property-intelligence`,
     amount,
     item_name:         `${label} — ${subjectLabel}`,
     item_description:  "Property intelligence pull",

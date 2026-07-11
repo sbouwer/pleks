@@ -11,9 +11,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { APP_URL, optionalEnv } from "@/lib/env"
 
 // Legal pages live on pleks.co.za, not app.pleks.co.za — LEGAL_SITE_URL must be set in prod
-const LEGAL_SITE_URL = process.env.LEGAL_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+const LEGAL_SITE_URL = optionalEnv("LEGAL_SITE_URL") || APP_URL
 
 const DOCS = [
   { type: "terms",   version: LEGAL_VERSIONS.terms,   path: "/terms" },

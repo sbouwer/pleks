@@ -29,7 +29,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildUnifiedTimeline } from "@/lib/maintenance/timeline"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { fmtZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
 
 const INSURANCE_BADGE: Record<string, { label: string; cls: string }> = {
   reported: { label: "Reported to broker",  cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
@@ -447,7 +447,7 @@ export default async function MaintenanceDetailPage({
                       {a.collection_method === "separate_invoice" && "→ Separate invoice"}
                       {a.collection_method === "deposit_deduction" && "→ Deduct from deposit at lease end"}
                       {a.collection_method === "already_paid" && "→ Paid on-site"}
-                      {a.added_to_invoice_at && ` (added ${new Date(a.added_to_invoice_at as string).toLocaleDateString("en-ZA")})`}
+                      {a.added_to_invoice_at && ` (added ${new Date(a.added_to_invoice_at as string).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })})`}
                     </p>
                   )}
                   {a.allocation_type === "landlord_expense" && (

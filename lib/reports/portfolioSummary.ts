@@ -7,6 +7,7 @@
 import { computePreviousPeriod, toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { PeriodComparison, PortfolioFlag, PortfolioSummaryData, PropertySummary, ReportFilters } from "./types"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export async function buildPortfolioSummary(filters: ReportFilters): Promise<PortfolioSummaryData> {
   const supabase = await createServiceClient()
@@ -334,7 +335,7 @@ function buildFlags(
   for (const c of arrearsCases) {
     const oldestMs = c.oldest_outstanding_date ? new Date(c.oldest_outstanding_date).getTime() : null
     if (oldestMs && (now - oldestMs) > MS_30D) {
-      const sinceStr = new Date(c.oldest_outstanding_date as string).toLocaleDateString("en-ZA")
+      const sinceStr = new Date(c.oldest_outstanding_date as string).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })
       const ct = c.tenants?.contact
       const tenantName = ct?.company_name?.trim() || [ct?.first_name, ct?.last_name].filter(Boolean).join(" ").trim() || null
       flags.push({
@@ -355,7 +356,7 @@ function buildFlags(
         flags.push({
           type: "vacant_30d",
           label: "Vacant > 30 days",
-          detail: `Unit at ${propMap.get(u.property_id) ?? "Unknown"} — vacant since ${new Date(vacantSince).toLocaleDateString("en-ZA")}`,
+          detail: `Unit at ${propMap.get(u.property_id) ?? "Unknown"} — vacant since ${new Date(vacantSince).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}`,
         })
       }
     }
@@ -368,7 +369,7 @@ function buildFlags(
       flags.push({
         type: "lease_expiring_30d",
         label: "Lease expiring within 30 days",
-        detail: `${propMap.get(l.property_id) ?? "Unknown"} — expires ${end.toLocaleDateString("en-ZA")}`,
+        detail: `${propMap.get(l.property_id) ?? "Unknown"} — expires ${end.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}`,
       })
     }
   }

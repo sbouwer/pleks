@@ -24,8 +24,8 @@ import { purgeOrg } from "@/lib/subscriptions/purge"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { fmtDateLongZA } from "@/lib/dates"
+import { APP_URL } from "@/lib/env"
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 const ELEVEN_MONTHS_MS = 11 * 30 * 24 * 60 * 60 * 1000
 
 type SupabaseClient = Awaited<ReturnType<typeof createServiceClient>>

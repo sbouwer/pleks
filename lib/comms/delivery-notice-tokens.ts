@@ -8,6 +8,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { APP_URL } from "@/lib/env"
 
 const DEADLINE_DAYS: Record<string, number> = {
   "deposit.return_schedule":   21,
@@ -52,6 +53,6 @@ export async function createDeliveryNoticeToken(
     return null
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+  const appUrl = APP_URL
   return `${appUrl}/public/notice/${data.token}`
 }

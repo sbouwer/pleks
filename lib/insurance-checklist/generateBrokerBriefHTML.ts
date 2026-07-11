@@ -6,7 +6,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { fmtDateLongZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtDateLongZA } from "@/lib/dates"
 
 interface BriefItem {
   sort_order: number
@@ -225,7 +225,7 @@ export async function fetchBrokerBriefData(propertyId: string): Promise<BrokerBr
     agentEmail,
     items,
     propertyShortId: (prop.id as string).slice(0, 8).toUpperCase(),
-    generatedDate:   formatDate(new Date().toISOString()) ?? new Date().toLocaleDateString("en-ZA"),
+    generatedDate:   formatDate(new Date().toISOString()) ?? new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }),
   }
 }
 

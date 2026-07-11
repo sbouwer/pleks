@@ -19,11 +19,12 @@ import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-ema
 import { RenewalReminderEmail } from "@/lib/comms/templates/insurance/renewal-reminder"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
+import { APP_URL, SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
   )
 }
 
@@ -173,7 +174,7 @@ async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, re
   if (!agentEmail) return
 
   const renewalFormatted = fmtDateLongZA(renewalDate)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://app.pleks.co.za"
+  const baseUrl = APP_URL.replace(/\/$/, "")
   const checklistUrl = `${baseUrl}/properties/${propertyId}?tab=insurance`
 
   const orgSettings = await fetchOrgSettings(orgId)

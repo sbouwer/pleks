@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { logCommunication } from "@/lib/actions/tenants"
 import { toast } from "sonner"
 import { MessageSquare, Phone, Mail, Lock, Plus } from "lucide-react"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface CommEntry {
   id: string
@@ -108,7 +109,7 @@ export function CommunicationFeed({
                     </span>
                     {isInternal && <Lock className="h-3 w-3 text-warning" />}
                     <span className="text-xs text-muted-foreground ml-auto">
-                      {new Date(comm.created_at).toLocaleDateString("en-ZA")}
+                      {new Date(comm.created_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
                     </span>
                   </div>
                   {comm.subject && <p className="font-medium">{comm.subject}</p>}

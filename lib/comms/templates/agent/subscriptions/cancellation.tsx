@@ -13,6 +13,7 @@
 import * as React from "react"
 import { Row, Column, Section, Text, Link } from "@react-email/components"
 import { EmailLayout, EmailButton, EmailSectionHeading, type OrgBranding } from "../../layout"
+import { MARKETING_URL } from "@/lib/env"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -20,7 +21,7 @@ export type CancellationMethod = "passkey" | "authenticator code" | "email link"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MARKETING = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+const MARKETING = MARKETING_URL
 const PRIVACY_URL = `${MARKETING}/privacy`
 const PRIVACY_RETENTION_URL = `${MARKETING}/privacy#retention`
 const TERMS_CANCEL_URL = `${MARKETING}/terms#cancellation`

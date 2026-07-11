@@ -20,11 +20,12 @@ import { registerApplicationDocument } from "@/lib/applications/documentRegistry
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 import { pathBelongsToApplication } from "@/lib/applications/applicationStoragePath"
 import { checkAiRateLimit } from "@/lib/ai/rateLimit"
+import { APP_URL, SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY")
   )
 }
 
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest, { params }: Props) {
 async function triggerBankExtraction(applicationId: string, path: string, token: string | undefined) {
   try {
     // Forward the applicant token — /documents re-validates it (token bound to this application).
-    await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/applications/${applicationId}/documents`, {
+    await fetch(`${APP_URL}/api/applications/${applicationId}/documents`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bankStatementPath: path, token }),

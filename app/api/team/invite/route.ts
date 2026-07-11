@@ -14,6 +14,7 @@ import { getMembership } from "@/lib/supabase/getMembership"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { sendEmail } from "@/lib/comms/send-email"
 import { assignableRoleSlugs } from "@/lib/auth/orgRoles"
+import { APP_URL } from "@/lib/env"
 
 // POST /api/team/invite
 // Body: { email, role, orgId }
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
   const { data: org, error: orgErr } = await service.from("organisations").select("name").eq("id", orgId).single()
   if (orgErr) console.error("[team invite] org name read failed:", orgErr.message)
   const orgName = (org?.name as string | undefined) ?? "your team"
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+  const base = APP_URL
   const acceptUrl = `${base}/invite/${token}`
   const roleLabel = role.replaceAll("_", " ")
   try {

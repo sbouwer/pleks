@@ -12,10 +12,9 @@ import { EmailLayout, type OrgBranding } from "@/lib/comms/templates/layout"
 import { render } from "@react-email/components"
 import { sendEmail } from "@/lib/comms/send-email"
 import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
+import { APP_URL, optionalEnv } from "@/lib/env"
 
 const PLEKS_BRANDING: OrgBranding = { orgName: "Pleks", accentColor: "#E8A838" }
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.pleks.co.za"
-
 export type SecurityEventType =
   | "password_changed"
   | "totp_enrolled" | "totp_unenrolled"
@@ -77,7 +76,7 @@ function SecurityNotificationEmail({ userName, eventType, deviceLabel, location 
 
 // Guard construction — new Resend(undefined) THROWS at module load, and this module is imported by
 // logAuthEvent, so an unset key would crash every sensitive auth event. Null = dark (auth_events still logs).
-const resendKey = process.env.RESEND_API_KEY
+const resendKey = optionalEnv("RESEND_API_KEY")
 // RESEND_API_KEY unset → security emails go dark; the auth_events row is still written.
 
 /** Send a Pleks-branded security notification. Best-effort; caller swallows errors/timeouts. */

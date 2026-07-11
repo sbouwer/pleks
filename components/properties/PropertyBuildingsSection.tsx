@@ -8,6 +8,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Building2, Pencil, Plus, AlertTriangle } from "lucide-react"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface Building {
   id: string
@@ -115,7 +116,7 @@ export function PropertyBuildingsSection({ propertyId, buildings }: Readonly<Pro
                               Insurance: {b.insurance_provider}
                               {b.insurance_renewal_date && (
                                 <span className={renewalWarning ? "text-warning font-medium" : ""}>
-                                  {" "}· Renewal {new Date(b.insurance_renewal_date).toLocaleDateString("en-ZA")}
+                                  {" "}· Renewal {new Date(b.insurance_renewal_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
                                   {renewalWarning && renewalDays !== null && ` (${renewalDays}d)`}
                                 </span>
                               )}

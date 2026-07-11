@@ -10,11 +10,9 @@
 
 import { useState } from "react"
 import type { TierData } from "@/lib/marketing/tiers"
+import { APP_URL, MARKETING_URL } from "@/lib/env"
 
 // Absolute URL to avoid RSC prefetch CORS failures across subdomain boundary
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
-
 export type { TierData }
 
 function getSuggestedTier(count: number, tiers: readonly TierData[]): string {

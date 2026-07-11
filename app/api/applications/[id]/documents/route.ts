@@ -20,6 +20,7 @@ import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { optionalEnv } from "@/lib/env"
 
 export async function POST(
   req: Request,
@@ -79,7 +80,7 @@ export async function POST(
 
   // Extract bank statement with Sonnet — only for Portfolio+ (ai_full)
   const tier = await getOrgTier(application.org_id)
-  if (bankStatementPath && process.env.ANTHROPIC_API_KEY && hasFeature(tier, "ai_full")) {
+  if (bankStatementPath && optionalEnv("ANTHROPIC_API_KEY") && hasFeature(tier, "ai_full")) {
     try {
       const { data: fileData, error: fileDataError } = await supabase.storage
         .from("application-docs")

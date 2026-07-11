@@ -12,6 +12,7 @@ import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { checkAtEnvironment, AT_SANDBOX_USERNAME } from "@/lib/messaging/africastalking"
+import { optionalEnv } from "@/lib/env"
 
 export interface SMSAuditParams {
   templateKey?: string
@@ -64,8 +65,8 @@ export async function sendSMS(
   }
 
   // Check AT credentials
-  const apiKey = process.env.AT_API_KEY
-  const username = process.env.AT_USERNAME
+  const apiKey = optionalEnv("AT_API_KEY")
+  const username = optionalEnv("AT_USERNAME")
   if (!apiKey || !username) {
     return { sent: false, reason: "Africa's Talking credentials not configured" }
   }

@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { yodlee } from "@/lib/yodlee/client"
+import { APP_URL } from "@/lib/env"
 
 export async function POST(_req: NextRequest) {
   const gw = await gatewaySSR()
@@ -39,7 +40,7 @@ export async function POST(_req: NextRequest) {
     const userToken = await yodlee.getUserToken(cobrandToken, loginName)
     const config = yodlee.getFastLinkConfig(
       userToken,
-      `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/api/yodlee/callback`,
+      `${APP_URL}/api/yodlee/callback`,
     )
 
     return Response.json({ config, userToken })

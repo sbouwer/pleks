@@ -16,9 +16,10 @@ import { sendSubmissionNotifications } from "@/lib/applications/submissionEmails
 import { notifyAllSubmitted } from "@/lib/applications/peerEmails"
 import { incompleteApplicantCount } from "@/lib/applications/submitGate"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  return createClient(SUPABASE_URL, requireEnv("SUPABASE_SERVICE_ROLE_KEY"))
 }
 
 interface Props { params: Promise<{ id: string }> }

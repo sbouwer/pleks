@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { Resend } from "resend"
 import { headers } from "next/headers"
 import { isValidEmail } from "@/lib/validation/contact"
+import { optionalEnv } from "@/lib/env"
 
 /**
  * submitContactForm — public contact form server action.
@@ -133,7 +134,7 @@ export async function submitContactForm(input: ContactFormInput): Promise<Contac
   // Failure here is non-fatal — the lead is in the DB, Stéan can pick it up
   // from the admin view even if email delivery fails. Log and move on.
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(optionalEnv("RESEND_API_KEY"))
     await resend.emails.send({
       from: "Pleks Contact <notifications@pleks.co.za>",
       to: "stean@pleks.co.za",

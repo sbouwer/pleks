@@ -12,6 +12,7 @@ import { Section, Text, Hr } from "@react-email/components"
 import { EmailLayout, EmailDetail, type OrgBranding } from "../../layout"
 import { LegalFooter } from "../../LegalFooter"
 import { finalNoticeCancellationBasis } from "../../legalCitations"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export interface FinalNoticeEmailProps {
   branding: OrgBranding
@@ -43,7 +44,7 @@ export function FinalNoticeEmail({
   cpaApplies,
 }: FinalNoticeEmailProps) {
   const today = new Date().toLocaleDateString("en-ZA", {
-    day: "numeric", month: "long", year: "numeric",
+    timeZone: SA_TIMEZONE, day: "numeric", month: "long", year: "numeric",
   })
 
   const preview = `FINAL NOTICE — lease cancellation in ${cancellationNoticeDays} days — ${propertyLabel}`

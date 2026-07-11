@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Send, FileDown, Save, AlertTriangle } from "lucide-react"
 import { RichTextEditor, type RichTextEditorHandle } from "@/components/ui/RichTextEditor"
 import type { DocumentTemplate } from "@/app/(dashboard)/settings/templates/types"
+import { SA_TIMEZONE } from "@/lib/dates"
 import {
   sendDocument,
   generateDocumentPdf,
@@ -66,7 +67,7 @@ function buildPreviewValues(
   agentName: string
 ): Record<string, string> {
   const today = new Date().toLocaleDateString("en-ZA", {
-    day: "numeric",
+    timeZone: SA_TIMEZONE, day: "numeric",
     month: "long",
     year: "numeric",
   })
@@ -188,7 +189,7 @@ function PreviewPane({
             )}
             <p className="text-xs text-gray-400 mt-0.5">
               {new Date().toLocaleDateString("en-ZA", {
-                day: "numeric",
+                timeZone: SA_TIMEZONE, day: "numeric",
                 month: "long",
                 year: "numeric",
               })}

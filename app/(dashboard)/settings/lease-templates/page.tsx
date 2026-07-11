@@ -26,7 +26,7 @@ import { toast } from "sonner"
 import { Eye, ExternalLink } from "lucide-react"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
-import { fmtDateLongZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtDateLongZA } from "@/lib/dates"
 
 interface OrgInfo {
   orgId: string
@@ -329,7 +329,7 @@ export default function LeaseTemplatesPage() {
             <div>
               <p className="text-muted-foreground text-xs">Date confirmed</p>
               <p>{orgInfo?.clauseEditConfirmedAt
-                ? new Date(orgInfo.clauseEditConfirmedAt).toLocaleString("en-ZA")
+                ? new Date(orgInfo.clauseEditConfirmedAt).toLocaleString("en-ZA", { timeZone: SA_TIMEZONE })
                 : "—"
               }</p>
             </div>

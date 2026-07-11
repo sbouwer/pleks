@@ -31,6 +31,7 @@ import type { CpaAppliesState } from "@/lib/comms/templates/legalCitations"
 import { DemandToVacateBreachEmail } from "@/lib/comms/templates/tenant/leases/demand-to-vacate-breach"
 import { DemandToVacateExpiryEmail } from "@/lib/comms/templates/tenant/leases/demand-to-vacate-expiry"
 import { DemandToVacateM2mEmail } from "@/lib/comms/templates/tenant/leases/demand-to-vacate-m2m"
+import { optionalEnv } from "@/lib/env"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -102,7 +103,7 @@ const SUBJECTS: Record<DemandNoticeType, string> = {
 // recognised safe value. (Inverting the Phase-A default-'draft' polarity mistake I'd already ruled against.)
 const DRAFT_RENDER_ENVS = new Set(["development", "preview", "test"])
 function allowDraftRender(): boolean {
-  return DRAFT_RENDER_ENVS.has(process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "")
+  return DRAFT_RENDER_ENVS.has(optionalEnv("VERCEL_ENV") || optionalEnv("NODE_ENV", ""))
 }
 
 /** Production gate: every suite template that WILL actually be sent must be counsel-approved. Outside the

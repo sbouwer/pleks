@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
-import { saDateISO } from "@/lib/dates"
+import { SA_TIMEZONE, saDateISO } from "@/lib/dates"
 
 interface GLReviewProps {
   blocks: GLPropertyBlock[]
@@ -96,7 +96,7 @@ export function GLReview({ blocks, leaseMatches, propertyMatches, onBack, onImpo
     <div className="max-w-2xl mx-auto">
       <h2 className="font-heading text-2xl mb-2">Review GL import</h2>
       <p className="text-sm text-muted-foreground mb-6">
-        Period: {minDate.toLocaleDateString("en-ZA")} — {maxDate.toLocaleDateString("en-ZA")}
+        Period: {minDate.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })} — {maxDate.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
       </p>
 
       {/* Transaction preview per property */}

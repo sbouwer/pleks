@@ -18,6 +18,7 @@ import { timingSafeEqual } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 import { activateLeaseCascade } from "@/lib/leases/activateLeaseCascade"
 import { revertPendingSigningToDraft, type SigningRevertReason } from "@/lib/leases/revertSigning"
+import { optionalEnv } from "@/lib/env"
 
 export const runtime = "nodejs"
 
@@ -95,7 +96,7 @@ async function handleCompleted(
 }
 
 export async function POST(req: Request) {
-  const secret = process.env.DOCUSEAL_WEBHOOK_SECRET
+  const secret = optionalEnv("DOCUSEAL_WEBHOOK_SECRET")
   if (!secret) {
     // DocuSeal e-signing not live yet — stay dormant + reject so no forged payload can write.
     return NextResponse.json({ error: "Not yet active" }, { status: 503 })

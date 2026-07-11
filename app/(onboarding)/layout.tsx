@@ -11,10 +11,9 @@
  */
 import { Wordmark } from "@/components/ui/Wordmark"
 import { PublicThemeProvider } from "../(public)/PublicThemeProvider"
+import { MARKETING_URL } from "@/lib/env"
 import "../(public)/public.css"
 import "./onboarding-shell.css"
-
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
 export default function OnboardingGroupLayout({
   children,

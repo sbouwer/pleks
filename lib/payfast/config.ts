@@ -1,18 +1,19 @@
 /**
  * lib/payfast/config.ts — PayFast merchant configuration (sandbox vs live)
  */
-const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === "true"
+import { PAYFAST_SANDBOX_PUBLIC, optionalEnv } from "@/lib/env"
+const isSandbox = PAYFAST_SANDBOX_PUBLIC
 
 export const PAYFAST_CONFIG = {
   merchantId: isSandbox
-    ? process.env.PAYFAST_MERCHANT_ID_TEST!
-    : process.env.PAYFAST_MERCHANT_ID_LIVE!,
+    ? optionalEnv("PAYFAST_MERCHANT_ID_TEST")
+    : optionalEnv("PAYFAST_MERCHANT_ID_LIVE"),
   merchantKey: isSandbox
-    ? process.env.PAYFAST_MERCHANT_KEY_TEST!
-    : process.env.PAYFAST_MERCHANT_KEY_LIVE!,
+    ? optionalEnv("PAYFAST_MERCHANT_KEY_TEST")
+    : optionalEnv("PAYFAST_MERCHANT_KEY_LIVE"),
   passphrase: isSandbox
-    ? process.env.PAYFAST_PASSPHRASE_TEST || ""
-    : process.env.PAYFAST_PASSPHRASE_LIVE || "",
+    ? optionalEnv("PAYFAST_PASSPHRASE_TEST", "")
+    : optionalEnv("PAYFAST_PASSPHRASE_LIVE", ""),
   isSandbox,
   processUrl: isSandbox
     ? "https://sandbox.payfast.co.za/eng/process"

@@ -6,6 +6,7 @@
  * Notes:  Falls back to a deeplink card if env vars are missing.
  *         Shows top 8 unresolved issues sorted by events (last 24h).
  */
+import { optionalEnv } from "@/lib/env"
 interface SentryIssue {
   id: string
   title: string
@@ -26,9 +27,9 @@ const LEVEL_COLOR: Record<string, string> = {
 }
 
 async function fetchSentryIssues(): Promise<SentryIssue[] | null> {
-  const token   = process.env.SENTRY_AUTH_TOKEN
-  const org     = process.env.SENTRY_ORG
-  const project = process.env.SENTRY_PROJECT
+  const token   = optionalEnv("SENTRY_AUTH_TOKEN")
+  const org     = optionalEnv("SENTRY_ORG")
+  const project = optionalEnv("SENTRY_PROJECT")
 
   if (!token || !org || !project) return null
 
@@ -47,9 +48,9 @@ async function fetchSentryIssues(): Promise<SentryIssue[] | null> {
 }
 
 async function fetchSentryStats(): Promise<{ total24h: number; total7d: number } | null> {
-  const token   = process.env.SENTRY_AUTH_TOKEN
-  const org     = process.env.SENTRY_ORG
-  const project = process.env.SENTRY_PROJECT
+  const token   = optionalEnv("SENTRY_AUTH_TOKEN")
+  const org     = optionalEnv("SENTRY_ORG")
+  const project = optionalEnv("SENTRY_PROJECT")
   if (!token || !org || !project) return null
 
   try {
@@ -80,7 +81,7 @@ function timeAgo(iso: string): string {
 }
 
 export async function SentryErrorsCard() {
-  const hasConfig = !!(process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT)
+  const hasConfig = !!(optionalEnv("SENTRY_AUTH_TOKEN") && optionalEnv("SENTRY_ORG") && optionalEnv("SENTRY_PROJECT"))
 
   if (!hasConfig) {
     // Graceful fallback: deeplink only
@@ -155,7 +156,7 @@ export async function SentryErrorsCard() {
             </>
           )}
           <a
-            href={`https://sentry.io/organizations/${process.env.SENTRY_ORG}/issues/`}
+            href={`https://sentry.io/organizations/${optionalEnv("SENTRY_ORG")}/issues/`}
             target="_blank"
             rel="noopener noreferrer"
             style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--ink-mute)", textDecoration: "none", letterSpacing: "0.04em" }}

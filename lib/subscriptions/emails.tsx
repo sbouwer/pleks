@@ -14,6 +14,7 @@ import {
   PurgedConfirmEmail,     PURGED_CONFIRM_SUBJECT,
 } from "@/lib/comms/templates/agent/subscriptions/cancellation"
 import { fmtDateLongZA } from "@/lib/dates"
+import { APP_URL } from "@/lib/env"
 
 interface PurgeWarningData {
   cancelledDate:   string
@@ -26,8 +27,6 @@ interface PurgeWarningData {
 function formatDate(iso: string) {
   return fmtDateLongZA(iso)
 }
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
 // Pleks → customer system emails are always Pleks-branded (never the agency brand) — branding follows the
 // sender→recipient relationship. Overrides whatever branding the billing crons build; the recipient's name

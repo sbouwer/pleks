@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { buildLetterHTML, resolveMergeFields } from "@/lib/pdf/documentLetter"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ export async function GET(
   if (!job) return new Response("Not found", { status: 404 })
 
   // Build merge values from context
-  const today = new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+  const today = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, day: "numeric", month: "long", year: "numeric" })
   const mergeValues: Record<string, string> = { today, today_long: today, "agent.name": agentName }
 
   let leaseRef: string | null = null

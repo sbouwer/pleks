@@ -8,6 +8,7 @@
  *         Match prompt is conservative by design (D-60B-12): bias toward false negatives.
  */
 import { createMessage } from "@/lib/ai/client"
+import { optionalEnv } from "@/lib/env"
 
 export interface WarrantyMatchInput {
   id: string
@@ -54,7 +55,7 @@ export async function findWarrantyMatch(
   orgId: string,
 ): Promise<WarrantyMatchResult | null> {
   if (warranties.length === 0) return null
-  if (!process.env.ANTHROPIC_API_KEY) return null
+  if (!optionalEnv("ANTHROPIC_API_KEY")) return null
 
   const warrantyList = warranties
     .map(

@@ -20,11 +20,12 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { encryptIdNumber, encryptDob } from "@/lib/crypto/idNumber"
 import { parseIncomeSources } from "@/lib/applications/incomeSources"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY")
   )
 }
 

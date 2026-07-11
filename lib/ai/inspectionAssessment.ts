@@ -9,6 +9,7 @@ import type { Tier } from "@/lib/constants"
 import { hasFeature } from "@/lib/tier/gates"
 import { createMessage } from "@/lib/ai/client"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { optionalEnv } from "@/lib/env"
 
 export const WEAR_AND_TEAR_SYSTEM_PROMPT = `You are a South African property inspection expert with deep knowledge of the Rental Housing Act 50 of 1999 and industry standards for wear and tear assessment.
 
@@ -99,7 +100,7 @@ export async function runInspectionAssessment(
   }
 
   // Track A — Steward+ tier: Claude Sonnet 4.6
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!optionalEnv("ANTHROPIC_API_KEY")) {
     return mapped.map((item) => ({
       item_id: item.id,
       classification: "requires_review",

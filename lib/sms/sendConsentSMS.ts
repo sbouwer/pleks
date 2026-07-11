@@ -10,6 +10,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { checkAtEnvironment, AT_SANDBOX_USERNAME } from "@/lib/messaging/africastalking"
+import { optionalEnv } from "@/lib/env"
 
 interface ATResponse {
   SMSMessageData?: {
@@ -28,8 +29,8 @@ export async function sendConsentSMS(
   orgId: string | null,
   entityId: string,
 ): Promise<ConsentSMSResult> {
-  const apiKey = process.env.AT_API_KEY
-  const username = process.env.AT_USERNAME
+  const apiKey = optionalEnv("AT_API_KEY")
+  const username = optionalEnv("AT_USERNAME")
 
   if (!apiKey || !username) {
     return { sent: false, reason: "Africa's Talking credentials not configured" }

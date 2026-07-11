@@ -20,10 +20,8 @@ import path from "node:path"
 // Font.register() is idempotent — first call wins — so FITSCORE_FONT_SOURCE must
 // be set at process start (before tsx loads any module). Use the npm scripts.
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.pleks.co.za'
-
 function fontSrc(filename: string): string {
-  if (process.env.FITSCORE_FONT_SOURCE === 'local') {
+  if (optionalEnv("FITSCORE_FONT_SOURCE") === 'local') {
     return path.resolve(process.cwd(), 'public', 'fonts', filename)
   }
   return `${APP_URL}/fonts/${filename}`
@@ -56,6 +54,7 @@ import type {
 } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { fmtZA } from "@/lib/dates"
+import { APP_URL, optionalEnv } from "@/lib/env"
 
 // ─── Re-export engine types used across all primitives ────────────────────────
 

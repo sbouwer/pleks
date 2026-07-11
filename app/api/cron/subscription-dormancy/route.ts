@@ -20,10 +20,11 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, fmtDateLongZA, saDateISO } from "@/lib/dates"
+import { optionalEnv } from "@/lib/env"
 
-const DORMANCY_DAYS       = parseInt(process.env.DORMANCY_DAYS       ?? "60", 10)
-const DORMANCY_WARN_DAYS  = parseInt(process.env.DORMANCY_WARN_DAYS  ?? "30", 10)
-const DORMANCY_FINAL_DAYS = parseInt(process.env.DORMANCY_FINAL_DAYS ?? "1",  10)
+const DORMANCY_DAYS       = parseInt(optionalEnv("DORMANCY_DAYS", "60"), 10)
+const DORMANCY_WARN_DAYS  = parseInt(optionalEnv("DORMANCY_WARN_DAYS", "30"), 10)
+const DORMANCY_FINAL_DAYS = parseInt(optionalEnv("DORMANCY_FINAL_DAYS", "1"),  10)
 
 type SupabaseClient = Awaited<ReturnType<typeof createServiceClient>>
 type OrgRow = Record<string, unknown> & { id: string; name: string }

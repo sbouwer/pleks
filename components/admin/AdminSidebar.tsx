@@ -10,6 +10,7 @@ import { headers } from "next/headers"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { RoleBadge } from "./RoleBadge"
 import { createServiceClient } from "@/lib/supabase/server"
+import { optionalEnv } from "@/lib/env"
 
 interface InboxCounts {
   feedback: number
@@ -203,7 +204,7 @@ export async function AdminSidebar() {
           <p style={GROUP_TITLE_STYLE}>Platform</p>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             <NavItem href="/admin/platform-health"                                                              label="Health"  pathname={pathname} />
-            <NavItem href={`https://${process.env.SENTRY_ORG ?? "sentry"}.sentry.io/issues/`}               label="Errors"  pathname={pathname} external />
+            <NavItem href={`https://${optionalEnv("SENTRY_ORG", "sentry")}.sentry.io/issues/`}               label="Errors"  pathname={pathname} external />
             <NavItem href="https://uptime.betterstack.com/monitors"                                          label="Uptime"  pathname={pathname} external />
           </ul>
         </div>

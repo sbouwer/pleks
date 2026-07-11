@@ -20,6 +20,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { purgeApplicationDocs } from "@/lib/applications/purgeDocs"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { optionalEnv } from "@/lib/env"
 
 type CatResult = { evaluated: number; deleted: number; skipped_carveout: number }
 type CatSummary = { orgs_processed: number; deleted: number; skipped: number; errors: string[] }
@@ -195,8 +196,8 @@ export async function GET(req: NextRequest) {
     await runForOrg(db, org.id, now, summary)
   }
 
-  if (process.env.HEARTBEAT_POPIA_RETENTION_PURGE) {
-    await fetch(process.env.HEARTBEAT_POPIA_RETENTION_PURGE, { method: "GET" }).catch(() => {})
+  if (optionalEnv("HEARTBEAT_POPIA_RETENTION_PURGE")) {
+    await fetch(optionalEnv("HEARTBEAT_POPIA_RETENTION_PURGE"), { method: "GET" }).catch(() => {})
   }
 
   return NextResponse.json({ ok: true, summary })

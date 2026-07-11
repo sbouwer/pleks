@@ -15,6 +15,7 @@ import { InvoiceIssuedEmail } from "@/lib/comms/templates/tenant/rent/invoice-is
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { fmtDateLongZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
+import { optionalEnv } from "@/lib/env"
 
 function buildPaymentReference(lastName: string | null, unitNumber: string | null): string {
   const surname = (lastName ?? "TENANT")
@@ -262,8 +263,8 @@ export async function GET(req: Request) {
     })
   }
 
-  if (process.env.HEARTBEAT_INVOICE_GENERATE) {
-    await fetch(process.env.HEARTBEAT_INVOICE_GENERATE, { method: "POST" }).catch(() => undefined)
+  if (optionalEnv("HEARTBEAT_INVOICE_GENERATE")) {
+    await fetch(optionalEnv("HEARTBEAT_INVOICE_GENERATE"), { method: "POST" }).catch(() => undefined)
   }
 
   return NextResponse.json({ ok: true, generated })

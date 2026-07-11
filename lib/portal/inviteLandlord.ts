@@ -21,6 +21,7 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { PortalLandlordInviteEmail } from "@/lib/comms/templates/portal/role-invites"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { APP_URL } from "@/lib/env"
 
 export async function inviteLandlord(landlordId: string, agentId: string, orgId: string) {
   const service = await createServiceClient()
@@ -54,7 +55,7 @@ export async function inviteLandlord(landlordId: string, agentId: string, orgId:
         org_id: landlord.org_id,
         full_name: displayName,
       },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/landlord/dashboard`,
+      redirectTo: `${APP_URL}/landlord/dashboard`,
     },
   })
 

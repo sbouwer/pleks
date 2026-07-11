@@ -7,6 +7,7 @@
  *         This file handles severity-only cases (tenant portal, post-update re-eval).
  */
 import { createMessage } from "@/lib/ai/client"
+import { optionalEnv } from "@/lib/env"
 
 export type Severity = "routine" | "elevated" | "urgent" | "critical"
 
@@ -47,7 +48,7 @@ export async function classifySeverity(
   description: string,
   orgId: string | null = null,
 ): Promise<SeverityResult> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!optionalEnv("ANTHROPIC_API_KEY")) {
     return fallbackSeverity(title, description)
   }
 

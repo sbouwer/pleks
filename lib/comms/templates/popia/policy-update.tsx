@@ -7,8 +7,9 @@
 import * as React from "react"
 import { Text, Link, Hr } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../layout"
+import { MARKETING_URL } from "@/lib/env"
 
-const MARKETING = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+const MARKETING = MARKETING_URL
 
 export interface PopiaPolicyUpdateEmailProps {
   branding: OrgBranding

@@ -20,6 +20,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { purgeScreeningArtefactsForOrg } from "@/lib/popia/screeningArtefactPurge"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { optionalEnv } from "@/lib/env"
 
 export const runtime = "nodejs"
 
@@ -59,8 +60,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (process.env.HEARTBEAT_SCREENING_ARTEFACT_PURGE) {
-    await fetch(process.env.HEARTBEAT_SCREENING_ARTEFACT_PURGE, { method: "GET" }).catch(() => {})
+  if (optionalEnv("HEARTBEAT_SCREENING_ARTEFACT_PURGE")) {
+    await fetch(optionalEnv("HEARTBEAT_SCREENING_ARTEFACT_PURGE"), { method: "GET" }).catch(() => {})
   }
 
   const ok = errors.length === 0

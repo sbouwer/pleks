@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AlertTriangle, ArrowRight } from "lucide-react"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface PlatformRequest {
   id: string
@@ -117,7 +118,7 @@ export default async function AdminPopiaRequestsPage() {
                         {r.subject_full_name ?? r.subject_email}
                       </CardTitle>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(r.submitted_at).toLocaleDateString("en-ZA")} ·{" "}
+                        {new Date(r.submitted_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })} ·{" "}
                         <span className="capitalize">{r.request_type.replaceAll("_", " ")}</span>
                       </p>
                     </div>
@@ -152,7 +153,7 @@ export default async function AdminPopiaRequestsPage() {
                   )}
 
                   <p className="text-xs text-muted-foreground">
-                    SLA: {sla.toLocaleDateString("en-ZA")}
+                    SLA: {sla.toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
                     {isOverdue && " — overdue"}
                   </p>
                 </CardContent>

@@ -15,6 +15,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { complianceRecordsSweep } from "@/lib/popia/complianceRecordsSweep"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { optionalEnv } from "@/lib/env"
 
 export const runtime = "nodejs"
 
@@ -27,8 +28,8 @@ export async function GET(req: NextRequest) {
     const r = await complianceRecordsSweep(db)
     const errors = [...r.declined_decision_record.errors, ...r.consent_proof.errors]
 
-    if (process.env.HEARTBEAT_COMPLIANCE_RECORDS_SWEEP) {
-      await fetch(process.env.HEARTBEAT_COMPLIANCE_RECORDS_SWEEP, { method: "GET" }).catch(() => {})
+    if (optionalEnv("HEARTBEAT_COMPLIANCE_RECORDS_SWEEP")) {
+      await fetch(optionalEnv("HEARTBEAT_COMPLIANCE_RECORDS_SWEEP"), { method: "GET" }).catch(() => {})
     }
 
     const ok = errors.length === 0

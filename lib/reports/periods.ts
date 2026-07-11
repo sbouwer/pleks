@@ -4,7 +4,7 @@
  * Notes:  toDateStr formats YYYY-MM-DD in local time to avoid toISOString() timezone off-by-one in SQL date comparisons; SA tax year runs 1 Mar → 28/29 Feb
  */
 import { ReportPeriodType } from "./types"
-import { fmtDateZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtDateZA } from "@/lib/dates"
 
 // SA tax year: 1 March → 28/29 February
 function saTaxYearStart(year: number): Date {
@@ -60,8 +60,8 @@ export function resolvePeriod(
 
 export function formatPeriodLabel(from: Date, to: Date): string {
   const opts: Intl.DateTimeFormatOptions = { month: "long", year: "numeric" }
-  const fromStr = from.toLocaleDateString("en-ZA", opts)
-  const toStr = to.toLocaleDateString("en-ZA", opts)
+  const fromStr = from.toLocaleDateString("en-ZA", { ...(opts), timeZone: SA_TIMEZONE })
+  const toStr = to.toLocaleDateString("en-ZA", { ...(opts), timeZone: SA_TIMEZONE })
   if (fromStr === toStr) return fromStr
   return `${fromStr} — ${toStr}`
 }

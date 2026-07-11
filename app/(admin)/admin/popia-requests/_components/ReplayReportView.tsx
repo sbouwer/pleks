@@ -7,6 +7,7 @@
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §8.8–§8.12.
  */
 
+import { SA_TIMEZONE } from "@/lib/dates"
 import type { ReplayReport } from '@/lib/screening/fitScoreReplay'
 import { DIMENSION_MATCH_EPSILON } from '@/lib/screening/fitScoreReplay'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,9 +50,9 @@ export function ReplayReportView({ report }: Readonly<Props>) {
                 {report.applicationId}
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
-                Generated {new Date(report.generatedAt).toLocaleString('en-ZA')}
+                Generated {new Date(report.generatedAt).toLocaleString('en-ZA', { timeZone: SA_TIMEZONE })}
                 {report.computedAt && (
-                  <> · Score computed {new Date(report.computedAt).toLocaleString('en-ZA')}</>
+                  <> · Score computed {new Date(report.computedAt).toLocaleString('en-ZA', { timeZone: SA_TIMEZONE })}</>
                 )}
               </p>
             </div>

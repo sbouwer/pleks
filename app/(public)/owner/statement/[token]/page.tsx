@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import { Wordmark } from "@/components/ui/Wordmark"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { fmtZA } from "@/lib/dates"
+import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
 
 export default async function OwnerPortalPage({
   params,
@@ -76,7 +76,7 @@ export default async function OwnerPortalPage({
             <p className="text-sm text-muted-foreground">Net Payment</p>
             <p className="font-heading text-4xl text-brand">{formatZAR(stmt.net_to_owner_cents)}</p>
             {stmt.owner_payment_status === "paid" && stmt.owner_payment_date && (
-              <p className="text-sm text-success mt-1">Paid on {new Date(stmt.owner_payment_date).toLocaleDateString("en-ZA")}</p>
+              <p className="text-sm text-success mt-1">Paid on {new Date(stmt.owner_payment_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}</p>
             )}
           </CardContent>
         </Card>

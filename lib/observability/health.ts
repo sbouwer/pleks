@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
 import { HOLIDAY_TABLE_COVERS_THROUGH } from "@/lib/dates/saPublicHolidays"
 import { saDateISO } from "@/lib/dates"
+import { APP_VERSION, SENTRY_ENVIRONMENT_PUBLIC, optionalEnv } from "@/lib/env"
 
 export type ComponentStatus = "ok" | "degraded" | "down"
 
@@ -90,9 +91,9 @@ async function checkEmail(): Promise<HealthReport["components"]["email"]> {
   // Env preflight (comms audit 2026-07-09): a MISSING key is an OUTAGE, not "ok". The June 4–10 outage was
   // a missing RESEND_API_KEY that health reported green precisely because this returned ok — every send
   // failed silently for a week. A missing critical key must show as down.
-  if (!process.env.RESEND_API_KEY) return { status: "down", error: "RESEND_API_KEY not configured" }
+  if (!optionalEnv("RESEND_API_KEY")) return { status: "down", error: "RESEND_API_KEY not configured" }
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(optionalEnv("RESEND_API_KEY"))
     const { error } = await withTimeout(resend.domains.list(), COMPONENT_TIMEOUT_MS)
     if (error) return { status: "down", error: error.message }
     return { status: "ok" }
@@ -240,18 +241,18 @@ export async function checkHealth(): Promise<HealthReport> {
 
   return {
     status:      aggregate,
-    version:     process.env.NEXT_PUBLIC_APP_VERSION ?? "unknown",
-    environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "unknown",
+    version:     APP_VERSION,
+    environment: SENTRY_ENVIRONMENT_PUBLIC,
     timestamp:   new Date().toISOString(),
     components:  { db, email, storage, crons, delivery_feedback, holiday_table },
   }
 }
 
 export async function fetchBetterStackIncidents(): Promise<Incident[]> {
-  if (!process.env.BETTERSTACK_API_KEY) return []
+  if (!optionalEnv("BETTERSTACK_API_KEY")) return []
   try {
     const res = await fetch("https://uptime.betterstack.com/api/v2/incidents?limit=10", {
-      headers: { Authorization: `Bearer ${process.env.BETTERSTACK_API_KEY}` },
+      headers: { Authorization: `Bearer ${optionalEnv("BETTERSTACK_API_KEY")}` },
       next: { revalidate: 60 },
     })
     if (!res.ok) return []

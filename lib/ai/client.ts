@@ -11,6 +11,7 @@
 import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages"
 import { calculateAiCostCents } from "@/lib/observability/cost"
 import * as Sentry from "@sentry/nextjs"
+import { optionalEnv } from "@/lib/env"
 
 export type AiPurpose =
   | "maintenance_triage"
@@ -66,7 +67,7 @@ export async function createMessage(
   params: MessageCreateParamsNonStreaming,
   opts: AiCallOptions,
 ) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!optionalEnv("ANTHROPIC_API_KEY")) {
     throw new Error("ANTHROPIC_API_KEY not configured — AI wrapper unavailable")
   }
 

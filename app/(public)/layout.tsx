@@ -10,14 +10,13 @@ import { PublicThemeProvider } from "./PublicThemeProvider"
 import { FooterColumns } from "@/components/marketing/FooterColumns"
 import { StatusWidget } from "@/components/marketing/StatusWidget"
 import { Wordmark } from "@/components/ui/Wordmark"
+import { MARKETING_URL } from "@/lib/env"
 import "./public.css"
 import "@/components/ui/actions/action-language.css"
 
 // PWA manifest is app.pleks.co.za only — suppress on marketing pages to avoid
 // the "start_url ignored, should be same origin" browser console warning.
 export const metadata = { manifest: null }
-
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
 export default function PublicLayout({
   children,

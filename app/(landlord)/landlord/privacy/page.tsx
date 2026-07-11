@@ -17,6 +17,7 @@ import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { ActionButton } from "@/components/ui/actions"
 import { ChevronRight, ExternalLink } from "lucide-react"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export default async function LandlordPrivacyPage() {
   const session = await getLandlordSession()
@@ -101,7 +102,7 @@ export default async function LandlordPrivacyPage() {
                 <div>
                   <p className="text-sm capitalize text-foreground">{r.request_type.replace("_", " ")}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(r.submitted_at).toLocaleDateString("en-ZA")}
+                    {new Date(r.submitted_at).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

@@ -18,6 +18,7 @@ import { buildDirectorReminderElement } from "@/lib/applications/commercial-emai
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { APP_URL } from "@/lib/env"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -201,7 +202,7 @@ async function sendMilestoneReminder(
 
   const { slug, propertyLabel } = resolvePropertyLabel(app.listings)
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
-  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug || line.application_id}/director-portal/${coApp.access_token}`
+  const portalUrl = `${APP_URL}/apply/${slug || line.application_id}/director-portal/${coApp.access_token}`
 
   const branding = buildBranding(await fetchOrgSettings(line.org_id))
 

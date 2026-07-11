@@ -10,11 +10,12 @@
  */
 
 import { createClient } from "@supabase/supabase-js"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getService() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
   )
 }
 

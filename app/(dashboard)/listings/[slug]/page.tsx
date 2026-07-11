@@ -17,6 +17,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { ApplicationTriageList, type TriageApp } from "./ApplicationTriageList"
 import { ListingQuickbar } from "./ListingQuickbar"
 import { fmtDateZA } from "@/lib/dates"
+import { APP_URL } from "@/lib/env"
 
 const LISTING_STATUS: Record<string, DetailStatus> = {
   active: { kind: "occupied", label: "Active" },
@@ -24,8 +25,6 @@ const LISTING_STATUS: Record<string, DetailStatus> = {
   filled: { kind: "occupied", label: "Filled" },
   expired: { kind: "flag", label: "Expired" },
 }
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
 function unwrap<T>(v: T | T[] | null | undefined): T | null {
   return Array.isArray(v) ? (v[0] ?? null) : (v ?? null)

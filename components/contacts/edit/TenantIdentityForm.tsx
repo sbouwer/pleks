@@ -4,6 +4,7 @@
  * Notes:  Exports TenantIdentityReadView; the ID number is masked to its last 4 digits — never render it raw.
  */
 import { DetailRow } from "@/components/contacts/DetailRow"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 interface TenantIdentityFormProps {
   idNumber: string | null
@@ -17,7 +18,7 @@ export function TenantIdentityReadView({ idNumber, idType, dateOfBirth, national
   return (
     <div>
       {masked && <DetailRow label={idType === "passport" ? "Passport" : "ID number"}>{masked}</DetailRow>}
-      {dateOfBirth && <DetailRow label="Date of birth">{new Date(dateOfBirth).toLocaleDateString("en-ZA")}</DetailRow>}
+      {dateOfBirth && <DetailRow label="Date of birth">{new Date(dateOfBirth).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}</DetailRow>}
       {nationality && <DetailRow label="Nationality">{nationality}</DetailRow>}
     </div>
   )

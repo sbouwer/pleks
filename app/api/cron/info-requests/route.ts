@@ -20,11 +20,12 @@ import { sendInfoRequestEmail, sendInfoRequestSelfTrackNudge } from "@/lib/info-
 import type { InfoRequestTopic } from "@/lib/info-requests/sendInfoRequestEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    SUPABASE_URL,
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
   )
 }
 

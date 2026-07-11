@@ -6,6 +6,7 @@
  */
 import { createBrowserClient } from "@supabase/ssr"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/env"
 
 // Singleton per browser tab (2026-06-01 DB-overload incident). Previously this returned a FRESH
 // createBrowserClient on every call — and ~39 client components call it — so a session spun up many
@@ -17,8 +18,8 @@ let browserClient: SupabaseClient | undefined
 
 export function createClient(): SupabaseClient {
   browserClient ??= createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!,
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
   )
   return browserClient
 }

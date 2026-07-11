@@ -10,6 +10,7 @@ import { verifyAdminToken } from "@/lib/auth/admin-token"
 import { AdminSidebar } from "@/components/admin/AdminSidebar"
 import { AdminTopBar } from "@/components/admin/AdminTopBar"
 import { ExportNotificationBadge } from "@/components/admin/ExportNotificationBadge"
+import { optionalEnv } from "@/lib/env"
 
 // admin.pleks.co.za only serves /admin/* — /manifest.json 308-redirects to /admin
 // (HTML), so the browser can't parse it. Suppress the inherited PWA manifest here.
@@ -18,7 +19,7 @@ export const metadata = { manifest: null }
 export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies()
   const token = cookieStore.get("pleks_admin_token")?.value
-  const isAuthenticated = await verifyAdminToken(token, process.env.ADMIN_SECRET)
+  const isAuthenticated = await verifyAdminToken(token, optionalEnv("ADMIN_SECRET"))
 
   if (!isAuthenticated) {
     return <>{children}</>

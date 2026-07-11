@@ -50,6 +50,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { sendCronDigest, type CronJobDetail } from "@/lib/cron/cronDigest"
 import { collectCronRunFailures } from "@/lib/cron/withCronRun"
 import { requireCronAuth, internalCronHeaders } from "@/lib/cron/auth"
+import { optionalEnv } from "@/lib/env"
 
 export const runtime     = "nodejs"
 export const maxDuration = 90   // Hobby caps at 60s; honoured on Pro. ~11s typical run.
@@ -179,8 +180,8 @@ export async function GET(req: NextRequest) {
     }).eq("id", cronRunId)
   }
 
-  if (process.env.HEARTBEAT_DAILY) {
-    await fetch(process.env.HEARTBEAT_DAILY, { method: "POST" }).catch(() => undefined)
+  if (optionalEnv("HEARTBEAT_DAILY")) {
+    await fetch(optionalEnv("HEARTBEAT_DAILY"), { method: "POST" }).catch(() => undefined)
   }
 
   // Failure-only digest: fold in statuses set outside runJob (legal_archive, rules_engine, skipped monthly) +

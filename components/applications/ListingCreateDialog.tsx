@@ -24,8 +24,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Copy, Check, ExternalLink } from "lucide-react"
 import { fmtDateLongZA } from "@/lib/dates"
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
+import { APP_URL } from "@/lib/env"
 
 interface Props {
   open: boolean

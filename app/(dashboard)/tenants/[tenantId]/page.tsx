@@ -22,6 +22,7 @@ import { TenantContactSection, TenantIdentitySection, TenantEmploymentSection, T
 import { MobileTenantView } from "@/components/mobile/MobileTenantView"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,7 +92,7 @@ function buildTenantFacts(tenant: TenantRow, activeLease: LeaseRow | null, arrea
 function getLeaseSubtitle(leaseUnit: LeaseUnit, endDate: string | null): string {
   const parts: string[] = []
   if (leaseUnit.bedrooms != null) parts.push(`${leaseUnit.bedrooms} bed`)
-  parts.push(endDate ? `Until ${new Date(endDate).toLocaleDateString("en-ZA")}` : "Month-to-month")
+  parts.push(endDate ? `Until ${new Date(endDate).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` : "Month-to-month")
   return parts.join(" · ")
 }
 

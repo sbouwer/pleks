@@ -13,6 +13,7 @@ import { CheckSquare, Square, Trash2, Lock, Minus } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { cn } from "@/lib/utils"
 import type { AcknowledgedCarveout } from "@/lib/popia/erasure"
+import { SA_TIMEZONE } from "@/lib/dates"
 
 export interface WillDelete {
   label: string
@@ -120,7 +121,7 @@ export function NukeCarveoutDisclosure({
                   {carveout.retained_until && (
                     <p className="text-muted-foreground text-xs mt-0.5">
                       Eligible for deletion from{" "}
-                      {new Date(carveout.retained_until).toLocaleDateString("en-ZA")}
+                      {new Date(carveout.retained_until).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}
                     </p>
                   )}
                 </div>

@@ -10,6 +10,7 @@ import { Search } from "lucide-react"
 import { getScenario } from "@/lib/properties/scenarios"
 import { useWizard, type WizardAddress } from "../WizardContext"
 import { WSection, WField, WInput, WSelect } from "./fields"
+import { GOOGLE_MAPS_API_KEY } from "@/lib/env"
 
 // ── SA provinces ──────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ interface GooglePlace {
 
 // ── Google Places search bar ──────────────────────────────────────────────────
 
-const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+const MAPS_KEY = GOOGLE_MAPS_API_KEY
 
 interface PlacesSearchProps {
   onPlace: (addr: Partial<WizardAddress>) => void

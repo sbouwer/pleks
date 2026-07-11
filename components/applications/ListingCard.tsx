@@ -14,8 +14,7 @@ import { Copy, Check, ExternalLink, Pause, Play, CheckSquare } from "lucide-reac
 import { formatZAR } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
 import { fmtDateZA } from "@/lib/dates"
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
+import { APP_URL } from "@/lib/env"
 
 interface Listing {
   id: string

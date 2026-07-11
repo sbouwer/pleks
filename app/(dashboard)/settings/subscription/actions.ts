@@ -21,8 +21,7 @@ import {
 } from "@/lib/subscriptions/emails"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { fmtDateLongZA } from "@/lib/dates"
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+import { APP_URL } from "@/lib/env"
 
 // Billing actions require the 'billing' capability (owner / is_admin exempt). This is orthogonal to the
 // §10.3 "your data always" rule — that's about subscription STATE (never block on paused/cancelled), this is
