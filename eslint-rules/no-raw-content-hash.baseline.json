@@ -1,0 +1,12 @@
+[
+  "app/(tenant)/tenant/access/page.tsx",
+  "app/api/auth/check-email/route.ts",
+  "app/api/auth/passkeys/auth-options/route.ts",
+  "app/api/auth/passkeys/auth-verify/route.ts",
+  "app/api/auth/passkeys/registration-options/route.ts",
+  "app/api/auth/step-up/passkey/route.ts",
+  "app/api/offline/sync-manifest/route.ts",
+  "lib/auth/device.ts",
+  "lib/import/bankImport.ts",
+  "lib/screening/fitScoreEngine.v1.ts"
+]

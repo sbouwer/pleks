@@ -16,7 +16,7 @@
  *  7. Return { success, logId }
  */
 
-import { createHash } from "node:crypto"
+import { contentHash } from "@/lib/crypto"
 import { createElement } from "react"
 import { Resend } from "resend"
 import { render } from "@react-email/components"
@@ -177,7 +177,7 @@ async function logToDb(
   }
 ): Promise<string> {
   const templateVersionHash = params.bodyFull
-    ? createHash("sha256").update(params.bodyFull).digest("hex")
+    ? contentHash(params.bodyFull)
     : null
 
   const { data: log, error: logError } = await service

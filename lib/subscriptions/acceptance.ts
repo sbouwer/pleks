@@ -8,7 +8,7 @@
  *         it is the verification contract for future audit recomputation.
  */
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
-import { createHash } from "node:crypto"
+import { contentHash } from "@/lib/crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 export type TosAcceptanceContext =
@@ -33,7 +33,7 @@ export async function recordTosAcceptance(
     terms_version: LEGAL_VERSIONS.terms,
     user_id:       userId,
   })
-  const hash = createHash("sha256").update(canonical).digest("hex")
+  const hash = contentHash(canonical)
 
   const { error } = await supabase.from("tos_acceptances").insert({
     org_id:              orgId,
