@@ -15,6 +15,15 @@
  *         Evaluation-time, never stamped. `auto_renewal_notice_due` used to be frozen onto the row at lease
  *         CREATION, which is why the value went stale and wrong; the date is DERIVED where it is consumed
  *         (the cron for firing, the UI for display) so it self-heals and never drifts. See ADDENDUM_70K §6.
+ *
+ *         ── PERSISTED STATUTORY-DATE COLUMN REGISTRY (ADDENDUM_70K Phase E) ──
+ *         A "persisted statutory-date column" stores a LEGAL DEADLINE on a row (as opposed to deriving it
+ *         when consumed). The registry is the fence: any addition needs a CD ruling naming why evaluation-
+ *         time computation is impossible — because the strongest fence is structural, a column that cannot
+ *         exist cannot be stamped wrong.
+ *           REGISTRY: (empty — `leases.auto_renewal_notice_due` was dropped in 004 §ADDENDUM_70K Phase E)
+ *         Enforced by process (the PR-template checklist line), not a lint rule — there is nothing left to
+ *         match, and a column ADD is a schema-review event, not a code-grep one.
  */
 import { subtractBusinessDaysStrict, isWithinHolidayHorizon } from "@/lib/dates"
 
