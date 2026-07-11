@@ -27,8 +27,14 @@
  */
 import { subtractBusinessDaysStrict, isWithinHolidayHorizon } from "@/lib/dates"
 
-/** Middle of the CPA s14(2)(b)(ii) 40–80 business-day window. */
+/** Middle of the CPA s14(2)(b)(ii) 40–80 business-day window — the DUE date (a forward reminder target). */
 export const CPA_S14_NOTICE_BUSINESS_DAYS = 60
+
+/** Floor of the window — the LAST lawful day to serve the notice (40 business days before expiry). Distinct
+ *  from the 60-bd target: the target is when we NUDGE, the floor is when the window CLOSES. A "notice missed"
+ *  signal must use the floor, never the target — firing off the 60-bd target would flag a lease as missed
+ *  while ~20 business days of lawful window remain. */
+export const CPA_S14_NOTICE_FLOOR_BUSINESS_DAYS = 40
 
 /**
  * STATUTORY. The date the s14(2)(b)(ii) expiry notice is due, as "YYYY-MM-DD". Throws past the holiday
@@ -51,6 +57,25 @@ export function cpaRenewalNoticeDueSafe(endDateIso: string | null): string | nul
     return cpaRenewalNoticeDue(endDateIso)
   } catch {
     // The backward walk itself crossed the horizon (end date near the table's lower edge).
+    return null
+  }
+}
+
+/**
+ * STATUTORY. The 40-business-day floor — the last lawful day to serve the s14 notice. The window is CLOSED
+ * (and, if the notice was never sent, MISSED) once today is strictly past this date. Throws past the horizon.
+ */
+export function cpaRenewalNoticeFloor(endDateIso: string): string {
+  return subtractBusinessDaysStrict(endDateIso, CPA_S14_NOTICE_FLOOR_BUSINESS_DAYS)
+}
+
+/** DISPLAY. The floor date, or null past the holiday horizon (same fail-closed shape as cpaRenewalNoticeDueSafe).
+ *  Use for the "notice missed" signal: missed ⇔ `floor && floor < today`. */
+export function cpaRenewalNoticeFloorSafe(endDateIso: string | null): string | null {
+  if (!endDateIso || !isWithinHolidayHorizon(endDateIso)) return null
+  try {
+    return cpaRenewalNoticeFloor(endDateIso)
+  } catch {
     return null
   }
 }

@@ -6,7 +6,10 @@
  * horizon posture (display degrades to null; the firing path's strict walker throws).
  */
 import { describe, it, expect } from "vitest"
-import { cpaRenewalNoticeDue, cpaRenewalNoticeDueSafe, CPA_S14_NOTICE_BUSINESS_DAYS } from "./cpaRenewal"
+import {
+  cpaRenewalNoticeDue, cpaRenewalNoticeDueSafe, CPA_S14_NOTICE_BUSINESS_DAYS,
+  cpaRenewalNoticeFloor, cpaRenewalNoticeFloorSafe, CPA_S14_NOTICE_FLOOR_BUSINESS_DAYS,
+} from "./cpaRenewal"
 import { subtractBusinessDaysStrict } from "@/lib/dates"
 
 describe("cpaRenewalNoticeDue — statutory, mid-window", () => {
@@ -46,5 +49,37 @@ describe("cpaRenewalNoticeDueSafe — display, degrades to null", () => {
   it("returns null for a null / empty end date", () => {
     expect(cpaRenewalNoticeDueSafe(null)).toBeNull()
     expect(cpaRenewalNoticeDueSafe("")).toBeNull()
+  })
+})
+
+describe("cpaRenewalNoticeFloor — the 40-bd floor (last lawful send day), distinct from the 60-bd target", () => {
+  it("is the 40-business-day floor, not the 60-bd target", () => {
+    expect(CPA_S14_NOTICE_FLOOR_BUSINESS_DAYS).toBe(40)
+    expect(cpaRenewalNoticeFloor("2027-06-29")).toBe(subtractBusinessDaysStrict("2027-06-29", 40))
+  })
+
+  it("falls STRICTLY LATER than the due target — so a 'missed' check on the floor cannot fire while the window is open", () => {
+    // The floor (40 bd before expiry) is closer to expiry than the 60-bd target → a later calendar date.
+    for (const end of ["2026-09-24", "2027-01-15", "2027-06-29", "2027-11-30"]) {
+      expect(cpaRenewalNoticeFloor(end) > cpaRenewalNoticeDue(end)).toBe(true)
+    }
+  })
+
+  it("degrades to null past the horizon and on null/empty (display shape)", () => {
+    expect(cpaRenewalNoticeFloorSafe("2029-06-30")).toBeNull()
+    expect(cpaRenewalNoticeFloorSafe(null)).toBeNull()
+    expect(cpaRenewalNoticeFloorSafe("")).toBeNull()
+  })
+
+  it("the MISSED window: a lease still inside its lawful window is NOT past the floor (regression guard for the calendar alert)", () => {
+    // A lease whose 40-bd floor is in the future is NOT missed; the old bug fired MISSED off the 60-bd target,
+    // which for such a lease is already in the past — the exact false-positive this guards.
+    const end = "2027-06-29"
+    const floor = cpaRenewalNoticeFloorSafe(end)!
+    const target = cpaRenewalNoticeDueSafe(end)!
+    // Pick a "today" between target and floor: past the reminder, still inside the lawful window.
+    const today = subtractBusinessDaysStrict(end, 50)  // 50 bd out: past 60-bd target, before 40-bd floor
+    expect(today > target).toBe(true)         // reminder has fired
+    expect(today < floor).toBe(true)          // but the floor has NOT passed → NOT missed
   })
 })
