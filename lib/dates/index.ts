@@ -230,4 +230,7 @@ export function fmtDateTimeZA(value: Date | string): string {
 }
 
 // ── 5 · business days — re-exported so callers need one import ────────────────────────────────────────
-export { addBusinessDays, subtractBusinessDays, isPublicHoliday, HOLIDAY_TABLE_COVERS_THROUGH } from "./saPublicHolidays"
+export {
+  addBusinessDays, subtractBusinessDays, subtractBusinessDaysStrict, isPublicHoliday,
+  isWithinHolidayHorizon, HOLIDAY_TABLE_COVERS_FROM, HOLIDAY_TABLE_COVERS_THROUGH,
+} from "./saPublicHolidays"

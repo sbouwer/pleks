@@ -45,7 +45,6 @@ type LeaseFormFields = {
   arrearsInterestMarginPercent: number
   specialTerms: unknown[]
   escalationReviewDate: string
-  autoRenewalNoticeDue: string | null
 }
 
 function parseLeaseFormData(formData: FormData): LeaseFormFields {
@@ -58,21 +57,10 @@ function parseLeaseFormData(formData: FormData): LeaseFormFields {
   // setFullYear/getFullYear are LOCAL-time accessors and the result was sliced in UTC — mixed coordinates.
   const escalationReviewDate = addCalendarMonths(startDate, 12)
 
-  let autoRenewalNoticeDue: string | null = null
-  if (endDate && cpaApplies && isFixedTerm) {
-    // ⚠ STATUTORY DEFECT, NOT FIXED HERE — see OUTSTANDING.md "CPA s14(2)(b)(ii) expiry notice".
-    // CPA s14(2)(b)(ii) requires the expiry notification not more than 80 nor less than 40 BUSINESS days
-    // before expiry. Forty CALENDAR days is ~27 business days — statutorily TOO LATE on every CPA
-    // fixed-term lease. One live row (lease c7b4a009…, end 2027-06-29) already stores 2027-05-20, which is
-    // 13 business days short of the floor; its lawful window is 2027-03-02..2027-05-03. Nothing has been
-    // served (auto_renewal_notice_sent_at is null everywhere), so this is a wrong value at rest, not an
-    // unlawful notice. Fixing the UNITS needs a decision this file cannot make: a statutory business-day
-    // walk must throw past the holiday table's horizon, yet this is stamped at lease CREATION and end
-    // dates legitimately sit years out. The answer is to compute it in lease-expiry-check instead, where
-    // the walk is always ~4 months from expiry and never reaches the horizon. Ratify, then remediate rows.
-    // Converted here only to kill the coordinate mixing (local setDate + UTC slice). Units unchanged.
-    autoRenewalNoticeDue = addCalendarDays(endDate, -40)
-  }
+  // The CPA s14(2)(b)(ii) expiry-notice date is NO LONGER stamped here. It used to be `endDate − 40 calendar
+  // days`, which is ~27 business days — statutorily too late (the Act requires 40–80 BUSINESS days). It is
+  // now DERIVED at evaluation time by the lease-expiry-check cron via lib/leases/cpaRenewal, so it self-heals
+  // and never drifts. `auto_renewal_notice_due` is being dropped (ADDENDUM_70K §6).
 
   const depositInterestRateRaw = formData.get("deposit_interest_rate") as string
   const specialTermsRaw = formData.get("special_terms") as string
@@ -104,7 +92,6 @@ function parseLeaseFormData(formData: FormData): LeaseFormFields {
     arrearsInterestMarginPercent: Number.parseFloat(formData.get("arrears_interest_margin") as string) || 2,
     specialTerms,
     escalationReviewDate: escalationReviewDate,
-    autoRenewalNoticeDue,
   }
 }
 
@@ -270,7 +257,6 @@ export async function createLease(formData: FormData) {
       trust_account_id:   (formData.get("trust_account_id") as string) || null,
       deposit_interest_to: f.depositInterestTo,
       special_terms: f.specialTerms,
-      auto_renewal_notice_due: f.autoRenewalNoticeDue,
       // ADDENDUM_69A: the wizard no longer writes a flat rate — it resolves via deposit_interest_config
       // (per the selected deposit account). Stays null unless set as a manual-override fallback.
       deposit_interest_rate_percent: f.depositInterestRatePercent,
@@ -356,21 +342,8 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
   // setFullYear/getFullYear are LOCAL-time accessors and the result was sliced in UTC — mixed coordinates.
   const escalationReviewDate = addCalendarMonths(startDate, 12)
 
-  let autoRenewalNoticeDue: string | null = null
-  if (endDate && cpaApplies && isFixedTerm) {
-    // ⚠ STATUTORY DEFECT, NOT FIXED HERE — see OUTSTANDING.md "CPA s14(2)(b)(ii) expiry notice".
-    // CPA s14(2)(b)(ii) requires the expiry notification not more than 80 nor less than 40 BUSINESS days
-    // before expiry. Forty CALENDAR days is ~27 business days — statutorily TOO LATE on every CPA
-    // fixed-term lease. One live row (lease c7b4a009…, end 2027-06-29) already stores 2027-05-20, which is
-    // 13 business days short of the floor; its lawful window is 2027-03-02..2027-05-03. Nothing has been
-    // served (auto_renewal_notice_sent_at is null everywhere), so this is a wrong value at rest, not an
-    // unlawful notice. Fixing the UNITS needs a decision this file cannot make: a statutory business-day
-    // walk must throw past the holiday table's horizon, yet this is stamped at lease CREATION and end
-    // dates legitimately sit years out. The answer is to compute it in lease-expiry-check instead, where
-    // the walk is always ~4 months from expiry and never reaches the horizon. Ratify, then remediate rows.
-    // Converted here only to kill the coordinate mixing (local setDate + UTC slice). Units unchanged.
-    autoRenewalNoticeDue = addCalendarDays(endDate, -40)
-  }
+  // CPA s14(2)(b)(ii) expiry-notice date is NOT stamped here — derived at evaluation time by the
+  // lease-expiry-check cron (lib/leases/cpaRenewal). `auto_renewal_notice_due` is being dropped (70K §6).
 
   const { data: lease, error } = await db
     .from("leases")
@@ -395,7 +368,6 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
       deposit_account_id: (formData.get("deposit_account_id") as string) || null,
       trust_account_id:   (formData.get("trust_account_id") as string) || null,
       deposit_interest_to: leaseType === "residential" ? "tenant" : "landlord",
-      auto_renewal_notice_due: autoRenewalNoticeDue,
       template_source: "uploaded",
       template_type: leaseType === "commercial" ? "pleks_commercial" : "pleks_residential",
       status: "draft",

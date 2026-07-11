@@ -29,9 +29,9 @@ import { PropertyArchiveButton } from "@/components/properties/PropertyArchiveBu
 import { SCENARIOS, type ScenarioType } from "@/lib/properties/scenarios"
 import { MobilePropertyView } from "@/components/mobile/MobilePropertyView"
 import { formatZAR } from "@/lib/constants"
-import { subtractBusinessDays } from "@/lib/dates/saPublicHolidays"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { diffCalendarDays, saTodayISO } from "@/lib/dates"
+import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -335,14 +335,18 @@ function buildLeaseCompliance(leases: LeaseRow[]): ComplianceItem[] {
       date:   lease.end_date,
       link:   `/leases/${lease.id}`,
     })
-    if (lease.cpa_applies && !lease.auto_renewal_notice_sent_at) {
-      const noticeStr  = subtractBusinessDays(lease.end_date, 20)
-      const noticeDays = diffCalendarDays(todayIso, noticeStr)
+    // CPA s14(2)(b)(ii) notice date, via the one helper (lib/leases/cpaRenewal). Was subtractBusinessDays(…,
+    // 20) — the wrong window (20 business days is the tenant's cancellation notice, not the 40–80 landlord
+    // expiry-notification window). Null past the holiday horizon → the alert is omitted for that lease.
+    const cpaNoticeStr = lease.cpa_applies && !lease.auto_renewal_notice_sent_at
+      ? cpaRenewalNoticeDueSafe(lease.end_date)
+      : null
+    if (cpaNoticeStr) {
       items.push({
         id:     `cpa-${lease.id}`,
-        colour: cpaColour(noticeDays),
+        colour: cpaColour(diffCalendarDays(todayIso, cpaNoticeStr)),
         label:  `CPA s14 notice due${unit ? ` · Unit ${unit.unit_number}` : ""}`,
-        date:   noticeStr,
+        date:   cpaNoticeStr,
         link:   `/leases/${lease.id}`,
       })
     }
