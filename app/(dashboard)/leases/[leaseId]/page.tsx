@@ -27,6 +27,7 @@ import { resolveDepositInterestConfig, getPrimeRateOn, describeRate } from "@/li
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtZA, saDateISO } from "@/lib/dates"
 import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 const VALID_TABS = ["overview", "details", "contacts", "operations", "finance", "communications"] as const
 type Tab = (typeof VALID_TABS)[number]
@@ -612,7 +613,7 @@ export default async function LeaseDetailPage({
   const editedClauseCount = editedClauseCountRes.count ?? 0
   const recentPayments = recentPaymentsRes.data ?? []
 
-  const unitLabel = unit ? `${unit.unit_number} — ${unit.properties.name}` : ""
+  const unitLabel = formatPropertyLabel(unit, { separator: " — ", fallback: "" })
   const areaLabel = [unit?.properties.suburb, unit?.properties.city].filter(Boolean).join(", ")
 
   const primaryContact = primaryContactRes.data as { is_verified: boolean | null; registration_number: string | null } | null

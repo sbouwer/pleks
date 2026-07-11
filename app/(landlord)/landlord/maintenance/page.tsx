@@ -8,6 +8,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import Link from "next/link"
 import { Wrench } from "lucide-react"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
@@ -90,7 +91,7 @@ export default async function LandlordMaintenancePage() {
               const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
               return (
                 <div key={req.id} className="space-y-1">
-                  {unit && <p className="pl-5 text-xs text-muted-foreground">{unit.unit_number}, {unit.properties.name}</p>}
+                  {unit && <p className="pl-5 text-xs text-muted-foreground">{formatPropertyLabel(unit)}</p>}
                   <LandlordMaintenanceCard req={req} showApproveActions />
                 </div>
               )
@@ -110,7 +111,7 @@ export default async function LandlordMaintenancePage() {
                   <div className={`h-2 w-2 shrink-0 rounded-full ${URGENCY_DOT[req.urgency ?? "routine"]}`} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-foreground">{req.title}</p>
-                    {unit && <p className="text-xs text-muted-foreground">{unit.unit_number}, {unit.properties.name}</p>}
+                    {unit && <p className="text-xs text-muted-foreground">{formatPropertyLabel(unit)}</p>}
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">{STATUS_DISPLAY[req.status] ?? req.status.replaceAll("_", " ")}</span>
                 </Link>
@@ -131,7 +132,7 @@ export default async function LandlordMaintenancePage() {
                   <span className="shrink-0 text-success">✅</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate">{req.title}</p>
-                    {unit && <p className="text-xs">{unit.unit_number}, {unit.properties.name}</p>}
+                    {unit && <p className="text-xs">{formatPropertyLabel(unit)}</p>}
                   </div>
                   {req.actual_cost_cents && <span className="shrink-0">{formatZAR(req.actual_cost_cents)}</span>}
                 </div>

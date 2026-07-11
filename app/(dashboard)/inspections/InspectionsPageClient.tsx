@@ -29,6 +29,7 @@ import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchInspectionsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 import { SA_TIMEZONE } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed" | "arrears"> = {
   scheduled: "scheduled",
@@ -84,7 +85,7 @@ function InspectionCard({ insp, onOpen }: Readonly<{ insp: Inspection; onOpen: (
         <div className="min-w-0">
           <p className="truncate text-sm font-medium capitalize">{insp.inspection_type.replaceAll("_", " ")}</p>
           <p className="truncate text-xs text-muted-foreground">
-            {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+            {formatPropertyLabel(unit, { fallback: "" })}
           </p>
         </div>
         <StatusBadge status={STATUS_MAP[insp.status] || "scheduled"} />
@@ -155,7 +156,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
       return {
         id: insp.id,
         title: insp.inspection_type?.replaceAll("_", " ") ?? "Inspection",
-        sub: [unit ? `${unit.unit_number}, ${unit.properties.name}` : null, sd ? `due ${new Date(sd).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` : null].filter(Boolean).join(" · "),
+        sub: [formatPropertyLabel(unit, { fallback: "" }), sd ? `due ${new Date(sd).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` : null].filter(Boolean).join(" · "),
         href: `/inspections/${insp.id}`,
       }
     })
@@ -268,7 +269,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
                             {insp.inspection_type.replaceAll("_", " ")}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+                            {formatPropertyLabel(unit, { fallback: "" })}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {inspectionDateLabel(insp as unknown as Inspection)}

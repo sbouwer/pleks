@@ -25,6 +25,7 @@ import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchLeasesAction } from "@/lib/queries/portfolioActions"
 import { formatZAR } from "@/lib/constants"
 import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 const LEASE_STATUS_STYLES: Record<string, string> = {
   active:          "bg-emerald-100 text-emerald-700",
@@ -118,7 +119,7 @@ export function LeasesPageClient({ orgId, gate, isOwner }: Props) {
       const tv = l.tenant_view
       const name = tv ? (tv.company_name || `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim() || "Tenant") : "Tenant"
       const unit = l.units
-      const sub = [unit ? `${unit.unit_number}, ${unit.properties.name}` : null, l.end_date ? `ends ${new Date(l.end_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` : null].filter(Boolean).join(" · ")
+      const sub = [formatPropertyLabel(unit, { fallback: "" }), l.end_date ? `ends ${new Date(l.end_date).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE })}` : null].filter(Boolean).join(" · ")
       return { id: l.id, title: name, sub, href: `/leases/${l.id}` }
     })
 
@@ -174,7 +175,7 @@ export function LeasesPageClient({ orgId, gate, isOwner }: Props) {
               ? (tv.company_name || `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim() || "Unnamed")
               : "No tenant"
             const unit = lease.units
-            const unitLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : ""
+            const unitLabel = formatPropertyLabel(unit, { fallback: "" })
             return (
               <Link key={lease.id} href={`/leases/${lease.id}`} className="block border border-border rounded-xl px-4 py-3 hover:border-brand/40 transition-colors">
                 <div className="flex items-start justify-between gap-2">

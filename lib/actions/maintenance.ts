@@ -30,6 +30,7 @@ import { CancelledTenantEmail } from "@/lib/comms/templates/maintenance/cancelle
 import { ContractorChangedEmail } from "@/lib/comms/templates/maintenance/contractor-changed"
 import { MemoLandlordNotifiedEmail } from "@/lib/comms/templates/maintenance/memo-landlord-notified"
 import * as React from "react"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 import { SA_TIMEZONE } from "@/lib/dates"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
@@ -61,7 +62,7 @@ async function fireTenantCommsOnCreate(
     if (!tenant?.email) return
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const propertyLabel = formatPropertyLabel(unit)
     const senderName = orgSettings?.name ?? "Pleks"
     const branding = buildBranding(orgSettings)
 
@@ -776,7 +777,7 @@ async function notifyCancelledContractor({ orgId, userId, requestId, req }: { or
     const resolved = c.contact_id ? await resolveCompanyContact(service, orgId, c.contact_id as string, "maintenance", "email") : null
     const recipientEmail = resolved?.email ?? (c.email as string | null) ?? null
     if (!recipientEmail) return
-    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "the property"
+    const propertyLabel = formatPropertyLabel(unit, { fallback: "the property" })
     await sendEmail({
       orgId, templateKey: "maintenance.cancelled",
       to: { email: recipientEmail, name: resolved?.name ?? contractorName, contactId: resolved?.contactId ?? (c.contact_id as string | null) ?? undefined },
@@ -805,7 +806,7 @@ async function notifyCancelledTenant({ orgId, userId, requestId, req }: { orgId:
     const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
     if (!t?.email) return
     const tenantName = [t.first_name, t.last_name].filter(Boolean).join(" ") || "Tenant"
-    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const propertyLabel = formatPropertyLabel(unit)
     await routeAndSend({
       orgId, tenantId: req.tenant_id as string, templateKey: "maintenance.cancelled_tenant",
       to: { email: t.email, phone: (t.phone as string | null) ?? undefined, name: tenantName },
@@ -888,7 +889,7 @@ export async function changeContractor(
       ])
       const oldC = oldCRes.data
       const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
-      const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "the property"
+      const propertyLabel = formatPropertyLabel(unit, { fallback: "the property" })
       const branding = buildBranding(orgSettings)
 
       // Notify old contractor their WO is revoked

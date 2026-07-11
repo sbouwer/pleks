@@ -7,6 +7,7 @@
  * Notes:  Canon DetailPageLayout + DetailCard (door style). Approval card shown when status = pending_landlord.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import { notFound } from "next/navigation"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
@@ -84,7 +85,7 @@ export default async function LandlordMaintenanceDetailPage({ params }: Props) {
     .order("created_at", { ascending: true })
     logQueryError("LandlordMaintenanceDetailPage contractor_updates", updatesError)
 
-  const facts: DetailFact[] = [{ k: "Property", v: `${unit.unit_number}, ${unit.properties.name}` }]
+  const facts: DetailFact[] = [{ k: "Property", v: formatPropertyLabel(unit, { fallback: "—" }) }]
   if (req.urgency) facts.push({ k: "Urgency", v: URGENCY_LABEL[req.urgency] ?? req.urgency })
   if (req.category) facts.push({ k: "Category", v: req.category.replace(/_/g, " ") })
 

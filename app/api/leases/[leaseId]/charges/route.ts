@@ -22,6 +22,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA, saTodayISO } from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 type ChargeComm = { description: string; amountCents: number; dateStr: string; changeType: "added" | "removed" }
 
@@ -51,7 +52,7 @@ async function fireLeaseAmendedComm(
   if (!tenant?.email) return
 
   const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-  const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+  const propertyLabel = formatPropertyLabel(unit)
   const chargeAmountDisplay = formatZAR(charge.amountCents, true)
   const effectiveDateDisplay = fmtDateLongZA(charge.dateStr)
   const action = charge.changeType === "removed" ? "charge removed" : "new charge added"
