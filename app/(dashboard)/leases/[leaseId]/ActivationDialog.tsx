@@ -20,6 +20,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { markAsSigned } from "@/lib/actions/leases"
 import { fmtDateLongZA } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 export interface CascadeStep {
   step: string
@@ -42,7 +43,7 @@ interface ActivationDialogProps {
 }
 
 function formatRand(cents: number) {
-  return `R ${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`
+  return formatZAR(cents, true)   // ZAR SSOT (lib/constants) — item 7
 }
 
 function formatDate(iso: string | null) {

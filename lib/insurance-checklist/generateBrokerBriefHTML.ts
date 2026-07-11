@@ -7,6 +7,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_TIMEZONE, fmtDateLongZA } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 interface BriefItem {
   sort_order: number
@@ -41,8 +42,7 @@ export interface BrokerBriefData {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatRand(cents: number | null): string | null {
-  if (cents === null) return null
-  return `R ${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 0 })}`
+  return cents === null ? null : formatZAR(cents)   // ZAR SSOT (lib/constants) — item 7
 }
 
 function formatDate(iso: string | null): string | null {

@@ -26,6 +26,7 @@ import { withCronRun } from "@/lib/cron/withCronRun"
 import { fmtDateLongZA, saDateISO } from "@/lib/dates"
 import { optionalEnv } from "@/lib/env"
 import { normalizePhone } from "@/lib/validation/contact"
+import { formatZAR } from "@/lib/constants"
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ type TenantInfo = {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatAmount(cents: number): string {
-  return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+  return formatZAR(cents, true)   // ZAR SSOT (lib/constants) — item 7
 }
 
 function formatDate(isoDate: string): string {
