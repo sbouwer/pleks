@@ -15,7 +15,8 @@ import { PrerequisitesCard } from "./PrerequisitesCard"
 import { SigningOptions } from "./SigningOptions"
 import { MigratedDocSection } from "./MigratedDocSection"
 import type { PrerequisitesCheck } from "@/lib/leases/checkPrerequisites"
-import { fmtDateZA } from "@/lib/dates"
+import { fmtDateZA, saTodayISO } from "@/lib/dates"
+import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
 
 type SpecialTerm = { type: string; detail: string }
 type Amendment = { id: string; amendment_type: string; effective_date: string; signed_at: string | null }
@@ -105,18 +106,16 @@ export function LeaseDetailsTab({
     ? Math.ceil((new Date(lease.end_date).getTime() - today.getTime()) / 86400000)
     : null
 
-  let s14DueDate: Date | null = null
-  if (lease.end_date && lease.cpa_applies && lease.is_fixed_term) {
-    const d = new Date(lease.end_date)
-    d.setDate(d.getDate() - 28)
-    s14DueDate = d
-  }
+  // CPA s14(2)(b)(ii): 40–80 business days before expiry. One helper (lib/leases/cpaRenewal) — this used to
+  // be `end_date − 28 CALENDAR days` via local-time setDate, which is neither 40–80 nor business days. Null
+  // when the end date is past the holiday table's horizon (the date can't be computed yet → panel hides).
+  const s14DueDate = lease.cpa_applies && lease.is_fixed_term ? cpaRenewalNoticeDueSafe(lease.end_date) : null
 
   const specialTerms = (lease.special_terms as SpecialTerm[] | null) ?? []
   const escalationLabel = lease.escalation_percent != null
     ? `${lease.escalation_percent}% ${lease.escalation_type ?? ""}`.trim()
     : null
-  const s14Overdue = s14DueDate != null && !lease.auto_renewal_notice_sent_at && today > s14DueDate
+  const s14Overdue = s14DueDate != null && !lease.auto_renewal_notice_sent_at && saTodayISO() > s14DueDate
   const bankWarning = isDraft && bankDetailsConfigured === false
 
   return (
@@ -223,7 +222,7 @@ export function LeaseDetailsTab({
               label="s14 notice due"
               value={
                 <span className={s14Overdue ? "text-warning" : ""}>
-                  {fmt(s14DueDate.toISOString())}
+                  {fmt(s14DueDate)}
                   {lease.auto_renewal_notice_sent_at && (
                     <span className="block text-xs text-success font-normal">
                       Sent {fmt(lease.auto_renewal_notice_sent_at)}

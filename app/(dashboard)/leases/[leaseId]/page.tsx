@@ -26,6 +26,7 @@ import { OperationsTab } from "./OperationsTab"
 import { resolveDepositInterestConfig, getPrimeRateOn, describeRate } from "@/lib/deposits/interestConfig"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtZA, saDateISO } from "@/lib/dates"
+import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
 
 const VALID_TABS = ["overview", "details", "contacts", "operations", "finance", "communications"] as const
 type Tab = (typeof VALID_TABS)[number]
@@ -59,11 +60,15 @@ function buildComplianceItems(
     items.push({ dot: d > today ? "#EF9F27" : "#1D9E75", label: "Next escalation", value: [fmt(d), pct].filter(Boolean).join(" · ") })
   }
 
-  if (lease.end_date && lease.cpa_applies && lease.is_fixed_term) {
-    const s14 = new Date(lease.end_date)
-    s14.setDate(s14.getDate() - 28)
-    const overdue = today > s14 && !lease.auto_renewal_notice_sent_at
-    items.push({ dot: overdue ? "#E24B4A" : "#6b7280", label: "s14 notice due", value: `${fmt(s14)} · 40-80 business days before expiry`, overdue })
+  if (lease.cpa_applies && lease.is_fixed_term) {
+    // CPA s14(2)(b)(ii): 40–80 business days before expiry (lib/leases/cpaRenewal). Was `end_date − 28
+    // CALENDAR days` via local setDate — neither the right unit nor the right count. Null past the holiday
+    // horizon → the row is omitted until the table covers that year.
+    const s14 = cpaRenewalNoticeDueSafe(lease.end_date)
+    if (s14) {
+      const overdue = saDateISO(today) > s14 && !lease.auto_renewal_notice_sent_at
+      items.push({ dot: overdue ? "#E24B4A" : "#6b7280", label: "s14 notice due", value: `${fmt(new Date(s14))} · 40-80 business days before expiry`, overdue })
+    }
   }
 
   if (nextInspectionDate) {

@@ -20,6 +20,7 @@ import { LeaseTerminatedEmail } from "@/lib/comms/templates/tenant/leases/lease-
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
+import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
 
 type Supabase = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -205,18 +206,35 @@ export async function GET(req: Request) {
   const today = saTodayISO()
   let processed = 0
 
-  // 1. CPA auto-renewal notices due
-  const { data: needNotice, error: needNoticeError } = await supabase
+  // 1. CPA auto-renewal notices due (s14(2)(b)(ii): 40–80 business days before expiry).
+  // Computed at EVALUATION TIME, never stamped — `auto_renewal_notice_due` used to be frozen onto the row
+  // at lease creation as 40 CALENDAR days (~27 business days, statutorily too late). We band candidates to
+  // leases expiring within the notice horizon (120 calendar days comfortably contains the 80-business-day
+  // window ≈ 112 days AND keeps every backward walk inside the holiday table), then the strict walker gives
+  // each lease its exact due date. See lib/leases/cpaRenewal + ADDENDUM_70K §6.
+  const renewalBandEnd = addCalendarDays(today, 120)
+  const { data: renewalCandidates, error: needNoticeError } = await supabase
     .from("leases")
     .select("id, org_id, tenant_id, end_date, unit_id, units(unit_number, properties(name))")
     .eq("is_fixed_term", true)
     .eq("cpa_applies", true)
     .is("auto_renewal_notice_sent_at", null)
     .eq("status", "active")
-    .lte("auto_renewal_notice_due", today)
+    .gte("end_date", today)
+    .lte("end_date", renewalBandEnd)
     logQueryError("GET leases", needNoticeError)
 
-  for (const lease of needNotice || []) {
+  for (const lease of renewalCandidates || []) {
+    if (!lease.end_date) continue
+    const dueDate = cpaRenewalNoticeDueSafe(lease.end_date)
+    if (!dueDate) {
+      // A banded candidate whose date is uncomputable means the holiday table's horizon is now inside the
+      // notice window — a real ops signal that saHolidays.json must be extended. Skip (never fire against an
+      // unknown holiday calendar), let the 90-day horizon sentinel in health.ts carry the alert.
+      console.warn(`[lease-expiry-check] CPA s14 notice date uncomputable for lease ${lease.id} (end ${lease.end_date}) — extend saHolidays.json`)
+      continue
+    }
+    if (today < dueDate) continue   // the 40–80 business-day window has not opened yet
     await handleCpaRenewal(supabase, lease as CpaLease)
     processed++
   }
