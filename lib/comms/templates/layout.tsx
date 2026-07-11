@@ -24,7 +24,8 @@ import {
 } from "@react-email/components"
 import * as React from "react"
 import type { EmailFooterVariant } from "@/lib/subscriptions/state"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 export interface OrgBranding {
   orgName: string
@@ -74,8 +75,8 @@ function HeaderLogo({ branding, accent }: Readonly<{ branding: OrgBranding; acce
   if (branding.orgName === "Pleks") {
     return (
       <>
-        <Img className="pl-logo-light" src={`${APP_URL}/logo/pleks-wordmark-light.png`} alt="Pleks" height={36} style={{ display: "block" }} />
-        <Img className="pl-logo-dark" src={`${APP_URL}/logo/pleks-wordmark-dark.png`} alt="Pleks" height={36} style={{ display: "none" }} />
+        <Img className="pl-logo-light" src={absoluteUrl("/logo/pleks-wordmark-light.png")} alt="Pleks" height={36} style={{ display: "block" }} />
+        <Img className="pl-logo-dark" src={absoluteUrl("/logo/pleks-wordmark-dark.png")} alt="Pleks" height={36} style={{ display: "none" }} />
       </>
     )
   }

@@ -12,7 +12,7 @@
 import { createElement } from "react"
 import { renderToBuffer } from "@react-pdf/renderer"
 import ExcelJS from "exceljs"
-import { createHash } from "crypto"
+import { contentHash } from "@/lib/crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 import {
   TrustAuditPdf,
@@ -181,12 +181,14 @@ export async function generateAuditExport(
   const xlsxBuffer = await buildXlsx(auditData)
 
   // ── 13. Compute manifest hash ─────────────────────────────────────────────
-  const hash = createHash("sha256")
-  hash.update(pdfBuffer)
-  hash.update(xlsxBuffer)
-  hash.update(ffc ?? "")
-  hash.update(period.signed_off_at ?? "")
-  const manifestHash = hash.digest("hex")
+  // Sequential .update() concatenates the raw bytes — Buffer.concat is byte-identical, so the manifest hash
+  // is unchanged. One SHA-256 (lib/crypto/contentHash) so an affidavit's "SHA-256 of the content" is uniform.
+  const manifestHash = contentHash(Buffer.concat([
+    pdfBuffer,
+    xlsxBuffer,
+    Buffer.from(ffc ?? ""),
+    Buffer.from(period.signed_off_at ?? ""),
+  ]))
 
   // Regenerate PDF with real hash
   auditData.manifestHash = manifestHash

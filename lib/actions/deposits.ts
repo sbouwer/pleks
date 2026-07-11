@@ -26,9 +26,10 @@ import {
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { isValidJustification } from "@/lib/deposits/justification"
 import { fmtDateLongZA } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 function formatZARLocal(cents: number): string {
-  return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+  return formatZAR(cents, true)   // delegates to the ZAR SSOT (lib/constants) — item 7
 }
 
 function formatDateLocal(iso: string): string {

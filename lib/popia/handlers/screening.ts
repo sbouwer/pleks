@@ -9,7 +9,7 @@
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §8.3–§8.7.
  */
 
-import { createHash } from 'node:crypto'
+import { contentHash } from "@/lib/crypto"
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createServiceClient } from '@/lib/supabase/server'
 import { recordAudit } from '@/lib/audit/recordAudit'
@@ -128,7 +128,7 @@ export async function generateScreeningL2Response(
   // ── 4. Render PDF ─────────────────────────────────────────────────────────
 
   const pdfBuffer = await renderToBuffer(ScreeningResponseLetter({ data: responseData }))
-  const manifestHash = createHash('sha256').update(pdfBuffer).digest('hex')
+  const manifestHash = contentHash(pdfBuffer)
 
   // ── 5. Upload to popia-exports bucket ─────────────────────────────────────
 

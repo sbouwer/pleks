@@ -7,7 +7,7 @@
  *         BUILD_65 (POPIA exports) and BUILD_66 (tribunal evidence) both consume.
  *         BUILD_64's lib/trust/audit-export.ts is NOT refactored to use this — Tier 2.
  */
-import { createHash } from "crypto"
+import { contentHash } from "@/lib/crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 
 export type BundleArtefact = {
@@ -28,10 +28,6 @@ export type BundleResult = {
   storage_paths: Record<string, string>
 }
 
-function sha256(data: Buffer | Uint8Array): string {
-  return createHash("sha256").update(data).digest("hex")
-}
-
 /**
  * Upload artefacts to Storage and compute a tamper-evident manifest hash.
  * manifest_hash = SHA-256 of the concatenation of per-artefact SHA-256 hex strings
@@ -48,7 +44,7 @@ export async function generateBundle(
   let total_bytes = 0
 
   for (const artefact of artefacts) {
-    const hash = sha256(artefact.bytes)
+    const hash = contentHash(artefact.bytes)
     artefact_hashes[artefact.name] = hash
     total_bytes += artefact.bytes.byteLength
 
@@ -67,7 +63,7 @@ export async function generateBundle(
     storage_paths[artefact.name] = storagePath
   }
 
-  const manifest_hash = sha256(
+  const manifest_hash = contentHash(
     Buffer.from(artefacts.map((a) => artefact_hashes[a.name]).join(""), "utf-8"),
   )
 
@@ -95,10 +91,10 @@ export async function verifyBundle(
       continue
     }
     const bytes = Buffer.from(await data.arrayBuffer())
-    hashes.push(sha256(bytes))
+    hashes.push(contentHash(bytes))
   }
 
-  const recomputed = sha256(Buffer.from(hashes.join(""), "utf-8"))
+  const recomputed = contentHash(Buffer.from(hashes.join(""), "utf-8"))
   if (recomputed !== expected_manifest_hash) {
     mismatches.push(`manifest: expected ${expected_manifest_hash}, got ${recomputed}`)
   }

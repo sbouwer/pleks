@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { checkAtEnvironment, AT_SANDBOX_USERNAME } from "@/lib/messaging/africastalking"
 import { optionalEnv } from "@/lib/env"
+import { normalizePhone } from "@/lib/validation/contact"
 
 export interface SMSAuditParams {
   templateKey?: string
@@ -42,10 +43,16 @@ interface ATResponse {
 
 export async function sendSMS(
   orgId: string,
-  to: string,
+  rawTo: string,
   message: string,
   audit?: SMSAuditParams
 ): Promise<SMSResult> {
+  // Normalise at the choke point (centralisation item 8) so the canonical E.164 form no longer depends on
+  // which caller dialled — this is also what delivery-report matching keys on. Keep the raw string if it is
+  // unparseable (checkPhone → null); AT will reject it and the failure is logged, which beats a silent
+  // mismatch. The SSOT is lib/validation/contact — never re-roll a `\D`-strip here.
+  const to = normalizePhone(rawTo) ?? rawTo
+
   // Tier gate — SMS requires Steward+ (sms_notifications feature)
   const tier = await getOrgTier(orgId)
   if (!hasFeature(tier, "sms_notifications")) {

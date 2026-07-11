@@ -17,7 +17,7 @@
 
 import * as React from "react"
 import { render } from "@react-email/components"
-import { createHash } from "node:crypto"
+import { contentHash } from "@/lib/crypto"
 import type { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { sendEmail } from "@/lib/comms/send-email"
@@ -243,7 +243,7 @@ export async function renderDemandNotice(params: IssueTenantNoticeParams): Promi
   const bodyFull = await render(buildElement(params, vacateByDateDisplay, todaysDate))
   return {
     bodyFull,
-    contentHash: createHash("sha256").update(bodyFull).digest("hex"),
+    contentHash: contentHash(bodyFull),
     vacateByDateISO, vacateByDateDisplay, todaysDate,
     citationBranch: citationBranch(lease.noticeType, lease.cpaApplies),
     mergeSnapshot: {

@@ -16,7 +16,7 @@
  *  7. Return { success, logId }
  */
 
-import { createHash } from "node:crypto"
+import { contentHash } from "@/lib/crypto"
 import { createElement } from "react"
 import { Resend } from "resend"
 import { render } from "@react-email/components"
@@ -31,7 +31,8 @@ export type { OrgBranding } from "./templates/layout"
 import type { ReactElement } from "react"
 import { maskEmail } from "@/lib/log/maskPii"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { APP_URL, requireEnv } from "@/lib/env"
+import { requireEnv } from "@/lib/env"
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 function getResend() {
   return new Resend(requireEnv("RESEND_API_KEY"))
@@ -177,7 +178,7 @@ async function logToDb(
   }
 ): Promise<string> {
   const templateVersionHash = params.bodyFull
-    ? createHash("sha256").update(params.bodyFull).digest("hex")
+    ? contentHash(params.bodyFull)
     : null
 
   const { data: log, error: logError } = await service
@@ -398,7 +399,7 @@ export function buildBranding(orgSettings: OrgSettings | null, unsubscribeToken?
     orgAddress: orgSettings?.address,
     logoUrl: orgSettings?.brand_logo_url,
     accentColor: orgSettings?.brand_accent_color,
-    unsubscribeUrl: unsubscribeToken ? `${APP_URL}/unsubscribe/${unsubscribeToken}` : undefined,
+    unsubscribeUrl: unsubscribeToken ? absoluteUrl(`/unsubscribe/${unsubscribeToken}`) : undefined,
     emergencyPhone: orgSettings?.emergency_phone,
     emergencyContactName: orgSettings?.emergency_contact_name,
   }

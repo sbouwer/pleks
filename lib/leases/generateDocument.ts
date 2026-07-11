@@ -13,6 +13,7 @@ import { renderClauseBodyToDocx } from "./renderClauseDocx"
 import { getOrgDisplayName, getOrgLegalName } from "@/lib/org/displayName"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import {fmtDateLongZA, saTodayISO} from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -794,10 +795,7 @@ export async function buildDocx(
 // ─── Helpers ─────────────────────────────────────────────────
 
 function formatZARDocument(cents: number): string {
-  return `R ${(cents / 100).toLocaleString("en-ZA", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
+  return formatZAR(cents, true)   // ZAR SSOT (lib/constants) — item 7
 }
 
 function formatDateLong(isoDate: string): string {

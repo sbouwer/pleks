@@ -7,6 +7,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { formatZAR } from "@/lib/constants"
 
 interface CostRow {
   org_id: string
@@ -60,8 +61,7 @@ async function fetchCostOutliers(): Promise<{ rows: CostRow[]; period: string | 
 }
 
 function fmtRands(cents: number): string {
-  const r = cents / 100
-  return `R ${r.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+  return formatZAR(cents)   // ZAR SSOT (lib/constants) — item 7
 }
 
 export async function CostHealthCard() {

@@ -10,13 +10,7 @@
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { hasCapability } from "@/lib/auth/can"
 import { sendSMS } from "@/lib/sms/sendSMS"
-
-function normalizeSAPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "")
-  if (digits.startsWith("27") && digits.length === 11) return `+${digits}`
-  if (digits.startsWith("0") && digits.length === 10) return `+27${digits.slice(1)}`
-  return phone
-}
+import { normalizePhone } from "@/lib/validation/contact"
 
 export async function sendBulkRentReminders(): Promise<{
   sent: number
@@ -64,7 +58,8 @@ export async function sendBulkRentReminders(): Promise<{
     const tenant = lease.tenant_view as unknown as { first_name: string | null; phone: string | null } | null
     if (!tenant?.phone) { skipped++; continue }
 
-    const phone = normalizeSAPhone(tenant.phone)
+    const phone = normalizePhone(tenant.phone)
+    if (!phone) { skipped++; continue }   // unparseable number — never send to a garbage E.164
     if (sentPhones.has(phone)) continue
     sentPhones.add(phone)
 

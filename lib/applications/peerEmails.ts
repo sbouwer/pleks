@@ -10,20 +10,21 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendApplicationReadyToSubmit, sendApplicationSubmittedToAgent, type ListingSummary, type OrgContext } from "./emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 export interface PeerRecipient { email: string; name: string; kind: "lead" | "co"; coToken?: string | null }
 
 /** The lead's resume link (their app token) / a co's invite link (their access token) — the recipient's OWN door. */
 export function applyLink(r: PeerRecipient, slug: string, applicationId: string, leadToken: string | null): string {
-  if (r.kind === "co" && r.coToken) return `${APP_URL}/apply/co-applicant/${r.coToken}`
-  return leadToken ? `${APP_URL}/apply/${slug}?app=${applicationId}&token=${encodeURIComponent(leadToken)}` : `${APP_URL}/apply/${slug}`
+  if (r.kind === "co" && r.coToken) return absoluteUrl(`/apply/co-applicant/${r.coToken}`)
+  return leadToken ? absoluteUrl(`/apply/${slug}?app=${applicationId}&token=${encodeURIComponent(leadToken)}`) : absoluteUrl(`/apply/${slug}`)
 }
 
 /** The recipient's OWN view-only review link (the /apply/review/[token] route, gated by their own credential). */
 export function reviewLink(r: PeerRecipient, leadToken: string | null): string {
   const cred = r.kind === "co" ? r.coToken : leadToken
-  return `${APP_URL}/apply/review/${cred ?? ""}`
+  return absoluteUrl(`/apply/review/${cred ?? ""}`)
 }
 
 interface PeerFanout { recipients: PeerRecipient[]; slug: string; leadToken: string | null; org: OrgContext; listing: ListingSummary }

@@ -25,6 +25,8 @@ import { FinalNoticeEmail } from "@/lib/comms/templates/tenant/arrears/final-not
 import { withCronRun } from "@/lib/cron/withCronRun"
 import { fmtDateLongZA, saDateISO } from "@/lib/dates"
 import { optionalEnv } from "@/lib/env"
+import { normalizePhone } from "@/lib/validation/contact"
+import { formatZAR } from "@/lib/constants"
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -63,15 +65,8 @@ type TenantInfo = {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function normalizeSAPhone(phone: string): string {
-  const digits = phone.replaceAll(/\D/g, "")
-  if (digits.startsWith("27") && digits.length === 11) return `+${digits}`
-  if (digits.startsWith("0") && digits.length === 10) return `+27${digits.slice(1)}`
-  return phone
-}
-
 function formatAmount(cents: number): string {
-  return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+  return formatZAR(cents, true)   // ZAR SSOT (lib/constants) — item 7
 }
 
 function formatDate(isoDate: string): string {
@@ -439,7 +434,7 @@ async function advanceSequenceStep(
       tenantId:          arrearsCase.tenant_id,
       to: {
         email:     tenant.email ?? undefined,
-        phone:     tenant.phone ? normalizeSAPhone(tenant.phone) : undefined,
+        phone:     normalizePhone(tenant.phone) ?? undefined,
         name:      tenantName,
       },
       subject,
