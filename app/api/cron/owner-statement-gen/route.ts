@@ -18,7 +18,8 @@ import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-ema
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarMonths, fmtZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 export async function GET(req: Request) {
   // Dropped the `?secret=` query-param fallback: secrets in URLs leak into access logs, proxy logs, and
@@ -78,7 +79,7 @@ export async function GET(req: Request) {
             ownerName: (property.owner_name as string) ?? "there",
             propertyLabel,
             statementMonth,
-            statementUrl: `${APP_URL}/owner/statement/${portalToken}`,
+            statementUrl: absoluteUrl(`/owner/statement/${portalToken}`),
           }),
         }),
       )

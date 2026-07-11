@@ -16,7 +16,8 @@ import { Wordmark } from "@/components/ui/Wordmark"
 import { createClient } from "@/lib/supabase/client"
 import { usePublicTheme } from "./PublicThemeProvider"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { APP_URL, MARKETING_URL } from "@/lib/env"
+import { MARKETING_URL } from "@/lib/env"
+import { absoluteUrl, marketingUrl } from "@/lib/routing/absoluteUrl"
 
 // Cross-subdomain links use absolute URLs — relative paths would be RSC-prefetched
 // as same-origin, hit the apex→app redirect, and fail the browser's CORS preflight.
@@ -25,13 +26,13 @@ import { APP_URL, MARKETING_URL } from "@/lib/env"
 // Decoupled so we can render plain <a> with an absolute URL while still driving
 // the active-state highlight from the IntersectionObserver on the marketing page.
 const NAV_LINKS = [
-  { href: `${MARKETING_URL}/#why`,       section: "why",      label: "Why Pleks" },
-  { href: `${MARKETING_URL}/#artefact`,  section: "artefact", label: "The work" },
-  { href: `${MARKETING_URL}/#charter`,   section: "charter",  label: "Charter" },
-  { href: `${MARKETING_URL}/#story`,     section: "story",    label: "Who built this" },
-  { href: `${MARKETING_URL}/#pricing`,   section: "pricing",  label: "Pricing" },
-  { href: `${MARKETING_URL}/#founding`,  section: "founding", label: "Founding agents" },
-  { href: `${MARKETING_URL}/contact`,    section: null,       label: "Contact" },
+  { href: marketingUrl("/#why"),       section: "why",      label: "Why Pleks" },
+  { href: marketingUrl("/#artefact"),  section: "artefact", label: "The work" },
+  { href: marketingUrl("/#charter"),   section: "charter",  label: "Charter" },
+  { href: marketingUrl("/#story"),     section: "story",    label: "Who built this" },
+  { href: marketingUrl("/#pricing"),   section: "pricing",  label: "Pricing" },
+  { href: marketingUrl("/#founding"),  section: "founding", label: "Founding agents" },
+  { href: marketingUrl("/contact"),    section: null,       label: "Contact" },
 ]
 
 // Section IDs for scroll-spy
@@ -132,7 +133,7 @@ export function PublicNav() {
                 <p className="pub-xs" style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", margin: 0 }}>
                   {user.email}
                 </p>
-                <a href={`${APP_URL}/dashboard`}
+                <a href={absoluteUrl("/dashboard")}
                   style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--ink)" }}
                   onClick={() => setProfileOpen(false)}>
                   <LayoutDashboard size={14} style={{ color: "var(--ink-mute)" }} /> Dashboard
@@ -148,7 +149,7 @@ export function PublicNav() {
       )
     }
     return (
-      <a href={`${APP_URL}/login`} className="pub-icon-btn hidden md:flex" aria-label="Sign in">
+      <a href={absoluteUrl("/login")} className="pub-icon-btn hidden md:flex" aria-label="Sign in">
         <LogIn size={15} />
       </a>
     )
@@ -167,7 +168,7 @@ export function PublicNav() {
       return (
         <>
           <p className="pub-xs" style={{ padding: "0 8px", margin: 0 }}>{user.email}</p>
-          <a href={`${APP_URL}/dashboard`}
+          <a href={absoluteUrl("/dashboard")}
             style={{ padding: "10px 8px", fontSize: 14, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}
             onClick={() => setMobileOpen(false)}>
             <LayoutDashboard size={16} /> Dashboard
@@ -181,10 +182,10 @@ export function PublicNav() {
     }
     return (
       <>
-        <a href={`${APP_URL}/login`} className="btn-pleks ghost" style={{ justifyContent: "center" }}>
+        <a href={absoluteUrl("/login")} className="btn-pleks ghost" style={{ justifyContent: "center" }}>
           <LogIn size={15} /> Sign in
         </a>
-        <a href={`${APP_URL}/onboarding`} className="btn-pleks" style={{ justifyContent: "center" }}>
+        <a href={absoluteUrl("/onboarding")} className="btn-pleks" style={{ justifyContent: "center" }}>
           Start free
         </a>
       </>
@@ -234,7 +235,7 @@ export function PublicNav() {
           {/* Start free CTA — only shown when confirmed logged out, not while checking */}
           {user === null && (
             <a
-              href={`${APP_URL}/onboarding`}
+              href={absoluteUrl("/onboarding")}
               className="btn-pleks"
               style={{ fontSize: 13, marginLeft: 8 }}
             >

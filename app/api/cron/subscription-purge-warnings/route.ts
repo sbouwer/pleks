@@ -24,7 +24,8 @@ import { purgeOrg } from "@/lib/subscriptions/purge"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { fmtDateLongZA } from "@/lib/dates"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 const ELEVEN_MONTHS_MS = 11 * 30 * 24 * 60 * 60 * 1000
 
@@ -99,8 +100,8 @@ async function processWarn30dSub(
       cancelledDate:   cancelledDateStr,
       purgeEligibleAt: purgeEligibleStr,
       daysUntilPurge:  30,
-      exportUrl:       `${APP_URL}/reports`,
-      settingsUrl:     `${APP_URL}/settings/subscription`,
+      exportUrl:       absoluteUrl("/reports"),
+      settingsUrl:     absoluteUrl("/settings/subscription"),
     }).catch((e) => console.error("[subscription-purge-warnings] 30d warning send failed for", sub.org_id, e instanceof Error ? e.message : String(e)))
   }
   await supabase.from("audit_log").insert({
@@ -138,8 +139,8 @@ async function processFinalWarnSub(
       cancelledDate:   cancelledDateStr,
       purgeEligibleAt: purgeEligibleStr,
       daysUntilPurge:  1,
-      exportUrl:       `${APP_URL}/reports`,
-      settingsUrl:     `${APP_URL}/settings/subscription`,
+      exportUrl:       absoluteUrl("/reports"),
+      settingsUrl:     absoluteUrl("/settings/subscription"),
     }).catch((e) => console.error("[subscription-purge-warnings] final warning send failed for", sub.org_id, e instanceof Error ? e.message : String(e)))
   }
   await supabase.from("audit_log").insert({

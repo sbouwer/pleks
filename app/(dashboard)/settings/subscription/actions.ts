@@ -21,7 +21,8 @@ import {
 } from "@/lib/subscriptions/emails"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { fmtDateLongZA } from "@/lib/dates"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 // Billing actions require the 'billing' capability (owner / is_admin exempt). This is orthogonal to the
 // §10.3 "your data always" rule — that's about subscription STATE (never block on paused/cancelled), this is
@@ -233,7 +234,7 @@ export async function initiateCancellation(): Promise<InitiateCancellationResult
   const { data: { user } } = await authClient.auth.getUser()
   if (!user?.email) return { error: "No user email found" }
 
-  const redirectTo = `${APP_URL}/auth/callback?next=/settings/subscription/confirm-cancel`
+  const redirectTo = absoluteUrl("/auth/callback?next=/settings/subscription/confirm-cancel")
   const { error: otpErr } = await authClient.auth.signInWithOtp({
     email: user.email,
     options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
@@ -326,7 +327,7 @@ async function confirmCancellationInner(
     const cancelledDate = fmtDateLongZA(now)
     void sendCancelledConfirm(contact, {
       cancelledDate,
-      exportUrl: `${APP_URL}/reports`,
+      exportUrl: absoluteUrl("/reports"),
     })
   }
 

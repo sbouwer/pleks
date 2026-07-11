@@ -17,7 +17,8 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { ApplicationTriageList, type TriageApp } from "./ApplicationTriageList"
 import { ListingQuickbar } from "./ListingQuickbar"
 import { fmtDateZA } from "@/lib/dates"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 const LISTING_STATUS: Record<string, DetailStatus> = {
   active: { kind: "occupied", label: "Active" },
@@ -106,7 +107,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
   const unit = unwrap(listing.units)
   const property = unit ? unwrap(unit.properties) : null
-  const applyUrl = listing.public_slug ? `${APP_URL}/apply/${listing.public_slug}` : null
+  const applyUrl = listing.public_slug ? absoluteUrl(`/apply/${listing.public_slug}`) : null
 
   const facts: DetailFact[] = [
     { k: "Rent", v: `${formatZAR(listing.asking_rent_cents)}/mo` },

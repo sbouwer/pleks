@@ -12,8 +12,9 @@ import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
 import { getTodayFeedbackDigest } from "@/lib/feedback/queries"
 import { FeedbackDailyDigestEmail } from "@/lib/comms/templates/feedback/feedback-daily-digest"
 import { requireCronAuth } from "@/lib/cron/auth"
-import { APP_URL, optionalEnv } from "@/lib/env"
+import { optionalEnv } from "@/lib/env"
 import { SA_TIMEZONE } from "@/lib/dates"
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
   }
 
   const date = new Date().toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE, weekday: "long", day: "numeric", month: "long" })
-  const inboxUrl = `${APP_URL}/admin/feedback`
+  const inboxUrl = absoluteUrl("/admin/feedback")
 
   const branding = {
     orgName:     "Pleks",

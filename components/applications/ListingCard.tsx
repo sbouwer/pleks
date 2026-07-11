@@ -14,7 +14,8 @@ import { Copy, Check, ExternalLink, Pause, Play, CheckSquare } from "lucide-reac
 import { formatZAR } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
 import { fmtDateZA } from "@/lib/dates"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 interface Listing {
   id: string
@@ -46,7 +47,7 @@ export function ListingCard({ listing, unitLabel, propertyName }: Props) {
   const [copied, setCopied] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const listingUrl = listing.public_slug ? `${APP_URL}/apply/${listing.public_slug}` : null
+  const listingUrl = listing.public_slug ? absoluteUrl(`/apply/${listing.public_slug}`) : null
   const badge = STATUS_BADGE[listing.status] ?? { label: listing.status, variant: "outline" as const }
 
   async function copyUrl() {

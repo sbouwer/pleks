@@ -30,8 +30,9 @@ import { CancelledTenantEmail } from "@/lib/comms/templates/maintenance/cancelle
 import { ContractorChangedEmail } from "@/lib/comms/templates/maintenance/contractor-changed"
 import { MemoLandlordNotifiedEmail } from "@/lib/comms/templates/maintenance/memo-landlord-notified"
 import * as React from "react"
-import { APP_URL } from "@/lib/env"
+
 import { SA_TIMEZONE } from "@/lib/dates"
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 async function fireTenantCommsOnCreate(
   orgId: string,
@@ -326,7 +327,7 @@ async function sendWorkOrderEmail({ db, userId, requestId, req, recipientEmail, 
   const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
   const propertyLabel = unit?.properties.name ?? "Property"
   const unitLabel = unit?.unit_number ?? ""
-  const woUrl = `${APP_URL}/wo/${req.work_order_number}?token=${token}`
+  const woUrl = absoluteUrl(`/wo/${req.work_order_number}?token=${token}`)
 
   const rawPhotos = photosRes.data ?? []
   const woPhotos: Array<{ url: string; caption: string }> = []
@@ -961,7 +962,7 @@ export async function changeContractor(
       // Send fresh WO to new contractor
       if (newC.email && newToken) {
         const newContractorName = (newC.company_name as string | null) || [newC.first_name, newC.last_name].filter(Boolean).join(" ") || "Contractor"
-        const woUrl = `${APP_URL}/wo/${req.work_order_number}?token=${newToken}`
+        const woUrl = absoluteUrl(`/wo/${req.work_order_number}?token=${newToken}`)
         const unitLabel = unit?.unit_number ?? ""
         await sendEmail({
           orgId,

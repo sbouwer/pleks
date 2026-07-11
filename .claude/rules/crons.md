@@ -35,6 +35,16 @@ honoured on Pro). Monthly jobs run INSIDE this orchestrator, gated by a day-of-m
 | maintenance-delay-check | `/api/cron/maintenance-delay-check` | Every 4h | GET |
 | check-links | `/api/cron/check-links` | Every 4h | GET |
 | application-reminders | `/api/cron/application-reminders` | Daily 06:00 UTC | GET |
+| holiday-sentinel | `/api/cron/holiday-sentinel` | Daily | GET |
+
+> **holiday-sentinel** (ADDENDUM_70K Phase C): diffs the SA public-holiday table against Nager.Date (+ optional
+> Calendarific witness) and moves the 90-day horizon nag here. Quiet by default — digests to `ADMIN_EMAIL`
+> only on a Class-A/B diff, a witness disagreement, or the horizon within 90 days. Writes nothing (D-7d). NOT
+> in the daily orchestrator and NOT wrapped in `withCronRun` (a `cron_runs` row from a job `TRACKED_CRONS`
+> never heard of would falsely degrade deep-health). cPanel entry to add:
+> ```
+> 0 7 * * *  /usr/bin/curl -s -m 60 -X GET "https://app.pleks.co.za/api/cron/holiday-sentinel" -H "x-cron-secret: <CRON_SECRET>" > /dev/null 2>&1
+> ```
 
 All use the same `x-cron-secret` header auth.
 

@@ -8,7 +8,8 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendLoginNotificationEmail } from "./login-notification-email"
 import { logAuthEvent } from "./events"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 interface NotifyParams {
   userId: string
@@ -70,7 +71,7 @@ export async function maybeNotifyNewDevice(params: NotifyParams): Promise<void> 
       country: event.ip_country,
       method: event.auth_method,
       timeAgo: "just now",
-      revokeUrl: `${APP_URL}/settings/security/sessions?revoke=${deviceFingerprintId}`,
+      revokeUrl: absoluteUrl(`/settings/security/sessions?revoke=${deviceFingerprintId}`),
     })
 
     // Upsert the notification record
