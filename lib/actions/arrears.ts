@@ -11,6 +11,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { hasCapability } from "@/lib/auth/can"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function updateArrearsStatus(
   caseId: string,
@@ -57,14 +58,7 @@ export async function updateArrearsStatus(
       body: notes || null,
     })
 
-    await db.from("audit_log").insert({
-      org_id: arrearsCase.org_id,
-      table_name: "arrears_cases",
-      record_id: caseId,
-      action: "UPDATE",
-      changed_by: userId,
-      new_values: updates,
-    })
+    await recordAudit(db, { orgId: arrearsCase.org_id, table: "arrears_cases", recordId: caseId, action: "UPDATE", actorId: userId, after: updates })
   }
 
   revalidatePath("/billing/arrears")

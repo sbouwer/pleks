@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 /**
  * Send a magic-link invite to the tenant's primary email.
@@ -60,14 +61,7 @@ export async function inviteTenantPortal(tenantId: string, _leaseId: string) {
     .eq("id", tenantId)
     .eq("org_id", orgId)
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "tenants",
-    record_id: tenantId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { action: "portal_invite_sent", sent_to: tenant.email },
-  })
+  await recordAudit(db, { orgId: orgId, table: "tenants", recordId: tenantId, action: "UPDATE", actorId: userId, after: { action: "portal_invite_sent", sent_to: tenant.email } })
 
   return { success: true }
 }
@@ -105,14 +99,7 @@ export async function generateTenantPortalLink(tenantId: string, _leaseId: strin
 
   if (tokenErr || !tokenRecord) return { error: "Could not generate token" }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "tenant_portal_tokens",
-    record_id: tokenRecord.token,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { action: "portal_token_generated", tenant_id: tenantId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "tenant_portal_tokens", recordId: tokenRecord.token, action: "INSERT", actorId: userId, after: { action: "portal_token_generated", tenant_id: tenantId } })
 
   const url = absoluteUrl(`/tenant/access?token=${tokenRecord.token}`)
   return { success: true, url }
@@ -138,14 +125,7 @@ export async function revokeTenantPortalAccess(tenantId: string): Promise<{ succ
     .eq("id", tenantId)
     .eq("org_id", orgId)
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "tenants",
-    record_id: tenantId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { action: "portal_access_revoked" },
-  })
+  await recordAudit(db, { orgId: orgId, table: "tenants", recordId: tenantId, action: "UPDATE", actorId: userId, after: { action: "portal_access_revoked" } })
 
   return { success: true }
 }

@@ -27,6 +27,7 @@ import { InspectionMoveInReportEmail } from "@/lib/comms/templates/tenant/inspec
 import { InspectionReportReadyEmail } from "@/lib/comms/templates/tenant/inspections/inspection-report-ready"
 import { InspectionDisputeWindowEmail } from "@/lib/comms/templates/tenant/inspections/inspection-dispute-window"
 import { fmtDateLongZA } from "@/lib/dates"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 const PROFILE_REQUIRED_TYPES = new Set(["move_in", "move_out", "periodic"])
 
@@ -191,14 +192,7 @@ export async function createInspection(formData: FormData) {
   // Seed rooms — pass unitId so the engine uses profile-first logic
   await seedInspectionRooms(db, inspection.id, orgId, leaseType, unitId)
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "inspections",
-    record_id: inspection.id,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { inspection_type: inspectionType, lease_type: leaseType, unit_id: unitId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "inspections", recordId: inspection.id, action: "INSERT", actorId: userId, after: { inspection_type: inspectionType, lease_type: leaseType, unit_id: unitId } })
 
   // I1: notify tenant of scheduled inspection
   if (tenantId && scheduledDate) {
@@ -324,14 +318,7 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
     await saveProfileFromInspection(db, inspectionId, inspection.unit_id, inspection.org_id)
   }
 
-  await db.from("audit_log").insert({
-    org_id: inspection.org_id,
-    table_name: "inspections",
-    record_id: inspectionId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: updates,
-  })
+  await recordAudit(db, { orgId: inspection.org_id, table: "inspections", recordId: inspectionId, action: "UPDATE", actorId: userId, after: updates })
 
   // I4/I5/I6: fire lifecycle comms on awaiting_tenant_review or commercial completed
   const effectiveStatus = (updates.status as string | undefined) ?? newStatus
@@ -405,14 +392,7 @@ export async function rescheduleInspection(
 
   if (updateErr) return { error: updateErr.message }
 
-  await db.from("audit_log").insert({
-    org_id: inspection.org_id,
-    table_name: "inspections",
-    record_id: inspectionId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { scheduled_date: newDate },
-  })
+  await recordAudit(db, { orgId: inspection.org_id, table: "inspections", recordId: inspectionId, action: "UPDATE", actorId: userId, after: { scheduled_date: newDate } })
 
   // I3: notify tenant of reschedule
   if (inspection.tenant_id) {

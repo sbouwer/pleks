@@ -32,6 +32,7 @@ import { DemandToVacateBreachEmail } from "@/lib/comms/templates/tenant/leases/d
 import { DemandToVacateExpiryEmail } from "@/lib/comms/templates/tenant/leases/demand-to-vacate-expiry"
 import { DemandToVacateM2mEmail } from "@/lib/comms/templates/tenant/leases/demand-to-vacate-m2m"
 import { optionalEnv } from "@/lib/env"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -296,10 +297,7 @@ export async function issueTenantNotice(params: IssueTenantNoticeParams): Promis
   const noticeId = notice.id as string
 
   // Issuance audit (R-9) — PII-SAFE: hash + type only, never body_full / recipient PII (RULE #7).
-  await db.from("audit_log").insert({
-    org_id: orgId, table_name: "tenant_notices", record_id: noticeId, action: "INSERT",
-    new_values: { event: "demand_to_vacate_issued", notice_type: lease.noticeType, content_hash: contentHash, citation_branch: branch },
-  })
+  await recordAudit(db, { orgId: orgId, table: "tenant_notices", recordId: noticeId, action: "INSERT", after: { event: "demand_to_vacate_issued", notice_type: lease.noticeType, content_hash: contentHash, citation_branch: branch } })
   await db.from("lease_lifecycle_events").insert({
     org_id: orgId, lease_id: lease.id, event_type: "demand_to_vacate_issued",
     description: `Demand to Vacate issued (${lease.noticeType})`, metadata: { notice_id: noticeId, notice_type: lease.noticeType },

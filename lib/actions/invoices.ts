@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache"
 import { calculateVAT } from "@/lib/finance/vatCalculation"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { monthStart, saTodayISO } from "@/lib/dates"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function createSupplierInvoice(formData: FormData) {
   const gw = await requireAgentWriteAccess("accept_quote")
@@ -53,14 +54,7 @@ export async function createSupplierInvoice(formData: FormData) {
     return { error: error?.message || "Failed to create invoice" }
   }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "supplier_invoices",
-    record_id: invoice.id,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { amount: vat.inclVat, contractor_id: contractorId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "supplier_invoices", recordId: invoice.id, action: "INSERT", actorId: userId, after: { amount: vat.inclVat, contractor_id: contractorId } })
 
   revalidatePath("/billing")
   return { success: true, id: invoice.id }
@@ -115,14 +109,7 @@ export async function markInvoicePaid(invoiceId: string, reference?: string) {
 
   if (error) return { error: error.message }
 
-  await db.from("audit_log").insert({
-    org_id: invoice.org_id,
-    table_name: "supplier_invoices",
-    record_id: invoiceId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { status: newStatus, paid_at: new Date().toISOString() },
-  })
+  await recordAudit(db, { orgId: invoice.org_id, table: "supplier_invoices", recordId: invoiceId, action: "UPDATE", actorId: userId, after: { status: newStatus, paid_at: new Date().toISOString() } })
 
   revalidatePath("/billing")
   return { success: true }

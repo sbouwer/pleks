@@ -7,6 +7,7 @@
  * Data:   inspection_reschedule_requests, inspections, audit_log
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 interface RescheduleResponsePayload {
   requestId: string
@@ -57,14 +58,7 @@ export async function respondToRescheduleRequest(payload: RescheduleResponsePayl
       .eq("org_id", orgId)
   }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "inspection_reschedule_requests",
-    record_id: payload.requestId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { action: `reschedule_${payload.action}`, inspection_id: payload.inspectionId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "inspection_reschedule_requests", recordId: payload.requestId, action: "UPDATE", actorId: userId, after: { action: `reschedule_${payload.action}`, inspection_id: payload.inspectionId } })
 
   return { success: true }
 }

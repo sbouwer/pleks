@@ -12,6 +12,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendPaymentReceived } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -70,16 +71,10 @@ export async function POST(req: Request) {
     logQueryError("POST applications", appError)
 
     if (app) {
-      await supabase.from("audit_log").insert({
-        org_id: app.org_id,
-        table_name: "applications",
-        record_id: applicationId,
-        action: "UPDATE",
-        new_values: {
+      await recordAudit(supabase, { orgId: app.org_id, table: "applications", recordId: applicationId, action: "UPDATE", after: {
           fee_status: "paid",
           stage2_status: "screening_in_progress",
-        },
-      })
+        } })
     }
 
     return NextResponse.json({ ok: true })

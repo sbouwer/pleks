@@ -20,6 +20,7 @@ import type { ParsedTransaction } from "@/lib/recon/ofxParser"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { saTodayISO } from "@/lib/dates"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 type ImportSource = "upload" | "ofx" | "csv" | "qif" | "yodlee"
 
@@ -433,17 +434,10 @@ export async function signOffReconciliation(importId: string, acceptVariance?: {
   if (error) return { error: error.message }
 
   if (imp) {
-    await db.from("audit_log").insert({
-      org_id: imp.org_id,
-      table_name: "bank_statement_imports",
-      record_id: importId,
-      action: "UPDATE",
-      changed_by: userId,
-      new_values: {
+    await recordAudit(db, { orgId: imp.org_id, table: "bank_statement_imports", recordId: importId, action: "UPDATE", actorId: userId, after: {
         reconciled: true,
         ...(discrepancy !== 0 ? { variance_accepted_cents: discrepancy, variance_reason: acceptVariance?.reason?.trim() } : {}),
-      },
-    })
+      } })
   }
 
   revalidatePath("/billing/reconciliation")
@@ -503,14 +497,7 @@ export async function syncYodleeTransactions(
     last_sync_error: null,
   }).eq("id", connectionId)
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "bank_feed_connections",
-    record_id: connectionId,
-    action: "SYNC",
-    changed_by: "system",
-    new_values: { inserted, matched },
-  })
+  await recordAudit(db, { orgId: orgId, table: "bank_feed_connections", recordId: connectionId, action: "SYNC", actorId: null, after: { inserted, matched } })
 
   return { inserted, matched }
 }

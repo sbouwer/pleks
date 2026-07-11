@@ -21,6 +21,7 @@ import type { ScenarioType } from "@/lib/properties/scenarios"
 import { createPropertyInfoRequest } from "./propertyInfoRequests"
 import { initializeInsuranceChecklist } from "@/lib/insurance-checklist/initializeChecklist"
 import { reEvaluatePolicyHeader } from "@/lib/insurance-checklist/reEvaluatePolicyHeader"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -576,20 +577,13 @@ export async function createPropertyFromWizard(formData: FormData): Promise<Wiza
     .eq("id", propertyId!)
     .eq("org_id", orgId)
 
-  await db.from("audit_log").insert({
-    org_id:      orgId,
-    table_name:  "properties",
-    record_id:   propertyId!,
-    action:      "INSERT",
-    changed_by:  userId,
-    new_values:  {
+  await recordAudit(db, { orgId: orgId, table: "properties", recordId: propertyId!, action: "INSERT", actorId: userId, after: {
       name:           payload.address!.property_name,
       scenario_type:  payload.scenarioType,
       managed_mode:   payload.managedMode,
       unit_count:     payload.unitCount,
       uploaded_docs:  uploadedDocCount,
-    },
-  })
+    } })
 
   revalidatePath("/properties")
   return { ok: true, propertyId: propertyId! }

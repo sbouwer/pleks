@@ -19,6 +19,7 @@ import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { withCronRun } from "@/lib/cron/withCronRun"
 import { optionalEnv } from "@/lib/env"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 const BATCH_SIZE = 50
 
@@ -137,13 +138,7 @@ async function markLineComplete(
   }
 
   // Audit trail
-  await service.from("audit_log").insert({
-    org_id:     line.org_id,
-    table_name: line.subject_type === "company" ? "applications" : "application_co_applicants",
-    record_id:  line.subject_id,
-    action:     "UPDATE",
-    new_values: { searchworx_check_status: "complete", searchworx_checked_at: now },
-  })
+  await recordAudit(service, { orgId: line.org_id, table: line.subject_type === "company" ? "applications" : "application_co_applicants", recordId: line.subject_id, action: "UPDATE", after: { searchworx_check_status: "complete", searchworx_checked_at: now } })
 }
 
 // Runs after every subject completion. If ALL subjects for the application are now

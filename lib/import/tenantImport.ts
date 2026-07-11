@@ -14,6 +14,7 @@ import { convertTpnExport } from "./tpnParser"
 import { validateTenantRow } from "./validators"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function importTenants(
   csvText: string,
@@ -94,14 +95,7 @@ export async function importTenants(
     results.created++
   }
 
-  await supabase.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "tenants",
-    record_id: orgId,
-    action: "INSERT",
-    changed_by: agentId,
-    new_values: { action: "csv_import_tenants", created: results.created, skipped: results.skipped },
-  })
+  await recordAudit(supabase, { orgId: orgId, table: "tenants", recordId: orgId, action: "INSERT", actorId: agentId, after: { action: "csv_import_tenants", created: results.created, skipped: results.skipped } })
 
   return results
 }

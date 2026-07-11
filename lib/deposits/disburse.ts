@@ -29,6 +29,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { DepositReturnedEmail } from "@/lib/comms/templates/tenant/deposits/deposit-returned"
 import { fmtDateLongZA } from "@/lib/dates"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -283,19 +284,12 @@ export async function disburseDeposit(leaseId: string) {
   if (disburseErr) return { error: `Deposit disbursement failed: ${disburseErr.message}` }
 
   // Audit log
-  await supabase.from("audit_log").insert({
-    org_id:     orgId,
-    table_name: "deposit_reconciliations",
-    record_id:  recon.id,
-    action:     "UPDATE",
-    changed_by: userId,
-    new_values: {
+  await recordAudit(supabase, { orgId: orgId, table: "deposit_reconciliations", recordId: recon.id, action: "UPDATE", actorId: userId, after: {
       status:     "refunded",
       refund:     formatZAR(recon.refund_to_tenant_cents as number),
       deductions: formatZAR(recon.deductions_to_landlord_cents as number),
       charges:    (charges ?? []).length,
-    },
-  })
+    } })
 
   // BUILD_63 Phase 3 — fire deposit.returned (mandatory, RHA s5(3)(g))
   if ((recon.refund_to_tenant_cents as number) > 0 && tenant?.email) {

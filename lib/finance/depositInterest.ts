@@ -14,6 +14,7 @@ import { differenceInDays, format, startOfMonth } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"
 import { resolveDepositInterestConfig, resolveEffectiveRate } from "@/lib/deposits/interestConfig"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 /**
  * Pure calculation — used by both the server action and the cron route.
@@ -150,19 +151,13 @@ export async function accrueDepositInterest(
     return { interestCents: 0, fromDate, toDate: upToDate, ratePercent }
   }
 
-  await supabase.from("audit_log").insert({
-    org_id: lease.org_id,
-    table_name: "deposit_transactions",
-    record_id: leaseId,
-    action: "INSERT",
-    new_values: {
+  await recordAudit(supabase, { orgId: lease.org_id, table: "deposit_transactions", recordId: leaseId, action: "INSERT", after: {
       type: "deposit_interest_accrued",
       amount_cents: interestCents,
       rate_percent: ratePercent,
       rate_config_id: rateConfigId,
       days: daysElapsed,
-    },
-  })
+    } })
 
   return { interestCents, fromDate, toDate: upToDate, ratePercent }
 }

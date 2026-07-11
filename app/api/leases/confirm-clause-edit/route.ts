@@ -10,6 +10,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(req: NextRequest) {
   // Config write → gateway() (no lockdown): org's own clause/template settings, "your data, always".
@@ -40,17 +41,10 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "organisations",
-    record_id: orgId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: {
+  await recordAudit(db, { orgId: orgId, table: "organisations", recordId: orgId, action: "UPDATE", actorId: userId, after: {
       clause_edit_confirmed_at: now,
       clause_edit_confirmed_ip: clientIp,
-    },
-  })
+    } })
 
   return NextResponse.json({ ok: true })
 }

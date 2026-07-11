@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -107,19 +108,12 @@ export async function POST(req: NextRequest) {
       .eq("org_id", membership.org_id) // org-scope guard (caller-ID census)
 
     // Audit log
-    await service.from("audit_log").insert({
-      org_id: membership.org_id,
-      table_name: "import_sessions",
-      record_id: session?.id,
-      action: "INSERT",
-      changed_by: user.id,
-      new_values: {
+    await recordAudit(service, { orgId: membership.org_id, table: "import_sessions", recordId: session?.id, action: "INSERT", actorId: user.id, after: {
         action: "gl_history_import",
         transactions: result.transactionsCreated,
         deposits: result.depositsCreated,
         skipped: result.skipped,
-      },
-    })
+      } })
 
     return NextResponse.json({
       ok: true,

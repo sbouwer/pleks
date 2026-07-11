@@ -14,6 +14,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { sendCreditReportToApplicant } from "@/lib/screening/sendCreditReport"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export const runtime = "nodejs"
 
@@ -72,13 +73,7 @@ export async function POST(req: Request) {
       stage2_status: "screening_complete",
     }).eq("id", applicationId)
 
-    await supabase.from("audit_log").insert({
-      org_id: application.org_id,
-      table_name: "applications",
-      record_id: applicationId,
-      action: "UPDATE",
-      new_values: { searchworx_check_status: "complete" },
-    })
+    await recordAudit(supabase, { orgId: application.org_id, table: "applications", recordId: applicationId, action: "UPDATE", after: { searchworx_check_status: "complete" } })
 
     // Send credit report to applicant (independent of FitScore)
     await sendCreditReportToApplicant(applicationId)

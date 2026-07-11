@@ -19,6 +19,7 @@ import { buildPropertyIntelligenceFeeForm, PI_RETAIL_CENTS, PI_COST_CENTS } from
 import { chargeAdhoc } from "@/lib/payfast/adhoc"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 const VALID_PRODUCT_TYPES = ["deeds_search", "lightstone_erf_short", "cipc_company", "cipc_director"] as const
 type ProductType = typeof VALID_PRODUCT_TYPES[number]
@@ -144,13 +145,7 @@ export async function POST(req: NextRequest) {
         .update({ status: "running" })
         .eq("id", pull.id)
 
-      await service.from("audit_log").insert({
-        org_id:     orgId,
-        table_name: "property_intelligence_pulls",
-        record_id:  pull.id,
-        action:     "UPDATE",
-        new_values: { status: "running", charge_mode: "adhoc", payfast_id: chargeRes.payfastId },
-      })
+      await recordAudit(service, { orgId: orgId, table: "property_intelligence_pulls", recordId: pull.id, action: "UPDATE", after: { status: "running", charge_mode: "adhoc", payfast_id: chargeRes.payfastId } })
 
       return NextResponse.json({ mode: "adhoc", pullId: pull.id })
     }

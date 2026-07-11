@@ -16,6 +16,7 @@ import { headers } from "next/headers"
 import { idNumberColumns, decryptIdNumber } from "@/lib/crypto/idNumber"
 import { PARTY_ROLES, toContactEntityType, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
 import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson, PartyAddressInput, PartyBankAccountInput } from "@/lib/parties/partyValidation"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 type Db = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
 
@@ -164,25 +165,11 @@ async function insertCompanyAddresses(db: Db, orgId: string, contactId: string, 
 }
 
 async function auditPartyCreate(db: Db, orgId: string, userId: string, table: string, recordId: string, role: PartyRole, entity: PartyEntity, name: string) {
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: table,
-    record_id: recordId,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { action: `${role}_added`, entity, name },
-  })
+  await recordAudit(db, { orgId: orgId, table: table, recordId: recordId, action: "INSERT", actorId: userId, after: { action: `${role}_added`, entity, name } })
 }
 
 async function auditPartyUpdate(db: Db, orgId: string, userId: string, table: string, recordId: string, role: PartyRole | "agent", entity: PartyEntity, name: string) {
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: table,
-    record_id: recordId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { action: `${role}_updated`, entity, name },
-  })
+  await recordAudit(db, { orgId: orgId, table: table, recordId: recordId, action: "UPDATE", actorId: userId, after: { action: `${role}_updated`, entity, name } })
 }
 
 // ── Edit helpers (shared by the update* actions) ──────────────────────────────

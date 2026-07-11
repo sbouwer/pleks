@@ -14,6 +14,7 @@ import { getOrgDisplayName, getOrgLegalName } from "@/lib/org/displayName"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import {fmtDateLongZA, saTodayISO} from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -283,17 +284,11 @@ export async function generateLeaseDocument(
       })
       .eq("id", leaseId)
 
-    await supabase.from("audit_log").insert({
-      org_id: orgId,
-      table_name: "leases",
-      record_id: leaseId,
-      action: "UPDATE",
-      new_values: {
+    await recordAudit(supabase, { orgId: orgId, table: "leases", recordId: leaseId, action: "UPDATE", after: {
         action: "lease_document_generated",
         clauses_included: enabledClauses.length,
         clause_snapshot: clauseSnapshot,
-      },
-    })
+      } })
   }
 
   return { storagePath, clauseSnapshot }

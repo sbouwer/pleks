@@ -21,6 +21,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 type Supabase = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -78,10 +79,7 @@ async function handleCpaRenewal(supabase: Supabase, lease: CpaLease): Promise<vo
   if (!result.success) return   // failed send → leave the column null so the cron retries; never stamp "notified"
 
   await supabase.from("leases").update({ auto_renewal_notice_sent_at: new Date().toISOString() }).eq("id", lease.id)
-  await supabase.from("audit_log").insert({
-    org_id: lease.org_id, table_name: "leases", record_id: lease.id, action: "UPDATE",
-    new_values: { event: "cpa_renewal_notice_sent" },
-  })
+  await recordAudit(supabase, { orgId: lease.org_id, table: "leases", recordId: lease.id, action: "UPDATE", after: { event: "cpa_renewal_notice_sent" } })
 }
 
 export async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Promise<void> {
@@ -273,13 +271,7 @@ export async function GET(req: Request) {
       end_date: null,
     }).eq("id", lease.id)
 
-    await supabase.from("audit_log").insert({
-      org_id: lease.org_id,
-      table_name: "leases",
-      record_id: lease.id,
-      action: "UPDATE",
-      new_values: { event: "auto_converted_to_month_to_month" },
-    })
+    await recordAudit(supabase, { orgId: lease.org_id, table: "leases", recordId: lease.id, action: "UPDATE", after: { event: "auto_converted_to_month_to_month" } })
     processed++
   }
 

@@ -11,6 +11,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 interface UpdateContactPayload {
   contactId: string
@@ -76,17 +77,10 @@ export async function updatePortalContactDetails(payload: UpdateContactPayload) 
   }
 
   // Audit log
-  await service.from("audit_log").insert({
-    org_id: session.orgId,
-    table_name: "contacts",
-    record_id: payload.contactId,
-    action: "UPDATE",
-    changed_by: session.tenantId,
-    new_values: {
+  await recordAudit(service, { orgId: session.orgId, table: "contacts", recordId: payload.contactId, action: "UPDATE", actorId: session.tenantId, after: {
       action: "tenant_portal_contact_update",
       fields_changed: [payload.phone !== null && "phone", payload.email !== null && "email"].filter(Boolean),
-    },
-  })
+    } })
 
   return { success: true }
 }

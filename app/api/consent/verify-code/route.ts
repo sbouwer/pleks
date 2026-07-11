@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import {
   verifyCodeMatch, recordFailedAttempt, resetFailedAttempts,
 } from "@/lib/consent/verification"
@@ -114,19 +115,13 @@ export async function POST(req: Request) {
     const identifier = verif.target_phone_e164 as string
     await resetFailedAttempts(identifier)
 
-    await service.from("audit_log").insert({
-      org_id:     verif.org_id,
-      table_name: "consent_verifications",
-      record_id:  verificationId,
-      action:     "UPDATE",
-      new_values: {
+    await recordAudit(service, { orgId: verif.org_id, table: "consent_verifications", recordId: verificationId, action: "UPDATE", after: {
         status:           "verified",
         code_verified_at: now,
         consent_type:     verif.consent_type,
         application_id:   verif.application_id,
         director_token:   !!verif.director_token,
-      },
-    })
+      } })
 
     const { error: aeErr } = await service.from("auth_events").insert({
       ...aeBase,

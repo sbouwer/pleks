@@ -8,6 +8,7 @@ import { NextRequest } from "next/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { yodlee } from "@/lib/yodlee/client"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 interface FastLinkCallbackData {
   providerAccountId: string
@@ -69,14 +70,7 @@ export async function POST(req: NextRequest) {
 
     if (error) return Response.json({ error: error.message }, { status: 500 })
 
-    await db.from("audit_log").insert({
-      org_id: orgId,
-      table_name: "bank_feed_connections",
-      record_id: conn.id,
-      action: "INSERT",
-      changed_by: userId,
-      new_values: { bank_name: bankName, provider_account_id: providerAccountId },
-    })
+    await recordAudit(db, { orgId: orgId, table: "bank_feed_connections", recordId: conn.id, action: "INSERT", actorId: userId, after: { bank_name: bankName, provider_account_id: providerAccountId } })
 
     return Response.json({ success: true, connectionId: conn.id })
   } catch (err) {

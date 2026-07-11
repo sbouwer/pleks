@@ -18,6 +18,7 @@ import {
 } from "@/lib/subscriptions/emails"
 import { trackSend, settleSends } from "@/lib/cron/settleSends"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -81,17 +82,11 @@ export async function GET(req: NextRequest) {
       })
       .eq("id", trial.id)
 
-    await supabase.from("audit_log").insert({
-      org_id: trial.org_id,
-      table_name: "subscriptions",
-      record_id: trial.org_id,
-      action: "UPDATE",
-      new_values: {
+    await recordAudit(supabase, { orgId: trial.org_id, table: "subscriptions", recordId: trial.org_id, action: "UPDATE", after: {
         action: "trial_expired",
         previous_trial_tier: trial.trial_tier,
         reverted_to: "owner",
-      },
-    })
+      } })
 
     const contact = await fetchOrgContact(trial.org_id)
     if (contact) {

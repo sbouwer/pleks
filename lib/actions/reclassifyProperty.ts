@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache"
 import { buildProfile, type UniversalAnswers } from "@/lib/properties/buildProfile"
 import type { ScenarioType } from "@/lib/properties/scenarios"
 import { reEvaluateChecklistApplicability } from "@/lib/insurance-checklist/reEvaluateApplicability"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export interface ReclassifyResult {
   ok:    boolean
@@ -90,17 +91,10 @@ export async function reclassifyProperty(
     return { ok: false, error: "Failed to update scenario" }
   }
 
-  await db.from("audit_log").insert({
-    org_id:     orgId,
-    table_name: "properties",
-    record_id:  propertyId,
-    action:     "UPDATE",
-    changed_by: userId,
-    new_values: {
+  await recordAudit(db, { orgId: orgId, table: "properties", recordId: propertyId, action: "UPDATE", actorId: userId, after: {
       scenario_type_from: oldScenario,
       scenario_type_to:   newScenarioType,
-    },
-  })
+    } })
 
   // Re-evaluate checklist applicability after scenario change (non-fatal)
   await reEvaluateChecklistApplicability(propertyId).catch((e) =>

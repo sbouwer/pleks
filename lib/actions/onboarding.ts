@@ -21,6 +21,7 @@ import { mapPostgresMembershipError, MembershipRaceLost } from "@/lib/auth/membe
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
 import { isProductionNode } from "@/lib/env"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export interface OnboardingData {
   userType: "owner" | "agent" | "agency" | "family" | "exploring"
@@ -153,19 +154,12 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
   if (!agentContact.ok) console.error("[onboarding] agent contact create failed:", agentContact.error)
 
   // Audit log
-  await service.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "organisations",
-    record_id: orgId,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: {
+  await recordAudit(service, { orgId: orgId, table: "organisations", recordId: orgId, action: "INSERT", actorId: userId, after: {
       action: "onboarding_complete",
       user_type: data.userType,
       name: data.name,
       management_scope: data.managementScope,
-    },
-  })
+    } })
 
   // Record ToS acceptance — gated above on data.tosAccepted; never fires without explicit consent.
   // Also set the cookie so proxy.ts checkTosGate passes without a redirect on first login.

@@ -8,6 +8,7 @@
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function saveManagingScheme(schemeId: string, propertyId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
@@ -30,14 +31,7 @@ export async function saveManagingScheme(schemeId: string, propertyId: string, f
 
   if (error) return { error: error.message }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "managing_schemes",
-    record_id: schemeId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: updates,
-  })
+  await recordAudit(db, { orgId: orgId, table: "managing_schemes", recordId: schemeId, action: "UPDATE", actorId: userId, after: updates })
 
   revalidatePath(`/properties/${propertyId}`)
   return { success: true }
@@ -71,14 +65,7 @@ export async function createManagingScheme(propertyId: string, formData: FormDat
 
   if (linkErr) return { error: linkErr.message }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "managing_schemes",
-    record_id: scheme.id,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { property_id: propertyId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "managing_schemes", recordId: scheme.id, action: "INSERT", actorId: userId, after: { property_id: propertyId } })
 
   revalidatePath(`/properties/${propertyId}`)
   return { success: true, schemeId: scheme.id }
@@ -96,14 +83,7 @@ export async function unlinkManagingScheme(propertyId: string) {
 
   if (error) return { error: error.message }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "properties",
-    record_id: propertyId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { managing_scheme_id: null },
-  })
+  await recordAudit(db, { orgId: orgId, table: "properties", recordId: propertyId, action: "UPDATE", actorId: userId, after: { managing_scheme_id: null } })
 
   revalidatePath(`/properties/${propertyId}`)
   return { success: true }

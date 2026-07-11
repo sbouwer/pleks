@@ -13,6 +13,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceAssignedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-assigned"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(
   req: NextRequest,
@@ -65,14 +66,7 @@ export async function POST(
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
 
-  await service.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "maintenance_requests",
-    record_id: requestId,
-    action: "UPDATE",
-    changed_by: user.id,
-    new_values: { contractor_id: contractorId },
-  })
+  await recordAudit(service, { orgId: orgId, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: user.id, after: { contractor_id: contractorId } })
 
   // M2 — notify tenant that a contractor has been assigned
   try {

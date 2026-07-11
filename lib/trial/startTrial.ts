@@ -11,6 +11,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { addDays } from "date-fns"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function startTrial(
   orgId: string,
@@ -52,17 +53,11 @@ export async function startTrial(
     })
     .eq("org_id", orgId)
 
-  await service.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "subscriptions",
-    record_id: orgId,
-    action: "UPDATE",
-    new_values: {
+  await recordAudit(service, { orgId: orgId, table: "subscriptions", recordId: orgId, action: "UPDATE", after: {
       action: "trial_started",
       trial_tier: trialTier,
       trial_ends_at: trialEnd.toISOString(),
-    },
-  })
+    } })
 
   return { success: true, trialEndsAt: trialEnd.toISOString() }
 }

@@ -11,6 +11,7 @@ import { notifyBroker } from "./notifyBroker"
 import { notifyOwner } from "./notifyOwner"
 import { notifyScheme } from "./notifyScheme"
 import { SA_TIMEZONE } from "@/lib/dates"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export type InsuranceDecision = "reported" | "declined" | "unsure"
 
@@ -60,14 +61,7 @@ export async function recordInsuranceDecision(
     return { error: "Could not record decision" }
   }
 
-  await db.from("audit_log").insert({
-    org_id:       orgId,
-    table_name:   "maintenance_requests",
-    record_id:    params.requestId,
-    action:       "UPDATE",
-    changed_by:   userId,
-    new_values:   { insurance_decision: params.decision, notes: params.notes ?? null },
-  })
+  await recordAudit(db, { orgId: orgId, table: "maintenance_requests", recordId: params.requestId, action: "UPDATE", actorId: userId, after: { insurance_decision: params.decision, notes: params.notes ?? null } })
 
   if (params.decision !== "reported") return {}
 

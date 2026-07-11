@@ -21,6 +21,7 @@ import { getUserEmail } from "@/lib/auth/userEmail"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, fmtDateLongZA, saDateISO } from "@/lib/dates"
 import { optionalEnv } from "@/lib/env"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 const DORMANCY_DAYS       = parseInt(optionalEnv("DORMANCY_DAYS", "60"), 10)
 const DORMANCY_WARN_DAYS  = parseInt(optionalEnv("DORMANCY_WARN_DAYS", "30"), 10)
@@ -75,13 +76,7 @@ async function processFirstWarningOrg(supabase: SupabaseClient, org: OrgRow, now
     console.error("subscription-dormancy: warn update failed for", org.id, updateErr.message)
     return false
   }
-  await supabase.from("audit_log").insert({
-    org_id: org.id,
-    table_name: "organisations",
-    record_id: org.id,
-    action: "UPDATE",
-    new_values: { action: "dormancy_warning_sent", purge_date: purgeDateStr },
-  })
+  await recordAudit(supabase, { orgId: org.id, table: "organisations", recordId: org.id, action: "UPDATE", after: { action: "dormancy_warning_sent", purge_date: purgeDateStr } })
   await sendDormancyWarning(contact, purgeDateStr)   // C-1 belt: await (freeze-safe) + log; helper is awaited by GET
     .catch((e) => console.error("[subscription-dormancy] warning send failed for", org.id, e instanceof Error ? e.message : String(e)))
   return true
@@ -107,13 +102,7 @@ async function processFinalWarningOrg(
     console.error("subscription-dormancy: final update failed for", org.id, updateErr.message)
     return false
   }
-  await supabase.from("audit_log").insert({
-    org_id: org.id,
-    table_name: "organisations",
-    record_id: org.id,
-    action: "UPDATE",
-    new_values: { action: "dormancy_final_sent", purge_date: purgeDateStr },
-  })
+  await recordAudit(supabase, { orgId: org.id, table: "organisations", recordId: org.id, action: "UPDATE", after: { action: "dormancy_final_sent", purge_date: purgeDateStr } })
   await sendDormancyFinal(contact, purgeDateStr)   // C-1 belt: await (freeze-safe) + log; helper is awaited by GET
     .catch((e) => console.error("[subscription-dormancy] final send failed for", org.id, e instanceof Error ? e.message : String(e)))
   return true
