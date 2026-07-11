@@ -11,10 +11,9 @@ import { NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { SA_TIMEZONE, fmtDateLongZA, fmtDateZA } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
-function formatZAR(cents: number): string {
-  return "R\u00a0" + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+const money2dp = (cents: number) => formatZAR(cents, true)
 
 function row(label: string, value: string): string {
   return (
@@ -142,7 +141,7 @@ export async function GET(
     </div>
     <div class="amount-block">
       <div class="amount-label">Amount paid</div>
-      <div class="amount">${formatZAR(payment.amount_cents)}</div>
+      <div class="amount">${money2dp(payment.amount_cents)}</div>
     </div>
   </div>
 
@@ -155,7 +154,7 @@ export async function GET(
         ${payment.reference ? row("Reference", payment.reference) : ""}
         ${invoice ? row("Invoice", invoice.invoice_number ?? "—") : ""}
         ${invoice ? row("Invoice due", fmtDateZA(invoice.due_date)) : ""}
-        ${invoice ? row("Invoice total", formatZAR(invoice.total_amount_cents)) : ""}
+        ${invoice ? row("Invoice total", money2dp(invoice.total_amount_cents)) : ""}
       </table>
     </div>
 

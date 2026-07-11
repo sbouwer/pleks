@@ -7,7 +7,8 @@
 import { NextRequest } from "next/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { yodlee } from "@/lib/yodlee/client"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 export async function POST(_req: NextRequest) {
   const gw = await gatewaySSR()
@@ -40,7 +41,7 @@ export async function POST(_req: NextRequest) {
     const userToken = await yodlee.getUserToken(cobrandToken, loginName)
     const config = yodlee.getFastLinkConfig(
       userToken,
-      `${APP_URL}/api/yodlee/callback`,
+      absoluteUrl("/api/yodlee/callback"),
     )
 
     return Response.json({ config, userToken })

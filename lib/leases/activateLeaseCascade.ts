@@ -24,7 +24,9 @@ import { LeaseSignedEmail } from "@/lib/comms/templates/tenant/leases/lease-sign
 import { PortalTenantInviteEmail } from "@/lib/comms/templates/tenant/portal/tenant-invite"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA, monthEnd, saDateISO } from "@/lib/dates"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
+import { formatZAR } from "@/lib/constants"
 
 export interface CascadeStep {
   step: string
@@ -164,7 +166,7 @@ async function stepSendDepositReceived(
     const orgSettings = await fetchOrgSettings(orgId)
     const branding = buildBranding(orgSettings)
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-    const depositDisplay = "R " + (lease.deposit_amount_cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+    const depositDisplay = formatZAR(lease.deposit_amount_cents, true)
     const leaseStartDisplay = fmtDateLongZA(lease.start_date)
 
     await routeAndSend({
@@ -347,7 +349,7 @@ async function stepSendLeaseActivated(
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
-    const rentDisplay = "R " + (lease.rent_amount_cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+    const rentDisplay = formatZAR(lease.rent_amount_cents, true)
     const fmt = (d: string) => fmtDateLongZA(d)
 
     await routeAndSend({
@@ -364,7 +366,7 @@ async function stepSendLeaseActivated(
         leaseStartDate: fmt(lease.start_date),
         leaseEndDate: lease.end_date ? fmt(lease.end_date) : undefined,
         isFixedTerm: lease.is_fixed_term,
-        portalUrl: `${APP_URL}/tenant`,
+        portalUrl: absoluteUrl("/tenant"),
         senderName: capabilities.copy.tenantWelcomeSender,
         signatureAttribution: capabilities.copy.signatureAttribution,
       }),
@@ -432,7 +434,7 @@ async function stepSendPortalInvite(
       {
         email: tenant.email as string,
         data: { role: "tenant", tenant_id: lease.tenant_id, org_id: orgId, full_name: tenantName },
-        redirectTo: `${APP_URL}/tenant`,
+        redirectTo: absoluteUrl("/tenant"),
       },
     )
     if ("error" in link) return { step: "Portal auto-invite (P1)", status: "failed", detail: link.error }

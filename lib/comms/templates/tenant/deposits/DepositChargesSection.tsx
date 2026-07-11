@@ -9,6 +9,7 @@
 import * as React from "react"
 import { Section, Text } from "@react-email/components"
 import type { DepositChargeItem } from "./deposit-return-schedule"
+import { formatZAR } from "@/lib/constants"
 
 export const CHARGE_TYPE_LABELS: Record<string, string> = {
   rent_arrears:         "Deductions — Rent Arrears",
@@ -29,7 +30,7 @@ function chargeTypeLabel(t: string): string {
 }
 
 function formatCents(cents: number): string {
-  return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+  return formatZAR(cents, true)
 }
 
 function groupByChargeType(items: DepositChargeItem[]): Record<string, DepositChargeItem[]> {

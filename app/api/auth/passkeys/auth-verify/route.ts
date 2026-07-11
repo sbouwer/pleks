@@ -11,6 +11,7 @@ import { verifyPasskeyAssertion } from "@/lib/auth/passkeys/verify-assertion"
 import { logAuthEvent } from "@/lib/auth/events"
 import { mintSupabaseSessionForUser } from "@/lib/auth/passkeys/mint-session"
 import { issuePasskeyAal } from "@/lib/auth/passkey-aal-server"
+import { hashIp } from "@/lib/crypto"
 
 export async function POST(req: Request) {
   let rp
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
 
   const body = await req.json() as { response: AuthenticationResponseJSON }
 
-  const result = await verifyPasskeyAssertion({ rp, response: body.response, ipHash: await hashIp(req) })
+  const result = await verifyPasskeyAssertion({ rp, response: body.response, ipHash: await clientIpHash(req) })
   if (!result.ok) {
     if (result.userId) {
       await logAuthEvent({ userId: result.userId, eventType: "passkey_failed", success: false, failureReason: result.reason })
@@ -52,9 +53,8 @@ export async function POST(req: Request) {
   })
 }
 
-async function hashIp(req: Request): Promise<string | null> {
+async function clientIpHash(req: Request): Promise<string | null> {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
   if (!ip) return null
-  const { createHash } = await import("node:crypto")
-  return createHash("sha256").update(ip).digest("hex")
+  return hashIp(ip)
 }

@@ -16,6 +16,7 @@ import { CheckCircle2, AlertTriangle, Clock, RefreshCw } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { PayFastForm } from "@/components/payfast/PayFastForm"
 import { fmtDateZA } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 export interface LatestPull {
   id:                   string
@@ -75,7 +76,7 @@ function DeedsResult({ facts }: { facts: Record<string, unknown> }) {
 }
 
 function LightstoneResult({ facts }: { facts: Record<string, unknown> }) {
-  const fmt = (c: number | null) => c != null ? `R ${(c / 100).toLocaleString("en-ZA", { minimumFractionDigits: 0 })}` : "—"
+  const fmt = (c: number | null) => c != null ? formatZAR(c) : "—"
   const rows: [string, string | null | undefined][] = [
     ["Estimated value",  fmt(facts.estimated_value_cents as number)],
     ["Range",           `${fmt(facts.value_low_cents as number)} – ${fmt(facts.value_high_cents as number)}`],

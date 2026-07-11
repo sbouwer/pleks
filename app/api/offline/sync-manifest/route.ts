@@ -13,6 +13,7 @@ import { gateway } from "@/lib/supabase/gateway"
 import { SUB_PERSON_FK } from "@/lib/contacts/contactScope"
 
 function hashRow(obj: unknown): string {
+  // eslint-disable-next-line pleks/no-raw-content-hash -- short cache key (16 hex chars) for offline sync — not evidence content
   return createHash("sha256").update(JSON.stringify(obj)).digest("hex").slice(0, 16)
 }
 

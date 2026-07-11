@@ -8,7 +8,7 @@
  *         Magic-link (Supabase email) path audit is deferred to a later phase.
  */
 
-import { createHash } from "node:crypto"
+import { hashIp } from "@/lib/crypto"
 import { redirect } from "next/navigation"
 import { cookies, headers } from "next/headers"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -73,7 +73,7 @@ export default async function PortalAccessPage({
   // Audit the token login moment (BUILD_63 §9.2 — Tribunal evidence trail)
   const headerStore = await headers()
   const ip = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
-  const ipHash = ip ? createHash("sha256").update(ip).digest("hex") : null
+  const ipHash = ip ? hashIp(ip) : null
 
   try {
     await service.from("audit_log").insert({

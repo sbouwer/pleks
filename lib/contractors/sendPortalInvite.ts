@@ -21,7 +21,8 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import { sendEmail, buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { PortalSupplierInviteEmail } from "@/lib/comms/templates/portal/role-invites"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 export async function sendPortalInvite(
   contractorId: string,
@@ -55,7 +56,7 @@ export async function sendPortalInvite(
         org_id: contractor.org_id,
         full_name: displayName,
       },
-      redirectTo: `${APP_URL}/supplier/setup`,
+      redirectTo: absoluteUrl("/supplier/setup"),
     },
   })
 

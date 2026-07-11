@@ -2,3 +2,4 @@ export { encrypt, decrypt, decryptNullable, encryptIfNeeded, isEncrypted } from 
 export { hashIdNumber, validateSAIdNumber, maskIdNumber } from "./idNumber"
 export { maskBankAccount } from "./bankAccount"
 export { contentHash } from "./contentHash"
+export { hashIp } from "./hashIp"

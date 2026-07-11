@@ -36,6 +36,7 @@ function deriveLabel(userAgent: string): string {
 }
 
 export async function hashString(value: string): Promise<string> {
+  // eslint-disable-next-line pleks/no-raw-content-hash -- device-fingerprint hash — not evidence content
   return crypto.createHash("sha256").update(value).digest("hex")
 }
 

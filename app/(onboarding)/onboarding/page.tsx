@@ -22,7 +22,8 @@ import { toast } from "sonner"
 
 import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye, EyeOff, Info } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { MARKETING_URL } from "@/lib/env"
+
+import { marketingUrl } from "@/lib/routing/absoluteUrl"
 
 type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
 
@@ -383,9 +384,9 @@ function OnboardingWizard() {
       <input type="checkbox" id="ob-tos" name="tos-accepted" checked={tosAccepted} onChange={(e) => { setTosAccepted(e.target.checked); setFormHint("") }} />
       <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
         I have read and agree to the{" "}
-        <a href={`${MARKETING_URL}/terms`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--amber-ink)" }}>Terms of Service</a>
+        <a href={marketingUrl("/terms")} target="_blank" rel="noopener noreferrer" style={{ color: "var(--amber-ink)" }}>Terms of Service</a>
         {" "}and{" "}
-        <a href={`${MARKETING_URL}/privacy`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--amber-ink)" }}>Privacy Policy</a>
+        <a href={marketingUrl("/privacy")} target="_blank" rel="noopener noreferrer" style={{ color: "var(--amber-ink)" }}>Privacy Policy</a>
       </span>
     </label>
   )

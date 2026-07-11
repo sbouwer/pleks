@@ -9,7 +9,7 @@
  *         _readEffectiveTier() so the two views can never drift (ADDENDUM_18C).
  *         getOrgTier (fast-path) is for display surfaces only (badges, plan labels, feature hints).
  */
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import type { Tier, AnyTier } from "@/lib/constants"
 import { getEffectiveTier } from "./effectiveTier"
 import { getServerOrgMembership } from "@/lib/auth/server"
@@ -55,16 +55,9 @@ export async function getOrgTier(orgId: string): Promise<Tier> {
     return membership.tier as Tier
   }
 
-  const supabase = await createClient()
-  const { data: sub, error: subError } = await supabase
-    .from("subscriptions")
-    .select("tier, status, trial_tier, trial_ends_at, trial_converted")
-    .eq("org_id", orgId)
-    .in("status", ["active", "trialing"])
-    .single()
-    logQueryError("getOrgTier subscriptions", subError)
-
-  if (!sub) return "owner"
-
-  return getEffectiveTier(sub)
+  // Cache miss → fall back to the SAME canonical read the gates use (service client, explicit org_id).
+  // This used to re-roll the query on the COOKIE client, whose auth does not reliably reach Postgres RLS —
+  // so an unwarmed session read empty and silently displayed the Owner tier. The service-client read cannot
+  // drift from getOrgTierCanonical, and the cookie is still the fast path above.
+  return (await _readEffectiveTier(orgId)) as Tier
 }

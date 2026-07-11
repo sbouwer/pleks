@@ -47,6 +47,10 @@ const rule = {
 
     return {
       "CallExpression[callee.property.name='toLocaleString']"(node) {
+        // ZAR money is "en-ZA" + fraction digits. Requiring the en-ZA locale keeps this off non-money number
+        // formatting (e.g. an en-GB stat with 2 decimals) — that is not a formatZAR concern.
+        const locale = node.arguments[0]
+        if (locale?.type !== "Literal" || locale.value !== "en-ZA") return
         const opts = node.arguments[1]
         if (opts?.type !== "ObjectExpression") return
         const isMoney = opts.properties.some((p) => FRACTION_KEYS.has(p.key?.name ?? p.key?.value))

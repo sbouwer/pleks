@@ -58,6 +58,7 @@ function fmtDate(iso: string): string {
 }
 
 function fmtZAR(cents: number): string {
+  // eslint-disable-next-line pleks/no-rerolled-money-format -- accounting MAGNITUDE (Math.abs drops the sign deliberately); formatZAR has no unsigned variant
   return `R ${(Math.abs(cents) / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 

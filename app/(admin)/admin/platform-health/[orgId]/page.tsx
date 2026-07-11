@@ -10,6 +10,7 @@ import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { saDateISO } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 interface AiPurposeRow {
   purpose: string
@@ -35,8 +36,8 @@ interface SnapshotRow {
   active_leases: number
 }
 
-function formatZAR(cents: number) {
-  return `R ${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function money2dp(cents: number) {
+  return formatZAR(cents, true)
 }
 
 export default async function OrgCostDrillDownPage({
@@ -118,20 +119,20 @@ export default async function OrgCostDrillDownPage({
                     <tr key={r.period} className="border-b border-muted">
                       <td className="py-1 pr-3 text-muted-foreground">{r.period.slice(0, 7)}</td>
                       <td className="py-1 pr-3 text-right">
-                        {formatZAR(r.email_cost_cents)}
+                        {money2dp(r.email_cost_cents)}
                         <span className="text-muted-foreground ml-1">({r.email_count})</span>
                       </td>
                       <td className="py-1 pr-3 text-right">
-                        {formatZAR(r.wa_cost_cents)}
+                        {money2dp(r.wa_cost_cents)}
                         <span className="text-muted-foreground ml-1">({r.wa_count})</span>
                       </td>
                       <td className="py-1 pr-3 text-right">
-                        {formatZAR(r.ai_cost_cents)}
+                        {money2dp(r.ai_cost_cents)}
                         <span className="text-muted-foreground ml-1">({r.ai_call_count})</span>
                       </td>
-                      <td className="py-1 pr-3 text-right">{formatZAR(infra)}</td>
-                      <td className="py-1 pr-3 text-right font-medium">{formatZAR(r.total_cost_cents)}</td>
-                      <td className="py-1 pr-3 text-right">{formatZAR(r.revenue_cents)}</td>
+                      <td className="py-1 pr-3 text-right">{money2dp(infra)}</td>
+                      <td className="py-1 pr-3 text-right font-medium">{money2dp(r.total_cost_cents)}</td>
+                      <td className="py-1 pr-3 text-right">{money2dp(r.revenue_cents)}</td>
                       <td className="py-1 text-right">{r.active_leases}</td>
                     </tr>
                   )
@@ -150,7 +151,7 @@ export default async function OrgCostDrillDownPage({
             {purposeEntries.map(([purpose, cents]) => (
               <div key={purpose} className="flex justify-between text-xs">
                 <span className="text-muted-foreground">{purpose.replaceAll("_", " ")}</span>
-                <span>{formatZAR(cents)}</span>
+                <span>{money2dp(cents)}</span>
               </div>
             ))}
           </div>

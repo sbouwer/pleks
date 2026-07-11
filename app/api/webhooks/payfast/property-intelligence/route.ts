@@ -16,7 +16,8 @@ import * as Sentry from "@sentry/nextjs"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { APP_URL, optionalEnv } from "@/lib/env"
+import { optionalEnv } from "@/lib/env"
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
     })
 
     // Fire vendor execution (non-blocking — do not await, ITN must return quickly)
-    const runUrl = `${APP_URL}/api/property-intelligence/run/${pullId}`
+    const runUrl = absoluteUrl(`/api/property-intelligence/run/${pullId}`)
     fetch(runUrl, {
       method:  "POST",
       headers: { "x-internal-secret": optionalEnv("INTERNAL_API_SECRET", "") },

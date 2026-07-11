@@ -89,6 +89,7 @@ function sp(s: string | null | undefined): string {
 }
 
 function fmtZAR(cents: number): string {
+  // eslint-disable-next-line pleks/no-rerolled-money-format -- accounting formatter: Math.abs + explicit sign handling below; formatZAR has no signed variant
   const formatted = (Math.abs(cents) / 100).toLocaleString("en-ZA", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

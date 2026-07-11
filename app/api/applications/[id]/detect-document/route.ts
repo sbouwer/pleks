@@ -20,7 +20,8 @@ import { registerApplicationDocument } from "@/lib/applications/documentRegistry
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 import { pathBelongsToApplication } from "@/lib/applications/applicationStoragePath"
 import { checkAiRateLimit } from "@/lib/ai/rateLimit"
-import { APP_URL, SUPABASE_URL, requireEnv } from "@/lib/env"
+import { SUPABASE_URL, requireEnv } from "@/lib/env"
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 function getServiceClient() {
   return createClient(
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest, { params }: Props) {
 async function triggerBankExtraction(applicationId: string, path: string, token: string | undefined) {
   try {
     // Forward the applicant token — /documents re-validates it (token bound to this application).
-    await fetch(`${APP_URL}/api/applications/${applicationId}/documents`, {
+    await fetch(absoluteUrl(`/api/applications/${applicationId}/documents`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bankStatementPath: path, token }),

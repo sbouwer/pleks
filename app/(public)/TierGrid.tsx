@@ -10,7 +10,8 @@
 
 import { useState } from "react"
 import type { TierData } from "@/lib/marketing/tiers"
-import { APP_URL, MARKETING_URL } from "@/lib/env"
+
+import { absoluteUrl, marketingUrl } from "@/lib/routing/absoluteUrl"
 
 // Absolute URL to avoid RSC prefetch CORS failures across subdomain boundary
 export type { TierData }
@@ -95,11 +96,11 @@ export function TierGrid({ tiers }: Readonly<{ tiers: readonly TierData[] }>) {
 
               {/* Row 6 — CTA */}
               {tier.price ? (
-                <a href={`${APP_URL}/onboarding`} className="pub-tier-cta">
+                <a href={absoluteUrl("/onboarding")} className="pub-tier-cta">
                   Start as {tier.name} →
                 </a>
               ) : (
-                <a href={`${MARKETING_URL}/contact`} className="pub-tier-cta pub-tier-cta-amber">
+                <a href={marketingUrl("/contact")} className="pub-tier-cta pub-tier-cta-amber">
                   Email the founder →
                 </a>
               )}

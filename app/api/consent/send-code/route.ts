@@ -16,11 +16,12 @@ import * as Sentry from "@sentry/nextjs"
 import { headers } from "next/headers"
 import { createServiceClient } from "@/lib/supabase/server"
 import {
-  generateCode, generateSalt, hashCode, normalizePhoneZA, maskPhone,
+  generateCode, generateSalt, hashCode, maskPhone,
   checkRateLimit, recordSend, type ConsentType,
 } from "@/lib/consent/verification"
 import { sendConsentSMS } from "@/lib/sms/sendConsentSMS"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { normalizePhone } from "@/lib/validation/contact"
 
 const SMS_TEMPLATE = (code: string, special: boolean) =>
   special
@@ -138,7 +139,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No phone number on file for this applicant" }, { status: 422 })
     }
 
-    const phoneE164 = normalizePhoneZA(phoneRaw)
+    const phoneE164 = normalizePhone(phoneRaw)
+    if (!phoneE164) {
+      return NextResponse.json({ error: "Phone number on file is not valid" }, { status: 422 })
+    }
 
     const rateCheck = await checkRateLimit(phoneE164)
     if (!rateCheck.allowed) {

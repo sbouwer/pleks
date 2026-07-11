@@ -9,6 +9,7 @@
 import * as React from "react"
 import { Section, Text } from "@react-email/components"
 import { CLASSIFICATION_LABELS, type DeductionItem } from "./deposit-return-schedule"
+import { formatZAR } from "@/lib/constants"
 
 function classificationLabel(c: string): string {
   if (CLASSIFICATION_LABELS[c]) return CLASSIFICATION_LABELS[c]
@@ -16,7 +17,7 @@ function classificationLabel(c: string): string {
 }
 
 function formatCents(cents: number): string {
-  return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+  return formatZAR(cents, true)
 }
 
 function groupByClassification(items: DeductionItem[]): Record<string, DeductionItem[]> {

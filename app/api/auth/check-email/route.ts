@@ -16,6 +16,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { saTodayISO } from "@/lib/dates"
 
 function sha256(input: string) {
+  // eslint-disable-next-line pleks/no-raw-content-hash -- privacy hash of an email for an existence/rate-limit key — not evidence content
   return createHash("sha256").update(input).digest("hex")
 }
 

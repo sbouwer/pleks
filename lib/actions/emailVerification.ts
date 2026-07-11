@@ -12,7 +12,8 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { gateway } from "@/lib/supabase/gateway"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 const GRACE_MS = 2 * 24 * 60 * 60 * 1000  // 2 days before the notice escalates
 
@@ -23,7 +24,7 @@ export async function sendEmailVerification(): Promise<{ ok: true } | { error: s
   if (!user?.email) return { error: "Not signed in" }
   const { error } = await supa.auth.signInWithOtp({
     email: user.email,
-    options: { shouldCreateUser: false, emailRedirectTo: `${APP_URL}/auth/callback?verify_email=1` },
+    options: { shouldCreateUser: false, emailRedirectTo: absoluteUrl("/auth/callback?verify_email=1") },
   })
   if (error) return { error: error.message }
   return { ok: true }

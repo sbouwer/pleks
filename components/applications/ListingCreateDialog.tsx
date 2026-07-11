@@ -24,7 +24,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Copy, Check, ExternalLink } from "lucide-react"
 import { fmtDateLongZA } from "@/lib/dates"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 interface Props {
   open: boolean
@@ -120,7 +121,7 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
     }
   }
 
-  const listingUrl = publishedSlug ? `${APP_URL}/apply/${publishedSlug}` : ""
+  const listingUrl = publishedSlug ? absoluteUrl(`/apply/${publishedSlug}`) : ""
   const cityPart = property.city ? `, ${property.city}` : ""
   const availablePart = form.available_from ? ` · Available ${fmtDateLongZA(form.available_from)}` : ""
   const whatsappText = publishedSlug

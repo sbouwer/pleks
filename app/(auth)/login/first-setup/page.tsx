@@ -18,7 +18,8 @@ import Link from "next/link"
 import { Shield, CheckCircle2, Building2 } from "lucide-react"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
-import { MARKETING_URL } from "@/lib/env"
+
+import { marketingUrl } from "@/lib/routing/absoluteUrl"
 
 // ── Shared button styles ──────────────────────────────────────────────────────
 
@@ -119,7 +120,7 @@ function TosStep({ onAccepted }: Readonly<{ onAccepted: () => void }>) {
       </p>
       <div style={{ display: "flex", gap: 12, marginBottom: 24, fontSize: 13 }}>
         <a
-          href={`${MARKETING_URL}/terms`}
+          href={marketingUrl("/terms")}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: "var(--amber-ink, #c47600)", textDecoration: "underline" }}
@@ -128,7 +129,7 @@ function TosStep({ onAccepted }: Readonly<{ onAccepted: () => void }>) {
         </a>
         <span style={{ color: "var(--ink-faint, #bbb)" }}>·</span>
         <a
-          href={`${MARKETING_URL}/privacy`}
+          href={marketingUrl("/privacy")}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: "var(--amber-ink, #c47600)", textDecoration: "underline" }}

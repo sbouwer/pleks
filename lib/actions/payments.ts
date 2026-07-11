@@ -23,6 +23,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { PaymentReceivedEmail } from "@/lib/comms/templates/tenant/rent/payment-received"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 export async function recordPayment(formData: FormData) {
   const gw = await requireAgentWriteAccess("record_payment")
@@ -108,7 +109,7 @@ export async function recordPayment(formData: FormData) {
         const outstandingBalance = (inv?.balance_cents as number | null) ?? Math.max(0, newBalance)
 
         function fmt(cents: number) {
-          return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+          return formatZAR(cents, true)
         }
 
         await routeAndSend({

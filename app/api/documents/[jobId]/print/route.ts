@@ -10,6 +10,7 @@ import { redirect } from "next/navigation"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { buildLetterHTML, resolveMergeFields } from "@/lib/pdf/documentLetter"
 import { SA_TIMEZONE } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ async function resolveLeaseContext(
   const unitNumber = l.units?.unit_number ?? ""
   const propertyName = l.units?.properties?.name ?? ""
   const rentFormatted = l.rent_cents
-    ? `R ${(l.rent_cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`
+    ? formatZAR(l.rent_cents, true)
     : ""
 
   const parts = [propertyName, unitNumber ? `Unit ${unitNumber}` : ""].filter(Boolean)

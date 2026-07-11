@@ -1,7 +1,5 @@
 {
   "_comment": "Files allowed to call resend.emails.send() directly. sendEmail (lib/comms/send-email.ts) is the choke point: opt-out check, central branded EmailLayout, Resend idempotency key, and the communication_log row the delivery webhook joins on via external_id. Bypassing it ships unbranded, unlogged mail that is invisible to the delivery-feedback loop. This list only SHRINKS.",
-  "_permanent_exception": "submitContactForm.ts is INBOUND, not outbound: it forwards to Pleks whatever a stranger typed into the public contact form. Routing it through sendEmail would (a) write an unauthenticated third party's PII into the communication_log audit trail, and (b) make the delivery-feedback loop track it as if Pleks had sent a message to itself. It has no org, no recipient relationship, and no opt-out semantics. It stays a direct Resend call by design — this is not debt.",
-  "files": [
-    "lib/actions/submitContactForm.ts"
-  ]
+  "_permanent_exception": "submitContactForm.ts is INBOUND, not outbound: it forwards to Pleks whatever a stranger typed into the public contact form. Routing it through sendEmail would (a) write an unauthenticated third party's PII into the communication_log audit trail, and (b) make the delivery-feedback loop track it as if Pleks had sent a message to itself. It has no org, no recipient relationship, and no opt-out semantics. It stays a direct Resend call by design \u00e2\u20ac\u201d this is not debt.",
+  "files": []
 }

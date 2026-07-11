@@ -89,9 +89,10 @@ async function bsFetch<T>(path: string, revalidate = 60): Promise<T | null> {
 /**
  * Deliberately UTC, not SAST. These bound a query against BetterStack's own retention windows, which are
  * UTC — resolving them in SAST would shift the window two hours and drop the edge of a day's incidents.
- * An observability timestamp is not a legal date. (Baselined in eslint-rules/no-adhoc-dates.baseline.json.)
+ * An observability timestamp is not a legal date, so the SAST resolution the rule wants is wrong here.
  */
 function dateStr(d: Date): string {
+  // eslint-disable-next-line pleks/no-adhoc-dates -- intentional UTC: bounds a BetterStack UTC retention window, not a legal date (see above)
   return d.toISOString().split("T")[0]
 }
 

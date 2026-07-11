@@ -15,7 +15,8 @@ import { EmailLayout, EmailButton, EmailDetail, EmailSectionHeading } from "@/li
 import { formatZAR } from "@/lib/constants"
 import { inviteLandlord } from "@/lib/portal/inviteLandlord"
 import { fmtDateLongZA } from "@/lib/dates"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 export async function inviteLandlordPortal(landlordId: string): Promise<{ success?: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("invite_user")
@@ -69,7 +70,7 @@ export async function emailLeaseToTenant(leaseId: string): Promise<SendEmailResu
 
   const orgSettings = await fetchOrgSettings(orgId)
   const branding = buildBranding(orgSettings)
-  const portalUrl = `${APP_URL}/tenant`
+  const portalUrl = absoluteUrl("/tenant")
 
   const emailElement = (
     <EmailLayout

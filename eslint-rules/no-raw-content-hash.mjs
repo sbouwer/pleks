@@ -38,6 +38,10 @@ const rule = {
   create(context) {
     const file = relPath(context)
     if (file.startsWith("lib/crypto/") || file.includes("/lib/crypto/")) return {}   // the implementation + its siblings
+    // Versioned FitScore engines are IMMUTABLE once shipped (§8.12) — a hotfix ships a new vN, never an edit
+    // in place, so the engine's own canonical-artefact hash cannot be migrated to contentHash. Exempt by
+    // path (not an in-file disable, which would itself be an edit to the frozen file).
+    if (/fitScoreEngine\.v\d+\.ts$/.test(file)) return {}
     if (BASELINE.has(file)) return {}
     if (file.includes("/eslint-rules/")) return {}
 

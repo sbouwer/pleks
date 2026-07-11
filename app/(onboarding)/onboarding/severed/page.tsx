@@ -11,7 +11,8 @@
  */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { MARKETING_URL } from "@/lib/env"
+
+import { marketingUrl } from "@/lib/routing/absoluteUrl"
 
 export default function SeveredPage() {
   const [email, setEmail] = useState<string | null>(null)
@@ -43,7 +44,7 @@ export default function SeveredPage() {
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 280, margin: "0 auto" }}>
         <a
-          href={`${MARKETING_URL}/contact`}
+          href={marketingUrl("/contact")}
           style={{
             display: "block", padding: "10px 20px", borderRadius: "var(--r-md)",
             border: "1px solid var(--rule)", fontSize: 14, color: "var(--ink)",

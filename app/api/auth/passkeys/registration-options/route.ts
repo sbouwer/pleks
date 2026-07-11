@@ -9,6 +9,7 @@ import type { AuthenticatorTransportFuture } from "@simplewebauthn/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { hashIp } from "@/lib/crypto"
 
 export async function POST(req: Request) {
   let rp
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
     })),
   })
 
-  const ipHash = await hashIp(req)
+  const ipHash = await clientIpHash(req)
   await serviceDb.from("passkey_challenges").insert({
     user_id: user.id,
     challenge: options.challenge,  // base64url text — store straight through
@@ -68,9 +69,8 @@ export async function POST(req: Request) {
   return Response.json(options)
 }
 
-async function hashIp(req: Request): Promise<string | null> {
+async function clientIpHash(req: Request): Promise<string | null> {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
   if (!ip) return null
-  const { createHash } = await import("node:crypto")
-  return createHash("sha256").update(ip).digest("hex")
+  return hashIp(ip)
 }
