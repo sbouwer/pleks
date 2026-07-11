@@ -15,6 +15,7 @@ import { formatZAR } from "@/lib/constants"
 import { AlertTriangle, ChevronRight, CheckCircle2, Clock } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { addCalendarDays, fmtDateZA, saDateISO } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 export default async function LandlordDashboardPage() {
   const session = await getLandlordSession()
@@ -118,7 +119,7 @@ export default async function LandlordDashboardPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">Maintenance approval needed</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {req.title}{unit ? ` — ${unit.unit_number}, ${unit.properties.name}` : ""}
+                      {req.title}{unit ? ` — ${formatPropertyLabel(unit)}` : ""}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {cost ? `Estimated: ${formatZAR(cost)}` : "No estimate yet"}
@@ -142,7 +143,7 @@ export default async function LandlordDashboardPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">Lease expiring{daysLeft != null ? ` in ${daysLeft} days` : ""}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+                      {formatPropertyLabel(unit, { fallback: "" })}
                       {tenant ? ` — ${tenant.first_name} ${tenant.last_name[0]}.` : ""}
                     </p>
                     <p className="text-xs text-muted-foreground">Expires: {l.end_date ? fmtDateZA(l.end_date) : "—"}</p>

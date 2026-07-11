@@ -17,6 +17,7 @@ import { formatZAR } from "@/lib/constants"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { DeleteDraftButton } from "./DeleteDraftButton"
 import { fmtZA } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 export interface SerializedLease {
   id: string
@@ -98,7 +99,7 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
   const hasCoTenants = display.coTenants.length > 0
 
   const unit = lease.units
-  const propertyLabel = unit ? `${unit.unit_number} — ${unit.properties.name}` : "No unit"
+  const propertyLabel = formatPropertyLabel(unit, { separator: " — ", fallback: "No unit" })
   const areaLabel = unit?.properties.suburb && unit.properties.city
     ? `${unit.properties.suburb}, ${unit.properties.city}`
     : unit?.properties.city ?? ""

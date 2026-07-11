@@ -21,6 +21,7 @@ import { requireCronAuth } from "@/lib/cron/auth"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -84,16 +85,15 @@ type CoAppRow = {
   reminder_milestones_sent: Record<string, boolean> | null
 }
 
-function resolvePropertyLabel(listings: unknown): { slug: string; propertyLabel: string } {
+function resolveListingLabel(listings: unknown): { slug: string; propertyLabel: string } {
   const listing = listings as {
     public_slug: string
     units: { unit_number: string; properties: { name: string } }
   } | null
   return {
     slug: listing?.public_slug ?? "",
-    propertyLabel: listing
-      ? [listing.units?.unit_number, listing.units?.properties?.name].filter(Boolean).join(" — ")
-      : "the property",
+    // No listing → "the property"; a listing with a missing unit embed → "" (preserved from the prior inline join).
+    propertyLabel: listing ? formatPropertyLabel(listing.units, { separator: " — ", fallback: "" }) : "the property",
   }
 }
 
@@ -131,7 +131,7 @@ async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppR
 
   if (!app) return "skipped"
 
-  const { propertyLabel } = resolvePropertyLabel(app.listings)
+  const { propertyLabel } = resolveListingLabel(app.listings)
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
   const now = new Date().toISOString()
 
@@ -196,7 +196,7 @@ async function sendMilestoneReminder(
 
   if (!app) return "skipped"
 
-  const { slug, propertyLabel } = resolvePropertyLabel(app.listings)
+  const { slug, propertyLabel } = resolveListingLabel(app.listings)
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
   const portalUrl = absoluteUrl(`/apply/${slug || line.application_id}/director-portal/${coApp.access_token}`)
 

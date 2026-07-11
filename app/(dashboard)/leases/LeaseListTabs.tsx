@@ -31,6 +31,7 @@ import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
 import { isInForceLease } from "@/lib/leases/rentRoll"
 import { formatZAR } from "@/lib/constants"
 import { fmtZA } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 type StatusFilter = "active" | "notice" | "expiring" | "draft" | "all"
 
@@ -71,7 +72,9 @@ function leaseSearchHaystack(lease: SerializedLease): string {
     })
     .join(" ")
   const unit = lease.units
-  const unitText = unit ? `${unit.unit_number} ${unit.properties.name} ${unit.properties.suburb ?? ""} ${unit.properties.city ?? ""}` : ""
+  // Search-index blob (not a display label): all locatable fields, space-joined. Array-join, not a template
+  // concat, so it stays off the property-label SSOT (which owns the "unit, property" display shape only).
+  const unitText = unit ? [unit.unit_number, unit.properties.name, unit.properties.suburb, unit.properties.city].filter(Boolean).join(" ") : ""
   return `${tenantName} ${coTenantNames} ${unitText}`.toLowerCase()
 }
 
@@ -105,7 +108,7 @@ function LeaseCard({ lease }: Readonly<{ lease: SerializedLease }>) {
   const hasCoTenants = display.coTenants.length > 0
 
   const unit = lease.units
-  const propertyLabel = unit ? `${unit.unit_number} — ${unit.properties.name}` : "No unit"
+  const propertyLabel = formatPropertyLabel(unit, { separator: " — ", fallback: "No unit" })
 
   const now = new Date()
   let termLabel = "Month to month"

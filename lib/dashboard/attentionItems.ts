@@ -10,6 +10,7 @@
 import { getCachedServiceClient } from "@/lib/supabase/server"
 import { getDiscretionDeclineFlags } from "./discretionDeclineRate"
 import { fmtDateZA, fmtZA } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 export interface AttentionItem {
   id: string
@@ -26,7 +27,7 @@ export interface AttentionItem {
 type UnitWithProperty = { unit_number: string; properties: { name: string } } | null
 
 function formatLocation(unit: UnitWithProperty): string {
-  return unit ? `${unit.unit_number}, ${unit.properties.name}` : "Unknown"
+  return formatPropertyLabel(unit, { fallback: "Unknown" })
 }
 
 function formatTenantName(contacts: { first_name: string; last_name: string; company_name?: string | null } | null | undefined): string {
@@ -146,7 +147,7 @@ function buildDepositItem(d: {
   const lease = d.leases as { units: { unit_number: string; properties: { name: string } }; tenants: { contacts: { first_name: string; last_name: string } } } | null
   const unit = lease?.units ?? null
   const tenantName = formatTenantName(lease?.tenants?.contacts)
-  const location = unit ? `${unit.unit_number}, ${unit.properties.name}` : "Unknown"
+  const location = formatPropertyLabel(unit, { fallback: "Unknown" })
   const deadline = new Date(d.deadline)
   const daysUntil = Math.ceil((deadline.getTime() - now.getTime()) / 86400000)
   const isOverdue = daysUntil < 0

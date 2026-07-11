@@ -14,6 +14,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceAssignedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-assigned"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 export async function POST(
   req: NextRequest,
@@ -95,7 +96,7 @@ export async function POST(
 
       if (tenant?.email && contractorChanged) {
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-        const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+        const propertyLabel = formatPropertyLabel(unit)
         const contractorName =
           (contractor?.company_name as string | null) ||
           [contractor?.first_name, contractor?.last_name].filter(Boolean).join(" ") ||

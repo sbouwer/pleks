@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared/EmptyState"
 import { AlertTriangle } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 const STATUS_MAP: Record<string, "arrears" | "pending" | "active" | "completed"> = {
   open: "arrears",
@@ -70,7 +71,7 @@ export default async function ArrearsPage() {
                     <div>
                       <p className="font-medium">{tenantName || "—"}</p>
                       <p className="text-sm text-muted-foreground">
-                        {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+                        {formatPropertyLabel(unit, { fallback: "" })}
                         {` · ${arrearsCase.months_in_arrears} month${arrearsCase.months_in_arrears === 1 ? "" : "s"}`}
                         {` · Step ${arrearsCase.current_step}`}
                         {` · ${arrearsCase.lease_type}`}
