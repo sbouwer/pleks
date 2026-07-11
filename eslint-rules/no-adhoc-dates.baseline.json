@@ -1,6 +1,4 @@
 {
-  "isoSlice": [
-    "lib/observability/betterstack.ts"
-  ],
+  "isoSlice": [],
   "localeWithoutTimeZone": []
 }

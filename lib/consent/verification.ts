@@ -5,7 +5,6 @@
  * Data:   consent_verifications, consent_verification_rate_limits
  * Notes:  ADDENDUM_14F. Codes stored as HMAC-SHA256 with per-row salt (never
  *         plaintext). Rate limits: 3 sends/15min, 3 attempts/code, 1h soft / 24h hard.
- *         normalizePhoneZA normalises SA numbers to E.164 (+27XXXXXXXXX).
  *         F1: getHmacSecret() throws in production if env var missing (fail-loud).
  *         F3: recordSend resets consecutive_failed_codes; soft_lockout_count_24h
  *             decays after 24h via last_soft_lockout_at column.
@@ -81,14 +80,6 @@ export function verifyCodeMatch(submitted: string, storedHash: string, salt: str
 
 export function generateSalt(): string {
   return randomBytes(16).toString("hex")
-}
-
-export function normalizePhoneZA(raw: string): string {
-  const digits = raw.replace(/\D/g, "")
-  if (digits.startsWith("27") && digits.length === 11) return `+${digits}`
-  if (digits.startsWith("0") && digits.length === 10) return `+27${digits.slice(1)}`
-  if (digits.length === 9) return `+27${digits}`
-  return `+${digits}`
 }
 
 export function maskPhone(e164: string): string {

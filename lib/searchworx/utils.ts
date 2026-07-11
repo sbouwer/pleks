@@ -109,6 +109,7 @@ export function normaliseGender(raw: string | undefined | null): NormalisedGende
 //   Leading-dash cleaned (Combined-via-TU):  "- 0987676543" → "+27987676543"
 //   20-char zero-padded mobile (TU standalone): "00000000000987676543" → "+27987676543"
 //   Plain SA local:                          "0118940999" → "+27118940999"
+// eslint-disable-next-line pleks/no-rerolled-phone-normalise -- STRUCTURED bureau-phone parser (takes {DialCode, Number, FullNumber} objects from XDS/TU), not a raw-string SA normaliser — a different operation than the checkPhone SSOT
 export function normaliseSearchworxPhone(raw: {
   DialCode?:   string
   Number?:     string
@@ -145,6 +146,7 @@ export function normaliseSearchworxPhone(raw: {
   return plainSA ? `+27${plainSA[1]}` : null
 }
 
+// eslint-disable-next-line pleks/no-rerolled-phone-normalise -- helper of normaliseSearchworxPhone (structured bureau input); see above
 function _normaliseDialCodePhone(dialCode: string, number: string): string | null {
   const dialDigits = dialCode.replace(/\D/g, "")
   const numDigits  = number.replace(/\D/g, "")

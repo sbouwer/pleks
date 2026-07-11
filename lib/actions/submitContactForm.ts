@@ -135,6 +135,7 @@ export async function submitContactForm(input: ContactFormInput): Promise<Contac
   // from the admin view even if email delivery fails. Log and move on.
   try {
     const resend = new Resend(optionalEnv("RESEND_API_KEY"))
+    // eslint-disable-next-line pleks/no-direct-resend-send -- INBOUND lead notification to Pleks itself (not tenant/org mail): no org branding, opt-out, or communication_log row applies — sendEmail's choke-point guarantees are for outbound customer mail
     await resend.emails.send({
       from: "Pleks Contact <notifications@pleks.co.za>",
       to: "stean@pleks.co.za",
