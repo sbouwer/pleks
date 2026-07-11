@@ -84,9 +84,9 @@ const rule = {
           if (typeof table === "string" && T1_TABLES.has(table)) mutations.push({ node, table })
         }
       },
-      // recordAudit(...) as a bare call (not a member method).
+      // recordAudit(...) / recordAuditReturningId(...) / recordAuditMany(...) as a bare call.
       "CallExpression > Identifier.callee"(node) {
-        if (node.name === "recordAudit") hasAudit = true
+        if (node.name.startsWith("recordAudit")) hasAudit = true
       },
       "Program:exit"() {
         if (hasAudit) return

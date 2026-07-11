@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 // Save or reset custom clause body (org-level when leaseId omitted)
 export async function POST(req: NextRequest) {
@@ -43,18 +44,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Audit log
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "lease_clause_selections",
-    record_id: clauseKey,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: {
+  await recordAudit(db, { orgId: orgId, table: "lease_clause_selections", recordId: clauseKey, action: "UPDATE", actorId: userId, after: {
       action: "clause_wording_edited",
       clause_key: clauseKey,
       scope: leaseId ? "per_lease" : "org_default",
-    },
-  })
+    } })
 
   return NextResponse.json({ ok: true })
 }

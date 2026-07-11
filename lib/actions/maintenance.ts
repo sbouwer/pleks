@@ -33,6 +33,7 @@ import * as React from "react"
 
 import { SA_TIMEZONE } from "@/lib/dates"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
+import { recordAudit, recordAuditReturningId, recordAuditMany } from "@/lib/audit/recordAudit"
 
 async function fireTenantCommsOnCreate(
   orgId: string,
@@ -216,14 +217,7 @@ export async function createMaintenanceRequest(formData: FormData) {
     return { error: error?.message || "Failed to create request" }
   }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "maintenance_requests",
-    record_id: request.id,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { title, category: triage.category, urgency: triage.urgency, severity: triage.severity },
-  })
+  await recordAudit(db, { orgId: orgId, table: "maintenance_requests", recordId: request.id, action: "INSERT", actorId: userId, after: { title, category: triage.category, urgency: triage.urgency, severity: triage.severity } })
 
   await fireTenantCommsOnCreate(
     orgId, tenantId, unitId, userId, request.id, title, workOrderNumber,
@@ -416,14 +410,7 @@ export async function updateMaintenanceStatus(
 
   if (reqError) console.error("maintenance_requests read failed:", reqError.message)
   if (req) {
-    await db.from("audit_log").insert({
-      org_id: req.org_id,
-      table_name: "maintenance_requests",
-      record_id: requestId,
-      action: "UPDATE",
-      changed_by: userId,
-      new_values: updates,
-    })
+    await recordAudit(db, { orgId: req.org_id, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: userId, after: updates })
   }
 
   revalidatePath(`/maintenance/${requestId}`)
@@ -613,15 +600,7 @@ export async function updateMaintenanceRequest(
   const { error } = await db.from("maintenance_requests").update(patch).eq("id", requestId).eq("org_id", orgId)
   if (error) return { error: error.message }
 
-  await db.from("audit_log").insert({
-    org_id: existing.org_id,
-    table_name: "maintenance_requests",
-    record_id: requestId,
-    action: "UPDATE",
-    changed_by: userId,
-    old_values: oldValues,
-    new_values: patch,
-  })
+  await recordAudit(db, { orgId: existing.org_id, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: userId, before: oldValues, after: patch })
 
   revalidatePath(`/maintenance/${requestId}`)
   return { success: true }
@@ -643,16 +622,9 @@ export async function addMaintenanceNote(
   if (profileError) console.error("addMaintenanceNote user_profiles read failed:", profileError.message)
   const actorName = (profile?.full_name as string | null) ?? null
 
-  const { error: noteError } = await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "maintenance_requests",
-    record_id: requestId,
-    action: "NOTE",
-    changed_by: userId,
-    actor_name: actorName,
-    new_values: { note: trimmed, notified_landlord: notifyLandlord },
-  })
-  if (noteError) return { error: noteError.message }
+  // The note lives in audit_log — a failed write must surface, so use the returning-id writer.
+  const noteAuditId = await recordAuditReturningId(db, { orgId: orgId, table: "maintenance_requests", recordId: requestId, action: "NOTE", actorId: userId, actorName: actorName, after: { note: trimmed, notified_landlord: notifyLandlord } })
+  if (!noteAuditId) return { error: "Failed to record note" }
 
   // Optional: notify landlord via maintenance.memo_landlord_notified
   if (notifyLandlord) {
@@ -770,17 +742,10 @@ export async function cancelMaintenanceRequest(
   if (cancelProfileError) console.error("cancelMaintenanceRequest user_profiles read failed:", cancelProfileError.message)
   const cancelActorName = (cancelProfile?.full_name as string | null) ?? null
 
-  await db.from("audit_log").insert([
-    {
-      org_id: orgId, table_name: "maintenance_requests", record_id: requestId,
-      action: "UPDATE", changed_by: userId, actor_name: cancelActorName,
-      new_values: { status: "cancelled", cancellation_category: category, cancellation_reason: trimmedReason },
-    },
-    {
-      org_id: orgId, table_name: "maintenance_requests", record_id: requestId,
-      action: "NOTE", changed_by: userId, actor_name: cancelActorName,
-      new_values: { note: `Request cancelled: ${trimmedReason}` },
-    },
+  // UPDATE + NOTE are one coupled action — write atomically so the cancellation reason can't land without its state row.
+  await recordAuditMany(db, [
+    { orgId, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: userId, actorName: cancelActorName, after: { status: "cancelled", cancellation_category: category, cancellation_reason: trimmedReason } },
+    { orgId, table: "maintenance_requests", recordId: requestId, action: "NOTE", actorId: userId, actorName: cancelActorName, after: { note: `Request cancelled: ${trimmedReason}` } },
   ])
 
   if (revokeToken && req.contractor_id) {
@@ -903,18 +868,10 @@ export async function changeContractor(
   if (changeProfileError) console.error("changeMaintenanceContractor user_profiles read failed:", changeProfileError.message)
   const changeActorName = (changeProfile?.full_name as string | null) ?? null
 
-  await db.from("audit_log").insert([
-    {
-      org_id: orgId, table_name: "maintenance_requests", record_id: requestId,
-      action: "UPDATE", changed_by: userId, actor_name: changeActorName,
-      old_values: { contractor_id: req.contractor_id },
-      new_values: { contractor_id: newContractorId },
-    },
-    {
-      org_id: orgId, table_name: "maintenance_requests", record_id: requestId,
-      action: "NOTE", changed_by: userId, actor_name: changeActorName,
-      new_values: { note: `Contractor changed: ${trimmedReason}` },
-    },
+  // UPDATE + NOTE are one coupled action — write atomically so the change reason can't land without its state row.
+  await recordAuditMany(db, [
+    { orgId, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: userId, actorName: changeActorName, before: { contractor_id: req.contractor_id }, after: { contractor_id: newContractorId } },
+    { orgId, table: "maintenance_requests", recordId: requestId, action: "NOTE", actorId: userId, actorName: changeActorName, after: { note: `Contractor changed: ${trimmedReason}` } },
   ])
 
   if (wasWoSent) {
@@ -1037,15 +994,7 @@ export async function revertStatus(
 
   if (error) return { error: error.message }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "maintenance_requests",
-    record_id: requestId,
-    action: "UPDATE",
-    changed_by: userId,
-    old_values: { status: req.status },
-    new_values: { status: "pending_review" },
-  })
+  await recordAudit(db, { orgId: orgId, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: userId, before: { status: req.status }, after: { status: "pending_review" } })
 
   revalidatePath(`/maintenance/${requestId}`)
   return { success: true }
@@ -1074,14 +1023,7 @@ export async function togglePhotoVisibilityToTenant(
 
   if (error) return { error: error.message }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "maintenance_photos",
-    record_id: photoId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { visible_to_tenant: visible },
-  })
+  await recordAudit(db, { orgId: orgId, table: "maintenance_photos", recordId: photoId, action: "UPDATE", actorId: userId, after: { visible_to_tenant: visible } })
 
   revalidatePath(`/maintenance/${photo.request_id}`)
   return { success: true }

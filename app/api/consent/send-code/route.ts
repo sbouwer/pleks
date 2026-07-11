@@ -22,6 +22,7 @@ import {
 import { sendConsentSMS } from "@/lib/sms/sendConsentSMS"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { normalizePhone } from "@/lib/validation/contact"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 const SMS_TEMPLATE = (code: string, special: boolean) =>
   special
@@ -199,13 +200,7 @@ export async function POST(req: Request) {
       director_token_used: !!directorToken,
     }
 
-    await service.from("audit_log").insert({
-      org_id:     orgId,
-      table_name: "consent_verifications",
-      record_id:  verif.id,
-      action:     "INSERT",
-      new_values: auditMeta,
-    })
+    await recordAudit(service, { orgId: orgId as string, table: "consent_verifications", recordId: verif.id, action: "INSERT", after: auditMeta })
 
     // F2: auth_events — consent_code_sent (user_id nullable since BUILD_63 §9.2)
     const { error: aeErr } = await service.from("auth_events").insert({

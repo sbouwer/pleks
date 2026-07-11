@@ -18,6 +18,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { trackSend, settleSends } from "@/lib/cron/settleSends"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -86,13 +87,7 @@ export async function GET(req: NextRequest) {
         console.error("subscription-dunning: pause failed for", sub.org_id, pauseErr.message)
         continue
       }
-      await supabase.from("audit_log").insert({
-        org_id: sub.org_id,
-        table_name: "subscriptions",
-        record_id: sub.org_id,
-        action: "UPDATE",
-        new_values: { action: "subscription_paused_auto", reason: "past_due_grace_expired", days_past_due: daysElapsed },
-      })
+      await recordAudit(supabase, { orgId: sub.org_id, table: "subscriptions", recordId: sub.org_id, action: "UPDATE", after: { action: "subscription_paused_auto", reason: "past_due_grace_expired", days_past_due: daysElapsed } })
       trackSend(sends, `subscription-dunning paused ${sub.org_id}`, sendPausedAuto(contact))
       autoPaused++
     } else if (ladderStep === "day7_reminder") {
@@ -160,13 +155,7 @@ async function runPendingExpiryStep(supabase: SupabaseClient, now: Date): Promis
       console.error("subscription-dunning: pending revert failed for", sub.org_id, revertErr.message)
       continue
     }
-    await supabase.from("audit_log").insert({
-      org_id: sub.org_id,
-      table_name: "subscriptions",
-      record_id: sub.org_id,
-      action: "UPDATE",
-      new_values: { action: "subscription_cancellation_expired" },
-    })
+    await recordAudit(supabase, { orgId: sub.org_id, table: "subscriptions", recordId: sub.org_id, action: "UPDATE", after: { action: "subscription_cancellation_expired" } })
     count++
   }
   return count

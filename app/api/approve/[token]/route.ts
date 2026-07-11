@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -65,14 +66,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  await supabase.from("audit_log").insert({
-    org_id: request.org_id,
-    table_name: "maintenance_requests",
-    record_id: requestId,
-    action: "UPDATE",
-    changed_by: null,
-    new_values: { status: newStatus, decision },
-  })
+  await recordAudit(supabase, { orgId: request.org_id, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: null, after: { status: newStatus, decision } })
 
   return NextResponse.json({ ok: true, newStatus })
 }

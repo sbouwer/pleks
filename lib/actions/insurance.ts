@@ -14,6 +14,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { createPropertyInfoRequest } from "@/lib/actions/propertyInfoRequests"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function saveInsurancePolicy(propertyId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
@@ -44,14 +45,7 @@ export async function saveInsurancePolicy(propertyId: string, formData: FormData
 
   if (error) return { error: error.message }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "properties",
-    record_id: propertyId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { ...updates, _section: "insurance_policy" },
-  })
+  await recordAudit(db, { orgId: orgId, table: "properties", recordId: propertyId, action: "UPDATE", actorId: userId, after: { ...updates, _section: "insurance_policy" } })
 
   revalidatePath(`/properties/${propertyId}`)
   return { success: true }

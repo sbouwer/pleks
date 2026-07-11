@@ -14,6 +14,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { decryptIdNumber, decryptDob, idNumberColumns } from "@/lib/crypto/idNumber"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function createTenantFromCoApplicant(
   coApplicantId: string,
@@ -94,10 +95,7 @@ export async function createTenantFromCoApplicant(
     consent_type: "data_processing", consent_version: "1.0-tenant-onboard",
     metadata: { tenant_id: tenant.id, source: "co_applicant_pipeline", co_applicant_id: coApplicantId },
   })
-  await supabase.from("audit_log").insert({
-    org_id: co.org_id, table_name: "tenants", record_id: tenant.id, action: "INSERT",
-    changed_by: authUserId, new_values: { source: "co_applicant", co_applicant_id: coApplicantId },
-  })
+  await recordAudit(supabase, { orgId: co.org_id, table: "tenants", recordId: tenant.id, action: "INSERT", actorId: authUserId, after: { source: "co_applicant", co_applicant_id: coApplicantId } })
 
   return { tenantId: tenant.id }
 }

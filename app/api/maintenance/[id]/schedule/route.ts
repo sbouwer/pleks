@@ -14,6 +14,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceScheduledEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-scheduled"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA } from "@/lib/dates"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(
   req: NextRequest,
@@ -74,18 +75,11 @@ export async function POST(
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 
-  await service.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "maintenance_requests",
-    record_id: requestId,
-    action: "UPDATE",
-    changed_by: user.id,
-    new_values: {
+  await recordAudit(service, { orgId: orgId, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: user.id, after: {
       scheduled_date: body.scheduledDate,
       scheduled_time_from: body.scheduledTimeFrom ?? null,
       scheduled_time_to: body.scheduledTimeTo ?? null,
-    },
-  })
+    } })
 
   // M3 — notify tenant of confirmed appointment (non-fatal)
   if (scheduleChanged) {

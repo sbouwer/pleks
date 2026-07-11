@@ -20,6 +20,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -139,10 +140,7 @@ async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppR
     .update({ declined_at: now, decline_reason: "expired_no_completion" })
     .eq("id", line.subject_id)
 
-  await service.from("audit_log").insert({
-    org_id: line.org_id, table_name: "application_co_applicants", record_id: line.subject_id,
-    action: "UPDATE", new_values: { declined_at: now, decline_reason: "expired_no_completion" },
-  })
+  await recordAudit(service, { orgId: line.org_id, table: "application_co_applicants", recordId: line.subject_id, action: "UPDATE", after: { declined_at: now, decline_reason: "expired_no_completion" } })
 
   // 14R: declining a non-completing line shrinks the roster — the REMAINING applicants may now be all-green, so fire
   // the "ready to submit" fan-out (arm is null while a line was pending, so this fires the first all-green).
@@ -164,10 +162,7 @@ async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppR
         .update({ expired_state: "paid_but_no_consent", refund_amount_cents: payment.fee_cents })
         .eq("id", payment.id)
 
-      await service.from("audit_log").insert({
-        org_id: line.org_id, table_name: "application_screening_payments", record_id: payment.id,
-        action: "UPDATE", new_values: { expired_state: "paid_but_no_consent", refund_amount_cents: payment.fee_cents },
-      })
+      await recordAudit(service, { orgId: line.org_id, table: "application_screening_payments", recordId: payment.id, action: "UPDATE", after: { expired_state: "paid_but_no_consent", refund_amount_cents: payment.fee_cents } })
     }
   }
 

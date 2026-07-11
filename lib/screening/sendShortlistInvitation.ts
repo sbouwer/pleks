@@ -18,6 +18,7 @@ import { addDays } from "date-fns"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendShortlistInvitation as sendShortlistEmail } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function sendShortlistInvitation(applicationId: string) {
   let gw
@@ -85,14 +86,7 @@ export async function sendShortlistInvitation(applicationId: string) {
   })
 
   // Audit log
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "applications",
-    record_id: applicationId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { stage1_status: "shortlisted", stage2_status: "invited" },
-  })
+  await recordAudit(db, { orgId: orgId, table: "applications", recordId: applicationId, action: "UPDATE", actorId: userId, after: { stage1_status: "shortlisted", stage2_status: "invited" } })
 
   revalidatePath("/listings")
   return { success: true }

@@ -18,6 +18,7 @@ import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { optionalEnv } from "@/lib/env"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 function pingHeartbeat(url: string | undefined): void {
   if (url) void fetch(url, { method: "POST" }).catch(() => undefined)
@@ -60,17 +61,11 @@ export async function GET(req: NextRequest) {
       continue
     }
 
-    await supabase.from("audit_log").insert({
-      org_id: sub.org_id,
-      table_name: "subscriptions",
-      record_id: sub.org_id,
-      action: "UPDATE",
-      new_values: {
+    await recordAudit(supabase, { orgId: sub.org_id, table: "subscriptions", recordId: sub.org_id, action: "UPDATE", after: {
         action: "subscription_past_due_entered",
         trigger: "silent_period_lapse",
         amount_cents: sub.amount_cents,
-      },
-    })
+      } })
 
     markedPastDue++
   }

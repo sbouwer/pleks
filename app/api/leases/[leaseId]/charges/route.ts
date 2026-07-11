@@ -21,6 +21,7 @@ import { LeaseAmendedEmail } from "@/lib/comms/templates/tenant/leases/lease-ame
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA, saTodayISO } from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 type ChargeComm = { description: string; amountCents: number; dateStr: string; changeType: "added" | "removed" }
 
@@ -146,14 +147,7 @@ export async function POST(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Audit log
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "lease_charges",
-    record_id: data?.id,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { description, charge_type, amount_cents, lease_id: leaseId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "lease_charges", recordId: data?.id, action: "INSERT", actorId: userId, after: { description, charge_type, amount_cents, lease_id: leaseId } })
 
   // L6 — lease.amended comm (charge added)
   try {
@@ -207,14 +201,7 @@ export async function DELETE(
     .eq("lease_id", leaseId)
     .eq("org_id", orgId)
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "lease_charges",
-    record_id: chargeId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { is_active: false, lease_id: leaseId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "lease_charges", recordId: chargeId, action: "UPDATE", actorId: userId, after: { is_active: false, lease_id: leaseId } })
 
   // L6 — lease.amended comm (charge removed)
   if (charge) {

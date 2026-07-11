@@ -21,6 +21,7 @@ import { MaintenanceCompletedEmail } from "@/lib/comms/templates/tenant/maintena
 import { deriveWarrantySubject } from "@/lib/maintenance/warranty"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { addCalendarMonths, monthStart, saTodayISO } from "@/lib/dates"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -217,14 +218,7 @@ export async function POST(req: NextRequest) {
   )
 
   // Audit
-  await service.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "maintenance_requests",
-    record_id: requestId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { status: "completed", allocation_count: allocations.length, warranty_id: warrantyId },
-  })
+  await recordAudit(service, { orgId: orgId, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: userId, after: { status: "completed", allocation_count: allocations.length, warranty_id: warrantyId } })
 
   // M4 — notify tenant that work is complete
   if (request.tenant_id) {

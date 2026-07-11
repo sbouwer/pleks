@@ -179,11 +179,7 @@ async function logAcknowledgedConflicts(db: DbClient, formData: FormData, leaseI
   try {
     const conflictIds = JSON.parse(acknowledgedConflictsRaw) as string[]
     if (conflictIds.length > 0) {
-      await db.from("audit_log").insert({
-        org_id: orgId, table_name: "leases", record_id: leaseId,
-        action: "CONFLICT_ACKNOWLEDGED", changed_by: userId,
-        new_values: { acknowledged_conflict_ids: conflictIds },
-      })
+      await recordAudit(db, { orgId: orgId, table: "leases", recordId: leaseId, action: "CONFLICT_ACKNOWLEDGED", actorId: userId, after: { acknowledged_conflict_ids: conflictIds } })
     }
   } catch { /* ignore malformed */ }
 }
@@ -299,10 +295,7 @@ export async function createLease(formData: FormData) {
     prospective_co_tenant_ids: coTenantIds,
   }).eq("id", f.unitId).eq("org_id", orgId) // org-scope guard (caller-ID census)
 
-  await db.from("audit_log").insert({
-    org_id: orgId, table_name: "leases", record_id: lease.id, action: "INSERT", changed_by: userId,
-    new_values: { tenant_id: f.tenantId, unit_id: f.unitId, lease_type: f.leaseType, rent_cents: f.rentCents },
-  })
+  await recordAudit(db, { orgId: orgId, table: "leases", recordId: lease.id, action: "INSERT", actorId: userId, after: { tenant_id: f.tenantId, unit_id: f.unitId, lease_type: f.leaseType, rent_cents: f.rentCents } })
 
   revalidatePath("/leases")
   redirect(`/leases/${lease.id}`)
@@ -412,14 +405,7 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
     } catch { /* non-fatal — user can upload later */ }
   }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "leases",
-    record_id: leaseId,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { tenant_id: tenantId, unit_id: unitId, lease_type: leaseType, rent_cents: rentCents, template_source: "uploaded" },
-  })
+  await recordAudit(db, { orgId: orgId, table: "leases", recordId: leaseId, action: "INSERT", actorId: userId, after: { tenant_id: tenantId, unit_id: unitId, lease_type: leaseType, rent_cents: rentCents, template_source: "uploaded" } })
 
   revalidatePath("/leases")
   return { leaseId }
@@ -619,14 +605,7 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
     reason: reason ? `Notice given by ${givenBy}: ${reason}` : `Notice given by ${givenBy}`,
   })
 
-  await db.from("audit_log").insert({
-    org_id: lease.org_id,
-    table_name: "leases",
-    record_id: leaseId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { status: "notice", notice_given_by: givenBy, notice_given_date: noticeGivenDate },
-  })
+  await recordAudit(db, { orgId: lease.org_id, table: "leases", recordId: leaseId, action: "UPDATE", actorId: userId, after: { status: "notice", notice_given_by: givenBy, notice_given_date: noticeGivenDate } })
 
   // L10 — send notice acknowledgement comm to tenant (only when tenant gives notice)
   if (givenBy === "tenant" && lease.tenant_id) {

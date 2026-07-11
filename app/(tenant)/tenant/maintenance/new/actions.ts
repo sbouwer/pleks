@@ -10,6 +10,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 interface MaintenanceSubmitPayload {
   category: string
@@ -103,18 +104,11 @@ export async function submitMaintenanceRequest(payload: MaintenanceSubmitPayload
   })
 
   // Audit log
-  await service.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "maintenance_requests",
-    record_id: request.id,
-    action: "INSERT",
-    changed_by: tenantId,
-    new_values: {
+  await recordAudit(service, { orgId: orgId, table: "maintenance_requests", recordId: request.id, action: "INSERT", actorId: tenantId, after: {
       action: "tenant_portal_submission",
       category: payload.category,
       urgency: payload.urgency,
-    },
-  })
+    } })
 
   return { success: true, requestId: request.id, workOrderNumber: request.work_order_number }
 }

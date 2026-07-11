@@ -192,14 +192,7 @@ export async function createUnit(propertyId: string, formData: FormData) {
     reason: "Unit created",
   })
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "units",
-    record_id: unit.id,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { unit_number: fields.unit_number, property_id: propertyId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "units", recordId: unit.id, action: "INSERT", actorId: userId, after: { unit_number: fields.unit_number, property_id: propertyId } })
 
   try {
     await syncUnitClauseProfile(db, unit.id, orgId, fields.features)
@@ -330,15 +323,7 @@ export async function updateUnitStatus(
     reason: reason || null,
   })
 
-  await db.from("audit_log").insert({
-    org_id: unit.org_id,
-    table_name: "units",
-    record_id: unitId,
-    action: "UPDATE",
-    changed_by: userId,
-    old_values: { status: unit.status },
-    new_values: { status: newStatus },
-  })
+  await recordAudit(db, { orgId: unit.org_id, table: "units", recordId: unitId, action: "UPDATE", actorId: userId, before: { status: unit.status }, after: { status: newStatus } })
 
   revalidatePath(`/properties/${propertyId}`)
 }
@@ -371,14 +356,7 @@ export async function createUnitData(propertyId: string, formData: FormData): Pr
     reason: "Unit created",
   })
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "units",
-    record_id: unit.id,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { unit_number: fields.unit_number, property_id: propertyId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "units", recordId: unit.id, action: "INSERT", actorId: userId, after: { unit_number: fields.unit_number, property_id: propertyId } })
 
   try {
     await syncUnitClauseProfile(db, unit.id, orgId, fields.features)

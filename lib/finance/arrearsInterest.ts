@@ -13,6 +13,7 @@
 import { format } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 /**
  * Accrue one day of interest on an arrears case.
@@ -167,19 +168,12 @@ export async function waiveArrearsInterest(
   await supabase.rpc("refresh_arrears_interest_total", { p_case_id: caseId })
 
   // Audit log — org comes from the validated caller, not a post-write re-read.
-  await supabase.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "arrears_interest_charges",
-    record_id: caseId,
-    action: "UPDATE",
-    changed_by: agentUserId,
-    new_values: {
+  await recordAudit(supabase, { orgId: orgId, table: "arrears_interest_charges", recordId: caseId, action: "UPDATE", actorId: agentUserId, after: {
       action: "interest_waived",
       charges_waived: charges.length,
       total_waived_cents: waivedCents,
       reason,
-    },
-  })
+    } })
 
   return { waivedCents, chargesWaived: charges.length }
 }

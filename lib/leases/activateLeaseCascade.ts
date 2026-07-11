@@ -27,6 +27,7 @@ import { fmtDateLongZA, monthEnd, saDateISO } from "@/lib/dates"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { formatZAR } from "@/lib/constants"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export interface CascadeStep {
   step: string
@@ -504,11 +505,7 @@ async function stepAuditLog(
   userId: string | undefined,
 ): Promise<CascadeStep> {
   try {
-    await supabase.from("audit_log").insert({
-      org_id: orgId, table_name: "leases", record_id: leaseId,
-      action: "UPDATE", changed_by: userId ?? null,
-      new_values: { status: "active", signed_at: new Date().toISOString(), activation_trigger: triggeredBy },
-    })
+    await recordAudit(supabase, { orgId: orgId, table: "leases", recordId: leaseId, action: "UPDATE", actorId: userId ?? null, after: { status: "active", signed_at: new Date().toISOString(), activation_trigger: triggeredBy } })
     return { step: "Audit log", status: "success" }
   } catch (e) {
     return { step: "Audit log", status: "failed", detail: String(e) }

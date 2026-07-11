@@ -14,6 +14,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { Tier } from "@/lib/constants"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export interface TierChangeResult {
   /** Number of bound self-managed identities forked into standalone records (0 or 1 in practice). */
@@ -84,18 +85,12 @@ export async function onTierChanged(
       continue
     }
     count += 1
-    await service.from("audit_log").insert({
-      org_id: orgId,
-      table_name: "user_profiles",
-      record_id: profile.id,
-      action: "UPDATE",
-      new_values: {
+    await recordAudit(service, { orgId: orgId, table: "user_profiles", recordId: profile.id, action: "UPDATE", after: {
         action: "identity_forked",
         old_tier: oldTier,
         new_tier: newTier,
         forked_landlord_id: profile.self_landlord_id,
-      },
-    })
+      } })
   }
   return { forked: count }
 }

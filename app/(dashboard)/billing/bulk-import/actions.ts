@@ -148,6 +148,7 @@ export async function matchCsvRows(rows: ParsedRow[]): Promise<{ matched: Matche
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receiptNumber: string, userId: string, orgId: string): Promise<boolean> {
   // Atomic payment + trust rent_received credit + clause-6.6 allocation, all in record_payment_atomic
@@ -169,14 +170,7 @@ async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receip
   // ── Post-commit side effects (may fail/retry independently — NOT in the transaction) ──
   await db.from("payments").update({ recon_method: "manual" }).eq("id", paymentId) // mark as bulk-import recon
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "payments",
-    record_id: paymentId,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { amount_cents: p.amountCents, method: "eft", invoice_id: p.invoiceId, source: "bulk_import" },
-  })
+  await recordAudit(db, { orgId: orgId, table: "payments", recordId: paymentId, action: "INSERT", actorId: userId, after: { amount_cents: p.amountCents, method: "eft", invoice_id: p.invoiceId, source: "bulk_import" } })
 
   return true
 }

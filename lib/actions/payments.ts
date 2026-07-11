@@ -24,6 +24,7 @@ import { PaymentReceivedEmail } from "@/lib/comms/templates/tenant/rent/payment-
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA } from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function recordPayment(formData: FormData) {
   const gw = await requireAgentWriteAccess("record_payment")
@@ -143,14 +144,7 @@ export async function recordPayment(formData: FormData) {
   }
 
   // Audit
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "payments",
-    record_id: paymentId,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { amount_cents: amountCents, method: paymentMethod, invoice_id: invoiceId },
-  })
+  await recordAudit(db, { orgId: orgId, table: "payments", recordId: paymentId, action: "INSERT", actorId: userId, after: { amount_cents: amountCents, method: paymentMethod, invoice_id: invoiceId } })
 
   revalidatePath("/billing")
   return { success: true, receiptNumber }

@@ -10,6 +10,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(
   req: NextRequest,
@@ -63,18 +64,11 @@ export async function POST(
     .eq("id", leaseId)
 
   // Audit log
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "leases",
-    record_id: leaseId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: {
+  await recordAudit(db, { orgId: orgId, table: "leases", recordId: leaseId, action: "UPDATE", actorId: userId, after: {
       action: "external_document_uploaded",
       path: storagePath,
       filename: file.name,
-    },
-  })
+    } })
 
   return NextResponse.json({ ok: true, path: storagePath })
 }

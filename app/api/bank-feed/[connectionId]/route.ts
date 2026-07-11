@@ -7,6 +7,7 @@ import { NextRequest } from "next/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { yodlee } from "@/lib/yodlee/client"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function DELETE(
   _req: NextRequest,
@@ -33,14 +34,7 @@ export async function DELETE(
     disconnected_at: new Date().toISOString(),
   }).eq("id", connectionId)
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "bank_feed_connections",
-    record_id: connectionId,
-    action: "UPDATE",
-    changed_by: userId,
-    new_values: { status: "disconnected" },
-  })
+  await recordAudit(db, { orgId: orgId, table: "bank_feed_connections", recordId: connectionId, action: "UPDATE", actorId: userId, after: { status: "disconnected" } })
 
   // Best-effort: remove from Yodlee
   try {

@@ -13,6 +13,7 @@ import { revalidatePath } from "next/cache"
 import { sendEmail } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_TIMEZONE } from "@/lib/dates"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function uploadPropertyDocument(formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
@@ -95,14 +96,7 @@ export async function deletePropertyDocument(documentId: string, propertyId: str
   if (delErr) return { error: delErr.message }
 
   // Audit (DELETE enum; semantic = archive — it's a reversible-until-purged soft delete)
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "property_documents",
-    record_id: documentId,
-    action: "DELETE",
-    new_values: { action: "property_document_archived" },
-    changed_by: userId,
-  })
+  await recordAudit(db, { orgId: orgId, table: "property_documents", recordId: documentId, action: "DELETE", after: { action: "property_document_archived" }, actorId: userId })
 
   revalidatePath(`/properties/${propertyId}`)
   return { success: true }

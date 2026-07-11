@@ -15,6 +15,7 @@ import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import {
   sendSubscriptionActivated,
   sendPastDueFirst,
@@ -79,13 +80,7 @@ async function handleFailed(supabase: SupabaseClient, orgId: string) {
     .update({ status: "past_due", past_due_since: new Date().toISOString() })
     .eq("org_id", orgId)
 
-  await supabase.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "subscriptions",
-    record_id: orgId,
-    action: "UPDATE",
-    new_values: { action: "subscription_past_due_entered", trigger: "payfast_itn_failed" },
-  })
+  await recordAudit(supabase, { orgId: orgId, table: "subscriptions", recordId: orgId, action: "UPDATE", after: { action: "subscription_past_due_entered", trigger: "payfast_itn_failed" } })
 
   if (org && adminEmail) {
     void sendPastDueFirst({
@@ -124,18 +119,12 @@ async function handleComplete(
     })
     .eq("org_id", orgId)
 
-  await supabase.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "subscriptions",
-    record_id: orgId,
-    action: "UPDATE",
-    new_values: {
+  await recordAudit(supabase, { orgId: orgId, table: "subscriptions", recordId: orgId, action: "UPDATE", after: {
       action: wasRecovery ? "subscription_resumed" : "subscription_activated",
       tier,
       status: "active",
       billing_cycle: billingCycle,
-    },
-  })
+    } })
 
   if (org && adminEmail) {
     const orgContact = {

@@ -15,6 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { decryptIdNumber, decryptDob, idNumberColumns } from "@/lib/crypto/idNumber"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function promoteApplicationToTenant(
   db: SupabaseClient,
@@ -104,10 +105,7 @@ export async function promoteApplicationToTenant(
     consent_type: "data_processing", consent_version: "1.0-tenant-onboard",
     metadata: { tenant_id: tenant.id, source: "application_pipeline", application_id: applicationId },
   })
-  await db.from("audit_log").insert({
-    org_id: application.org_id, table_name: "tenants", record_id: tenant.id, action: "INSERT",
-    changed_by: createdBy, new_values: { source: "application", application_id: applicationId },
-  })
+  await recordAudit(db, { orgId: application.org_id, table: "tenants", recordId: tenant.id, action: "INSERT", actorId: createdBy, after: { source: "application", application_id: applicationId } })
 
   return { tenantId: tenant.id }
 }

@@ -20,6 +20,7 @@ import { usePermissions } from "@/hooks/usePermissions"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 interface ApplicationActionsProps {
   readonly applicationId: string
@@ -108,17 +109,10 @@ export function ApplicationActions({
       immigration_compliance_confirmed_at: new Date().toISOString(),
     }).eq("id", applicationId)
 
-    await supabase.from("audit_log").insert({
-      org_id: orgId,
-      table_name: "applications",
-      record_id: applicationId,
-      action: "UPDATE",
-      changed_by: user?.id,
-      new_values: {
+    await recordAudit(supabase, { orgId: orgId, table: "applications", recordId: applicationId, action: "UPDATE", actorId: user?.id, after: {
         immigration_compliance_confirmed: true,
         declaration: "agent_confirmed_original_documents_inspected",
-      },
-    })
+      } })
     toast.success("Immigration compliance confirmed")
     router.refresh()
   }

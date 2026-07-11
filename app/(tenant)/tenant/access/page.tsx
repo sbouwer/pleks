@@ -13,6 +13,7 @@ import { redirect } from "next/navigation"
 import { cookies, headers } from "next/headers"
 import { createServiceClient } from "@/lib/supabase/server"
 import { isProductionNode } from "@/lib/env"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 const COOKIE_NAME = "pleks_tenant_token"
 const COOKIE_MAX_AGE = 90 * 24 * 60 * 60 // 90 days
@@ -76,20 +77,13 @@ export default async function PortalAccessPage({
   const ipHash = ip ? hashIp(ip) : null
 
   try {
-    await service.from("audit_log").insert({
-      org_id:      tokenRecord.org_id,
-      table_name:  "tenant_portal_tokens",
-      record_id:   tokenRecord.tenant_id,
-      action:      "UPDATE",
-      changed_by:  null,
-      new_values:  {
+    await recordAudit(service, { orgId: tokenRecord.org_id, table: "tenant_portal_tokens", recordId: tokenRecord.tenant_id, action: "UPDATE", actorId: null, after: {
         event:        "tenant_portal_login",
         auth_method:  "token_link",
         tenant_id:    tokenRecord.tenant_id,
         token_id:     tokenRecord.id,
         logged_in_at: new Date().toISOString(),
-      },
-    })
+      } })
   } catch (err) {
     console.error("[portal-access] audit_log write failed:", err)
   }

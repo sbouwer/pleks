@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { verifyWebhookSignature, parseWebhookEvent } from "@/lib/messaging/whatsapp/provider"
 import { sendSmsFallback } from "@/lib/messaging/whatsapp/sms-fallback"
 import { normalizePhone } from "@/lib/validation/contact"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 // STOP keywords per WhatsApp Business Policy
 const STOP_KEYWORDS = ["STOP", "OPTOUT", "OPT OUT", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"]
@@ -363,19 +364,8 @@ async function revokeWhatsAppConsent(
     console.error("[wa-webhook] consent revoke error", consentErr)
   }
 
-  // Audit log — action must be one of INSERT/UPDATE/DELETE; changed_by must be UUID or null
-  const { error: auditErr } = await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "tenant_messaging_consent",
-    record_id: tenantId,
-    action: "UPDATE",
-    changed_by: null,
-    new_values: { whatsapp_enabled: false, triggered_by_stop_keyword: true, phone },
-  })
-
-  if (auditErr) {
-    console.error("[wa-webhook] audit_log insert error", auditErr)
-  }
+  // Audit log — best-effort; recordAudit sanitises PII (phone is dropped) and logs its own failure internally.
+  await recordAudit(db, { orgId: orgId, table: "tenant_messaging_consent", recordId: tenantId, action: "UPDATE", actorId: null, after: { whatsapp_enabled: false, triggered_by_stop_keyword: true, phone } })
 }
 
 // ── Template approval handler ──────────────────────────────────────────────────

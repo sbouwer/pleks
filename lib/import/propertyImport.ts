@@ -13,6 +13,7 @@ import { parseCSV, detectTpnFormat, type ImportResult } from "./csvParser"
 import { convertTpnExport } from "./tpnParser"
 import { validatePropertyRow } from "./validators"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function importProperties(
   csvText: string,
@@ -115,14 +116,7 @@ export async function importProperties(
   }
 
   // Audit log
-  await supabase.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "properties",
-    record_id: orgId,
-    action: "INSERT",
-    changed_by: agentId,
-    new_values: { action: "csv_import_properties", created: results.created, skipped: results.skipped },
-  })
+  await recordAudit(supabase, { orgId: orgId, table: "properties", recordId: orgId, action: "INSERT", actorId: agentId, after: { action: "csv_import_properties", created: results.created, skipped: results.skipped } })
 
   return results
 }

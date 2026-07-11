@@ -17,13 +17,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
-/** The audit_log.action column enum. Semantic intent lives in `after.action`, not here. */
-export type AuditAction = "INSERT" | "UPDATE" | "DELETE"
+/**
+ * The audit_log.action column enum — the FULL live CHECK (audit_log_action_check), not just the CRUD trio.
+ * INSERT/UPDATE/DELETE are the row-lifecycle verbs; NOTE (a recorded observation, e.g. the notice-delivery
+ * bridge's short-service flag), SYNC (an external reconciliation), OWNERSHIP_TRANSFERRED and
+ * CONFLICT_ACKNOWLEDGED are domain events the CHECK already permits. A caller that needed one of these could
+ * not use recordAudit before this widened — which is exactly why they hand-rolled `from("audit_log")`.
+ * Semantic detail still lives in `after.action`; this is the coarse column value.
+ */
+export type AuditAction =
+  | "INSERT" | "UPDATE" | "DELETE"
+  | "NOTE" | "SYNC" | "OWNERSHIP_TRANSFERRED" | "CONFLICT_ACKNOWLEDGED"
 
 export interface RecordAuditInput {
   orgId: string
-  /** auth.users id of the actor (changed_by). null only for system/cron actors. */
-  actorId: string | null
+  /** auth.users id of the actor (changed_by). null/omitted for system/cron/webhook actors (writes null). */
+  actorId?: string | null
   action: AuditAction
   table: string
   recordId: string
@@ -51,7 +60,16 @@ const MASK_LAST4 = new Set<string>(["account_number", "iban", "card_number"])
  *  record_id / entity id, so the raw email/phone adds exposure without accountability value. */
 const CONTACT_PII_KEY = /(^|_)(email|phone|mobile|cell|msisdn)($|_)/i
 
-/** Strip never-log keys and mask account-number-like keys. Shallow — audit payloads are flat. */
+/** VALUE-level backstop: an email address stored under an innocuous key name (e.g. `sent_to`, `recipient`)
+ *  slips past the key-name denylist above. A shallow email shape on any string value is redacted to a marker
+ *  (key kept, address gone) — so RULE #7 is structural, not "did the caller happen to name the key `email`".
+ *  Linear string-ops (no regex backtracking): one `@` not at the edge, a dot in the domain, no whitespace. */
+function looksLikeEmail(s: string): boolean {
+  const at = s.indexOf("@")
+  return at > 0 && at === s.lastIndexOf("@") && !/\s/.test(s) && s.slice(at + 1).includes(".")
+}
+
+/** Strip never-log keys, mask account-number-like keys, and redact email-shaped values. Shallow — audit payloads are flat. */
 function sanitise(values: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
   if (!values) return null
   const out: Record<string, unknown> = {}
@@ -61,6 +79,8 @@ function sanitise(values: Record<string, unknown> | null | undefined): Record<st
       else if (val != null) out[`${key}_masked`] = "••••"
     } else if (NEVER_LOG.has(key) || CONTACT_PII_KEY.test(key)) {
       // dropped — never written to audit_log
+    } else if (typeof val === "string" && looksLikeEmail(val.trim())) {
+      out[key] = "[redacted-email]"   // value-level PII backstop (misnamed key)
     } else {
       out[key] = val
     }
@@ -75,7 +95,7 @@ function buildAuditRow(input: RecordAuditInput): Record<string, unknown> {
     table_name: input.table,
     record_id: input.recordId,
     action: input.action,
-    changed_by: input.actorId,
+    changed_by: input.actorId ?? null,
     actor_name: input.actorName ?? null,
     old_values: sanitise(input.before),
     new_values: sanitise(input.after),
@@ -103,6 +123,18 @@ export async function recordAuditReturningId(db: SupabaseClient, input: RecordAu
   const { data, error } = await db.from("audit_log").insert(buildAuditRow(input)).select("id").single()
   logQueryError("recordAuditReturningId", error)
   return (data?.id as string | undefined) ?? null
+}
+
+/**
+ * Write several audit_log rows in ONE insert statement — atomic (all-or-nothing) and same-order. Use where a
+ * single action produces a coupled set of rows that must not partially land, e.g. a state-change UPDATE paired
+ * with its human-readable NOTE (the reason is the forensic payload — it must never persist without, or after,
+ * its state row). Every row is built + PII-sanitised the same way as recordAudit. Never throws.
+ */
+export async function recordAuditMany(db: SupabaseClient, inputs: RecordAuditInput[]): Promise<void> {
+  if (inputs.length === 0) return
+  const { error } = await db.from("audit_log").insert(inputs.map(buildAuditRow))
+  logQueryError("recordAuditMany", error)
 }
 
 /** Exposed for unit-testing the sanitiser against the NEVER_LOG / MASK_LAST4 sets. */

@@ -9,6 +9,7 @@ import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 // Purge expired import extra data (POPIA compliance)
 export async function GET(req: NextRequest) {
@@ -31,13 +32,7 @@ export async function GET(req: NextRequest) {
       .update({ extra_data: null })
       .eq("id", session.id)
 
-    await supabase.from("audit_log").insert({
-      org_id: session.org_id,
-      table_name: "import_sessions",
-      record_id: session.id,
-      action: "UPDATE",
-      new_values: { action: "import_extra_data_purged" },
-    })
+    await recordAudit(supabase, { orgId: session.org_id, table: "import_sessions", recordId: session.id, action: "UPDATE", after: { action: "import_extra_data_purged" } })
 
     purged++
   }

@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { SubscriptionStatus } from "@/lib/subscriptions/state"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 const SETTABLE_STATUSES: SubscriptionStatus[] = [
   "trialing", "active", "past_due", "paused", "pending_cancellation", "cancelled",
@@ -85,13 +86,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  await supabase.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "subscriptions",
-    record_id: orgId,
-    action: "UPDATE",
-    new_values: { action: "admin_set_subscription_state", status, source: "qa_fixture" },
-  })
+  await recordAudit(supabase, { orgId: orgId, table: "subscriptions", recordId: orgId, action: "UPDATE", after: { action: "admin_set_subscription_state", status, source: "qa_fixture" } })
 
   return NextResponse.json({ ok: true, orgId, status })
 }

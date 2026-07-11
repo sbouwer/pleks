@@ -23,6 +23,7 @@ import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { fmtDateLongZA } from "@/lib/dates"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 // Billing actions require the 'billing' capability (owner / is_admin exempt). This is orthogonal to the
 // §10.3 "your data always" rule — that's about subscription STATE (never block on paused/cancelled), this is
@@ -105,13 +106,7 @@ export async function pauseSubscription(
     return { error: "Failed to pause subscription" }
   }
 
-  await service.from("audit_log").insert({
-    org_id: gw.orgId,
-    table_name: "subscriptions",
-    record_id: gw.orgId,
-    action: "UPDATE",
-    new_values: { action: "subscription_paused_manual", pause_reason: reason || null },
-  })
+  await recordAudit(service, { orgId: gw.orgId, table: "subscriptions", recordId: gw.orgId, action: "UPDATE", after: { action: "subscription_paused_manual", pause_reason: reason || null } })
 
   const contact = await fetchOrgContact(service, gw.orgId)
   if (contact) void sendPausedManual(contact, reason)
@@ -150,13 +145,7 @@ export async function resumeSubscription(): Promise<{ success: true } | { error:
     return { error: "Failed to resume subscription" }
   }
 
-  await service.from("audit_log").insert({
-    org_id: gw.orgId,
-    table_name: "subscriptions",
-    record_id: gw.orgId,
-    action: "UPDATE",
-    new_values: { action: "subscription_resumed" },
-  })
+  await recordAudit(service, { orgId: gw.orgId, table: "subscriptions", recordId: gw.orgId, action: "UPDATE", after: { action: "subscription_resumed" } })
 
   const contact = await fetchOrgContact(service, gw.orgId)
   if (contact) void sendResumed(contact)
@@ -311,16 +300,10 @@ async function confirmCancellationInner(
     return { error: "Failed to confirm cancellation" }
   }
 
-  await service.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "subscriptions",
-    record_id: orgId,
-    action: "UPDATE",
-    new_values: {
+  await recordAudit(service, { orgId: orgId, table: "subscriptions", recordId: orgId, action: "UPDATE", after: {
       action: "subscription_cancelled",
       cancellation_terms_version: LEGAL_VERSIONS.terms,
-    },
-  })
+    } })
 
   const contact = await fetchOrgContact(service, orgId)
   if (contact) {

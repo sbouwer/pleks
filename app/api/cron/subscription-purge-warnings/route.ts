@@ -26,6 +26,7 @@ import { requireCronAuth } from "@/lib/cron/auth"
 import { fmtDateLongZA } from "@/lib/dates"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 const ELEVEN_MONTHS_MS = 11 * 30 * 24 * 60 * 60 * 1000
 
@@ -104,13 +105,7 @@ async function processWarn30dSub(
       settingsUrl:     absoluteUrl("/settings/subscription"),
     }).catch((e) => console.error("[subscription-purge-warnings] 30d warning send failed for", sub.org_id, e instanceof Error ? e.message : String(e)))
   }
-  await supabase.from("audit_log").insert({
-    org_id: sub.org_id,
-    table_name: "subscriptions",
-    record_id: sub.org_id,
-    action: "UPDATE",
-    new_values: { action: "subscription_purge_warned", purge_eligible_at: purgeEligibleAt.toISOString() },
-  })
+  await recordAudit(supabase, { orgId: sub.org_id, table: "subscriptions", recordId: sub.org_id, action: "UPDATE", after: { action: "subscription_purge_warned", purge_eligible_at: purgeEligibleAt.toISOString() } })
   return true
 }
 
@@ -143,13 +138,7 @@ async function processFinalWarnSub(
       settingsUrl:     absoluteUrl("/settings/subscription"),
     }).catch((e) => console.error("[subscription-purge-warnings] final warning send failed for", sub.org_id, e instanceof Error ? e.message : String(e)))
   }
-  await supabase.from("audit_log").insert({
-    org_id: sub.org_id,
-    table_name: "subscriptions",
-    record_id: sub.org_id,
-    action: "UPDATE",
-    new_values: { action: "subscription_purge_final_warned" },
-  })
+  await recordAudit(supabase, { orgId: sub.org_id, table: "subscriptions", recordId: sub.org_id, action: "UPDATE", after: { action: "subscription_purge_final_warned" } })
   return true
 }
 

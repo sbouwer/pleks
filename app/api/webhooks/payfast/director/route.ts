@@ -13,6 +13,7 @@ import * as Sentry from "@sentry/nextjs"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -80,13 +81,7 @@ export async function POST(req: Request) {
     }
 
     // Audit log — record_id is the payment row, not the co-applicant
-    await service.from("audit_log").insert({
-      org_id:     orgId,
-      table_name: "application_screening_payments",
-      record_id:  payment.id,
-      action:     "UPDATE",
-      new_values: { paid_at: now, payfast_transaction_id: transactionId, fee_cents: feeCents },
-    })
+    await recordAudit(service, { orgId: orgId, table: "application_screening_payments", recordId: payment.id, action: "UPDATE", after: { paid_at: now, payfast_transaction_id: transactionId, fee_cents: feeCents } })
 
     return NextResponse.json({ ok: true })
   } catch (err) {

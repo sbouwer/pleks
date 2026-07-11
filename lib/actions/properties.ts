@@ -88,14 +88,7 @@ export async function createProperty(formData: FormData) {
     created_by: userId,
   })
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "properties",
-    record_id: property.id,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: { name: formData.get("name") },
-  })
+  await recordAudit(db, { orgId: orgId, table: "properties", recordId: property.id, action: "INSERT", actorId: userId, after: { name: formData.get("name") } })
 
   revalidatePath("/properties")
   redirect(`/properties/${property.id}`)
@@ -146,14 +139,7 @@ export async function updateProperty(propertyId: string, formData: FormData) {
     logQueryError("updateProperty properties", propError)
 
   if (prop) {
-    await db.from("audit_log").insert({
-      org_id: prop.org_id,
-      table_name: "properties",
-      record_id: propertyId,
-      action: "UPDATE",
-      changed_by: userId,
-      new_values: updates,
-    })
+    await recordAudit(db, { orgId: prop.org_id, table: "properties", recordId: propertyId, action: "UPDATE", actorId: userId, after: updates })
   }
 
   revalidatePath(`/properties/${propertyId}`)

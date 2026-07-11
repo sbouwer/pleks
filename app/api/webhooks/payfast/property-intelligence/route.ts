@@ -18,6 +18,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -82,13 +83,7 @@ export async function POST(req: Request) {
         )
     }
 
-    await service.from("audit_log").insert({
-      org_id:     orgId,
-      table_name: "property_intelligence_pulls",
-      record_id:  pullId,
-      action:     "UPDATE",
-      new_values: { status: "running", payfast_transaction_id: transactionId },
-    })
+    await recordAudit(service, { orgId: orgId, table: "property_intelligence_pulls", recordId: pullId, action: "UPDATE", after: { status: "running", payfast_transaction_id: transactionId } })
 
     // Fire vendor execution (non-blocking — do not await, ITN must return quickly)
     const runUrl = absoluteUrl(`/api/property-intelligence/run/${pullId}`)

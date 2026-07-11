@@ -16,6 +16,7 @@ import { startTrial as startTrialImpl } from "@/lib/trial/startTrial"
 import { onTierChanged } from "@/lib/tier/onTierChanged"
 import type { Tier } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function activateFoundingAgent(orgId: string) {
   await requireAdminAuth()
@@ -41,13 +42,7 @@ export async function activateFoundingAgent(orgId: string) {
     .eq("org_id", orgId)
     .eq("tier", "steward")
 
-  await supabase.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "organisations",
-    record_id: orgId,
-    action: "UPDATE",
-    new_values: { action: "founding_agent_activated" },
-  })
+  await recordAudit(supabase, { orgId: orgId, table: "organisations", recordId: orgId, action: "UPDATE", after: { action: "founding_agent_activated" } })
 
   return { success: true }
 }
@@ -71,13 +66,7 @@ export async function changeTier(orgId: string, newTier: string) {
     .update({ tier: newTier, status: "active" })
     .eq("org_id", orgId)
 
-  await supabase.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "subscriptions",
-    record_id: orgId,
-    action: "UPDATE",
-    new_values: { action: "tier_changed", tier: newTier },
-  })
+  await recordAudit(supabase, { orgId: orgId, table: "subscriptions", recordId: orgId, action: "UPDATE", after: { action: "tier_changed", tier: newTier } })
 
   // Tier-change side-effects — the Owner→Steward+ identity fork is one (ADDENDUM_01C §5).
   if (oldTier) await onTierChanged(orgId, oldTier, newTier as Tier)

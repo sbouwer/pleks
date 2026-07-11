@@ -28,6 +28,7 @@ import { PRODUCT_LABELS } from "@/lib/property-intelligence/types"
 import { SearchworxError, type SearchworxResult } from "@/lib/searchworx/client"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 // ─── Product dispatch ─────────────────────────────────────────────────────────
 
@@ -89,13 +90,7 @@ async function handleVendorFailure(
     searchworx_response_jsonb: { error: error.message, category: error.category },
   }).eq("id", pullId)
 
-  await service.from("audit_log").insert({
-    org_id:     pull.org_id,
-    table_name: "property_intelligence_pulls",
-    record_id:  pullId,
-    action:     "UPDATE",
-    new_values: { status: newStatus, failure_reason: error.message },
-  })
+  await recordAudit(service, { orgId: pull.org_id as string, table: "property_intelligence_pulls", recordId: pullId, action: "UPDATE", after: { status: newStatus, failure_reason: error.message } })
 
   if (!isNoData && pull.payfast_payment_id) {
     const refundRes = await refundPayment(
@@ -260,11 +255,7 @@ export async function POST(
       },
     ])
 
-    await service.from("audit_log").insert({
-      org_id:     pull.org_id, table_name: "property_intelligence_pulls",
-      record_id:  pullId, action: "UPDATE",
-      new_values: { status: "complete", pdf_storage_path: pleksPath },
-    })
+    await recordAudit(service, { orgId: pull.org_id, table: "property_intelligence_pulls", recordId: pullId, action: "UPDATE", after: { status: "complete", pdf_storage_path: pleksPath } })
 
     return NextResponse.json({ ok: true, status: "complete" })
   } catch (err) {

@@ -15,6 +15,7 @@ import type { createServiceClient } from "@/lib/supabase/server"
 import { recordNoticeServiceEvent } from "./recordServiceEvent"
 import { deemedServiceMeetsFloor } from "./vacateDate"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -76,10 +77,7 @@ export async function bridgeNoticeDelivery(
         .from("tenant_notices").select("vacate_by_date").eq("id", log.entity_id).maybeSingle()
       logQueryError("bridgeNoticeDelivery notice lookup", error)
       if (notice?.vacate_by_date && !deemedServiceMeetsFloor(notice.vacate_by_date as string, new Date(occurredAt))) {
-        await db.from("audit_log").insert({
-          org_id: log.org_id, table_name: "tenant_notices", record_id: log.entity_id, action: "NOTE",
-          new_values: { event: "notice_service_short", reason: "deemed_service_to_vacate_below_floor", vacate_by_date: notice.vacate_by_date },
-        })
+        await recordAudit(db, { orgId: log.org_id, table: "tenant_notices", recordId: log.entity_id, action: "NOTE", after: { event: "notice_service_short", reason: "deemed_service_to_vacate_below_floor", vacate_by_date: notice.vacate_by_date } })
       }
     }
   } catch (e) {

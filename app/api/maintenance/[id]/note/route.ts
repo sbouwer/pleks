@@ -7,6 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { recordAuditReturningId } from "@/lib/audit/recordAudit"
 
 export async function POST(
   req: NextRequest,
@@ -39,17 +40,11 @@ export async function POST(
     return NextResponse.json({ error: "note is required" }, { status: 400 })
   }
 
-  const { error } = await service.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "maintenance_requests",
-    record_id: requestId,
-    action: "NOTE",
-    changed_by: user.id,
-    new_values: { note },
-  })
+  // The note lives in audit_log — a failed write must surface, so use the returning-id writer.
+  const auditId = await recordAuditReturningId(service, { orgId: orgId, table: "maintenance_requests", recordId: requestId, action: "NOTE", actorId: user.id, after: { note } })
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!auditId) {
+    return NextResponse.json({ error: "Failed to record note" }, { status: 500 })
   }
 
   return NextResponse.json({ success: true })
