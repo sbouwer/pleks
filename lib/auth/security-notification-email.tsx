@@ -12,7 +12,8 @@ import { EmailLayout, type OrgBranding } from "@/lib/comms/templates/layout"
 import { render } from "@react-email/components"
 import { sendEmail } from "@/lib/comms/send-email"
 import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
-import { APP_URL, optionalEnv } from "@/lib/env"
+import { optionalEnv } from "@/lib/env"
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 const PLEKS_BRANDING: OrgBranding = { orgName: "Pleks", accentColor: "#E8A838" }
 export type SecurityEventType =
@@ -64,7 +65,7 @@ function SecurityNotificationEmail({ userName, eventType, deviceLabel, location 
       <p style={{ fontFamily: "sans-serif", fontSize: 14, color: "#555", margin: "0 0 12px" }}>If this was you, you can safely ignore this email.</p>
       <p style={{ fontFamily: "sans-serif", fontSize: 14, color: "#555", margin: "0 0 24px" }}>
         If this wasn&apos;t you,{" "}
-        <a href={`${APP_URL}/settings/security`} style={{ color: "#c0392b" }}>secure your account</a>{" "}
+        <a href={absoluteUrl("/settings/security")} style={{ color: "#c0392b" }}>secure your account</a>{" "}
         — review your sign-in methods and change your password.
       </p>
       <p style={{ fontFamily: "sans-serif", fontSize: 13, color: "#999", margin: 0 }}>

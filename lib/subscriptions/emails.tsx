@@ -15,6 +15,7 @@ import {
 } from "@/lib/comms/templates/agent/subscriptions/cancellation"
 import { fmtDateLongZA } from "@/lib/dates"
 import { APP_URL } from "@/lib/env"
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 interface PurgeWarningData {
   cancelledDate:   string
@@ -70,7 +71,7 @@ export async function sendTrialExpired(org: OrgContact, prevTier: string) {
           Subscribe to a paid plan to continue where you left off.
           Your trial data, properties, and leases are waiting.
         </p>
-        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/settings/subscription")} accentColor={PLEKS_BRANDING.accentColor}>
           View plans and upgrade →
         </EmailButton>
       </EmailLayout>
@@ -94,7 +95,7 @@ export async function sendTrialEndingSoon(org: OrgContact, trialEndsAt: string) 
           Your free trial ends on <strong style={S.strong}>{endsDate}</strong>.
           After that, your account will revert to the Owner tier and advanced features will be unavailable.
         </p>
-        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/settings/subscription")} accentColor={PLEKS_BRANDING.accentColor}>
           Upgrade before your trial ends →
         </EmailButton>
         <p style={{ fontSize: 13, color: "#71717a", margin: "12px 0 0" }}>
@@ -130,7 +131,7 @@ export async function sendFoundingExpiryWarning(org: OrgContact, expiresAt: stri
         <p style={S.body}>
           You can review your current plan and pricing on the billing page.
         </p>
-        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/settings/subscription")} accentColor={PLEKS_BRANDING.accentColor}>
           View your billing →
         </EmailButton>
       </EmailLayout>
@@ -199,7 +200,7 @@ export async function sendPastDueFirst(org: OrgContact) {
           If payment is still outstanding after 14 days, your account will be paused.
           Your data remains fully intact and accessible throughout.
         </p>
-        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/settings/subscription")} accentColor={PLEKS_BRANDING.accentColor}>
           Review payment details →
         </EmailButton>
       </EmailLayout>
@@ -229,7 +230,7 @@ export async function sendPastDueDay7(org: OrgContact) {
           While paused, you can still read all existing data and export records — but creating
           new leases, onboarding tenants, and running credit checks will be unavailable.
         </p>
-        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/settings/subscription")} accentColor={PLEKS_BRANDING.accentColor}>
           Update payment details →
         </EmailButton>
       </EmailLayout>
@@ -265,7 +266,7 @@ export async function sendPausedAuto(org: OrgContact) {
           Creating new leases, onboarding new tenants, and running credit checks are unavailable
           until payment is resolved.
         </p>
-        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/settings/subscription")} accentColor={PLEKS_BRANDING.accentColor}>
           Resolve payment and resume →
         </EmailButton>
       </EmailLayout>
@@ -299,7 +300,7 @@ export async function sendDormancyWarning(org: OrgContact, purgeDateStr: string)
         <p style={S.body}>
           If you&apos;d like to keep your account, simply log in — that&apos;s all it takes.
         </p>
-        <EmailButton href={`${APP_URL}/login`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/login")} accentColor={PLEKS_BRANDING.accentColor}>
           Log in to keep your account →
         </EmailButton>
       </EmailLayout>
@@ -328,7 +329,7 @@ export async function sendDormancyFinal(org: OrgContact, purgeDateStr: string) {
           Log in today to keep your account. If you don&apos;t, the account will be closed
           and cannot be recovered.
         </p>
-        <EmailButton href={`${APP_URL}/login`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/login")} accentColor={PLEKS_BRANDING.accentColor}>
           Log in now →
         </EmailButton>
       </EmailLayout>
@@ -438,7 +439,7 @@ export async function sendPausedManual(org: OrgContact, reason: string) {
           Creating new leases, onboarding new tenants, and running credit checks are paused
           until you resume.
         </p>
-        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/settings/subscription")} accentColor={PLEKS_BRANDING.accentColor}>
           Resume subscription →
         </EmailButton>
       </EmailLayout>
@@ -466,7 +467,7 @@ export async function sendResumed(org: OrgContact) {
         <p style={S.body}>
           You can now create new leases, onboard tenants, and use all features on your plan.
         </p>
-        <EmailButton href={`${APP_URL}/dashboard`} accentColor={PLEKS_BRANDING.accentColor}>
+        <EmailButton href={absoluteUrl("/dashboard")} accentColor={PLEKS_BRANDING.accentColor}>
           Go to dashboard →
         </EmailButton>
       </EmailLayout>

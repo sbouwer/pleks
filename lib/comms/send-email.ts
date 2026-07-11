@@ -31,7 +31,8 @@ export type { OrgBranding } from "./templates/layout"
 import type { ReactElement } from "react"
 import { maskEmail } from "@/lib/log/maskPii"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { APP_URL, requireEnv } from "@/lib/env"
+import { requireEnv } from "@/lib/env"
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 function getResend() {
   return new Resend(requireEnv("RESEND_API_KEY"))
@@ -398,7 +399,7 @@ export function buildBranding(orgSettings: OrgSettings | null, unsubscribeToken?
     orgAddress: orgSettings?.address,
     logoUrl: orgSettings?.brand_logo_url,
     accentColor: orgSettings?.brand_accent_color,
-    unsubscribeUrl: unsubscribeToken ? `${APP_URL}/unsubscribe/${unsubscribeToken}` : undefined,
+    unsubscribeUrl: unsubscribeToken ? absoluteUrl(`/unsubscribe/${unsubscribeToken}`) : undefined,
     emergencyPhone: orgSettings?.emergency_phone,
     emergencyContactName: orgSettings?.emergency_contact_name,
   }

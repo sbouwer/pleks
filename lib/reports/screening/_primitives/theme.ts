@@ -24,7 +24,7 @@ function fontSrc(filename: string): string {
   if (optionalEnv("FITSCORE_FONT_SOURCE") === 'local') {
     return path.resolve(process.cwd(), 'public', 'fonts', filename)
   }
-  return `${APP_URL}/fonts/${filename}`
+  return absoluteUrl(`/fonts/${filename}`)
 }
 
 Font.register({
@@ -54,7 +54,8 @@ import type {
 } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { fmtZA } from "@/lib/dates"
-import { APP_URL, optionalEnv } from "@/lib/env"
+import { optionalEnv } from "@/lib/env"
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 // ─── Re-export engine types used across all primitives ────────────────────────
 

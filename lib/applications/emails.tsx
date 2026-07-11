@@ -11,7 +11,8 @@ import { formatZAR } from "@/lib/constants"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { fmtDateLongZA } from "@/lib/dates"
-import { APP_URL } from "@/lib/env"
+
+import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 const SCREENING_FEE = "R399"
 
@@ -53,7 +54,7 @@ export interface OrgContext {
 }
 
 function appRef(id: string) { return `APP-${id.slice(0, 8).toUpperCase()}` }
-function statusUrl(slug: string, id: string, token: string) { return `${APP_URL}/apply/${slug}/status?token=${token}` }
+function statusUrl(slug: string, id: string, token: string) { return absoluteUrl(`/apply/${slug}/status?token=${token}`) }
 function formatEmployment(type = ""): string {
   return ({ permanent: "Permanent", contract: "Contract", commission: "Commission-based", self_employed: "Self-employed", freelance: "Freelance", retired: "Pensioner / retired", grant: "Receiving grants", student: "Student", unemployed: "Unemployed", full_time: "Full-time", part_time: "Part-time", contractor: "Contractor" })[type] ?? type
 }
@@ -264,7 +265,7 @@ export async function sendAgentApplicationNotification(
   opts: { applicationsCount: number }
 ) {
   if (!org.agentEmail) return { success: false as const, error: "No agent email" }
-  const reviewLink = `${APP_URL}/applications/${app.id}`
+  const reviewLink = absoluteUrl(`/applications/${app.id}`)
   const rentToIncome = app.rentToIncomePct != null ? `${app.rentToIncomePct.toFixed(1)}%` : "—"
 
   return sendEmail({
@@ -322,7 +323,7 @@ export async function sendReviewReminder(
             <p key={i} style={{ ...S.body, margin: "4px 0" }}>• {a.name} — {a.listing} — {a.score}/45 — applied {a.appliedAt}</p>
           ))}
         </div>
-        <EmailButton href={`${APP_URL}/listings`} accentColor={org.branding.accentColor}>Review listings →</EmailButton>
+        <EmailButton href={absoluteUrl("/listings")} accentColor={org.branding.accentColor}>Review listings →</EmailButton>
         <p style={S.footer}>Timely reviews help you secure the best tenants.</p>
       </EmailLayout>
     ),
@@ -338,7 +339,7 @@ export async function sendShortlistInvitation(
   org: OrgContext,
   opts: { inviteToken: string }
 ) {
-  const inviteLink = `${APP_URL}/apply/invite/${opts.inviteToken}`
+  const inviteLink = absoluteUrl(`/apply/invite/${opts.inviteToken}`)
 
   return sendEmail({
     orgId: org.orgId,
@@ -463,7 +464,7 @@ export async function sendScreeningComplete(
   const fullName = `${app.firstName} ${app.lastName}`
   const isBlocked = opts.band === 'blocked'
   const isLdp     = opts.band === 'limited_data_profile'
-  const reportUrl = `${APP_URL}/applications/${app.id}`
+  const reportUrl = absoluteUrl(`/applications/${app.id}`)
 
   const subject = isBlocked
     ? `Screening complete — ${fullName} — Material flag raised`
@@ -584,7 +585,7 @@ export async function sendCoApplicantInvited(
   org: OrgContext,
   opts: { accessToken: string; primaryApplicantName: string }
 ) {
-  const inviteLink = `${APP_URL}/apply/co-applicant/${opts.accessToken}`
+  const inviteLink = absoluteUrl(`/apply/co-applicant/${opts.accessToken}`)
 
   return sendEmail({
     orgId: org.orgId,
