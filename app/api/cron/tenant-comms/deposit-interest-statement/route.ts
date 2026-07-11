@@ -19,11 +19,12 @@ import { DepositInterestStatementEmail } from "@/lib/comms/templates/tenant/depo
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarMonths, fmtDateLongZA, saDateISO } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
 interface DepositLease { id: string; org_id: string; tenant_id: string; start_date: string; deposit_amount_cents: number; deposit_interest_rate_percent: number | null }
 
-const fmtR = (cents: number) => "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+const fmtR = (cents: number) => formatZAR(cents, true)
 
 async function resolvePropertyLabel(service: Svc, leaseId: string): Promise<string> {
   const { data: unitRow, error } = await service

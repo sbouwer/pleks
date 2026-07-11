@@ -7,6 +7,7 @@
  */
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer"
 import { fmtZA } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 import type {
   DeedsSearchFacts,
   LightstoneErfShortFacts,
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
 })
 
 const formatCents = (cents: number | null): string =>
-  cents == null ? "—" : `R ${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`
+  cents == null ? "—" : formatZAR(cents, true)
 
 const formatDate = (d: string | null): string => {
   if (!d) return "—"

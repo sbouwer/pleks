@@ -16,6 +16,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { fmtDateLongZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
 import { optionalEnv } from "@/lib/env"
+import { formatZAR } from "@/lib/constants"
 
 function buildPaymentReference(lastName: string | null, unitNumber: string | null): string {
   const surname = (lastName ?? "TENANT")
@@ -32,7 +33,7 @@ function buildPaymentReference(lastName: string | null, unitNumber: string | nul
 }
 
 function fmt(cents: number) {
-  return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+  return formatZAR(cents, true)
 }
 
 function fmtDate(d: string) {

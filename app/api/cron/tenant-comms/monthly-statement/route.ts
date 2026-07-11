@@ -18,11 +18,12 @@ import { MonthlyStatementEmail, type StatementInvoiceRow, type StatementPaymentR
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, addCalendarMonths, fmtDateZA, fmtZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
 function fmt(cents: number) {
-  return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+  return formatZAR(cents, true)
 }
 
 function fmtShort(d: string) {

@@ -21,6 +21,7 @@ import { LeaseCreatedEmail } from "@/lib/comms/templates/tenant/leases/lease-cre
 import { LeaseNoticeAcknowledgedEmail } from "@/lib/comms/templates/tenant/leases/lease-notice-acknowledged"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { addCalendarDays, addCalendarMonths, fmtDateLongZA, saTodayISO } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 type LeaseFormFields = {
   unitId: string
@@ -550,7 +551,7 @@ export async function sendForSigning(leaseId: string) {
       if (tenant?.email) {
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
         const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
-        const rentDisplay = "R " + ((lease.rent_amount_cents as number) / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+        const rentDisplay = formatZAR(lease.rent_amount_cents as number, true)
         const leaseStartDisplay = fmtDateLongZA(lease.start_date as string)
         await routeAndSend({
           orgId,

@@ -11,6 +11,7 @@ import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { saDateISO } from "@/lib/dates"
+import { formatZAR } from "@/lib/constants"
 
 interface SnapshotRow {
   id: string
@@ -40,9 +41,8 @@ interface OrgRow {
   name: string
 }
 
-function formatZAR(cents: number) {
-  const rands = cents / 100
-  return `R ${rands.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function money2dp(cents: number) {
+  return formatZAR(cents, true)
 }
 
 function marginPct(revenue: number, cost: number): string {
@@ -141,11 +141,11 @@ export default async function PlatformHealthPage() {
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-lg border p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Revenue (this month)</p>
-          <p className="text-2xl font-semibold mt-1">{formatZAR(thisPeriodAgg.revenue)}</p>
+          <p className="text-2xl font-semibold mt-1">{money2dp(thisPeriodAgg.revenue)}</p>
         </div>
         <div className="rounded-lg border p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Cost (this month)</p>
-          <p className="text-2xl font-semibold mt-1">{formatZAR(thisPeriodAgg.cost)}</p>
+          <p className="text-2xl font-semibold mt-1">{money2dp(thisPeriodAgg.cost)}</p>
         </div>
         <div className="rounded-lg border p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Gross margin</p>
@@ -175,8 +175,8 @@ export default async function PlatformHealthPage() {
                   return (
                     <tr key={p} className="border-b border-muted">
                       <td className="py-1 pr-4 text-muted-foreground">{p.slice(0, 7)}</td>
-                      <td className="py-1 pr-4 text-right">{formatZAR(agg.revenue)}</td>
-                      <td className="py-1 pr-4 text-right">{formatZAR(agg.cost)}</td>
+                      <td className="py-1 pr-4 text-right">{money2dp(agg.revenue)}</td>
+                      <td className="py-1 pr-4 text-right">{money2dp(agg.cost)}</td>
                       <td className="py-1 text-right">{marginPct(agg.revenue, agg.cost)}</td>
                     </tr>
                   )
@@ -225,8 +225,8 @@ export default async function PlatformHealthPage() {
                         </Link>
                         {isLoss && <span className="ml-1 text-red-600">🚩</span>}
                       </td>
-                      <td className="py-1 pr-3 text-right">{formatZAR(r.total_cost_cents)}</td>
-                      <td className="py-1 pr-3 text-right">{formatZAR(r.revenue_cents)}</td>
+                      <td className="py-1 pr-3 text-right">{money2dp(r.total_cost_cents)}</td>
+                      <td className="py-1 pr-3 text-right">{money2dp(r.revenue_cents)}</td>
                       <td className="py-1 pr-3 text-right">{marginPct(r.revenue_cents, r.total_cost_cents)}</td>
                       <td className={`py-1 pr-3 text-right ${delta.color}`}>{delta.label}</td>
                       <td className="py-1">{r.active_leases}</td>
