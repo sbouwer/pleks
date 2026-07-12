@@ -58,11 +58,14 @@ const BOOK_HEADERS = [
   "Bank Rekening", "Bank Naam",
   // Columns the field audit made importable — an agency's book carries these and we could not take them.
   "Juristic Type", "Turnover Under 2m", "Asset Value Under 2m", "Payment Reference", "Market Rent",
+  // The commonest shape of all: a tenant list that names the property's OWNER, with no separate landlord rows.
+  "Owner Name", "Owner Email", "Owner Phone",
 ]
 
 const BOOK_ROWS: Record<string, string>[] = [
   {
     // af-ZA money: "6 600,50" is R6 600.50. Stripping the comma gives R660 050 — the census #13 bug.
+    "Owner Name": "Pieter van der Merwe", "Owner Email": "pieter@owners.co.za", "Owner Phone": "0821110000",
     Eiendom: "Acacia Hof", Adres: "12 Acacia Rd", Voorstad: "Rondebosch", Stad: "Cape Town",
     Provinsie: "WC", Eenheid: "1",
     Naam: "Thabo", Van: "Nkosi", "E-pos": "thabo@example.co.za", Selfoon: "0821234567",
@@ -75,6 +78,7 @@ const BOOK_ROWS: Record<string, string>[] = [
   },
   {
     // Joint tenants in ONE cell — two people, two emails.
+    "Owner Name": "Pieter van der Merwe", "Owner Email": "pieter@owners.co.za", "Owner Phone": "0821110000",
     Eiendom: "Acacia Hof", Adres: "12 Acacia Rd", Voorstad: "Rondebosch", Stad: "Cape Town",
     Provinsie: "WC", Eenheid: "2",
     Naam: "Donovan & Apphia", Van: "Meyer",
@@ -88,6 +92,7 @@ const BOOK_ROWS: Record<string, string>[] = [
   },
   {
     // Commercial premises, NATURAL-PERSON tenant — CPA s5(2) turns on the consumer, not the premises.
+    "Owner Name": "Coastal Holdings (Pty) Ltd", "Owner Email": "props@coastal.co.za", "Owner Phone": "0212220000",
     Eiendom: "Sea Point Winkelsentrum", Adres: "9 Main Rd", Voorstad: "Sea Point", Stad: "Cape Town",
     Provinsie: "Western Cape", Eenheid: "Shop 3",
     Naam: "Lerato", Van: "Dlamini", "E-pos": "lerato@example.co.za", Selfoon: "0845551234",
@@ -100,6 +105,7 @@ const BOOK_ROWS: Record<string, string>[] = [
   },
   {
     // A freestanding house: BLANK unit number. A re-run must not duplicate it.
+    "Owner Name": "Nomvula Zwane", "Owner Email": "nomvula@owners.co.za", "Owner Phone": "0833330000",
     Eiendom: "14 Protea Straat", Adres: "14 Protea St", Voorstad: "Durbanville", Stad: "Cape Town",
     Provinsie: "wes-kaap", Eenheid: "",
     Naam: "Sipho", Van: "Zulu", "E-pos": "sipho@example.co.za", Selfoon: "0791112222",
@@ -112,6 +118,7 @@ const BOOK_ROWS: Record<string, string>[] = [
   },
   {
     // A (Pty) Ltd tenant → juristic → CPA INDETERMINATE (no import format carries turnover bands).
+    "Owner Name": "Coastal Holdings (Pty) Ltd", "Owner Email": "props@coastal.co.za", "Owner Phone": "0212220000",
     Eiendom: "Sea Point Winkelsentrum", Adres: "9 Main Rd", Voorstad: "Sea Point", Stad: "Cape Town",
     Provinsie: "WC", Eenheid: "Shop 4",
     Naam: "Kagiso", Van: "Trading (Pty) Ltd", "E-pos": "accounts@kagisotrading.co.za",
@@ -131,6 +138,7 @@ const BOOK_ROWS: Record<string, string>[] = [
   },
   {
     // EXPIRED. Under the wizard's DEFAULT ("skip expired") this becomes tenancy history, not a lease.
+    "Owner Name": "Pieter van der Merwe", "Owner Email": "pieter@owners.co.za", "Owner Phone": "0821110000",
     Eiendom: "Acacia Hof", Adres: "12 Acacia Rd", Voorstad: "Rondebosch", Stad: "Cape Town",
     Provinsie: "WC", Eenheid: "3",
     Naam: "Nomsa", Van: "Mbeki", "E-pos": "nomsa@example.co.za", Selfoon: "0723334444",
@@ -143,6 +151,7 @@ const BOOK_ROWS: Record<string, string>[] = [
   },
   {
     // UNCLASSIFIABLE lease type ("Sectional Title" is a TENURE, not a use). Must be REFUSED, loudly.
+    "Owner Name": "Pieter van der Merwe", "Owner Email": "pieter@owners.co.za", "Owner Phone": "0821110000",
     Eiendom: "Acacia Hof", Adres: "12 Acacia Rd", Voorstad: "Rondebosch", Stad: "Cape Town",
     Provinsie: "WC", Eenheid: "4",
     Naam: "Ayanda", Van: "Khumalo", "E-pos": "ayanda@example.co.za", Selfoon: "0611239999",
@@ -334,6 +343,42 @@ describe("ACCEPTANCE — a realistic af-ZA agency book through the real front do
     expect(data?.size_bands_captured_at, "the capture is dated, so the determination is auditable").toBeTruthy()
   })
 
+  // ── 4c. The OWNER is a real entity, linked — not denormalised text nobody can bill ────────────────
+
+  it("LANDLORDS: every property is attached to a real landlord entity, and the leases inherit it", async () => {
+    // The importer wrote the owner onto the property as TEXT (owner_name/owner_email) and never created or
+    // linked a landlord entity — and its landlord dedup checked properties.owner_email, which THIS SAME IMPORT
+    // had just written, so the landlord was always skipped. Net effect: no landlord entity existed at all.
+    // ownerLedger finds a landlord's properties via properties.landlord_id (null ⇒ their ledger page is EMPTY),
+    // and financeHub groups owner balances by landlord_id with `?? "unknown"` (⇒ money owed to owners collapses
+    // into one unnamed bucket). Statements still emailed, so nothing LOOKED broken.
+    expect(first.landlordsLinked, "all three properties attached to an owner").toBe(3)
+
+    const { data: props, error } = await db
+      .from("properties").select("name, owner_email, landlord_id").eq("org_id", orgId)
+    expect(error).toBeFalsy()
+    for (const p of props ?? []) {
+      expect(p.landlord_id, `${p.name} has a real owner entity, not just an email`).toBeTruthy()
+    }
+
+    // The owner was created from the property's OWN owner columns — the book never gave a landlord row.
+    const { data: owner, error: ownerError } = await db
+      .from("landlord_view").select("id, email").eq("org_id", orgId).ilike("email", "pieter@owners.co.za").single()
+    expect(ownerError).toBeFalsy()
+    expect(owner?.id).toBeTruthy()
+
+    // …and the leases inherit it, so a lease knows its owner without going via the property.
+    const { data: leases, error: leaseError } = await db
+      .from("leases").select("landlord_id").eq("org_id", orgId)
+    expect(leaseError).toBeFalsy()
+    for (const l of leases ?? []) {
+      expect(l.landlord_id, "every lease knows its landlord").toBeTruthy()
+    }
+
+    // Nothing left for the agent to link by hand — the join key was in their file all along.
+    expect(first.pendingLandlordLinks ?? [], "no manual linking chore").toHaveLength(0)
+  })
+
   // ── 5. PII, consent and audit — what a regulator would read ───────────────────────────────────────
 
   it("PII: id_number and bank account are ENCRYPTED at rest, and recoverable", async () => {
@@ -399,6 +444,7 @@ describe("ACCEPTANCE — a realistic af-ZA agency book through the real front do
       deposits: await countOf("deposit_transactions", orgId),
       trust: await countOf("trust_transactions", orgId),
       history: await countOf("tenancy_history", orgId),
+      landlords: await countOf("landlords", orgId),
     }
 
     const second = await importBook(orgId, agentId, throughCsv())
@@ -407,6 +453,7 @@ describe("ACCEPTANCE — a realistic af-ZA agency book through the real front do
     expect(second.unitsCreated).toBe(0)
     expect(second.leasesCreated).toBe(0)
     expect(second.depositsMigratedCents, "an agency's deposit book is not posted twice").toBe(0)
+    expect(second.landlordsLinked, "the owners are already linked — nothing to redo").toBe(0)
 
     expect(await countOf("properties", orgId)).toBe(before.properties)
     expect(await countOf("units", orgId), "the blank-unit house did not duplicate").toBe(before.units)
@@ -415,6 +462,7 @@ describe("ACCEPTANCE — a realistic af-ZA agency book through the real front do
     expect(await countOf("deposit_transactions", orgId)).toBe(before.deposits)
     expect(await countOf("trust_transactions", orgId)).toBe(before.trust)
     expect(await countOf("tenancy_history", orgId)).toBe(before.history)
+    expect(await countOf("landlords", orgId), "no duplicate owners").toBe(before.landlords)
   })
 
   // ── 8. XLSX — the same book, the other file format ────────────────────────────────────────────────

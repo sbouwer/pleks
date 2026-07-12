@@ -51,6 +51,8 @@ export interface ImportResult {
   notesCreated: number
   contractorsCreated: number
   landlordsImported: number
+  /** Properties attached to a real landlord ENTITY (not just denormalised owner text). */
+  landlordsLinked: number
   agentInvitesSent: number
   bankAccountsImported: number
   /** Total deposit money carried into the deposit/trust sub-ledger as opening balances. */
@@ -2304,20 +2306,13 @@ async function importLandlords(
     }
 
     try {
-      // Dedup against properties.owner_email
-      const { data: existingProperty, error: existingPropertyError } = await ctx.supabase
-        .from("properties")
-        .select("id")
-        .eq("org_id", ctx.orgId)
-        .ilike("owner_email", email)
-        .limit(1)
-        .maybeSingle()
-      logIfError("importRunner properties owner_email lookup failed", existingPropertyError)
-
-      if (existingProperty) {
-        ctx.result.skipped++
-        continue
-      }
+      // NO dedup against properties.owner_email any more — it was SELF-DEFEATING. Phase 2 of this very import
+      // writes owner_email onto every property, so by the time we got here the check always matched and the
+      // landlord was skipped: in the ordinary case, where a book gives both the property's owner and a landlord
+      // row for that owner, NO LANDLORD ENTITY WAS EVER CREATED. The owner existed only as denormalised text on
+      // the property — so their ledger was empty, and Finance grouped the money owed to them under "unknown".
+      // A property carrying an owner's email is a reason to LINK, not a reason to skip. That happens in
+      // linkLandlordsToProperties below.
 
       // Dedup against pending_landlords.email
       const { data: existingPending, error: existingPendingError } = await ctx.supabase
@@ -2402,6 +2397,136 @@ async function importLandlords(
       })
     }
   }
+}
+
+// ── Landlord ↔ property linking ─────────────────────────────────────────
+
+/**
+ * Attach every imported property to a real landlord ENTITY, and cascade that to its leases.
+ *
+ * The importer wrote the owner onto the property as denormalised text (owner_name / owner_email /
+ * owner_bank_*) and, separately, created `landlords` rows — and never linked the two. The consequences were
+ * quiet and financial:
+ *   - `ownerLedger` finds a landlord's properties via `properties.landlord_id`. Null ⇒ the landlord's ledger
+ *     page is EMPTY, however many properties they own.
+ *   - `financeHub` groups owner balances by `owner_statements.landlord_id` with `?? "unknown"` ⇒ money owed to
+ *     owners collapses into a single unnamed "unknown" bucket.
+ *   - Owner statements still generate and email (they key off `owner_email`), so nothing looks broken — which
+ *     is exactly why nobody would notice.
+ *
+ * The join key was in the file all along: `properties.owner_email` IS the landlord's contact email. So we
+ * match on it, and CREATE the landlord from the property's own owner columns when the book never gave a
+ * separate landlord row (the common shape: a tenant list with owner_name/owner_email columns and no landlord
+ * rows at all — which previously produced no landlord entity anywhere).
+ *
+ * `pendingLandlordLinks` now carries only the GENUINE misses — a landlord whose email matched no property —
+ * which is what that list was always supposed to mean. It used to list every landlord, linked or not, and tell
+ * the agent to go and link 200 of them by hand.
+ */
+async function linkLandlordsToProperties(ctx: ImportContext): Promise<void> {
+  const { data: properties, error } = await ctx.supabase
+    .from("properties")
+    .select("id, name, owner_email, owner_name, owner_phone")
+    .eq("org_id", ctx.orgId)
+    .is("landlord_id", null)
+    .not("owner_email", "is", null)
+  logIfError("importRunner properties for landlord linking", error)
+
+  for (const property of properties ?? []) {
+    const email = String(property.owner_email ?? "").toLowerCase().trim()
+    if (!email) continue
+
+    const landlordId = await findOrCreateLandlord(email, property, ctx)
+    if (!landlordId) continue
+
+    const { error: linkError } = await ctx.supabase
+      .from("properties").update({ landlord_id: landlordId })
+      .eq("id", property.id).eq("org_id", ctx.orgId)
+    if (linkError) {
+      ctx.result.errors.push({
+        rowIndex: -1, field: "owner_email", severity: "warning",
+        message: `Could not link "${property.name}" to its owner: ${linkError.message}`,
+      })
+      continue
+    }
+    ctx.result.landlordsLinked++
+
+    // Cascade to the leases on that property. leases.landlord_id is nullable and read by the lease detail,
+    // maintenance-approval and finance surfaces; a lease that knows its owner does not have to go via the
+    // property to find them.
+    const { error: leaseError } = await ctx.supabase
+      .from("leases").update({ landlord_id: landlordId })
+      .eq("property_id", property.id).eq("org_id", ctx.orgId).is("landlord_id", null)
+    logIfError("importRunner cascade landlord to leases", leaseError)
+  }
+
+  // Whatever is left in pendingLandlordLinks is a landlord who matched NO property — a real miss the agent
+  // must resolve, not a chore we made for them.
+  const { data: linked, error: linkedError } = await ctx.supabase
+    .from("properties").select("owner_email").eq("org_id", ctx.orgId).not("landlord_id", "is", null)
+  logIfError("importRunner linked-owner read-back", linkedError)
+
+  // Fail CONSERVATIVE: if we cannot read back what got linked, leave the list alone. Treating an errored read
+  // as "nothing is linked" would be harmless; treating it as "everything is linked" would silently drop a real
+  // miss. Showing the agent a chore they have already done is the cheaper mistake.
+  if (linkedError) return
+
+  const linkedEmails = new Set((linked ?? []).map((p) => String(p.owner_email ?? "").toLowerCase()))
+  ctx.result.pendingLandlordLinks = ctx.result.pendingLandlordLinks.filter(
+    (l) => !linkedEmails.has(l.email.toLowerCase()),
+  )
+}
+
+/** An existing landlord for this email, or one created from the property's own owner columns. */
+async function findOrCreateLandlord(
+  email: string,
+  property: { name?: unknown; owner_name?: unknown; owner_phone?: unknown },
+  ctx: ImportContext,
+): Promise<string | null> {
+  const { data: existing, error: existingError } = await ctx.supabase
+    .from("landlord_view").select("id").eq("org_id", ctx.orgId).ilike("email", email).limit(1).maybeSingle()
+  logIfError("importRunner landlord_view lookup", existingError)
+  if (existing) return String(existing.id)
+
+  // The book never gave a landlord row for this owner — but the property told us who they are. Create them.
+  const ownerName = String(property.owner_name ?? "").trim()
+  const { firstName, lastName } = splitFullName(ownerName)
+
+  const { data: contact, error: contactError } = await ctx.supabase
+    .from("contacts")
+    .insert({
+      org_id: ctx.orgId,
+      entity_type: resolveEntityType("", ownerName),
+      primary_role: "landlord",
+      first_name: firstName || (ownerName ? null : "Unknown"),
+      last_name: lastName || (ownerName ? null : "Unknown"),
+      company_name: resolveEntityType("", ownerName) === "organisation" ? ownerName : null,
+      primary_email: email,
+      primary_phone: String(property.owner_phone ?? "") || null,
+    })
+    .select("id").single()
+  if (contactError || !contact) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "owner_email", severity: "warning",
+      message: `Could not create the owner of "${String(property.name ?? "")}": ${contactError?.message ?? "unknown error"}`,
+    })
+    return null
+  }
+
+  const { data: landlord, error: landlordError } = await ctx.supabase
+    .from("landlords")
+    .insert({ org_id: ctx.orgId, contact_id: contact.id, created_by: ctx.agentId })
+    .select("id").single()
+  if (landlordError || !landlord) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "owner_email", severity: "warning",
+      message: `Could not create the owner of "${String(property.name ?? "")}": ${landlordError?.message ?? "unknown error"}`,
+    })
+    return null
+  }
+
+  ctx.result.landlordsImported++
+  return String(landlord.id)
 }
 
 // ── Agent import ───────────────────────────────────────────────────────
@@ -2527,6 +2652,7 @@ export async function runImport(
       notesCreated: 0,
       contractorsCreated: 0,
       landlordsImported: 0,
+      landlordsLinked: 0,
       agentInvitesSent: 0,
       bankAccountsImported: 0,
       depositsMigratedCents: 0,
@@ -2605,6 +2731,9 @@ export async function runImport(
 
   // Phase 9: Import landlords
   await importLandlords(routed.landlordRows, ctx)
+
+  // Phase 9b: attach every property to a real landlord entity, and cascade to its leases.
+  await linkLandlordsToProperties(ctx)
 
   // Phase 10: Import agents
   await importAgents(routed.agentRows, ctx)
