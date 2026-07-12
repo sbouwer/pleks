@@ -64,7 +64,18 @@ export interface ConflictDecision {
   previousIndices?: number[]
 }
 
-export type ExpiredDecision = "import_active_only" | "import_all" | "import_as_history"
+/**
+ * What to do with a lease whose end date has already passed.
+ *   import_active_only — no lease row; the tenancy is recorded as tenancy_history instead ("Skip expired
+ *                        leases", the wizard's default and recommended option)
+ *   import_all         — create the lease with status 'expired' ("Import as expired")
+ *
+ * A third member, `import_as_history`, used to be declared here with NO branch anywhere — so setting it
+ * typechecked and silently produced `import_all` behaviour: expired leases created as lease rows, the exact
+ * opposite of "as history". A dead enum member that means its own opposite is a fail-open waiting for its
+ * first caller. Removed; `import_active_only` already IS the as-history behaviour.
+ */
+export type ExpiredDecision = "import_active_only" | "import_all"
 
 export interface ImportDecisions {
   conflicts: ConflictDecision[]
@@ -1205,13 +1216,22 @@ async function processActiveLease(
   // compares it to local now, so a lease ending TODAY imports as "expired" and drops out of every active-lease
   // surface. Both sides are SA calendar days here.
   const endedInPast = normalisedEnd ? normalisedEnd < saTodayISO() : false
-  // Step 3's "Keep active" checkbox: the agent has told us this lease is live despite the stale end date
-  // (a renewal that was never captured in the old system — extremely common in a migrated book).
-  const isExpired = endedInPast && !ctx.forceActiveRows.has(index)
+  // Step 3's "Keep active" checkbox: the agent has told us this lease is live despite the stale end date (a
+  // renewal the old system never captured — extremely common in a migrated book).
+  //
+  // Checked across the WHOLE group, not just its first row. Step 3 renders a checkbox per FILE ROW and knows
+  // nothing about unit grouping, so co-tenants on one unit appear as two identical-looking lines. Testing only
+  // `firstActive.index` meant ticking the second line did nothing — and under the "skip" default the lease the
+  // agent had just explicitly rescued was diverted to history and never created. One lease, one decision.
+  const isExpired = endedInPast && !activeRows.some((r) => ctx.forceActiveRows.has(r.index))
 
   if (isExpired && ctx.decisions.expiredLeases === "import_active_only") {
     for (const ar of activeRows) {
       await createTenancyHistory(ar, unitId, ctx)
+      // COUNT it. This branch was dead until the decisions contract was wired (F-13), and it withholds a lease
+      // the agent can see in their file — so leaving it uncounted would report "28 leases created, 0 skipped"
+      // on a 40-row book with 12 expired leases, telling the agent nothing about the 12.
+      ctx.result.skipped++
     }
     return
   }

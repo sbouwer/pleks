@@ -19,6 +19,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { svc, seedEmptyOrg, seedUser, teardownOrg, teardownUser } from "@/test/db/tier"
 import { runImport, type ColumnMapping, type ImportDecisions, type ImportResult } from "@/lib/import/importRunner"
 import { toImportDecisions } from "@/lib/import/decisions"
+import { saTodayISO, addCalendarMonths } from "@/lib/dates"
 
 const db = svc()
 
@@ -48,27 +49,35 @@ const mapping: ColumnMapping = Object.fromEntries(
 // test a shape production never produces.
 const decisions: ImportDecisions = toImportDecisions({ expiredLeaseAction: "import_as_expired" })
 
+/** A DD/MM/YYYY date `months` from today (negative = past). Fixtures must be relative: the runner compares
+ *  end_date to saTodayISO(), so a literal "28/02/2027" quietly flips an expired/active assertion in 2027. */
+function dmy(months: number): string {
+  const iso = addCalendarMonths(saTodayISO(), months)
+  const [y, m, d] = iso.split("-")
+  return `${d}/${m}/${y}`
+}
+
 /** A realistic af-ZA book: an abbreviated province, a commercial lease, joint tenants, and one bad cell. */
 const ROWS: Record<string, string>[] = [
   {
     // R6 600,00 exported as 660000 CENTS by a Pleks-shaped re-export. "Retail" is a COMMERCIAL lease.
     Property: "Acacia Court", Address: "12 Acacia Rd", City: "Cape Town", Province: "WC", Unit: "1",
     "First Name": "Thabo", "Last Name": "Nkosi", Email: "thabo@example.co.za",
-    "Lease Start": "01/03/2026", "Lease End": "28/02/2027",
+    "Lease Start": dmy(-4), "Lease End": dmy(+8),
     monthly_rent_cents: "660000", "Lease Type": "Retail",
   },
   {
     // Joint tenants: one row, two people, two emails.
     Property: "Acacia Court", Address: "12 Acacia Rd", City: "Cape Town", Province: "WC", Unit: "2",
     "First Name": "Donovan & Apphia", "Last Name": "Meyer", Email: "donovan@example.co.za, apphia@example.co.za",
-    "Lease Start": "01/04/2026", "Lease End": "31/03/2027",
+    "Lease Start": dmy(-3), "Lease End": dmy(+9),
     monthly_rent_cents: "850000", "Lease Type": "Residential",
   },
   {
     // An unclassifiable lease type. It must REFUSE the lease, not quietly file it as residential.
     Property: "Acacia Court", Address: "12 Acacia Rd", City: "Cape Town", Province: "WC", Unit: "3",
     "First Name": "Lerato", "Last Name": "Dlamini", Email: "lerato@example.co.za",
-    "Lease Start": "01/05/2026", "Lease End": "30/04/2027",
+    "Lease Start": dmy(-2), "Lease End": dmy(+10),
     monthly_rent_cents: "700000", "Lease Type": "Mixed Use",
   },
 ]
@@ -196,7 +205,7 @@ describe("bulk import — against the real schema", () => {
       const rows: Record<string, string>[] = [{
         Property: "Blank Type Court", Address: "1 Blank Rd", City: "Cape Town", Province: "WC", Unit: "1",
         "First Name": "Ayanda", "Last Name": "Khumalo", Email: "ayanda@example.co.za",
-        "Lease Start": "01/03/2026", "Lease End": "28/02/2027",
+        "Lease Start": dmy(-4), "Lease End": dmy(+8),
         monthly_rent_cents: "500000", "Lease Type": "",     // ← blank, column IS mapped
       }]
       const r = await runImport(rows, mapping, decisions, org, agentId, undefined, db)
@@ -222,7 +231,7 @@ describe("bulk import — against the real schema", () => {
       const rows: Record<string, string>[] = [{
         Property: "Yebo Court", Address: "2 Yebo Rd", City: "Cape Town", Province: "WC", Unit: "1",
         "First Name": "Nomsa", "Last Name": "Mbeki", Email: "nomsa@example.co.za",
-        "Lease Start": "01/03/2026", "Lease End": "28/02/2027",
+        "Lease Start": dmy(-4), "Lease End": dmy(+8),
         monthly_rent_cents: "600000", "Lease Type": "Residential",
         CPA: "Y", "Fixed Term": "Y",
       }]
@@ -255,18 +264,20 @@ describe("bulk import — against the real schema", () => {
 
   // ── F-13: the wizard's decisions must actually reach the runner ──
 
-  /** One lease that ended in the past, one that is live. */
+  /** One lease that ended in the past, one that is live — RELATIVE TO TODAY. The runner compares end_date
+   *  against saTodayISO(), so a hard-coded future date is a time bomb: these assertions would silently invert
+   *  the day the literal fell into the past. */
   const EXPIRED_ROWS: Record<string, string>[] = [
     {
       Property: "Expiry Court", Address: "9 Expiry Rd", City: "Cape Town", Province: "WC", Unit: "1",
       "First Name": "Pieter", "Last Name": "Botha", Email: "pieter@example.co.za",
-      "Lease Start": "01/01/2023", "Lease End": "31/12/2023",       // dead
+      "Lease Start": dmy(-24), "Lease End": dmy(-12),      // ended a year ago
       monthly_rent_cents: "400000", "Lease Type": "Residential",
     },
     {
       Property: "Expiry Court", Address: "9 Expiry Rd", City: "Cape Town", Province: "WC", Unit: "2",
       "First Name": "Zanele", "Last Name": "Ndlovu", Email: "zanele@example.co.za",
-      "Lease Start": "01/03/2026", "Lease End": "28/02/2027",       // live
+      "Lease Start": dmy(-4), "Lease End": dmy(+8),        // still running
       monthly_rent_cents: "550000", "Lease Type": "Residential",
     },
   ]
@@ -327,6 +338,42 @@ describe("bulk import — against the real schema", () => {
     }
   })
 
+  it("F-13: \"Keep active\" works on ANY row of a unit group, not just its first", async () => {
+    // Step 3 renders a checkbox per FILE ROW and knows nothing about unit grouping, so co-tenants on one unit
+    // are two identical-looking lines. Testing only the group's FIRST row meant ticking the second line did
+    // nothing — and the lease the agent had just explicitly rescued was diverted to history and never created.
+    const org = await seedEmptyOrg(db)
+    try {
+      const coTenantRows: Record<string, string>[] = [
+        {
+          Property: "Sea Point", Address: "3 Beach Rd", City: "Cape Town", Province: "WC", Unit: "3A",
+          "First Name": "Alice", "Last Name": "Smit", Email: "alice@example.co.za",
+          "Lease Start": dmy(-24), "Lease End": dmy(-12),   // stale-dated
+          monthly_rent_cents: "480000", "Lease Type": "Residential",
+        },
+        {
+          Property: "Sea Point", Address: "3 Beach Rd", City: "Cape Town", Province: "WC", Unit: "3A",
+          "First Name": "Bob", "Last Name": "Smit", Email: "bob@example.co.za",
+          "Lease Start": dmy(-24), "Lease End": dmy(-12),   // same unit → same group, row 1
+          monthly_rent_cents: "480000", "Lease Type": "Residential",
+        },
+      ]
+
+      // The agent ticks "Keep active" on the SECOND line (row 1) — not the group's first row.
+      const keepActive = toImportDecisions({
+        expiredLeaseAction: "skip",
+        perRowOverrides: { 1: "active" },
+      })
+      const r = await runImport(coTenantRows, mapping, keepActive, org, agentId, undefined, db)
+
+      expect(r.leasesCreated, "the override must rescue the group's lease").toBe(1)
+      const leases = await leasesOf(org)
+      expect(leases[0]?.status, "kept ACTIVE despite the stale end date").toBe("active")
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
   it("F-13: a per-row \"skip\" drops the row entirely", async () => {
     const org = await seedEmptyOrg(db)
     try {
@@ -356,7 +403,7 @@ describe("bulk import — against the real schema", () => {
       const houseRows: Record<string, string>[] = [{
         Property: "14 Protea Street", Address: "14 Protea St", City: "Durban", Province: "KZN", Unit: "",
         "First Name": "Sipho", "Last Name": "Zulu", Email: "sipho@example.co.za",
-        "Lease Start": "01/02/2026", "Lease End": "31/01/2027",
+        "Lease Start": dmy(-5), "Lease End": dmy(+7),
         monthly_rent_cents: "900000", "Lease Type": "Residential",
       }]
 
