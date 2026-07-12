@@ -14,6 +14,7 @@ import {
   SA_PROVINCES, type Classification,
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
+import { resolveDepositRate, postOpeningDeposit } from "./depositImport"
 import { normaliseBranchCode } from "./bankImport"
 import { bankAccountColumns } from "@/lib/crypto/bankAccount"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
@@ -51,6 +52,8 @@ export interface ImportResult {
   landlordsImported: number
   agentInvitesSent: number
   bankAccountsImported: number
+  /** Total deposit money carried into the deposit/trust sub-ledger as opening balances. */
+  depositsMigratedCents: number
   skipped: number
   errors: ImportError[]
   pendingLandlordLinks: Array<{ pendingLandlordId: string; name: string; email: string }>
@@ -92,6 +95,8 @@ export interface ImportDecisions {
    *  This is the AGENT'S declaration — never the data subject's consent. Undefined/false ⇒ bank accounts are
    *  recorded as UNCONSENTED (they used to be written `consent_given: true` unconditionally). */
   bankConsentAttested?: boolean
+  /** The agency confirmed it HOLDS these deposits. Without it, nothing is posted to the trust ledger. */
+  depositsHeldAttested?: boolean
 }
 
 type TenantRole = "primary" | "co_tenant" | "previous"
@@ -1202,6 +1207,18 @@ function optionalLeaseFields(
     } else out.payment_due_day = dueDay
   }
 
+  // The rate this deposit was actually taken at, if the agency's export carries it. Locale-aware (an af-ZA
+  // "7,5" through parseFloat is 7). Nothing beats the real rate — see migrateDeposit's ladder.
+  const depositRateRaw = getField(row, "deposit_interest_rate_percent", ctx.mapping)
+  if (depositRateRaw) {
+    const pct = normalisePercent(depositRateRaw)
+    if (pct === null) {
+      flagForReview(ctx, rowIndex, "deposit_interest_rate_percent",
+        `Could not read the deposit interest rate "${depositRateRaw}" as a percentage — the deposit was migrated ` +
+        `without a rate, so interest is NOT accruing on it until you set one.`)
+    } else out.deposit_interest_rate_percent = pct
+  }
+
   const noticeDaysRaw = getField(row, "notice_period_days", ctx.mapping)
   if (noticeDaysRaw) {
     const noticeDays = Number.parseInt(noticeDaysRaw, 10)
@@ -1427,6 +1444,10 @@ async function processActiveLease(
       await markUnitOccupied(unitId, ctx)
     }
 
+    // The deposit the agency ALREADY HOLDS: resolve its interest rate (or hold), and carry the money into the
+    // deposit/trust sub-ledger as an opening balance.
+    await migrateDeposit(leaseId, unitId, propertyId, primaryTenantId, built.data, index, ctx)
+
     // Primary tenant_id is already set at insert; this loop now only surfaces the co-tenant "not linked" notice.
     for (const ar of activeRows) {
       await linkTenantToLease(ar, leaseId, ctx)
@@ -1435,6 +1456,79 @@ async function processActiveLease(
     const msg = err instanceof Error ? err.message : "Unknown error"
     ctx.result.errors.push({ rowIndex: index, field: "lease_start", message: `Lease error: ${msg}`, severity: "error" })
   }
+}
+
+/**
+ * Migrate the deposit the agency ALREADY HOLDS (Stéan ruling, 2026-07-12).
+ *
+ * Two things, kept apart on purpose:
+ *
+ * THE RATE. RHA s5(3) interest cannot accrue without one, and the rate a deposit was taken at years ago by
+ * another system is not something Pleks can infer. `accrueDepositInterest` would otherwise fall back to a
+ * HARD-CODED 5% p.a. — inventing a rate and applying it to money held in trust for someone else. So:
+ * the file's rate → else the agency's own CONFIGURED rate → else `imported_not_set`, which HOLDS accrual until
+ * an agent sets one. A held deposit accrues NOTHING; it does not accrue wrongly.
+ *
+ * THE LEDGER. The money is real, so it belongs in the deposit/trust sub-ledger as an OPENING BALANCE, or a
+ * move-out reconciliation has no principal and the trust ledger under-states what the agency holds. But posting
+ * into a trust ledger asserts a bank reality Pleks cannot see, so it is gated on the agent confirming the
+ * agency actually holds these deposits. Not confirmed ⇒ the amount stays on the lease, NOTHING is posted, and
+ * the lease is flagged. A trust ledger that silently disagrees with the bank is worse than an empty one.
+ */
+async function migrateDeposit(
+  leaseId: string,
+  unitId: string,
+  propertyId: string,
+  tenantId: string,
+  leaseData: Record<string, unknown>,
+  rowIndex: number,
+  ctx: ImportContext,
+): Promise<void> {
+  const depositCents = typeof leaseData.deposit_amount_cents === "number" ? leaseData.deposit_amount_cents : 0
+  if (depositCents <= 0) return
+
+  // ── The rate ladder.
+  const filePercent = typeof leaseData.deposit_interest_rate_percent === "number"
+    ? leaseData.deposit_interest_rate_percent
+    : null
+  const rate = await resolveDepositRate(ctx.supabase, ctx.orgId, filePercent)
+
+  const { error: rateError } = await ctx.supabase
+    .from("leases")
+    .update({ deposit_interest_rate_percent: rate.ratePercent, deposit_rate_status: rate.status })
+    .eq("id", leaseId).eq("org_id", ctx.orgId)
+  logIfError("importRunner deposit rate", rateError)
+
+  if (rate.status === "imported_not_set") {
+    flagForReview(ctx, rowIndex, "deposit_amount_cents",
+      "This deposit was migrated but no interest rate is known for it — not in the file, and your agency has no " +
+      "deposit-interest rate configured. Interest is NOT accruing on it: we will not guess a rate on money you " +
+      "hold in trust for someone else. Set the rate on the lease (or configure one for the agency) and accrual starts.")
+  }
+
+  // ── The ledger. Fail-closed: no attestation, no trust posting.
+  if (ctx.decisions.depositsHeldAttested !== true) {
+    flagForReview(ctx, rowIndex, "deposit_amount_cents",
+      "The deposit amount is recorded on the lease, but nothing was posted to your deposit/trust ledger because " +
+      "you did not confirm the agency holds these deposits. Until it is posted, a move-out reconciliation for " +
+      "this lease has no principal.")
+    return
+  }
+
+  const posted = await postOpeningDeposit(ctx.supabase, {
+    orgId: ctx.orgId, leaseId, tenantId, propertyId, unitId,
+    amountCents: depositCents, actorId: ctx.agentId,
+  })
+
+  if (posted.error) {
+    ctx.result.errors.push({
+      rowIndex, field: "deposit_amount_cents", severity: "error",
+      message: `The lease imported, but its deposit could NOT be posted to the trust ledger: ${posted.error}. ` +
+        `The money is not represented in the ledger — resolve this before relying on any trust balance.`,
+    })
+    return
+  }
+  if (posted.posted) ctx.result.depositsMigratedCents += depositCents
 }
 
 /**
@@ -2193,6 +2287,7 @@ export async function runImport(
       landlordsImported: 0,
       agentInvitesSent: 0,
       bankAccountsImported: 0,
+      depositsMigratedCents: 0,
       skipped: 0,
       errors: [],
       pendingLandlordLinks: [],
