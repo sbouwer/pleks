@@ -501,11 +501,13 @@ Sequence push / prod-SQL / deploy actions at the END of a task: complete all loc
 
 Custom subagents live in `.claude/agents/`. Delegate to them PROACTIVELY — they run with their own context window, so repo-wide file dumps never pollute the main session:
 
-- **census** — any repo-wide count, search, classification, or find-all-usages. Never run a multi-file grep sweep inline; spawn census and receive the classified result.
-- **grounder** — at the START of every spec implementation: it maps the existing machinery the spec touches (helpers, tables + migration §, gates, SSOTs) so you extend instead of duplicate.
-- **walker** — before opening or un-drafting any PR: read-only adversarial review of the diff against origin.
+- **census** (read-only, Sonnet) — any repo-wide count, search, classification, or find-all-usages. Never run a multi-file grep sweep inline; spawn census and receive the classified result.
+- **grounder** (read-only, Sonnet) — at the START of every spec implementation: it maps the existing machinery the spec touches (helpers, tables + migration §, gates, SSOTs) so you extend instead of duplicate.
+- **walker** (read-only, Opus) — before opening or un-drafting any PR: read-only adversarial review of the diff against origin.
+- **implementer** (WRITE, Sonnet) — a PRE-SCOPED mechanical transform: a codemod, a migrate-these-N-sites sweep, a rename, a header/baseline fill. **Spawn it with `isolation: "worktree"`** so it edits an isolated copy and can run in parallel with you (or with a second implementer on a disjoint file set). It ends at `npm run check` green + a report; YOU commit and push (it never does). Give it the exact transform + scope — it returns the misfit "judgment sites" for you to decide, never guesses a mapping. This is the multitasking lever: hand off the mechanical bulk (this is what the 100-site item-5/6 migrations were), keep your context for the rule design and the judgment calls.
+- **db-inspector** (read-only, Sonnet) — verify a live-data claim ("NULL on all three rows"), check schema/RLS/advisors before a migration, or read prod logs, so large query output stays out of your context. Every answer comes back with the query behind it. (Its `execute_sql` calls are read-only and sit behind the approval gate.)
 
-Run INDEPENDENT scans in parallel (multiple agents in one turn). Keep the main session for judgment and synthesis; push mechanical reading into agents. A task that starts with "first find all the places where..." is a census delegation by definition.
+Run INDEPENDENT work in parallel (multiple agents in one turn, `run_in_background` for true multitasking — you're notified on completion). Keep the main session for judgment and synthesis; push mechanical reading INTO census/grounder/db-inspector and mechanical writing INTO a worktree-isolated implementer. A task that starts with "first find all the places where..." is a census delegation by definition; a task that is "now apply this same change to all of them" is an implementer delegation. For a large fan-out (census → migrate → adversarially verify across many sites) the `Workflow` tool pipelines it deterministically — but that is opt-in (the user says "use a workflow" / "ultracode"), not a default.
 
 ---
 
