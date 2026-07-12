@@ -67,11 +67,10 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   tenant_role: { field: "tenant_role", entity: "tenant" },
   "tenant role": { field: "tenant_role", entity: "tenant" },
   role: { field: "tenant_role", entity: "tenant" },
+  // NOTE: work_phone / office_phone are NOT mapped — `contacts` has no work_phone column, so a mapped
+  // header would be silently dropped (the payment_method class). Same for trust_number. If those columns are
+  // added, map them here AND read them in importRunner — check-import-fields.mjs enforces the pair.
   // Tenant identity — extended
-  work_phone: { field: "work_phone", entity: "tenant" },
-  "work phone": { field: "work_phone", entity: "tenant" },
-  office_phone: { field: "work_phone", entity: "tenant" },
-  "office phone": { field: "work_phone", entity: "tenant" },
   date_of_birth: { field: "date_of_birth", entity: "tenant" },
   "date of birth": { field: "date_of_birth", entity: "tenant" },
   dob: { field: "date_of_birth", entity: "tenant" },
@@ -288,7 +287,6 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   // "registration number" intentionally omitted — already mapped to registration_number in tenant section above
   "reg number": { field: "registration_number", entity: "tenant" },
   regnumber: { field: "registration_number", entity: "tenant" },
-  "trust/npo/gov number": { field: "trust_number", entity: "extra" },
   reference: { field: "__tpn_reference", entity: "extra" },
   "entity id": { field: "__entity_id", entity: "extra" },
   entityid: { field: "__entity_id", entity: "extra" },

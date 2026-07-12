@@ -25,9 +25,10 @@ const ALL_FIELDS = [
   { value: "last_name", label: "Last name", entity: "tenant" },
   { value: "__split_name", label: "Full name (split)", entity: "tenant" },
   { value: "company_name", label: "Company / org name", entity: "tenant" },
+  { value: "legal_name", label: "Legal name (contractor/landlord)", entity: "extra" },
+  { value: "trading_name", label: "Trading name (contractor/landlord)", entity: "extra" },
   { value: "email", label: "Email", entity: "tenant" },
   { value: "phone", label: "Phone (mobile)", entity: "tenant" },
-  { value: "work_phone", label: "Work phone", entity: "tenant" },
   { value: "id_number", label: "ID / passport number", entity: "tenant" },
   { value: "date_of_birth", label: "Date of birth", entity: "tenant" },
   { value: "nationality", label: "Nationality", entity: "tenant" },
@@ -48,7 +49,11 @@ const ALL_FIELDS = [
   // Property / Unit
   { value: "property_name", label: "Property name", entity: "unit" },
   { value: "unit_number", label: "Unit number", entity: "unit" },
-  { value: "address_line1", label: "Address", entity: "unit" },
+  // "address", NOT "address_line1": that is the field name the runner reads (getField(row,"address")) and
+  // the one FIELD_ALIASES produces. Offering "address_line1" meant an agent who MANUALLY picked "Address" —
+  // the only option when their header did not auto-match — produced a mapping nothing read, so the property
+  // had no address; address is REQUIRED, so the property was refused, and with it every unit and lease under it.
+  { value: "address", label: "Address", entity: "unit" },
   { value: "suburb", label: "Suburb", entity: "unit" },
   { value: "city", label: "City", entity: "unit" },
   { value: "province", label: "Province", entity: "unit" },
