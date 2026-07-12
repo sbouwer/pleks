@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { normaliseDate, normaliseMoneyCents, normalisePercent, normalisePaymentDueDay } from "./normalise"
 import {
-  classifyLeaseType, classifyEscalationType, classifyBoolean, classifyProvince,
+  classifyLeaseType, classifyEscalationType, classifyBoolean, classifyProvince, classifyTenantEntity,
   SA_PROVINCES, type Classification,
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
@@ -1107,6 +1107,11 @@ const CLASSIFIED_LEASE_COLUMNS: Array<{
   label: string
   why: string
   unmappedNote: string
+  /** A BLANK cell in this column is an honest "we do not know", not bad data — so it must not refuse the row.
+   *  Only cpa_applies qualifies: unlike lease_type (whose absence silently becomes 'residential'), CPA has a
+   *  representable unknown — `cpa_applies_at_signing = 'indeterminate'`, which fails SAFE and is flagged for
+   *  the agent. An agency's book will very often leave this blank; refusing those leases would be absurd. */
+  blankMeansUnknown?: boolean
 }> = [
   {
     field: "lease_type", classify: classifyLeaseType, label: "lease type",
@@ -1121,7 +1126,8 @@ const CLASSIFIED_LEASE_COLUMNS: Array<{
   {
     field: "cpa_applies", classify: classifyBoolean, label: "CPA-applies flag",
     why: "Reading an unrecognised value as false would strip CPA s14 protection from the lease.",
-    unmappedNote: "every lease will import with the CPA applying (the system default)",
+    unmappedNote: "CPA applicability will be derived from each tenant (a natural person is always covered)",
+    blankMeansUnknown: true,
   },
   {
     field: "is_fixed_term", classify: classifyBoolean, label: "fixed-term flag",
@@ -1161,6 +1167,10 @@ function leaseClassifications(
   for (const col of CLASSIFIED_LEASE_COLUMNS) {
     const src = getFieldSource(row, col.field, ctx.mapping)
     if (!src.column) continue   // not mapped → uniform DB default, warned once at import level
+
+    // A blank cell where blankness is MEANINGFUL: not bad data, just an unstated fact. Leave the column unset
+    // and let the determination speak (cpaSnapshot).
+    if (!src.value && col.blankMeansUnknown) continue
 
     const result = col.classify(src.value)
     if (!result.ok) {
@@ -1265,17 +1275,25 @@ function cpaSnapshot(
   row: Record<string, string>, rowIndex: number, ctx: ImportContext,
   explicitCpaApplies: unknown,
 ): Record<string, unknown> {
-  // The COMPANY FIELD only — never the business-suffix guess on a display name. `resolveEntityType` reads
-  // BUSINESS_SUFFIX_RE ("trust", "properties", "holdings"…) against the name, so a tenant called
-  // "Trust Ndlovu" resolves to `organisation`. That was tolerable when it only picked a contacts.entity_type;
-  // it is not tolerable driving a STATUTORY column, where it would strip a natural person's CPA protection
-  // from every notice and then tell the agent "this tenant is a juristic person".
-  const { companyName } = resolveName(row, ctx.mapping)
-  const entityType = companyName.trim() ? "organisation" : "individual"
+  // Certain markers decide; suggestive ones FLAG. See classifyTenantEntity: a company read as a person asserts
+  // the CPA for a juristic that may be over-threshold, and a person read as a company STRIPS the CPA from an
+  // actual consumer. Both are statutory errors, so ambiguity is escalated to the agent rather than guessed.
+  const { firstName, lastName, companyName } = resolveName(row, ctx.mapping)
+  const entity = classifyTenantEntity(companyName, `${firstName} ${lastName}`.trim())
+
+  if (entity === "ambiguous") {
+    flagForReview(ctx, rowIndex, "cpa_applies",
+      `We could not tell whether "${`${firstName} ${lastName}`.trim()}" is a person or a company, and that decides ` +
+      `whether the CPA protects them. The lease was imported with the CPA undetermined — set the tenant type on ` +
+      `the lease so statutory notices cite the right basis.`)
+  }
 
   const determination = determineCpaApplicability({
     tenant: {
-      entityType,
+      // "ambiguous" is passed through as a juristic-shaped value on purpose: determineCpaApplicability then
+      // returns "indeterminate", which is the honest answer and the one that makes cpaGoverns fail SAFE (it
+      // fires only on an explicit "yes"). The agent's flag above is what resolves it.
+      entityType: entity === "individual" ? "individual" : "organisation",
       juristicType: null,
       turnoverUnder2m: null,      // not in any import format
       assetValueUnder2m: null,
@@ -1284,20 +1302,53 @@ function cpaSnapshot(
     lease: { isFranchiseAgreement: false },
   })
 
-  if (determination.applies === "indeterminate") {
+  // ── Who wins when the file and the determination disagree? It depends on WHO CAN KNOW.
+  //
+  // NATURAL PERSON — the STATUTE wins. CPA s5(2) makes a natural person a consumer, full stop. A file that says
+  // "CPA: N" for one is simply wrong, and honouring it would strip a real protection. Flag it and apply the Act.
+  //
+  // JURISTIC (or ambiguous) — the AGENCY wins, if they said anything. Applicability turns on turnover and asset
+  // bands, which no import format carries and Pleks therefore cannot compute. The agency KNOWS their tenant; a
+  // deliberate "Y"/"N" in their book is a determination they have made and we have no basis to overrule. Silence
+  // from them means genuinely unknown ⇒ "indeterminate", which fails SAFE (cpaGoverns fires only on "yes") and
+  // is flagged for them to resolve.
+  //
+  // Whatever the answer, BOTH columns come from it. The renewal cron gates on the boolean and the citation
+  // engine reads the snapshot; a per-lease disagreement makes a lease CPA-governed for demands and invisible to
+  // the notice engine at the same time.
+  const explicit = typeof explicitCpaApplies === "boolean" ? explicitCpaApplies : undefined
+
+  let applies = determination.applies
+  let category = determination.category
+  let notes = determination.notes
+
+  if (entity === "individual") {
+    if (explicit === false) {
+      flagForReview(ctx, rowIndex, "cpa_applies",
+        `Your file says the CPA does NOT apply to ${`${firstName} ${lastName}`.trim()}, but the CPA applies to ` +
+        `every natural person (s5(2)). The lease was imported WITH the CPA applying. Correct the file if this ` +
+        `tenant is in fact a company.`)
+    }
+    // applies stays "yes" — the statute, not the spreadsheet.
+  } else if (explicit !== undefined) {
+    applies = explicit ? "yes" : "no"
+    category = explicit ? "juristic_under_threshold" : "juristic_over_threshold"
+    notes = "Juristic tenant: applicability taken from the agency's import file — the size bands it rests on are " +
+      "not carried by any import format, so the agency's own determination stands."
+  } else {
     flagForReview(ctx, rowIndex, "cpa_applies",
-      "This tenant is a company, so whether the CPA applies depends on their turnover and asset value — which " +
-      "no import format carries. Capture the size bands on the lease; until then a statutory notice cannot cite " +
-      "the CPA for it.")
+      "This tenant is a company, so whether the CPA applies depends on their turnover and asset value — which no " +
+      "import format carries, and your file did not say. The lease was imported with the CPA undetermined, so a " +
+      "statutory notice cannot cite it. Capture the size bands on the lease and it resolves.")
   }
 
   return {
-    cpa_applies_at_signing: determination.applies,
-    cpa_determination_category: determination.category,
-    cpa_determination_notes: determination.notes,
+    cpa_applies_at_signing: applies,
+    cpa_determination_category: category,
+    cpa_determination_notes: notes,
     cpa_determined_at: new Date().toISOString(),
-    // Keep the boolean the cron gates on IN STEP with the snapshot the citations read. A mapped column wins.
-    ...(explicitCpaApplies === undefined ? { cpa_applies: determination.applies === "yes" } : {}),
+    // ONE source for both. The boolean the cron gates on and the snapshot the citations read can never diverge.
+    cpa_applies: applies === "yes",
   }
 }
 

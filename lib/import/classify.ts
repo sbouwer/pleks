@@ -104,6 +104,43 @@ export function classifyBoolean(raw: string): Classification<boolean> {
   return { ok: false, raw }
 }
 
+// ── Tenant entity: person or company? (drives the CPA determination) ───────────────────────────────────
+//
+// This decides `cpa_applies_at_signing`, so getting it wrong is a statutory error in EITHER direction:
+//   a company read as a person   → the CPA is asserted for a juristic that may be over the threshold
+//   a person read as a company   → the CPA is STRIPPED from an actual consumer (CPA s5(2))
+//
+// The old `resolveEntityType` matched BUSINESS_SUFFIX_RE — which includes "trust", "properties", "holdings" —
+// against the display NAME. Tolerable when it only picked a contacts.entity_type; not when it drives a
+// statutory column, because "Trust Ndlovu" is a person. But narrowing it to "only trust a company_name column"
+// then misses every real company whose name sits in the surname field, which is how agency exports actually
+// look ("Kagiso | Trading (Pty) Ltd").
+//
+// So: markers that are LEGALLY UNAMBIGUOUS decide. Markers that are merely suggestive FLAG.
+
+/** A registered legal-entity suffix. No natural person is called "(Pty) Ltd" — these are certain. */
+const JURISTIC_SUFFIX_RE = /\b(pty|ltd|cc|inc|npc|bk|rf)\b/
+
+/** Suggestive, NOT decisive: every one of these is also a South African given name or surname
+ *  ("Trust Ndlovu", "Group", "Solutions"). They mean "ask", never "assume". */
+const AMBIGUOUS_ENTITY_RE = /\b(trust|holdings|properties|investments|group|enterprises|solutions|corp)\b/
+
+export type TenantEntity = "individual" | "organisation" | "ambiguous"
+
+/**
+ * Is this tenant a natural person or a juristic one? `companyField` is a mapped company/legal/trading-name
+ * column (authoritative when present); `displayName` is the tenant's name as the file gives it.
+ */
+export function classifyTenantEntity(companyField: string, displayName: string): TenantEntity {
+  if (companyField.trim()) return "organisation"          // the file says so outright
+
+  const name = displayName.toLowerCase()
+  if (JURISTIC_SUFFIX_RE.test(name)) return "organisation" // "(Pty) Ltd", "CC", "Inc" — unambiguous
+  if (AMBIGUOUS_ENTITY_RE.test(name)) return "ambiguous"   // "Trust ..." — could be a person. Ask.
+
+  return "individual"
+}
+
 // ── Province (properties.province CHECK constraint, 003_properties.sql) ────────────────────────────────
 
 /** The exact spellings the CHECK permits — anything else is a hard Postgres rejection. */
