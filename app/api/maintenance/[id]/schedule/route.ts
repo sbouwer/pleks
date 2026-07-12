@@ -15,6 +15,7 @@ import { MaintenanceScheduledEmail } from "@/lib/comms/templates/tenant/maintena
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA } from "@/lib/dates"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 export async function POST(
   req: NextRequest,
@@ -123,7 +124,7 @@ async function sendM3Comm(
     const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
     const contractor = contractorRes.data
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const propertyLabel = formatPropertyLabel(unit)
     const contractorName = contractor
       ? (contractor.company_name as string | null) ||
         [contractor.first_name, contractor.last_name].filter(Boolean).join(" ") ||

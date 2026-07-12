@@ -6,6 +6,7 @@
  * Data:   leases, deposit_reconciliations, deposit_timers via gatewaySSR db (all org-scoped)
  */
 import { gatewaySSR } from "@/lib/supabase/gateway"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -130,7 +131,7 @@ export default async function DepositsPage() {
                   return (
                     <tr key={r.id} className="border-b border-border/50">
                       <td className="py-2 pr-2">{rLease?.tenant_view ? `${rLease.tenant_view.first_name} ${rLease.tenant_view.last_name}` : "—"}</td>
-                      <td className="py-2 pr-2 text-xs">{rLease?.units?.unit_number}, {rLease?.units?.properties?.name}</td>
+                      <td className="py-2 pr-2 text-xs">{formatPropertyLabel(rLease?.units, { fallback: "" })}</td>
                       <td className="text-right py-2 px-2">{formatZAR(r.total_available_cents)}</td>
                       <td className="text-right py-2 px-2 text-emerald-600">{formatZAR(r.refund_to_tenant_cents)}</td>
                       <td className="py-2 px-2">
@@ -175,7 +176,7 @@ export default async function DepositsPage() {
                   return (
                     <tr key={r.id} className="border-b border-border/50">
                       <td className="py-2 pr-2">{rLease?.tenant_view ? `${rLease.tenant_view.first_name} ${rLease.tenant_view.last_name}` : "—"}</td>
-                      <td className="py-2 pr-2 text-xs">{rLease?.units?.unit_number}, {rLease?.units?.properties?.name}</td>
+                      <td className="py-2 pr-2 text-xs">{formatPropertyLabel(rLease?.units, { fallback: "" })}</td>
                       <td className="text-right py-2 px-2 text-emerald-600">{formatZAR(r.refund_to_tenant_cents)}</td>
                       <td className="text-right py-2 px-2">{formatZAR(r.total_deductions_cents)}</td>
                       <td className="py-2"><Badge className="bg-emerald-100 text-emerald-700" variant="secondary">Refunded</Badge></td>
@@ -211,7 +212,7 @@ export default async function DepositsPage() {
                   return (
                     <tr key={l.id} className="border-b border-border/50">
                       <td className="py-2 pr-2">{lTenant ? `${lTenant.first_name} ${lTenant.last_name}` : "—"}</td>
-                      <td className="py-2 pr-2 text-xs">{lUnit?.unit_number}, {lUnit?.properties?.name}</td>
+                      <td className="py-2 pr-2 text-xs">{formatPropertyLabel(lUnit, { fallback: "" })}</td>
                       <td className="text-right py-2 px-2">{formatZAR(l.deposit_amount_cents)}</td>
                       <td className="py-2 capitalize text-xs">{l.status}</td>
                     </tr>

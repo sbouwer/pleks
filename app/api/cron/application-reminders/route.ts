@@ -21,6 +21,7 @@ import { trackSend, settleSends } from "@/lib/cron/settleSends"
 import { withCronRun } from "@/lib/cron/withCronRun"
 import { SUPABASE_URL, requireEnv } from "@/lib/env"
 import { SA_TIMEZONE } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 function getServiceClient() {
   return createClient(
@@ -84,7 +85,7 @@ async function handler(_req: NextRequest): Promise<Response> {
       const unit = listing?.units
       return {
         name: `${a.first_name} ${a.last_name}`,
-        listing: unit ? `${unit.unit_number}, ${unit.properties.name}` : "—",
+        listing: formatPropertyLabel(unit, { fallback: "—" }),
         score: (a.prescreen_score as number) ?? 0,
         appliedAt: new Date(a.created_at as string).toLocaleDateString("en-ZA", { timeZone: SA_TIMEZONE }),
       }

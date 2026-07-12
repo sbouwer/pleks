@@ -4,6 +4,7 @@
  * Data:   reads payments, lease_lifecycle_events, maintenance_requests, arrears_actions (last 7 days, org-scoped); returns the 8 most recent items merged.
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 export { relativeTime } from "@/lib/utils"
 
 export interface ActivityItem {
@@ -82,7 +83,7 @@ export async function getActivityFeed(orgId: string): Promise<ActivityItem[]> {
     const tenantName = tenant?.contacts
       ? `${tenant.contacts.first_name} ${tenant.contacts.last_name}`.trim()
       : "Tenant"
-    const location = lease?.units ? `${lease.units.unit_number}, ${lease.units.properties.name}` : ""
+    const location = formatPropertyLabel(lease?.units, { fallback: "" })
     const amountRands = Math.round((p.amount_cents ?? 0) / 100).toLocaleString("en-ZA")
     items.push({
       id: p.id,
@@ -103,9 +104,7 @@ export async function getActivityFeed(orgId: string): Promise<ActivityItem[]> {
     const tenantName = lease?.tenants?.contacts
       ? `${lease.tenants.contacts.first_name} ${lease.tenants.contacts.last_name}`.trim()
       : "Tenant"
-    const location = lease?.units
-      ? `${lease.units.unit_number}, ${lease.units.properties.name}`
-      : ""
+    const location = formatPropertyLabel(lease?.units, { fallback: "" })
     const eventLabel = capitalise((e.event_type ?? "lease event").replace(/_/g, " "))
     items.push({
       id: e.id,
@@ -120,7 +119,7 @@ export async function getActivityFeed(orgId: string): Promise<ActivityItem[]> {
   // Maintenance updates
   for (const m of recentMaintenance ?? []) {
     const unit = m.units as unknown as { unit_number: string; properties: { name: string } } | null
-    const location = unit ? `${unit.unit_number}, ${unit.properties.name}` : ""
+    const location = formatPropertyLabel(unit, { fallback: "" })
     const statusLabel = capitalise((m.status ?? "updated").replace(/_/g, " "))
     items.push({
       id: m.id,

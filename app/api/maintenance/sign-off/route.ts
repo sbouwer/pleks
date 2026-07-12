@@ -22,6 +22,7 @@ import { deriveWarrantySubject } from "@/lib/maintenance/warranty"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { addCalendarMonths, monthStart, saTodayISO } from "@/lib/dates"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -52,7 +53,7 @@ async function fireCompletedComm(
   if (!tenant?.email) return
 
   const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-  const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+  const propertyLabel = formatPropertyLabel(unit)
 
   await routeAndSend({
     orgId,

@@ -11,6 +11,7 @@
  */
 
 import { isForeignNational, getPreferredThresholds } from "@/lib/screening/fitScoreEngine.v1"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import type { MaterialFlag, FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import type { FitScoreReportData, FitScoreApplicantEntry } from "@/lib/reports/screening/_primitives/theme"
@@ -196,7 +197,7 @@ export function assembleReportData(
 
   return {
     applicationRef:      app.id,
-    unitLabel:           listing ? `Unit ${listing.units.unit_number}, ${listing.units.properties.name}` : 'Unknown unit',
+    unitLabel:           listing ? `Unit ${formatPropertyLabel(listing.units, { fallback: "—" })}` : 'Unknown unit',
     generatedAt:         (app.fitscore_computed_at as string | null) ?? new Date().toISOString(),
     submittedAt:         (app.fitscore_computed_at as string | null) ?? new Date().toISOString(),
     primaryApplicantName: primaryEntry.fullName,

@@ -35,6 +35,13 @@ yarn-error.log*
 
 # docuseal data
 docuseal_data/
+docuseal/
+
+# ssh keys / secrets — never commit, from any path in the tree
+id_ed25519*
+id_rsa*
+*.pem
+*.ppk
 
 # typescript
 *.tsbuildinfo

@@ -24,6 +24,7 @@ import { LeaseSignedEmail } from "@/lib/comms/templates/tenant/leases/lease-sign
 import { PortalTenantInviteEmail } from "@/lib/comms/templates/tenant/portal/tenant-invite"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateLongZA, monthEnd, saDateISO } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { formatZAR } from "@/lib/constants"
@@ -301,7 +302,7 @@ async function stepSendLeaseSigned(
     if (!tenant?.email) return { step: "Send lease.signed comm (L3)", status: "skipped", detail: "No tenant email" }
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const propertyLabel = formatPropertyLabel(unit)
 
     await routeAndSend({
       orgId,
@@ -349,7 +350,7 @@ async function stepSendLeaseActivated(
     if (!tenant?.email) return { step: "Send lease.activated comm", status: "skipped", detail: "No tenant email" }
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const propertyLabel = formatPropertyLabel(unit)
     const rentDisplay = formatZAR(lease.rent_amount_cents, true)
     const fmt = (d: string) => fmtDateLongZA(d)
 
@@ -417,7 +418,7 @@ async function stepSendPortalInvite(
     const tenantName = (tenant.company_name as string | null)
       || [tenant.first_name, tenant.last_name].filter(Boolean).join(" ")
       || "Tenant"
-    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const propertyLabel = formatPropertyLabel(unit)
     const toneVariant = resolveOrgTone(orgRow.data?.settings)
 
     // Generate a branded hand-off link rather than letting Supabase send its generic email. invite for a

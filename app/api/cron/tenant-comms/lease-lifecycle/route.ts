@@ -22,6 +22,7 @@ import { revertPendingSigningToDraft } from "@/lib/leases/revertSigning"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 // L2b: a lease left unsigned this long past sent_for_signing_at is timed out and returned to draft (D1).
 // The L2 sign reminder fires at T+3, so this gives ~11 days after that nudge before the app-level timeout.
@@ -50,7 +51,7 @@ async function handleSignReminder(service: Service, lease: SignReminderLease, no
   if (!tenant?.email && !tenant?.phone) return false
 
   const tenantName = [tenant?.first_name, tenant?.last_name].filter(Boolean).join(" ") || "Tenant"
-  const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+  const propertyLabel = formatPropertyLabel(unit)
   const senderName = orgSettings?.name ?? "Pleks"
   const daysUnsigned = Math.floor((now.getTime() - new Date(lease.sent_for_signing_at).getTime()) / 86_400_000)
   const toneVariant = resolveOrgTone(orgRow.data?.settings)
@@ -94,7 +95,7 @@ async function handleEscalationNotice(service: Service, lease: EscalationLease):
   if (!tenant?.email) return false
 
   const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-  const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+  const propertyLabel = formatPropertyLabel(unit)
   const senderName = orgSettings?.name ?? "Pleks"
   const pct = lease.escalation_percent ?? 10
   const fmt = (c: number) => formatZAR(c, true)

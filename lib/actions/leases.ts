@@ -22,6 +22,7 @@ import { LeaseNoticeAcknowledgedEmail } from "@/lib/comms/templates/tenant/lease
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { addCalendarDays, addCalendarMonths, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 type LeaseFormFields = {
   unitId: string
@@ -536,7 +537,7 @@ export async function sendForSigning(leaseId: string) {
       const unit = unitRes.data as unknown as { unit_number: string; properties: { name: string } } | null
       if (tenant?.email) {
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-        const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+        const propertyLabel = formatPropertyLabel(unit)
         const rentDisplay = formatZAR(lease.rent_amount_cents as number, true)
         const leaseStartDisplay = fmtDateLongZA(lease.start_date as string)
         await routeAndSend({
@@ -619,7 +620,7 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
       const unit = unitRes.data as unknown as { unit_number: string; properties: { name: string } } | null
       if (tenant?.email) {
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-        const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+        const propertyLabel = formatPropertyLabel(unit)
         const noticeDateDisplay = fmtDateLongZA(noticeGivenDate)
         const vacateDateDisplay = fmtDateLongZA(noticePeriodEnd)
         await routeAndSend({
