@@ -37,6 +37,24 @@ export const CPA_S14_NOTICE_BUSINESS_DAYS = 60
 export const CPA_S14_NOTICE_FLOOR_BUSINESS_DAYS = 40
 
 /**
+ * How far ahead the renewal cron bands its candidates, in CALENDAR days. 120 comfortably contains the
+ * 80-business-day outer edge of the s14 window (≈112 calendar days) AND keeps every backward business-day
+ * walk inside the holiday table.
+ *
+ * Exported because the holiday-table SENTINEL must derive from it. They used to be unrelated literals — the
+ * cron reached 120 days out while `health.ts` only warned at 90 — so whenever the table's horizon sat in the
+ * 90-to-120-day band, the cron met leases whose s14 date it could not compute, skipped them with a
+ * console.warn, and health still reported "ok". The cron's own comment ("let the 90-day sentinel carry the
+ * alert") was false for a 30-day window every year. Deriving one from the other makes the claim true by
+ * construction: the alert can no longer arrive after the thing it is meant to pre-empt.
+ */
+export const CPA_RENEWAL_CANDIDATE_BAND_DAYS = 120
+
+/** The sentinel must fire BEFORE the cron can reach an uncomputable lease — i.e. strictly earlier than the
+ *  band — with enough runway for a human to extend saHolidays.json. Band + a month of ops lead time. */
+export const HOLIDAY_HORIZON_WARN_DAYS = CPA_RENEWAL_CANDIDATE_BAND_DAYS + 30
+
+/**
  * STATUTORY. The date the s14(2)(b)(ii) expiry notice is due, as "YYYY-MM-DD". Throws past the holiday
  * table's horizon (fail closed) — callers on the firing path must only pass leases whose end date sits
  * inside the horizon (the cron bands candidates to the next ~120 calendar days, comfortably inside it).

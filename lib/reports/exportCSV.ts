@@ -298,7 +298,8 @@ export function exportCpaNoticeScheduleCSV(data: CpaNoticeScheduleData): string 
       r.property_name,
       r.lease_end,
       String(r.days_remaining),
-      r.notice_due_by,
+      // null past the holiday horizon — the s14 date is genuinely uncomputable, not blank.
+      r.notice_due_by ?? "Unavailable (holiday table)",
       r.status,
     ])
   )

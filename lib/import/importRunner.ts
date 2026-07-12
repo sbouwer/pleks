@@ -14,9 +14,12 @@ import {
   SA_PROVINCES, type Classification,
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
-import { normaliseBranchCode, hashBankAccount, maskBankAccount } from "./bankImport"
+import { normaliseBranchCode } from "./bankImport"
+import { bankAccountColumns } from "@/lib/crypto/bankAccount"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { optionalEnv } from "@/lib/env"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
+import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -64,13 +67,31 @@ export interface ConflictDecision {
   previousIndices?: number[]
 }
 
-export type ExpiredDecision = "import_active_only" | "import_all" | "import_as_history"
+/**
+ * What to do with a lease whose end date has already passed.
+ *   import_active_only — no lease row; the tenancy is recorded as tenancy_history instead ("Skip expired
+ *                        leases", the wizard's default and recommended option)
+ *   import_all         — create the lease with status 'expired' ("Import as expired")
+ *
+ * A third member, `import_as_history`, used to be declared here with NO branch anywhere — so setting it
+ * typechecked and silently produced `import_all` behaviour: expired leases created as lease rows, the exact
+ * opposite of "as history". A dead enum member that means its own opposite is a fail-open waiting for its
+ * first caller. Removed; `import_active_only` already IS the as-history behaviour.
+ */
+export type ExpiredDecision = "import_active_only" | "import_all"
 
 export interface ImportDecisions {
   conflicts: ConflictDecision[]
   expiredLeases: ExpiredDecision
   /** Row indices to skip entirely */
   skipRows: number[]
+  /** Step 3's "Keep active" per-row exception: import this lease as LIVE even though its end date has passed.
+   *  The wizard has always offered this checkbox; the runner had no concept of it, so it did nothing. */
+  forceActiveRows: number[]
+  /** F-10: the agent attested, in Step 2, that they hold the tenants' consent to migrate banking details.
+   *  This is the AGENT'S declaration — never the data subject's consent. Undefined/false ⇒ bank accounts are
+   *  recorded as UNCONSENTED (they used to be written `consent_given: true` unconditionally). */
+  bankConsentAttested?: boolean
 }
 
 type TenantRole = "primary" | "co_tenant" | "previous"
@@ -96,6 +117,8 @@ interface ImportContext {
   importSessionId: string | undefined
   supabase: SupabaseClient
   result: ImportResult
+  /** decisions.forceActiveRows as a Set — consulted once per unit group. */
+  forceActiveRows: Set<number>
   unitIdCache: Map<string, string>
   /** unitKey → the property that unit belongs to. `leases.property_id` is NOT NULL and has no trigger to
    *  derive it from unit_id, so the lease insert must carry it explicitly. */
@@ -795,6 +818,29 @@ async function insertSingleTenant(params: {
 
 // ── Bank account insertion ─────────────────────────────────────────────
 
+/** The version of the notice the agent attests against. Bump when the wording in Step 2 changes — the
+ *  consent_log row is only as meaningful as the text the agent actually agreed to. */
+const BANK_IMPORT_NOTICE_VERSION = "1.0-agency-migration"
+
+/**
+ * Import a tenant's bank accounts (F-10, F-11).
+ *
+ * TWO rulings land here.
+ *
+ * 1. ENCRYPTED, not masked-only (F-11). The importer used to store a mask plus a one-way hash — so the number
+ *    was UNRECOVERABLE, while the wizard told the agent it was "stored encrypted and used for deposit refund
+ *    processing". A mask cannot process a refund. `bankAccountColumns` now writes the mask (for display), the
+ *    AES-GCM ciphertext (in the `account_number_enc` column that has existed, unused, since migration 042) and
+ *    the deterministic lookup hash, together.
+ *
+ * 2. ATTESTATION, not manufactured consent (F-10). It used to write `consent_given: true` unconditionally —
+ *    a system asserting a consent record no one gave. The tenant is not in the room during a migration, and
+ *    an operator's click-through is not the data subject's POPIA consent. What IS truthfully recordable is
+ *    the AGENT's attestation that they hold that consent: an identified actor, a timestamp, a notice version.
+ *    `consent_given` now reflects that attestation (FALSE if the agent did not attest), the attestation is
+ *    written to `consent_log` as `bank_details_import`, and each account gets its own audit row — this is a
+ *    payout-fraud-adjacent surface, and `contact_bank_accounts` already treats it as one.
+ */
 async function insertTenantBankAccounts(
   tenantId: string,
   accountHolderName: string,
@@ -802,63 +848,107 @@ async function insertTenantBankAccounts(
   ctx: ImportContext
 ): Promise<void> {
   const accounts = [
-    {
-      accountField: "tenant_bank_account_1",
-      bankNameField: "tenant_bank_name_1",
-      branchField: "tenant_bank_branch_1",
-      isPrimary: true,
-    },
-    {
-      accountField: "tenant_bank_account_2",
-      bankNameField: "tenant_bank_name_2",
-      branchField: "tenant_bank_branch_2",
-      isPrimary: false,
-    },
+    { accountField: "tenant_bank_account_1", bankNameField: "tenant_bank_name_1", branchField: "tenant_bank_branch_1", isPrimary: true },
+    { accountField: "tenant_bank_account_2", bankNameField: "tenant_bank_name_2", branchField: "tenant_bank_branch_2", isPrimary: false },
   ]
+
+  const attested = ctx.decisions.bankConsentAttested === true
+  const attestedAt = new Date().toISOString()
+  let importedForThisTenant = 0
+
+  // FAIL LOUD, not silently. bankAccountColumns() throws if ENCRYPTION_KEY is unset, and that throw used to be
+  // caught by the per-account try/catch below and downgraded to a WARNING — so on a misconfigured deploy the
+  // bank details simply vanished and the agent was told the import worked. For a payout-adjacent surface that
+  // must be an ERROR the agent cannot miss.
+  if (!optionalEnv("ENCRYPTION_KEY")) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "tenant_bank_account_1", severity: "error",
+      message: "Bank details were NOT imported: this deployment has no encryption key configured, and banking " +
+        "details are never stored unencrypted. Contact support — everything else imported normally.",
+    })
+    return
+  }
 
   for (const acc of accounts) {
     const rawAccount = getField(row, acc.accountField, ctx.mapping).trim()
     if (!rawAccount) continue
 
     const bankName = getField(row, acc.bankNameField, ctx.mapping).trim() || "Unknown"
-    const rawBranch = getField(row, acc.branchField, ctx.mapping).trim()
-    const branchCode = normaliseBranchCode(rawBranch)
+    const branchCode = normaliseBranchCode(getField(row, acc.branchField, ctx.mapping).trim())
 
     try {
-      const { error } = await ctx.supabase.from("tenant_bank_accounts").insert({
+      const { data: created, error } = await ctx.supabase.from("tenant_bank_accounts").insert({
         org_id: ctx.orgId,
         tenant_id: tenantId,
         bank_name: bankName,
         account_holder: accountHolderName,
-        account_number: maskBankAccount(rawAccount),
-        account_number_hash: hashBankAccount(rawAccount),
+        ...bankAccountColumns(rawAccount),   // mask + AES-GCM ciphertext + lookup hash, together
         branch_code: branchCode,
         source: "import",
         imported_from: "tpn",
         is_primary: acc.isPrimary,
-        consent_given: true,
-        consent_given_at: new Date().toISOString(),
-      })
+        // Reflects the AGENT'S ATTESTATION — never an assumed "true".
+        consent_given: attested,
+        consent_given_at: attested ? attestedAt : null,
+      }).select("id").single()
 
-      if (error) {
+      if (error || !created) {
         ctx.result.errors.push({
-          rowIndex: -1,
-          field: acc.accountField,
-          message: `Bank account insert failed: ${error.message}`,
-          severity: "warning",
+          rowIndex: -1, field: acc.accountField, severity: "warning",
+          message: `Bank account insert failed: ${error?.message ?? "unknown error"}`,
         })
-      } else {
-        ctx.result.bankAccountsImported++
+        continue
       }
+
+      ctx.result.bankAccountsImported++
+      importedForThisTenant++
+
+      // Per-account audit. recordAudit's sanitiser drops account_number_enc/_hash and masks account_number,
+      // so nothing sensitive reaches audit_log — but the fact of the write is now traceable.
+      await recordAudit(ctx.supabase, {
+        orgId: ctx.orgId, actorId: ctx.agentId, action: "INSERT",
+        table: "tenant_bank_accounts", recordId: String(created.id),
+        after: { source: "bulk_import", bank_name: bankName, is_primary: acc.isPrimary, consent_attested: attested },
+      })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error"
       ctx.result.errors.push({
-        rowIndex: -1,
-        field: acc.accountField,
-        message: `Bank account error: ${msg}`,
-        severity: "warning",
+        rowIndex: -1, field: acc.accountField, severity: "warning",
+        message: `Bank account error: ${err instanceof Error ? err.message : "Unknown error"}`,
       })
     }
+  }
+
+  if (importedForThisTenant === 0) return
+
+  // The attestation itself — one row per tenant whose banking details were migrated. Recorded whether or not
+  // the agent attested: a NEGATIVE record ("imported without an attestation of consent") is exactly as
+  // important as a positive one, and is the thing a regulator would ask for.
+  const { error: consentError } = await ctx.supabase.from("consent_log").insert({
+    org_id: ctx.orgId,
+    user_id: ctx.agentId,
+    subject_email: getField(row, "email", ctx.mapping).toLowerCase() || null,
+    consent_type: "bank_details_import",
+    consent_given: attested,
+    consent_version: BANK_IMPORT_NOTICE_VERSION,
+    metadata: {
+      tenant_id: tenantId,
+      accounts_imported: importedForThisTenant,
+      source: "bulk_import",
+      import_session_id: ctx.importSessionId ?? null,
+      // Says plainly what this row IS, so it can never be mistaken for the tenant's own consent.
+      declaration: attested
+        ? "Agency operator attested they hold the tenant's consent to migrate their banking details."
+        : "Banking details migrated WITHOUT an attestation of tenant consent.",
+    },
+  })
+  logIfError("importRunner consent_log (bank_details_import)", consentError)
+
+  if (!attested) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "tenant_bank_account_1", severity: "warning",
+      message: "Bank details were imported without confirming you hold the tenant's consent. They are recorded " +
+        "as unconsented — obtain consent and update each account before using them.",
+    })
   }
 }
 
@@ -1077,21 +1167,6 @@ function leaseClassifications(
     out[col.field] = result.value
   }
 
-  // A commercial lease must never carry cpa_applies = true — migration 010 states the invariant and had to
-  // run a one-off UPDATE to restore it. Nothing in the DB enforces it, so the importer must.
-  //
-  // This only became reachable BECAUSE the lease_type fix works: previously every lease imported as
-  // "residential" (the old guess), so the cpa_applies DEFAULT true was never wrong in a way anyone saw. Now
-  // that "Retail"/"Office" correctly land as commercial, an unmapped CPA column would let DEFAULT true stand
-  // and the calendar would raise CPA s14 auto-renewal deadlines against leases the CPA does not govern.
-  // A CPA column in the file still wins — this only fills the gap the default would otherwise guess into.
-  if (out.lease_type === "commercial" && out.cpa_applies === undefined) {
-    out.cpa_applies = false
-    flagForReview(ctx, rowIndex, "cpa_applies",
-      "Commercial lease with no CPA column — imported with the CPA NOT applying (the system's commercial-lease " +
-      "invariant). If this tenant is a natural person or a small juristic, set it on the lease.")
-  }
-
   return out
 }
 
@@ -1144,6 +1219,71 @@ function optionalLeaseFields(
   return out
 }
 
+/**
+ * The CPA applicability SNAPSHOT (F-16), and the ONE source of both CPA columns.
+ *
+ * `legalCitations.cpaGoverns` — the gate deciding whether a Demand-to-Vacate or final notice cites the CPA's
+ * cure period — reads ONLY `cpa_applies_at_signing` (the 3-state column). The renewal CRON, which decides
+ * whether an s14 notice is ever SENT, gates on `cpa_applies` (the boolean). Two halves of one statutory
+ * pipeline, two different columns — so if they disagree per-lease, a lease can be CPA-governed for citations
+ * and simultaneously INVISIBLE to the notice engine. Both are therefore derived HERE, from one determination.
+ *
+ * Routed through `determineCpaApplicability` — the same pure SSOT `markAsSigned()` uses, not a second opinion.
+ * The importer knows the tenant's entity type and nothing else, so honestly:
+ *   natural person → "yes" (CPA s5(2): a consumer, whatever the premises are)
+ *   juristic       → "indeterminate" (turnover/asset bands are in no import format) → flagged for the agent,
+ *                    exactly as a wizard-created juristic lease must be resolved before it can be activated.
+ *
+ * NOTE on migration 010's "commercial leases should never have cpa_applies = true": the CPA turns on the
+ * CONSUMER, not the premises — a natural person letting a shop IS a consumer — so a blanket commercial ⇒ false
+ * rule under-protects them. An earlier draft of this importer applied that rule and produced exactly the split
+ * described above (boolean false, snapshot "yes" ⇒ no s14 notice ever fires, but the CPA cure period is cited
+ * in the demand). Deriving both from the determination removes the contradiction: a juristic commercial tenant
+ * still lands `false` (indeterminate ⇒ not "yes"), which is the case 010 was actually cleaning up.
+ * → FLAGGED FOR CD: 010's invariant and CPA s5(2) disagree for a natural person on commercial premises.
+ *
+ * `explicitCpaApplies` — a `cpa_applies` column the agency actually mapped — always wins over the derivation.
+ */
+function cpaSnapshot(
+  row: Record<string, string>, rowIndex: number, ctx: ImportContext,
+  explicitCpaApplies: unknown,
+): Record<string, unknown> {
+  // The COMPANY FIELD only — never the business-suffix guess on a display name. `resolveEntityType` reads
+  // BUSINESS_SUFFIX_RE ("trust", "properties", "holdings"…) against the name, so a tenant called
+  // "Trust Ndlovu" resolves to `organisation`. That was tolerable when it only picked a contacts.entity_type;
+  // it is not tolerable driving a STATUTORY column, where it would strip a natural person's CPA protection
+  // from every notice and then tell the agent "this tenant is a juristic person".
+  const { companyName } = resolveName(row, ctx.mapping)
+  const entityType = companyName.trim() ? "organisation" : "individual"
+
+  const determination = determineCpaApplicability({
+    tenant: {
+      entityType,
+      juristicType: null,
+      turnoverUnder2m: null,      // not in any import format
+      assetValueUnder2m: null,
+      sizeBandsCapturedAt: null,
+    },
+    lease: { isFranchiseAgreement: false },
+  })
+
+  if (determination.applies === "indeterminate") {
+    flagForReview(ctx, rowIndex, "cpa_applies",
+      "This tenant is a company, so whether the CPA applies depends on their turnover and asset value — which " +
+      "no import format carries. Capture the size bands on the lease; until then a statutory notice cannot cite " +
+      "the CPA for it.")
+  }
+
+  return {
+    cpa_applies_at_signing: determination.applies,
+    cpa_determination_category: determination.category,
+    cpa_determination_notes: determination.notes,
+    cpa_determined_at: new Date().toISOString(),
+    // Keep the boolean the cron gates on IN STEP with the snapshot the citations read. A mapped column wins.
+    ...(explicitCpaApplies === undefined ? { cpa_applies: determination.applies === "yes" } : {}),
+  }
+}
+
 function buildLeaseData(
   row: Record<string, string>,
   unitId: string,
@@ -1151,6 +1291,8 @@ function buildLeaseData(
   tenantId: string,
   rowIndex: number,
   isExpired: boolean,
+  /** The agent ticked "Keep active" on a lease whose end date has ALREADY passed. */
+  forcedActive: boolean,
   normalisedEnd: string | null,
   ctx: ImportContext
 ): LeaseBuild {
@@ -1164,24 +1306,42 @@ function buildLeaseData(
   checkLeaseEnd(row, normalisedEnd, rowIndex, ctx)
   const depositCents = moneyCentsOrFlag(row, "deposit_amount_cents", rowIndex, ctx)
 
-  return {
-    ok: true,
-    data: {
-      unit_id: unitId,
-      property_id: propertyId,   // NOT NULL, and nothing derives it from unit_id — every insert failed without it
-      org_id: ctx.orgId,
-      tenant_id: tenantId,       // F-1: NOT NULL — set AT insert, not via a later UPDATE
-      start_date: required.startDate,
-      end_date: normalisedEnd,
-      rent_amount_cents: required.rentCents,
-      deposit_amount_cents: depositCents,
-      status: isExpired ? "expired" : "active",
-      // NO payment_method: `leases` has no such column. Writing it made PostgREST reject EVERY lease insert
-      // ("Could not find the 'payment_method' column ... in the schema cache"). Its aliases are gone too.
-      ...classifications,
-      ...optionalLeaseFields(row, rowIndex, ctx),
-    },
+  const data: Record<string, unknown> = {
+    unit_id: unitId,
+    property_id: propertyId,   // NOT NULL, and nothing derives it from unit_id — every insert failed without it
+    org_id: ctx.orgId,
+    tenant_id: tenantId,       // F-1: NOT NULL — set AT insert, not via a later UPDATE
+    start_date: required.startDate,
+    end_date: normalisedEnd,
+    rent_amount_cents: required.rentCents,
+    deposit_amount_cents: depositCents,
+    status: isExpired ? "expired" : "active",
+    // NO payment_method: `leases` has no such column. Writing it made PostgREST reject EVERY lease insert
+    // ("Could not find the 'payment_method' column ... in the schema cache"). Its aliases are gone too.
+    ...classifications,
+    ...cpaSnapshot(row, rowIndex, ctx, classifications.cpa_applies),
+    ...optionalLeaseFields(row, rowIndex, ctx),
   }
+
+  // "Keep active" on a lease whose end date has already passed: the renewal was never captured in the old
+  // system, so the date in the file is stale — we know the lease is LIVE and we do NOT know when it ends.
+  //
+  // Importing that as `status:'active', is_fixed_term:true, end_date:<past>` would be a state the platform
+  // itself destroys: that is EXACTLY the selector of the nightly auto-convert cron
+  // (is_fixed_term ∧ active ∧ end_date < today), which flips the lease to month-to-month and NULLs the end
+  // date — silently reversing the agent's explicit decision overnight and losing the imported date with it.
+  // So record what we actually know: a live, open-ended tenancy. It still bills (invoice-generate picks up
+  // month_to_month), it is stable under the cron, and the agent is told to set a new end date if it renewed.
+  if (forcedActive) {
+    data.status = "month_to_month"
+    data.is_fixed_term = false
+    data.end_date = null
+    flagForReview(ctx, rowIndex, "lease_end",
+      `Kept active, but its end date (${normalisedEnd}) has passed — so it was imported as month-to-month ` +
+      `rather than a fixed term that already ended. If the lease was renewed, set the new end date on it.`)
+  }
+
+  return { ok: true, data }
 }
 
 async function processActiveLease(
@@ -1199,11 +1359,23 @@ async function processActiveLease(
   // Compare DATES, not instants. `new Date("2026-07-12") < new Date()` parses the end date as UTC midnight and
   // compares it to local now, so a lease ending TODAY imports as "expired" and drops out of every active-lease
   // surface. Both sides are SA calendar days here.
-  const isExpired = normalisedEnd ? normalisedEnd < saTodayISO() : false
+  const endedInPast = normalisedEnd ? normalisedEnd < saTodayISO() : false
+  // Step 3's "Keep active" checkbox: the agent has told us this lease is live despite the stale end date (a
+  // renewal the old system never captured — extremely common in a migrated book).
+  //
+  // Checked across the WHOLE group, not just its first row. Step 3 renders a checkbox per FILE ROW and knows
+  // nothing about unit grouping, so co-tenants on one unit appear as two identical-looking lines. Testing only
+  // `firstActive.index` meant ticking the second line did nothing — and under the "skip" default the lease the
+  // agent had just explicitly rescued was diverted to history and never created. One lease, one decision.
+  const isExpired = endedInPast && !activeRows.some((r) => ctx.forceActiveRows.has(r.index))
 
   if (isExpired && ctx.decisions.expiredLeases === "import_active_only") {
     for (const ar of activeRows) {
       await createTenancyHistory(ar, unitId, ctx)
+      // COUNT it. This branch was dead until the decisions contract was wired (F-13), and it withholds a lease
+      // the agent can see in their file — so leaving it uncounted would report "28 leases created, 0 skipped"
+      // on a 40-row book with 12 expired leases, telling the agent nothing about the 12.
+      ctx.result.skipped++
     }
     return
   }
@@ -1233,7 +1405,8 @@ async function processActiveLease(
       return
     }
 
-    const built = buildLeaseData(row, unitId, propertyId, primaryTenantId, index, isExpired, normalisedEnd, ctx)
+    const forcedActive = endedInPast && !isExpired   // ticked "Keep active" on an already-ended lease
+    const built = buildLeaseData(row, unitId, propertyId, primaryTenantId, index, isExpired, forcedActive, normalisedEnd, ctx)
     if (!built.ok) return   // refused — buildLeaseData already raised the precise reason
 
     const { data: newLease, error } = await ctx.supabase
@@ -1247,6 +1420,13 @@ async function processActiveLease(
     const leaseId = String(newLease.id)
     ctx.result.leasesCreated++
 
+    // A live lease means the unit is OCCUPIED. `units.status` defaults to 'vacant' and the importer never set
+    // it, so a founding agent migrated 100 live leases and their dashboard showed 100 empty units — every
+    // occupancy figure, vacancy report and "available to let" surface was wrong on day one.
+    if (!isExpired) {
+      await markUnitOccupied(unitId, ctx)
+    }
+
     // Primary tenant_id is already set at insert; this loop now only surfaces the co-tenant "not linked" notice.
     for (const ar of activeRows) {
       await linkTenantToLease(ar, leaseId, ctx)
@@ -1255,6 +1435,56 @@ async function processActiveLease(
     const msg = err instanceof Error ? err.message : "Unknown error"
     ctx.result.errors.push({ rowIndex: index, field: "lease_start", message: `Lease error: ${msg}`, severity: "error" })
   }
+}
+
+/**
+ * Flip the unit to occupied and record the transition. Idempotent by construction: only reached when a lease
+ * was actually CREATED (a re-run hits the dedup and returns before this), and the update is scoped
+ * `.eq("status","vacant")` so a unit already occupied is not re-stamped and no duplicate history row appears.
+ * Non-fatal — an occupancy blip must not fail an otherwise-good lease import.
+ */
+async function markUnitOccupied(unitId: string, ctx: ImportContext): Promise<void> {
+  const { data: flipped, error } = await ctx.supabase
+    .from("units")
+    .update({ status: "occupied" })
+    .eq("id", unitId).eq("org_id", ctx.orgId).eq("status", "vacant")
+    .select("id")
+
+  if (error) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "unit_number", severity: "warning",
+      message: `Lease imported, but the unit could not be marked occupied: ${error.message}`,
+    })
+    return
+  }
+
+  if (!flipped?.length) {
+    // Zero rows matched. Either the unit is ALREADY occupied (a re-run — correct no-op) or it sits in a status
+    // the scoped update deliberately will not overwrite. Those are very different, and treating them the same
+    // means a live lease can be imported onto a unit that still reads as "under maintenance", with every
+    // occupancy and vacancy report quietly wrong and no signal anywhere.
+    const { data: unit, error: unitError } = await ctx.supabase
+      .from("units").select("status, unit_number").eq("id", unitId).eq("org_id", ctx.orgId).maybeSingle()
+    logIfError("importRunner unit status re-read", unitError)
+    if (unit && unit.status !== "occupied") {
+      ctx.result.errors.push({
+        rowIndex: -1, field: "unit_number", severity: "warning",
+        message: `Unit ${unit.unit_number} has a live imported lease but is marked "${unit.status}" — it was left ` +
+          `as-is rather than overwritten. Set it to occupied if that status is stale.`,
+      })
+    }
+    return
+  }
+
+  const { error: historyError } = await ctx.supabase.from("unit_status_history").insert({
+    unit_id: unitId,
+    org_id: ctx.orgId,
+    from_status: "vacant",
+    to_status: "occupied",
+    changed_by: ctx.agentId,
+    reason: "Imported with an active lease",
+  })
+  logIfError("importRunner unit_status_history", historyError)
 }
 
 async function linkTenantToLease(
@@ -1968,6 +2198,7 @@ export async function runImport(
       pendingLandlordLinks: [],
       agentInvites: [],
     },
+    forceActiveRows: new Set(decisions.forceActiveRows ?? []),
     unitIdCache: new Map(),
     unitPropertyCache: new Map(),
     tenantIdCache: new Map(),

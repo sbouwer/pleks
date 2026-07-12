@@ -20,6 +20,7 @@ import { GLReview, type GLImportResultData } from "./_components/GLReview"
 import { GLSuccess } from "./_components/GLSuccess"
 import { WizardStepBar } from "./_components/WizardStepBar"
 import type { ColumnSuggestion } from "@/lib/import/columnMapper"
+import type { WizardDecisions } from "@/lib/import/decisions"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
 
 export interface AnalysisResult {
@@ -31,12 +32,15 @@ export interface AnalysisResult {
   filename: string
 }
 
-export interface ImportDecisions {
-  columnMapping: Record<string, { field: string; entity: string }>
-  extraColumnRouting: Record<string, string>
-  expiredLeaseAction: "skip" | "import_as_expired"
-  perRowOverrides: Record<number, "active" | "skip">
-}
+/**
+ * The wizard's decision state — and, deliberately, the SAME type that goes on the wire and is translated for
+ * the runner (`lib/import/decisions.ts`). It used to be an independent interface declared right here, which is
+ * how the wizard and the runner drifted into two `ImportDecisions` shapes sharing only `columnMapping`: the
+ * runner read `expiredLeases`/`skipRows`/`conflicts`, none of which the wizard has ever sent, so "skip expired
+ * leases" — the default, printed on the confirm screen — silently did nothing. Deriving it from the one wire
+ * contract means the next field cannot go missing in transit.
+ */
+export type ImportDecisions = Required<WizardDecisions>
 
 export interface ImportResultData {
   created: {
@@ -78,6 +82,7 @@ export default function ImportWizardPage() {
     extraColumnRouting: {},
     expiredLeaseAction: "skip",
     perRowOverrides: {},
+    bankConsentAttested: false,
   })
   const [result, setResult] = useState<ImportResultData | null>(null)
 
@@ -114,21 +119,28 @@ export default function ImportWizardPage() {
 
   const handleMappingConfirmed = useCallback((
     mapping: Record<string, { field: string; entity: string }>,
-    extraRouting: Record<string, string>
+    extraRouting: Record<string, string>,
+    bankConsentAttested: boolean,
   ) => {
     setDecisions((d) => ({
       ...d,
       columnMapping: mapping,
       extraColumnRouting: extraRouting,
+      bankConsentAttested,
     }))
-    // Check for expired leases
+    // Show the expired-lease step whenever a lease_end column is MAPPED — the agent's own decision, and the
+    // only thing the runner acts on. It used to also require `analysis.detectedEntities.hasLease`, which is
+    // computed once at upload from AUTO-SUGGESTED columns and never recomputed. So an af-ZA book whose
+    // "Huurkontrak Einde" header did not auto-match, then mapped by hand in Step 2, skipped this step —
+    // and since the decisions contract is now live, its "skip expired" default would silently divert every
+    // stale-dated lease to tenancy history without the agent ever being shown the choice.
     const hasLeaseEnd = Object.values(mapping).some((m) => m.field === "lease_end")
-    if (hasLeaseEnd && analysis?.detectedEntities.hasLease) {
+    if (hasLeaseEnd) {
       setStep("expired")
     } else {
       setStep("confirm")
     }
-  }, [analysis])
+  }, [])
 
   const handleExpiredDecision = useCallback((
     action: "skip" | "import_as_expired",
@@ -157,6 +169,7 @@ export default function ImportWizardPage() {
       extraColumnRouting: {},
       expiredLeaseAction: "skip",
       perRowOverrides: {},
+      bankConsentAttested: false,
     })
     setResult(null)
     setGlBlocks([])
@@ -208,6 +221,7 @@ export default function ImportWizardPage() {
           headers={allHeaders}
           sampleRows={allRows.slice(0, 3)}
           initialMapping={decisions.columnMapping}
+          initialBankConsent={decisions.bankConsentAttested}
           onBack={() => setStep("detected")}
           onConfirm={handleMappingConfirmed}
         />
@@ -217,6 +231,8 @@ export default function ImportWizardPage() {
         <Step3ExpiredLeases
           rows={allRows}
           mapping={decisions.columnMapping}
+          initialAction={decisions.expiredLeaseAction}
+          initialOverrides={decisions.perRowOverrides}
           onBack={() => setStep("mapping")}
           onConfirm={handleExpiredDecision}
         />

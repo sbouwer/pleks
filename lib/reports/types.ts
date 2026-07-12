@@ -478,7 +478,10 @@ export interface CpaNoticeRow {
   property_name: string
   lease_end: string
   days_remaining: number
-  notice_due_by: string
+  /** NULL past the holiday table's horizon: the s14 notice date genuinely cannot be computed, and a report
+   *  must degrade to "—" rather than invent one. Every consumer must handle null explicitly — a template
+   *  literal stringifies it to the word "null", which is how a PDF ends up telling an agent that. */
+  notice_due_by: string | null
   status: string
 }
 
@@ -612,7 +615,8 @@ export interface WelcomePackCpaNotice {
   unit: string
   property: string
   lease_end: string
-  notice_due_by: string
+  /** NULL past the holiday table's horizon — see CpaNoticeRow.notice_due_by. */
+  notice_due_by: string | null
   days_remaining: number
 }
 

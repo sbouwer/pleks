@@ -18,13 +18,20 @@ import { formatZAR } from "@/lib/constants"
 interface Step3Props {
   rows: Record<string, string>[]
   mapping: Record<string, { field: string; entity: string }>
+  /** The choice already made, so Back → Continue does not silently reset it. */
+  initialAction: "skip" | "import_as_expired"
+  initialOverrides: Record<number, "active" | "skip">
   onBack: () => void
   onConfirm: (action: "skip" | "import_as_expired", overrides: Record<number, "active" | "skip">) => void
 }
 
-export function Step3ExpiredLeases({ rows, mapping, onBack, onConfirm }: Readonly<Step3Props>) {
-  const [action, setAction] = useState<"skip" | "import_as_expired">("skip")
-  const [overrides, setOverrides] = useState<Record<number, "active" | "skip">>({})
+export function Step3ExpiredLeases({ rows, mapping, initialAction, initialOverrides, onBack, onConfirm }: Readonly<Step3Props>) {
+  // SEEDED from the decisions already taken. This step used to initialise to ("skip", {}) unconditionally, so
+  // going Back from the confirm screen and clicking Continue again overwrote the agent's choice with the
+  // defaults — silently discarding "Import as expired" and every "Keep active" tick. Inert before the
+  // decisions contract was wired (F-13); data loss the moment it went live.
+  const [action, setAction] = useState<"skip" | "import_as_expired">(initialAction)
+  const [overrides, setOverrides] = useState<Record<number, "active" | "skip">>(initialOverrides)
 
   // Find the column mapped to lease_end
   const endDateCol = Object.entries(mapping).find(([, m]) => m.field === "lease_end")?.[0]

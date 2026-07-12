@@ -20,7 +20,7 @@ import { LeaseTerminatedEmail } from "@/lib/comms/templates/tenant/leases/lease-
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
-import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
+import { cpaRenewalNoticeDueSafe, CPA_RENEWAL_CANDIDATE_BAND_DAYS } from "@/lib/leases/cpaRenewal"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
@@ -211,7 +211,7 @@ export async function GET(req: Request) {
   // leases expiring within the notice horizon (120 calendar days comfortably contains the 80-business-day
   // window ≈ 112 days AND keeps every backward walk inside the holiday table), then the strict walker gives
   // each lease its exact due date. See lib/leases/cpaRenewal + ADDENDUM_70K §6.
-  const renewalBandEnd = addCalendarDays(today, 120)
+  const renewalBandEnd = addCalendarDays(today, CPA_RENEWAL_CANDIDATE_BAND_DAYS)
   const { data: renewalCandidates, error: needNoticeError } = await supabase
     .from("leases")
     .select("id, org_id, tenant_id, end_date, unit_id, units(unit_number, properties(name))")
@@ -229,7 +229,10 @@ export async function GET(req: Request) {
     if (!dueDate) {
       // A banded candidate whose date is uncomputable means the holiday table's horizon is now inside the
       // notice window — a real ops signal that saHolidays.json must be extended. Skip (never fire against an
-      // unknown holiday calendar), let the 90-day horizon sentinel in health.ts carry the alert.
+      // unknown holiday calendar). The horizon sentinel in health.ts carries the alert, and its threshold is
+      // DERIVED from this cron's band so it always fires FIRST — it used to warn at 90 days against this
+      // 120-day band, so for a 30-day window every year the cron reached leases it could not compute while
+      // health still reported "ok". The alert can no longer arrive after the thing it exists to pre-empt.
       console.warn(`[lease-expiry-check] CPA s14 notice date uncomputable for lease ${lease.id} (end ${lease.end_date}) — extend saHolidays.json`)
       continue
     }

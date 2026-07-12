@@ -111,10 +111,16 @@ interface Step2MappingProps {
   headers: string[]
   sampleRows: Record<string, string>[]
   initialMapping: Record<string, { field: string; entity: string }>
+  /** The attestation already given, so Back → Continue does not silently downgrade it to "no consent". */
+  initialBankConsent: boolean
   onBack: () => void
   onConfirm: (
     mapping: Record<string, { field: string; entity: string }>,
-    extraRouting: Record<string, string>
+    extraRouting: Record<string, string>,
+    /** F-10: the agent ticked "I have the tenants' consent" on the POPIA bank-details notice. This used to
+     *  terminate in this component's local state and reach nothing — the backend then wrote
+     *  `consent_given: true` on every imported account regardless, manufacturing a consent nobody gave. */
+    bankConsentAttested: boolean,
   ) => void
 }
 
@@ -123,12 +129,17 @@ export function Step2Mapping({
   headers,
   sampleRows,
   initialMapping,
+  initialBankConsent,
   onBack,
   onConfirm,
 }: Readonly<Step2MappingProps>) {
   const [mapping, setMapping] = useState<Record<string, { field: string; entity: string }>>(initialMapping)
-  const [bankNoticeShown, setBankNoticeShown] = useState(false)
-  const [bankImportAccepted, setBankImportAccepted] = useState<boolean | null>(null)
+  // SEEDED from the attestation already given. Initialising these to (false, null) unconditionally meant a
+  // Back from Step 3 and a Continue silently sent `bankConsentAttested: false` — so every bank account landed
+  // consent_given=false and consent_log recorded "migrated WITHOUT an attestation", for an agent who HAD
+  // attested and was then told to go and obtain consent they already had. Same defect as Step 3's.
+  const [bankNoticeShown, setBankNoticeShown] = useState(initialBankConsent)
+  const [bankImportAccepted, setBankImportAccepted] = useState<boolean | null>(initialBankConsent ? true : null)
 
   // Detect if any columns are mapped to bank fields
   const hasBankColumns = Object.values(mapping).some((m) => m.entity === "bank")
@@ -155,7 +166,9 @@ export function Step2Mapping({
         extraRouting[col] = m.field
       }
     }
-    onConfirm(mapping, extraRouting)
+    // `bankImportAccepted === true` ONLY when the agent explicitly attested on the notice card. Null (they
+    // never saw the card because the file has no bank columns) and false both mean "no attestation".
+    onConfirm(mapping, extraRouting, bankImportAccepted === true)
   }
 
   // Required fields check
@@ -181,18 +194,27 @@ export function Step2Mapping({
         Confirm how each column maps to Pleks fields.
       </p>
 
-      {/* POPIA bank details notice */}
+      {/* POPIA bank-details ATTESTATION (F-10).
+          This card used to be decoration: whichever button was clicked, the backend wrote consent_given=true
+          on every imported account — a system manufacturing proof of a consent nobody gave. The tenant is not
+          in the room during a migration, so the only thing truthfully recordable is the AGENT's declaration
+          that they hold that consent. Clicking the primary button now IS that declaration: it is carried to
+          the server, written to consent_log with the actor, the timestamp and this notice's version, and it
+          decides consent_given on every account imported. The wording must therefore say what is being
+          attested — not "import securely". */}
       {showBankNotice && (
         <Card className="mb-4 border-amber-500/20">
           <CardContent className="pt-4 space-y-3">
             <p className="text-sm font-medium">Bank account numbers detected in your file</p>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              These will be stored encrypted and used only for deposit refund processing.
-              Imported bank details are marked as unverified until confirmed.
+              They are encrypted at rest and used only for deposit refund processing. Because these tenants are
+              not present to consent, <strong>you</strong> confirm you hold their consent to migrate their
+              banking details — we record that confirmation against your name and the time you made it.
+              Compliance for the underlying consent remains the agency&apos;s.
             </p>
             <div className="flex gap-3">
               <ActionButton tone="primary" onClick={() => { setBankNoticeShown(true); setBankImportAccepted(true) }}>
-                Import bank details securely
+                I have the tenants&apos; consent — import
               </ActionButton>
               <ActionButton tone="secondary" onClick={() => {
                 setBankNoticeShown(true)

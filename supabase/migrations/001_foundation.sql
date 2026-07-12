@@ -887,6 +887,3 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_changed_by ON audit_log(changed_by);
 CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_compliance_confirmed_by ON custom_lease_requests(compliance_confirmed_by);
 CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_submitted_by ON custom_lease_requests(submitted_by);
 CREATE INDEX IF NOT EXISTS idx_invites_invited_by ON invites(invited_by);
--- idx_user_profiles_agent_contact_id moved to 002_contacts.sql: the agent_contact_id column is
--- added there (it REFERENCES contacts, created in 002), so the index can't live in 001 on fresh
--- replay. (migration-replay fix, 2026-07-06)

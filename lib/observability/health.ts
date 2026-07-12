@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
 import { HOLIDAY_TABLE_COVERS_THROUGH } from "@/lib/dates/saPublicHolidays"
+import { HOLIDAY_HORIZON_WARN_DAYS } from "@/lib/leases/cpaRenewal"
 import { saDateISO } from "@/lib/dates"
 import { APP_VERSION, SENTRY_ENVIRONMENT_PUBLIC, optionalEnv } from "@/lib/env"
 
@@ -202,10 +203,15 @@ async function checkDeliveryFeedback(supabase: SupabaseClient): Promise<HealthRe
 
 // ── SA public-holiday table horizon (the statutory backstop's early-warning) ─────────────────────────
 // addBusinessDays THROWS past the table's horizon rather than silently shortening a tenant's cure period.
-// That throw must be the backstop, never the plan — so nag from 90 days out, while there is still an ops
-// calendar to act on. When this fires, extend the table AND check the Gazette for newly proclaimed
-// once-off holidays: the table is a compliance process, not a code artefact.
-const HOLIDAY_HORIZON_WARN_DAYS = 90
+// That throw must be the backstop, never the plan — so nag while there is still an ops calendar to act on.
+// When this fires, extend the table AND check the Gazette for newly proclaimed once-off holidays: the table
+// is a compliance process, not a code artefact.
+//
+// The threshold (HOLIDAY_HORIZON_WARN_DAYS) is DERIVED from the renewal cron's candidate band, not chosen. It
+// must be strictly GREATER than that band, or the cron reaches leases whose statutory notice date it cannot
+// compute while this check still says "ok" — which is exactly what a bare 90-day warning against a 120-day
+// band did, silently, for a 30-day window every year: the alert arrived after the thing it exists to
+// pre-empt. See lib/leases/cpaRenewal.ts, where both live.
 
 export function checkHolidayTable(now: Date = new Date()): HealthReport["components"]["holiday_table"] {
   const todayIso = saDateISO(now)

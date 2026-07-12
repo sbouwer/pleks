@@ -18,6 +18,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { svc, seedEmptyOrg, seedUser, teardownOrg, teardownUser } from "@/test/db/tier"
 import { runImport, type ColumnMapping, type ImportDecisions, type ImportResult } from "@/lib/import/importRunner"
+import { toImportDecisions } from "@/lib/import/decisions"
+import { saTodayISO, addCalendarMonths } from "@/lib/dates"
+import { decryptBankAccount, hashBankAccount } from "@/lib/crypto/bankAccount"
 
 const db = svc()
 
@@ -42,7 +45,18 @@ const mapping: ColumnMapping = Object.fromEntries(
   COLUMNS.map(([column, field, entity]) => [column, { column, field, entity }]),
 )
 
-const decisions: ImportDecisions = { conflicts: [], expiredLeases: "import_all", skipRows: [] }
+// Built through the REAL wire translator, not hand-rolled — the wizard→runner contract is exactly what F-13
+// found broken (they shared no key but columnMapping), so a test that hand-builds the runner's shape would
+// test a shape production never produces.
+const decisions: ImportDecisions = toImportDecisions({ expiredLeaseAction: "import_as_expired" })
+
+/** A DD/MM/YYYY date `months` from today (negative = past). Fixtures must be relative: the runner compares
+ *  end_date to saTodayISO(), so a literal "28/02/2027" quietly flips an expired/active assertion in 2027. */
+function dmy(months: number): string {
+  const iso = addCalendarMonths(saTodayISO(), months)
+  const [y, m, d] = iso.split("-")
+  return `${d}/${m}/${y}`
+}
 
 /** A realistic af-ZA book: an abbreviated province, a commercial lease, joint tenants, and one bad cell. */
 const ROWS: Record<string, string>[] = [
@@ -50,21 +64,21 @@ const ROWS: Record<string, string>[] = [
     // R6 600,00 exported as 660000 CENTS by a Pleks-shaped re-export. "Retail" is a COMMERCIAL lease.
     Property: "Acacia Court", Address: "12 Acacia Rd", City: "Cape Town", Province: "WC", Unit: "1",
     "First Name": "Thabo", "Last Name": "Nkosi", Email: "thabo@example.co.za",
-    "Lease Start": "01/03/2026", "Lease End": "28/02/2027",
+    "Lease Start": dmy(-4), "Lease End": dmy(+8),
     monthly_rent_cents: "660000", "Lease Type": "Retail",
   },
   {
     // Joint tenants: one row, two people, two emails.
     Property: "Acacia Court", Address: "12 Acacia Rd", City: "Cape Town", Province: "WC", Unit: "2",
     "First Name": "Donovan & Apphia", "Last Name": "Meyer", Email: "donovan@example.co.za, apphia@example.co.za",
-    "Lease Start": "01/04/2026", "Lease End": "31/03/2027",
+    "Lease Start": dmy(-3), "Lease End": dmy(+9),
     monthly_rent_cents: "850000", "Lease Type": "Residential",
   },
   {
     // An unclassifiable lease type. It must REFUSE the lease, not quietly file it as residential.
     Property: "Acacia Court", Address: "12 Acacia Rd", City: "Cape Town", Province: "WC", Unit: "3",
     "First Name": "Lerato", "Last Name": "Dlamini", Email: "lerato@example.co.za",
-    "Lease Start": "01/05/2026", "Lease End": "30/04/2027",
+    "Lease Start": dmy(-2), "Lease End": dmy(+10),
     monthly_rent_cents: "700000", "Lease Type": "Mixed Use",
   },
 ]
@@ -127,6 +141,23 @@ describe("bulk import — against the real schema", () => {
     }
   })
 
+  it("marks the unit OCCUPIED — an imported live lease must not leave the unit reading as vacant", async () => {
+    // units.status DEFAULTs to 'vacant' and the importer never set it, so a founding agent migrating 100 live
+    // leases saw 100 empty units: every occupancy figure and vacancy report wrong on day one.
+    const { data: units, error } = await db.from("units").select("unit_number, status").eq("org_id", orgId)
+    expect(error).toBeFalsy()
+
+    const byNumber = Object.fromEntries((units ?? []).map((u) => [u.unit_number, u.status]))
+    expect(byNumber["1"], "unit 1 has a live lease").toBe("occupied")
+    expect(byNumber["2"], "unit 2 has a live lease").toBe("occupied")
+    // Unit 3's lease was REFUSED (unclassifiable type) — no lease, so it must stay vacant.
+    expect(byNumber["3"], "unit 3's lease was refused — it is not occupied").toBe("vacant")
+
+    const { count } = await db
+      .from("unit_status_history").select("id", { count: "exact", head: true }).eq("org_id", orgId)
+    expect(count, "the transition is recorded, once per occupied unit").toBe(2)
+  })
+
   it("WARNS that an unmapped escalation column means the system chose the rate, not the lease", async () => {
     // escalation_percent is NOT NULL DEFAULT 10.00. Our fixture maps no escalation column, so every lease
     // silently imports at 10% a year — and the escalation notice then tells tenants their rent rises 10%.
@@ -141,17 +172,25 @@ describe("bulk import — against the real schema", () => {
     expect(leases.every((l) => Number(l.escalation_percent) === 10), "the default did land").toBe(true)
   })
 
-  it("a COMMERCIAL lease never imports as CPA-governed (migration 010's invariant)", async () => {
-    // Only reachable BECAUSE the lease_type fix works: previously every lease imported as "residential", so
-    // cpa_applies DEFAULT true was never visibly wrong. Now "Retail" correctly lands commercial — and the
-    // default would raise CPA s14 auto-renewal deadlines against a lease the CPA does not govern.
-    const leases = await leasesOf(orgId)
-    const retail = leases.find((l) => l.lease_type === "commercial")
-    expect(retail, "the Retail lease is commercial").toBeTruthy()
-    expect(retail?.cpa_applies, "a commercial lease must not be CPA-governed").toBe(false)
+  it("the two CPA columns AGREE — the notice engine and the citation engine read different ones", async () => {
+    // `cpa_applies` (boolean) gates whether the renewal cron ever SENDS an s14 notice; `cpa_applies_at_signing`
+    // (3-state) decides whether a demand-to-vacate CITES the CPA cure period. If they disagree per-lease, a
+    // lease can be CPA-governed for citations and simultaneously INVISIBLE to the notice engine. Both are
+    // derived from one determineCpaApplicability call, so they cannot.
+    const { data, error } = await db
+      .from("leases").select("lease_type, cpa_applies, cpa_applies_at_signing, cpa_determination_category")
+      .eq("org_id", orgId)
+    expect(error).toBeFalsy()
 
-    const residential = leases.find((l) => l.lease_type === "residential")
-    expect(residential?.cpa_applies, "a residential lease keeps the CPA default").toBe(true)
+    for (const l of data ?? []) {
+      expect(l.cpa_applies, `lease_type=${l.lease_type} columns must agree`).toBe(l.cpa_applies_at_signing === "yes")
+    }
+
+    // These tenants are natural persons, so the CPA applies — s5(2) turns on the CONSUMER, not the premises.
+    // The commercial ("Retail") lease is let to an individual and is therefore CPA-governed too.
+    const retail = (data ?? []).find((l) => l.lease_type === "commercial")
+    expect(retail?.cpa_applies_at_signing).toBe("yes")
+    expect(retail?.cpa_determination_category).toBe("natural_person")
   })
 
   // ── F-8: a cents-denominated header must not be ×100'd again ──
@@ -192,7 +231,7 @@ describe("bulk import — against the real schema", () => {
       const rows: Record<string, string>[] = [{
         Property: "Blank Type Court", Address: "1 Blank Rd", City: "Cape Town", Province: "WC", Unit: "1",
         "First Name": "Ayanda", "Last Name": "Khumalo", Email: "ayanda@example.co.za",
-        "Lease Start": "01/03/2026", "Lease End": "28/02/2027",
+        "Lease Start": dmy(-4), "Lease End": dmy(+8),
         monthly_rent_cents: "500000", "Lease Type": "",     // ← blank, column IS mapped
       }]
       const r = await runImport(rows, mapping, decisions, org, agentId, undefined, db)
@@ -218,7 +257,7 @@ describe("bulk import — against the real schema", () => {
       const rows: Record<string, string>[] = [{
         Property: "Yebo Court", Address: "2 Yebo Rd", City: "Cape Town", Province: "WC", Unit: "1",
         "First Name": "Nomsa", "Last Name": "Mbeki", Email: "nomsa@example.co.za",
-        "Lease Start": "01/03/2026", "Lease End": "28/02/2027",
+        "Lease Start": dmy(-4), "Lease End": dmy(+8),
         monthly_rent_cents: "600000", "Lease Type": "Residential",
         CPA: "Y", "Fixed Term": "Y",
       }]
@@ -249,6 +288,238 @@ describe("bulk import — against the real schema", () => {
     expect(leases.find((l) => l.rent_amount_cents === 850_000), "the joint-tenant lease exists").toBeTruthy()
   })
 
+  // ── F-13: the wizard's decisions must actually reach the runner ──
+
+  /** One lease that ended in the past, one that is live — RELATIVE TO TODAY. The runner compares end_date
+   *  against saTodayISO(), so a hard-coded future date is a time bomb: these assertions would silently invert
+   *  the day the literal fell into the past. */
+  const EXPIRED_ROWS: Record<string, string>[] = [
+    {
+      Property: "Expiry Court", Address: "9 Expiry Rd", City: "Cape Town", Province: "WC", Unit: "1",
+      "First Name": "Pieter", "Last Name": "Botha", Email: "pieter@example.co.za",
+      "Lease Start": dmy(-24), "Lease End": dmy(-12),      // ended a year ago
+      monthly_rent_cents: "400000", "Lease Type": "Residential",
+    },
+    {
+      Property: "Expiry Court", Address: "9 Expiry Rd", City: "Cape Town", Province: "WC", Unit: "2",
+      "First Name": "Zanele", "Last Name": "Ndlovu", Email: "zanele@example.co.za",
+      "Lease Start": dmy(-4), "Lease End": dmy(+8),        // still running
+      monthly_rent_cents: "550000", "Lease Type": "Residential",
+    },
+  ]
+
+  it("F-13: \"Skip expired leases\" (the wizard DEFAULT) actually skips them", async () => {
+    // Step4Confirm prints "Expired leases will be skipped" on the confirmation screen. The runner read
+    // `decisions.expiredLeases`, which the wizard never sent — so it was always undefined, the branch was
+    // dead, and every expired lease was imported anyway. The agent was told the opposite of what happened.
+    const org = await seedEmptyOrg(db)
+    try {
+      const skip = toImportDecisions({ expiredLeaseAction: "skip" })
+      const r = await runImport(EXPIRED_ROWS, mapping, skip, org, agentId, undefined, db)
+
+      const leases = await leasesOf(org)
+      expect(leases, "only the LIVE lease imports").toHaveLength(1)
+      expect(leases[0]?.rent_amount_cents).toBe(550_000)
+      expect(r.leasesCreated).toBe(1)
+
+      // The dead tenancy is preserved as history rather than as a lease.
+      expect(await countOf("tenancy_history", org), "the expired tenancy becomes history").toBe(1)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-13: \"Import as expired\" imports it as a lease with status 'expired'", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const asExpired = toImportDecisions({ expiredLeaseAction: "import_as_expired" })
+      await runImport(EXPIRED_ROWS, mapping, asExpired, org, agentId, undefined, db)
+
+      const leases = await leasesOf(org)
+      expect(leases, "both leases import").toHaveLength(2)
+      expect(leases.find((l) => l.rent_amount_cents === 400_000)?.status).toBe("expired")
+      expect(leases.find((l) => l.rent_amount_cents === 550_000)?.status).toBe("active")
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-13: the per-row \"Keep active\" override imports a stale-dated lease as LIVE", async () => {
+    // The commonest shape in a migrated book: a renewal the old system never captured, so the end date looks
+    // stale. The wizard has always offered this checkbox; the runner had no concept of it, so ticking it did
+    // nothing — and under the (also-broken) "skip" default the lease simply vanished.
+    const org = await seedEmptyOrg(db)
+    try {
+      const keepActive = toImportDecisions({
+        expiredLeaseAction: "skip",
+        perRowOverrides: { 0: "active" },   // row 0 is the dead-dated lease
+      })
+      const r = await runImport(EXPIRED_ROWS, mapping, keepActive, org, agentId, undefined, db)
+
+      expect(r.leasesCreated, "BOTH import — the override rescues the stale-dated one").toBe(2)
+      const leases = await leasesOf(org)
+      const rescued = leases.find((l) => l.rent_amount_cents === 400_000)
+
+      // NOT `status:'active'` with a past end_date + is_fixed_term — that is precisely the selector of the
+      // nightly auto-convert cron, which would flip it to month-to-month and NULL the end date, silently
+      // reversing the agent's decision overnight. We know the lease is LIVE and we do NOT know when it ends,
+      // so that is what we record: a live, open-ended tenancy. It still bills, and the cron leaves it alone.
+      expect(rescued?.status, "live and stable under the auto-convert cron").toBe("month_to_month")
+      expect(rescued?.end_date, "the stale end date is not carried forward as if it were real").toBeNull()
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-13: \"Keep active\" works on ANY row of a unit group, not just its first", async () => {
+    // Step 3 renders a checkbox per FILE ROW and knows nothing about unit grouping, so co-tenants on one unit
+    // are two identical-looking lines. Testing only the group's FIRST row meant ticking the second line did
+    // nothing — and the lease the agent had just explicitly rescued was diverted to history and never created.
+    const org = await seedEmptyOrg(db)
+    try {
+      const coTenantRows: Record<string, string>[] = [
+        {
+          Property: "Sea Point", Address: "3 Beach Rd", City: "Cape Town", Province: "WC", Unit: "3A",
+          "First Name": "Alice", "Last Name": "Smit", Email: "alice@example.co.za",
+          "Lease Start": dmy(-24), "Lease End": dmy(-12),   // stale-dated
+          monthly_rent_cents: "480000", "Lease Type": "Residential",
+        },
+        {
+          Property: "Sea Point", Address: "3 Beach Rd", City: "Cape Town", Province: "WC", Unit: "3A",
+          "First Name": "Bob", "Last Name": "Smit", Email: "bob@example.co.za",
+          "Lease Start": dmy(-24), "Lease End": dmy(-12),   // same unit → same group, row 1
+          monthly_rent_cents: "480000", "Lease Type": "Residential",
+        },
+      ]
+
+      // The agent ticks "Keep active" on the SECOND line (row 1) — not the group's first row.
+      const keepActive = toImportDecisions({
+        expiredLeaseAction: "skip",
+        perRowOverrides: { 1: "active" },
+      })
+      const r = await runImport(coTenantRows, mapping, keepActive, org, agentId, undefined, db)
+
+      expect(r.leasesCreated, "the override must rescue the group's lease").toBe(1)
+      const leases = await leasesOf(org)
+      expect(leases[0]?.status, "live, and stable under the auto-convert cron").toBe("month_to_month")
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-13: a per-row \"skip\" drops the row entirely", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const skipRow = toImportDecisions({
+        expiredLeaseAction: "import_as_expired",
+        perRowOverrides: { 1: "skip" },     // drop the LIVE lease
+      })
+      await runImport(EXPIRED_ROWS, mapping, skipRow, org, agentId, undefined, db)
+
+      const leases = await leasesOf(org)
+      expect(leases, "the skipped row created no lease").toHaveLength(1)
+      expect(leases[0]?.rent_amount_cents).toBe(400_000)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  // ── F-11 / F-10: bank details are ENCRYPTED, and consent reflects the AGENT'S ATTESTATION ──
+
+  const BANK_COLUMNS: ColumnMapping = {
+    ...mapping,
+    "Bank Account": { column: "Bank Account", field: "tenant_bank_account_1", entity: "bank" },
+    "Bank Name": { column: "Bank Name", field: "tenant_bank_name_1", entity: "bank" },
+  }
+  const RAW_ACCOUNT = "6241234567"
+  const bankRow = (email: string): Record<string, string>[] => [{
+    Property: "Bank Court", Address: "5 Bank Rd", City: "Cape Town", Province: "WC", Unit: "1",
+    "First Name": "Naledi", "Last Name": "Mokoena", Email: email,
+    "Lease Start": dmy(-4), "Lease End": dmy(+8),
+    monthly_rent_cents: "500000", "Lease Type": "Residential",
+    "Bank Account": RAW_ACCOUNT, "Bank Name": "FNB",
+  }]
+
+  it("F-11: the account number is ENCRYPTED and recoverable — a mask alone cannot process a refund", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const attested = { ...toImportDecisions({ expiredLeaseAction: "skip" }), bankConsentAttested: true }
+      await runImport(bankRow("naledi@example.co.za"), BANK_COLUMNS, attested, org, agentId, undefined, db)
+
+      const { data, error } = await db
+        .from("tenant_bank_accounts")
+        .select("account_number, account_number_enc, account_number_hash, consent_given, consent_given_at")
+        .eq("org_id", org).single()
+      expect(error).toBeFalsy()
+
+      // The stored `account_number` is the MASK — the raw number must never sit in it.
+      expect(data?.account_number).not.toBe(RAW_ACCOUNT)
+      expect(data?.account_number).toContain("4567")
+
+      // …and account_number_enc — the column that has existed unused since migration 042 — round-trips.
+      expect(data?.account_number_enc, "the ciphertext must be written").toBeTruthy()
+      expect(data?.account_number_enc).not.toBe(RAW_ACCOUNT)
+      expect(decryptBankAccount(data?.account_number_enc), "an agent must get the real number back").toBe(RAW_ACCOUNT)
+
+      // The deterministic lookup key is computed from the RAW value (never the ciphertext).
+      expect(data?.account_number_hash).toBe(hashBankAccount(RAW_ACCOUNT))
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-10: consent records the AGENT'S ATTESTATION — it is not manufactured", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const attested = { ...toImportDecisions({ expiredLeaseAction: "skip" }), bankConsentAttested: true }
+      await runImport(bankRow("attested@example.co.za"), BANK_COLUMNS, attested, org, agentId, undefined, db)
+
+      const { data: acct, error: acctErr } = await db
+        .from("tenant_bank_accounts").select("consent_given, consent_given_at").eq("org_id", org).single()
+      expect(acctErr).toBeFalsy()
+      expect(acct?.consent_given).toBe(true)
+      expect(acct?.consent_given_at).toBeTruthy()
+
+      // The attestation itself is on the record — actor, notice version, and what was actually declared.
+      const { data: consent, error: consentErr } = await db
+        .from("consent_log").select("consent_type, consent_given, consent_version, user_id, metadata")
+        .eq("org_id", org).eq("consent_type", "bank_details_import").single()
+      expect(consentErr).toBeFalsy()
+      expect(consent?.consent_given).toBe(true)
+      expect(consent?.user_id, "attributed to the agent who attested").toBe(agentId)
+      expect(consent?.consent_version).toBeTruthy()
+      expect((consent?.metadata as { declaration?: string })?.declaration ?? "").toContain("attested")
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-10: WITHOUT the attestation, the account is recorded as UNCONSENTED (it used to say true regardless)", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      // The agent never ticked the notice. The old code wrote consent_given: true anyway.
+      const notAttested = toImportDecisions({ expiredLeaseAction: "skip" })
+      const r = await runImport(bankRow("noconsent@example.co.za"), BANK_COLUMNS, notAttested, org, agentId, undefined, db)
+
+      const { data: acct, error: acctErr } = await db
+        .from("tenant_bank_accounts").select("consent_given, consent_given_at").eq("org_id", org).single()
+      expect(acctErr).toBeFalsy()
+      expect(acct?.consent_given, "no attestation ⇒ no consent").toBe(false)
+      expect(acct?.consent_given_at).toBeNull()
+
+      // The NEGATIVE record matters as much as the positive one — it is what a regulator would ask for.
+      const { data: consent, error: consentErr } = await db
+        .from("consent_log").select("consent_given, metadata").eq("org_id", org).eq("consent_type", "bank_details_import").single()
+      expect(consentErr).toBeFalsy()
+      expect(consent?.consent_given).toBe(false)
+      expect((consent?.metadata as { declaration?: string })?.declaration ?? "").toContain("WITHOUT")
+
+      expect(r.errors.some((e) => e.message.includes("without confirming you hold the tenant's consent"))).toBe(true)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
   // ── F-6: idempotency — the whole point of a migration front door ──
 
   it("F-6: a BLANK unit number does not duplicate the unit (and its lease) on re-run", async () => {
@@ -261,7 +532,7 @@ describe("bulk import — against the real schema", () => {
       const houseRows: Record<string, string>[] = [{
         Property: "14 Protea Street", Address: "14 Protea St", City: "Durban", Province: "KZN", Unit: "",
         "First Name": "Sipho", "Last Name": "Zulu", Email: "sipho@example.co.za",
-        "Lease Start": "01/02/2026", "Lease End": "31/01/2027",
+        "Lease Start": dmy(-5), "Lease End": dmy(+7),
         monthly_rent_cents: "900000", "Lease Type": "Residential",
       }]
 

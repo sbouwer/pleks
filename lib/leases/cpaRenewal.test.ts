@@ -10,6 +10,7 @@ import {
   cpaRenewalNoticeDue, cpaRenewalNoticeDueSafe, CPA_S14_NOTICE_BUSINESS_DAYS,
   cpaRenewalNoticeFloor, cpaRenewalNoticeFloorSafe, CPA_S14_NOTICE_FLOOR_BUSINESS_DAYS,
   isRenewalNoticeMissed,
+  HOLIDAY_HORIZON_WARN_DAYS, CPA_RENEWAL_CANDIDATE_BAND_DAYS,
 } from "./cpaRenewal"
 import { subtractBusinessDaysStrict, addCalendarDays } from "@/lib/dates"
 
@@ -98,5 +99,30 @@ describe("isRenewalNoticeMissed — the boundary is STRICT, locked here so it ca
 
   it("is NOT missed when the floor degraded to null past the horizon — the advisory alert is simply absent", () => {
     expect(isRenewalNoticeMissed(null, "2027-01-01")).toBe(false)
+  })
+})
+
+describe("F-14/F-15 — one s14 date, and a sentinel that fires before the cron needs it", () => {
+  it("the sentinel warns EARLIER than the cron's candidate band (the alert cannot arrive too late)", () => {
+    // These were unrelated literals: the cron reached 120 days out, health warned at 90. So whenever the
+    // holiday table's horizon sat in that 30-day gap, the cron met leases whose s14 date it could not compute,
+    // skipped them with a console.warn, and health still said "ok". Derived now — the ordering is structural.
+    expect(HOLIDAY_HORIZON_WARN_DAYS).toBeGreaterThan(CPA_RENEWAL_CANDIDATE_BAND_DAYS)
+  })
+
+  it("the notice-due target and the missed-notice floor are DIFFERENT dates, and the floor is later", () => {
+    // The report used to decide "overdue" off the notice date itself. The target is when we NUDGE (60 bd);
+    // the floor is when the lawful window CLOSES (40 bd). Judging "missed" off the target flags a lease as
+    // overdue while ~20 lawful business days remain.
+    const end = "2027-06-30"
+    const due = cpaRenewalNoticeDueSafe(end)
+    const floor = cpaRenewalNoticeFloorSafe(end)
+    expect(due).toBeTruthy()
+    expect(floor).toBeTruthy()
+    expect(due! < floor!, "the 60-bd target falls BEFORE the 40-bd floor").toBe(true)
+
+    // On the floor day itself the notice is still lawful — s14 says "not less than 40 business days".
+    expect(isRenewalNoticeMissed(floor, floor!)).toBe(false)
+    expect(isRenewalNoticeMissed(floor, "2027-06-29")).toBe(true)
   })
 })

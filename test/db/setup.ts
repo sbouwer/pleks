@@ -14,3 +14,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ||=
 // Publishable/anon key is not needed for the service-role DB path, but some imports read it.
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||=
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+
+// At-rest encryption (id_number, bank account numbers). A LOCAL TEST key — 64 hex chars, deliberately
+// non-secret, and only ever used against the throwaway local stack. A real ENCRYPTION_KEY in the environment
+// wins via ||=. Without this, any dbtest touching an encrypted column throws "ENCRYPTION_KEY is not set".
+process.env.ENCRYPTION_KEY ||= "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"

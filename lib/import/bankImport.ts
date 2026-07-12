@@ -1,25 +1,17 @@
 /**
- * lib/import/bankImport.ts — bank-account import helpers: branch-code normalisation, SHA-256 hashing, and masking
+ * lib/import/bankImport.ts — bank-account import helper: branch-code normalisation
  *
- * Notes:  hash/mask keep raw account numbers out of storage and UI; branch code extracted from "(NNNNNN)" wrappers.
+ * Notes:  hashBankAccount/maskBankAccount USED to live here with DIFFERENT outputs to the ones in
+ *         lib/crypto/bankAccount.ts (unsalted digest; "****1234" vs "••••1234"). Two same-named functions
+ *         producing different values is a trap: the next caller to import from the file literally named for
+ *         bank import would write a hash that could never match a stored one. Deleted — lib/crypto/bankAccount
+ *         is the SSOT for masking, hashing and encryption.
  */
-import { createHash } from "node:crypto"
 
 export function normaliseBranchCode(raw: string | null): string | null {
   if (!raw) return null
-  const match = raw.match(/\((\d+)\)/)
+  const match = /\((\d+)\)/.exec(raw)
   if (match) return match[1]
   if (/^\d+$/.test(raw.trim())) return raw.trim()
   return raw
-}
-
-export function hashBankAccount(accountNumber: string): string {
-  // eslint-disable-next-line pleks/no-raw-content-hash -- account-number dedup lookup key (like id_number_hash) — not evidence content
-  return createHash("sha256").update(accountNumber.trim()).digest("hex")
-}
-
-export function maskBankAccount(accountNumber: string): string {
-  const trimmed = accountNumber.trim()
-  if (trimmed.length <= 4) return "****"
-  return "****" + trimmed.slice(-4)
 }

@@ -599,7 +599,9 @@ export function buildCpaNoticeScheduleHTML(data: CpaNoticeScheduleData, org: Rep
       <tr><th>Tenant</th><th>Unit</th><th>Property</th><th>Lease End</th><th class="text-right">Days Remaining</th><th>Notice Due By</th><th>Status</th></tr>
       ${data.rows.map((r) => {
         const leaseEnd = r.lease_end
-        const noticeDue = r.notice_due_by
+        // `${null}` renders the literal text "null" — a PDF telling an agent their statutory notice date is
+        // "null" is worse than telling them it is unavailable. TS cannot catch this; the guard has to be here.
+        const noticeDue = r.notice_due_by ?? "—"
         let daysClass = ""
         if (r.days_remaining < 0) daysClass = " text-danger"
         else if (r.days_remaining <= 7) daysClass = " text-warning"

@@ -12,6 +12,61 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { toColumnMapping, toImportDecisions, EXPIRED_ACTION_WIRE, type WizardDecisions } from "@/lib/import/decisions"
+import type { ImportDecisions } from "@/lib/import/importRunner"
+
+type Service = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
+
+/** Create the import session, or reuse the caller's own. Returns null when a supplied sessionId belongs to
+ *  another org (the caller-ID census org-scope guard). */
+async function resolveSession(
+  service: Service,
+  args: {
+    sessionId: string | undefined
+    rows: Record<string, string>[]
+    decisions: WizardDecisions | undefined
+    runnerDecisions: ImportDecisions
+    orgId: string
+    userId: string
+  },
+): Promise<string | null | undefined> {
+  const { sessionId, rows, decisions, runnerDecisions, orgId, userId } = args
+
+  if (sessionId) {
+    const { data: owned, error: ownedError } = await service
+      .from("import_sessions").select("id").eq("id", sessionId).eq("org_id", orgId).maybeSingle()
+    logQueryError("POST import_sessions ownership", ownedError)
+    if (!owned) return null
+
+    await service.from("import_sessions").update({ status: "importing" }).eq("id", sessionId).eq("org_id", orgId)
+    return sessionId
+  }
+
+  const { data: session, error: sessionError } = await service
+    .from("import_sessions")
+    .insert({
+      org_id: orgId,
+      created_by: userId,
+      status: "importing",
+      source_row_count: rows.length,
+      column_mapping: decisions?.columnMapping ?? null,
+      extra_column_routing: decisions?.extraColumnRouting ?? null,
+      // Persist what the runner ACTUALLY ACTED ON, never the raw wire. Two reasons:
+      //  - `conflictResolutions` used to be read here — a key the wizard has never sent, so the column was
+      //    always NULL.
+      //  - `expired_lease_action` carries CHECK (IN ('skip','import_as_expired')). The translator tolerates a
+      //    junk value (falling back to the safe option), but the raw value would VIOLATE the CHECK — the insert
+      //    fails, the session id comes back undefined, and the import then runs with no session row at all:
+      //    nothing for the agent or an auditor to trace. Sanitised in, sanitised out.
+      conflict_resolutions: runnerDecisions.conflicts.length > 0 ? runnerDecisions.conflicts : null,
+      expired_lease_action: EXPIRED_ACTION_WIRE[runnerDecisions.expiredLeases],
+      per_row_overrides: decisions?.perRowOverrides ?? null,
+    })
+    .select("id").single()
+  logQueryError("POST import_sessions", sessionError)
+
+  return session?.id as string | undefined
+}
 
 export async function POST(req: NextRequest) {
   let gw
@@ -29,50 +84,30 @@ export async function POST(req: NextRequest) {
   }
   const { db: service, orgId, userId } = gw
 
-  const body = await req.json()
+  // TYPE THE WIRE. `await req.json()` is `any`, which is how the wizard and the runner drifted into two
+  // different `ImportDecisions` shapes that share only `columnMapping` — so "skip expired leases" (the
+  // wizard's default, printed on the confirm screen) silently did nothing for the life of the feature.
+  // The translation is explicit and tested; see lib/import/decisions.ts.
+  const body = (await req.json()) as {
+    sessionId?: string
+    rows?: Record<string, string>[]
+    decisions?: WizardDecisions
+  }
   const { sessionId, rows, decisions } = body
 
   if (!rows || !Array.isArray(rows) || rows.length === 0) {
     return NextResponse.json({ error: "No data to import" }, { status: 400 })
   }
 
-  // Create or update import session
-  let importSessionId = sessionId
-  if (!importSessionId) {
-    const { data: session, error: sessionError } = await service
-      .from("import_sessions")
-      .insert({
-        org_id: orgId,
-        created_by: userId,
-        status: "importing",
-        source_row_count: rows.length,
-        column_mapping: decisions?.columnMapping ?? null,
-        extra_column_routing: decisions?.extraColumnRouting ?? null,
-        conflict_resolutions: decisions?.conflictResolutions ?? null,
-        expired_lease_action: decisions?.expiredLeaseAction ?? null,
-        per_row_overrides: decisions?.perRowOverrides ?? null,
-      })
-      .select("id")
-      .single()
-    logQueryError("POST import_sessions", sessionError)
+  const columnMapping = toColumnMapping(decisions?.columnMapping)
+  const runnerDecisions = toImportDecisions(decisions)
 
-    importSessionId = session?.id
-  } else {
-    // org-scope guard (caller-ID census): validate the session belongs to the org before touching it
-    const { data: ownedSession, error: ownedError } = await service
-      .from("import_sessions")
-      .select("id")
-      .eq("id", importSessionId)
-      .eq("org_id", orgId)
-      .maybeSingle()
-    logQueryError("POST import_sessions ownership", ownedError)
-    if (!ownedSession) return NextResponse.json({ error: "Import session not found" }, { status: 404 })
-
-    await service
-      .from("import_sessions")
-      .update({ status: "importing" })
-      .eq("id", importSessionId)
-      .eq("org_id", orgId)
+  // Create or reuse the import session. `null` = the caller supplied a session id that is not theirs.
+  const importSessionId = await resolveSession(service, {
+    sessionId, rows, decisions, runnerDecisions, orgId, userId,
+  })
+  if (importSessionId === null) {
+    return NextResponse.json({ error: "Import session not found" }, { status: 404 })
   }
 
   // Run import
@@ -80,8 +115,8 @@ export async function POST(req: NextRequest) {
     const { runImport } = await import("@/lib/import/importRunner")
     const result = await runImport(
       rows,
-      decisions?.columnMapping ?? {},
-      decisions ?? {},
+      columnMapping,
+      runnerDecisions,
       orgId,
       userId,
       importSessionId,
