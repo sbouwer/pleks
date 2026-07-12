@@ -9,6 +9,18 @@
  *         forced trust failure rolls the payment AND the charge link back (was a re-run double-consume gap).
  *         (2) Deposit trust postings now carry statement_month, so posting into a SIGNED-OFF period RAISEs +
  *         rolls back instead of silently corrupting closed books.
+ *
+ * ⚠ KNOWN RED ON A FRESH LOCAL STACK (2026-07-13) — this is a TRACKED FINDING, not a mystery.
+ *   The closed-period case fails when the local DB is rebuilt from migrations (`supabase db reset`), because the
+ *   migration files do NOT reproduce production:
+ *     · `allocate_payment_atomic` — 0 in prod; exists only in the file. Pattern A PERFORMs it, so a real
+ *       Pattern-A settlement in prod would fail at runtime with "function does not exist".
+ *     · the file's `allocate_payment_atomic` posts NO trust transaction at all, though Pattern A's step-2 comment
+ *       says it does — so nothing stamps `statement_month` and the guard never fires.
+ *   This test passed for months only against a local DB carrying out-of-band state. The function it was proving
+ *   is not the function in the file, and is not the function in prod. A green test as FALSE PROOF.
+ *   SEVERITY: latent — prod's trust ledger holds ZERO rows and no period has ever been signed off, so nothing is
+ *   mis-stated. Do NOT "fix" this by editing the assertion. See OUTSTANDING.md § D-LEDGER-01.
  */
 import { afterAll, describe, expect, it } from "vitest"
 import { svc, seedLedgerCase, teardownOrg, forceDepositTxnInsertFailure } from "./tier"
