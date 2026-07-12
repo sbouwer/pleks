@@ -15,10 +15,11 @@ import {
   SA_PROVINCES, type Classification,
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
+import { checkLeasePlausibility, looksLikeEmail } from "./plausibility"
 import { resolveDepositRate, postOpeningDeposit } from "./depositImport"
 import { normaliseBranchCode } from "./bankImport"
 import { bankAccountColumns } from "@/lib/crypto/bankAccount"
-import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { idNumberColumns, validateSAIdNumber } from "@/lib/crypto/idNumber"
 import { optionalEnv } from "@/lib/env"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
@@ -706,6 +707,9 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Tenant email is required", severity: "error" })
     return
   }
+
+  const dataQualityTags = checkTenantIdentity(email, entry, ctx)
+
   if (ctx.tenantIdCache.has(email)) return
 
   try {
@@ -754,6 +758,8 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         registration_number: getField(entry.row, "registration_number", ctx.mapping) || null,
         vat_number: getField(entry.row, "vat_number", ctx.mapping) || null,
         ...contactIdentityColumns(entry.row, ctx),
+        // The known-wrong marks, PERSISTED. `is_verified` stays false while any of these stand.
+        ...(dataQualityTags.length ? { tags: dataQualityTags, is_verified: false } : {}),
       })
       .select("id").single()
 
@@ -827,6 +833,44 @@ function contactIdentityColumns(row: Record<string, string>, ctx: ImportContext)
     tpn_reference: getField(row, "tpn_reference", ctx.mapping) || null,
     tpn_entity_id: getField(row, "tpn_entity_id", ctx.mapping) || null,
   }
+}
+
+/**
+ * KNOWN-WRONG, NOT REJECTED (Stéan ruling, 2026-07-12).
+ *
+ * A bad identity value must NOT cost the agency the row. A book of 5 000 leases cannot hang on two mistyped ID
+ * digits — refusing here would make our strictness the agency's problem. So: import it, MARK it as known-wrong
+ * on the contact, and let the agent correct it the moment they next touch that lease.
+ *
+ * The mark is PERSISTED on `contacts.tags`, not merely raised in the import report. An import warning is read
+ * once and gone; a tag is queryable, so "every contact with a broken ID" becomes a worklist rather than a memory.
+ */
+function checkTenantIdentity(email: string, entry: UnitGroupEntry, ctx: ImportContext): string[] {
+  const tags: string[] = []
+
+  // This address is BOTH the dedup key AND where the tenant's mail goes. A malformed one silently merges two
+  // people into one contact, or silently reaches nobody — and the importer used to accept anything at all.
+  if (!looksLikeEmail(email)) {
+    tags.push("email_malformed")
+    flagForReview(ctx, entry.index, "email",
+      `"${email}" does not look like an email address. It was imported and flagged on the tenant, but this ` +
+      `address is how we RECOGNISE this tenant and how we CONTACT them — a malformed one can merge two people ` +
+      `into one, or reach nobody at all.`)
+  }
+
+  // `validateSAIdNumber` has existed all along and the importer never called it: a 13-digit number failing its
+  // own checksum was accepted as an identity, and would go on to a credit check and onto a lease document.
+  // Flagged, never refused — a real book legitimately carries passports and permits too.
+  const idForCheck = getField(entry.row, "id_number", ctx.mapping).replaceAll(/\s/g, "")
+  if (/^\d{13}$/.test(idForCheck) && !validateSAIdNumber(idForCheck).valid) {
+    tags.push("id_checksum_failed")
+    flagForReview(ctx, entry.index, "id_number",
+      "This looks like an SA ID number but fails its checksum, so at least one digit is wrong. The tenant WAS " +
+      "imported and the ID marked unverified — correct it before it is used for a credit check or written onto " +
+      "a lease document.")
+  }
+
+  return tags
 }
 
 async function insertNextOfKin(
@@ -1571,6 +1615,31 @@ function buildLeaseData(
     ...cpaSnapshot(row, rowIndex, ctx, classifications.cpa_applies),
     ...optionalLeaseFields(row, rowIndex, ctx),
   }
+
+  // ── BOUNDS. "It parses" is a much weaker claim than "it could be true". A negative rent, a lease that ends
+  // before it starts, a 500% escalation: all type-valid, all nonsense. INCOHERENT values refuse the row;
+  // IMPLAUSIBLE ones import with a warning, because refusing them would block a legitimate edge case.
+  const issues = checkLeasePlausibility({
+    rentCents: required.rentCents,
+    depositCents: depositCents,
+    escalationPercent: typeof data.escalation_percent === "number" ? data.escalation_percent : null,
+    arrearsMarginPercent: typeof data.arrears_interest_margin_percent === "number" ? data.arrears_interest_margin_percent : null,
+    noticePeriodDays: typeof data.notice_period_days === "number" ? data.notice_period_days : null,
+    depositReturnDays: typeof data.deposit_return_days === "number" ? data.deposit_return_days : null,
+    startDate: required.startDate,
+    endDate: normalisedEnd,
+    todayISO: saTodayISO(),
+  })
+  let refused = false
+  for (const issue of issues) {
+    if (issue.severity === "error") {
+      refuse(ctx, rowIndex, issue.field, issue.message)
+      refused = true
+    } else {
+      flagForReview(ctx, rowIndex, issue.field, issue.message)
+    }
+  }
+  if (refused) return { ok: false }
 
   // "Keep active" on a lease whose end date has already passed: the renewal was never captured in the old
   // system, so the date in the file is stale — we know the lease is LIVE and we do NOT know when it ends.
