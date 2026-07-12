@@ -140,6 +140,23 @@ describe("bulk import — against the real schema", () => {
     }
   })
 
+  it("marks the unit OCCUPIED — an imported live lease must not leave the unit reading as vacant", async () => {
+    // units.status DEFAULTs to 'vacant' and the importer never set it, so a founding agent migrating 100 live
+    // leases saw 100 empty units: every occupancy figure and vacancy report wrong on day one.
+    const { data: units, error } = await db.from("units").select("unit_number, status").eq("org_id", orgId)
+    expect(error).toBeFalsy()
+
+    const byNumber = Object.fromEntries((units ?? []).map((u) => [u.unit_number, u.status]))
+    expect(byNumber["1"], "unit 1 has a live lease").toBe("occupied")
+    expect(byNumber["2"], "unit 2 has a live lease").toBe("occupied")
+    // Unit 3's lease was REFUSED (unclassifiable type) — no lease, so it must stay vacant.
+    expect(byNumber["3"], "unit 3's lease was refused — it is not occupied").toBe("vacant")
+
+    const { count } = await db
+      .from("unit_status_history").select("id", { count: "exact", head: true }).eq("org_id", orgId)
+    expect(count, "the transition is recorded, once per occupied unit").toBe(2)
+  })
+
   it("WARNS that an unmapped escalation column means the system chose the rate, not the lease", async () => {
     // escalation_percent is NOT NULL DEFAULT 10.00. Our fixture maps no escalation column, so every lease
     // silently imports at 10% a year — and the escalation notice then tells tenants their rent rises 10%.

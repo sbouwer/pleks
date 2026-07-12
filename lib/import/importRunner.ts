@@ -1275,6 +1275,13 @@ async function processActiveLease(
     const leaseId = String(newLease.id)
     ctx.result.leasesCreated++
 
+    // A live lease means the unit is OCCUPIED. `units.status` defaults to 'vacant' and the importer never set
+    // it, so a founding agent migrated 100 live leases and their dashboard showed 100 empty units — every
+    // occupancy figure, vacancy report and "available to let" surface was wrong on day one.
+    if (!isExpired) {
+      await markUnitOccupied(unitId, ctx)
+    }
+
     // Primary tenant_id is already set at insert; this loop now only surfaces the co-tenant "not linked" notice.
     for (const ar of activeRows) {
       await linkTenantToLease(ar, leaseId, ctx)
@@ -1283,6 +1290,38 @@ async function processActiveLease(
     const msg = err instanceof Error ? err.message : "Unknown error"
     ctx.result.errors.push({ rowIndex: index, field: "lease_start", message: `Lease error: ${msg}`, severity: "error" })
   }
+}
+
+/**
+ * Flip the unit to occupied and record the transition. Idempotent by construction: only reached when a lease
+ * was actually CREATED (a re-run hits the dedup and returns before this), and the update is scoped
+ * `.eq("status","vacant")` so a unit already occupied is not re-stamped and no duplicate history row appears.
+ * Non-fatal — an occupancy blip must not fail an otherwise-good lease import.
+ */
+async function markUnitOccupied(unitId: string, ctx: ImportContext): Promise<void> {
+  const { data: flipped, error } = await ctx.supabase
+    .from("units")
+    .update({ status: "occupied" })
+    .eq("id", unitId).eq("org_id", ctx.orgId).eq("status", "vacant")
+    .select("id")
+
+  if (error) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "unit_number", severity: "warning",
+      message: `Lease imported, but the unit could not be marked occupied: ${error.message}`,
+    })
+    return
+  }
+  if (!flipped?.length) return   // already occupied — nothing to record
+
+  await ctx.supabase.from("unit_status_history").insert({
+    unit_id: unitId,
+    org_id: ctx.orgId,
+    from_status: "vacant",
+    to_status: "occupied",
+    changed_by: ctx.agentId,
+    reason: "Imported with an active lease",
+  })
 }
 
 async function linkTenantToLease(
