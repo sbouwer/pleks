@@ -71,6 +71,9 @@ export interface ImportDecisions {
   expiredLeases: ExpiredDecision
   /** Row indices to skip entirely */
   skipRows: number[]
+  /** Step 3's "Keep active" per-row exception: import this lease as LIVE even though its end date has passed.
+   *  The wizard has always offered this checkbox; the runner had no concept of it, so it did nothing. */
+  forceActiveRows: number[]
 }
 
 type TenantRole = "primary" | "co_tenant" | "previous"
@@ -96,6 +99,8 @@ interface ImportContext {
   importSessionId: string | undefined
   supabase: SupabaseClient
   result: ImportResult
+  /** decisions.forceActiveRows as a Set — consulted once per unit group. */
+  forceActiveRows: Set<number>
   unitIdCache: Map<string, string>
   /** unitKey → the property that unit belongs to. `leases.property_id` is NOT NULL and has no trigger to
    *  derive it from unit_id, so the lease insert must carry it explicitly. */
@@ -1199,7 +1204,10 @@ async function processActiveLease(
   // Compare DATES, not instants. `new Date("2026-07-12") < new Date()` parses the end date as UTC midnight and
   // compares it to local now, so a lease ending TODAY imports as "expired" and drops out of every active-lease
   // surface. Both sides are SA calendar days here.
-  const isExpired = normalisedEnd ? normalisedEnd < saTodayISO() : false
+  const endedInPast = normalisedEnd ? normalisedEnd < saTodayISO() : false
+  // Step 3's "Keep active" checkbox: the agent has told us this lease is live despite the stale end date
+  // (a renewal that was never captured in the old system — extremely common in a migrated book).
+  const isExpired = endedInPast && !ctx.forceActiveRows.has(index)
 
   if (isExpired && ctx.decisions.expiredLeases === "import_active_only") {
     for (const ar of activeRows) {
@@ -1968,6 +1976,7 @@ export async function runImport(
       pendingLandlordLinks: [],
       agentInvites: [],
     },
+    forceActiveRows: new Set(decisions.forceActiveRows ?? []),
     unitIdCache: new Map(),
     unitPropertyCache: new Map(),
     tenantIdCache: new Map(),

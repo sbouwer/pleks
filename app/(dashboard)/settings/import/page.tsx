@@ -20,6 +20,7 @@ import { GLReview, type GLImportResultData } from "./_components/GLReview"
 import { GLSuccess } from "./_components/GLSuccess"
 import { WizardStepBar } from "./_components/WizardStepBar"
 import type { ColumnSuggestion } from "@/lib/import/columnMapper"
+import type { WizardDecisions } from "@/lib/import/decisions"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
 
 export interface AnalysisResult {
@@ -31,12 +32,15 @@ export interface AnalysisResult {
   filename: string
 }
 
-export interface ImportDecisions {
-  columnMapping: Record<string, { field: string; entity: string }>
-  extraColumnRouting: Record<string, string>
-  expiredLeaseAction: "skip" | "import_as_expired"
-  perRowOverrides: Record<number, "active" | "skip">
-}
+/**
+ * The wizard's decision state — and, deliberately, the SAME type that goes on the wire and is translated for
+ * the runner (`lib/import/decisions.ts`). It used to be an independent interface declared right here, which is
+ * how the wizard and the runner drifted into two `ImportDecisions` shapes sharing only `columnMapping`: the
+ * runner read `expiredLeases`/`skipRows`/`conflicts`, none of which the wizard has ever sent, so "skip expired
+ * leases" — the default, printed on the confirm screen — silently did nothing. Deriving it from the one wire
+ * contract means the next field cannot go missing in transit.
+ */
+export type ImportDecisions = Required<WizardDecisions>
 
 export interface ImportResultData {
   created: {

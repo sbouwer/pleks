@@ -18,6 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { svc, seedEmptyOrg, seedUser, teardownOrg, teardownUser } from "@/test/db/tier"
 import { runImport, type ColumnMapping, type ImportDecisions, type ImportResult } from "@/lib/import/importRunner"
+import { toImportDecisions } from "@/lib/import/decisions"
 
 const db = svc()
 
@@ -42,7 +43,10 @@ const mapping: ColumnMapping = Object.fromEntries(
   COLUMNS.map(([column, field, entity]) => [column, { column, field, entity }]),
 )
 
-const decisions: ImportDecisions = { conflicts: [], expiredLeases: "import_all", skipRows: [] }
+// Built through the REAL wire translator, not hand-rolled — the wizard→runner contract is exactly what F-13
+// found broken (they shared no key but columnMapping), so a test that hand-builds the runner's shape would
+// test a shape production never produces.
+const decisions: ImportDecisions = toImportDecisions({ expiredLeaseAction: "import_as_expired" })
 
 /** A realistic af-ZA book: an abbreviated province, a commercial lease, joint tenants, and one bad cell. */
 const ROWS: Record<string, string>[] = [
@@ -247,6 +251,97 @@ describe("bulk import — against the real schema", () => {
 
     const leases = await leasesOf(orgId)
     expect(leases.find((l) => l.rent_amount_cents === 850_000), "the joint-tenant lease exists").toBeTruthy()
+  })
+
+  // ── F-13: the wizard's decisions must actually reach the runner ──
+
+  /** One lease that ended in the past, one that is live. */
+  const EXPIRED_ROWS: Record<string, string>[] = [
+    {
+      Property: "Expiry Court", Address: "9 Expiry Rd", City: "Cape Town", Province: "WC", Unit: "1",
+      "First Name": "Pieter", "Last Name": "Botha", Email: "pieter@example.co.za",
+      "Lease Start": "01/01/2023", "Lease End": "31/12/2023",       // dead
+      monthly_rent_cents: "400000", "Lease Type": "Residential",
+    },
+    {
+      Property: "Expiry Court", Address: "9 Expiry Rd", City: "Cape Town", Province: "WC", Unit: "2",
+      "First Name": "Zanele", "Last Name": "Ndlovu", Email: "zanele@example.co.za",
+      "Lease Start": "01/03/2026", "Lease End": "28/02/2027",       // live
+      monthly_rent_cents: "550000", "Lease Type": "Residential",
+    },
+  ]
+
+  it("F-13: \"Skip expired leases\" (the wizard DEFAULT) actually skips them", async () => {
+    // Step4Confirm prints "Expired leases will be skipped" on the confirmation screen. The runner read
+    // `decisions.expiredLeases`, which the wizard never sent — so it was always undefined, the branch was
+    // dead, and every expired lease was imported anyway. The agent was told the opposite of what happened.
+    const org = await seedEmptyOrg(db)
+    try {
+      const skip = toImportDecisions({ expiredLeaseAction: "skip" })
+      const r = await runImport(EXPIRED_ROWS, mapping, skip, org, agentId, undefined, db)
+
+      const leases = await leasesOf(org)
+      expect(leases, "only the LIVE lease imports").toHaveLength(1)
+      expect(leases[0]?.rent_amount_cents).toBe(550_000)
+      expect(r.leasesCreated).toBe(1)
+
+      // The dead tenancy is preserved as history rather than as a lease.
+      expect(await countOf("tenancy_history", org), "the expired tenancy becomes history").toBe(1)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-13: \"Import as expired\" imports it as a lease with status 'expired'", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const asExpired = toImportDecisions({ expiredLeaseAction: "import_as_expired" })
+      await runImport(EXPIRED_ROWS, mapping, asExpired, org, agentId, undefined, db)
+
+      const leases = await leasesOf(org)
+      expect(leases, "both leases import").toHaveLength(2)
+      expect(leases.find((l) => l.rent_amount_cents === 400_000)?.status).toBe("expired")
+      expect(leases.find((l) => l.rent_amount_cents === 550_000)?.status).toBe("active")
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-13: the per-row \"Keep active\" override imports a stale-dated lease as LIVE", async () => {
+    // The commonest shape in a migrated book: a renewal the old system never captured, so the end date looks
+    // stale. The wizard has always offered this checkbox; the runner had no concept of it, so ticking it did
+    // nothing — and under the (also-broken) "skip" default the lease simply vanished.
+    const org = await seedEmptyOrg(db)
+    try {
+      const keepActive = toImportDecisions({
+        expiredLeaseAction: "skip",
+        perRowOverrides: { 0: "active" },   // row 0 is the dead-dated lease
+      })
+      const r = await runImport(EXPIRED_ROWS, mapping, keepActive, org, agentId, undefined, db)
+
+      expect(r.leasesCreated, "BOTH import — the override rescues the stale-dated one").toBe(2)
+      const leases = await leasesOf(org)
+      expect(leases.find((l) => l.rent_amount_cents === 400_000)?.status, "kept ACTIVE despite the past end date").toBe("active")
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-13: a per-row \"skip\" drops the row entirely", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const skipRow = toImportDecisions({
+        expiredLeaseAction: "import_as_expired",
+        perRowOverrides: { 1: "skip" },     // drop the LIVE lease
+      })
+      await runImport(EXPIRED_ROWS, mapping, skipRow, org, agentId, undefined, db)
+
+      const leases = await leasesOf(org)
+      expect(leases, "the skipped row created no lease").toHaveLength(1)
+      expect(leases[0]?.rent_amount_cents).toBe(400_000)
+    } finally {
+      teardownOrg(org)
+    }
   })
 
   // ── F-6: idempotency — the whole point of a migration front door ──
