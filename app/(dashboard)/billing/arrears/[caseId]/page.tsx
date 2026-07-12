@@ -17,6 +17,7 @@ import { InterestSection } from "./InterestSection"
 import { BackLink } from "@/components/ui/BackLink"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtZA } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 function getArrearsBadgeStatus(status: string) {
   if (status === "open") return "arrears"
@@ -86,7 +87,7 @@ export default async function ArrearsDetailPage({
             <StatusBadge status={getArrearsBadgeStatus(arrearsCase.status)} />
           </div>
           <p className="text-muted-foreground">
-            {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+            {formatPropertyLabel(unit, { fallback: "" })}
             {` · ${arrearsCase.lease_type}`}
           </p>
         </div>

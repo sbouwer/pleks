@@ -18,6 +18,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceDelayEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-delay"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { withCronRun } from "@/lib/cron/withCronRun"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -95,7 +96,7 @@ async function fireDelayComm(
   if (!tenant?.email) return
 
   const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-  const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+  const propertyLabel = formatPropertyLabel(unit)
   const senderName = orgSettings?.name ?? "Pleks"
   const delayReason = DELAY_REASON_LABEL[delayType] ?? "an unexpected delay has occurred"
 

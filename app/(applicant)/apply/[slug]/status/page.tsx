@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from "react"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { useParams, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -136,7 +137,7 @@ export default function StatusPage() {
           <div>
             <p className="font-semibold">Application submitted</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Thank you, {app.first_name}. Your application{unit ? ` for ${unit.unit_number} at ${unit.properties.name}` : ""} has been received.
+              Thank you, {app.first_name}. Your application{unit ? ` for ${formatPropertyLabel(unit, { separator: " at " })}` : ""} has been received.
             </p>
           </div>
         </div>

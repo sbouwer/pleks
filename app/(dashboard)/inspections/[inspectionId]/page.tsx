@@ -22,6 +22,7 @@ import { MobileInspectionView, type InspectionItem } from "@/components/mobile/M
 import { BackLink } from "@/components/ui/BackLink"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_TIMEZONE } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 /** For move-out/periodic inspections: returns a map of itemId → signed move-in photo URL. */
 async function fetchMoveInPhotos(inspectionId: string): Promise<Record<string, string>> {
@@ -153,7 +154,7 @@ export default async function InspectionDetailPage({
           status={inspection.status}
           leaseType={inspection.lease_type}
           scheduledDate={inspection.scheduled_date ?? null}
-          unitLabel={unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+          unitLabel={formatPropertyLabel(unit, { fallback: "" })}
           tenantName={tenant ? `${tenant.first_name} ${tenant.last_name}` : null}
           rooms={(rooms ?? []).map((r) => ({
             id: r.id,
@@ -179,7 +180,7 @@ export default async function InspectionDetailPage({
             </span>
           </div>
           <p className="text-muted-foreground">
-            {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+            {formatPropertyLabel(unit, { fallback: "" })}
             {tenant ? ` · ${tenant.first_name} ${tenant.last_name}` : ""}
           </p>
         </div>
