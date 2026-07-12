@@ -16,7 +16,26 @@
       "mcp__supabase__get_project_url",
       "mcp__supabase__get_publishable_keys",
       "mcp__supabase__generate_typescript_types",
-      "mcp__supabase__search_docs"
+      "mcp__supabase__search_docs",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__list_extensions",
+      "mcp__claude_ai_Supabase__list_migrations",
+      "mcp__claude_ai_Supabase__list_edge_functions",
+      "mcp__claude_ai_Supabase__get_edge_function",
+      "mcp__claude_ai_Supabase__get_logs",
+      "mcp__claude_ai_Supabase__get_advisors",
+      "mcp__claude_ai_Supabase__get_project_url",
+      "mcp__claude_ai_Supabase__get_publishable_keys",
+      "mcp__claude_ai_Supabase__generate_typescript_types",
+      "mcp__claude_ai_Supabase__search_docs",
+      "mcp__supabase__list_projects",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__github__pull_request_read",
+      "mcp__claude_ai_Vercel__list_deployments",
+      "mcp__claude_ai_Vercel__list_teams",
+      "mcp__claude_ai_Vercel__list_projects",
+      "mcp__claude_ai_Vercel__get_deployment_build_logs",
+      "mcp__claude_ai_Vercel__get_runtime_logs"
     ],
     "deny": [
       "Bash(git push --force*)",
@@ -32,7 +51,12 @@
       "mcp__supabase__apply_migration",
       "mcp__supabase__deploy_edge_function",
       "mcp__supabase__pause_project",
-      "mcp__supabase__restore_project"
+      "mcp__supabase__restore_project",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__deploy_edge_function",
+      "mcp__claude_ai_Supabase__pause_project",
+      "mcp__claude_ai_Supabase__restore_project"
     ]
   },
   "hooks": {
