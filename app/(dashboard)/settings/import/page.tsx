@@ -49,7 +49,16 @@ export interface ImportResultData {
     bankAccounts?: number
   }
   skipped: number
-  errors: Array<{ row?: number; error?: string; message?: string; [key: string]: unknown }>
+  /** Mirrors lib/import/importRunner's ImportError. It used to be typed loosely as `{ row?, error?, ... }`,
+   *  which is why StepSuccess rendered `err.row` — a field the runner never emits — and numbered every message
+   *  by its array position instead of its row, while showing a hard refusal and an FYI identically. */
+  errors: Array<{
+    /** 0-based index into the file's data rows; -1 for file-level (mapping) messages. */
+    rowIndex: number
+    field: string
+    message: string
+    severity: "error" | "warning"
+  }>
   pendingLandlordLinks?: Array<{ pendingLandlordId: string; name: string; email: string }>
   agentInvites?: Array<{ email: string; role: string }>
 }

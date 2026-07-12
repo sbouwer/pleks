@@ -8,9 +8,15 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { recordAudit } from "@/lib/audit/recordAudit"
-import { normaliseDate, normaliseCurrencyCents } from "./normalise"
+import { normaliseDate, normaliseMoneyCents, normalisePercent, normalisePaymentDueDay } from "./normalise"
+import {
+  classifyLeaseType, classifyEscalationType, classifyBoolean, classifyProvince,
+  SA_PROVINCES, type Classification,
+} from "./classify"
+import { detectMappingCollisions } from "./columnMapper"
 import { normaliseBranchCode, hashBankAccount, maskBankAccount } from "./bankImport"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -91,6 +97,9 @@ interface ImportContext {
   supabase: SupabaseClient
   result: ImportResult
   unitIdCache: Map<string, string>
+  /** unitKey → the property that unit belongs to. `leases.property_id` is NOT NULL and has no trigger to
+   *  derive it from unit_id, so the lease insert must carry it explicitly. */
+  unitPropertyCache: Map<string, string>
   tenantIdCache: Map<string, string>
 }
 
@@ -115,6 +124,24 @@ function getField(
   return ""
 }
 
+/**
+ * getField, but it also hands back the SOURCE HEADER the value came from. Money needs this: the unit
+ * (rands vs already-cents) is a property of the agency's column header, not of the Pleks field name it was
+ * mapped onto — see normaliseMoneyCents (F-8). `column` is "" when the field is not mapped.
+ */
+function getFieldSource(
+  row: Record<string, string>,
+  fieldName: string,
+  mapping: ColumnMapping
+): { value: string; column: string } {
+  for (const [columnName, mapped] of Object.entries(mapping)) {
+    if (mapped.field === fieldName) {
+      return { value: (row[columnName] ?? row[mapped.column] ?? "").trim(), column: columnName }
+    }
+  }
+  return { value: "", column: "" }
+}
+
 function splitFullName(fullName: string): { firstName: string; lastName: string } {
   const parts = fullName.trim().split(/\s+/)
   if (parts.length <= 1) {
@@ -134,21 +161,24 @@ function resolveEntityType(companyField: string, displayName: string): "organisa
   return "individual"
 }
 
+/** `units.unit_number` is NOT NULL, and a blank cell (a freestanding house — the commonest SA residential
+ *  letting) means "the only unit". The SSOT for that default: used for the group key, the existence lookup
+ *  AND the insert, so all three agree on which database row a row belongs to. */
+function normaliseUnitNumber(raw: string): string {
+  return raw.trim() || "1"
+}
+
+/** Still used for non-statutory booleans (units.furnished). The STATUTORY booleans — cpa_applies,
+ *  is_fixed_term — go through classifyBoolean, which flags rather than failing toward false. */
 function normaliseBoolean(raw: string): boolean {
   const s = raw.toLowerCase().trim()
-  return s === "true" || s === "yes" || s === "1" || s === "ja"
+  return s === "true" || s === "yes" || s === "y" || s === "1" || s === "ja"
 }
 
-function normaliseLeaseType(raw: string): "residential" | "commercial" {
-  return raw.toLowerCase().includes("comm") ? "commercial" : "residential"
-}
-
-function normaliseEscalationType(raw: string): "fixed" | "cpi" | "prime_plus" {
-  const s = raw.toLowerCase().trim()
-  if (s === "cpi" || s.includes("cpi")) return "cpi"
-  if (s.includes("prime")) return "prime_plus"
-  return "fixed"
-}
+// normaliseLeaseType / normaliseEscalationType used to live here and GUESSED (→ "residential" / → "fixed").
+// They are now classifyLeaseType / classifyEscalationType in ./classify — tested, vocabulary-explicit, and
+// they FLAG an unrecognised value instead of defaulting it (F-7). buildLeaseData turns a flag into a
+// row-level review item and writes nothing to the column.
 
 function normalisePropertyType(raw: string): "residential" | "commercial" | "mixed" | null {
   const s = raw.toLowerCase().trim()
@@ -249,23 +279,29 @@ function determineRole(
 // ── Phase 1: Group rows by unit ────────────────────────────────────────
 
 function buildUnitGroups(
-  rows: Record<string, string>[],
+  rows: IndexedRow[],
   ctx: ImportContext,
   conflictMap: Map<number, ConflictDecision>,
   skipSet: Set<number>
 ): Map<string, UnitGroup> {
   const unitGroups = new Map<string, UnitGroup>()
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]
-    if (!row || skipSet.has(i)) { ctx.result.skipped++; continue }
+  // `i` is the row's index IN THE FILE, not its position among the tenant rows. It is what every ImportError
+  // reports, and it is the key `skipRows` / `conflicts` are expressed in — indexing the tenant subset instead
+  // mis-numbered both whenever the file also carried vendor/landlord/agent rows.
+  for (const { row, index: i } of rows) {
+    if (skipSet.has(i)) { ctx.result.skipped++; continue }
 
     const conflict = conflictMap.get(i)
     if (conflict?.resolution === "skip") { ctx.result.skipped++; continue }
     if (conflict?.resolution === "duplicate" && conflict.rowIndices[0] !== i) { ctx.result.skipped++; continue }
 
     const propertyName = getField(row, "property_name", ctx.mapping)
-    const unitNumber = getField(row, "unit_number", ctx.mapping)
+    // Normalise HERE, not just at insert. upsertUnit writes `unitNumber || "1"` for a blank cell (a
+    // freestanding house), so if the group key kept the RAW blank, a blank-unit group and an explicit "1"
+    // group would be two different keys resolving to the SAME database row — and both tenants would get an
+    // active lease on one unit. One normalisation, used for the key, the lookup and the insert.
+    const unitNumber = normaliseUnitNumber(getField(row, "unit_number", ctx.mapping))
     const unitKey = `${propertyName.toLowerCase()}|${unitNumber.toLowerCase()}`
     const role = determineRole(i, row, conflict, ctx.mapping)
 
@@ -285,6 +321,7 @@ function buildUnitGroups(
 async function upsertProperty(
   propertyName: string,
   row: Record<string, string>,
+  rowIndex: number,
   ctx: ImportContext,
   cache: Map<string, string>
 ): Promise<string | null> {
@@ -302,6 +339,38 @@ async function upsertProperty(
     return id
   }
 
+  // `properties` requires address_line1, city and province (all NOT NULL; province additionally CHECKed against
+  // the nine SA provinces — 003_properties.sql). The old code passed `|| null` for each, so Postgres rejected
+  // EVERY property insert whose file lacked those columns, and the failure was swallowed into a generic
+  // "Failed to create property". Resolve them explicitly and refuse the property with a message that names
+  // what is missing — never invent an address.
+  const addressLine1 = getField(row, "address", ctx.mapping)
+  const city = getField(row, "city", ctx.mapping)
+  const provinceRaw = getField(row, "province", ctx.mapping)
+  const province = provinceRaw ? classifyProvince(provinceRaw) : null
+
+  const missing: string[] = []
+  if (!addressLine1) missing.push("address")
+  if (!city) missing.push("city")
+  if (!provinceRaw) missing.push("province")
+
+  if (missing.length > 0) {
+    ctx.result.errors.push({
+      rowIndex, field: "property_name", severity: "error",
+      message: `Property "${propertyName}" is missing required ${missing.join(", ")} — a property cannot be ` +
+        `created without ${missing.length > 1 ? "these" : "this"}. Map the ${missing.join("/")} column(s) and re-import.`,
+    })
+    return null
+  }
+  if (province && !province.ok) {
+    ctx.result.errors.push({
+      rowIndex, field: "province", severity: "error",
+      message: `Unrecognised province "${province.raw}" for property "${propertyName}" — must be one of: ` +
+        `${SA_PROVINCES.join(", ")}.`,
+    })
+    return null
+  }
+
   const rawPropertyType = getField(row, "property_type_import", ctx.mapping)
   const normPropertyType = rawPropertyType ? normalisePropertyType(rawPropertyType) : null
   const rawOwnerBankType = getField(row, "owner_bank_type", ctx.mapping)
@@ -312,10 +381,10 @@ async function upsertProperty(
     .insert({
       org_id: ctx.orgId,
       name: propertyName,
-      address_line1: getField(row, "address", ctx.mapping) || null,
+      address_line1: addressLine1,
       suburb: getField(row, "suburb", ctx.mapping) || null,
-      city: getField(row, "city", ctx.mapping) || null,
-      province: getField(row, "province", ctx.mapping) || null,
+      city,
+      province: province?.ok ? province.value : undefined,
       postal_code: getField(row, "postal_code", ctx.mapping) || null,
       erf_number: getField(row, "erf_number", ctx.mapping) || null,
       ...(normPropertyType ? { type: normPropertyType } : {}),
@@ -329,7 +398,13 @@ async function upsertProperty(
     })
     .select("id").single()
 
-  if (error || !created) return null
+  if (error || !created) {
+    ctx.result.errors.push({
+      rowIndex, field: "property_name", severity: "error",
+      message: `Failed to create property "${propertyName}": ${error?.message ?? "unknown error"}`,
+    })
+    return null
+  }
 
   const id = String(created.id)
   cache.set(cacheKey, id)
@@ -346,8 +421,15 @@ async function upsertUnit(
   const cached = ctx.unitIdCache.get(unitKey)
   if (cached) return cached
 
+  // Already normalised in buildUnitGroups (the group key uses the same value). Re-applied here so the lookup
+  // and the insert can never drift apart again: they used to differ (lookup on the raw value, insert on
+  // `|| "1"`), so a blank unit number looked up `ILIKE ''`, matched nothing, and inserted "1" AGAIN on every
+  // re-run → a second unit with a new unit_id, which the lease dedup then missed → a second active lease for
+  // the same tenant. Re-running is the documented remedy for a rejected row, so this fired in normal use.
+  const unitNumber = normaliseUnitNumber(group.unitNumber)
+
   const { data: existing, error: existingError } = await ctx.supabase
-    .from("units").select("id").eq("property_id", propertyId).ilike("unit_number", group.unitNumber).limit(1).maybeSingle()
+    .from("units").select("id").eq("org_id", ctx.orgId).eq("property_id", propertyId).ilike("unit_number", unitNumber).limit(1).maybeSingle()
   if (existingError) console.error("importRunner units lookup failed:", existingError.message)
 
   if (existing) {
@@ -369,7 +451,7 @@ async function upsertUnit(
     .insert({
       property_id: propertyId,
       org_id: ctx.orgId,
-      unit_number: group.unitNumber || "1",
+      unit_number: unitNumber,
       bedrooms: bedrooms ? Number.parseInt(bedrooms, 10) || null : null,
       bathrooms: bathrooms ? Number.parseFloat(bathrooms) || null : null,
       floor: floorRaw ? Number.parseInt(floorRaw, 10) || null : null,
@@ -379,7 +461,15 @@ async function upsertUnit(
     })
     .select("id").single()
 
-  if (error || !created) return null
+  if (error || !created) {
+    // Surface the Postgres message. Swallowing it into a generic "Failed to create unit" is precisely how the
+    // NOT NULL / phantom-column faults in this file stayed invisible for so long.
+    ctx.result.errors.push({
+      rowIndex: group.rows[0]?.index ?? -1, field: "unit_number", severity: "error",
+      message: `Failed to create unit "${unitNumber}": ${error?.message ?? "unknown error"}`,
+    })
+    return null
+  }
 
   const id = String(created.id)
   ctx.unitIdCache.set(unitKey, id)
@@ -401,14 +491,15 @@ async function upsertPropertiesAndUnits(
     }
 
     try {
-      const propertyId = await upsertProperty(group.propertyName, firstRow.row, ctx, propertyIdCache)
-      if (!propertyId) {
-        ctx.result.errors.push({ rowIndex: firstRow.index, field: "property_name", message: "Failed to create property", severity: "error" })
-        continue
-      }
+      // upsertProperty now raises its OWN precise error (missing address/city/province, bad province, or the
+      // Postgres message) — no generic "Failed to create property" on top of it.
+      const propertyId = await upsertProperty(group.propertyName, firstRow.row, firstRow.index, ctx, propertyIdCache)
+      if (!propertyId) continue
+
+      // upsertUnit raises its own error (with the Postgres message) when it fails.
       const unitId = await upsertUnit(unitKey, group, propertyId, ctx)
-      if (!unitId) {
-        ctx.result.errors.push({ rowIndex: firstRow.index, field: "unit_number", message: "Failed to create unit", severity: "error" })
+      if (unitId) {
+        ctx.unitPropertyCache.set(unitKey, propertyId)   // leases.property_id is NOT NULL — carry it forward
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error"
@@ -780,12 +871,14 @@ async function createLeasesAndHistory(
   for (const [unitKey, group] of unitGroups) {
     const unitId = ctx.unitIdCache.get(unitKey)
     if (!unitId) continue
+    const propertyId = ctx.unitPropertyCache.get(unitKey)
+    if (!propertyId) continue   // the property/unit upsert already raised the error
 
     const activeRows = group.rows.filter((r) => r.role !== "previous")
     const previousRows = group.rows.filter((r) => r.role === "previous")
 
     if (activeRows.length > 0) {
-      await processActiveLease(activeRows, unitId, ctx)
+      await processActiveLease(activeRows, unitId, propertyId, ctx)
     }
 
     for (const prev of previousRows) {
@@ -794,55 +887,307 @@ async function createLeasesAndHistory(
   }
 }
 
+/** Raise a row-level review item. The doctrine for every ambiguity at this boundary (money, dates, statutory
+ *  classifications): the agent decides, the importer never guesses. Warnings ride out on the import report
+ *  AND land in import_sessions.error_report, so the record survives the wizard session. */
+function flagForReview(ctx: ImportContext, rowIndex: number, field: string, message: string): void {
+  ctx.result.errors.push({ rowIndex, field, message, severity: "warning" })
+}
+
+/**
+ * Resolve a money cell to integer cents — or flag it. Two F-8 rules:
+ *   1. The UNIT comes from the source HEADER (normaliseMoneyCents): a Pleks re-export's `monthly_rent_cents`
+ *      is already cents and must NOT be ×100'd again.
+ *   2. A non-empty cell that will not parse is a REVIEW ITEM, never a silent null. Rent and deposit are the
+ *      two numbers the entire ledger is built on; importing a lease with a quietly-blank rent is worse than
+ *      refusing the row.
+ */
+function moneyCentsOrFlag(
+  row: Record<string, string>,
+  fieldName: string,
+  rowIndex: number,
+  ctx: ImportContext,
+): number | null {
+  const { value, column } = getFieldSource(row, fieldName, ctx.mapping)
+  if (!value) return null
+
+  const cents = normaliseMoneyCents(value, column)
+  if (cents === null) {
+    flagForReview(ctx, rowIndex, fieldName,
+      `Could not read "${value}" (column "${column}") as an amount — imported blank. Set it manually.`)
+  }
+  return cents
+}
+
+/** F-9: an imported end_date past the holiday table's horizon, or an unreadable one. Both are silent
+ *  statutory hazards — the first means this lease's CPA s14 notice date cannot be computed at all, the second
+ *  means a fixed-term lease quietly became open-ended. Import either way; tell the agent either way. */
+function checkLeaseEnd(
+  row: Record<string, string>,
+  normalisedEnd: string | null,
+  rowIndex: number,
+  ctx: ImportContext,
+): void {
+  const raw = getField(row, "lease_end", ctx.mapping)
+
+  if (raw && !normalisedEnd) {
+    flagForReview(ctx, rowIndex, "lease_end",
+      `Could not read "${raw}" as a date — the lease was imported with NO end date (open-ended). Set it manually.`)
+    return
+  }
+
+  // ONLY the upper bound. isWithinHolidayHorizon is two-sided and the table starts at 2025-01-01, so using it
+  // here fired this warning on every HISTORICAL lease in a migrating book — where every clause of the message
+  // is false (it is not past the table, its s14 date is moot, and extending the table forward never "resolves"
+  // it), burying the forward-horizon warnings the check exists to raise.
+  if (normalisedEnd && normalisedEnd > HOLIDAY_TABLE_COVERS_THROUGH) {
+    flagForReview(ctx, rowIndex, "lease_end",
+      `Lease ends ${normalisedEnd}, past the public-holiday table (covers to ${HOLIDAY_TABLE_COVERS_THROUGH}) — ` +
+      `its CPA s14 renewal-notice date cannot be computed yet. Resolves automatically once the table is extended.`)
+  }
+}
+
+/** A lease either builds completely or is REFUSED — see the NOT NULL discussion on buildLeaseData. */
+type LeaseBuild = { ok: true; data: Record<string, unknown> } | { ok: false }
+
+/** Refuse the row: a hard error the agent must fix in the source file, not a silent default. */
+function refuse(ctx: ImportContext, rowIndex: number, field: string, message: string): { ok: false } {
+  ctx.result.errors.push({ rowIndex, field, message, severity: "error" })
+  return { ok: false }
+}
+
+/**
+ * Build the lease insert, or REFUSE the row.
+ *
+ * Refusal (not "import it blank") is forced by the actual schema — `leases` requires start_date,
+ * rent_amount_cents, property_id, tenant_id and unit_id (all NOT NULL, no defaults), and `lease_type` /
+ * `escalation_type` are `NOT NULL DEFAULT 'residential'` / `DEFAULT 'fixed'`. So for the two statutory
+ * classifications there is no such thing as "import it without a value": omitting the column hands the row
+ * straight back to the default, which IS the guess F-7 exists to stop ("Retail" → residential → the
+ * residential Demand-to-Vacate suite becomes available against a commercial lease). An unrecognised value
+ * therefore refuses the lease and names the row, column and value. Import is idempotent (F-6), so the agent
+ * fixes the cell and re-runs at no cost.
+ *
+ * `escalation_percent` is the same trap in reverse: NOT NULL DEFAULT 10.00, but the old code passed an
+ * explicit `null` whenever the column was unmapped — and an explicit NULL OVERRIDES a default, so Postgres
+ * rejected it. Conditionally spread it (like notice_period_days and the rest) so the default can apply.
+ */
+/** The NOT NULL, no-default columns. Either both resolve or the lease is refused with the real reason
+ *  (rather than letting Postgres 23502 and surfacing as a generic "Failed to create lease"). */
+function requiredLeaseFields(
+  row: Record<string, string>, rowIndex: number, ctx: ImportContext,
+): { startDate: string; rentCents: number } | null {
+  const leaseStartRaw = getField(row, "lease_start", ctx.mapping)
+  const startDate = leaseStartRaw ? normaliseDate(leaseStartRaw) : null
+  if (!startDate) {
+    refuse(ctx, rowIndex, "lease_start", leaseStartRaw
+      ? `Could not read lease start "${leaseStartRaw}" as a date — a lease cannot be created without a start date.`
+      : "A lease start date is required — map the lease start column and re-import.")
+    return null
+  }
+
+  const rent = getFieldSource(row, "rent_amount_cents", ctx.mapping)
+  const rentCents = rent.value ? normaliseMoneyCents(rent.value, rent.column) : null
+  if (rentCents === null) {
+    refuse(ctx, rowIndex, "rent_amount_cents", rent.value
+      ? `Could not read rent "${rent.value}" (column "${rent.column}") as an amount — a lease cannot be created without rent.`
+      : "A rent amount is required — map the rent column and re-import.")
+    return null
+  }
+
+  return { startDate, rentCents }
+}
+
+/**
+ * The four columns whose DB default IS the guess F-7 exists to stop. All are NOT NULL with a default, so
+ * there is no "import it without a value" — every one of these silently resolves to the default when omitted:
+ *   lease_type → 'residential' · escalation_type → 'fixed' · cpa_applies → true · is_fixed_term → true
+ * Note the booleans matter MOST: the old normaliseBoolean returned false for anything it did not recognise,
+ * so a book exporting Y/N (the commonest SA convention) imported cpa_applies=false on every lease — stripping
+ * CPA s14 protection portfolio-wide — and is_fixed_term=false, making every fixed term open-ended.
+ */
+const CLASSIFIED_LEASE_COLUMNS: Array<{
+  field: string
+  classify: (raw: string) => Classification<unknown>
+  label: string
+  why: string
+  unmappedNote: string
+}> = [
+  {
+    field: "lease_type", classify: classifyLeaseType, label: "lease type",
+    why: "A commercial lease recorded as residential is subject to the wrong statutory notices.",
+    unmappedNote: 'every lease will import as "residential" (the system default)',
+  },
+  {
+    field: "escalation_type", classify: classifyEscalationType, label: "escalation type",
+    why: 'It cannot be silently defaulted to "fixed" — that is a money term.',
+    unmappedNote: 'every lease will import as "fixed"',
+  },
+  {
+    field: "cpa_applies", classify: classifyBoolean, label: "CPA-applies flag",
+    why: "Reading an unrecognised value as false would strip CPA s14 protection from the lease.",
+    unmappedNote: "every lease will import with the CPA applying (the system default)",
+  },
+  {
+    field: "is_fixed_term", classify: classifyBoolean, label: "fixed-term flag",
+    why: "Reading an unrecognised value as false would turn a fixed-term lease open-ended.",
+    unmappedNote: "every lease will import as fixed-term (the system default)",
+  },
+]
+
+/**
+ * NOT NULL DEFAULT columns that are NOT statutory classifications, but still silently GUESS when the file does
+ * not carry them. They must not refuse a row (a book legitimately may not carry them — escalation usually
+ * lives in the paper lease), but the agent has to be told the number was chosen by the system rather than by
+ * their lease: `escalation_percent` DEFAULT 10.00 renders "your rent increases by 10%" in the escalation
+ * notice, and `payment_due_day` DEFAULT '1' drives every arrears-aging and late-fee computation.
+ */
+const DEFAULTED_IF_UNMAPPED: Array<{ field: string; label: string; unmappedNote: string }> = [
+  { field: "escalation_percent", label: "escalation percentage", unmappedNote: "every lease will import at 10% a year (the system default)" },
+  { field: "payment_due_day", label: "payment due day", unmappedNote: "every lease will import as due on the 1st (the system default)" },
+]
+
+/**
+ * Resolve the statutory classifications, or REFUSE the row.
+ *
+ * Three distinct cases, and the middle one is the one source-level review keeps missing:
+ *   - column mapped, value recognised  → write it
+ *   - column mapped, value BLANK or unrecognised → REFUSE. A blank cell is not "no opinion": the column is
+ *     omitted, the DB default lands, and a book whose author only filled `Lease Type` where it "wasn't
+ *     obvious" imports its commercial leases as residential. Blank is exactly the shape bad data takes.
+ *   - column not mapped at all → the default applies uniformly; that is warned ONCE per import (runImport),
+ *     not once per row, so a file with no lease-type column is still importable.
+ */
+function leaseClassifications(
+  row: Record<string, string>, rowIndex: number, ctx: ImportContext,
+): Record<string, unknown> | null {
+  const out: Record<string, unknown> = {}
+
+  for (const col of CLASSIFIED_LEASE_COLUMNS) {
+    const src = getFieldSource(row, col.field, ctx.mapping)
+    if (!src.column) continue   // not mapped → uniform DB default, warned once at import level
+
+    const result = col.classify(src.value)
+    if (!result.ok) {
+      refuse(ctx, rowIndex, col.field, src.value
+        ? `Unrecognised ${col.label} "${result.raw}" — the lease was NOT imported. ${col.why} Correct the cell and re-import.`
+        : `Blank ${col.label} — the lease was NOT imported. ${col.why} Fill the cell and re-import.`)
+      return null
+    }
+    out[col.field] = result.value
+  }
+
+  // A commercial lease must never carry cpa_applies = true — migration 010 states the invariant and had to
+  // run a one-off UPDATE to restore it. Nothing in the DB enforces it, so the importer must.
+  //
+  // This only became reachable BECAUSE the lease_type fix works: previously every lease imported as
+  // "residential" (the old guess), so the cpa_applies DEFAULT true was never wrong in a way anyone saw. Now
+  // that "Retail"/"Office" correctly land as commercial, an unmapped CPA column would let DEFAULT true stand
+  // and the calendar would raise CPA s14 auto-renewal deadlines against leases the CPA does not govern.
+  // A CPA column in the file still wins — this only fills the gap the default would otherwise guess into.
+  if (out.lease_type === "commercial" && out.cpa_applies === undefined) {
+    out.cpa_applies = false
+    flagForReview(ctx, rowIndex, "cpa_applies",
+      "Commercial lease with no CPA column — imported with the CPA NOT applying (the system's commercial-lease " +
+      "invariant). If this tenant is a natural person or a small juristic, set it on the lease.")
+  }
+
+  return out
+}
+
+/**
+ * NOT NULL *DEFAULT* columns — OMIT them when absent so the default applies (an explicit null OVERRIDES the
+ * default and Postgres rejects the row: exactly what `escalation_percent: null` did to every lease insert).
+ * A present-but-unreadable value is flagged, never silently swallowed into the default.
+ */
+function optionalLeaseFields(
+  row: Record<string, string>, rowIndex: number, ctx: ImportContext,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+
+  // Locale-aware: parseFloat("7,5") is 7 — a 7.5% escalation quietly compounding at 7% for the lease's life.
+  const escalationRaw = getField(row, "escalation_percent", ctx.mapping)
+  if (escalationRaw) {
+    const pct = normalisePercent(escalationRaw)
+    if (pct === null) {
+      flagForReview(ctx, rowIndex, "escalation_percent",
+        `Could not read escalation "${escalationRaw}" as a percentage — the system default applies. Set it manually.`)
+    } else out.escalation_percent = pct
+  }
+
+  // TEXT since migration 007: "1".."28" | "last_day" | "last_working_day". parseInt turned "last day" into
+  // NaN → default '1', moving every rent due date (and every arrears computation) to the 1st.
+  const dueDayRaw = getField(row, "payment_due_day", ctx.mapping)
+  if (dueDayRaw) {
+    const dueDay = normalisePaymentDueDay(dueDayRaw)
+    if (dueDay === null) {
+      flagForReview(ctx, rowIndex, "payment_due_day",
+        `Could not read payment due day "${dueDayRaw}" — expected 1-28, "last day" or "last working day". ` +
+        `The system default (the 1st) applies.`)
+    } else out.payment_due_day = dueDay
+  }
+
+  const noticeDaysRaw = getField(row, "notice_period_days", ctx.mapping)
+  if (noticeDaysRaw) {
+    const noticeDays = Number.parseInt(noticeDaysRaw, 10)
+    if (Number.isNaN(noticeDays)) {
+      flagForReview(ctx, rowIndex, "notice_period_days",
+        `Could not read notice period "${noticeDaysRaw}" as a number of days — the system default applies.`)
+    } else out.notice_period_days = noticeDays
+  }
+
+  const escalationReviewRaw = getField(row, "escalation_review_date", ctx.mapping)
+  const leaseConditions = getField(row, "lease_conditions", ctx.mapping)
+  out.escalation_review_date = escalationReviewRaw ? normaliseDate(escalationReviewRaw) : null
+  out.notes = leaseConditions || null
+
+  return out
+}
+
 function buildLeaseData(
   row: Record<string, string>,
   unitId: string,
+  propertyId: string,
   tenantId: string,
+  rowIndex: number,
   isExpired: boolean,
   normalisedEnd: string | null,
   ctx: ImportContext
-): Record<string, unknown> {
-  const leaseStart = getField(row, "lease_start", ctx.mapping)
-  const rentRaw = getField(row, "rent_amount_cents", ctx.mapping)
-  const depositRaw = getField(row, "deposit_amount_cents", ctx.mapping)
-  const escalationRaw = getField(row, "escalation_percent", ctx.mapping)
-  const escalation = escalationRaw ? Number.parseFloat(escalationRaw) : null
-  const leaseTypeRaw = getField(row, "lease_type", ctx.mapping)
-  const isFixedTermRaw = getField(row, "is_fixed_term", ctx.mapping)
-  const noticeDaysRaw = getField(row, "notice_period_days", ctx.mapping)
-  const noticeDays = noticeDaysRaw ? Number.parseInt(noticeDaysRaw, 10) : null
-  const cpaAppliesRaw = getField(row, "cpa_applies", ctx.mapping)
-  const escalationTypeRaw = getField(row, "escalation_type", ctx.mapping)
-  const escalationReviewRaw = getField(row, "escalation_review_date", ctx.mapping)
-  const paymentDueDayRaw = getField(row, "payment_due_day", ctx.mapping)
-  const paymentDueDay = paymentDueDayRaw ? Number.parseInt(paymentDueDayRaw, 10) : null
-  const leaseConditions = getField(row, "lease_conditions", ctx.mapping)
+): LeaseBuild {
+  const required = requiredLeaseFields(row, rowIndex, ctx)
+  if (!required) return { ok: false }
+
+  const classifications = leaseClassifications(row, rowIndex, ctx)
+  if (!classifications) return { ok: false }
+
+  // Advisory — import, but tell the agent (F-9 end date, F-8 deposit).
+  checkLeaseEnd(row, normalisedEnd, rowIndex, ctx)
+  const depositCents = moneyCentsOrFlag(row, "deposit_amount_cents", rowIndex, ctx)
 
   return {
-    unit_id: unitId,
-    org_id: ctx.orgId,
-    tenant_id: tenantId,   // F-1: leases.tenant_id is NOT NULL — set it AT insert, not via a later UPDATE
-    start_date: leaseStart ? normaliseDate(leaseStart) : null,
-    end_date: isExpired && ctx.decisions.expiredLeases === "import_as_history" ? normalisedEnd : (normalisedEnd || null),
-    rent_amount_cents: rentRaw ? normaliseCurrencyCents(rentRaw) : null,
-    deposit_amount_cents: depositRaw ? normaliseCurrencyCents(depositRaw) : null,
-    escalation_percent: escalation !== null && !Number.isNaN(escalation) ? escalation : null,
-    payment_method: getField(row, "payment_method", ctx.mapping) || null,
-    status: isExpired ? "expired" : "active",
-    ...(leaseTypeRaw ? { lease_type: normaliseLeaseType(leaseTypeRaw) } : {}),
-    ...(isFixedTermRaw ? { is_fixed_term: normaliseBoolean(isFixedTermRaw) } : {}),
-    ...(noticeDays !== null && !Number.isNaN(noticeDays) ? { notice_period_days: noticeDays } : {}),
-    ...(cpaAppliesRaw ? { cpa_applies: normaliseBoolean(cpaAppliesRaw) } : {}),
-    ...(escalationTypeRaw ? { escalation_type: normaliseEscalationType(escalationTypeRaw) } : {}),
-    escalation_review_date: escalationReviewRaw ? normaliseDate(escalationReviewRaw) : null,
-    ...(paymentDueDay !== null && !Number.isNaN(paymentDueDay) ? { payment_due_day: paymentDueDay } : {}),
-    notes: leaseConditions || null,
+    ok: true,
+    data: {
+      unit_id: unitId,
+      property_id: propertyId,   // NOT NULL, and nothing derives it from unit_id — every insert failed without it
+      org_id: ctx.orgId,
+      tenant_id: tenantId,       // F-1: NOT NULL — set AT insert, not via a later UPDATE
+      start_date: required.startDate,
+      end_date: normalisedEnd,
+      rent_amount_cents: required.rentCents,
+      deposit_amount_cents: depositCents,
+      status: isExpired ? "expired" : "active",
+      // NO payment_method: `leases` has no such column. Writing it made PostgREST reject EVERY lease insert
+      // ("Could not find the 'payment_method' column ... in the schema cache"). Its aliases are gone too.
+      ...classifications,
+      ...optionalLeaseFields(row, rowIndex, ctx),
+    },
   }
 }
 
 async function processActiveLease(
   activeRows: UnitGroupEntry[],
   unitId: string,
+  propertyId: string,
   ctx: ImportContext
 ): Promise<void> {
   const firstActive = activeRows[0]
@@ -851,7 +1196,10 @@ async function processActiveLease(
   const { row, index } = firstActive
   const leaseEnd = getField(row, "lease_end", ctx.mapping)
   const normalisedEnd = leaseEnd ? normaliseDate(leaseEnd) : null
-  const isExpired = normalisedEnd ? new Date(normalisedEnd) < new Date() : false
+  // Compare DATES, not instants. `new Date("2026-07-12") < new Date()` parses the end date as UTC midnight and
+  // compares it to local now, so a lease ending TODAY imports as "expired" and drops out of every active-lease
+  // surface. Both sides are SA calendar days here.
+  const isExpired = normalisedEnd ? normalisedEnd < saTodayISO() : false
 
   if (isExpired && ctx.decisions.expiredLeases === "import_active_only") {
     for (const ar of activeRows) {
@@ -885,10 +1233,11 @@ async function processActiveLease(
       return
     }
 
-    const leaseData = buildLeaseData(row, unitId, primaryTenantId, isExpired, normalisedEnd, ctx)
+    const built = buildLeaseData(row, unitId, propertyId, primaryTenantId, index, isExpired, normalisedEnd, ctx)
+    if (!built.ok) return   // refused — buildLeaseData already raised the precise reason
 
     const { data: newLease, error } = await ctx.supabase
-      .from("leases").insert(leaseData).select("id").single()
+      .from("leases").insert(built.data).select("id").single()
 
     if (error || !newLease) {
       ctx.result.errors.push({ rowIndex: index, field: "lease_start", message: `Failed to create lease: ${error?.message ?? "Unknown error"}`, severity: "error" })
@@ -1011,13 +1360,24 @@ async function createTenancyHistory(
     return
   }
 
+  // tenancy_history.move_in_date is NOT NULL (002_contacts.sql §) — a null was rejected by Postgres and the
+  // reason was swallowed into a generic "Failed to create history". Refuse with the real reason instead.
   const moveIn = leaseStart ? normaliseDate(leaseStart) : null
+  if (!moveIn) {
+    ctx.result.errors.push({
+      rowIndex: entry.index, field: "tenancy_history", severity: "warning",
+      message: leaseStart
+        ? `Could not read lease start "${leaseStart}" as a date — no tenancy history recorded for this row.`
+        : "No lease start date — a tenancy-history entry requires a move-in date.",
+    })
+    return
+  }
 
   // F-6b: dedup — re-importing the same book must not double the history rows.
-  let histQuery = ctx.supabase
-    .from("tenancy_history").select("id").eq("org_id", ctx.orgId).eq("unit_id", unitId).eq("tenant_id", tenantId)
-  histQuery = moveIn ? histQuery.eq("move_in_date", moveIn) : histQuery.is("move_in_date", null)
-  const { data: existingHist, error: existingHistError } = await histQuery.limit(1).maybeSingle()
+  const { data: existingHist, error: existingHistError } = await ctx.supabase
+    .from("tenancy_history").select("id")
+    .eq("org_id", ctx.orgId).eq("unit_id", unitId).eq("tenant_id", tenantId).eq("move_in_date", moveIn)
+    .limit(1).maybeSingle()
   if (existingHistError) console.error("importRunner existing-history lookup failed:", existingHistError.message)
   if (existingHist) {
     ctx.result.skipped++
@@ -1104,11 +1464,20 @@ async function writeAuditLog(ctx: ImportContext): Promise<void> {
 
 // ── Entity routing ──────────────────────────────────────────────────────
 
+/** A row PLUS its index in the file the agent uploaded. Routing splits the rows into four subsets, and every
+ *  consumer used to index its own subset — so a landlord on file line 87 was reported as "Row 1", and the
+ *  refusal doctrine ("correct that row and re-import") pointed the agent at the wrong line. The original index
+ *  travels with the row now, and it is also the key `decisions.skipRows` / `conflicts` are stated in. */
+interface IndexedRow {
+  row: Record<string, string>
+  index: number
+}
+
 interface RoutedRows {
-  tenantRows: Record<string, string>[]
-  vendorRows: Record<string, string>[]
-  landlordRows: Record<string, string>[]
-  agentRows: Record<string, string>[]
+  tenantRows: IndexedRow[]
+  vendorRows: IndexedRow[]
+  landlordRows: IndexedRow[]
+  agentRows: IndexedRow[]
 }
 
 function routeRowsByType(
@@ -1122,7 +1491,7 @@ function routeRowsByType(
     agentRows: [],
   }
 
-  for (const row of rows) {
+  for (const [index, row] of rows.entries()) {
     const raw = getField(row, "__entity_type", mapping).toLowerCase().trim()
     // Strip individual/company qualifiers so "contractor individual", "landlord company" etc. all normalize cleanly
     const entityType = raw
@@ -1136,7 +1505,7 @@ function routeRowsByType(
       case "lessee":
       case "huurder":
       case "":
-        result.tenantRows.push(row)
+        result.tenantRows.push({ row, index })
         break
       case "vendor":
       case "supplier":
@@ -1148,18 +1517,18 @@ function routeRowsByType(
       case "municipality":
       case "munisipaliteit":
       case "munisipalite":
-        result.vendorRows.push(row)
+        result.vendorRows.push({ row, index })
         break
       case "landlord":
       case "owner":
       case "verhuurder":
       case "eienaar":
-        result.landlordRows.push(row)
+        result.landlordRows.push({ row, index })
         break
       case "agent":
       case "principal agent":
       case "administrator":
-        result.agentRows.push(row)
+        result.agentRows.push({ row, index })
         break
       default:
         // Unknown entity type — skip silently
@@ -1264,14 +1633,13 @@ async function isExistingVendor(
 }
 
 async function importVendors(
-  vendorRows: Record<string, string>[],
+  vendorRows: IndexedRow[],
   ctx: ImportContext
 ): Promise<void> {
   const seenEmails = new Set<string>()
 
-  for (let i = 0; i < vendorRows.length; i++) {
-    const row = vendorRows[i]
-    if (!row) continue
+  for (const entry of vendorRows) {
+    const { row, index: i } = entry   // i is the FILE row, not the position in this subset
 
     const email = getField(row, "email", ctx.mapping).toLowerCase()
     const { displayName, companyName, firstName, lastName } = resolveVendorName(row, ctx.mapping)
@@ -1352,12 +1720,11 @@ async function importVendors(
 // ── Landlord import ────────────────────────────────────────────────────
 
 async function importLandlords(
-  landlordRows: Record<string, string>[],
+  landlordRows: IndexedRow[],
   ctx: ImportContext
 ): Promise<void> {
-  for (let i = 0; i < landlordRows.length; i++) {
-    const row = landlordRows[i]
-    if (!row) continue
+  for (const entry of landlordRows) {
+    const { row, index: i } = entry   // i is the FILE row, not the position in this subset
 
     const email = getField(row, "email", ctx.mapping).toLowerCase()
     if (!email) {
@@ -1481,12 +1848,11 @@ function mapAgentRole(entityType: string): string {
 }
 
 async function importAgents(
-  agentRows: Record<string, string>[],
+  agentRows: IndexedRow[],
   ctx: ImportContext
 ): Promise<void> {
-  for (let i = 0; i < agentRows.length; i++) {
-    const row = agentRows[i]
-    if (!row) continue
+  for (const entry of agentRows) {
+    const { row, index: i } = entry   // i is the FILE row, not the position in this subset
 
     const email = getField(row, "email", ctx.mapping).toLowerCase()
     if (!email) {
@@ -1603,7 +1969,37 @@ export async function runImport(
       agentInvites: [],
     },
     unitIdCache: new Map(),
+    unitPropertyCache: new Map(),
     tenantIdCache: new Map(),
+  }
+
+  // F-8: two source columns landing on ONE Pleks field means getField silently takes the first and drops the
+  // rest — e.g. "Rent" and "Monthly Rent" both mapped to rent_amount_cents, with key order deciding the money.
+  // The wizard warns at mapping time; record it on the import report too, so the decision survives the session
+  // even if the agent clicked through.
+  for (const collision of detectMappingCollisions(mapping)) {
+    const [winner, ...dropped] = collision.columns
+    ctx.result.errors.push({
+      rowIndex: -1,
+      field: collision.field,
+      message: `Columns ${collision.columns.map((c) => `"${c}"`).join(", ")} all map to "${collision.field}" — ` +
+        `only "${winner}" was imported; ${dropped.map((c) => `"${c}"`).join(", ")} ${dropped.length > 1 ? "were" : "was"} ignored.`,
+      severity: "warning",
+    })
+  }
+
+  // A classification column that is not mapped AT ALL means its NOT NULL DEFAULT applies to every lease in the
+  // book — a uniform guess rather than a per-row one. Say so ONCE, up front, instead of refusing every row
+  // (which would make a file with no lease-type column unimportable) or saying nothing (the status quo).
+  const mappedFields = new Set(Object.values(mapping).map((m) => m.field))
+  if (mappedFields.has("lease_start")) {   // i.e. leases are actually being imported
+    for (const col of [...CLASSIFIED_LEASE_COLUMNS, ...DEFAULTED_IF_UNMAPPED]) {
+      if (mappedFields.has(col.field)) continue
+      ctx.result.errors.push({
+        rowIndex: -1, field: col.field, severity: "warning",
+        message: `No ${col.label} column mapped — ${col.unmappedNote}. Map it if that is not true of every lease.`,
+      })
+    }
   }
 
   // Route rows by entity type

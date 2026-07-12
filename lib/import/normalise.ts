@@ -93,3 +93,119 @@ export function normaliseCurrencyCents(raw: string): number | null {
   if (Number.isNaN(value)) return null
   return Math.round((negative ? -value : value) * 100)
 }
+
+// ── Cents-denominated source columns (F-8) ─────────────────────────────────────────────────────────
+//
+// The UNIT of a money cell is a property of the column the AGENCY exported, so it is decided by that
+// column's HEADER — never by the Pleks target field's name. Pleks' own internal field is `rent_amount_cents`,
+// and a Pleks-shaped re-export therefore ships a header literally named `monthly_rent_cents` holding INTEGER
+// CENTS. Running that through the rands parser multiplies by 100 a second time: R6 600,00 re-imports as
+// R660 000,00 straight into rent, deposit and the trust ledger. A normal agency export ships "Monthly Rent"
+// in rands and must still be ×100. Both shapes are real, so the header is the only thing that can tell them
+// apart.
+
+/**
+ * True when a source column's HEADER declares its values are already integer cents. Matched as a whole WORD
+ * TOKEN anywhere in the header — camelCase is split first — so all of these are recognised:
+ *   monthly_rent_cents · Rent (cents) · RentCents · rent_cents_amount · Rent Amount (Cents)
+ * An "ends with _cents" test missed every one of the last four and 100×-inflated them.
+ * "percents" stays a single token, so it does NOT match.
+ */
+export function isCentsDenominatedHeader(header: string): boolean {
+  const tokens = new Set(
+    header
+      .replaceAll(/([a-z])([A-Z])/g, "$1 $2")   // RentCents → Rent Cents
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .filter(Boolean),
+  )
+
+  if (!tokens.has("cents") && !tokens.has("cent")) return false
+
+  // "Rent (Rands and Cents)" is a normal accounting header for a RANDS column that merely names the unit in
+  // prose. Reading it as cents divides every rent by 100 — the deflation twin, arriving through the header
+  // instead of the value. A column that names rands is denominated in rands, whatever else it mentions.
+  return !tokens.has("rand") && !tokens.has("rands")
+}
+
+/**
+ * Parse a cell from a cents-denominated column — the value IS the cents, so there is NO ×100.
+ *
+ * ANY decimal point is a contradiction and returns null. Not just "660000.50" (a fraction of a cent) but,
+ * critically, "6600.00": a column headed `rent_amount_cents` whose values carry Excel's default money format
+ * is really RANDS, and reading it as cents divides every rent by 100. An `Number.isInteger(parseFloat(x))`
+ * check accepts "6600.00" — the deflation twin of the F-8 inflation bug. Thousands separators are fine.
+ */
+export function normaliseCentsValue(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  let s = trimmed.replaceAll(/[R\s]/g, "")
+  if (!s) return null
+  const negative = s.startsWith("-")
+  if (negative) s = s.slice(1)
+  if (!/^[\d.,]+$/.test(s)) return null
+
+  const canonical = toCanonicalNumber(s)
+  if (canonical === null) return null
+  if (canonical.includes(".")) return null   // a cents column must hold WHOLE cents — "6600.00" is rands
+
+  const value = Number.parseInt(canonical, 10)
+  if (Number.isNaN(value)) return null
+
+  return negative ? -value : value
+}
+
+/**
+ * Parse a percentage cell (escalation rate) — locale-aware, like the money parser. `Number.parseFloat("7,5")`
+ * returns 7, quietly turning a 7.5% escalation into 7% and compounding it annually for the life of the lease.
+ * A percentage has no thousands separator, so a single `,` or `.` is unambiguously the decimal point.
+ * Returns null on anything else ("CPI", "market related") so the caller flags rather than defaults.
+ */
+export function normalisePercent(raw: string): number | null {
+  const s = raw.trim().replaceAll("%", "").replaceAll(/\s/g, "")
+  if (!s) return null
+
+  // Leading number, tolerating a trailing annotation ("7,5% p.a."). Anchored at the START so a non-numeric
+  // cell ("CPI", "market related") still returns null and is flagged rather than silently taking the default.
+  const match = /^[+-]?\d+(?:[.,]\d+)?/.exec(s)
+  if (!match) return null
+
+  const value = Number.parseFloat(match[0].replace(",", "."))
+  if (Number.isNaN(value)) return null
+
+  // escalation_percent is numeric(5,2) — |value| >= 1000 overflows and Postgres rejects the whole lease with
+  // a raw driver message. Flag it as an unreadable percentage instead.
+  if (Math.abs(value) >= 1000) return null
+
+  return value
+}
+
+/**
+ * Normalise `leases.payment_due_day`. Migration 007 changed this column to TEXT and widened its domain to
+ * "1".."28" plus "last_day" / "last_working_day"; the importer was still `parseInt`-ing it, so an agency whose
+ * whole book bills on the last day of the month got NaN → column omitted → DEFAULT '1', silently moving every
+ * rent due date (and every arrears computation) to the 1st. Returns null on anything outside the domain.
+ */
+export function normalisePaymentDueDay(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+
+  if (/^last[\s_-]*working[\s_-]*day$/.test(s)) return "last_working_day"
+  if (/^last[\s_-]*day$/.test(s)) return "last_day"
+
+  const n = Number.parseInt(s, 10)
+  if (Number.isNaN(n) || n < 1 || n > 28) return null   // 29-31 are not expressible — that is what last_day is for
+  return String(n)
+}
+
+/**
+ * The ONE money entry point for the import boundary. `sourceHeader` is the header as it appeared IN THE FILE
+ * (the ColumnMapping key), and it — not the Pleks field name — selects the unit. Returns null on anything it
+ * cannot confidently parse; the caller must surface that as a row-level review item, never write a silent null.
+ */
+export function normaliseMoneyCents(raw: string, sourceHeader: string): number | null {
+  return isCentsDenominatedHeader(sourceHeader)
+    ? normaliseCentsValue(raw)
+    : normaliseCurrencyCents(raw)
+}

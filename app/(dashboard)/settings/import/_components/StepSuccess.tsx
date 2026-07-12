@@ -42,8 +42,11 @@ function hasAnyRecords(created: CreatedCounts): boolean {
     || (created.contractors ?? 0) > 0 || (created.landlords ?? 0) > 0 || (created.agentInvites ?? 0) > 0
 }
 
-function getHeading(hasRecords: boolean, units: number): string {
+function getHeading(hasRecords: boolean, units: number, refusalCount: number): string {
   if (!hasRecords) return "Import completed with errors"
+  // A clean green "Portfolio imported" over rows that were rejected is the worst of both: the agency believes
+  // its book migrated. Name the rejection in the heading.
+  if (refusalCount > 0) return `Imported — ${refusalCount} row${refusalCount === 1 ? "" : "s"} rejected`
   if (units > 0) return "Portfolio imported"
   return "Contacts imported"
 }
@@ -55,13 +58,19 @@ export function StepSuccess({ result, onReset }: Readonly<StepSuccessProps>) {
   const hasErrors = result.errors.length > 0
   const summaryParts = buildSummaryParts(result.created)
 
+  // A refusal is not a warning: the row DID NOT import. Keep them apart so a "Portfolio imported" tick can
+  // never sit above six silently-dropped leases.
+  const refusals = result.errors.filter((e) => e.severity === "error")
+  const warnings = result.errors.filter((e) => e.severity !== "error")
+  const clean = hasRecords && refusals.length === 0
+
   return (
     <div className="max-w-lg mx-auto text-center py-8">
-      <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-6 ${hasRecords ? "bg-green-500/10" : "bg-amber-500/10"}`}>
-        {hasRecords ? <CheckCircle2 className="size-8 text-green-500" /> : <AlertTriangle className="size-8 text-amber-500" />}
+      <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-6 ${clean ? "bg-green-500/10" : "bg-amber-500/10"}`}>
+        {clean ? <CheckCircle2 className="size-8 text-green-500" /> : <AlertTriangle className="size-8 text-amber-500" />}
       </div>
 
-      <h2 className="font-heading text-2xl mb-2">{getHeading(hasRecords, result.created.units)}</h2>
+      <h2 className="font-heading text-2xl mb-2">{getHeading(hasRecords, result.created.units, refusals.length)}</h2>
       <p className="text-muted-foreground text-sm mb-6">
         {summaryParts.length > 0 ? summaryParts.join(" · ") : "0 records created"}
       </p>
@@ -112,21 +121,49 @@ export function StepSuccess({ result, onReset }: Readonly<StepSuccessProps>) {
         </Card>
       )}
 
-      {/* Error log */}
+      {/* Error log. A REFUSAL (severity "error" — the row did not import) must never look like an FYI: it is
+          data the agency expected to migrate and did not. Refusals are counted and listed first, in danger
+          tone; warnings follow. Every line names its real row and the column at fault. */}
       {hasErrors && (
-        <Card className="mb-6 text-left border-amber-500/20">
+        <Card className={`mb-6 text-left ${refusals.length > 0 ? "border-danger/30" : "border-amber-500/20"}`}>
           <CardContent className="pt-4">
-            <button type="button" onClick={() => setShowErrors(!showErrors)} className="flex items-center gap-2 text-sm text-amber-500 w-full">
+            <button
+              type="button"
+              onClick={() => setShowErrors(!showErrors)}
+              className={`flex items-center gap-2 text-sm w-full ${refusals.length > 0 ? "text-danger" : "text-amber-500"}`}
+            >
               <AlertTriangle className="size-4 shrink-0" />
-              <span>{result.errors.length} row{result.errors.length === 1 ? "" : "s"} had errors</span>
+              <span>
+                {refusals.length > 0 && (
+                  <>{refusals.length} row{refusals.length === 1 ? "" : "s"} NOT imported</>
+                )}
+                {refusals.length > 0 && warnings.length > 0 && " · "}
+                {warnings.length > 0 && (
+                  <>{warnings.length} warning{warnings.length === 1 ? "" : "s"}</>
+                )}
+              </span>
               {showErrors ? <ChevronUp className="size-4 ml-auto" /> : <ChevronDown className="size-4 ml-auto" />}
             </button>
+
+            {refusals.length > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                These rows were rejected rather than guessed at. Correct them in your file and import it again —
+                re-importing is safe and will not duplicate anything already created.
+              </p>
+            )}
+
             {showErrors && (
               <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
-                {result.errors.map((err, i) => (
-                  <div key={`err-${i}`} className="text-xs border-b border-border/30 pb-2">
-                    <span className="text-muted-foreground">Row {err.row ?? i + 1}:</span>{" "}
-                    <span className="text-foreground">{err.error ?? err.message ?? JSON.stringify(err)}</span>
+                {[...refusals, ...warnings].map((err, i) => (
+                  <div key={`err-${err.rowIndex}-${err.field}-${i}`} className="text-xs border-b border-border/30 pb-2">
+                    <span className={err.severity === "error" ? "text-danger" : "text-amber-500"}>
+                      {err.severity === "error" ? "Not imported" : "Warning"}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {" · "}{err.rowIndex >= 0 ? `Row ${err.rowIndex + 1}` : "File"}
+                      {err.field ? ` · ${err.field}` : ""}:{" "}
+                    </span>
+                    <span className="text-foreground">{err.message}</span>
                   </div>
                 ))}
               </div>

@@ -64,6 +64,16 @@ async function ins<T = Record<string, unknown>>(
   return data as T
 }
 
+/**
+ * Seed a BARE, EMPTY org — for pipelines that create their own properties/units/tenants/leases (the bulk
+ * importer). Carries the same `ledger-test ` name prefix so cleanupStrayTestOrgs sweeps it if a run aborts.
+ */
+export async function seedEmptyOrg(db: SupabaseClient): Promise<string> {
+  const orgId = randomUUID()
+  await ins(db, "organisations", { id: orgId, name: `ledger-test ${orgId.slice(0, 8)}` })
+  return orgId
+}
+
 export interface InvoiceSpec {
   /** stable label used to target the invoice in a test (e.g. "X", "W") */
   key: string

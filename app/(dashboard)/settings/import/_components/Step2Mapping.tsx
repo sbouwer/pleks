@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, ArrowRight } from "lucide-react"
+import { detectMappingCollisions } from "@/lib/import/columnMapper"
 import type { AnalysisResult } from "../page"
 // FIELD_ALIASES available for future Haiku fallback
 
@@ -70,7 +71,8 @@ const ALL_FIELDS = [
   { value: "escalation_percent", label: "Escalation %", entity: "lease" },
   { value: "escalation_type", label: "Escalation type", entity: "lease" },
   { value: "escalation_review_date", label: "Escalation review date", entity: "lease" },
-  { value: "payment_method", label: "Payment method", entity: "lease" },
+  // No "Payment method" — `leases` has no such column; offering it let an agent pick a field whose insert
+  // then failed the whole lease. Such a column now reports as "not imported" instead.
   { value: "payment_due_day", label: "Payment due day", entity: "lease" },
   { value: "notice_period_days", label: "Notice period (days)", entity: "lease" },
   { value: "cpa_applies", label: "CPA applies (yes/no)", entity: "lease" },
@@ -166,6 +168,12 @@ export function Step2Mapping({
     if (!hasEmail) missingRequired.push("Email")
   }
 
+  // F-8: two columns mapped to ONE field — the importer resolves a field by taking the FIRST column that
+  // claims it, so the rest are silently dropped and key order decides which of the agent's columns wins.
+  // Show it here, before they import, rather than leaving them to infer it from a wrong number afterwards.
+  const collisions = detectMappingCollisions(mapping)
+  const ignoredColumns = new Set(collisions.flatMap((c) => c.columns.slice(1)))
+
   return (
     <div className="max-w-3xl mx-auto">
       <h2 className="font-heading text-2xl mb-2">Map columns</h2>
@@ -218,12 +226,14 @@ export function Step2Mapping({
               const sample = sampleRows[0]?.[col] ?? ""
               function getStatus() {
                 if (!mapped) return "unmapped"
+                if (ignoredColumns.has(col)) return "ignored"   // F-8: a later duplicate — its data is dropped
                 if (["tenant_notes", "unit_notes", "lease_notes", "export_csv"].includes(mapped.field)) return "extra"
                 return "matched"
               }
               const status = getStatus()
               let badgeClass: string
               if (status === "matched") { badgeClass = "bg-green-500/10 text-green-400" }
+              else if (status === "ignored") { badgeClass = "bg-danger-bg text-danger" }
               else if (status === "extra") { badgeClass = "bg-amber-500/10 text-amber-400" }
               else { badgeClass = "bg-surface-elevated text-muted-foreground" }
 
@@ -256,9 +266,10 @@ export function Step2Mapping({
                   </td>
                   <td className="px-3 py-2">
                     <Badge variant="secondary" className={`text-[10px] ${badgeClass}`}>
-                      {getStatus() === "unmapped" && "Skip"}
-                      {getStatus() === "extra" && "Extra"}
-                      {getStatus() === "matched" && "Matched"}
+                      {status === "unmapped" && "Skip"}
+                      {status === "extra" && "Extra"}
+                      {status === "matched" && "Matched"}
+                      {status === "ignored" && "Ignored"}
                     </Badge>
                   </td>
                 </tr>
@@ -267,6 +278,19 @@ export function Step2Mapping({
           </tbody>
         </table>
       </div>
+
+      {collisions.length > 0 && (
+        <div className="mb-4 rounded-md border border-danger/20 bg-danger-bg p-3 text-sm space-y-1.5">
+          <p className="font-medium text-danger">Some columns map to the same field</p>
+          {collisions.map((c) => (
+            <p key={c.field} className="text-xs text-muted-foreground">
+              {c.columns.map((col) => `"${col}"`).join(", ")} all map to{" "}
+              <span className="font-mono">{c.field}</span> — only{" "}
+              <span className="font-mono">&quot;{c.columns[0]}&quot;</span> will be imported. Remap or skip the rest.
+            </p>
+          ))}
+        </div>
+      )}
 
       {missingRequired.length > 0 && (
         <div className="mb-4 rounded-md border border-danger/20 bg-danger-bg p-3 text-sm text-danger">
