@@ -1466,7 +1466,7 @@ async function processActiveLease(
  * THE RATE. RHA s5(3) interest cannot accrue without one, and the rate a deposit was taken at years ago by
  * another system is not something Pleks can infer. `accrueDepositInterest` would otherwise fall back to a
  * HARD-CODED 5% p.a. — inventing a rate and applying it to money held in trust for someone else. So:
- * the file's rate → else the agency's own CONFIGURED rate → else `imported_not_set`, which HOLDS accrual until
+ * the file's rate → else the agency's own CONFIGURED rate → else `not_set`, which HOLDS accrual until
  * an agent sets one. A held deposit accrues NOTHING; it does not accrue wrongly.
  *
  * THE LEDGER. The money is real, so it belongs in the deposit/trust sub-ledger as an OPENING BALANCE, or a
@@ -1491,19 +1491,36 @@ async function migrateDeposit(
   const filePercent = typeof leaseData.deposit_interest_rate_percent === "number"
     ? leaseData.deposit_interest_rate_percent
     : null
-  const rate = await resolveDepositRate(ctx.supabase, ctx.orgId, filePercent)
+  // The SAME scope the accrual engine will use. A lease has no deposit/trust account at import, so this is
+  // (property → unit → org) — which is exactly why an ACCOUNT-scoped config would not reach it, and why the
+  // flag below must say so instead of just "no rate".
+  const rate = await resolveDepositRate(
+    ctx.supabase, ctx.orgId,
+    { propertyId, unitId, bankAccountId: null },
+    filePercent,
+  )
 
-  const { error: rateError } = await ctx.supabase
-    .from("leases")
-    .update({ deposit_interest_rate_percent: rate.ratePercent, deposit_rate_status: rate.status })
-    .eq("id", leaseId).eq("org_id", ctx.orgId)
-  logIfError("importRunner deposit rate", rateError)
+  // Only the rate itself is persisted. The HOLD is not: it is what the accrual engine concludes, live, when
+  // no rate reaches the lease — so it self-heals the moment one does, instead of a stale stamp freezing it.
+  if (rate.ratePercent !== null) {
+    const { error: rateError } = await ctx.supabase
+      .from("leases")
+      .update({ deposit_interest_rate_percent: rate.ratePercent })
+      .eq("id", leaseId).eq("org_id", ctx.orgId)
+    logIfError("importRunner deposit rate", rateError)
+  }
 
-  if (rate.status === "imported_not_set") {
+  if (rate.held) {
+    // Two different problems, and telling them apart is the difference between one click and a support ticket.
     flagForReview(ctx, rowIndex, "deposit_amount_cents",
-      "This deposit was migrated but no interest rate is known for it — not in the file, and your agency has no " +
-      "deposit-interest rate configured. Interest is NOT accruing on it: we will not guess a rate on money you " +
-      "hold in trust for someone else. Set the rate on the lease (or configure one for the agency) and accrual starts.")
+      rate.source === "config_unreachable"
+        ? "Deposit interest is NOT accruing on this lease. You DO have a deposit-interest rate configured, but " +
+          "it is scoped to a specific deposit/trust account and this lease is not linked to that account, so the " +
+          "rate does not reach it. Link the lease to the account (or add a rate for the lease) and accrual starts."
+        : "This deposit was migrated but no interest rate is known for it — not in the file, and your agency has " +
+          "no deposit-interest rate configured. Interest is NOT accruing on it: we will not guess a rate on money " +
+          "you hold in trust for someone else. Set a rate and accrual starts, backdated to the deposit.",
+    )
   }
 
   // ── The ledger. Fail-closed: no attestation, no trust posting.
