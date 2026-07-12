@@ -2,30 +2,32 @@
  * app/api/import/gl-execute/route.ts — execute a GL (opening-balance) import from a prepared session
  *
  * Route:  POST /api/import/gl-execute
- * Auth:   auth.getUser + user_orgs membership → org_id; import_sessions writes org-scoped (.eq("org_id")).
+ * Auth:   requireAgentWriteAccess("bulk_import") + admin — GL import creates net-new trust postings, so it is
+ *         lockdown-gated (a paused/cancelled org cannot import) AND admin-only, matching /api/import. The
+ *         client-supplied leaseMatches/propertyMatches UUIDs are org-validated inside glImportRunner (F-2).
  * Data:   import_sessions + GL opening-balance rows via the service client (RLS-bypassing → org filter is the boundary).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const service = await createServiceClient()
-
-  const { data: membership, error: membershipError } = await service
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("bulk_import")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  // Bulk import is an admin-only, net-new-business surface — matches the legacy /api/import gate exactly.
+  if (!gw.isAdmin) {
+    return NextResponse.json({ error: "Admin access required to import data" }, { status: 403 })
+  }
+  const { db: service, orgId, userId } = gw
 
   const body = await req.json()
   const { blocks, leaseMatches, propertyMatches, dateFilter, importDeposits } = body
@@ -38,8 +40,8 @@ export async function POST(req: NextRequest) {
   const { data: session, error: sessionError } = await service
     .from("import_sessions")
     .insert({
-      org_id: membership.org_id,
-      created_by: user.id,
+      org_id: orgId,
+      created_by: userId,
       status: "importing",
       import_type: "gl_history",
       source_row_count: blocks.reduce((sum: number, b: { arTransactions: unknown[] }) => sum + (b.arTransactions?.length ?? 0), 0),
@@ -86,8 +88,8 @@ export async function POST(req: NextRequest) {
       leaseMatches ?? {},
       propertyMatches ?? {},
       {
-        orgId: membership.org_id,
-        agentId: user.id,
+        orgId: orgId,
+        agentId: userId,
         importDeposits: importDeposits ?? true,
         dateFilter: dateFilter ?? { from: "2020-01-01", to: "2099-12-31" },
       },
@@ -105,10 +107,10 @@ export async function POST(req: NextRequest) {
         completed_at: new Date().toISOString(),
       })
       .eq("id", session?.id)
-      .eq("org_id", membership.org_id) // org-scope guard (caller-ID census)
+      .eq("org_id", orgId) // org-scope guard (caller-ID census)
 
     // Audit log
-    await recordAudit(service, { orgId: membership.org_id, table: "import_sessions", recordId: session?.id, action: "INSERT", actorId: user.id, after: {
+    await recordAudit(service, { orgId: orgId, table: "import_sessions", recordId: session?.id, action: "INSERT", actorId: userId, after: {
         action: "gl_history_import",
         transactions: result.transactionsCreated,
         deposits: result.depositsCreated,
@@ -125,7 +127,7 @@ export async function POST(req: NextRequest) {
         .from("import_sessions")
         .update({ status: "failed", error_report: [{ error: String(err) }] })
         .eq("id", session.id)
-        .eq("org_id", membership.org_id)
+        .eq("org_id", orgId)
     }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "GL import failed" },
