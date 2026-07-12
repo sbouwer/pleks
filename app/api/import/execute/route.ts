@@ -2,30 +2,32 @@
  * app/api/import/execute/route.ts — execute a data import into the caller's org
  *
  * Route:  POST /api/import/execute
- * Auth:   auth.getUser() + user_orgs membership lookup (service client)
+ * Auth:   requireAgentWriteAccess("bulk_import") + admin — the wizard creates net-new business objects
+ *         (tenants/units/leases/etc.), so it is lockdown-gated (a paused/cancelled org cannot import) AND
+ *         admin-only, matching /api/import.
  * Data:   creates/updates import_sessions; runImport() creates tenants/units/leases/contractors/etc.
  * Notes:  existing sessions are org-scope-verified before reuse; failures mark the session 'failed'
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const service = await createServiceClient()
-
-  const { data: membership, error: membershipError } = await service
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-    logQueryError("POST user_orgs", membershipError)
-
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("bulk_import")
+  } catch (e) {
+    if (e instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: e.message, code: "subscription_locked" }, { status: 403 })
+    }
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  // Bulk import is an admin-only, net-new-business surface — matches the legacy /api/import gate exactly.
+  if (!gw.isAdmin) {
+    return NextResponse.json({ error: "Admin access required to import data" }, { status: 403 })
+  }
+  const { db: service, orgId, userId } = gw
 
   const body = await req.json()
   const { sessionId, rows, decisions } = body
@@ -34,8 +36,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No data to import" }, { status: 400 })
   }
 
-  const orgId = membership.org_id
-
   // Create or update import session
   let importSessionId = sessionId
   if (!importSessionId) {
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       .from("import_sessions")
       .insert({
         org_id: orgId,
-        created_by: user.id,
+        created_by: userId,
         status: "importing",
         source_row_count: rows.length,
         column_mapping: decisions?.columnMapping ?? null,
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       decisions?.columnMapping ?? {},
       decisions ?? {},
       orgId,
-      user.id,
+      userId,
       importSessionId,
       service
     )
