@@ -7,6 +7,7 @@
 import { getCachedServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { fmtDateZA } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 export interface ExpiringLease {
   id: string
@@ -51,7 +52,7 @@ export async function getExpiringLeases(orgId: string): Promise<ExpiringLease[]>
       contacts: { first_name: string; last_name: string; company_name: string | null }
     } | null
 
-    const unitLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "Unknown"
+    const unitLabel = formatPropertyLabel(unit, { fallback: "Unknown" })
     const tenantName = tenant?.contacts?.company_name
       ?? (tenant?.contacts
         ? `${tenant.contacts.first_name[0]}. ${tenant.contacts.last_name}`.trim()

@@ -32,6 +32,7 @@ import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 import { formatZAR } from "@/lib/constants"
 import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 type MaintenanceItem = Awaited<ReturnType<typeof fetchMaintenanceAction>>[number]
 type MaintenanceItemExtended = MaintenanceItem & { logged_by?: string; reported_via?: string }
@@ -169,7 +170,7 @@ function supplierNameOf(req: MaintenanceItem): string {
 function MaintenanceRow({ req, onClick }: Readonly<{ req: MaintenanceItemExtended; onClick: () => void }>) {
   const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
   const supplierName = supplierNameOf(req)
-  const unitLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "—"
+  const unitLabel = formatPropertyLabel(unit, { fallback: "—" })
   const chip = STATUS_CHIP[req.status] ?? { label: req.status.replaceAll("_", " "), cls: "bg-muted text-muted-foreground" }
   const sla = getSlaState(req)
   let dateCls = "text-muted-foreground"
@@ -222,7 +223,7 @@ function MobileRow({ req }: Readonly<{ req: MaintenanceItemExtended }>) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{req.title}</p>
         <p className="text-xs text-muted-foreground truncate">
-          {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+          {formatPropertyLabel(unit, { fallback: "" })}
           {req.work_order_number ? ` · ${req.work_order_number}` : ""}
         </p>
       </div>
@@ -237,7 +238,7 @@ function MobileRow({ req }: Readonly<{ req: MaintenanceItemExtended }>) {
 function MaintenanceCard({ req, onClick }: Readonly<{ req: MaintenanceItemExtended; onClick: () => void }>) {
   const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
   const supplierName = supplierNameOf(req)
-  const unitLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "—"
+  const unitLabel = formatPropertyLabel(unit, { fallback: "—" })
   const chip = STATUS_CHIP[req.status] ?? { label: req.status.replaceAll("_", " "), cls: "bg-muted text-muted-foreground" }
   const dot = URGENCY_DOT[req.urgency ?? "routine"] ?? "bg-muted-foreground/40"
 

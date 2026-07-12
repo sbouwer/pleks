@@ -41,7 +41,7 @@ honoured on Pro). Monthly jobs run INSIDE this orchestrator, gated by a day-of-m
 > Calendarific witness) and moves the 90-day horizon nag here. Quiet by default — digests to `ADMIN_EMAIL`
 > only on a Class-A/B diff, a witness disagreement, or the horizon within 90 days. Writes nothing (D-7d). NOT
 > in the daily orchestrator and NOT wrapped in `withCronRun` (a `cron_runs` row from a job `TRACKED_CRONS`
-> never heard of would falsely degrade deep-health). cPanel entry to add:
+> never heard of would falsely degrade deep-health). cPanel entry (LIVE since 2026-07-11):
 > ```
 > 0 7 * * *  /usr/bin/curl -s -m 60 -X GET "https://app.pleks.co.za/api/cron/holiday-sentinel" -H "x-cron-secret: <CRON_SECRET>" > /dev/null 2>&1
 > ```

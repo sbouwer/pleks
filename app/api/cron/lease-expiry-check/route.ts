@@ -22,6 +22,7 @@ import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
 type Supabase = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -94,7 +95,7 @@ export async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLeas
     if (!tenant?.email) return
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const propertyLabel = formatPropertyLabel(unit)
     const endDateDisplay = fmtDateLongZA(lease.end_date)
     const daysRemaining = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / 86_400_000)
 
@@ -149,7 +150,7 @@ async function handleNoticeExpired(supabase: Supabase, lease: NoticeLease, today
     if (!tenant?.email) return
 
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const propertyLabel = formatPropertyLabel(unit)
     const endDateDisplay = fmtDateLongZA(today)
 
     await routeAndSend({

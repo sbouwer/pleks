@@ -10,6 +10,7 @@
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §10.7.
  */
 import type { ReactNode } from "react"
+import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { redirect, notFound } from "next/navigation"
 import { formatZAR } from "@/lib/constants"
 import { getDepositRecommendation } from "@/lib/screening/depositRecommendation"
@@ -369,7 +370,7 @@ export default async function ApplicationDetailPage({
       title={name}
       status={status}
       badge={badge}
-      sub={listing ? `${listing.units.unit_number}, ${listing.units.properties.name}` : undefined}
+      sub={listing ? formatPropertyLabel(listing.units, { fallback: "Unknown unit" }) : undefined}
       facts={facts}
       actions={actions}
       tabs={tabs}
