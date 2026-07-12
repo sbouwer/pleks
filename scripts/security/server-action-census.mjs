@@ -69,9 +69,6 @@ export const ACTION_ALLOWLIST = {
   "lib/screening/sendShortlistInvitation.ts::*": "internal: sender called by gated shortlist action + cron",
   // Injectable cores — receive an authed client + orgId from a gated caller (non-serializable
   // client param means they can't be meaningfully invoked directly as an RPC).
-  "lib/import/leaseImport.ts::*": "internal: injectable core, gated /api/import route",
-  "lib/import/propertyImport.ts::*": "internal: injectable core, gated /api/import route",
-  "lib/import/tenantImport.ts::*": "internal: injectable core, gated /api/import route",
   "lib/hoa/levyCalculation.ts::*": "internal: gated /calculate route (pre-verifies schedule org); creates a service client, org from the verified schedule; not client-imported (caller-verified 2026-07-03)",
   // Caller-supplied-ID / cookie-client census REVIEW trio — now ALL resolved (CD 2026-07-02..03).
   // Of the original 6 "guilty until read" items: quoteApproval + handleDispute were live IDOR/doctrine
