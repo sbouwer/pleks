@@ -22,8 +22,13 @@ export async function promoteApplicationToTenant(
   applicationId: string,
   createdBy: string | null,
   authUserId: string | null = null,
+  expectedOrgId: string | null = null,
 ): Promise<{ tenantId: string } | { error: string }> {
-  const { data: application, error: applicationError } = await db
+  // F-2 (AUDIT_IMPORT): the lookup is by applicationId ALONE, and every downstream write then TRUSTS
+  // application.org_id — so an agent caller could promote another org's application. When the caller is an
+  // agent (expectedOrgId set), scope the lookup to their org; a foreign application resolves to no row.
+  // The applicant token path (link-account) passes null: the token itself is the authorisation for that id.
+  let appQuery = db
     .from("applications")
     .select(`
       id, org_id, first_name, last_name, applicant_email, applicant_phone,
@@ -33,7 +38,8 @@ export async function promoteApplicationToTenant(
       is_foreign_national, nationality, passport_number
     `)
     .eq("id", applicationId)
-    .single()
+  if (expectedOrgId) appQuery = appQuery.eq("org_id", expectedOrgId)
+  const { data: application, error: applicationError } = await appQuery.single()
   logQueryError("promoteApplicationToTenant applications", applicationError)
 
   if (!application) return { error: "Application not found" }

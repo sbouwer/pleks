@@ -41,7 +41,6 @@ export const ACTION_ALLOWLIST = {
   // Applicant / token flow — token possession is the credential.
   "app/(public)/property-info/[token]/actions.ts::*": "public: property-info token is the credential",
   "lib/applications/commercial.ts::*": "public: applicant commercial flow (token-gated upstream)",
-  "lib/applications/createTenantFromApplication.ts::*": "internal: called by gated activation/screen paths",
   "lib/applications/createTenantFromCoApplicant.ts::*": "internal: called by gated co-applicant save",
   "lib/applications/buildEmailContext.ts::*": "internal: pure email-context builder, no data mutation",
   "lib/applications/commercial-emails.tsx::*": "internal: email template builders (no auth surface)",
