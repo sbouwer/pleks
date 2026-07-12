@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { toColumnMapping, toImportDecisions, type WizardDecisions } from "@/lib/import/decisions"
+import { toColumnMapping, toImportDecisions, EXPIRED_ACTION_WIRE, type WizardDecisions } from "@/lib/import/decisions"
 import type { ImportDecisions } from "@/lib/import/importRunner"
 
 type Service = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
@@ -51,10 +51,15 @@ async function resolveSession(
       source_row_count: rows.length,
       column_mapping: decisions?.columnMapping ?? null,
       extra_column_routing: decisions?.extraColumnRouting ?? null,
-      // `conflictResolutions` used to be read here — a key the wizard has never sent, so the column was always
-      // NULL. Persist what the runner ACTUALLY acted on, so a session is reproducible after the fact.
+      // Persist what the runner ACTUALLY ACTED ON, never the raw wire. Two reasons:
+      //  - `conflictResolutions` used to be read here — a key the wizard has never sent, so the column was
+      //    always NULL.
+      //  - `expired_lease_action` carries CHECK (IN ('skip','import_as_expired')). The translator tolerates a
+      //    junk value (falling back to the safe option), but the raw value would VIOLATE the CHECK — the insert
+      //    fails, the session id comes back undefined, and the import then runs with no session row at all:
+      //    nothing for the agent or an auditor to trace. Sanitised in, sanitised out.
       conflict_resolutions: runnerDecisions.conflicts.length > 0 ? runnerDecisions.conflicts : null,
-      expired_lease_action: decisions?.expiredLeaseAction ?? null,
+      expired_lease_action: EXPIRED_ACTION_WIRE[runnerDecisions.expiredLeases],
       per_row_overrides: decisions?.perRowOverrides ?? null,
     })
     .select("id").single()

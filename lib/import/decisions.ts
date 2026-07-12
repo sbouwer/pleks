@@ -10,10 +10,16 @@
  *           - `decisions.expiredLeases` was ALWAYS undefined → the "skip expired leases" branch was dead.
  *             That is the wizard's DEFAULT and recommended option, and Step4Confirm prints "Expired leases
  *             will be skipped" on the confirmation screen — while every expired lease was imported.
- *           - `decisions.skipRows` was ALWAYS [] → the per-row overrides the agent set in Step 3 were discarded.
+ *           - Step 3's per-row "Keep active" ticks were discarded — not because `skipRows` was empty, but
+ *             because the runner had NO CONCEPT of the override at all (`forceActiveRows` is new here).
  *           - `decisions.conflicts` was ALWAYS [] → every co-tenant/previous/duplicate resolution was inert.
  *         A silent no-op on an explicit, UI-confirmed decision is worse than an error: the agent is told the
  *         thing happened.
+ *
+ *         SCOPE, honestly: no wizard step produces `perRowOverrides[i] = "skip"` today (Step 3's checkbox only
+ *         ever writes "active"), so the `skipRows` arm is reachable only by a hand-crafted body. It is kept
+ *         because `buildUnitGroups` already honours it and a future "drop this row" control wires in here —
+ *         but it is not a control the agent has today, and it is only honoured for TENANT rows.
  *
  *         This module is the single place the two shapes meet. The runner keeps its own vocabulary (it is not
  *         a UI), the wizard keeps its own (it is not a database), and the translation is explicit, typed and
@@ -39,6 +45,14 @@ const EXPIRED_ACTION: Record<string, ExpiredDecision> = {
   skip: "import_active_only",
   // "Creates tenant + lease records with status 'expired'."
   import_as_expired: "import_all",
+}
+
+/** The inverse, for persisting to `import_sessions.expired_lease_action`, whose CHECK constraint speaks the
+ *  WIZARD's vocabulary. Writing the raw (possibly junk) wire value there violates the CHECK and loses the
+ *  whole session row; this maps back from what the runner actually acted on. */
+export const EXPIRED_ACTION_WIRE: Record<ExpiredDecision, "skip" | "import_as_expired"> = {
+  import_active_only: "skip",
+  import_all: "import_as_expired",
 }
 
 /**

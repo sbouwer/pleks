@@ -125,14 +125,19 @@ export default function ImportWizardPage() {
       columnMapping: mapping,
       extraColumnRouting: extraRouting,
     }))
-    // Check for expired leases
+    // Show the expired-lease step whenever a lease_end column is MAPPED — the agent's own decision, and the
+    // only thing the runner acts on. It used to also require `analysis.detectedEntities.hasLease`, which is
+    // computed once at upload from AUTO-SUGGESTED columns and never recomputed. So an af-ZA book whose
+    // "Huurkontrak Einde" header did not auto-match, then mapped by hand in Step 2, skipped this step —
+    // and since the decisions contract is now live, its "skip expired" default would silently divert every
+    // stale-dated lease to tenancy history without the agent ever being shown the choice.
     const hasLeaseEnd = Object.values(mapping).some((m) => m.field === "lease_end")
-    if (hasLeaseEnd && analysis?.detectedEntities.hasLease) {
+    if (hasLeaseEnd) {
       setStep("expired")
     } else {
       setStep("confirm")
     }
-  }, [analysis])
+  }, [])
 
   const handleExpiredDecision = useCallback((
     action: "skip" | "import_as_expired",
@@ -221,6 +226,8 @@ export default function ImportWizardPage() {
         <Step3ExpiredLeases
           rows={allRows}
           mapping={decisions.columnMapping}
+          initialAction={decisions.expiredLeaseAction}
+          initialOverrides={decisions.perRowOverrides}
           onBack={() => setStep("mapping")}
           onConfirm={handleExpiredDecision}
         />
