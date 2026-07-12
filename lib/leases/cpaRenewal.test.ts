@@ -9,8 +9,9 @@ import { describe, it, expect } from "vitest"
 import {
   cpaRenewalNoticeDue, cpaRenewalNoticeDueSafe, CPA_S14_NOTICE_BUSINESS_DAYS,
   cpaRenewalNoticeFloor, cpaRenewalNoticeFloorSafe, CPA_S14_NOTICE_FLOOR_BUSINESS_DAYS,
+  isRenewalNoticeMissed,
 } from "./cpaRenewal"
-import { subtractBusinessDaysStrict } from "@/lib/dates"
+import { subtractBusinessDaysStrict, addCalendarDays } from "@/lib/dates"
 
 describe("cpaRenewalNoticeDue — statutory, mid-window", () => {
   it("targets the middle of the 40–80 business-day window", () => {
@@ -81,5 +82,21 @@ describe("cpaRenewalNoticeFloor — the 40-bd floor (last lawful send day), dist
     const today = subtractBusinessDaysStrict(end, 50)  // 50 bd out: past 60-bd target, before 40-bd floor
     expect(today > target).toBe(true)         // reminder has fired
     expect(today < floor).toBe(true)          // but the floor has NOT passed → NOT missed
+  })
+})
+
+describe("isRenewalNoticeMissed — the boundary is STRICT, locked here so it can't slip to <=", () => {
+  const floor = cpaRenewalNoticeFloorSafe("2027-06-29")!  // the 40-bd floor date
+
+  it("is NOT missed ON the floor day itself — serving on the 40-bd floor satisfies 'not less than 40 business days'", () => {
+    expect(isRenewalNoticeMissed(floor, floor)).toBe(false)
+  })
+
+  it("IS missed the calendar day AFTER the floor — strictly past the floor is genuinely under 40 business days", () => {
+    expect(isRenewalNoticeMissed(floor, addCalendarDays(floor, 1))).toBe(true)
+  })
+
+  it("is NOT missed when the floor degraded to null past the horizon — the advisory alert is simply absent", () => {
+    expect(isRenewalNoticeMissed(null, "2027-01-01")).toBe(false)
   })
 })

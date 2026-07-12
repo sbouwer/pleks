@@ -10,7 +10,7 @@
  *         today is strictly past it. Both skip when the date falls past the holiday-table horizon.
  */
 import { type SupabaseClient } from "@supabase/supabase-js"
-import { cpaRenewalNoticeDueSafe, cpaRenewalNoticeFloorSafe } from "@/lib/leases/cpaRenewal"
+import { cpaRenewalNoticeDueSafe, cpaRenewalNoticeFloorSafe, isRenewalNoticeMissed } from "@/lib/leases/cpaRenewal"
 import { addCalendarDays, saTodayISO } from "@/lib/dates"
 
 export type EventType =
@@ -379,9 +379,10 @@ export async function fetchOverdueAlerts(
   for (const lease of cpaMissed.data ?? []) {
     if (!lease.end_date) continue
     // MISSED ⇔ today is strictly past the 40-bd FLOOR (last lawful send day) — not the 60-bd target, which
-    // would flag the lease missed while ~20 business days of lawful window remain.
+    // would flag the lease missed while ~20 business days of lawful window remain. The boundary lives in the
+    // tested `isRenewalNoticeMissed` predicate so it can't silently slip to `<=` (it also narrows to string).
     const noticeDeadline = cpaRenewalNoticeFloorSafe(lease.end_date)
-    if (noticeDeadline && noticeDeadline < saTodayISO()) {
+    if (isRenewalNoticeMissed(noticeDeadline, saTodayISO())) {
       const leaseData2 = await service
         .from("leases")
         .select("units(unit_number, properties(name))")

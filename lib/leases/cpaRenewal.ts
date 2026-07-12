@@ -70,7 +70,7 @@ export function cpaRenewalNoticeFloor(endDateIso: string): string {
 }
 
 /** DISPLAY. The floor date, or null past the holiday horizon (same fail-closed shape as cpaRenewalNoticeDueSafe).
- *  Use for the "notice missed" signal: missed ⇔ `floor && floor < today`. */
+ *  Feed it to `isRenewalNoticeMissed` for the "notice missed" signal. */
 export function cpaRenewalNoticeFloorSafe(endDateIso: string | null): string | null {
   if (!endDateIso || !isWithinHolidayHorizon(endDateIso)) return null
   try {
@@ -78,4 +78,17 @@ export function cpaRenewalNoticeFloorSafe(endDateIso: string | null): string | n
   } catch {
     return null
   }
+}
+
+/**
+ * The "renewal notice missed" invariant, as one tested predicate so the boundary can never silently slip.
+ * MISSED ⇔ the 40-bd floor exists AND today is STRICTLY past it. The strictness is statutory: s14(2)(b)(ii)
+ * says "not less than 40 business days before expiry", so serving ON the floor day (exactly 40 bd out) is
+ * lawful — `today === floor` is NOT a miss; only `floor < today` is. A `<=` here would declare a miss on a
+ * day the agent can still lawfully serve. A null floor (end date past the holiday-table horizon) is not a
+ * miss — the advisory alert is simply absent, and the sentinel cron keeps coverage ≥ ~6 months ahead so a
+ * null floor cannot coincide with a real, relevant miss. Type-guards `floorISO` to string on true.
+ */
+export function isRenewalNoticeMissed(floorISO: string | null, todayISO: string): floorISO is string {
+  return floorISO !== null && floorISO < todayISO
 }
