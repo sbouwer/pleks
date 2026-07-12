@@ -39,15 +39,19 @@ function hasAny(w: Set<string>, vocab: readonly string[]): boolean {
   return vocab.some((t) => w.has(t))
 }
 
-// Whole-word vocabularies (en + af). Compounds are listed in full — token matching cannot see inside them.
+// Whole-word vocabularies (en + af). Compounds and inflections are listed in FULL — token matching cannot see
+// inside a word, so "shopping" does not match "shop" and each real-world form has to be present or the lease
+// is refused. A missing word is a refused lease, not a wrong one (fail-closed), but a book of 60 "Shopping
+// Centre" leases refusing wholesale is its own kind of failure.
 const COMMERCIAL_WORDS = [
-  "commercial", "comm", "retail", "office", "offices", "industrial", "warehouse", "shop", "workshop",
-  "business", "factory", "kantoor", "winkel", "besigheid", "pakhuis",
+  "commercial", "comm", "retail", "office", "offices", "industrial", "warehouse", "warehousing",
+  "shop", "shops", "shopping", "workshop", "mall", "storage", "showroom", "premises", "business",
+  "factory", "kantoor", "kantoorgebou", "winkel", "besigheid", "pakhuis",
 ] as const
 
 const RESIDENTIAL_WORDS = [
   "residential", "resi", "residence", "home", "dwelling", "flat", "apartment", "house", "townhouse",
-  "duplex", "simplex", "cottage", "bachelor", "maisonette",
+  "townhouses", "duplex", "simplex", "cottage", "bachelor", "maisonette", "cluster",
   "woonstel", "woonhuis", "huis", "woning", // af
 ] as const
 

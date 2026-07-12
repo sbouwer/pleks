@@ -15,6 +15,14 @@ describe("classifyLeaseType — the F-7 regression (Retail/Office silently becam
     }
   })
 
+  it("recognises the INFLECTIONS a whole-word vocabulary would otherwise refuse in bulk", () => {
+    // Token matching cannot see inside a word: "shopping" does not match "shop". A shopping-centre agent's
+    // 60-lease book would otherwise refuse wholesale — fail-closed, but its own kind of failure.
+    for (const raw of ["Shopping Centre", "Warehousing", "Storage Unit", "Showroom", "Mall"]) {
+      expect(classifyLeaseType(raw), raw).toEqual({ ok: true, value: "commercial" })
+    }
+  })
+
   it("does NOT read \"Warehouse\" as residential (substring matching found \"house\" inside it)", () => {
     expect(classifyLeaseType("Warehouse")).toEqual({ ok: true, value: "commercial" })
   })
@@ -36,7 +44,7 @@ describe("classifyLeaseType — the F-7 regression (Retail/Office silently becam
   })
 
   it("FLAGS an unrecognised value instead of defaulting it to residential", () => {
-    for (const raw of ["Mixed Use", "TBC", "n/a", "Storage", "???", ""]) {
+    for (const raw of ["Mixed Use", "TBC", "n/a", "???", ""]) {
       expect(classifyLeaseType(raw), raw).toEqual({ ok: false, raw })
     }
   })

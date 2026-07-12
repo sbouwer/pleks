@@ -73,6 +73,13 @@ describe("normaliseMoneyCents — the F-8 regression: a cents column must not be
     expect(isCentsDenominatedHeader("rent")).toBe(false)
   })
 
+  it("a RANDS column that merely names cents in prose stays rands (else every rent is divided by 100)", () => {
+    // "Rent (Rands and Cents)" is a normal accounting header for a rands column.
+    expect(isCentsDenominatedHeader("Rent (Rands and Cents)")).toBe(false)
+    expect(isCentsDenominatedHeader("Amount in Rands and Cents")).toBe(false)
+    expect(normaliseMoneyCents("6600", "Monthly Rent (Rands and Cents)")).toBe(660_000)  // R6 600, not R66
+  })
+
   it("a Pleks re-export (monthly_rent_cents) keeps its value — NOT inflated 100×", () => {
     // R6,600.00 exported as 660000 cents. The old code parsed it as R660 000 and stored 66 000 000 cents.
     expect(normaliseMoneyCents("660000", "monthly_rent_cents")).toBe(660000)
@@ -114,6 +121,17 @@ describe("normalisePercent — af-ZA decimal comma (parseFloat(\"7,5\") is 7)", 
     expect(normalisePercent("7.5")).toBe(7.5)
     expect(normalisePercent("10")).toBe(10)
     expect(normalisePercent("8,25%")).toBe(8.25)
+  })
+
+  it("tolerates a trailing annotation rather than dropping to the 10% default", () => {
+    expect(normalisePercent("7,5% p.a.")).toBe(7.5)
+    expect(normalisePercent("+7.5")).toBe(7.5)
+  })
+
+  it("flags a value that would overflow numeric(5,2) instead of failing the whole lease insert", () => {
+    expect(normalisePercent("1000")).toBeNull()
+    expect(normalisePercent("12345")).toBeNull()
+    expect(normalisePercent("999.99")).toBe(999.99)
   })
 
   it("flags anything that is not a number — never silently falls back to the 10% default", () => {

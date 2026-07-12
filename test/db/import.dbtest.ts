@@ -72,13 +72,13 @@ const ROWS: Record<string, string>[] = [
 interface LeaseRow {
   id: string; unit_id: string; property_id: string | null; tenant_id: string
   rent_amount_cents: number; lease_type: string; escalation_percent: string | number
-  start_date: string; end_date: string | null; status: string
+  cpa_applies: boolean; start_date: string; end_date: string | null; status: string
 }
 
 async function leasesOf(orgId: string): Promise<LeaseRow[]> {
   const { data, error } = await db
     .from("leases")
-    .select("id, unit_id, property_id, tenant_id, rent_amount_cents, lease_type, escalation_percent, start_date, end_date, status")
+    .select("id, unit_id, property_id, tenant_id, rent_amount_cents, lease_type, escalation_percent, cpa_applies, start_date, end_date, status")
     .eq("org_id", orgId)
   if (error) throw new Error(`leasesOf: ${error.message}`)
   return (data ?? []) as LeaseRow[]
@@ -124,8 +124,34 @@ describe("bulk import — against the real schema", () => {
       // This is the bug that outlived F-1: tenant_id got set, property_id did not, and the insert still 23502'd.
       expect(l.property_id, "leases.property_id must be populated").toBeTruthy()
       expect(l.start_date).toBeTruthy()
-      expect(Number(l.escalation_percent), "NOT NULL DEFAULT 10.00 applies when unmapped").toBe(10)
     }
+  })
+
+  it("WARNS that an unmapped escalation column means the system chose the rate, not the lease", async () => {
+    // escalation_percent is NOT NULL DEFAULT 10.00. Our fixture maps no escalation column, so every lease
+    // silently imports at 10% a year — and the escalation notice then tells tenants their rent rises 10%.
+    // The value landing at 10 is the DB's business; the agent being TOLD is ours. (An earlier version of this
+    // test asserted `escalation_percent === 10` as if it were correct — a test pinning a fail-open.)
+    const warned = first.errors.find((e) => e.field === "escalation_percent" && e.rowIndex === -1)
+    expect(warned, "the agent must be told the escalation rate was defaulted").toBeTruthy()
+    expect(warned?.severity).toBe("warning")
+    expect(warned?.message).toContain("10%")
+
+    const leases = await leasesOf(orgId)
+    expect(leases.every((l) => Number(l.escalation_percent) === 10), "the default did land").toBe(true)
+  })
+
+  it("a COMMERCIAL lease never imports as CPA-governed (migration 010's invariant)", async () => {
+    // Only reachable BECAUSE the lease_type fix works: previously every lease imported as "residential", so
+    // cpa_applies DEFAULT true was never visibly wrong. Now "Retail" correctly lands commercial — and the
+    // default would raise CPA s14 auto-renewal deadlines against a lease the CPA does not govern.
+    const leases = await leasesOf(orgId)
+    const retail = leases.find((l) => l.lease_type === "commercial")
+    expect(retail, "the Retail lease is commercial").toBeTruthy()
+    expect(retail?.cpa_applies, "a commercial lease must not be CPA-governed").toBe(false)
+
+    const residential = leases.find((l) => l.lease_type === "residential")
+    expect(residential?.cpa_applies, "a residential lease keeps the CPA default").toBe(true)
   })
 
   // ── F-8: a cents-denominated header must not be ×100'd again ──

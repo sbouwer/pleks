@@ -16,7 +16,7 @@ import {
 import { detectMappingCollisions } from "./columnMapper"
 import { normaliseBranchCode, hashBankAccount, maskBankAccount } from "./bankImport"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
-import { HOLIDAY_TABLE_COVERS_THROUGH } from "@/lib/dates"
+import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -161,9 +161,18 @@ function resolveEntityType(companyField: string, displayName: string): "organisa
   return "individual"
 }
 
+/** `units.unit_number` is NOT NULL, and a blank cell (a freestanding house — the commonest SA residential
+ *  letting) means "the only unit". The SSOT for that default: used for the group key, the existence lookup
+ *  AND the insert, so all three agree on which database row a row belongs to. */
+function normaliseUnitNumber(raw: string): string {
+  return raw.trim() || "1"
+}
+
+/** Still used for non-statutory booleans (units.furnished). The STATUTORY booleans — cpa_applies,
+ *  is_fixed_term — go through classifyBoolean, which flags rather than failing toward false. */
 function normaliseBoolean(raw: string): boolean {
   const s = raw.toLowerCase().trim()
-  return s === "true" || s === "yes" || s === "1" || s === "ja"
+  return s === "true" || s === "yes" || s === "y" || s === "1" || s === "ja"
 }
 
 // normaliseLeaseType / normaliseEscalationType used to live here and GUESSED (→ "residential" / → "fixed").
@@ -270,23 +279,29 @@ function determineRole(
 // ── Phase 1: Group rows by unit ────────────────────────────────────────
 
 function buildUnitGroups(
-  rows: Record<string, string>[],
+  rows: IndexedRow[],
   ctx: ImportContext,
   conflictMap: Map<number, ConflictDecision>,
   skipSet: Set<number>
 ): Map<string, UnitGroup> {
   const unitGroups = new Map<string, UnitGroup>()
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]
-    if (!row || skipSet.has(i)) { ctx.result.skipped++; continue }
+  // `i` is the row's index IN THE FILE, not its position among the tenant rows. It is what every ImportError
+  // reports, and it is the key `skipRows` / `conflicts` are expressed in — indexing the tenant subset instead
+  // mis-numbered both whenever the file also carried vendor/landlord/agent rows.
+  for (const { row, index: i } of rows) {
+    if (skipSet.has(i)) { ctx.result.skipped++; continue }
 
     const conflict = conflictMap.get(i)
     if (conflict?.resolution === "skip") { ctx.result.skipped++; continue }
     if (conflict?.resolution === "duplicate" && conflict.rowIndices[0] !== i) { ctx.result.skipped++; continue }
 
     const propertyName = getField(row, "property_name", ctx.mapping)
-    const unitNumber = getField(row, "unit_number", ctx.mapping)
+    // Normalise HERE, not just at insert. upsertUnit writes `unitNumber || "1"` for a blank cell (a
+    // freestanding house), so if the group key kept the RAW blank, a blank-unit group and an explicit "1"
+    // group would be two different keys resolving to the SAME database row — and both tenants would get an
+    // active lease on one unit. One normalisation, used for the key, the lookup and the insert.
+    const unitNumber = normaliseUnitNumber(getField(row, "unit_number", ctx.mapping))
     const unitKey = `${propertyName.toLowerCase()}|${unitNumber.toLowerCase()}`
     const role = determineRole(i, row, conflict, ctx.mapping)
 
@@ -406,12 +421,12 @@ async function upsertUnit(
   const cached = ctx.unitIdCache.get(unitKey)
   if (cached) return cached
 
-  // ONE unit number for BOTH the lookup and the insert. They used to differ: the lookup matched the raw value
-  // but the insert wrote `|| "1"`, so a blank unit number (a freestanding house — the commonest SA residential
-  // letting) looked up `ILIKE ''`, matched nothing, and inserted "1" AGAIN on every re-run. That produced a
-  // second unit with a new unit_id, which the lease dedup (keyed on unit_id) then missed → a second active
-  // lease for the same tenant. The re-run is the documented remedy for a refused row, so this fired often.
-  const unitNumber = group.unitNumber || "1"
+  // Already normalised in buildUnitGroups (the group key uses the same value). Re-applied here so the lookup
+  // and the insert can never drift apart again: they used to differ (lookup on the raw value, insert on
+  // `|| "1"`), so a blank unit number looked up `ILIKE ''`, matched nothing, and inserted "1" AGAIN on every
+  // re-run → a second unit with a new unit_id, which the lease dedup then missed → a second active lease for
+  // the same tenant. Re-running is the documented remedy for a rejected row, so this fired in normal use.
+  const unitNumber = normaliseUnitNumber(group.unitNumber)
 
   const { data: existing, error: existingError } = await ctx.supabase
     .from("units").select("id").eq("org_id", ctx.orgId).eq("property_id", propertyId).ilike("unit_number", unitNumber).limit(1).maybeSingle()
@@ -1021,6 +1036,18 @@ const CLASSIFIED_LEASE_COLUMNS: Array<{
 ]
 
 /**
+ * NOT NULL DEFAULT columns that are NOT statutory classifications, but still silently GUESS when the file does
+ * not carry them. They must not refuse a row (a book legitimately may not carry them — escalation usually
+ * lives in the paper lease), but the agent has to be told the number was chosen by the system rather than by
+ * their lease: `escalation_percent` DEFAULT 10.00 renders "your rent increases by 10%" in the escalation
+ * notice, and `payment_due_day` DEFAULT '1' drives every arrears-aging and late-fee computation.
+ */
+const DEFAULTED_IF_UNMAPPED: Array<{ field: string; label: string; unmappedNote: string }> = [
+  { field: "escalation_percent", label: "escalation percentage", unmappedNote: "every lease will import at 10% a year (the system default)" },
+  { field: "payment_due_day", label: "payment due day", unmappedNote: "every lease will import as due on the 1st (the system default)" },
+]
+
+/**
  * Resolve the statutory classifications, or REFUSE the row.
  *
  * Three distinct cases, and the middle one is the one source-level review keeps missing:
@@ -1048,6 +1075,21 @@ function leaseClassifications(
       return null
     }
     out[col.field] = result.value
+  }
+
+  // A commercial lease must never carry cpa_applies = true — migration 010 states the invariant and had to
+  // run a one-off UPDATE to restore it. Nothing in the DB enforces it, so the importer must.
+  //
+  // This only became reachable BECAUSE the lease_type fix works: previously every lease imported as
+  // "residential" (the old guess), so the cpa_applies DEFAULT true was never wrong in a way anyone saw. Now
+  // that "Retail"/"Office" correctly land as commercial, an unmapped CPA column would let DEFAULT true stand
+  // and the calendar would raise CPA s14 auto-renewal deadlines against leases the CPA does not govern.
+  // A CPA column in the file still wins — this only fills the gap the default would otherwise guess into.
+  if (out.lease_type === "commercial" && out.cpa_applies === undefined) {
+    out.cpa_applies = false
+    flagForReview(ctx, rowIndex, "cpa_applies",
+      "Commercial lease with no CPA column — imported with the CPA NOT applying (the system's commercial-lease " +
+      "invariant). If this tenant is a natural person or a small juristic, set it on the lease.")
   }
 
   return out
@@ -1154,7 +1196,10 @@ async function processActiveLease(
   const { row, index } = firstActive
   const leaseEnd = getField(row, "lease_end", ctx.mapping)
   const normalisedEnd = leaseEnd ? normaliseDate(leaseEnd) : null
-  const isExpired = normalisedEnd ? new Date(normalisedEnd) < new Date() : false
+  // Compare DATES, not instants. `new Date("2026-07-12") < new Date()` parses the end date as UTC midnight and
+  // compares it to local now, so a lease ending TODAY imports as "expired" and drops out of every active-lease
+  // surface. Both sides are SA calendar days here.
+  const isExpired = normalisedEnd ? normalisedEnd < saTodayISO() : false
 
   if (isExpired && ctx.decisions.expiredLeases === "import_active_only") {
     for (const ar of activeRows) {
@@ -1419,11 +1464,20 @@ async function writeAuditLog(ctx: ImportContext): Promise<void> {
 
 // ── Entity routing ──────────────────────────────────────────────────────
 
+/** A row PLUS its index in the file the agent uploaded. Routing splits the rows into four subsets, and every
+ *  consumer used to index its own subset — so a landlord on file line 87 was reported as "Row 1", and the
+ *  refusal doctrine ("correct that row and re-import") pointed the agent at the wrong line. The original index
+ *  travels with the row now, and it is also the key `decisions.skipRows` / `conflicts` are stated in. */
+interface IndexedRow {
+  row: Record<string, string>
+  index: number
+}
+
 interface RoutedRows {
-  tenantRows: Record<string, string>[]
-  vendorRows: Record<string, string>[]
-  landlordRows: Record<string, string>[]
-  agentRows: Record<string, string>[]
+  tenantRows: IndexedRow[]
+  vendorRows: IndexedRow[]
+  landlordRows: IndexedRow[]
+  agentRows: IndexedRow[]
 }
 
 function routeRowsByType(
@@ -1437,7 +1491,7 @@ function routeRowsByType(
     agentRows: [],
   }
 
-  for (const row of rows) {
+  for (const [index, row] of rows.entries()) {
     const raw = getField(row, "__entity_type", mapping).toLowerCase().trim()
     // Strip individual/company qualifiers so "contractor individual", "landlord company" etc. all normalize cleanly
     const entityType = raw
@@ -1451,7 +1505,7 @@ function routeRowsByType(
       case "lessee":
       case "huurder":
       case "":
-        result.tenantRows.push(row)
+        result.tenantRows.push({ row, index })
         break
       case "vendor":
       case "supplier":
@@ -1463,18 +1517,18 @@ function routeRowsByType(
       case "municipality":
       case "munisipaliteit":
       case "munisipalite":
-        result.vendorRows.push(row)
+        result.vendorRows.push({ row, index })
         break
       case "landlord":
       case "owner":
       case "verhuurder":
       case "eienaar":
-        result.landlordRows.push(row)
+        result.landlordRows.push({ row, index })
         break
       case "agent":
       case "principal agent":
       case "administrator":
-        result.agentRows.push(row)
+        result.agentRows.push({ row, index })
         break
       default:
         // Unknown entity type — skip silently
@@ -1579,14 +1633,13 @@ async function isExistingVendor(
 }
 
 async function importVendors(
-  vendorRows: Record<string, string>[],
+  vendorRows: IndexedRow[],
   ctx: ImportContext
 ): Promise<void> {
   const seenEmails = new Set<string>()
 
-  for (let i = 0; i < vendorRows.length; i++) {
-    const row = vendorRows[i]
-    if (!row) continue
+  for (const entry of vendorRows) {
+    const { row, index: i } = entry   // i is the FILE row, not the position in this subset
 
     const email = getField(row, "email", ctx.mapping).toLowerCase()
     const { displayName, companyName, firstName, lastName } = resolveVendorName(row, ctx.mapping)
@@ -1667,12 +1720,11 @@ async function importVendors(
 // ── Landlord import ────────────────────────────────────────────────────
 
 async function importLandlords(
-  landlordRows: Record<string, string>[],
+  landlordRows: IndexedRow[],
   ctx: ImportContext
 ): Promise<void> {
-  for (let i = 0; i < landlordRows.length; i++) {
-    const row = landlordRows[i]
-    if (!row) continue
+  for (const entry of landlordRows) {
+    const { row, index: i } = entry   // i is the FILE row, not the position in this subset
 
     const email = getField(row, "email", ctx.mapping).toLowerCase()
     if (!email) {
@@ -1796,12 +1848,11 @@ function mapAgentRole(entityType: string): string {
 }
 
 async function importAgents(
-  agentRows: Record<string, string>[],
+  agentRows: IndexedRow[],
   ctx: ImportContext
 ): Promise<void> {
-  for (let i = 0; i < agentRows.length; i++) {
-    const row = agentRows[i]
-    if (!row) continue
+  for (const entry of agentRows) {
+    const { row, index: i } = entry   // i is the FILE row, not the position in this subset
 
     const email = getField(row, "email", ctx.mapping).toLowerCase()
     if (!email) {
@@ -1942,7 +1993,7 @@ export async function runImport(
   // (which would make a file with no lease-type column unimportable) or saying nothing (the status quo).
   const mappedFields = new Set(Object.values(mapping).map((m) => m.field))
   if (mappedFields.has("lease_start")) {   // i.e. leases are actually being imported
-    for (const col of CLASSIFIED_LEASE_COLUMNS) {
+    for (const col of [...CLASSIFIED_LEASE_COLUMNS, ...DEFAULTED_IF_UNMAPPED]) {
       if (mappedFields.has(col.field)) continue
       ctx.result.errors.push({
         rowIndex: -1, field: col.field, severity: "warning",

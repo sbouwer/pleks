@@ -112,12 +112,20 @@ export function normaliseCurrencyCents(raw: string): number | null {
  * "percents" stays a single token, so it does NOT match.
  */
 export function isCentsDenominatedHeader(header: string): boolean {
-  const tokens = header
-    .replaceAll(/([a-z])([A-Z])/g, "$1 $2")   // RentCents → Rent Cents
-    .toLowerCase()
-    .split(/[^a-z]+/)
-    .filter(Boolean)
-  return tokens.includes("cents") || tokens.includes("cent")
+  const tokens = new Set(
+    header
+      .replaceAll(/([a-z])([A-Z])/g, "$1 $2")   // RentCents → Rent Cents
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .filter(Boolean),
+  )
+
+  if (!tokens.has("cents") && !tokens.has("cent")) return false
+
+  // "Rent (Rands and Cents)" is a normal accounting header for a RANDS column that merely names the unit in
+  // prose. Reading it as cents divides every rent by 100 — the deflation twin, arriving through the header
+  // instead of the value. A column that names rands is denominated in rands, whatever else it mentions.
+  return !tokens.has("rand") && !tokens.has("rands")
 }
 
 /**
@@ -157,10 +165,20 @@ export function normaliseCentsValue(raw: string): number | null {
 export function normalisePercent(raw: string): number | null {
   const s = raw.trim().replaceAll("%", "").replaceAll(/\s/g, "")
   if (!s) return null
-  if (!/^-?\d+([.,]\d+)?$/.test(s)) return null
 
-  const value = Number.parseFloat(s.replace(",", "."))
-  return Number.isNaN(value) ? null : value
+  // Leading number, tolerating a trailing annotation ("7,5% p.a."). Anchored at the START so a non-numeric
+  // cell ("CPI", "market related") still returns null and is flagged rather than silently taking the default.
+  const match = /^[+-]?\d+(?:[.,]\d+)?/.exec(s)
+  if (!match) return null
+
+  const value = Number.parseFloat(match[0].replace(",", "."))
+  if (Number.isNaN(value)) return null
+
+  // escalation_percent is numeric(5,2) — |value| >= 1000 overflows and Postgres rejects the whole lease with
+  // a raw driver message. Flag it as an unreadable percentage instead.
+  if (Math.abs(value) >= 1000) return null
+
+  return value
 }
 
 /**
