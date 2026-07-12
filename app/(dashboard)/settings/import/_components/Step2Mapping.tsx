@@ -98,6 +98,40 @@ const ALL_FIELDS = [
   { value: "tenant_bank_account_2", label: "Tenant bank account 2 (encrypted)", entity: "bank" },
   { value: "tenant_bank_name_2", label: "Tenant bank name 2", entity: "bank" },
   { value: "tenant_bank_branch_2", label: "Tenant branch code 2", entity: "bank" },
+  // ── Coverage added by the field audit (2026-07-12). Every one of these columns already existed; the
+  // importer simply could not take them. An agent whose header does not auto-match must be able to pick them,
+  // or they are only reachable by luck — which is precisely how the "Address" bug bit.
+  // Tenant — CPA size bands. These turn an "indeterminate" juristic lease into a DETERMINED one, which is the
+  // difference between a statutory notice that can cite the CPA and one that cannot.
+  { value: "juristic_type", label: "Juristic type (Pty Ltd / CC / Trust…)", entity: "tenant" },
+  { value: "turnover_under_2m", label: "Turnover under R2m? (yes/no)", entity: "tenant" },
+  { value: "asset_value_under_2m", label: "Asset value under R2m? (yes/no)", entity: "tenant" },
+  { value: "title", label: "Title (Mr/Mrs/Dr)", entity: "tenant" },
+  { value: "initials", label: "Initials", entity: "tenant" },
+  { value: "gender", label: "Gender", entity: "tenant" },
+  { value: "trading_as", label: "Trading as", entity: "tenant" },
+  { value: "tpn_reference", label: "Your reference (TPN/agency)", entity: "tenant" },
+  { value: "tpn_entity_id", label: "Your entity ID (TPN/agency)", entity: "tenant" },
+  // Lease
+  { value: "payment_reference", label: "Rent payment reference", entity: "lease" },
+  { value: "deposit_return_days", label: "Deposit return days", entity: "lease" },
+  { value: "deposit_interest_to", label: "Deposit interest to (tenant/landlord)", entity: "lease" },
+  { value: "arrears_interest_margin_percent", label: "Arrears interest margin %", entity: "lease" },
+  // Unit
+  { value: "market_rent_cents", label: "Market rent", entity: "unit" },
+  { value: "unit_type", label: "Unit type", entity: "unit" },
+  { value: "furnishing_status", label: "Furnishing status", entity: "unit" },
+  { value: "access_instructions", label: "Access instructions", entity: "unit" },
+  // Property
+  { value: "address_line2", label: "Address line 2", entity: "unit" },
+  { value: "sectional_title_number", label: "Sectional title / scheme number", entity: "unit" },
+  { value: "levy_amount_cents", label: "Levy amount", entity: "unit" },
+  { value: "levy_account_number", label: "Levy account number", entity: "unit" },
+  { value: "insurance_policy_number", label: "Insurance policy number", entity: "unit" },
+  { value: "insurance_provider", label: "Insurance provider", entity: "unit" },
+  { value: "insurance_renewal_date", label: "Insurance renewal date", entity: "unit" },
+  { value: "owner_tax_number", label: "Owner tax number", entity: "owner" },
+
   // TPN extras
   { value: "__entity_id", label: "System ID (skip)", entity: "extra" },
   { value: "__tpn_reference", label: "TPN reference (skip)", entity: "extra" },

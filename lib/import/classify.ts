@@ -186,3 +186,53 @@ export function classifyProvince(raw: string): Classification<SaProvince> {
   }
   return { ok: false, raw }
 }
+
+// ── Schema-constrained enums an agency's book actually carries ─────────────────────────────────────────
+// Each of these is a CHECK-constrained column, so an unrecognised value is a hard Postgres rejection — the
+// same reason every classifier here flags rather than guesses. Unknown ⇒ null ⇒ the column is not written.
+
+/** contacts.juristic_type — CHECK (sole_proprietor|pty_ltd|cc|trust|partnership|npc|other_juristic).
+ *  Feeds determineCpaApplicability: a sole proprietor is a NATURAL PERSON under CPA s5(2), so getting this
+ *  right flips a lease from "indeterminate" to "the CPA applies". */
+export function classifyJuristicType(raw: string): string | null {
+  const w = new Set(raw.toLowerCase().split(/[^a-z]+/).filter(Boolean))
+  const s = raw.toLowerCase()
+
+  if (w.has("sole") || s.includes("sole prop") || w.has("eenmansaak")) return "sole_proprietor"
+  if (/\bpty\b/.test(s) || /\bltd\b/.test(s) || s.includes("(pty)")) return "pty_ltd"
+  if (/\bcc\b/.test(s) || s.includes("close corp") || w.has("bk")) return "cc"
+  if (w.has("trust")) return "trust"
+  if (w.has("partnership") || w.has("vennootskap")) return "partnership"
+  if (/\bnpc\b/.test(s) || s.includes("non profit") || s.includes("non-profit")) return "npc"
+  return null
+}
+
+/** contacts.gender — CHECK (male|female|other|prefer_not_to_say). Plaintext at rest by CD ruling. */
+export function classifyGender(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+  if (["m", "male", "man", "manlik"].includes(s)) return "male"
+  if (["f", "female", "woman", "vroulik", "v"].includes(s)) return "female"
+  if (["other", "o", "ander"].includes(s)) return "other"
+  if (s.includes("prefer") || s.includes("not say")) return "prefer_not_to_say"
+  return null
+}
+
+/** units.furnishing_status — CHECK (unfurnished|semi_furnished|furnished). */
+export function classifyFurnishing(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+  if (s.includes("semi") || s.includes("part") || s.includes("half")) return "semi_furnished"
+  if (s.includes("un") || s.includes("no") || s.includes("onge")) return "unfurnished"
+  if (s.includes("furnish") || s.includes("gemeubileer") || s === "yes" || s === "y" || s === "ja") return "furnished"
+  return null
+}
+
+/** leases.deposit_interest_to — CHECK (tenant|landlord). Who the deposit interest accrues TO (RHA s5(3)). */
+export function classifyDepositInterestTo(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+  if (s.includes("tenant") || s.includes("huurder")) return "tenant"
+  if (s.includes("landlord") || s.includes("owner") || s.includes("verhuurder") || s.includes("eienaar")) return "landlord"
+  return null
+}

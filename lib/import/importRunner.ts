@@ -11,6 +11,7 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import { normaliseDate, normaliseMoneyCents, normalisePercent, normalisePaymentDueDay } from "./normalise"
 import {
   classifyLeaseType, classifyEscalationType, classifyBoolean, classifyProvince, classifyTenantEntity,
+  classifyJuristicType, classifyGender, classifyFurnishing, classifyDepositInterestTo,
   SA_PROVINCES, type Classification,
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
@@ -423,6 +424,9 @@ async function upsertProperty(
       owner_bank_account: getField(row, "owner_bank_account", ctx.mapping) || null,
       owner_bank_branch: getField(row, "owner_bank_branch", ctx.mapping) || null,
       ...(normOwnerBankType ? { owner_bank_type: normOwnerBankType } : {}),
+      // Coverage (field audit): sectional-title, levies and insurance — a large share of SA agencies manage
+      // sectional-title stock, and every one of these columns already existed.
+      ...propertyCoverageColumns(row, ctx),
     })
     .select("id").single()
 
@@ -438,6 +442,48 @@ async function upsertProperty(
   cache.set(cacheKey, id)
   ctx.result.propertiesCreated++
   return id
+}
+
+/** Property columns the importer could not previously take. `is_sectional_title` is DERIVED from the presence
+ *  of a scheme number rather than asked for separately — an agency that gives you a sectional-title number has
+ *  told you it is sectional title. */
+function propertyCoverageColumns(row: Record<string, string>, ctx: ImportContext): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+
+  const line2 = getField(row, "address_line2", ctx.mapping)
+  if (line2) out.address_line2 = line2
+
+  const levy = getFieldSource(row, "levy_amount_cents", ctx.mapping)
+  if (levy.value) {
+    const cents = normaliseMoneyCents(levy.value, levy.column)
+    if (cents !== null) out.levy_amount_cents = cents
+  }
+
+  const levyAccount = getField(row, "levy_account_number", ctx.mapping)
+  if (levyAccount) out.levy_account_number = levyAccount
+
+  const scheme = getField(row, "sectional_title_number", ctx.mapping)
+  if (scheme) {
+    out.sectional_title_number = scheme
+    out.is_sectional_title = true
+  }
+
+  const ownerTax = getField(row, "owner_tax_number", ctx.mapping)
+  if (ownerTax) out.owner_tax_number = ownerTax
+
+  const policy = getField(row, "insurance_policy_number", ctx.mapping)
+  if (policy) out.insurance_policy_number = policy
+
+  const insurer = getField(row, "insurance_provider", ctx.mapping)
+  if (insurer) out.insurance_provider = insurer
+
+  const renewal = getField(row, "insurance_renewal_date", ctx.mapping)
+  if (renewal) {
+    const iso = normaliseDate(renewal)
+    if (iso) out.insurance_renewal_date = iso
+  }
+
+  return out
 }
 
 async function upsertUnit(
@@ -486,6 +532,8 @@ async function upsertUnit(
       size_m2: sizeRaw ? Number.parseFloat(sizeRaw) || null : null,
       parking_bays: parkingRaw ? Number.parseInt(parkingRaw, 10) || null : null,
       ...(furnishedRaw ? { furnished: normaliseBoolean(furnishedRaw) } : {}),
+      // Coverage (field audit): columns that exist and an agency's book carries.
+      ...unitCoverageColumns(row, ctx),
     })
     .select("id").single()
 
@@ -503,6 +551,33 @@ async function upsertUnit(
   ctx.unitIdCache.set(unitKey, id)
   ctx.result.unitsCreated++
   return id
+}
+
+/** Unit columns the importer could not previously take. `furnishing_status` is CHECK-constrained
+ *  (unfurnished|semi_furnished|furnished), so an unrecognised value is simply not written rather than
+ *  rejected by Postgres. `market_rent_cents` is money and goes through the same header-aware parser as rent. */
+function unitCoverageColumns(row: Record<string, string>, ctx: ImportContext): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+
+  const market = getFieldSource(row, "market_rent_cents", ctx.mapping)
+  if (market.value) {
+    const cents = normaliseMoneyCents(market.value, market.column)
+    if (cents !== null) out.market_rent_cents = cents
+  }
+
+  const unitType = getField(row, "unit_type", ctx.mapping)
+  if (unitType) out.unit_type = unitType
+
+  const furnishing = getField(row, "furnishing_status", ctx.mapping)
+  if (furnishing) {
+    const f = classifyFurnishing(furnishing)
+    if (f) out.furnishing_status = f
+  }
+
+  const access = getField(row, "access_instructions", ctx.mapping)
+  if (access) out.access_instructions = access
+
+  return out
 }
 
 async function upsertPropertiesAndUnits(
@@ -676,6 +751,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         nationality: getField(entry.row, "nationality", ctx.mapping) || null,
         registration_number: getField(entry.row, "registration_number", ctx.mapping) || null,
         vat_number: getField(entry.row, "vat_number", ctx.mapping) || null,
+        ...contactIdentityColumns(entry.row, ctx),
       })
       .select("id").single()
 
@@ -715,6 +791,39 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error"
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Tenant error: ${msg}`, severity: "error" })
+  }
+}
+
+/**
+ * Identity + CPA-band columns on `contacts` that the importer could not previously take.
+ *
+ * The size bands are the valuable ones. `determineCpaApplicability` returns "indeterminate" for a juristic
+ * tenant whose turnover and asset value are unknown — and an imported lease could NEVER be anything else,
+ * because no import format carried them. It does now: if the agency's book has the bands, the juristic lease
+ * lands DETERMINED and a statutory notice can cite (or correctly not cite) the CPA for it.
+ *
+ * `tpn_reference` / `tpn_entity_id` are the agency's own identifiers. They were already MAPPED (as
+ * `__tpn_reference` / `__entity_id`) and then thrown away, while the columns to hold them existed all along.
+ */
+function contactIdentityColumns(row: Record<string, string>, ctx: ImportContext): Record<string, unknown> {
+  const turnover = optionalBoolean(row, "turnover_under_2m", ctx)
+  const assets = optionalBoolean(row, "asset_value_under_2m", ctx)
+
+  const juristicRaw = getField(row, "juristic_type", ctx.mapping)
+  const genderRaw = getField(row, "gender", ctx.mapping)
+
+  return {
+    title: getField(row, "title", ctx.mapping) || null,
+    initials: getField(row, "initials", ctx.mapping) || null,
+    gender: genderRaw ? classifyGender(genderRaw) : null,
+    trading_as: getField(row, "trading_as", ctx.mapping) || null,
+    juristic_type: juristicRaw ? classifyJuristicType(juristicRaw) : null,
+    turnover_under_2m: turnover,
+    asset_value_under_2m: assets,
+    // Only a real capture stamps the date — both bands must be present, or the determination is not made.
+    size_bands_captured_at: turnover !== null && assets !== null ? new Date().toISOString() : null,
+    tpn_reference: getField(row, "tpn_reference", ctx.mapping) || null,
+    tpn_entity_id: getField(row, "tpn_entity_id", ctx.mapping) || null,
   }
 }
 
@@ -982,6 +1091,15 @@ async function createLeasesAndHistory(
   }
 }
 
+/** An optional boolean cell: true / false / null-when-not-stated. Unlike the statutory booleans this never
+ *  refuses a row — these columns are nullable and "we don't know" is representable. */
+function optionalBoolean(row: Record<string, string>, field: string, ctx: ImportContext): boolean | null {
+  const raw = getField(row, field, ctx.mapping)
+  if (!raw) return null
+  const c = classifyBoolean(raw)
+  return c.ok ? c.value : null
+}
+
 /** Raise a row-level review item. The doctrine for every ambiguity at this boundary (money, dates, statutory
  *  classifications): the agent decides, the importer never guesses. Warnings ride out on the import report
  *  AND land in import_sessions.error_report, so the record survives the wizard session. */
@@ -1243,6 +1361,56 @@ function optionalLeaseFields(
   out.escalation_review_date = escalationReviewRaw ? normaliseDate(escalationReviewRaw) : null
   out.notes = leaseConditions || null
 
+  return { ...out, ...leaseCoverageColumns(row, rowIndex, ctx) }
+}
+
+/**
+ * Lease columns the importer could not previously take, though every one of them already existed.
+ *
+ * `payment_reference` is the rent reference every agency has — and the wizard used to offer `payment_method`,
+ * a column that does not exist at all, while never offering the real one.
+ *
+ * `migrated` is a boolean that exists literally for this and was never set. It marks a lease that arrived from
+ * another system rather than being originated in Pleks — exactly what a trust auditor, a support engineer, or
+ * a "why does this lease have no signed document?" question needs to know.
+ */
+function leaseCoverageColumns(
+  row: Record<string, string>, rowIndex: number, ctx: ImportContext,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    payment_reference: getField(row, "payment_reference", ctx.mapping) || null,
+    migrated: true,
+  }
+
+  const returnDaysRaw = getField(row, "deposit_return_days", ctx.mapping)
+  if (returnDaysRaw) {
+    const days = Number.parseInt(returnDaysRaw, 10)
+    if (!Number.isNaN(days)) out.deposit_return_days = days
+  }
+
+  const interestToRaw = getField(row, "deposit_interest_to", ctx.mapping)
+  if (interestToRaw) {
+    const to = classifyDepositInterestTo(interestToRaw)
+    if (to) out.deposit_interest_to = to
+    else {
+      flagForReview(ctx, rowIndex, "deposit_interest_to",
+        `Could not read "${interestToRaw}" — deposit interest accrues to the TENANT or the LANDLORD, and the ` +
+        `system default (tenant) applies. RHA s5(3) makes that a money term; set it if the default is wrong.`)
+    }
+  }
+
+  const arrearsMarginRaw = getField(row, "arrears_interest_margin_percent", ctx.mapping)
+  if (arrearsMarginRaw) {
+    const margin = normalisePercent(arrearsMarginRaw)
+    if (margin === null) {
+      flagForReview(ctx, rowIndex, "arrears_interest_margin_percent",
+        `Could not read the arrears-interest margin "${arrearsMarginRaw}" as a percentage — not applied.`)
+    } else {
+      out.arrears_interest_margin_percent = margin
+      out.arrears_interest_enabled = true   // a margin was supplied ⇒ the agency charges arrears interest
+    }
+  }
+
   return out
 }
 
@@ -1288,15 +1456,21 @@ function cpaSnapshot(
       `the lease so statutory notices cite the right basis.`)
   }
 
+  // THE SIZE BANDS. Until now these were hard-coded null, so a juristic lease could never be anything but
+  // "indeterminate" — no import format carried them. If the agency's book DOES carry them, the determination
+  // resolves properly and a statutory notice can cite (or correctly decline to cite) the CPA for that lease.
+  // A `juristic_type` of "sole_proprietor" is decisive on its own: a sole proprietor is a NATURAL PERSON under
+  // CPA s5(2), whatever the trading name says.
+  const juristicRaw = getField(row, "juristic_type", ctx.mapping)
   const determination = determineCpaApplicability({
     tenant: {
       // "ambiguous" is passed through as a juristic-shaped value on purpose: determineCpaApplicability then
       // returns "indeterminate", which is the honest answer and the one that makes cpaGoverns fail SAFE (it
       // fires only on an explicit "yes"). The agent's flag above is what resolves it.
       entityType: entity === "individual" ? "individual" : "organisation",
-      juristicType: null,
-      turnoverUnder2m: null,      // not in any import format
-      assetValueUnder2m: null,
+      juristicType: juristicRaw ? classifyJuristicType(juristicRaw) : null,
+      turnoverUnder2m: optionalBoolean(row, "turnover_under_2m", ctx),
+      assetValueUnder2m: optionalBoolean(row, "asset_value_under_2m", ctx),
       sizeBandsCapturedAt: null,
     },
     lease: { isFranchiseAgreement: false },

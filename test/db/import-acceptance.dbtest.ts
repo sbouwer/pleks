@@ -56,6 +56,8 @@ const BOOK_HEADERS = [
   "Huurbegin", "Huureinde", "Maandelikse Huur", "Deposito",
   "Huurtipe", "Escalation Type", "Eskalasie", "CPA Applies", "Fixed Term", "Payment Due Day",
   "Bank Rekening", "Bank Naam",
+  // Columns the field audit made importable — an agency's book carries these and we could not take them.
+  "Juristic Type", "Turnover Under 2m", "Asset Value Under 2m", "Payment Reference", "Market Rent",
 ]
 
 const BOOK_ROWS: Record<string, string>[] = [
@@ -121,6 +123,11 @@ const BOOK_ROWS: Record<string, string>[] = [
     // not bad data. It must not refuse the lease; it must land as `indeterminate` and be flagged.
     "CPA Applies": "", "Fixed Term": "Y", "Payment Due Day": "1",
     "Bank Rekening": "", "Bank Naam": "",
+    // The agency's book DOES carry the size bands for this juristic tenant. Before the field audit the
+    // importer could not take them, so this lease could only ever be "indeterminate" — and a statutory notice
+    // could never cite the CPA for it. Both bands under R2m ⇒ the CPA APPLIES, determined.
+    "Juristic Type": "(Pty) Ltd", "Turnover Under 2m": "Y", "Asset Value Under 2m": "Y",
+    "Payment Reference": "KAGISO-004", "Market Rent": "32 500,00",
   },
   {
     // EXPIRED. Under the wizard's DEFAULT ("skip expired") this becomes tenancy history, not a lease.
@@ -271,10 +278,13 @@ describe("ACCEPTANCE — a realistic af-ZA agency book through the real front do
     expect(retail?.cpa_applies_at_signing, "…and a natural person is still a consumer").toBe("yes")
 
     // "Office", let to a (Pty) Ltd → juristic, bands unknown → indeterminate, and flagged for the agent.
+    // The field audit made the CPA size bands importable. This juristic tenant's book carries them, so the
+    // lease lands DETERMINED — it used to be permanently "indeterminate", and a statutory notice could never
+    // cite the CPA for it. Both bands under R2m ⇒ the CPA applies (a small juristic IS a consumer).
     const company = (data ?? []).find((l) => l.rent_amount_cents === 3_100_000)
     expect(company?.lease_type).toBe("commercial")
-    expect(company?.cpa_applies_at_signing, "a juristic tenant cannot be resolved from an import").toBe("indeterminate")
-    expect(company?.cpa_determination_category).toBe("indeterminate_bands")
+    expect(company?.cpa_applies_at_signing, "the size bands RESOLVED the determination").toBe("yes")
+    expect(company?.cpa_determination_category).toBe("juristic_under_threshold")
 
     // The two columns NEVER disagree — the notice engine and the citation engine must not diverge.
     for (const l of data ?? []) {
@@ -284,6 +294,44 @@ describe("ACCEPTANCE — a realistic af-ZA agency book through the real front do
     // "Y" means the CPA APPLIES. The old normaliseBoolean read it as false and stripped s14 portfolio-wide.
     const afZa = (data ?? []).find((l) => l.rent_amount_cents === 660_050)
     expect(afZa?.cpa_applies, "Y ⇒ true").toBe(true)
+  })
+
+  // ── 4b. FIELD COVERAGE — columns that existed all along and the importer could not take ───────────
+
+  it("COVERAGE: the agency's own reference, market rent, and the migrated flag all land", async () => {
+    // Every one of these columns already existed. `payment_reference` is the rent reference every agency has —
+    // and the wizard used to offer `payment_method`, a column that does not exist at all, while never offering
+    // the real one. `leases.migrated` is a boolean that exists literally for this and was never set.
+    const { data, error } = await db
+      .from("leases").select("rent_amount_cents, payment_reference, migrated").eq("org_id", orgId)
+    expect(error).toBeFalsy()
+
+    for (const l of data ?? []) {
+      expect(l.migrated, "every imported lease is marked as migrated").toBe(true)
+    }
+
+    const company = (data ?? []).find((l) => l.rent_amount_cents === 3_100_000)
+    expect(company?.payment_reference, "the agency's rent reference is preserved").toBe("KAGISO-004")
+
+    // Market rent is money, so it goes through the same header-aware parser as rent — af-ZA comma and all.
+    const { data: units, error: unitError } = await db
+      .from("units").select("unit_number, market_rent_cents").eq("org_id", orgId).eq("unit_number", "Shop 4").single()
+    expect(unitError).toBeFalsy()
+    expect(units?.market_rent_cents, '"32 500,00" is R32 500.00').toBe(3_250_000)
+  })
+
+  it("COVERAGE: the CPA size bands are captured on the contact, not just used and discarded", async () => {
+    const { data, error } = await db
+      .from("contacts")
+      .select("primary_email, juristic_type, turnover_under_2m, asset_value_under_2m, size_bands_captured_at")
+      .eq("org_id", orgId).eq("primary_email", "accounts@kagisotrading.co.za").single()
+    expect(error).toBeFalsy()
+
+    expect(data?.juristic_type, "(Pty) Ltd").toBe("pty_ltd")
+    expect(data?.turnover_under_2m).toBe(true)
+    expect(data?.asset_value_under_2m).toBe(true)
+    // Only a REAL capture stamps the date — both bands present, or no determination was made.
+    expect(data?.size_bands_captured_at, "the capture is dated, so the determination is auditable").toBeTruthy()
   })
 
   // ── 5. PII, consent and audit — what a regulator would read ───────────────────────────────────────
