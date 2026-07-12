@@ -219,10 +219,10 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "escalation %": { field: "escalation_percent", entity: "lease" },
   annual_increase: { field: "escalation_percent", entity: "lease" },
   "annual increase": { field: "escalation_percent", entity: "lease" },
-  payment_method: { field: "payment_method", entity: "lease" },
-  "payment method": { field: "payment_method", entity: "lease" },
-  payment_type: { field: "payment_method", entity: "lease" },
-  "payment type": { field: "payment_method", entity: "lease" },
+  // payment_method / payment_type intentionally NOT mapped: `leases` has no payment_method column, so mapping
+  // them made the lease INSERT fail outright ("Could not find the 'payment_method' column ... in the schema
+  // cache") — a phantom field silently killed every lease. Left unmapped they surface in the import report as
+  // "not imported", which is the truth. (Re-add only alongside a real column.)
   // Lease — extended
   lease_type: { field: "lease_type", entity: "lease" },
   "lease type": { field: "lease_type", entity: "lease" },
@@ -326,6 +326,49 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   type: { field: "__entity_type", entity: "filter" },
   entitytype1: { field: "__entity_type", entity: "filter" },
   "entity type 1": { field: "__entity_type", entity: "filter" },
+}
+
+// ── Mapping collisions (F-8) ──────────────────────────────────────────────────────────────────────
+//
+// `getField(row, field, mapping)` resolves a Pleks field by scanning the mapping and returning the FIRST
+// column whose `field` matches. So when two source columns land on one field — "Rent" and "Monthly Rent"
+// both → `rent_amount_cents` — the second is silently dropped and which one wins depends on key order. That
+// is a guess about the agency's money, and the agent is never told. Surface it instead: the file's own
+// ambiguity is a decision for the human who exported it.
+
+/** Fields where MANY source columns → one target is BY DESIGN, so they must never be reported as a collision:
+ *  the `*_notes` buckets are aggregated across every mapped column by `getExtraColumns`, and a TPN export
+ *  legitimately carries the addresstype1/2/3 triple (metadata, never read through getField). */
+const MULTI_VALUE_FIELDS = new Set(["tenant_notes", "unit_notes", "lease_notes", "__address_type"])
+
+export interface MappingCollision {
+  /** The Pleks target field two or more columns landed on. */
+  field: string
+  /** The colliding source headers, in mapping order — the FIRST is the one getField would silently pick. */
+  columns: string[]
+}
+
+/**
+ * Find every target field that more than one source column maps to. Pure — safe to call from the wizard UI
+ * (Step 2) and from the server runner, so the agent sees the warning before importing AND the import report
+ * records it either way.
+ */
+export function detectMappingCollisions(
+  mapping: Record<string, { field: string | null }>,
+): MappingCollision[] {
+  const byField = new Map<string, string[]>()
+
+  for (const [column, mapped] of Object.entries(mapping)) {
+    const field = mapped?.field
+    if (!field || MULTI_VALUE_FIELDS.has(field)) continue
+    const existing = byField.get(field)
+    if (existing) existing.push(column)
+    else byField.set(field, [column])
+  }
+
+  return [...byField.entries()]
+    .filter(([, columns]) => columns.length > 1)
+    .map(([field, columns]) => ({ field, columns }))
 }
 
 /**

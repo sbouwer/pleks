@@ -93,3 +93,55 @@ export function normaliseCurrencyCents(raw: string): number | null {
   if (Number.isNaN(value)) return null
   return Math.round((negative ? -value : value) * 100)
 }
+
+// ── Cents-denominated source columns (F-8) ─────────────────────────────────────────────────────────
+//
+// The UNIT of a money cell is a property of the column the AGENCY exported, so it is decided by that
+// column's HEADER — never by the Pleks target field's name. Pleks' own internal field is `rent_amount_cents`,
+// and a Pleks-shaped re-export therefore ships a header literally named `monthly_rent_cents` holding INTEGER
+// CENTS. Running that through the rands parser multiplies by 100 a second time: R6 600,00 re-imports as
+// R660 000,00 straight into rent, deposit and the trust ledger. A normal agency export ships "Monthly Rent"
+// in rands and must still be ×100. Both shapes are real, so the header is the only thing that can tell them
+// apart.
+
+/** True when a source column's HEADER declares its values are already integer cents ("…_cents", "… cents"). */
+export function isCentsDenominatedHeader(header: string): boolean {
+  // The separator is load-bearing: it keeps "percents" (and any other …cents word) from matching.
+  return /(?:^|[\s_-])cents$/.test(header.toLowerCase().trim())
+}
+
+/**
+ * Parse a cell from a cents-denominated column — the value IS the cents, so there is NO ×100. A fractional
+ * value in such a column is contradictory (a fraction of a cent is not a thing), so it returns null and the
+ * caller flags it rather than silently rounding.
+ */
+export function normaliseCentsValue(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  let s = trimmed.replaceAll(/[R\s]/g, "")
+  if (!s) return null
+  const negative = s.startsWith("-")
+  if (negative) s = s.slice(1)
+  if (!/^[\d.,]+$/.test(s)) return null
+
+  const canonical = toCanonicalNumber(s)
+  if (canonical === null) return null
+
+  const value = Number.parseFloat(canonical)
+  if (Number.isNaN(value)) return null
+  if (!Number.isInteger(value)) return null   // "660000.50" cents → ambiguous, flag it
+
+  return negative ? -value : value
+}
+
+/**
+ * The ONE money entry point for the import boundary. `sourceHeader` is the header as it appeared IN THE FILE
+ * (the ColumnMapping key), and it — not the Pleks field name — selects the unit. Returns null on anything it
+ * cannot confidently parse; the caller must surface that as a row-level review item, never write a silent null.
+ */
+export function normaliseMoneyCents(raw: string, sourceHeader: string): number | null {
+  return isCentsDenominatedHeader(sourceHeader)
+    ? normaliseCentsValue(raw)
+    : normaliseCurrencyCents(raw)
+}

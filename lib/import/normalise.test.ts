@@ -7,7 +7,10 @@
  * class: "2026-11-31" must be rejected at parse, not rolled to Dec 1 and bounced by Postgres later).
  */
 import { describe, it, expect } from "vitest"
-import { normaliseCurrencyCents, normaliseDate } from "./normalise"
+import {
+  normaliseCurrencyCents, normaliseDate,
+  isCentsDenominatedHeader, normaliseCentsValue, normaliseMoneyCents,
+} from "./normalise"
 
 describe("normaliseCurrencyCents — locale-aware, both SA shapes, reject-ambiguous", () => {
   it("af-ZA decimal comma is NOT a thousands separator (the census #13 regression)", () => {
@@ -50,6 +53,44 @@ describe("normaliseCurrencyCents — locale-aware, both SA shapes, reject-ambigu
     expect(normaliseCurrencyCents("")).toBeNull()
     expect(normaliseCurrencyCents("N/A")).toBeNull()
     expect(normaliseCurrencyCents("R")).toBeNull()
+  })
+})
+
+describe("normaliseMoneyCents — the F-8 regression: a cents column must not be ×100'd again", () => {
+  it("detects a cents-denominated HEADER (and does not false-positive on 'percents')", () => {
+    expect(isCentsDenominatedHeader("rent_amount_cents")).toBe(true)
+    expect(isCentsDenominatedHeader("monthly_rent_cents")).toBe(true)
+    expect(isCentsDenominatedHeader("Deposit Amount Cents")).toBe(true)
+    expect(isCentsDenominatedHeader("cents")).toBe(true)
+
+    expect(isCentsDenominatedHeader("Monthly Rent")).toBe(false)
+    expect(isCentsDenominatedHeader("rent")).toBe(false)
+    expect(isCentsDenominatedHeader("percents")).toBe(false)   // no separator before "cents"
+  })
+
+  it("a Pleks re-export (monthly_rent_cents) keeps its value — NOT inflated 100×", () => {
+    // R6,600.00 exported as 660000 cents. The old code parsed it as R660 000 and stored 66 000 000 cents.
+    expect(normaliseMoneyCents("660000", "monthly_rent_cents")).toBe(660000)
+    expect(normaliseMoneyCents("660000", "rent_amount_cents")).toBe(660000)
+    expect(normaliseMoneyCents("125000", "deposit_amount_cents")).toBe(125000)
+  })
+
+  it("a normal agency export (rands) is still converted to cents", () => {
+    expect(normaliseMoneyCents("6600", "Monthly Rent")).toBe(660000)
+    expect(normaliseMoneyCents("6 600,50", "Monthly Rent")).toBe(660050)   // af-ZA still works through this door
+    expect(normaliseMoneyCents("R 6,600.00", "Rent")).toBe(660000)
+  })
+
+  it("a FRACTIONAL value in a cents column is contradictory → null (flag, never round)", () => {
+    expect(normaliseCentsValue("660000.50")).toBeNull()
+    expect(normaliseMoneyCents("660000,50", "monthly_rent_cents")).toBeNull()
+  })
+
+  it("cents columns still take separators and negatives", () => {
+    expect(normaliseCentsValue("660 000")).toBe(660000)
+    expect(normaliseCentsValue("-50000")).toBe(-50000)
+    expect(normaliseCentsValue("")).toBeNull()
+    expect(normaliseCentsValue("N/A")).toBeNull()
   })
 })
 
