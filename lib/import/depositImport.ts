@@ -14,7 +14,8 @@
  *              b. else the agency's OWN configured rate (a deposit_interest_config row — a deliberate object
  *                 someone created, NOT `organisations.deposit_interest_rate_percent`, which carries a schema
  *                 DEFAULT of 5.00 and therefore cannot distinguish "the agency chose 5%" from "nobody chose")
- *              c. else `deposit_rate_status = 'imported_not_set'` → accrual is HELD until an agent sets it.
+ *              c. else HOLD — the accrual engine finds no rate and accrues nothing. Derived live, never
+ *                 stamped: the hold heals itself the moment a rate becomes reachable.
  *
  *         2. THE LEDGER. The money is real and the agency is holding it, so it belongs in the deposit/trust
  *            sub-ledger as an OPENING BALANCE — otherwise a move-out reconciliation has no principal and the
@@ -28,31 +29,34 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { saTodayISO } from "@/lib/dates"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { resolveDepositInterestConfig } from "@/lib/deposits/interestConfig"
 
-/** How a migrated lease's deposit interest rate was resolved. */
-export type DepositRateSource = "import_file" | "agency_config" | "not_set"
+/** How a lease's deposit interest rate was resolved — or why it could not be. */
+export type DepositRateSource =
+  | "import_file"          // the file carried the rate this deposit was actually taken at
+  | "agency_config"        // a deposit_interest_config RESOLVES for this lease
+  | "config_unreachable"   // configs EXIST, but none resolves for this lease (see below — the live bug)
+  | "no_config"            // no rate anywhere
 
 export interface DepositRateResolution {
-  /** Written to `leases.deposit_interest_rate_percent`. Null when the config supplies it, or when unknown. */
+  /** Written to `leases.deposit_interest_rate_percent`. Null when a config supplies the rate, or when none does. */
   ratePercent: number | null
-  /** Written to `leases.deposit_rate_status`. 'imported_not_set' HOLDS accrual — see depositInterest.ts. */
-  status: "set" | "imported_not_set"
   source: DepositRateSource
+  /**
+   * No rate reaches this lease ⇒ accrual is HELD.
+   *
+   * DERIVED, never stamped on the lease. An earlier draft persisted a `deposit_rate_status` column — which
+   * would have held the lease forever, even after the agency fixed their config, because a stamp does not
+   * re-evaluate. The accrual engine reaches the same conclusion the same way, live, every run: no config
+   * resolves + no lease rate ⇒ nothing to accrue at ⇒ accrue nothing. The hold heals itself the moment a rate
+   * becomes reachable. (ADDENDUM_70K Phase E: a column that cannot exist cannot be stamped wrong.)
+   */
+  held: boolean
 }
 
-/**
- * Does this org have a deposit-interest rate it actually CHOSE?
- *
- * Deliberately reads `deposit_interest_config` — a row someone created, effective-dated, with a `created_by` —
- * and NOT `organisations.deposit_interest_rate_percent`, which has a schema DEFAULT of 5.00. A default is not
- * a decision: reading it would mean every agency "has a configured rate" of 5% and the hold below could never
- * fire, which is the whole failure this exists to prevent.
- *
- * Only the ORG-level config is consulted. A property/unit-level config still resolves normally at accrual time
- * (the hierarchy lives in depositInterest.ts) — the question here is narrower: does a rate exist AT ALL for
- * this org, such that accrual will find one rather than fall through to the invented 5%?
- */
-async function agencyHasConfiguredRate(db: SupabaseClient, orgId: string): Promise<boolean> {
+/** Does ANY effective config row exist for this org? Used ONLY to tell "configs exist but none reaches this
+ *  lease" apart from "no rate anywhere" — never to decide whether a rate applies. See resolveDepositRate. */
+async function orgHasAnyConfig(db: SupabaseClient, orgId: string): Promise<boolean> {
   const today = saTodayISO()
   const { data, error } = await db
     .from("deposit_interest_config")
@@ -63,33 +67,53 @@ async function agencyHasConfiguredRate(db: SupabaseClient, orgId: string): Promi
     .limit(1)
     .maybeSingle()
 
-  logQueryError("agencyHasConfiguredRate deposit_interest_config", error)
-  // Fail CLOSED: an errored lookup must not be read as "yes, they have a rate" — that would resume the guess.
+  logQueryError("orgHasAnyConfig deposit_interest_config", error)
   return !error && !!data
 }
 
 /**
- * Resolve the interest rate for a deposit the agency already holds, per the ruling. `filePercent` is the rate
- * the import file carried, if it carried one (already parsed; null when absent or unreadable).
+ * Resolve the interest rate for a deposit the agency already holds.
+ *
+ * ⚠ REACHABILITY, NOT EXISTENCE. The question is NOT "does this org have a config row?" — it is "will the
+ * accrual engine actually RESOLVE a rate for THIS lease?" Those differ, and the difference is a live bug we
+ * found in prod: an agency's configs were scoped to a deposit-holding bank account (the RHA s5(3)(c)-correct
+ * thing to do), while the leases had no account linked. `resolveDepositInterestConfig` walks
+ * account → unit → property → org, so it matched NOTHING — and the accrual engine's fallback then invented 5%
+ * and posted it, silently, for three weeks. An existence check would have answered "yes, they have a rate",
+ * set status='set', skipped the hold, and reproduced the exact bug. So we call the ONE resolver the accrual
+ * engine itself calls — never a second implementation of the question.
+ *
+ * Order: the file's rate → a config that RESOLVES for this lease → hold.
  */
 export async function resolveDepositRate(
   db: SupabaseClient,
   orgId: string,
+  lease: { propertyId: string | null; unitId: string | null; bankAccountId: string | null },
   filePercent: number | null,
 ): Promise<DepositRateResolution> {
   // (a) The file knows the rate this deposit was actually taken at. Nothing beats that.
   if (filePercent !== null) {
-    return { ratePercent: filePercent, status: "set", source: "import_file" }
+    return { ratePercent: filePercent, source: "import_file", held: false }
   }
 
-  // (b) The agency has configured a rate — accrual will resolve it through the config hierarchy, so the lease
-  //     needs no rate of its own.
-  if (await agencyHasConfiguredRate(db, orgId)) {
-    return { ratePercent: null, status: "set", source: "agency_config" }
+  // (b) A config that ACTUALLY RESOLVES for this lease — the same call, with the same scope, that the accrual
+  //     engine will make. If this resolves, accrual will too.
+  const config = await resolveDepositInterestConfig(
+    orgId, lease.propertyId, lease.unitId, saTodayISO(), lease.bankAccountId,
+  )
+  if (config) {
+    return { ratePercent: null, source: "agency_config", held: false }
   }
 
-  // (c) Nobody has chosen a rate. HOLD — never accrue at an invented one.
-  return { ratePercent: null, status: "imported_not_set", source: "not_set" }
+  // (c) No rate reaches this lease. HOLD — never accrue at an invented one. But distinguish the two ways of
+  //     getting here: "you have a rate, it just does not reach this lease" is a one-click fix; "no rate
+  //     anywhere" is a different conversation. A hold that cannot tell you which is a support ticket.
+  const configsExist = await orgHasAnyConfig(db, orgId)
+  return {
+    ratePercent: null,
+    source: configsExist ? "config_unreachable" : "no_config",
+    held: true,
+  }
 }
 
 /**
