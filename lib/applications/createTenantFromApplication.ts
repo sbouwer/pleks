@@ -3,18 +3,26 @@
 /**
  * lib/applications/createTenantFromApplication.ts — agent-side applicant→tenant promotion (server action).
  *
- * Auth:   "use server" action, called from the client ApplicationActions (shortlist/approve). Bound to the agent's
- *         COOKIE/RLS client. (A "use server" export can't take a non-serializable client param, so the injectable
- *         core lives in promoteApplicantToTenant.ts and this thin wrapper supplies the cookie client.)
- * Notes:  the applicant's OWN account-at-completion uses the core directly with a SERVICE client (the link-account
- *         route) — agent-initiated promotion passes no authUserId (the tenant gets no auth binding until login). 14R.
+ * Auth:   requireAgentWriteAccess("promote_applicant") — promotion creates a net-new tenant, so it is
+ *         auth + subscription-lockdown gated. The agent's org and identity come from the SESSION, never from
+ *         the caller: the org scopes the application lookup (F-2 — a foreign applicationId resolves to
+ *         not-found) and the session user is the audit actor.
+ * Notes:  runs on the SERVICE client (gw.db) with the explicit org filter as the boundary — the old cookie-
+ *         client path was RLS-unreliable (banned by pleks/no-cookie-client-from). The applicant's OWN
+ *         account-at-completion uses the core directly with a service client + a token (the link-account
+ *         route), passing no expectedOrgId because the token itself authorises that specific application. 14R.
  */
-import { createClient } from "@/lib/supabase/server"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { promoteApplicationToTenant } from "./promoteApplicantToTenant"
 
 export async function createTenantFromApplication(
   applicationId: string,
-  agentId: string,
 ): Promise<{ tenantId: string } | { error: string }> {
-  return promoteApplicationToTenant(await createClient(), applicationId, agentId, null)
+  let gw
+  try {
+    gw = await requireAgentWriteAccess("promote_applicant")
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Not authorised" }
+  }
+  return promoteApplicationToTenant(gw.db, applicationId, gw.userId, null, gw.orgId)
 }

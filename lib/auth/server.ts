@@ -250,6 +250,7 @@ const ACTION_CAPABILITY: Record<string, string> = {
   create_warranty: "properties", archive_warranty: "properties",
   // tenants
   create_tenant: "tenants", edit_tenant: "tenants", update_tenant: "tenants", ensure_tenant_for_contact: "tenants",
+  promote_applicant: "tenants",   // applicant→tenant promotion creates a tenant — same authority bar as create_tenant
   // landlords
   create_landlord: "landlords", update_landlord: "landlords", add_self_as_landlord: "landlords",
   // applications
