@@ -104,16 +104,29 @@ export function normaliseCurrencyCents(raw: string): number | null {
 // in rands and must still be ×100. Both shapes are real, so the header is the only thing that can tell them
 // apart.
 
-/** True when a source column's HEADER declares its values are already integer cents ("…_cents", "… cents"). */
+/**
+ * True when a source column's HEADER declares its values are already integer cents. Matched as a whole WORD
+ * TOKEN anywhere in the header — camelCase is split first — so all of these are recognised:
+ *   monthly_rent_cents · Rent (cents) · RentCents · rent_cents_amount · Rent Amount (Cents)
+ * An "ends with _cents" test missed every one of the last four and 100×-inflated them.
+ * "percents" stays a single token, so it does NOT match.
+ */
 export function isCentsDenominatedHeader(header: string): boolean {
-  // The separator is load-bearing: it keeps "percents" (and any other …cents word) from matching.
-  return /(?:^|[\s_-])cents$/.test(header.toLowerCase().trim())
+  const tokens = header
+    .replaceAll(/([a-z])([A-Z])/g, "$1 $2")   // RentCents → Rent Cents
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter(Boolean)
+  return tokens.includes("cents") || tokens.includes("cent")
 }
 
 /**
- * Parse a cell from a cents-denominated column — the value IS the cents, so there is NO ×100. A fractional
- * value in such a column is contradictory (a fraction of a cent is not a thing), so it returns null and the
- * caller flags it rather than silently rounding.
+ * Parse a cell from a cents-denominated column — the value IS the cents, so there is NO ×100.
+ *
+ * ANY decimal point is a contradiction and returns null. Not just "660000.50" (a fraction of a cent) but,
+ * critically, "6600.00": a column headed `rent_amount_cents` whose values carry Excel's default money format
+ * is really RANDS, and reading it as cents divides every rent by 100. An `Number.isInteger(parseFloat(x))`
+ * check accepts "6600.00" — the deflation twin of the F-8 inflation bug. Thousands separators are fine.
  */
 export function normaliseCentsValue(raw: string): number | null {
   const trimmed = raw.trim()
@@ -127,12 +140,45 @@ export function normaliseCentsValue(raw: string): number | null {
 
   const canonical = toCanonicalNumber(s)
   if (canonical === null) return null
+  if (canonical.includes(".")) return null   // a cents column must hold WHOLE cents — "6600.00" is rands
 
-  const value = Number.parseFloat(canonical)
+  const value = Number.parseInt(canonical, 10)
   if (Number.isNaN(value)) return null
-  if (!Number.isInteger(value)) return null   // "660000.50" cents → ambiguous, flag it
 
   return negative ? -value : value
+}
+
+/**
+ * Parse a percentage cell (escalation rate) — locale-aware, like the money parser. `Number.parseFloat("7,5")`
+ * returns 7, quietly turning a 7.5% escalation into 7% and compounding it annually for the life of the lease.
+ * A percentage has no thousands separator, so a single `,` or `.` is unambiguously the decimal point.
+ * Returns null on anything else ("CPI", "market related") so the caller flags rather than defaults.
+ */
+export function normalisePercent(raw: string): number | null {
+  const s = raw.trim().replaceAll("%", "").replaceAll(/\s/g, "")
+  if (!s) return null
+  if (!/^-?\d+([.,]\d+)?$/.test(s)) return null
+
+  const value = Number.parseFloat(s.replace(",", "."))
+  return Number.isNaN(value) ? null : value
+}
+
+/**
+ * Normalise `leases.payment_due_day`. Migration 007 changed this column to TEXT and widened its domain to
+ * "1".."28" plus "last_day" / "last_working_day"; the importer was still `parseInt`-ing it, so an agency whose
+ * whole book bills on the last day of the month got NaN → column omitted → DEFAULT '1', silently moving every
+ * rent due date (and every arrears computation) to the 1st. Returns null on anything outside the domain.
+ */
+export function normalisePaymentDueDay(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+
+  if (/^last[\s_-]*working[\s_-]*day$/.test(s)) return "last_working_day"
+  if (/^last[\s_-]*day$/.test(s)) return "last_day"
+
+  const n = Number.parseInt(s, 10)
+  if (Number.isNaN(n) || n < 1 || n > 28) return null   // 29-31 are not expressible — that is what last_day is for
+  return String(n)
 }
 
 /**

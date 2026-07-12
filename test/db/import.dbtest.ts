@@ -156,6 +156,59 @@ describe("bulk import — against the real schema", () => {
     expect(refusal?.message).toContain("Mixed Use")
   })
 
+  // ── The DB-default traps: a blank cell and an unrecognised boolean both land on a NOT NULL DEFAULT ──
+
+  it("F-7: a BLANK lease type refuses the row — it must not fall through to DEFAULT 'residential'", async () => {
+    // The commonest shape of bad data: the column is filled where it "wasn't obvious" and blank elsewhere.
+    // Omitting the column hands the row to lease_type NOT NULL DEFAULT 'residential'.
+    const org = await seedEmptyOrg(db)
+    try {
+      const rows: Record<string, string>[] = [{
+        Property: "Blank Type Court", Address: "1 Blank Rd", City: "Cape Town", Province: "WC", Unit: "1",
+        "First Name": "Ayanda", "Last Name": "Khumalo", Email: "ayanda@example.co.za",
+        "Lease Start": "01/03/2026", "Lease End": "28/02/2027",
+        monthly_rent_cents: "500000", "Lease Type": "",     // ← blank, column IS mapped
+      }]
+      const r = await runImport(rows, mapping, decisions, org, agentId, undefined, db)
+
+      expect(r.leasesCreated, "a blank statutory classification must not import").toBe(0)
+      expect(await countOf("leases", org), "and certainly not as 'residential'").toBe(0)
+      expect(r.errors.some((e) => e.severity === "error" && e.field === "lease_type")).toBe(true)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-7: a Y/N book keeps its CPA protection — an unrecognised boolean must not read as false", async () => {
+    // cpa_applies / is_fixed_term are NOT NULL DEFAULT true. The old normaliseBoolean returned false for
+    // anything outside {true,yes,1,ja}, so a book exporting Y/N stripped CPA s14 from EVERY lease.
+    const org = await seedEmptyOrg(db)
+    try {
+      const cpaMapping: ColumnMapping = {
+        ...mapping,
+        "CPA": { column: "CPA", field: "cpa_applies", entity: "lease" },
+        "Fixed Term": { column: "Fixed Term", field: "is_fixed_term", entity: "lease" },
+      }
+      const rows: Record<string, string>[] = [{
+        Property: "Yebo Court", Address: "2 Yebo Rd", City: "Cape Town", Province: "WC", Unit: "1",
+        "First Name": "Nomsa", "Last Name": "Mbeki", Email: "nomsa@example.co.za",
+        "Lease Start": "01/03/2026", "Lease End": "28/02/2027",
+        monthly_rent_cents: "600000", "Lease Type": "Residential",
+        CPA: "Y", "Fixed Term": "Y",
+      }]
+      const r = await runImport(rows, cpaMapping, decisions, org, agentId, undefined, db)
+      expect(r.leasesCreated).toBe(1)
+
+      const { data, error } = await db
+        .from("leases").select("cpa_applies, is_fixed_term").eq("org_id", org).single()
+      expect(error).toBeFalsy()
+      expect(data?.cpa_applies, "\"Y\" must mean the CPA APPLIES").toBe(true)
+      expect(data?.is_fixed_term, "\"Y\" must mean fixed-term").toBe(true)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
   // ── Joint tenants (F-1/F-6 shape) ──
 
   it("a joint-tenant row creates BOTH people and still creates the lease", async () => {
@@ -171,6 +224,35 @@ describe("bulk import — against the real schema", () => {
   })
 
   // ── F-6: idempotency — the whole point of a migration front door ──
+
+  it("F-6: a BLANK unit number does not duplicate the unit (and its lease) on re-run", async () => {
+    // A freestanding house — the commonest SA residential letting — has no unit number. The lookup used the
+    // raw value (ILIKE '') while the insert wrote "1", so every re-run made a SECOND unit with a new unit_id,
+    // which the lease dedup (keyed on unit_id) then missed → a second active lease for the same tenant.
+    // Re-running is the documented remedy for a rejected row, so this fired in the normal workflow.
+    const org = await seedEmptyOrg(db)
+    try {
+      const houseRows: Record<string, string>[] = [{
+        Property: "14 Protea Street", Address: "14 Protea St", City: "Durban", Province: "KZN", Unit: "",
+        "First Name": "Sipho", "Last Name": "Zulu", Email: "sipho@example.co.za",
+        "Lease Start": "01/02/2026", "Lease End": "31/01/2027",
+        monthly_rent_cents: "900000", "Lease Type": "Residential",
+      }]
+
+      const r1 = await runImport(houseRows, mapping, decisions, org, agentId, undefined, db)
+      expect(r1.unitsCreated, "the house imports as one unit").toBe(1)
+      expect(r1.leasesCreated, "with one lease").toBe(1)
+
+      const r2 = await runImport(houseRows, mapping, decisions, org, agentId, undefined, db)
+      expect(r2.unitsCreated, "re-run must not create a second unit").toBe(0)
+      expect(r2.leasesCreated, "re-run must not create a second lease").toBe(0)
+
+      expect(await countOf("units", org), "still exactly one unit").toBe(1)
+      expect(await countOf("leases", org), "still exactly one lease — no duplicate tenancy").toBe(1)
+    } finally {
+      teardownOrg(org)
+    }
+  })
 
   it("F-6: re-running the identical import is a NO-OP (no duplicate leases, units, or tenants)", async () => {
     const before = {

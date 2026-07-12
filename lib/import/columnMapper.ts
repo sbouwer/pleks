@@ -339,7 +339,11 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
 /** Fields where MANY source columns → one target is BY DESIGN, so they must never be reported as a collision:
  *  the `*_notes` buckets are aggregated across every mapped column by `getExtraColumns`, and a TPN export
  *  legitimately carries the addresstype1/2/3 triple (metadata, never read through getField). */
-const MULTI_VALUE_FIELDS = new Set(["tenant_notes", "unit_notes", "lease_notes", "__address_type"])
+const MULTI_VALUE_FIELDS = new Set([
+  "tenant_notes", "unit_notes", "lease_notes",
+  "export_csv",       // the wizard's 4th routing bucket — many columns → one export, nothing is dropped
+  "__address_type",
+])
 
 export interface MappingCollision {
   /** The Pleks target field two or more columns landed on. */

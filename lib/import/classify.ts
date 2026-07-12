@@ -1,102 +1,147 @@
 /**
- * lib/import/classify.ts — classify statutory-adjacent lease fields at the import boundary: FLAG, never guess
+ * lib/import/classify.ts — classify statutory-adjacent import cells: FLAG, never guess
  *
- * Notes:  The same doctrine as the money parser (F-3): an unrecognised value is a ROW-LEVEL REVIEW ITEM for
- *         the agent, never a silent default. The old code guessed both of these fields and the guesses were
- *         load-bearing:
- *           - `lease_type`: `raw.includes("comm") ? "commercial" : "residential"` — so "Retail", "Office" and
- *             "Industrial" all imported as RESIDENTIAL, and Rule 8 then permits the residential
- *             Demand-to-Vacate suite against a commercial lease. A wrong default here is a statutory error,
- *             not a cosmetic one.
- *           - `escalation_type`: anything unrecognised fell through to "fixed" — so "market related" or a
- *             typo silently became a fixed escalation, which is a money term.
- *         Both now recognise an explicit vocabulary (en + af) on BOTH sides and return `{ok:false}` for
- *         anything else. A value that matches BOTH classes ("residential/commercial") is CONTRADICTORY and
- *         also flags — first-match-wins would be a guess with extra steps.
- *         The caller omits the column entirely on a flag, so the DB default stands and the agent sees a
- *         warning naming the row, the field and the raw value.
+ * Notes:  Same doctrine as the money parser (F-3): an unrecognised value is a decision for the AGENT, never a
+ *         silent default. The old code guessed all of these, and every guess was load-bearing:
+ *           - `lease_type`: `includes("comm") ? commercial : residential` — "Retail"/"Office" imported as
+ *             RESIDENTIAL, and Rule 8 then permits the residential Demand-to-Vacate suite against a commercial
+ *             lease. A wrong default here is a statutory error.
+ *           - `escalation_type`: anything unrecognised fell through to "fixed" — a money term.
+ *           - booleans (`cpa_applies`, `is_fixed_term`): `s === "yes" || s === "true" || …` → everything else
+ *             FALSE. Both columns are NOT NULL DEFAULT **true**, so a book exporting Y/N (the commonest SA
+ *             convention) had CPA protection stripped from every lease and every fixed term made open-ended.
+ *
+ *         Matching is by WHOLE WORD TOKEN, not substring and not \b-regex. Substring matching reads
+ *         "warehouse" as residential (it contains "house"); \b-regex then over-corrects and refuses
+ *         "Townhouse"/"Woonhuis" (no boundary inside a compound). Tokenising on non-letters and comparing
+ *         whole words gets both right, and makes a value naming BOTH classes ("Residential/Commercial")
+ *         detectably contradictory instead of first-match-wins.
+ *
+ *         NOTE "Sectional Title" is deliberately NOT residential: it is a form of TENURE, not a use — a
+ *         sectional-title unit in a commercial office scheme is ordinary. It flags.
  */
 
-/** A classification that either resolved to a known enum value, or did not — in which case the caller must
- *  surface `raw` to the agent as a review item and REFUSE the row. Note "write nothing to the column" is NOT
- *  an option for these fields: `leases.lease_type` is `NOT NULL DEFAULT 'residential'` and
- *  `leases.escalation_type` is `NOT NULL DEFAULT 'fixed'`, so omitting the column re-instates the exact guess
- *  the classification exists to prevent. Unrecognised ⇒ the row does not import. */
+/** Resolved to a known value, or not — in which case the caller must surface `raw` and REFUSE the row.
+ *  "Write nothing to the column" is NOT an escape for these fields: `leases.lease_type` is
+ *  `NOT NULL DEFAULT 'residential'`, `escalation_type` `NOT NULL DEFAULT 'fixed'`, and `cpa_applies` /
+ *  `is_fixed_term` `NOT NULL DEFAULT true` — omitting a column hands the row straight back to the guess. */
 export type Classification<T> = { ok: true; value: T } | { ok: false; raw: string }
 
 export type LeaseType = "residential" | "commercial"
 export type EscalationType = "fixed" | "cpi" | "prime_plus"
 
-/** The `properties.province` CHECK constraint (003_properties.sql) — an import that writes anything else is
- *  rejected by Postgres, so the importer must resolve to exactly one of these or refuse the property. */
+/** Split a cell into lowercase word tokens ("Semi-Commercial" → ["semi","commercial"]). */
+function words(raw: string): Set<string> {
+  return new Set(raw.toLowerCase().split(/[^a-z]+/).filter(Boolean))
+}
+
+function hasAny(w: Set<string>, vocab: readonly string[]): boolean {
+  return vocab.some((t) => w.has(t))
+}
+
+// Whole-word vocabularies (en + af). Compounds are listed in full — token matching cannot see inside them.
+const COMMERCIAL_WORDS = [
+  "commercial", "comm", "retail", "office", "offices", "industrial", "warehouse", "shop", "workshop",
+  "business", "factory", "kantoor", "winkel", "besigheid", "pakhuis",
+] as const
+
+const RESIDENTIAL_WORDS = [
+  "residential", "resi", "residence", "home", "dwelling", "flat", "apartment", "house", "townhouse",
+  "duplex", "simplex", "cottage", "bachelor", "maisonette",
+  "woonstel", "woonhuis", "huis", "woning", // af
+] as const
+
+/**
+ * Classify a raw `lease_type` cell. Both vocabularies are explicit — "residential" is a VALUE, never the
+ * bucket everything unknown falls into. Unrecognised, empty, or contradictory ⇒ flagged.
+ */
+export function classifyLeaseType(raw: string): Classification<LeaseType> {
+  const w = words(raw)
+  if (w.size === 0) return { ok: false, raw }
+
+  const commercial = hasAny(w, COMMERCIAL_WORDS)
+  const residential = hasAny(w, RESIDENTIAL_WORDS)
+
+  if (commercial && !residential) return { ok: true, value: "commercial" }
+  if (residential && !commercial) return { ok: true, value: "residential" }
+  return { ok: false, raw } // unknown (e.g. "Sectional Title" — a tenure) or contradictory → the agent decides
+}
+
+/**
+ * Classify a raw `escalation_type` cell. "fixed" must be STATED, not inferred from silence, and a cell naming
+ * two bases ("CPI or Prime") is contradictory rather than first-match.
+ */
+export function classifyEscalationType(raw: string): Classification<EscalationType> {
+  const w = words(raw)
+  if (w.size === 0) return { ok: false, raw }
+
+  const hits: EscalationType[] = []
+  if (w.has("cpi") || w.has("inflation") || (w.has("consumer") && w.has("price"))) hits.push("cpi")
+  if (w.has("prime")) hits.push("prime_plus")
+  if (w.has("fixed") || w.has("vaste") || w.has("vast")) hits.push("fixed")
+
+  const only = hits.length === 1 ? hits[0] : undefined
+  return only ? { ok: true, value: only } : { ok: false, raw }
+}
+
+const TRUE_WORDS = ["true", "yes", "y", "1", "ja", "j"] as const
+const FALSE_WORDS = ["false", "no", "n", "0", "nee"] as const
+
+/**
+ * Classify a boolean cell. Critically, an unrecognised value is NOT false: `cpa_applies` and `is_fixed_term`
+ * are `NOT NULL DEFAULT true`, so the old fail-to-false was the opposite of the schema's own default — a book
+ * using Y/N had the CPA stripped from every lease. Unrecognised ⇒ flag, and the caller refuses the row.
+ */
+export function classifyBoolean(raw: string): Classification<boolean> {
+  const s = raw.toLowerCase().trim()
+  if (!s) return { ok: false, raw }
+  if ((TRUE_WORDS as readonly string[]).includes(s)) return { ok: true, value: true }
+  if ((FALSE_WORDS as readonly string[]).includes(s)) return { ok: true, value: false }
+  return { ok: false, raw }
+}
+
+// ── Province (properties.province CHECK constraint, 003_properties.sql) ────────────────────────────────
+
+/** The exact spellings the CHECK permits — anything else is a hard Postgres rejection. */
 export const SA_PROVINCES = [
   "Western Cape", "Eastern Cape", "Northern Cape", "North West", "Free State",
   "KwaZulu-Natal", "Gauteng", "Limpopo", "Mpumalanga",
 ] as const
 export type SaProvince = (typeof SA_PROVINCES)[number]
 
-/** Abbreviations and spellings a real agency export actually carries, → the CHECK-constraint spelling. */
-const PROVINCE_ALIASES: Record<string, SaProvince> = {
-  wc: "Western Cape", "w cape": "Western Cape", "western cape": "Western Cape", wes_kaap: "Western Cape", "wes-kaap": "Western Cape",
-  ec: "Eastern Cape", "e cape": "Eastern Cape", "eastern cape": "Eastern Cape", "oos-kaap": "Eastern Cape",
-  nc: "Northern Cape", "n cape": "Northern Cape", "northern cape": "Northern Cape", "noord-kaap": "Northern Cape",
-  nw: "North West", "north west": "North West", "north-west": "North West", noordwes: "North West",
-  fs: "Free State", "free state": "Free State", vrystaat: "Free State",
-  kzn: "KwaZulu-Natal", "kwazulu natal": "KwaZulu-Natal", "kwazulu-natal": "KwaZulu-Natal", kwazulunatal: "KwaZulu-Natal", natal: "KwaZulu-Natal",
-  gp: "Gauteng", gt: "Gauteng", gauteng: "Gauteng",
-  lp: "Limpopo", limpopo: "Limpopo",
-  mp: "Mpumalanga", mpumalanga: "Mpumalanga",
+/** Letters-only keys, matched as a SUBSTRING so "Gauteng Province", "Western Cape." and "Kwa-Zulu Natal" all
+ *  resolve. Longest first, so "northerncape" can never be shadowed by a shorter key. */
+const PROVINCE_KEYS: Array<[key: string, province: SaProvince]> = [
+  ["kwazulunatal", "KwaZulu-Natal"], ["westerncape", "Western Cape"], ["easterncape", "Eastern Cape"],
+  ["northerncape", "Northern Cape"], ["freestate", "Free State"], ["northwest", "North West"],
+  ["mpumalanga", "Mpumalanga"], ["gauteng", "Gauteng"], ["limpopo", "Limpopo"],
+  // af
+  ["weskaap", "Western Cape"], ["ooskaap", "Eastern Cape"], ["noordkaap", "Northern Cape"],
+  ["noordwes", "North West"], ["vrystaat", "Free State"],
+  ["natal", "KwaZulu-Natal"],   // after kwazulunatal, so the full name wins
+]
+
+/** Abbreviations. Matched EXACTLY (never as a substring — "wc" would otherwise hit inside another word). */
+const PROVINCE_ABBREVIATIONS: Record<string, SaProvince> = {
+  wc: "Western Cape", ec: "Eastern Cape", nc: "Northern Cape", nw: "North West",
+  fs: "Free State", kzn: "KwaZulu-Natal", gp: "Gauteng", gt: "Gauteng",
+  lp: "Limpopo", mp: "Mpumalanga",
 }
 
 /**
- * Resolve a raw province cell to the exact spelling `properties.province`'s CHECK constraint permits.
- * Unrecognised → flagged, never guessed: writing an unlisted province is a hard Postgres rejection that
- * would otherwise surface as an opaque whole-property failure.
+ * Resolve a raw province cell to the exact spelling the CHECK permits. Tolerant by design: an unmatched
+ * province REFUSES the whole property — and with it every unit and lease under it — so a formatting quirk
+ * like "Gauteng Province" must not cost an agency 40 leases. Genuinely unknown values still flag.
  */
 export function classifyProvince(raw: string): Classification<SaProvince> {
-  const s = raw.toLowerCase().trim().replaceAll(/\s+/g, " ")
-  if (!s) return { ok: false, raw }
-  const hit = PROVINCE_ALIASES[s]
-  return hit ? { ok: true, value: hit } : { ok: false, raw }
-}
+  const compact = raw.toLowerCase().replaceAll(/[^a-z]/g, "")
+  if (!compact) return { ok: false, raw }
 
-// WORD-BOUNDARY matching, not substring. A bare `includes` is what makes this class of check quietly wrong:
-// "warehouse" CONTAINS "house", so a substring check reads a warehouse as both commercial and residential.
-// \b also keeps "percentage"-style words from matching a short token. Both vocabularies carry en + af.
-const COMMERCIAL_RE = /\b(commercial|comm|retail|office|industrial|warehouse|shop|business|kantoor|winkel|besigheid)\b/
-const RESIDENTIAL_RE = /\b(residential|resi|home|dwelling|flat|apartment|house|sectional\s+title|woonstel|woon|huis)\b/
+  const abbrev = PROVINCE_ABBREVIATIONS[compact]
+  if (abbrev) return { ok: true, value: abbrev }
 
-/**
- * Classify a raw `lease_type` cell. Recognises commercial AND residential vocabularies explicitly; an
- * unrecognised value — or one that reads as BOTH — is flagged rather than defaulted. Never returns
- * "residential" as a fallback: that fallback is precisely the F-7 defect.
- */
-export function classifyLeaseType(raw: string): Classification<LeaseType> {
-  const s = raw.toLowerCase().trim()
-  if (!s) return { ok: false, raw }
-
-  const commercial = COMMERCIAL_RE.test(s)
-  const residential = RESIDENTIAL_RE.test(s)
-
-  if (commercial && !residential) return { ok: true, value: "commercial" }
-  if (residential && !commercial) return { ok: true, value: "residential" }
-  return { ok: false, raw } // unrecognised, or contradictory (both) → the agent decides
-}
-
-/**
- * Classify a raw `escalation_type` cell into the DB enum. "fixed" is a REAL value that must be stated, not
- * the bucket everything unrecognised falls into (the F-7 defect). A cell naming two bases is contradictory
- * and flags.
- */
-export function classifyEscalationType(raw: string): Classification<EscalationType> {
-  const s = raw.toLowerCase().trim()
-  if (!s) return { ok: false, raw }
-
-  const hits: EscalationType[] = []
-  if (/\b(cpi|consumer\s+price|inflation)\b/.test(s)) hits.push("cpi")
-  if (/\bprime\b/.test(s)) hits.push("prime_plus")
-  if (/\b(fixed|vaste?)\b/.test(s)) hits.push("fixed")
-
-  const only = hits.length === 1 ? hits[0] : undefined
-  return only ? { ok: true, value: only } : { ok: false, raw }
+  for (const [key, province] of PROVINCE_KEYS) {
+    if (compact.includes(key)) return { ok: true, value: province }
+  }
+  return { ok: false, raw }
 }
