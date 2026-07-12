@@ -82,6 +82,7 @@ export default function ImportWizardPage() {
     extraColumnRouting: {},
     expiredLeaseAction: "skip",
     perRowOverrides: {},
+    bankConsentAttested: false,
   })
   const [result, setResult] = useState<ImportResultData | null>(null)
 
@@ -118,12 +119,14 @@ export default function ImportWizardPage() {
 
   const handleMappingConfirmed = useCallback((
     mapping: Record<string, { field: string; entity: string }>,
-    extraRouting: Record<string, string>
+    extraRouting: Record<string, string>,
+    bankConsentAttested: boolean,
   ) => {
     setDecisions((d) => ({
       ...d,
       columnMapping: mapping,
       extraColumnRouting: extraRouting,
+      bankConsentAttested,
     }))
     // Show the expired-lease step whenever a lease_end column is MAPPED — the agent's own decision, and the
     // only thing the runner acts on. It used to also require `analysis.detectedEntities.hasLease`, which is
@@ -166,6 +169,7 @@ export default function ImportWizardPage() {
       extraColumnRouting: {},
       expiredLeaseAction: "skip",
       perRowOverrides: {},
+      bankConsentAttested: false,
     })
     setResult(null)
     setGlBlocks([])

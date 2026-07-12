@@ -20,6 +20,7 @@ import { svc, seedEmptyOrg, seedUser, teardownOrg, teardownUser } from "@/test/d
 import { runImport, type ColumnMapping, type ImportDecisions, type ImportResult } from "@/lib/import/importRunner"
 import { toImportDecisions } from "@/lib/import/decisions"
 import { saTodayISO, addCalendarMonths } from "@/lib/dates"
+import { decryptBankAccount, hashBankAccount } from "@/lib/crypto/bankAccount"
 
 const db = svc()
 
@@ -403,6 +404,102 @@ describe("bulk import — against the real schema", () => {
       const leases = await leasesOf(org)
       expect(leases, "the skipped row created no lease").toHaveLength(1)
       expect(leases[0]?.rent_amount_cents).toBe(400_000)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  // ── F-11 / F-10: bank details are ENCRYPTED, and consent reflects the AGENT'S ATTESTATION ──
+
+  const BANK_COLUMNS: ColumnMapping = {
+    ...mapping,
+    "Bank Account": { column: "Bank Account", field: "tenant_bank_account_1", entity: "bank" },
+    "Bank Name": { column: "Bank Name", field: "tenant_bank_name_1", entity: "bank" },
+  }
+  const RAW_ACCOUNT = "6241234567"
+  const bankRow = (email: string): Record<string, string>[] => [{
+    Property: "Bank Court", Address: "5 Bank Rd", City: "Cape Town", Province: "WC", Unit: "1",
+    "First Name": "Naledi", "Last Name": "Mokoena", Email: email,
+    "Lease Start": dmy(-4), "Lease End": dmy(+8),
+    monthly_rent_cents: "500000", "Lease Type": "Residential",
+    "Bank Account": RAW_ACCOUNT, "Bank Name": "FNB",
+  }]
+
+  it("F-11: the account number is ENCRYPTED and recoverable — a mask alone cannot process a refund", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const attested = { ...toImportDecisions({ expiredLeaseAction: "skip" }), bankConsentAttested: true }
+      await runImport(bankRow("naledi@example.co.za"), BANK_COLUMNS, attested, org, agentId, undefined, db)
+
+      const { data, error } = await db
+        .from("tenant_bank_accounts")
+        .select("account_number, account_number_enc, account_number_hash, consent_given, consent_given_at")
+        .eq("org_id", org).single()
+      expect(error).toBeFalsy()
+
+      // The stored `account_number` is the MASK — the raw number must never sit in it.
+      expect(data?.account_number).not.toBe(RAW_ACCOUNT)
+      expect(data?.account_number).toContain("4567")
+
+      // …and account_number_enc — the column that has existed unused since migration 042 — round-trips.
+      expect(data?.account_number_enc, "the ciphertext must be written").toBeTruthy()
+      expect(data?.account_number_enc).not.toBe(RAW_ACCOUNT)
+      expect(decryptBankAccount(data?.account_number_enc), "an agent must get the real number back").toBe(RAW_ACCOUNT)
+
+      // The deterministic lookup key is computed from the RAW value (never the ciphertext).
+      expect(data?.account_number_hash).toBe(hashBankAccount(RAW_ACCOUNT))
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-10: consent records the AGENT'S ATTESTATION — it is not manufactured", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const attested = { ...toImportDecisions({ expiredLeaseAction: "skip" }), bankConsentAttested: true }
+      await runImport(bankRow("attested@example.co.za"), BANK_COLUMNS, attested, org, agentId, undefined, db)
+
+      const { data: acct, error: acctErr } = await db
+        .from("tenant_bank_accounts").select("consent_given, consent_given_at").eq("org_id", org).single()
+      expect(acctErr).toBeFalsy()
+      expect(acct?.consent_given).toBe(true)
+      expect(acct?.consent_given_at).toBeTruthy()
+
+      // The attestation itself is on the record — actor, notice version, and what was actually declared.
+      const { data: consent, error: consentErr } = await db
+        .from("consent_log").select("consent_type, consent_given, consent_version, user_id, metadata")
+        .eq("org_id", org).eq("consent_type", "bank_details_import").single()
+      expect(consentErr).toBeFalsy()
+      expect(consent?.consent_given).toBe(true)
+      expect(consent?.user_id, "attributed to the agent who attested").toBe(agentId)
+      expect(consent?.consent_version).toBeTruthy()
+      expect((consent?.metadata as { declaration?: string })?.declaration ?? "").toContain("attested")
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("F-10: WITHOUT the attestation, the account is recorded as UNCONSENTED (it used to say true regardless)", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      // The agent never ticked the notice. The old code wrote consent_given: true anyway.
+      const notAttested = toImportDecisions({ expiredLeaseAction: "skip" })
+      const r = await runImport(bankRow("noconsent@example.co.za"), BANK_COLUMNS, notAttested, org, agentId, undefined, db)
+
+      const { data: acct, error: acctErr } = await db
+        .from("tenant_bank_accounts").select("consent_given, consent_given_at").eq("org_id", org).single()
+      expect(acctErr).toBeFalsy()
+      expect(acct?.consent_given, "no attestation ⇒ no consent").toBe(false)
+      expect(acct?.consent_given_at).toBeNull()
+
+      // The NEGATIVE record matters as much as the positive one — it is what a regulator would ask for.
+      const { data: consent, error: consentErr } = await db
+        .from("consent_log").select("consent_given, metadata").eq("org_id", org).eq("consent_type", "bank_details_import").single()
+      expect(consentErr).toBeFalsy()
+      expect(consent?.consent_given).toBe(false)
+      expect((consent?.metadata as { declaration?: string })?.declaration ?? "").toContain("WITHOUT")
+
+      expect(r.errors.some((e) => e.message.includes("without confirming you hold the tenant's consent"))).toBe(true)
     } finally {
       teardownOrg(org)
     }

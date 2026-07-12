@@ -37,6 +37,9 @@ export interface WizardDecisions {
   /** Step 3's per-row exceptions, keyed by index into the POSTed `rows`. "active" = "Keep active" (import this
    *  expired-looking lease as a live one anyway). "skip" = drop the row entirely. */
   perRowOverrides?: Record<number, "active" | "skip">
+  /** Step 2's POPIA bank-details notice: the agent attests they hold the tenants' consent to migrate banking
+   *  details. This acceptance used to terminate in the component's local state and reach nothing (F-10). */
+  bankConsentAttested?: boolean
 }
 
 /** The wizard's global expired-lease choice → the runner's vocabulary. */
@@ -96,5 +99,8 @@ export function toImportDecisions(wire: WizardDecisions | null | undefined): Imp
     expiredLeases,
     skipRows,
     forceActiveRows,
+    // Strictly true-or-not. Anything other than an explicit `true` means the agent did NOT attest, and the
+    // bank accounts are recorded as unconsented rather than being handed a manufactured consent.
+    bankConsentAttested: wire?.bankConsentAttested === true,
   }
 }

@@ -14,7 +14,8 @@ import {
   SA_PROVINCES, type Classification,
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
-import { normaliseBranchCode, hashBankAccount, maskBankAccount } from "./bankImport"
+import { normaliseBranchCode } from "./bankImport"
+import { bankAccountColumns } from "@/lib/crypto/bankAccount"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 
@@ -85,6 +86,10 @@ export interface ImportDecisions {
   /** Step 3's "Keep active" per-row exception: import this lease as LIVE even though its end date has passed.
    *  The wizard has always offered this checkbox; the runner had no concept of it, so it did nothing. */
   forceActiveRows: number[]
+  /** F-10: the agent attested, in Step 2, that they hold the tenants' consent to migrate banking details.
+   *  This is the AGENT'S declaration — never the data subject's consent. Undefined/false ⇒ bank accounts are
+   *  recorded as UNCONSENTED (they used to be written `consent_given: true` unconditionally). */
+  bankConsentAttested?: boolean
 }
 
 type TenantRole = "primary" | "co_tenant" | "previous"
@@ -811,6 +816,29 @@ async function insertSingleTenant(params: {
 
 // ── Bank account insertion ─────────────────────────────────────────────
 
+/** The version of the notice the agent attests against. Bump when the wording in Step 2 changes — the
+ *  consent_log row is only as meaningful as the text the agent actually agreed to. */
+const BANK_IMPORT_NOTICE_VERSION = "1.0-agency-migration"
+
+/**
+ * Import a tenant's bank accounts (F-10, F-11).
+ *
+ * TWO rulings land here.
+ *
+ * 1. ENCRYPTED, not masked-only (F-11). The importer used to store a mask plus a one-way hash — so the number
+ *    was UNRECOVERABLE, while the wizard told the agent it was "stored encrypted and used for deposit refund
+ *    processing". A mask cannot process a refund. `bankAccountColumns` now writes the mask (for display), the
+ *    AES-GCM ciphertext (in the `account_number_enc` column that has existed, unused, since migration 042) and
+ *    the deterministic lookup hash, together.
+ *
+ * 2. ATTESTATION, not manufactured consent (F-10). It used to write `consent_given: true` unconditionally —
+ *    a system asserting a consent record no one gave. The tenant is not in the room during a migration, and
+ *    an operator's click-through is not the data subject's POPIA consent. What IS truthfully recordable is
+ *    the AGENT's attestation that they hold that consent: an identified actor, a timestamp, a notice version.
+ *    `consent_given` now reflects that attestation (FALSE if the agent did not attest), the attestation is
+ *    written to `consent_log` as `bank_details_import`, and each account gets its own audit row — this is a
+ *    payout-fraud-adjacent surface, and `contact_bank_accounts` already treats it as one.
+ */
 async function insertTenantBankAccounts(
   tenantId: string,
   accountHolderName: string,
@@ -818,63 +846,94 @@ async function insertTenantBankAccounts(
   ctx: ImportContext
 ): Promise<void> {
   const accounts = [
-    {
-      accountField: "tenant_bank_account_1",
-      bankNameField: "tenant_bank_name_1",
-      branchField: "tenant_bank_branch_1",
-      isPrimary: true,
-    },
-    {
-      accountField: "tenant_bank_account_2",
-      bankNameField: "tenant_bank_name_2",
-      branchField: "tenant_bank_branch_2",
-      isPrimary: false,
-    },
+    { accountField: "tenant_bank_account_1", bankNameField: "tenant_bank_name_1", branchField: "tenant_bank_branch_1", isPrimary: true },
+    { accountField: "tenant_bank_account_2", bankNameField: "tenant_bank_name_2", branchField: "tenant_bank_branch_2", isPrimary: false },
   ]
+
+  const attested = ctx.decisions.bankConsentAttested === true
+  const attestedAt = new Date().toISOString()
+  let importedForThisTenant = 0
 
   for (const acc of accounts) {
     const rawAccount = getField(row, acc.accountField, ctx.mapping).trim()
     if (!rawAccount) continue
 
     const bankName = getField(row, acc.bankNameField, ctx.mapping).trim() || "Unknown"
-    const rawBranch = getField(row, acc.branchField, ctx.mapping).trim()
-    const branchCode = normaliseBranchCode(rawBranch)
+    const branchCode = normaliseBranchCode(getField(row, acc.branchField, ctx.mapping).trim())
 
     try {
-      const { error } = await ctx.supabase.from("tenant_bank_accounts").insert({
+      const { data: created, error } = await ctx.supabase.from("tenant_bank_accounts").insert({
         org_id: ctx.orgId,
         tenant_id: tenantId,
         bank_name: bankName,
         account_holder: accountHolderName,
-        account_number: maskBankAccount(rawAccount),
-        account_number_hash: hashBankAccount(rawAccount),
+        ...bankAccountColumns(rawAccount),   // mask + AES-GCM ciphertext + lookup hash, together
         branch_code: branchCode,
         source: "import",
         imported_from: "tpn",
         is_primary: acc.isPrimary,
-        consent_given: true,
-        consent_given_at: new Date().toISOString(),
-      })
+        // Reflects the AGENT'S ATTESTATION — never an assumed "true".
+        consent_given: attested,
+        consent_given_at: attested ? attestedAt : null,
+      }).select("id").single()
 
-      if (error) {
+      if (error || !created) {
         ctx.result.errors.push({
-          rowIndex: -1,
-          field: acc.accountField,
-          message: `Bank account insert failed: ${error.message}`,
-          severity: "warning",
+          rowIndex: -1, field: acc.accountField, severity: "warning",
+          message: `Bank account insert failed: ${error?.message ?? "unknown error"}`,
         })
-      } else {
-        ctx.result.bankAccountsImported++
+        continue
       }
+
+      ctx.result.bankAccountsImported++
+      importedForThisTenant++
+
+      // Per-account audit. recordAudit's sanitiser drops account_number_enc/_hash and masks account_number,
+      // so nothing sensitive reaches audit_log — but the fact of the write is now traceable.
+      await recordAudit(ctx.supabase, {
+        orgId: ctx.orgId, actorId: ctx.agentId, action: "INSERT",
+        table: "tenant_bank_accounts", recordId: String(created.id),
+        after: { source: "bulk_import", bank_name: bankName, is_primary: acc.isPrimary, consent_attested: attested },
+      })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error"
       ctx.result.errors.push({
-        rowIndex: -1,
-        field: acc.accountField,
-        message: `Bank account error: ${msg}`,
-        severity: "warning",
+        rowIndex: -1, field: acc.accountField, severity: "warning",
+        message: `Bank account error: ${err instanceof Error ? err.message : "Unknown error"}`,
       })
     }
+  }
+
+  if (importedForThisTenant === 0) return
+
+  // The attestation itself — one row per tenant whose banking details were migrated. Recorded whether or not
+  // the agent attested: a NEGATIVE record ("imported without an attestation of consent") is exactly as
+  // important as a positive one, and is the thing a regulator would ask for.
+  const { error: consentError } = await ctx.supabase.from("consent_log").insert({
+    org_id: ctx.orgId,
+    user_id: ctx.agentId,
+    subject_email: getField(row, "email", ctx.mapping).toLowerCase() || null,
+    consent_type: "bank_details_import",
+    consent_given: attested,
+    consent_version: BANK_IMPORT_NOTICE_VERSION,
+    metadata: {
+      tenant_id: tenantId,
+      accounts_imported: importedForThisTenant,
+      source: "bulk_import",
+      import_session_id: ctx.importSessionId ?? null,
+      // Says plainly what this row IS, so it can never be mistaken for the tenant's own consent.
+      declaration: attested
+        ? "Agency operator attested they hold the tenant's consent to migrate their banking details."
+        : "Banking details migrated WITHOUT an attestation of tenant consent.",
+    },
+  })
+  logIfError("importRunner consent_log (bank_details_import)", consentError)
+
+  if (!attested) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "tenant_bank_account_1", severity: "warning",
+      message: "Bank details were imported without confirming you hold the tenant's consent. They are recorded " +
+        "as unconsented — obtain consent and update each account before using them.",
+    })
   }
 }
 
