@@ -58,6 +58,11 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "sa id": { field: "id_number", entity: "tenant" },
   identity_number: { field: "id_number", entity: "tenant" },
   "identity number": { field: "id_number", entity: "tenant" },
+  // PayProp writes ONE column for both. The distinction matters downstream (a passport has no checksum), but
+  // an unmapped column means the identity is silently dropped — worse than a mixed one we can classify on read.
+  "id/passport": { field: "id_number", entity: "tenant" },
+  "id / passport": { field: "id_number", entity: "tenant" },
+  "id or passport": { field: "id_number", entity: "tenant" },
   employer_name: { field: "employer_name", entity: "tenant" },
   "employer name": { field: "employer_name", entity: "tenant" },
   employer: { field: "employer_name", entity: "tenant" },
@@ -80,6 +85,8 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   citizenship: { field: "nationality", entity: "tenant" },
   company_name: { field: "company_name", entity: "tenant" },
   "company name": { field: "company_name", entity: "tenant" },
+  maatskappy: { field: "company_name", entity: "tenant" },
+  maatskappynaam: { field: "company_name", entity: "tenant" },
   organisation_name: { field: "company_name", entity: "tenant" },
   registration_number: { field: "registration_number", entity: "tenant" },
   "registration number": { field: "registration_number", entity: "tenant" },
@@ -133,6 +140,16 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "unit name": { field: "unit_number", entity: "unit" },
   flat_number: { field: "unit_number", entity: "unit" },
   "flat number": { field: "unit_number", entity: "unit" },
+
+  // ── Headers the STRESS HARNESS proved we did not recognise (test/db/import-stress.dbtest.ts).
+  //    Each of these is a real exporter's real column, and each failure was silent, not loud:
+  //    "Unit No" (PayProp) unmapped meant every tenant in a property collapsed into ONE unit — five leases
+  //    became one, and four tenants became co-tenants of a lease they had nothing to do with, with no message.
+  "unit no": { field: "unit_number", entity: "unit" },
+  "unit #": { field: "unit_number", entity: "unit" },
+  "unit no.": { field: "unit_number", entity: "unit" },
+  "door number": { field: "unit_number", entity: "unit" },
+  "door no": { field: "unit_number", entity: "unit" },
   address: { field: "address", entity: "unit" },
   address_line1: { field: "address", entity: "unit" },
   "address line 1": { field: "address", entity: "unit" },
@@ -187,6 +204,9 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   // Lease fields
   lease_start: { field: "lease_start", entity: "lease" },
   "lease start": { field: "lease_start", entity: "lease" },
+  // af-ZA: an Excel installed in South Africa writes these. Unmapped, `lease_start` is absent — and lease_start
+  // is REQUIRED, so the harness's Afrikaans book imported ZERO leases out of 100. A whole agency, refused.
+  "huur begin": { field: "lease_start", entity: "lease" },
   lease_start_date: { field: "lease_start", entity: "lease" },
   "lease start date": { field: "lease_start", entity: "lease" },
   start_date: { field: "lease_start", entity: "lease" },
@@ -195,6 +215,9 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "commencement date": { field: "lease_start", entity: "lease" },
   lease_end: { field: "lease_end", entity: "lease" },
   "lease end": { field: "lease_end", entity: "lease" },
+  "huur eindig": { field: "lease_end", entity: "lease" },
+  // TPN — the largest tenant bureau in the country. We did not recognise their END-DATE column.
+  "termination date": { field: "lease_end", entity: "lease" },
   lease_end_date: { field: "lease_end", entity: "lease" },
   "lease end date": { field: "lease_end", entity: "lease" },
   end_date: { field: "lease_end", entity: "lease" },
@@ -202,6 +225,10 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   expiry_date: { field: "lease_end", entity: "lease" },
   "expiry date": { field: "lease_end", entity: "lease" },
   rent_amount_cents: { field: "rent_amount_cents", entity: "lease" },
+  // TPN writes "Rental Amount". We did not recognise the RENT column of the biggest bureau in South Africa —
+  // and rent is required, so their export could not produce a single lease.
+  "rental amount": { field: "rent_amount_cents", entity: "lease" },
+  rental: { field: "rent_amount_cents", entity: "lease" },
   monthly_rent: { field: "rent_amount_cents", entity: "lease" },
   "monthly rent": { field: "rent_amount_cents", entity: "lease" },
   rent: { field: "rent_amount_cents", entity: "lease" },
@@ -456,6 +483,11 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "entity state 1": { field: "__entity_state", entity: "filter" },
   status: { field: "__entity_state", entity: "filter" },
   "contact type": { field: "__entity_type", entity: "filter" },
+  // af-ZA. Unmapped, EVERY row routes as a tenant (blank type ⇒ tenant) — so an Afrikaans book's landlords,
+  // suppliers and agents were silently processed as tenants and produced nothing at all.
+  tipe: { field: "__entity_type", entity: "filter" },
+  kontaktipe: { field: "__entity_type", entity: "filter" },
+  "kontak tipe": { field: "__entity_type", entity: "filter" },
   type: { field: "__entity_type", entity: "filter" },
   entitytype1: { field: "__entity_type", entity: "filter" },
   "entity type 1": { field: "__entity_type", entity: "filter" },

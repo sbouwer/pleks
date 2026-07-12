@@ -317,6 +317,7 @@ function buildUnitGroups(
   skipSet: Set<number>
 ): Map<string, UnitGroup> {
   const unitGroups = new Map<string, UnitGroup>()
+  const unitColumnMapped = Object.values(ctx.mapping).some((m) => m.field === "unit_number")
 
   // `i` is the row's index IN THE FILE, not its position among the tenant rows. It is what every ImportError
   // reports, and it is the key `skipRows` / `conflicts` are expressed in — indexing the tenant subset instead
@@ -339,6 +340,25 @@ function buildUnitGroups(
 
     const existing = unitGroups.get(unitKey)
     if (existing) {
+      // SILENT MERGE GUARD. Extra rows in a unit group are treated as CO-TENANTS — which is right when the file
+      // really says two people share a unit. But if no unit column was mapped at all, every unit normalises to
+      // "1", so every tenant in a property collapses into ONE lease and the others become co-tenants of a lease
+      // they have nothing to do with. The stress harness caught exactly this on a PayProp export ("Unit No" was
+      // not a recognised header): five leases became one, four tenants were absorbed, and NOTHING was reported.
+      //
+      // Aliases fix the exporters we have seen. This fixes the ones we have not: if the co-tenancy is an
+      // artefact of a missing column rather than a fact in the file, say so.
+      if (!unitColumnMapped) {
+        ctx.result.errors.push({
+          rowIndex: i,
+          field: "unit_number",
+          severity: "warning",
+          message:
+            `No unit column was mapped, so this row was treated as a CO-TENANT of the lease created for ` +
+            `"${propertyName || "(unnamed property)"}" rather than as its own lease. If these are separate ` +
+            `units, map the unit column and re-run — otherwise separate tenants will share one lease.`,
+        })
+      }
       existing.rows.push({ index: i, row, role })
     } else {
       unitGroups.set(unitKey, { propertyName, unitNumber, rows: [{ index: i, row, role }] })
@@ -1351,6 +1371,27 @@ function leaseClassifications(
     out[col.field] = result.value
   }
 
+  // "NO ESCALATION" → fixed @ 0%. The column cannot hold "none" (CHECK: fixed|cpi|prime_plus), but a lease
+  // whose rent simply does not increase is ordinary, and we used to REFUSE every one of those rows.
+  //
+  // The zero must be FORCED, not merely allowed. `escalation_percent` is NOT NULL DEFAULT 10.00, so a "None"
+  // row whose percentage cell is blank — which is exactly how a real book writes it — would otherwise import
+  // as a 10% compounding annual increase. A lease that says "no increase" silently becoming a 10% increase is
+  // the whole bug class in one line, and it is charged to a tenant every year for the life of the lease.
+  if (out.escalation_type === "none") {
+    const stated = out.escalation_percent
+    if (typeof stated === "number" && stated !== 0) {
+      // The file says BOTH "no escalation" AND a rate. One of the two cells is wrong and we cannot know which.
+      refuse(ctx, rowIndex, "escalation_type",
+        `This lease says its escalation is "none" but also gives a rate of ${stated}%. Those cannot both be ` +
+        `true, and guessing which one the agency meant would either give a tenant an increase they never ` +
+        `agreed to, or take one away from a landlord. The lease was NOT imported — correct one of the two cells.`)
+      return null
+    }
+    out.escalation_type = "fixed"
+    out.escalation_percent = 0
+  }
+
   return out
 }
 
@@ -2120,6 +2161,8 @@ interface RoutedRows {
   vendorRows: IndexedRow[]
   landlordRows: IndexedRow[]
   agentRows: IndexedRow[]
+  /** Rows whose `__entity_type` we do not recognise. NOT a silent drop — the caller reports every one. */
+  unknownRows: Array<IndexedRow & { entityType: string }>
 }
 
 function routeRowsByType(
@@ -2131,10 +2174,14 @@ function routeRowsByType(
     vendorRows: [],
     landlordRows: [],
     agentRows: [],
+    unknownRows: [],
   }
 
   for (const [index, row] of rows.entries()) {
-    const raw = getField(row, "__entity_type", mapping).toLowerCase().trim()
+    // Keep the agency's own text. When we report a row we could not route, we quote what THEY wrote — echoing a
+    // lowercased version back at them makes the message read like it is about some other file.
+    const original = getField(row, "__entity_type", mapping).trim()
+    const raw = original.toLowerCase()
     // Strip individual/company qualifiers so "contractor individual", "landlord company" etc. all normalize cleanly
     const entityType = raw
       .replace(/\b(individual|person|company|organisation|organization|cc|pty\s*ltd|ltd|inc)\b/g, "")
@@ -2173,7 +2220,11 @@ function routeRowsByType(
         result.agentRows.push({ row, index })
         break
       default:
-        // Unknown entity type — skip silently
+        // An entity type we do not recognise. This USED TO `break` with the comment "skip silently" — the row
+        // was not imported, not counted in `skipped`, and not reported. A whole class of an agency's book
+        // ("Guarantor", "Beneficiary", a typo'd "Tennant") could vanish between the file and the database with
+        // nothing anywhere saying so. Route it to `unknownRows` and let the caller SAY it was not imported.
+        result.unknownRows.push({ row, index, entityType: original })
         break
     }
   }
@@ -2772,6 +2823,21 @@ export async function runImport(
 
   // Route rows by entity type
   const routed = routeRowsByType(rows, mapping)
+
+  // REPORT-HONESTY: imported + flagged + skipped must account for every row in the file. A row we cannot route
+  // is a row we did not import, and the agency must be told which one and why — not left to discover it missing.
+  for (const unknown of routed.unknownRows) {
+    ctx.result.skipped++
+    ctx.result.errors.push({
+      rowIndex: unknown.index,
+      field: "__entity_type",
+      message:
+        `This row is a "${unknown.entityType}", which is not a record type Pleks imports (tenant, landlord, ` +
+        `supplier or agent). It was NOT imported. If it is one of those under another name, map its type ` +
+        `column accordingly and re-run; otherwise it is safe to leave out.`,
+      severity: "warning",
+    })
+  }
 
   // Build conflict lookup (applies to tenant rows only)
   const skipSet = new Set<number>(decisions.skipRows ?? [])

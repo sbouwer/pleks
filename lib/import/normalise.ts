@@ -10,10 +10,36 @@
  *         rent, deposit and the trust ledger. When the format is genuinely ambiguous it returns null (flag to
  *         the agent) rather than guess. Everything returns null on anything it cannot confidently parse.
  */
-import { isSaDateISO } from "@/lib/dates"
+import { isSaDateISO, addCalendarDays } from "@/lib/dates"
 
 const ISO_DATE_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})$/
 const DMY_DATE_RE = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/
+/** A bare 5-digit integer in a DATE column. To Excel that is a date; to everything else it is garbage. */
+const EXCEL_SERIAL_RE = /^\d{5}$/
+
+/**
+ * Excel's serial dates. A column formatted as a date in Excel holds an INTEGER — 46082, not "2026-03-01" —
+ * and any export path that does not ask Excel to format it hands you that integer verbatim. The importer
+ * refused every one of those rows, which is honest but means an ordinary XLSX book cannot be imported at all.
+ *
+ * The bound is what makes this safe. Only a FIVE-DIGIT integer is treated as a serial (roughly 1927–2173), so
+ * a four-digit year like "2024" can never be silently reinterpreted as 1905-07-16 — the reading that would
+ * turn a typo'd date column into confident nonsense. Outside the window we still return null and flag.
+ */
+const EXCEL_EPOCH = "1899-12-30"         // Excel day 0 (the offset absorbs its phantom 1900-02-29)
+const SERIAL_MIN = 10_000                // 1927
+const SERIAL_MAX = 99_999                // 2173
+
+/**
+ * An Excel serial is CALENDAR-DAY ARITHMETIC off a fixed epoch — so it goes through `addCalendarDays`, the
+ * dates SSOT, not through a hand-rolled `new Date(ms).toISOString()`. That hand-rolled form is a timezone
+ * resolution wearing a calendar's clothes, and `pleks/no-adhoc-dates` exists precisely to stop me writing it.
+ */
+function fromExcelSerial(serial: number): string | null {
+  if (serial < SERIAL_MIN || serial > SERIAL_MAX) return null
+  const iso = addCalendarDays(EXCEL_EPOCH, serial)
+  return isSaDateISO(iso) ? iso : null
+}
 
 /**
  * Normalise a date string (DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD) to YYYY-MM-DD, or null if it is not a
@@ -36,6 +62,9 @@ export function normaliseDate(raw: string): string | null {
     const candidate = `${dmyMatch[3]}-${dmyMatch[2]?.padStart(2, "0")}-${dmyMatch[1]?.padStart(2, "0")}`
     return isSaDateISO(candidate) ? candidate : null
   }
+
+  // An Excel serial. Last, so it can never shadow a real date format.
+  if (EXCEL_SERIAL_RE.test(trimmed)) return fromExcelSerial(Number(trimmed))
 
   return null
 }

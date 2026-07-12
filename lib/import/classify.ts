@@ -30,6 +30,20 @@ export type Classification<T> = { ok: true; value: T } | { ok: false; raw: strin
 export type LeaseType = "residential" | "commercial"
 export type EscalationType = "fixed" | "cpi" | "prime_plus"
 
+/**
+ * What an agency's escalation cell can SAY — which is one value wider than what the column can HOLD.
+ *
+ * `leases.escalation_type` is CHECK (fixed|cpi|prime_plus): there is no "none". But "None" / "No escalation" /
+ * "Geen" is an ordinary thing for a real lease to say, and the importer used to REFUSE those rows outright.
+ * Refusing is honest, but it is still a book the agency cannot import.
+ *
+ * "No escalation" is exactly representable as FIXED at ZERO PERCENT — same arithmetic, no schema change. The
+ * runner performs that translation, and it must FORCE the zero: `escalation_percent` is NOT NULL DEFAULT 10.00,
+ * so a "None" row with a blank percentage cell would otherwise import as a 10% annual escalation. A lease that
+ * says "no increase" becoming a 10% compounding increase is the bug class in its purest form.
+ */
+export type EscalationBasis = EscalationType | "none"
+
 /** Split a cell into lowercase word tokens ("Semi-Commercial" → ["semi","commercial"]). */
 function words(raw: string): Set<string> {
   return new Set(raw.toLowerCase().split(/[^a-z]+/).filter(Boolean))
@@ -75,14 +89,17 @@ export function classifyLeaseType(raw: string): Classification<LeaseType> {
  * Classify a raw `escalation_type` cell. "fixed" must be STATED, not inferred from silence, and a cell naming
  * two bases ("CPI or Prime") is contradictory rather than first-match.
  */
-export function classifyEscalationType(raw: string): Classification<EscalationType> {
+export function classifyEscalationType(raw: string): Classification<EscalationBasis> {
   const w = words(raw)
   if (w.size === 0) return { ok: false, raw }
 
-  const hits: EscalationType[] = []
+  const hits: EscalationBasis[] = []
   if (w.has("cpi") || w.has("inflation") || (w.has("consumer") && w.has("price"))) hits.push("cpi")
   if (w.has("prime")) hits.push("prime_plus")
   if (w.has("fixed") || w.has("vaste") || w.has("vast")) hits.push("fixed")
+  // "No escalation" is a real lease term, not a blank cell. The caller translates it to fixed @ 0%.
+  if (w.has("none") || w.has("nil") || w.has("geen") || w.has("na") ||
+      (w.has("no") && w.has("escalation"))) hits.push("none")
 
   const only = hits.length === 1 ? hits[0] : undefined
   return only ? { ok: true, value: only } : { ok: false, raw }
