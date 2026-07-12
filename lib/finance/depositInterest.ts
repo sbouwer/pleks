@@ -57,6 +57,7 @@ export async function accrueDepositInterest(
       deposit_account_id, trust_account_id,
       deposit_amount_cents,
       deposit_interest_rate_percent,
+      deposit_rate_status,
       deposit_interest_last_accrued_date,
       start_date
     `)
@@ -65,6 +66,14 @@ export async function accrueDepositInterest(
     logQueryError("accrueDepositInterest leases", leaseError)
 
   if (!lease?.deposit_amount_cents) {
+    return { interestCents: 0, fromDate: upToDate, toDate: upToDate, ratePercent: 0 }
+  }
+
+  // HOLD. A migrated deposit whose interest rate is not known anywhere must NOT accrue — see the fallback
+  // below, which would otherwise invent 5% p.a. on money the agency holds in trust for somebody else. An
+  // under-accrual short-changes the tenant, an over-accrual short-changes the landlord, and neither is
+  // discoverable from the ledger afterwards. Held until an agent sets the rate (flipping this to 'set').
+  if (lease.deposit_rate_status === "imported_not_set") {
     return { interestCents: 0, fromDate: upToDate, toDate: upToDate, ratePercent: 0 }
   }
 
@@ -104,7 +113,14 @@ export async function accrueDepositInterest(
     ratePercent = resolved
     rateConfigId = config.id
   } else {
-    // Fall back to per-lease rate
+    // Fall back to per-lease rate.
+    //
+    // ⚠ PRE-EXISTING FAIL-OPEN, deliberately left alone (out of scope of the import ruling): with no config
+    // AND no per-lease rate, this accrues at a HARD-CODED 5% p.a. — a rate nobody chose, applied to money held
+    // in trust for someone else. A MIGRATED lease can never reach it (deposit_rate_status holds it above), so
+    // the import path is safe. But a wizard lease whose agent left the rate blank still lands here, and
+    // removing the fallback would silently STOP accrual on live leases — a different harm, and not mine to
+    // choose. → NEEDS A RULING: hold (accrue nothing until a rate is set) or keep inventing 5%?
     ratePercent = lease.deposit_interest_rate_percent ?? 5
   }
 

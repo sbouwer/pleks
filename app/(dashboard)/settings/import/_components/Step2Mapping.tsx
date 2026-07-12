@@ -68,6 +68,7 @@ const ALL_FIELDS = [
   { value: "lease_end", label: "Lease end", entity: "lease" },
   { value: "rent_amount_cents", label: "Monthly rent", entity: "lease" },
   { value: "deposit_amount_cents", label: "Deposit", entity: "lease" },
+  { value: "deposit_interest_rate_percent", label: "Deposit interest rate %", entity: "lease" },
   { value: "escalation_percent", label: "Escalation %", entity: "lease" },
   { value: "escalation_type", label: "Escalation type", entity: "lease" },
   { value: "escalation_review_date", label: "Escalation review date", entity: "lease" },

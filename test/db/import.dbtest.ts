@@ -21,6 +21,7 @@ import { runImport, type ColumnMapping, type ImportDecisions, type ImportResult 
 import { toImportDecisions } from "@/lib/import/decisions"
 import { saTodayISO, addCalendarMonths } from "@/lib/dates"
 import { decryptBankAccount, hashBankAccount } from "@/lib/crypto/bankAccount"
+import { accrueDepositInterest } from "@/lib/finance/depositInterest"
 
 const db = svc()
 
@@ -515,6 +516,138 @@ describe("bulk import — against the real schema", () => {
       expect((consent?.metadata as { declaration?: string })?.declaration ?? "").toContain("WITHOUT")
 
       expect(r.errors.some((e) => e.message.includes("without confirming you hold the tenant's consent"))).toBe(true)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  // ── Deposits the agency ALREADY HOLDS: the rate ladder, and the opening balance ──
+
+  const DEPOSIT_COLUMNS: ColumnMapping = {
+    ...mapping,
+    Deposit: { column: "Deposit", field: "deposit_amount_cents", entity: "lease" },
+  }
+  const WITH_RATE: ColumnMapping = {
+    ...DEPOSIT_COLUMNS,
+    "Deposit Rate": { column: "Deposit Rate", field: "deposit_interest_rate_percent", entity: "lease" },
+  }
+  const depositRow = (extra: Record<string, string> = {}): Record<string, string>[] => [{
+    Property: "Deposit Court", Address: "7 Deposit Rd", City: "Cape Town", Province: "WC", Unit: "1",
+    "First Name": "Kagiso", "Last Name": "Sithole", Email: "kagiso@example.co.za",
+    "Lease Start": dmy(-6), "Lease End": dmy(+6),
+    monthly_rent_cents: "700000", "Lease Type": "Residential",
+    Deposit: "14000",   // R14 000 in RANDS (the "Deposit" header is not cents-denominated — see F-8)
+    ...extra,
+  }]
+
+  it("HOLDS accrual when no rate is known — it must never invent one on money held in trust", async () => {
+    // accrueDepositInterest falls back to a HARD-CODED 5% p.a. when it finds no config and no per-lease rate.
+    // Applying an invented rate to someone else's money is the wrong kind of wrong: an under-accrual
+    // short-changes the tenant, an over-accrual the landlord, and neither is discoverable from the ledger later.
+    const org = await seedEmptyOrg(db)
+    try {
+      const d = { ...toImportDecisions({ expiredLeaseAction: "skip" }), depositsHeldAttested: true }
+      const r = await runImport(depositRow(), DEPOSIT_COLUMNS, d, org, agentId, undefined, db)
+
+      const { data: lease, error } = await db
+        .from("leases").select("id, deposit_amount_cents, deposit_interest_rate_percent, deposit_rate_status")
+        .eq("org_id", org).single()
+      expect(error).toBeFalsy()
+
+      expect(lease?.deposit_amount_cents).toBe(1_400_000)
+      expect(lease?.deposit_rate_status, "no rate anywhere ⇒ HELD").toBe("imported_not_set")
+      expect(lease?.deposit_interest_rate_percent, "and certainly not a guessed 5%").toBeNull()
+
+      // The hold is REAL: the accrual engine accrues nothing, rather than 5%.
+      const accrued = await accrueDepositInterest(lease!.id as string, new Date())
+      expect(accrued.interestCents, "a held deposit accrues NOTHING").toBe(0)
+      expect(accrued.ratePercent).toBe(0)
+
+      expect(r.errors.some((e) => e.message.includes("will not guess a rate")), "and the agent is told").toBe(true)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("takes the rate FROM THE FILE when the agency's export carries it (af-ZA decimal comma included)", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const d = { ...toImportDecisions({ expiredLeaseAction: "skip" }), depositsHeldAttested: true }
+      await runImport(depositRow({ "Deposit Rate": "7,25" }), WITH_RATE, d, org, agentId, undefined, db)
+
+      const { data: lease, error: lErr } = await db
+        .from("leases").select("deposit_interest_rate_percent, deposit_rate_status").eq("org_id", org).single()
+      expect(lErr).toBeFalsy()
+      expect(Number(lease?.deposit_interest_rate_percent), '"7,25" is 7.25 — not 7').toBe(7.25)
+      expect(lease?.deposit_rate_status, "a known rate is not a hold").toBe("set")
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("uses the AGENCY'S CONFIGURED rate — a deliberate config, never the org column's 5.00 schema DEFAULT", async () => {
+    // organisations.deposit_interest_rate_percent carries DEFAULT 5.00, so it cannot distinguish "the agency
+    // chose 5%" from "nobody chose" — reading it would mean every agency has a rate and the hold could never
+    // fire. A deposit_interest_config row CAN: somebody created it, effective-dated, with a created_by.
+    const org = await seedEmptyOrg(db)
+    try {
+      const { error: cfgErr } = await db.from("deposit_interest_config").insert({
+        org_id: org, rate_type: "fixed", fixed_rate_percent: 6.5,
+        effective_from: addCalendarMonths(saTodayISO(), -12), created_by: agentId,
+      })
+      expect(cfgErr).toBeFalsy()
+
+      const d = { ...toImportDecisions({ expiredLeaseAction: "skip" }), depositsHeldAttested: true }
+      await runImport(depositRow(), DEPOSIT_COLUMNS, d, org, agentId, undefined, db)
+
+      const { data: lease, error: lErr } = await db.from("leases").select("deposit_rate_status").eq("org_id", org).single()
+      expect(lErr).toBeFalsy()
+      // NOT held — the agency has a real rate, and the accrual hierarchy will resolve it.
+      expect(lease?.deposit_rate_status).toBe("set")
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("posts the deposit as an OPENING BALANCE — and a re-run does not double-post real money", async () => {
+    const org = await seedEmptyOrg(db)
+    try {
+      const d = { ...toImportDecisions({ expiredLeaseAction: "skip" }), depositsHeldAttested: true }
+      const r1 = await runImport(depositRow(), DEPOSIT_COLUMNS, d, org, agentId, undefined, db)
+      expect(r1.depositsMigratedCents).toBe(1_400_000)
+
+      // Both sub-ledgers, committed together by record_deposit_atomic.
+      expect(await countOf("deposit_transactions", org)).toBe(1)
+      expect(await countOf("trust_transactions", org)).toBe(1)
+
+      // The importer is re-runnable BY DESIGN (it is the documented remedy for a rejected row), so a
+      // non-idempotent trust posting would duplicate an agency's ENTIRE deposit book on the second run.
+      const r2 = await runImport(depositRow(), DEPOSIT_COLUMNS, d, org, agentId, undefined, db)
+      expect(r2.depositsMigratedCents, "a re-run posts nothing").toBe(0)
+      expect(await countOf("deposit_transactions", org), "still one deposit").toBe(1)
+      expect(await countOf("trust_transactions", org), "still one trust posting").toBe(1)
+    } finally {
+      teardownOrg(org)
+    }
+  })
+
+  it("WITHOUT the cutover attestation, NOTHING is posted to the trust ledger (fail-closed)", async () => {
+    // Posting into a trust ledger asserts a bank reality Pleks cannot see. A ledger that silently disagrees
+    // with the bank is worse than an empty one.
+    const org = await seedEmptyOrg(db)
+    try {
+      const notAttested = toImportDecisions({ expiredLeaseAction: "skip" })   // depositsHeldAttested = false
+      const r = await runImport(depositRow(), DEPOSIT_COLUMNS, notAttested, org, agentId, undefined, db)
+
+      expect(r.depositsMigratedCents).toBe(0)
+      expect(await countOf("deposit_transactions", org), "nothing posted").toBe(0)
+      expect(await countOf("trust_transactions", org), "nothing posted to trust").toBe(0)
+
+      // …but the amount is still recorded on the lease, and the agent is told WHY it is not in the ledger.
+      const { data: lease, error: lErr } = await db.from("leases").select("deposit_amount_cents").eq("org_id", org).single()
+      expect(lErr).toBeFalsy()
+      expect(lease?.deposit_amount_cents).toBe(1_400_000)
+      expect(r.errors.some((e) => e.message.includes("has no principal"))).toBe(true)
     } finally {
       teardownOrg(org)
     }
