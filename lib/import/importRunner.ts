@@ -18,6 +18,7 @@ import { normaliseBranchCode } from "./bankImport"
 import { bankAccountColumns } from "@/lib/crypto/bankAccount"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
+import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -1219,6 +1220,50 @@ function optionalLeaseFields(
   return out
 }
 
+/**
+ * The CPA applicability SNAPSHOT (F-16). `legalCitations.cpaGoverns` — the gate that decides whether a
+ * Demand-to-Vacate or final notice cites the CPA's cure period — reads ONLY `cpa_applies_at_signing`, the
+ * 3-state column. It is never `cpa_applies` (the creation-time boolean). The importer wrote neither, so every
+ * imported lease had `cpa_applies_at_signing = NULL` and the CPA basis could never render for a migrated book.
+ *
+ * Routed through `determineCpaApplicability` — the same pure SSOT `markAsSigned()` uses, not a second opinion.
+ * The importer knows the tenant's entity type and nothing else, so honestly:
+ *   individual   → "yes" (CPA s5(2): a natural person is always a consumer)
+ *   organisation → "indeterminate" (juristic size bands are in no import format) → the agent must resolve it,
+ *                  exactly as a wizard-created juristic lease must before it can be activated.
+ */
+function cpaSnapshot(
+  row: Record<string, string>, rowIndex: number, ctx: ImportContext,
+): Record<string, unknown> {
+  const { firstName, lastName, companyName } = resolveName(row, ctx.mapping)
+  const entityType = resolveEntityType(companyName, companyName || `${firstName} ${lastName}`.trim())
+
+  const determination = determineCpaApplicability({
+    tenant: {
+      entityType,
+      juristicType: null,
+      turnoverUnder2m: null,      // not in any import format
+      assetValueUnder2m: null,
+      sizeBandsCapturedAt: null,
+    },
+    lease: { isFranchiseAgreement: false },
+  })
+
+  if (determination.applies === "indeterminate") {
+    flagForReview(ctx, rowIndex, "cpa_applies",
+      "This tenant is a juristic person, so whether the CPA applies depends on their turnover and asset value — " +
+      "which no import format carries. Capture the size bands on the lease; until then a statutory notice cannot " +
+      "cite the CPA for it.")
+  }
+
+  return {
+    cpa_applies_at_signing: determination.applies,
+    cpa_determination_category: determination.category,
+    cpa_determination_notes: determination.notes,
+    cpa_determined_at: new Date().toISOString(),
+  }
+}
+
 function buildLeaseData(
   row: Record<string, string>,
   unitId: string,
@@ -1254,6 +1299,7 @@ function buildLeaseData(
       // NO payment_method: `leases` has no such column. Writing it made PostgREST reject EVERY lease insert
       // ("Could not find the 'payment_method' column ... in the schema cache"). Its aliases are gone too.
       ...classifications,
+      ...cpaSnapshot(row, rowIndex, ctx),
       ...optionalLeaseFields(row, rowIndex, ctx),
     },
   }

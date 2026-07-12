@@ -68,7 +68,7 @@ export function CpaNoticeScheduleTab({ orgId, filters }: Readonly<Props>) {
                         <td className="py-2 pr-2 text-xs">{r.property_name}</td>
                         <td className="py-2 px-2 text-xs">{r.lease_end}</td>
                         <td className="text-right py-2 px-2 text-xs">{r.days_remaining}</td>
-                        <td className="py-2 px-2 text-xs">{r.notice_due_by}</td>
+                        <td className="py-2 px-2 text-xs">{r.notice_due_by ?? "—"}</td>
                         <td className={`py-2 text-xs capitalize ${statusClass}`}>{r.status}</td>
                       </tr>
                     )

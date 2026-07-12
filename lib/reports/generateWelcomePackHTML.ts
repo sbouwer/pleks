@@ -418,7 +418,7 @@ function buildPage5(data: WelcomePackData): string {
              <td>${n.unit}</td>
              <td>${n.property}</td>
              <td>${formatDateLocal(n.lease_end)}</td>
-             <td class="text-warning">${formatDateLocal(n.notice_due_by)}</td>
+             <td class="text-warning">${n.notice_due_by ? formatDateLocal(n.notice_due_by) : "—"}</td>
              <td class="text-right">${n.days_remaining}</td>
            </tr>
          `).join("")}

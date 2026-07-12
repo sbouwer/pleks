@@ -20,7 +20,7 @@ import { LeaseTerminatedEmail } from "@/lib/comms/templates/tenant/leases/lease-
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, fmtDateLongZA, saTodayISO } from "@/lib/dates"
-import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
+import { cpaRenewalNoticeDueSafe, CPA_RENEWAL_CANDIDATE_BAND_DAYS } from "@/lib/leases/cpaRenewal"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 
@@ -211,7 +211,7 @@ export async function GET(req: Request) {
   // leases expiring within the notice horizon (120 calendar days comfortably contains the 80-business-day
   // window ≈ 112 days AND keeps every backward walk inside the holiday table), then the strict walker gives
   // each lease its exact due date. See lib/leases/cpaRenewal + ADDENDUM_70K §6.
-  const renewalBandEnd = addCalendarDays(today, 120)
+  const renewalBandEnd = addCalendarDays(today, CPA_RENEWAL_CANDIDATE_BAND_DAYS)
   const { data: renewalCandidates, error: needNoticeError } = await supabase
     .from("leases")
     .select("id, org_id, tenant_id, end_date, unit_id, units(unit_number, properties(name))")

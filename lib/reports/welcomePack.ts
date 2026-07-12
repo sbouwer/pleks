@@ -5,7 +5,6 @@
  * Notes: CPA notice window = 40 days; compliance section looks 12 months forward for escalations
  */
 import { createServiceClient } from "@/lib/supabase/server"
-import { addCalendarDays } from "@/lib/dates"
 import type {
   WelcomePackData,
   WelcomePackProperty,
@@ -14,10 +13,13 @@ import type {
   WelcomePackCpaNotice,
   WelcomePackEscalation,
 } from "./types"
+import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
 
-// CPA s14 notice must be sent at least 40 days before lease end
-const CPA_NOTICE_WINDOW_DAYS = 40
-// Show CPA warning when ≤ 80 days remain (40 days to act + 40 day notice)
+// CPA s14 notice-due date comes from lib/leases/cpaRenewal — the declared SSOT — NOT from local arithmetic.
+// This file used to compute `end_date − 40 CALENDAR days`, which is wrong twice: the statute counts BUSINESS
+// days, and 40 is the FLOOR of the 40–80 bd window (the last lawful day), not the date to aim for. It was the
+// third of three independent computations of the same statutory date, all disagreeing.
+// Show the CPA warning when ≤ 80 days remain.
 const CPA_WARNING_THRESHOLD_DAYS = 80
 const MS_PER_DAY = 86400000
 
@@ -243,7 +245,8 @@ export async function buildWelcomePackData(
         unit: u.unit_number,
         property: prop?.name ?? "",
         lease_end: u.lease_end!,
-        notice_due_by: addCalendarDays(u.lease_end!, -CPA_NOTICE_WINDOW_DAYS),
+        // 60-business-day target, holiday-aware; null past the table's horizon rather than invented.
+        notice_due_by: cpaRenewalNoticeDueSafe(u.lease_end!),
         days_remaining: u.days_remaining!,
       }
     })
