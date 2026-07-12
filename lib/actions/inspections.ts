@@ -15,6 +15,7 @@
 import * as React from "react"
 import { SupabaseClient } from "@supabase/supabase-js"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { isRowInOrg } from "@/lib/auth/orgScope"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { routeAndSend } from "@/lib/messaging/router"
@@ -137,6 +138,21 @@ async function fireStatusComm(
   }
 }
 
+/** F-2: validate the client-supplied inspection FKs all belong to the caller's org. Returns an error message
+ *  (deliberately coarse — does not reveal which id / whether it exists) or null when every FK is in-org. */
+async function assertInspectionFksInOrg(
+  db: SupabaseClient,
+  ids: { unitId: string; propertyId: string; leaseId: string | null; tenantId: string | null },
+  orgId: string,
+): Promise<string | null> {
+  if (!(await isRowInOrg(db, "units", ids.unitId, orgId)) || !(await isRowInOrg(db, "properties", ids.propertyId, orgId))) {
+    return "Unit or property not found"
+  }
+  if (ids.leaseId && !(await isRowInOrg(db, "leases", ids.leaseId, orgId))) return "Lease not found"
+  if (ids.tenantId && !(await isRowInOrg(db, "tenants", ids.tenantId, orgId))) return "Tenant not found"
+  return null
+}
+
 export async function createInspection(formData: FormData) {
   const gw = await requireAgentWriteAccess("sign_off_inspection")
   const { db, userId, orgId } = gw
@@ -148,6 +164,12 @@ export async function createInspection(formData: FormData) {
   const inspectionType = formData.get("inspection_type") as string
   const leaseType = formData.get("lease_type") as string || "residential"
   const scheduledDate = formData.get("scheduled_date") as string || null
+
+  // F-2 (AUDIT_IMPORT): every FK here is client-supplied FormData. The insert stamps org_id: orgId (so the
+  // org-scope-on-write lint is satisfied) but the REFERENCED rows must also belong to this org — otherwise an
+  // agent can create an inspection against another org's unit, seed rooms from it, and email that org's tenant.
+  const fkError = await assertInspectionFksInOrg(db, { unitId, propertyId, leaseId, tenantId }, orgId)
+  if (fkError) return { error: fkError }
 
   // Hard gate: move_in / move_out / periodic require an existing profile
   if (PROFILE_REQUIRED_TYPES.has(inspectionType) && leaseType === "residential") {

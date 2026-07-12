@@ -69,6 +69,7 @@ async function isDuplicate(
   leaseId: string,
   amountCents: number,
   date: Date,
+  orgId: string,
 ): Promise<boolean> {
   const threeDaysMs = 3 * 24 * 60 * 60 * 1000
   const fromDate = new Date(date.getTime() - threeDaysMs)
@@ -77,6 +78,7 @@ async function isDuplicate(
   const { data, error: queryError } = await supabase
     .from("trust_transactions")
     .select("id")
+    .eq("org_id", orgId)          // dedup is within the caller's org — never an existence oracle on another org's ledger
     .eq("lease_id", leaseId)
     .eq("amount_cents", amountCents)
     .gte("created_at", fromDate.toISOString())
@@ -94,19 +96,25 @@ const leaseDetailsCache = new Map<string, LeaseDetails | null>()
 async function fetchLeaseDetails(
   supabase: SupabaseClient,
   leaseId: string,
+  orgId: string,
 ): Promise<LeaseDetails | null> {
-  const cached = leaseDetailsCache.get(leaseId)
+  // Cache key MUST include orgId: the Map is module-level (survives across concurrent requests in one warm
+  // lambda), and reading it before the query would otherwise let Org B get a cache hit on Org A's leaseId —
+  // short-circuiting the org check below. Keyed by org, a foreign leaseId can never resolve from cache.
+  const cacheKey = `${orgId}:${leaseId}`
+  const cached = leaseDetailsCache.get(cacheKey)
   if (cached !== undefined) return cached
 
   const { data, error } = await supabase
     .from("leases")
     .select("unit_id, units!inner(property_id)")
     .eq("id", leaseId)
-    .limit(1)
-    .maybeSingle()
+    .eq("org_id", orgId)   // F-2 (AUDIT_IMPORT): leaseId is client-supplied (leaseMatches/propertyMatches) —
+    .limit(1)              // it MUST belong to the caller's org, or a tampered body writes a trust row against
+    .maybeSingle()         // another org's lease. A foreign id now resolves to null → the transaction is skipped.
 
   if (error || !data) {
-    leaseDetailsCache.set(leaseId, null)
+    leaseDetailsCache.set(cacheKey, null)
     return null
   }
 
@@ -118,7 +126,7 @@ async function fetchLeaseDetails(
   const propertyId = typeof propId === "string" ? propId : ""
 
   const details: LeaseDetails = { propertyId, unitId }
-  leaseDetailsCache.set(leaseId, details)
+  leaseDetailsCache.set(cacheKey, details)
   return details
 }
 
@@ -169,13 +177,13 @@ async function importArTransaction(
     return
   }
 
-  const duplicate = await isDuplicate(ctx.supabase, leaseId, tx.amountCents, tx.date)
+  const duplicate = await isDuplicate(ctx.supabase, leaseId, tx.amountCents, tx.date, ctx.orgId)
   if (duplicate) {
     ctx.result.skipped++
     return
   }
 
-  const details = await fetchLeaseDetails(ctx.supabase, leaseId)
+  const details = await fetchLeaseDetails(ctx.supabase, leaseId, ctx.orgId)
   if (!details) {
     ctx.result.errors.push({
       description: tx.rawDescription,
@@ -237,13 +245,13 @@ async function importDepositTransaction(
   }
 
   const amount = mapDepositAmount(dep)
-  const duplicate = await isDuplicate(ctx.supabase, leaseId, amount, dep.date)
+  const duplicate = await isDuplicate(ctx.supabase, leaseId, amount, dep.date, ctx.orgId)
   if (duplicate) {
     ctx.result.skipped++
     return
   }
 
-  const details = await fetchLeaseDetails(ctx.supabase, leaseId)
+  const details = await fetchLeaseDetails(ctx.supabase, leaseId, ctx.orgId)
   if (!details) {
     ctx.result.errors.push({
       description: dep.rawDescription,

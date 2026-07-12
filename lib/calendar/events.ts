@@ -4,10 +4,13 @@
  * Data:   inspections, maintenance_requests, leases, deposit_timers, properties, landlords, tenants, contacts
  *         (caller supplies the org-scoped service client)
  * Notes:  scheduled_date is timestamptz — sliced off the raw ISO string (no Date parse) to avoid tz drift;
- *         a 00:00 time is treated as date-only (all-day). CPA notice deadline = 20 business days before lease end.
+ *         a 00:00 time is treated as date-only (all-day). CPA s14(2)(b)(ii): the "notice due" reminder uses
+ *         the 60-business-day mid-window TARGET (`cpaRenewalNoticeDueSafe`); the "notice MISSED" alert uses
+ *         the 40-business-day FLOOR (`cpaRenewalNoticeFloorSafe`) — the last lawful send day, missed once
+ *         today is strictly past it. Both skip when the date falls past the holiday-table horizon.
  */
 import { type SupabaseClient } from "@supabase/supabase-js"
-import { subtractBusinessDays } from "@/lib/dates/saPublicHolidays"
+import { cpaRenewalNoticeDueSafe, cpaRenewalNoticeFloorSafe, isRenewalNoticeMissed } from "@/lib/leases/cpaRenewal"
 import { addCalendarDays, saTodayISO } from "@/lib/dates"
 
 export type EventType =
@@ -136,8 +139,8 @@ async function buildLeaseEvents(
   }
 
   if (lease.cpa_applies && !lease.auto_renewal_notice_sent_at) {
-    const noticeDateStr = subtractBusinessDays(lease.end_date, 20)
-    if (noticeDateStr >= rangeStart && noticeDateStr <= rangeEnd) {
+    const noticeDateStr = cpaRenewalNoticeDueSafe(lease.end_date)
+    if (noticeDateStr && noticeDateStr >= rangeStart && noticeDateStr <= rangeEnd) {
       events.push(makeCpaDeadlineEvent(lease.id, noticeDateStr, leaseUnit))
     }
   }
@@ -375,8 +378,11 @@ export async function fetchOverdueAlerts(
 
   for (const lease of cpaMissed.data ?? []) {
     if (!lease.end_date) continue
-    const noticeDeadline = subtractBusinessDays(lease.end_date, 20)
-    if (noticeDeadline <= saTodayISO()) {
+    // MISSED ⇔ today is strictly past the 40-bd FLOOR (last lawful send day) — not the 60-bd target, which
+    // would flag the lease missed while ~20 business days of lawful window remain. The boundary lives in the
+    // tested `isRenewalNoticeMissed` predicate so it can't silently slip to `<=` (it also narrows to string).
+    const noticeDeadline = cpaRenewalNoticeFloorSafe(lease.end_date)
+    if (isRenewalNoticeMissed(noticeDeadline, saTodayISO())) {
       const leaseData2 = await service
         .from("leases")
         .select("units(unit_number, properties(name))")

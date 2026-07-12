@@ -75,7 +75,7 @@ export function ApplicationActions({
     if (!user) return
 
     // Create tenant record from application first
-    const result = await createTenantFromApplication(applicationId, user.id)
+    const result = await createTenantFromApplication(applicationId)
     if ("error" in result) {
       toast.error(result.error)
       return
