@@ -430,6 +430,44 @@ async function createTenants(
   }
 }
 
+/**
+ * The tenantIdCache key for an email cell. A cell can hold "a@x, b@x" (joint tenants) — the PRIMARY tenant is
+ * the first. EVERY cache write and lookup goes through this one function so the tenant-phase key and the
+ * lease-phase lookup are guaranteed identical (walker: three sites derived the key three different ways and
+ * diverged for a comma-in-cell row whose name lacked a spaced " & ").
+ */
+function primaryEmailKey(cell: string): string {
+  return cell.split(",")[0]?.trim().toLowerCase() ?? ""
+}
+
+/**
+ * F-6a: given an EXISTING contact, return its tenant id — resolving the tenant row (or creating one if the
+ * contact has none). NEVER returns a contacts id. Both the single-tenant and co-tenant paths route through
+ * here so the "cache a contacts.id as a tenants.id" bug can't survive in one sibling and not the other.
+ */
+async function tenantIdForExistingContact(
+  contactId: string,
+  ctx: ImportContext,
+  extra: { employerName?: string | null; occupation?: string | null } = {},
+): Promise<{ tenantId: string; created: boolean } | null> {
+  const { data: existingTenant, error: etErr } = await ctx.supabase
+    .from("tenants").select("id").eq("contact_id", contactId).is("deleted_at", null).limit(1).maybeSingle()
+  if (etErr) console.error("importRunner existing-contact tenant lookup failed:", etErr.message)
+  if (existingTenant) return { tenantId: String(existingTenant.id), created: false }
+
+  // Contact exists but has no tenant row — create it. The partial unique (org_id, contact_id) WHERE
+  // deleted_at IS NULL makes this idempotent under a repeat/concurrent run.
+  const { data: newTenant, error: ntErr } = await ctx.supabase
+    .from("tenants")
+    .insert({ org_id: ctx.orgId, contact_id: contactId, employer_name: extra.employerName ?? null, occupation: extra.occupation ?? null })
+    .select("id").single()
+  if (ntErr || !newTenant) {
+    console.error("importRunner tenant-for-existing-contact insert failed:", ntErr?.message ?? "unknown")
+    return null
+  }
+  return { tenantId: String(newTenant.id), created: true }
+}
+
 async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<void> {
   // Co-tenant detection: "Donovan & Apphia" with comma-separated emails
   const rawFirstName = getField(entry.row, "first_name", ctx.mapping)
@@ -467,7 +505,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
   }
 
   // Single tenant (normal path)
-  const email = rawEmail.toLowerCase().trim()
+  const email = primaryEmailKey(rawEmail)
   if (!email) {
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Tenant email is required", severity: "error" })
     return
@@ -476,12 +514,22 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
 
   try {
     const { data: existing, error: existingError } = await ctx.supabase
-      .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).maybeSingle()
+      .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).order("created_at", { ascending: true }).limit(1).maybeSingle()
     if (existingError) console.error("importRunner contacts lookup failed:", existingError.message)
 
     if (existing) {
-      ctx.tenantIdCache.set(email, String(existing.id))
-      ctx.result.skipped++
+      // F-6a: `existing.id` is a CONTACTS id — resolve (or create) the TENANT for it via the shared helper.
+      const resolved = await tenantIdForExistingContact(String(existing.id), ctx, {
+        employerName: getField(entry.row, "employer_name", ctx.mapping) || null,
+        occupation: getField(entry.row, "occupation", ctx.mapping) || null,
+      })
+      if (!resolved) {
+        ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Failed to resolve tenant for existing contact", severity: "error" })
+        return
+      }
+      ctx.tenantIdCache.set(email, resolved.tenantId)
+      if (resolved.created) ctx.result.tenantsCreated++
+      else ctx.result.skipped++
       return
     }
 
@@ -597,16 +645,24 @@ async function insertSingleTenant(params: {
   ctx: ImportContext
 }): Promise<void> {
   const { firstName, lastName, email: rawEmail, phone, idNumber, entry, ctx } = params
-  const email = rawEmail.toLowerCase().trim()
+  const email = primaryEmailKey(rawEmail)
   if (!email) return
   if (ctx.tenantIdCache.has(email)) return
 
   const { data: existing, error: existingError } = await ctx.supabase
-    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).maybeSingle()
+    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).order("created_at", { ascending: true }).limit(1).maybeSingle()
   if (existingError) console.error("importRunner contacts lookup failed:", existingError.message)
 
   if (existing) {
-    ctx.tenantIdCache.set(email, String(existing.id))
+    // F-6a (walker Finding 2): the sibling bug — this cached a CONTACTS id as a tenant id. Route through the
+    // same helper so a co-tenant on an existing contact resolves to a real tenants.id, not the contact id.
+    const resolved = await tenantIdForExistingContact(String(existing.id), ctx)
+    if (!resolved) {
+      ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Failed to resolve tenant for existing contact (co-tenant)", severity: "warning" })
+      return
+    }
+    ctx.tenantIdCache.set(email, resolved.tenantId)
+    if (resolved.created) ctx.result.tenantsCreated++
     return
   }
 
@@ -741,6 +797,7 @@ async function createLeasesAndHistory(
 function buildLeaseData(
   row: Record<string, string>,
   unitId: string,
+  tenantId: string,
   isExpired: boolean,
   normalisedEnd: string | null,
   ctx: ImportContext
@@ -764,6 +821,7 @@ function buildLeaseData(
   return {
     unit_id: unitId,
     org_id: ctx.orgId,
+    tenant_id: tenantId,   // F-1: leases.tenant_id is NOT NULL — set it AT insert, not via a later UPDATE
     start_date: leaseStart ? normaliseDate(leaseStart) : null,
     end_date: isExpired && ctx.decisions.expiredLeases === "import_as_history" ? normalisedEnd : (normalisedEnd || null),
     rent_amount_cents: rentRaw ? normaliseCurrencyCents(rentRaw) : null,
@@ -803,7 +861,31 @@ async function processActiveLease(
   }
 
   try {
-    const leaseData = buildLeaseData(row, unitId, isExpired, normalisedEnd, ctx)
+    // F-1: leases.tenant_id is NOT NULL, so it must be set AT insert. The primary tenant was created/resolved
+    // in Phase 4 (upsertTenant) and cached by email; resolve it here. Without it the insert failed every time.
+    // A joint-tenant cell ("a@x, b@x") is cached under the SPLIT emails, so key on the FIRST email (the
+    // primary), not the whole cell — otherwise joint-tenant rows would cache-miss and create no lease.
+    const primaryEmail = primaryEmailKey(getField(row, "email", ctx.mapping))
+    const primaryTenantId = ctx.tenantIdCache.get(primaryEmail)
+    if (!primaryTenantId) {
+      ctx.result.errors.push({ rowIndex: index, field: "email", message: "Cannot create lease: no tenant was resolved for the primary email", severity: "error" })
+      return
+    }
+
+    // F-6b: dedup — re-importing the same book must be a no-op, not a second (duplicate) active lease on the
+    // unit. (Import inserts leases raw — no activateLeaseCascade / deposit posting — so a duplicate is a stray
+    // row, not a trust double-post; still worth deduping.) A tenant has one active lease per unit; skip if it
+    // exists. NOTE: SELECT-then-INSERT, no DB unique — a concurrent double-submit could still race (admin-only,
+    // serial import → accepted; a partial-unique index would harden it but risks legitimate renewals).
+    const { data: existingLease, error: existingLeaseError } = await ctx.supabase
+      .from("leases").select("id").eq("org_id", ctx.orgId).eq("unit_id", unitId).eq("tenant_id", primaryTenantId).is("deleted_at", null).limit(1).maybeSingle()
+    if (existingLeaseError) console.error("importRunner existing-lease lookup failed:", existingLeaseError.message)
+    if (existingLease) {
+      ctx.result.skipped++
+      return
+    }
+
+    const leaseData = buildLeaseData(row, unitId, primaryTenantId, isExpired, normalisedEnd, ctx)
 
     const { data: newLease, error } = await ctx.supabase
       .from("leases").insert(leaseData).select("id").single()
@@ -816,6 +898,7 @@ async function processActiveLease(
     const leaseId = String(newLease.id)
     ctx.result.leasesCreated++
 
+    // Primary tenant_id is already set at insert; this loop now only surfaces the co-tenant "not linked" notice.
     for (const ar of activeRows) {
       await linkTenantToLease(ar, leaseId, ctx)
     }
@@ -830,7 +913,7 @@ async function linkTenantToLease(
   leaseId: string,
   ctx: ImportContext
 ): Promise<void> {
-  const email = getField(entry.row, "email", ctx.mapping).toLowerCase()
+  const email = primaryEmailKey(getField(entry.row, "email", ctx.mapping))
   const tenantId = ctx.tenantIdCache.get(email)
   if (!tenantId) return
 
@@ -863,7 +946,7 @@ async function resolveTenantIdForHistory(
 
   // 2. Try existing contact → tenant
   const { data: existingContact, error: existingContactError } = await ctx.supabase
-    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).maybeSingle()
+    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).order("created_at", { ascending: true }).limit(1).maybeSingle()
   if (existingContactError) console.error("importRunner prev-tenant contacts lookup failed:", existingContactError.message)
 
   if (existingContact) {
@@ -916,7 +999,7 @@ async function createTenancyHistory(
   unitId: string,
   ctx: ImportContext
 ): Promise<void> {
-  const email = getField(entry.row, "email", ctx.mapping).toLowerCase()
+  const email = primaryEmailKey(getField(entry.row, "email", ctx.mapping))
   const leaseStart = getField(entry.row, "lease_start", ctx.mapping)
   const leaseEnd = getField(entry.row, "lease_end", ctx.mapping)
 
@@ -928,12 +1011,25 @@ async function createTenancyHistory(
     return
   }
 
+  const moveIn = leaseStart ? normaliseDate(leaseStart) : null
+
+  // F-6b: dedup — re-importing the same book must not double the history rows.
+  let histQuery = ctx.supabase
+    .from("tenancy_history").select("id").eq("org_id", ctx.orgId).eq("unit_id", unitId).eq("tenant_id", tenantId)
+  histQuery = moveIn ? histQuery.eq("move_in_date", moveIn) : histQuery.is("move_in_date", null)
+  const { data: existingHist, error: existingHistError } = await histQuery.limit(1).maybeSingle()
+  if (existingHistError) console.error("importRunner existing-history lookup failed:", existingHistError.message)
+  if (existingHist) {
+    ctx.result.skipped++
+    return
+  }
+
   try {
     const { error } = await ctx.supabase.from("tenancy_history").insert({
       unit_id: unitId,
       org_id: ctx.orgId,
       tenant_id: tenantId,
-      move_in_date: leaseStart ? normaliseDate(leaseStart) : null,
+      move_in_date: moveIn,
       move_out_date: leaseEnd ? normaliseDate(leaseEnd) : null,
       status: "ended",
     })
