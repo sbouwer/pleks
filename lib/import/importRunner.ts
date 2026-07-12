@@ -1266,6 +1266,11 @@ const CLASSIFIED_LEASE_COLUMNS: Array<{
 const DEFAULTED_IF_UNMAPPED: Array<{ field: string; label: string; unmappedNote: string }> = [
   { field: "escalation_percent", label: "escalation percentage", unmappedNote: "every lease will import at 10% a year (the system default)" },
   { field: "payment_due_day", label: "payment due day", unmappedNote: "every lease will import as due on the 1st (the system default)" },
+  // Found by field ablation (test/db/import-ablation.dbtest.ts): removing each of these silently handed the
+  // column a DIFFERENT confident value. All three are statutory or money terms, and none of them said a word.
+  { field: "notice_period_days", label: "notice period", unmappedNote: "every lease will import with a 20-day notice period (the system default) — this decides when a notice to vacate is valid" },
+  { field: "deposit_return_days", label: "deposit return days", unmappedNote: "every lease will import with a 30-day deposit-return deadline (the system default)" },
+  { field: "deposit_interest_to", label: "deposit-interest beneficiary", unmappedNote: "deposit interest will accrue to the TENANT on every lease (the system default) — RHA s5(3) makes this a money term" },
 ]
 
 /**
