@@ -5,6 +5,7 @@
  */
 import Papa from "papaparse"
 import * as XLSX from "xlsx"
+import { normaliseCurrencyCents } from "./normalise"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -43,7 +44,6 @@ const PROPERTY_HEADER_RE = /^([^(]{1,200})\(([^)]{1,200})\)\s{0,10}$/
 const UNIT_REF_RE = /\d{6}\/??\d{0,6}-([A-Z0-9]+)\s{0,20}/i
 const PERIOD_RE = /^(\d{6})/
 const TPN_DATE_RE = /^(\d{4})\/(\d{2})\/(\d{2})$/
-const CURRENCY_RE = /^(-?)R\s?([\d,]+\.\d{2})$/
 
 
 function parseTpnDate(raw: string): Date {
@@ -58,24 +58,15 @@ function parseTpnDate(raw: string): Date {
   return new Date(year, month, day)
 }
 
-function parseTpnCurrency(raw: string): number {
-  const trimmed = raw.trim()
-  if (!trimmed) return 0
-
-  const match = CURRENCY_RE.exec(trimmed)
-  if (match) {
-    const sign = match[1] === "-" ? -1 : 1
-    const cleaned = (match[2] ?? "").replaceAll(",", "")
-    const value = Number.parseFloat(cleaned)
-    if (Number.isNaN(value)) return 0
-    return sign * Math.round(value * 100)
-  }
-
-  // Fallback: try plain number
-  const cleaned = trimmed.replaceAll(/[R\s,]/g, "")
-  const value = Number.parseFloat(cleaned)
-  if (Number.isNaN(value)) return 0
-  return Math.round(value * 100)
+/**
+ * GL amount → integer cents, via the locale-aware currency SSOT. This used to be a second, independent parser
+ * whose fallback blind-stripped commas — the same 100× decimal-comma bug fixed in normalise.ts, but here it
+ * feeds the TRUST ledger. It now delegates, so both SA locale shapes parse correctly. A genuinely ambiguous
+ * or empty cell degrades to 0 (never a 100× guess); the fuller AUDIT_IMPORT remediation should promote that
+ * to a row-level parse error rather than a silent zero.
+ */
+export function parseTpnCurrency(raw: string): number {
+  return normaliseCurrencyCents(raw) ?? 0
 }
 
 function normaliseDescription(raw: string): string {
