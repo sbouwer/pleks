@@ -172,17 +172,25 @@ describe("bulk import — against the real schema", () => {
     expect(leases.every((l) => Number(l.escalation_percent) === 10), "the default did land").toBe(true)
   })
 
-  it("a COMMERCIAL lease never imports as CPA-governed (migration 010's invariant)", async () => {
-    // Only reachable BECAUSE the lease_type fix works: previously every lease imported as "residential", so
-    // cpa_applies DEFAULT true was never visibly wrong. Now "Retail" correctly lands commercial — and the
-    // default would raise CPA s14 auto-renewal deadlines against a lease the CPA does not govern.
-    const leases = await leasesOf(orgId)
-    const retail = leases.find((l) => l.lease_type === "commercial")
-    expect(retail, "the Retail lease is commercial").toBeTruthy()
-    expect(retail?.cpa_applies, "a commercial lease must not be CPA-governed").toBe(false)
+  it("the two CPA columns AGREE — the notice engine and the citation engine read different ones", async () => {
+    // `cpa_applies` (boolean) gates whether the renewal cron ever SENDS an s14 notice; `cpa_applies_at_signing`
+    // (3-state) decides whether a demand-to-vacate CITES the CPA cure period. If they disagree per-lease, a
+    // lease can be CPA-governed for citations and simultaneously INVISIBLE to the notice engine. Both are
+    // derived from one determineCpaApplicability call, so they cannot.
+    const { data, error } = await db
+      .from("leases").select("lease_type, cpa_applies, cpa_applies_at_signing, cpa_determination_category")
+      .eq("org_id", orgId)
+    expect(error).toBeFalsy()
 
-    const residential = leases.find((l) => l.lease_type === "residential")
-    expect(residential?.cpa_applies, "a residential lease keeps the CPA default").toBe(true)
+    for (const l of data ?? []) {
+      expect(l.cpa_applies, `lease_type=${l.lease_type} columns must agree`).toBe(l.cpa_applies_at_signing === "yes")
+    }
+
+    // These tenants are natural persons, so the CPA applies — s5(2) turns on the CONSUMER, not the premises.
+    // The commercial ("Retail") lease is let to an individual and is therefore CPA-governed too.
+    const retail = (data ?? []).find((l) => l.lease_type === "commercial")
+    expect(retail?.cpa_applies_at_signing).toBe("yes")
+    expect(retail?.cpa_determination_category).toBe("natural_person")
   })
 
   // ── F-8: a cents-denominated header must not be ×100'd again ──
@@ -350,7 +358,14 @@ describe("bulk import — against the real schema", () => {
 
       expect(r.leasesCreated, "BOTH import — the override rescues the stale-dated one").toBe(2)
       const leases = await leasesOf(org)
-      expect(leases.find((l) => l.rent_amount_cents === 400_000)?.status, "kept ACTIVE despite the past end date").toBe("active")
+      const rescued = leases.find((l) => l.rent_amount_cents === 400_000)
+
+      // NOT `status:'active'` with a past end_date + is_fixed_term — that is precisely the selector of the
+      // nightly auto-convert cron, which would flip it to month-to-month and NULL the end date, silently
+      // reversing the agent's decision overnight. We know the lease is LIVE and we do NOT know when it ends,
+      // so that is what we record: a live, open-ended tenancy. It still bills, and the cron leaves it alone.
+      expect(rescued?.status, "live and stable under the auto-convert cron").toBe("month_to_month")
+      expect(rescued?.end_date, "the stale end date is not carried forward as if it were real").toBeNull()
     } finally {
       teardownOrg(org)
     }
@@ -386,7 +401,7 @@ describe("bulk import — against the real schema", () => {
 
       expect(r.leasesCreated, "the override must rescue the group's lease").toBe(1)
       const leases = await leasesOf(org)
-      expect(leases[0]?.status, "kept ACTIVE despite the stale end date").toBe("active")
+      expect(leases[0]?.status, "live, and stable under the auto-convert cron").toBe("month_to_month")
     } finally {
       teardownOrg(org)
     }

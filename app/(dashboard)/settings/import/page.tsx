@@ -221,6 +221,7 @@ export default function ImportWizardPage() {
           headers={allHeaders}
           sampleRows={allRows.slice(0, 3)}
           initialMapping={decisions.columnMapping}
+          initialBankConsent={decisions.bankConsentAttested}
           onBack={() => setStep("detected")}
           onConfirm={handleMappingConfirmed}
         />

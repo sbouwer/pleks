@@ -35,6 +35,12 @@ export function maskBankAccount(accountNumber: string): string {
  *  therefore cannot serve this purpose — anything that MATCHES an account must match on this hash. */
 export function hashBankAccount(raw: string): string {
   const normalised = raw.replace(/\s/g, "")
+  // ⚠ ROTATION HAZARD: there is no key/salt VERSION column on tenant_bank_accounts. If BANK_ACCOUNT_HASH_SALT
+  // is ever changed, every account_number_hash already on disk silently stops matching — the dedup/lookup key
+  // simply misses, duplicate accounts accumulate, and nothing errors. Changing it is therefore a BACKFILL
+  // (decrypt account_number_enc → re-hash), not an env edit. Set it once, at first deploy.
+  // Until it IS set, the default below is a committed literal: the salt frustrates a generic rainbow table,
+  // it does not make the hash secret. The at-rest secret is account_number_enc.
   const salt = optionalEnv("BANK_ACCOUNT_HASH_SALT", "pleks-default-salt")
   return createHash("sha256").update(normalised + salt).digest("hex")
 }

@@ -337,3 +337,36 @@ ALTER TABLE deposit_transactions ADD CONSTRAINT deposit_transactions_transaction
     'charge_reversed',           -- reversal of the above — restored
     'arrears_offset_to_invoice'  -- Pattern A tenant-debt offset leg — restored
   ));
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  AUDIT_IMPORT F-10 (2026-07-12): agency bank-details import ATTESTATION
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- An agency migrating its book imports its tenants' bank details. The tenant is not in the
+-- room, and an operator's click-through is NOT the data subject's POPIA consent — writing
+-- `consent_given = true` from an import (which is what the importer did, unconditionally)
+-- is a system manufacturing proof of a consent nobody gave.
+--
+-- What IS truthfully recordable is the AGENT'S ATTESTATION: "I hold this tenant's consent to
+-- migrate their banking details." An identified actor, a known time, a known notice version.
+-- The compliance obligation for the underlying consent stays with the agency, where it belongs
+-- (Stéan ruling 2026-07-12 — no counsel gate; record the attestation).
+--
+-- WHY THIS LIVES IN 009 AND NOT 001, WHERE consent_log IS DEFINED:
+-- migration 007 contains a DO-block that DROPS EVERY constraint on consent_log matching
+-- '%consent_type%' and re-adds a fixed six-value CHECK. Replay order is 001 → 007 → 009, so a
+-- widening placed in 001 is silently REVERTED on every fresh replay — and the failure is
+-- invisible: the importer's consent_log INSERT would 23514, the error is only console.error'd,
+-- and the import reports success while the compliance record it exists to create does not exist.
+-- 009 is the first domain file 007 cannot reach. (007/008 are frozen — see .claude/rules/migrations.md.)
+ALTER TABLE consent_log DROP CONSTRAINT IF EXISTS consent_log_consent_type_check;
+ALTER TABLE consent_log ADD CONSTRAINT consent_log_consent_type_check
+  CHECK (consent_type IN (
+    'credit_check',
+    'data_processing',
+    'marketing',
+    'trust_account_notice',
+    'popia_application',
+    'lease_template_disclaimer',
+    'bank_details_import'   -- an AGENT attesting they hold the tenant's consent (never the tenant's own consent)
+  ));

@@ -17,6 +17,7 @@ import { detectMappingCollisions } from "./columnMapper"
 import { normaliseBranchCode } from "./bankImport"
 import { bankAccountColumns } from "@/lib/crypto/bankAccount"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { optionalEnv } from "@/lib/env"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
 
@@ -855,6 +856,19 @@ async function insertTenantBankAccounts(
   const attestedAt = new Date().toISOString()
   let importedForThisTenant = 0
 
+  // FAIL LOUD, not silently. bankAccountColumns() throws if ENCRYPTION_KEY is unset, and that throw used to be
+  // caught by the per-account try/catch below and downgraded to a WARNING — so on a misconfigured deploy the
+  // bank details simply vanished and the agent was told the import worked. For a payout-adjacent surface that
+  // must be an ERROR the agent cannot miss.
+  if (!optionalEnv("ENCRYPTION_KEY")) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "tenant_bank_account_1", severity: "error",
+      message: "Bank details were NOT imported: this deployment has no encryption key configured, and banking " +
+        "details are never stored unencrypted. Contact support — everything else imported normally.",
+    })
+    return
+  }
+
   for (const acc of accounts) {
     const rawAccount = getField(row, acc.accountField, ctx.mapping).trim()
     if (!rawAccount) continue
@@ -1153,21 +1167,6 @@ function leaseClassifications(
     out[col.field] = result.value
   }
 
-  // A commercial lease must never carry cpa_applies = true — migration 010 states the invariant and had to
-  // run a one-off UPDATE to restore it. Nothing in the DB enforces it, so the importer must.
-  //
-  // This only became reachable BECAUSE the lease_type fix works: previously every lease imported as
-  // "residential" (the old guess), so the cpa_applies DEFAULT true was never wrong in a way anyone saw. Now
-  // that "Retail"/"Office" correctly land as commercial, an unmapped CPA column would let DEFAULT true stand
-  // and the calendar would raise CPA s14 auto-renewal deadlines against leases the CPA does not govern.
-  // A CPA column in the file still wins — this only fills the gap the default would otherwise guess into.
-  if (out.lease_type === "commercial" && out.cpa_applies === undefined) {
-    out.cpa_applies = false
-    flagForReview(ctx, rowIndex, "cpa_applies",
-      "Commercial lease with no CPA column — imported with the CPA NOT applying (the system's commercial-lease " +
-      "invariant). If this tenant is a natural person or a small juristic, set it on the lease.")
-  }
-
   return out
 }
 
@@ -1221,22 +1220,41 @@ function optionalLeaseFields(
 }
 
 /**
- * The CPA applicability SNAPSHOT (F-16). `legalCitations.cpaGoverns` — the gate that decides whether a
- * Demand-to-Vacate or final notice cites the CPA's cure period — reads ONLY `cpa_applies_at_signing`, the
- * 3-state column. It is never `cpa_applies` (the creation-time boolean). The importer wrote neither, so every
- * imported lease had `cpa_applies_at_signing = NULL` and the CPA basis could never render for a migrated book.
+ * The CPA applicability SNAPSHOT (F-16), and the ONE source of both CPA columns.
+ *
+ * `legalCitations.cpaGoverns` — the gate deciding whether a Demand-to-Vacate or final notice cites the CPA's
+ * cure period — reads ONLY `cpa_applies_at_signing` (the 3-state column). The renewal CRON, which decides
+ * whether an s14 notice is ever SENT, gates on `cpa_applies` (the boolean). Two halves of one statutory
+ * pipeline, two different columns — so if they disagree per-lease, a lease can be CPA-governed for citations
+ * and simultaneously INVISIBLE to the notice engine. Both are therefore derived HERE, from one determination.
  *
  * Routed through `determineCpaApplicability` — the same pure SSOT `markAsSigned()` uses, not a second opinion.
  * The importer knows the tenant's entity type and nothing else, so honestly:
- *   individual   → "yes" (CPA s5(2): a natural person is always a consumer)
- *   organisation → "indeterminate" (juristic size bands are in no import format) → the agent must resolve it,
- *                  exactly as a wizard-created juristic lease must before it can be activated.
+ *   natural person → "yes" (CPA s5(2): a consumer, whatever the premises are)
+ *   juristic       → "indeterminate" (turnover/asset bands are in no import format) → flagged for the agent,
+ *                    exactly as a wizard-created juristic lease must be resolved before it can be activated.
+ *
+ * NOTE on migration 010's "commercial leases should never have cpa_applies = true": the CPA turns on the
+ * CONSUMER, not the premises — a natural person letting a shop IS a consumer — so a blanket commercial ⇒ false
+ * rule under-protects them. An earlier draft of this importer applied that rule and produced exactly the split
+ * described above (boolean false, snapshot "yes" ⇒ no s14 notice ever fires, but the CPA cure period is cited
+ * in the demand). Deriving both from the determination removes the contradiction: a juristic commercial tenant
+ * still lands `false` (indeterminate ⇒ not "yes"), which is the case 010 was actually cleaning up.
+ * → FLAGGED FOR CD: 010's invariant and CPA s5(2) disagree for a natural person on commercial premises.
+ *
+ * `explicitCpaApplies` — a `cpa_applies` column the agency actually mapped — always wins over the derivation.
  */
 function cpaSnapshot(
   row: Record<string, string>, rowIndex: number, ctx: ImportContext,
+  explicitCpaApplies: unknown,
 ): Record<string, unknown> {
-  const { firstName, lastName, companyName } = resolveName(row, ctx.mapping)
-  const entityType = resolveEntityType(companyName, companyName || `${firstName} ${lastName}`.trim())
+  // The COMPANY FIELD only — never the business-suffix guess on a display name. `resolveEntityType` reads
+  // BUSINESS_SUFFIX_RE ("trust", "properties", "holdings"…) against the name, so a tenant called
+  // "Trust Ndlovu" resolves to `organisation`. That was tolerable when it only picked a contacts.entity_type;
+  // it is not tolerable driving a STATUTORY column, where it would strip a natural person's CPA protection
+  // from every notice and then tell the agent "this tenant is a juristic person".
+  const { companyName } = resolveName(row, ctx.mapping)
+  const entityType = companyName.trim() ? "organisation" : "individual"
 
   const determination = determineCpaApplicability({
     tenant: {
@@ -1251,9 +1269,9 @@ function cpaSnapshot(
 
   if (determination.applies === "indeterminate") {
     flagForReview(ctx, rowIndex, "cpa_applies",
-      "This tenant is a juristic person, so whether the CPA applies depends on their turnover and asset value — " +
-      "which no import format carries. Capture the size bands on the lease; until then a statutory notice cannot " +
-      "cite the CPA for it.")
+      "This tenant is a company, so whether the CPA applies depends on their turnover and asset value — which " +
+      "no import format carries. Capture the size bands on the lease; until then a statutory notice cannot cite " +
+      "the CPA for it.")
   }
 
   return {
@@ -1261,6 +1279,8 @@ function cpaSnapshot(
     cpa_determination_category: determination.category,
     cpa_determination_notes: determination.notes,
     cpa_determined_at: new Date().toISOString(),
+    // Keep the boolean the cron gates on IN STEP with the snapshot the citations read. A mapped column wins.
+    ...(explicitCpaApplies === undefined ? { cpa_applies: determination.applies === "yes" } : {}),
   }
 }
 
@@ -1271,6 +1291,8 @@ function buildLeaseData(
   tenantId: string,
   rowIndex: number,
   isExpired: boolean,
+  /** The agent ticked "Keep active" on a lease whose end date has ALREADY passed. */
+  forcedActive: boolean,
   normalisedEnd: string | null,
   ctx: ImportContext
 ): LeaseBuild {
@@ -1284,25 +1306,42 @@ function buildLeaseData(
   checkLeaseEnd(row, normalisedEnd, rowIndex, ctx)
   const depositCents = moneyCentsOrFlag(row, "deposit_amount_cents", rowIndex, ctx)
 
-  return {
-    ok: true,
-    data: {
-      unit_id: unitId,
-      property_id: propertyId,   // NOT NULL, and nothing derives it from unit_id — every insert failed without it
-      org_id: ctx.orgId,
-      tenant_id: tenantId,       // F-1: NOT NULL — set AT insert, not via a later UPDATE
-      start_date: required.startDate,
-      end_date: normalisedEnd,
-      rent_amount_cents: required.rentCents,
-      deposit_amount_cents: depositCents,
-      status: isExpired ? "expired" : "active",
-      // NO payment_method: `leases` has no such column. Writing it made PostgREST reject EVERY lease insert
-      // ("Could not find the 'payment_method' column ... in the schema cache"). Its aliases are gone too.
-      ...classifications,
-      ...cpaSnapshot(row, rowIndex, ctx),
-      ...optionalLeaseFields(row, rowIndex, ctx),
-    },
+  const data: Record<string, unknown> = {
+    unit_id: unitId,
+    property_id: propertyId,   // NOT NULL, and nothing derives it from unit_id — every insert failed without it
+    org_id: ctx.orgId,
+    tenant_id: tenantId,       // F-1: NOT NULL — set AT insert, not via a later UPDATE
+    start_date: required.startDate,
+    end_date: normalisedEnd,
+    rent_amount_cents: required.rentCents,
+    deposit_amount_cents: depositCents,
+    status: isExpired ? "expired" : "active",
+    // NO payment_method: `leases` has no such column. Writing it made PostgREST reject EVERY lease insert
+    // ("Could not find the 'payment_method' column ... in the schema cache"). Its aliases are gone too.
+    ...classifications,
+    ...cpaSnapshot(row, rowIndex, ctx, classifications.cpa_applies),
+    ...optionalLeaseFields(row, rowIndex, ctx),
   }
+
+  // "Keep active" on a lease whose end date has already passed: the renewal was never captured in the old
+  // system, so the date in the file is stale — we know the lease is LIVE and we do NOT know when it ends.
+  //
+  // Importing that as `status:'active', is_fixed_term:true, end_date:<past>` would be a state the platform
+  // itself destroys: that is EXACTLY the selector of the nightly auto-convert cron
+  // (is_fixed_term ∧ active ∧ end_date < today), which flips the lease to month-to-month and NULLs the end
+  // date — silently reversing the agent's explicit decision overnight and losing the imported date with it.
+  // So record what we actually know: a live, open-ended tenancy. It still bills (invoice-generate picks up
+  // month_to_month), it is stable under the cron, and the agent is told to set a new end date if it renewed.
+  if (forcedActive) {
+    data.status = "month_to_month"
+    data.is_fixed_term = false
+    data.end_date = null
+    flagForReview(ctx, rowIndex, "lease_end",
+      `Kept active, but its end date (${normalisedEnd}) has passed — so it was imported as month-to-month ` +
+      `rather than a fixed term that already ended. If the lease was renewed, set the new end date on it.`)
+  }
+
+  return { ok: true, data }
 }
 
 async function processActiveLease(
@@ -1366,7 +1405,8 @@ async function processActiveLease(
       return
     }
 
-    const built = buildLeaseData(row, unitId, propertyId, primaryTenantId, index, isExpired, normalisedEnd, ctx)
+    const forcedActive = endedInPast && !isExpired   // ticked "Keep active" on an already-ended lease
+    const built = buildLeaseData(row, unitId, propertyId, primaryTenantId, index, isExpired, forcedActive, normalisedEnd, ctx)
     if (!built.ok) return   // refused — buildLeaseData already raised the precise reason
 
     const { data: newLease, error } = await ctx.supabase
@@ -1417,9 +1457,26 @@ async function markUnitOccupied(unitId: string, ctx: ImportContext): Promise<voi
     })
     return
   }
-  if (!flipped?.length) return   // already occupied — nothing to record
 
-  await ctx.supabase.from("unit_status_history").insert({
+  if (!flipped?.length) {
+    // Zero rows matched. Either the unit is ALREADY occupied (a re-run — correct no-op) or it sits in a status
+    // the scoped update deliberately will not overwrite. Those are very different, and treating them the same
+    // means a live lease can be imported onto a unit that still reads as "under maintenance", with every
+    // occupancy and vacancy report quietly wrong and no signal anywhere.
+    const { data: unit, error: unitError } = await ctx.supabase
+      .from("units").select("status, unit_number").eq("id", unitId).eq("org_id", ctx.orgId).maybeSingle()
+    logIfError("importRunner unit status re-read", unitError)
+    if (unit && unit.status !== "occupied") {
+      ctx.result.errors.push({
+        rowIndex: -1, field: "unit_number", severity: "warning",
+        message: `Unit ${unit.unit_number} has a live imported lease but is marked "${unit.status}" — it was left ` +
+          `as-is rather than overwritten. Set it to occupied if that status is stale.`,
+      })
+    }
+    return
+  }
+
+  const { error: historyError } = await ctx.supabase.from("unit_status_history").insert({
     unit_id: unitId,
     org_id: ctx.orgId,
     from_status: "vacant",
@@ -1427,6 +1484,7 @@ async function markUnitOccupied(unitId: string, ctx: ImportContext): Promise<voi
     changed_by: ctx.agentId,
     reason: "Imported with an active lease",
   })
+  logIfError("importRunner unit_status_history", historyError)
 }
 
 async function linkTenantToLease(

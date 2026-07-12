@@ -887,36 +887,3 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_changed_by ON audit_log(changed_by);
 CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_compliance_confirmed_by ON custom_lease_requests(compliance_confirmed_by);
 CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_submitted_by ON custom_lease_requests(submitted_by);
 CREATE INDEX IF NOT EXISTS idx_invites_invited_by ON invites(invited_by);
-
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- §21  AUDIT_IMPORT F-10: agency bank-details import ATTESTATION
--- ═══════════════════════════════════════════════════════════════════════════════
--- An agency migrating its book imports its tenants' bank details. The tenant is not in the room,
--- and an operator's click-through is NOT the data subject's POPIA consent — writing
--- `consent_given = true` from an import (which is what the importer did, unconditionally) is a
--- system manufacturing proof of a consent nobody gave.
---
--- What IS truthfully recordable is the AGENT'S ATTESTATION: "I hold this tenant's consent to
--- migrate their banking details." That is a statement by an identified actor, at a known time,
--- against a known notice version — and the compliance obligation stays with the agency, which is
--- where it belongs (CD/Stéan ruling 2026-07-12: no counsel gate; record the attestation).
---
--- So `consent_given` on an imported bank account now reflects the agent's attestation (false when
--- they did not attest), and the attestation itself lands in consent_log under a consent_type that
--- says exactly what it is. Widen the CHECK before the writer exists — a value the CHECK rejects
--- fails the INSERT and loses the record.
-ALTER TABLE consent_log DROP CONSTRAINT IF EXISTS consent_log_consent_type_check;
-ALTER TABLE consent_log ADD CONSTRAINT consent_log_consent_type_check
-  CHECK (consent_type IN (
-    'credit_check',
-    'data_processing',
-    'marketing',
-    'trust_account_notice',
-    'popia_application',
-    'lease_template_disclaimer',
-    'bank_details_import'   -- §21: an AGENT attesting they hold the tenant's consent (not the tenant's own consent)
-  ));
--- idx_user_profiles_agent_contact_id moved to 002_contacts.sql: the agent_contact_id column is
--- added there (it REFERENCES contacts, created in 002), so the index can't live in 001 on fresh
--- replay. (migration-replay fix, 2026-07-06)

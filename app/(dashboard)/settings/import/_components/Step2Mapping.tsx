@@ -111,6 +111,8 @@ interface Step2MappingProps {
   headers: string[]
   sampleRows: Record<string, string>[]
   initialMapping: Record<string, { field: string; entity: string }>
+  /** The attestation already given, so Back → Continue does not silently downgrade it to "no consent". */
+  initialBankConsent: boolean
   onBack: () => void
   onConfirm: (
     mapping: Record<string, { field: string; entity: string }>,
@@ -127,12 +129,17 @@ export function Step2Mapping({
   headers,
   sampleRows,
   initialMapping,
+  initialBankConsent,
   onBack,
   onConfirm,
 }: Readonly<Step2MappingProps>) {
   const [mapping, setMapping] = useState<Record<string, { field: string; entity: string }>>(initialMapping)
-  const [bankNoticeShown, setBankNoticeShown] = useState(false)
-  const [bankImportAccepted, setBankImportAccepted] = useState<boolean | null>(null)
+  // SEEDED from the attestation already given. Initialising these to (false, null) unconditionally meant a
+  // Back from Step 3 and a Continue silently sent `bankConsentAttested: false` — so every bank account landed
+  // consent_given=false and consent_log recorded "migrated WITHOUT an attestation", for an agent who HAD
+  // attested and was then told to go and obtain consent they already had. Same defect as Step 3's.
+  const [bankNoticeShown, setBankNoticeShown] = useState(initialBankConsent)
+  const [bankImportAccepted, setBankImportAccepted] = useState<boolean | null>(initialBankConsent ? true : null)
 
   // Detect if any columns are mapped to bank fields
   const hasBankColumns = Object.values(mapping).some((m) => m.entity === "bank")

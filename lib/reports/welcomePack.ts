@@ -2,7 +2,11 @@
  * lib/reports/welcomePack.ts — builds owner welcome pack portfolio data
  *
  * Data:  properties, units, leases, contacts via service client scoped to a landlord
- * Notes: CPA notice window = 40 days; compliance section looks 12 months forward for escalations
+ * Notes: CPA s14 notice dates come from lib/leases/cpaRenewal — the declared SSOT. This file used to compute
+ *        them itself as `end_date − 40 CALENDAR days`, which is wrong twice over: the statute counts BUSINESS
+ *        days, and 40 is the FLOOR of the 40–80 bd window (the last lawful day), not the date to aim for. It
+ *        was the third of three disagreeing computations of one statutory date.
+ *        Compliance section looks 12 months forward for escalations.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type {

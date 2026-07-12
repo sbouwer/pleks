@@ -229,7 +229,10 @@ export async function GET(req: Request) {
     if (!dueDate) {
       // A banded candidate whose date is uncomputable means the holiday table's horizon is now inside the
       // notice window — a real ops signal that saHolidays.json must be extended. Skip (never fire against an
-      // unknown holiday calendar), let the 90-day horizon sentinel in health.ts carry the alert.
+      // unknown holiday calendar). The horizon sentinel in health.ts carries the alert, and its threshold is
+      // DERIVED from this cron's band so it always fires FIRST — it used to warn at 90 days against this
+      // 120-day band, so for a 30-day window every year the cron reached leases it could not compute while
+      // health still reported "ok". The alert can no longer arrive after the thing it exists to pre-empt.
       console.warn(`[lease-expiry-check] CPA s14 notice date uncomputable for lease ${lease.id} (end ${lease.end_date}) — extend saHolidays.json`)
       continue
     }
