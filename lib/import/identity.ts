@@ -176,21 +176,26 @@ function fuzzyMatch(rows: ContactRow[], candidate: IdentityCandidate): IdentityM
     const rowPhone = normalizePhone(row.primary_phone)
     const rowName = normaliseName(row.company_name ?? [row.first_name, row.last_name].filter(Boolean).join(""))
 
+    // THE FUZZY BAND IS DELIBERATELY NARROW: name AND phone TOGETHER. Nothing else.
+    //
+    // The first version also held on name-alone (0.65) and phone-alone (0.70), and the stress harness killed it
+    // within one run: in a book of a hundred leases "John Smith" legitimately appears twice, so name-alone HELD
+    // rows that were simply two different people — and at five thousand rows it would hold a large fraction of
+    // a legitimate book. Worse, a row can match a contact created EARLIER IN THE SAME RUN, so the book would
+    // start holding itself. Phone-alone is no better: families and office lines share a number.
+    //
+    // A hold has a real cost — a row that does not import until a human answers a question. Spending that cost
+    // on a coincidence of names is how a safety feature becomes the thing agencies switch off.
+    //
+    // Name AND phone, both, with a different email: that is a person who changed their email address. It is the
+    // case this band exists for, and it is the only one weak evidence supports. Everything below it CREATES —
+    // which is the REVERSIBLE error, and therefore the right one to make.
     let confidence = 0
     let basis: MatchBasis | null = null
 
     if (name && phone && rowName === name && rowPhone === phone) {
-      // The same name AND the same phone, with a different email. Almost certainly the same person who changed
-      // their address — but "almost certainly" is exactly the band where we ASK instead of assuming. Confidence
-      // is a triage signal, never a merge authority: not even 0.94 fuses two identities.
       confidence = 0.90
       basis = "name_and_phone"
-    } else if (phone && rowPhone === phone) {
-      confidence = 0.70                     // a shared phone: a spouse, an office line, or the same person
-      basis = "phone"
-    } else if (name && rowName === name) {
-      confidence = 0.65                     // a shared name: common enough in a book of five thousand
-      basis = "name"
     }
 
     if (basis && confidence >= ASK_THRESHOLD && (!best || confidence > best.confidence)) {

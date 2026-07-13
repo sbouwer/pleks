@@ -16,10 +16,13 @@ import {
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
 import { checkLeasePlausibility, looksLikeEmail, looksLikeFormula, neutraliseFormula } from "./plausibility"
+import {
+  matchExistingContact, describeMatch, AUTO_LINK, type IdentityCandidate, type MatchBasis,
+} from "./identity"
 import { resolveDepositRate, postOpeningDeposit } from "./depositImport"
 import { normaliseBranchCode } from "./bankImport"
 import { bankAccountColumns } from "@/lib/crypto/bankAccount"
-import { idNumberColumns, validateSAIdNumber } from "@/lib/crypto/idNumber"
+import { idNumberColumns, validateSAIdNumber, hashIdNumber } from "@/lib/crypto/idNumber"
 import { optionalEnv } from "@/lib/env"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
@@ -59,12 +62,35 @@ export interface ImportResult {
   /** Total deposit money carried into the deposit/trust sub-ledger as opening balances. */
   depositsMigratedCents: number
   skipped: number
+  /** Rows NOT imported because we could not tell whether they are someone we already have.
+   *  The agent must answer these; until they do, the rows stay out — and the report says so, by name. */
+  identityHolds: IdentityHold[]
   errors: ImportError[]
   pendingLandlordLinks: Array<{ pendingLandlordId: string; name: string; email: string }>
   agentInvites: Array<{ email: string; role: string }>
 }
 
 export type ConflictResolution = "skip" | "co_tenant" | "previous" | "duplicate"
+
+/**
+ * The agent's answer to "is this the same person?" — keyed by the row of the FILE, which is what they see.
+ *
+ * NOT folded into ConflictDecision, deliberately. That type is UNIT-keyed (`unitKey` + `rowIndices`) because it
+ * models co-tenants sharing a unit; an identity hold is per-ROW and carries a candidate CONTACT, so reusing it
+ * would mean inventing a fake unitKey for a landlord row who has no unit at all. Same FLOW (analyse → confirm →
+ * execute, per the spec), correctly-shaped type.
+ */
+export type IdentityDecision =
+  | { action: "link"; contactId: string }     // the agent says: same person — use the record we already have
+  | { action: "create" }                      // the agent says: someone new — create them
+
+/** A row the importer REFUSED to guess about. It was NOT imported, and the agency is told exactly that. */
+export interface IdentityHold {
+  rowIndex: number
+  role: string
+  incoming: { name: string; email: string | null }
+  match: { contactId: string; name: string; email: string | null; confidence: number; basis: MatchBasis }
+}
 
 export interface ConflictDecision {
   unitKey: string
@@ -101,6 +127,9 @@ export interface ImportDecisions {
   bankConsentAttested?: boolean
   /** The agency confirmed it HOLDS these deposits. Without it, nothing is posted to the trust ledger. */
   depositsHeldAttested?: boolean
+  /** The agent's answers to the identity holds a PREVIOUS analyse/execute raised, keyed by file-row index.
+   *  Absent ⇒ nothing was asked yet, so a grey-band match HOLDS the row rather than guessing. */
+  identityDecisions?: Record<number, IdentityDecision>
   /** The file's RAW header row, in file order.
    *
    *  Needed because papaparse builds each row as an OBJECT: two columns with the SAME header name collapse into
@@ -782,9 +811,14 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
   if (ctx.tenantIdCache.has(email)) return
 
   try {
-    const { data: existing, error: existingError } = await ctx.supabase
-      .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).order("created_at", { ascending: true }).limit(1).maybeSingle()
-    assertLookupOk(existingError, "contact")
+    // IDENTITY FIRST. A tenant matched on their SA ID is the same tenant, whatever email the new book gives.
+    // And a GREY-BAND tenant is HELD — which holds their LEASE too. That is correct: a lease silently attached
+    // to the WRONG person is far worse than a lease that waits for one question, and the agency keeps the other
+    // ninety-nine rows. Strictness costs the ROW, never the BOOK.
+    const outcome = await resolveIdentity("tenant", identityCandidate(entry.row, ctx), entry.index, ctx)
+    if (outcome.kind === "hold") return
+
+    const existing = outcome.kind === "link" ? { id: outcome.contactId } : null
 
     if (existing) {
       // F-6a: `existing.id` is a CONTACTS id — resolve (or create) the TENANT for it via the shared helper.
@@ -2488,18 +2522,13 @@ async function importLandlords(
       // A property carrying an owner's email is a reason to LINK, not a reason to skip. That happens in
       // linkLandlordsToProperties below.
 
-      // Dedup against pending_landlords.email
-      const { data: existingPending, error: existingPendingError } = await ctx.supabase
-        .from("landlord_view")
-        .select("id")
-        .eq("org_id", ctx.orgId)
-        .ilike("email", email)
-        .limit(1)
-        .maybeSingle()
-      assertLookupOk(existingPendingError, "landlord (by email)")
-
-      if (existingPending) {
-        ctx.result.skipped++
+      // IDENTITY FIRST, email second. The old check was email-ONLY, so `john@acme.co.za` on the old system and
+      // `j.smith@acme.co.za` on the rent roll became two landlords — two PAYOUT IDENTITIES, for one man. The
+      // SA ID hash and the CIPC number were being written on every import and used for matching never.
+      const outcome = await resolveIdentity("landlord", identityCandidate(row, ctx), i, ctx)
+      if (outcome.kind === "hold") continue            // NOT imported; named in the report; the agent decides
+      if (outcome.kind === "link") {
+        ctx.result.skipped++                           // already ours — nothing to create
         continue
       }
 
@@ -2508,6 +2537,10 @@ async function importLandlords(
       const phone = getField(row, "phone", ctx.mapping) || null
       const idNumber = getField(row, "id_number", ctx.mapping) || null
       const vatNumber = getField(row, "vat_number", ctx.mapping) || null
+      // The CIPC number was READ from the file and then SILENTLY DROPPED — the landlord insert stored the VAT
+      // number and not the registration number. So a company landlord's canonical identity was thrown away, and
+      // (until this) could never be matched on. Found by the identity test, not by review.
+      const regNumber = getField(row, "registration_number", ctx.mapping) || null
 
       const { data: contact, error: contactError } = await ctx.supabase
         .from("contacts")
@@ -2521,6 +2554,7 @@ async function importLandlords(
           primary_email: email,
           primary_phone: phone,
           ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
+          registration_number: regNumber,
           vat_number: vatNumber,
         })
         .select("id").single()
@@ -2861,6 +2895,92 @@ function reportDuplicateHeaders(decisions: ImportDecisions, ctx: ImportContext):
   }
 }
 
+/**
+ * Is this row someone we ALREADY HAVE? The one place that decides, so no entity path can drift from the rule.
+ *
+ *   LINK    an exact deterministic key matched (SA ID hash, CIPC registration, VAT) — or an exact email.
+ *   CREATE  nothing came close. A different person.
+ *   HOLD    the grey band. We think it MIGHT be them, and we will not guess.
+ *
+ * CONFIDENCE IS A TRIAGE SIGNAL, NEVER A MERGE AUTHORITY. The band decides prompt-vs-create; it does not decide
+ * merge-vs-not. Merge authority comes only from an exact key or the agent's explicit confirmation — so not even
+ * a 0.94 match fuses two identities.
+ *
+ * Because the failure modes are ASYMMETRIC. Merging two people who are actually different fuses their ledgers
+ * and attributes one person's data to another: near-irreversible, and a POPIA breach. A duplicate is annoying
+ * and reversible — an agent merges it in a minute. So the band fails toward the REVERSIBLE error.
+ *
+ * A HELD ROW IS NOT IMPORTED, and it is named in the report. (A held tenant holds their LEASE too: a lease
+ * silently attached to the WRONG person is far worse than one that waits for a question. Strictness costs the
+ * ROW, never the BOOK — the agency keeps the other ninety-nine.)
+ */
+type IdentityOutcome =
+  | { kind: "link"; contactId: string }
+  | { kind: "create" }
+  | { kind: "hold" }
+
+async function resolveIdentity(
+  role: string,
+  candidate: IdentityCandidate,
+  rowIndex: number,
+  ctx: ImportContext,
+): Promise<IdentityOutcome> {
+  // The agent has already answered this one — honour it. That answer IS the merge authority.
+  const decided = ctx.decisions.identityDecisions?.[rowIndex]
+  if (decided) {
+    return decided.action === "link" ? { kind: "link", contactId: decided.contactId } : { kind: "create" }
+  }
+
+  const match = await matchExistingContact(ctx.supabase, ctx.orgId, role, candidate)
+  if (!match) return { kind: "create" }
+  if (match.confidence >= AUTO_LINK) return { kind: "link", contactId: match.contactId }
+
+  // The grey band. Hold the row, and tell them precisely what it costs and what to do about it.
+  const incomingName =
+    candidate.companyName?.trim() ||
+    [candidate.firstName, candidate.lastName].filter(Boolean).join(" ").trim() ||
+    "(unnamed)"
+
+  ctx.result.identityHolds.push({
+    rowIndex,
+    role,
+    incoming: { name: incomingName, email: candidate.email },
+    match: {
+      contactId: match.contactId,
+      name: match.existing.name,
+      email: match.existing.email,
+      confidence: match.confidence,
+      basis: match.basis,
+    },
+  })
+  ctx.result.errors.push({
+    rowIndex,
+    field: "identity",
+    severity: "error",          // NOT a warning: the row did not import. The agent must know, and must act.
+    message: describeMatch(match, { name: incomingName, email: candidate.email }),
+  })
+  ctx.result.skipped++
+  return { kind: "hold" }
+}
+
+/** Build the identity candidate from a row. The SA ID travels as its HASH — never the number, never the ciphertext. */
+function identityCandidate(row: Record<string, string>, ctx: ImportContext): IdentityCandidate {
+  const rawId = getField(row, "id_number", ctx.mapping).replaceAll(/\s/g, "")
+  const { firstName, lastName } = resolveName(row, ctx.mapping)
+  return {
+    email: getField(row, "email", ctx.mapping).toLowerCase() || null,
+    phone: getField(row, "phone", ctx.mapping) || null,
+    // hashIdNumber is the deterministic dedup key. The ciphertext has a random IV and is NOT a key — matching
+    // on it would match nothing, every time, which is a fail-open wearing a lock.
+    idNumberHash: rawId ? hashIdNumber(rawId) : null,
+    registrationNumber: getField(row, "registration_number", ctx.mapping) || null,
+    vatNumber: getField(row, "vat_number", ctx.mapping) || null,
+    firstName: firstName || null,
+    lastName: lastName || null,
+    companyName: getField(row, "company_name", ctx.mapping) || null,
+  }
+}
+
 export async function runImport(
   rows: Record<string, string>[],
   mapping: ColumnMapping,
@@ -2894,6 +3014,7 @@ export async function runImport(
       errors: [],
       pendingLandlordLinks: [],
       agentInvites: [],
+      identityHolds: [],
     },
     forceActiveRows: new Set(decisions.forceActiveRows ?? []),
     unitIdCache: new Map(),
