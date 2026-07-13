@@ -32,9 +32,11 @@ CREATE TABLE IF NOT EXISTS contacts (
   -- Primary role (how this contact appears in the app)
   -- Multiple roles stored in contact_roles junction table
   primary_role    text NOT NULL DEFAULT 'other'
+                  -- ⚠ SUPERSEDED by the named ADD CONSTRAINT in 012 — that one wins on replay. Kept in step
+                  -- with it so the two never disagree ('company_contact' is prod-ahead; see 012).
                   CHECK (primary_role IN (
                     'tenant', 'landlord', 'contractor',
-                    'agent', 'body_corporate', 'guarantor', 'other'
+                    'agent', 'body_corporate', 'guarantor', 'company_contact', 'other'
                   )),
 
   -- ── Individual identity ──────────────────────────────────
