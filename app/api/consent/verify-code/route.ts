@@ -17,11 +17,34 @@ import {
   verifyCodeMatch, recordFailedAttempt, resetFailedAttempts,
 } from "@/lib/consent/verification"
 
+/**
+ * A POPIA consent event that FAILED TO RECORD is not a logging problem — it is a missing compliance record
+ * behind a screen that said "verified".
+ *
+ * These inserts have been failing with a 23514 on EVERY consent round since 2026-05-27, when a DROP+ADD on
+ * `auth_events_event_type_check` silently dropped the eight consent_* values a fortnight after they were added.
+ * Nobody noticed for seven weeks, because the failure went to `console.error` and the route still returned 200.
+ * The constraint is restored (010 §); this makes the NEXT one impossible to miss.
+ *
+ * Deliberately does NOT fail the request: whether a verification should be REFUSED when its audit row cannot be
+ * written is a POPIA question, not an engineering one, and it is flagged for a ruling rather than guessed at
+ * (OUTSTANDING § D-CONSENT-01). What it must never do again is stay quiet.
+ */
+function reportConsentAuditFailure(event: string, err: { message: string }): void {
+  console.error(`[consent] auth_events ${event} insert FAILED:`, err.message)
+  Sentry.captureMessage(`consent audit row not written: ${event}`, {
+    level: "error",
+    tags: { area: "popia-consent-audit", event },
+    extra: { dbError: err.message },
+  })
+}
+
 const MAX_ATTEMPTS = 3
 
 export async function POST(req: Request) {
   try {
     const body = await req.json() as { verificationId?: string; code?: string }
+
     const { verificationId, code } = body
 
     if (!verificationId || !code) {
@@ -87,7 +110,7 @@ export async function POST(req: Request) {
           success:    false,
           metadata:   { ...aeBase.metadata, attempts },
         })
-        if (aeErr) console.error("[verify-code] auth_events locked_out failed:", aeErr.message)
+        if (aeErr) reportConsentAuditFailure("consent_verification_locked_out", aeErr)
         return NextResponse.json({ status: "locked", message: "Code invalidated — request a new one" })
       }
 
@@ -97,7 +120,7 @@ export async function POST(req: Request) {
         success:    false,
         metadata:   { ...aeBase.metadata, attempts, attempts_remaining: MAX_ATTEMPTS - attempts },
       })
-      if (aeErr) console.error("[verify-code] auth_events failed insert failed:", aeErr.message)
+      if (aeErr) reportConsentAuditFailure("consent_verification_failed", aeErr)
 
       return NextResponse.json({
         status:            "invalid",
@@ -128,7 +151,7 @@ export async function POST(req: Request) {
       event_type: "consent_code_verified",
       success:    true,
     })
-    if (aeErr) console.error("[verify-code] auth_events verified insert failed:", aeErr.message)
+    if (aeErr) reportConsentAuditFailure("consent_code_verified", aeErr)
 
     return NextResponse.json({ status: "verified", verificationId })
   } catch (err) {

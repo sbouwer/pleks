@@ -15,7 +15,7 @@
  * That is not a fallback — it is an override, and it moves money.
  */
 import { describe, it, expect } from "vitest"
-import { parseLeaseFormData } from "../leases"
+import { parseLeaseFormData } from "@/lib/leases/leaseFormFields"
 
 /** The control: every value deliberately DIFFERENT from its default — including the legitimate ZEROS.
  *  (A fixture that agrees with the fallback cannot see the fallback — the lesson from the import harness.) */

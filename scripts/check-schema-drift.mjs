@@ -223,6 +223,17 @@ function setsEqual(a, b) {
  */
 function getMigrationCheckValues(constraintName, migrations) {
   const nameLower = constraintName.toLowerCase()
+
+  // LAST DEFINITION WINS. Migrations replay top-to-bottom, so a later `DROP CONSTRAINT … ADD CONSTRAINT …`
+  // SUPERSEDES an earlier one — which is how every widening in this repo is written, sometimes twice in the
+  // SAME file. Returning the FIRST match read the superseded definition and reported drift that does not
+  // exist: it claimed the file still allowed the eight `consent_*` auth event types, when 010 §30.2 had
+  // silently dropped them 13 days after §25 added them. The file agreed with prod; the DETECTOR was wrong.
+  //
+  // (The real bug that finding sat on top of is worse, and this fix is what made it legible: the code writes
+  // those event types and NEITHER the file NOR prod accepts them.)
+  let last = null
+
   for (const mig of migrations) {
     // Search + extract BOTH against mig.content (indices must reference the same string — using the
     // comment-stripped `searchable` for the index but slicing `content` for the body mislocates the CHECK
@@ -253,11 +264,16 @@ function getMigrationCheckValues(constraintName, migrations) {
         else if (mig.content[i] === ")") { depth--; if (depth === 0) { end = i; break } }
       }
 
-      const vals = extractQuotedValues(mig.content.slice(absStart, end + 1))
-      if (vals.size > 0) return vals
+      // Strip `--` comments before reading values. An apostrophe in ordinary English prose inside a comment —
+      // "the landlord's consent (never the tenant's)" — parses as a quoted SQL literal, and the detector duly
+      // reported `consent_log` as missing an allowed value of `'s consent (never the tenant'`. Prose is not a
+      // constraint. (Second time today a comment has broken this parser; the first made it go silent.)
+      const raw = mig.content.slice(absStart, end + 1).replaceAll(/--[^\n]*/g, "")
+      const vals = extractQuotedValues(raw)
+      if (vals.size > 0) last = vals            // keep going — a later definition supersedes this one
     }
   }
-  return null
+  return last
 }
 
 // Split a string on commas that are at depth 0 (ignoring commas inside parens).
