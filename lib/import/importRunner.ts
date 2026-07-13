@@ -713,7 +713,12 @@ async function tenantIdForExistingContact(
 ): Promise<{ tenantId: string; created: boolean } | null> {
   const { data: existingTenant, error: etErr } = await ctx.supabase
     .from("tenants").select("id").eq("contact_id", contactId).is("deleted_at", null).limit(1).maybeSingle()
-  if (etErr) console.error("importRunner existing-contact tenant lookup failed:", etErr.message)
+  // The DB backstop is real here — uq_tenants_org_contact_live (org_id, contact_id) WHERE deleted_at IS NULL
+  // means a fall-through insert violates the constraint rather than duplicating. So this site was SAFE. It is
+  // still guarded, because it was the only lookup in the file whose safety depended on the reader knowing an
+  // index exists: "this cannot duplicate" should be legible from the code, not from a constraint two files away.
+  // The index remains, as defence in depth.
+  assertLookupOk(etErr, "tenant for existing contact")
   if (existingTenant) return { tenantId: String(existingTenant.id), created: false }
 
   // Contact exists but has no tenant row — create it. The partial unique (org_id, contact_id) WHERE
@@ -2491,7 +2496,7 @@ async function importLandlords(
         .ilike("email", email)
         .limit(1)
         .maybeSingle()
-      logIfError("importRunner landlord_view email lookup failed", existingPendingError)
+      assertLookupOk(existingPendingError, "landlord (by email)")
 
       if (existingPending) {
         ctx.result.skipped++
@@ -2599,7 +2604,7 @@ async function linkLandlordsToProperties(ctx: ImportContext): Promise<void> {
     .eq("org_id", ctx.orgId)
     .is("landlord_id", null)
     .not("owner_email", "is", null)
-  logIfError("importRunner properties for landlord linking", error)
+  assertLookupOk(error, "properties for landlord linking")
 
   for (const property of properties ?? []) {
     const email = String(property.owner_email ?? "").toLowerCase().trim()
@@ -2654,7 +2659,7 @@ async function findOrCreateLandlord(
 ): Promise<string | null> {
   const { data: existing, error: existingError } = await ctx.supabase
     .from("landlord_view").select("id").eq("org_id", ctx.orgId).ilike("email", email).limit(1).maybeSingle()
-  logIfError("importRunner landlord_view lookup", existingError)
+  assertLookupOk(existingError, "landlord")
   if (existing) return String(existing.id)
 
   // The book never gave a landlord row for this owner — but the property told us who they are. Create them.
@@ -2729,7 +2734,7 @@ async function importAgents(
       // Dedup: check if already an org member
       const { data: existingMember, error: existingMemberError } = await ctx.supabase
         .rpc("get_org_member_by_email", { p_org_id: ctx.orgId, p_email: email })
-      if (existingMemberError) console.error("importRunner get_org_member_by_email rpc failed:", existingMemberError.message)
+      assertLookupOk(existingMemberError, "org member (by email)")
 
       if (existingMember && (Array.isArray(existingMember) ? existingMember.length > 0 : true)) {
         ctx.result.skipped++
@@ -2744,7 +2749,7 @@ async function importAgents(
         .ilike("email", email)
         .limit(1)
         .maybeSingle()
-      if (existingInviteError) console.error("importRunner invites lookup failed:", existingInviteError.message)
+      assertLookupOk(existingInviteError, "existing invite")
 
       if (existingInvite) {
         ctx.result.skipped++

@@ -22,7 +22,7 @@ import { runImportWithRecovery, isInfrastructureFailure } from "@/lib/import/rec
 import { generateBook } from "@/test/import/book"
 import { render, type RenderedBook } from "@/test/import/dialect"
 import { contentHash } from "@/test/import/reconcile"
-import { crashAfter } from "@/test/import/crashClient"
+import { crashAfter, failReadsOn } from "@/test/import/crashClient"
 
 const db = svc()
 
@@ -215,11 +215,95 @@ describe("RECOVERY — a dropped connection retries itself", () => {
       "other people's money: one opening balance per lease, or the trust account over-states what is held",
     ).toEqual([])
 
+    // LANDLORDS AND CONTACTS. The first version of this test counted leases and deposits ONLY — so the landlord
+    // path could duplicate freely and the suite stayed green. That is the SAME shape as the bug this test was
+    // written to catch: the proof not covering a path the feature walks. It recurred one level in, and the
+    // pre-PR walk caught it again.
+    //
+    // A duplicated owner is not cosmetic: owner-statement attribution and PAYOUTS split across two identities.
+    // And there is no database backstop — `contacts` has no unique on (org_id, primary_email), and
+    // uq_landlords_org_contact_live is on (org_id, contact_id), which a fall-through defeats by minting a FRESH
+    // contact_id every time.
+    const { data: contacts, error: ce } = await db
+      .from("contacts").select("primary_email, primary_role").eq("org_id", org)
+    expect(ce).toBeFalsy()
+
+    const byEmail = new Map<string, number>()
+    for (const c of contacts ?? []) {
+      const key = `${c.primary_role}:${String(c.primary_email ?? "").toLowerCase()}`
+      byEmail.set(key, (byEmail.get(key) ?? 0) + 1)
+    }
+    expect(
+      [...byEmail.entries()].filter(([, n]) => n > 1).map(([k, n]) => `${k} exists ${n} times`),
+      "a failed dedup LOOKUP must never mint a second contact for a person who already exists — a duplicated " +
+      "OWNER splits their statement attribution and their payouts",
+    ).toEqual([])
+
+    const { data: landlords, error: lle } = await db
+      .from("landlords").select("id, contact_id").eq("org_id", org)
+    expect(lle).toBeFalsy()
+    const byContact = new Map<string, number>()
+    for (const l of landlords ?? []) byContact.set(l.contact_id as string, (byContact.get(l.contact_id as string) ?? 0) + 1)
+    expect(
+      [...byContact.entries()].filter(([, n]) => n > 1).map(([c, n]) => `contact ${c} has ${n} landlord rows`),
+      "one landlord per contact",
+    ).toEqual([])
+
     // And once the connection is healthy, a further re-run must still converge on the clean book.
     await runImport(book.rows, toColumnMapping(wireOf(book)), decisionsFor(book), org, agentId, undefined, db)
     expect(
       await contentHash(db, org),
       "after the blip passes, a re-run converges on exactly the book a clean run would have produced",
     ).toBe(cleanState)
+  }, 300_000)
+
+  it("a re-run whose LANDLORD lookup fails does not mint a second owner", async () => {
+    // THE CASE THE PREVIOUS TEST WALKED PAST. The landlord phase runs LAST, so a counter-based crash window
+    // opens and closes long before it — the landlord dedup lookup always ran on a healthy connection, the guard
+    // was never exercised, and the suite stayed green over a wide-open fail-open. That is the SAME shape as the
+    // bug this file exists to catch, recurring one level in. If a failure cannot be STEERED at the path under
+    // test, the test is measuring its own reach and not the code's correctness.
+    //
+    // A duplicated OWNER is not cosmetic: owner-statement attribution and PAYOUTS split across two identities.
+    // And there is no database backstop — `contacts` has no unique on (org_id, primary_email), and
+    // uq_landlords_org_contact_live is on (org_id, contact_id), which the fall-through defeats by minting a
+    // FRESH contact_id every time.
+    const truth = generateBook({ seed: 93, leases: 3, landlords: 2, variety: true })
+    const book = render(truth, "en-ZA")
+
+    const org = await seedEmptyOrg(db)
+    orgs.push(org)
+
+    // A clean first run: the landlords exist.
+    await runImport(book.rows, toColumnMapping(wireOf(book)), decisionsFor(book), org, agentId, undefined, db)
+    const { data: before, error: be } = await db.from("landlords").select("id").eq("org_id", org)
+    expect(be).toBeFalsy()
+    expect(before?.length, "the first run creates the owners").toBeGreaterThan(0)
+
+    // The re-run — with the landlord dedup lookup FAILING, which is the whole point.
+    const blind = failReadsOn(db, ["landlord_view"])
+    await runImportWithRecovery(
+      book.rows, toColumnMapping(wireOf(book)), decisionsFor(book), org, agentId, undefined, blind,
+    ).catch((e) => {
+      // A hard abort is an acceptable outcome — refusing is fail-CLOSED. Creating a duplicate is not.
+      if (!(e instanceof Error)) throw e
+    })
+
+    const { data: after, error: ae } = await db.from("landlords").select("id, contact_id").eq("org_id", org)
+    expect(ae).toBeFalsy()
+    expect(
+      after?.length,
+      "the landlord lookup FAILED — which is not the same as finding nothing. Falling through creates a second " +
+      "contact and a second landlord for an owner who already exists, and their payouts split in two.",
+    ).toBe(before?.length)
+
+    const { data: cts, error: ce2 } = await db
+      .from("contacts").select("primary_email").eq("org_id", org).eq("primary_role", "landlord")
+    expect(ce2).toBeFalsy()
+    const emails = (cts ?? []).map((c) => String(c.primary_email ?? "").toLowerCase())
+    expect(
+      emails.length - new Set(emails).size,
+      "…and no duplicate landlord CONTACT either",
+    ).toBe(0)
   }, 300_000)
 })

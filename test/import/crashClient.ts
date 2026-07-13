@@ -17,6 +17,19 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+/** A query that failed the way supabase-js actually fails: it RESOLVES to `{ data: null, error }`. */
+function failedQuery(): unknown {
+  const result = { data: null, error: { message: "fetch failed: connection lost", code: "" } }
+  return new Proxy({} as object, {
+    get(_t, prop) {
+      if (prop === "then") {
+        return (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
+      }
+      return () => failedQuery()      // .eq / .ilike / .limit / .maybeSingle / .single / .order …
+    },
+  })
+}
+
 export class InjectedCrash extends Error {
   constructor(public readonly afterWrites: number) {
     super(`injected crash: connection lost after ${afterWrites} write(s)`)
@@ -50,14 +63,20 @@ export function crashAfter(
         // matters most, because every "does this already exist?" guard in the importer is a SELECT. If a failed
         // lookup reads as "not found", the importer creates the row AGAIN.
         //
-        // The first version of this client passed reads through untouched and said so in a comment ("reads keep
-        // working right up to the moment of death"). That made the whole convergence proof a proof about
-        // WRITE-ONLY failure — which is not the failure the auto-retry exists to handle. The pre-PR walk caught
-        // it. `failReads` is how the harness can now see the class it was previously blind to.
+        // ⚠ AND IT RESOLVES TO AN ERROR — IT DOES NOT THROW. supabase-js never throws on a failed query; even a
+        // dropped socket comes back as `{ data: null, error: { message: "fetch failed" } }`. A client that THROWS
+        // models something the library never does, and it makes the code look SAFE, because the throw is caught
+        // by the row's try/catch and the row is refused: fail-closed BY ACCIDENT. The genuine fail-open needs the
+        // error OBJECT — `if (error) log(error)` → data is null → "does not exist" → INSERT.
+        //
+        // The first version of this client passed reads through untouched entirely ("reads keep working right up
+        // to the moment of death"), which made the whole convergence proof a proof about WRITE-ONLY failure. The
+        // second version failed them by THROWING, which proved almost as little. Two walks to get one client to
+        // fail the way the database actually fails.
         if (opts.failReads && prop === "select") {
           return (...args: unknown[]) => {
             n++
-            if (failing()) throw new InjectedCrash(writes)
+            if (failing()) return failedQuery()
             return wrapBuilder((value as (...a: unknown[]) => unknown).apply(target, args))
           }
         }
@@ -99,4 +118,54 @@ export function crashAfter(
   }) as SupabaseClient
 
   return { client, count: () => n }
+}
+
+
+/**
+ * A client whose SELECTs fail on NAMED TABLES ONLY — everything else works perfectly.
+ *
+ * The counter-based client cannot reach every guard: the landlord phase runs LAST, so by the time the crash
+ * window opens and closes the landlord lookup has long since happened on a healthy connection. A test built on
+ * it therefore passes while the landlord dedup guard is wide open — which is exactly what happened, and exactly
+ * the shape of the bug it was written to catch, recurring one level in.
+ *
+ * "The probe must fire" is not a slogan. If a failure cannot be STEERED at the code path under test, the test
+ * is measuring its own reach, not the code's correctness.
+ */
+export function failReadsOn(db: SupabaseClient, tables: string[]): SupabaseClient {
+  const targeted = new Set(tables)
+
+  // ⚠ IT RESOLVES TO AN ERROR. IT DOES NOT THROW. This is the whole point, and my first attempt got it wrong.
+  //
+  // supabase-js does NOT throw when a query fails — it RESOLVES to `{ data: null, error }`. Even a dropped
+  // socket comes back as `{ data: null, error: { message: "fetch failed" } }`. A client that THROWS therefore
+  // models something the real library never does, and worse, it makes the code look SAFE: the throw is caught
+  // by the row's try/catch and the row is refused. Fail-closed by accident.
+  //
+  // The genuine fail-open needs the error OBJECT: `if (error) log(error)` → `data` is null → "does not exist" →
+  // INSERT. That is the shape the walk described, and no probe in this harness could produce it. So the probe
+  // that "fired" proved nothing, and the one before it proved nothing either. Two green tests over a wide-open
+  // duplication path — because the failure they injected was not the failure that happens.
+  const wrapBuilder = (builder: unknown, table: string): unknown =>
+    new Proxy(builder as object, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver)
+        if (prop === "select" && targeted.has(table)) return () => failedQuery()
+
+        if (typeof value === "function") {
+          return (...args: unknown[]) => {
+            const out = (value as (...a: unknown[]) => unknown).apply(target, args)
+            return out && typeof out === "object" && !(out instanceof Promise) ? wrapBuilder(out, table) : out
+          }
+        }
+        return value
+      },
+    })
+
+  return new Proxy(db, {
+    get(target, prop, receiver) {
+      if (prop === "from") return (table: string) => wrapBuilder(target.from(table), table)
+      return Reflect.get(target, prop, receiver)
+    },
+  }) as SupabaseClient
 }
