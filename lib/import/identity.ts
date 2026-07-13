@@ -163,13 +163,36 @@ export async function matchExistingContact(
   return fuzzyMatch(await roster(base), candidate)
 }
 
-/** Everyone in this role, for the fuzzy pass. Org-scoped; small by construction (an org's own contacts). */
+/** How many same-role contacts the fuzzy pass will scan. Org-scoped, so this is one agency's own book. */
+const ROSTER_CAP = 2000
+
+/**
+ * Everyone in this role, for the fuzzy pass.
+ *
+ * ⚠ IT IS CAPPED, AND IT SAYS SO. Beyond ROSTER_CAP a name+phone match can be MISSED, and the row then CREATEs
+ * instead of being HELD. That fails toward the REVERSIBLE error (a duplicate an agent merges later, rather than
+ * a fused identity), which is why the cap is acceptable at all — and it only bites an org with more than two
+ * thousand contacts in a single role, far past today's reality.
+ *
+ * But a bounded sweep that does not report what it dropped READS AS "we checked everyone", and that is the
+ * silent-truncation shape this whole arc exists to kill. If the cap is ever hit, the log is the only thing
+ * standing between "no duplicate found" and "no duplicate found in the first two thousand".
+ */
 async function roster(
   base: () => { limit: (n: number) => PromiseLike<{ data: unknown; error: { message: string } | null }> },
 ): Promise<ContactRow[]> {
-  const { data, error } = await base().limit(2000)
+  const { data, error } = await base().limit(ROSTER_CAP)
   if (error) throw new Error(`identity roster failed: ${error.message}`)
-  return (data ?? []) as ContactRow[]
+
+  const rows = (data ?? []) as ContactRow[]
+  if (rows.length === ROSTER_CAP) {
+    console.warn(
+      `[identity] the fuzzy duplicate scan was CAPPED at ${ROSTER_CAP} contacts — beyond that a possible ` +
+      `duplicate may have been missed and the row imported as a new person instead of being held for review. ` +
+      `Nothing was merged on a guess; the risk here is a duplicate, not a fused identity.`,
+    )
+  }
+  return rows
 }
 
 /**
