@@ -36,6 +36,7 @@
  *         ask, and we say plainly what is waiting on the answer.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { normalizePhone } from "@/lib/validation/contact"
 
 export type MatchBasis =
   | "id_number"
@@ -93,14 +94,15 @@ const asMatch = (c: ContactRow, confidence: number, basis: MatchBasis): Identity
   existing: { name: display(c), email: c.primary_email, phone: c.primary_phone },
 })
 
-/** Digits only. "+27 82 123 4567", "082 123 4567" and "0821234567" are the same phone; the file writes all three. */
-function normalisePhone(phone: string | null): string | null {
-  if (!phone) return null
-  const digits = phone.replaceAll(/\D/g, "")
-  if (digits.length < 9) return null
-  const local = digits.startsWith("27") ? digits.slice(2) : digits.replace(/^0/, "")
-  return local.length >= 9 ? local.slice(-9) : null      // last 9 digits: the SA subscriber number
-}
+/**
+ * The phone SSOT — `normalizePhone` (E.164 or null), NOT a hand-rolled \D-strip.
+ *
+ * My first version rolled its own, and `pleks/no-rerolled-phone-normalise` caught it: a naive digit-strip is
+ * WEAKER, because it happily passes an unparseable number through as if it were valid. Here that would be worse
+ * than useless — it would let two DIFFERENT people match on a garbage "phone" that normalised to the same
+ * digits, and matching is the one thing this file exists to get right. "+27 82 123 4567", "082 123 4567" and
+ * "0821234567" all resolve to the same E.164 number; an unparseable one resolves to null and matches nobody.
+ */
 
 const normaliseName = (v: string | null) =>
   (v ?? "").toLowerCase().replaceAll(/[^a-z]/g, "") || null
@@ -151,7 +153,9 @@ export async function matchExistingContact(
 }
 
 /** Everyone in this role, for the fuzzy pass. Org-scoped; small by construction (an org's own contacts). */
-async function roster(base: () => ReturnType<SupabaseClient["from"]>["select"] extends never ? never : any) {
+async function roster(
+  base: () => { limit: (n: number) => PromiseLike<{ data: unknown; error: { message: string } | null }> },
+): Promise<ContactRow[]> {
   const { data, error } = await base().limit(2000)
   if (error) throw new Error(`identity roster failed: ${error.message}`)
   return (data ?? []) as ContactRow[]
@@ -161,7 +165,7 @@ async function roster(base: () => ReturnType<SupabaseClient["from"]>["select"] e
  * The grey band. Nothing here is ever merged automatically — it is evidence to put in front of a human.
  */
 function fuzzyMatch(rows: ContactRow[], candidate: IdentityCandidate): IdentityMatch | null {
-  const phone = normalisePhone(candidate.phone)
+  const phone = normalizePhone(candidate.phone)
   const name = normaliseName(
     candidate.companyName ?? [candidate.firstName, candidate.lastName].filter(Boolean).join(""),
   )
@@ -169,15 +173,16 @@ function fuzzyMatch(rows: ContactRow[], candidate: IdentityCandidate): IdentityM
 
   let best: IdentityMatch | null = null
   for (const row of rows) {
-    const rowPhone = normalisePhone(row.primary_phone)
+    const rowPhone = normalizePhone(row.primary_phone)
     const rowName = normaliseName(row.company_name ?? [row.first_name, row.last_name].filter(Boolean).join(""))
 
     let confidence = 0
-    let basis: MatchBasis = "name"
+    let basis: MatchBasis | null = null
 
     if (name && phone && rowName === name && rowPhone === phone) {
       // The same name AND the same phone, with a different email. Almost certainly the same person who changed
-      // their address — but "almost certainly" is exactly the band where we ask instead of assuming.
+      // their address — but "almost certainly" is exactly the band where we ASK instead of assuming. Confidence
+      // is a triage signal, never a merge authority: not even 0.94 fuses two identities.
       confidence = 0.90
       basis = "name_and_phone"
     } else if (phone && rowPhone === phone) {
@@ -188,7 +193,7 @@ function fuzzyMatch(rows: ContactRow[], candidate: IdentityCandidate): IdentityM
       basis = "name"
     }
 
-    if (confidence >= ASK_THRESHOLD && (!best || confidence > best.confidence)) {
+    if (basis && confidence >= ASK_THRESHOLD && (!best || confidence > best.confidence)) {
       best = asMatch(row, confidence, basis)
     }
   }
