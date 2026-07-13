@@ -3,6 +3,7 @@
  *
  * Notes:  pure formatting helpers (no DB, no gate) — running balance is computed over the passed-in entries
  */
+import { escapeCsvCell } from "@/lib/security/csvInjection"
 import { formatZAR } from "@/lib/constants"
 import { SA_TIMEZONE } from "@/lib/dates"
 
@@ -43,15 +44,18 @@ export function buildTrustLedgerCSV(entries: TrustLedgerEntry[]): string {
     else { balance -= e.amount_cents }
     const inAmt = e.direction === "credit" ? (e.amount_cents / 100).toFixed(2) : ""
     const outAmt = e.direction === "debit" ? (e.amount_cents / 100).toFixed(2) : ""
+    // Every cell through the SSOT. Two bugs died here at once: `reference` and `property_name` were not quoted
+    // AT ALL, so an agency property called "Unit 3, Sea Point" split the row and shifted every column after it;
+    // and nothing anywhere neutralised a formula lead, in a file whose whole purpose is to be opened in Excel.
     rows.push([
-      e.date,
-      e.reference ?? "",
-      formatTrustType(e.transaction_type),
-      `"${(e.description ?? "").replaceAll('"', '""')}"`,
-      e.property_name ?? "",
-      inAmt,
-      outAmt,
-      (balance / 100).toFixed(2),
+      escapeCsvCell(e.date),
+      escapeCsvCell(e.reference ?? ""),
+      escapeCsvCell(formatTrustType(e.transaction_type)),
+      escapeCsvCell(e.description ?? ""),
+      escapeCsvCell(e.property_name ?? ""),
+      escapeCsvCell(inAmt),
+      escapeCsvCell(outAmt),
+      escapeCsvCell((balance / 100).toFixed(2)),
     ].join(","))
   }
   return rows.join("\n")
