@@ -82,6 +82,7 @@ export default function ImportWizardPage() {
     extraColumnRouting: {},
     expiredLeaseAction: "skip",
     perRowOverrides: {},
+    fileHeaders: [],
     bankConsentAttested: false,
     depositsHeldAttested: false,
   })
@@ -114,7 +115,10 @@ export default function ImportWizardPage() {
         mapping[s.column] = { field: s.field, entity: s.entity }
       }
     }
-    setDecisions((d) => ({ ...d, columnMapping: mapping }))
+    // The RAW header row travels with the decisions. papaparse keys each row by header name, so two columns
+    // called "Email" collapse into one key and the second silently overwrites the first — by the time the
+    // runner holds `rows`, the duplicate is gone. This is the only place it is still visible.
+    setDecisions((d) => ({ ...d, columnMapping: mapping, fileHeaders: headers }))
     setStep("detected")
   }, [])
 
@@ -172,6 +176,7 @@ export default function ImportWizardPage() {
       perRowOverrides: {},
       bankConsentAttested: false,
       depositsHeldAttested: false,
+      fileHeaders: [],
     })
     setResult(null)
     setGlBlocks([])

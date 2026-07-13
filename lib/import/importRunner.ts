@@ -15,7 +15,7 @@ import {
   SA_PROVINCES, type Classification,
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
-import { checkLeasePlausibility, looksLikeEmail } from "./plausibility"
+import { checkLeasePlausibility, looksLikeEmail, looksLikeFormula, neutraliseFormula } from "./plausibility"
 import { resolveDepositRate, postOpeningDeposit } from "./depositImport"
 import { normaliseBranchCode } from "./bankImport"
 import { bankAccountColumns } from "@/lib/crypto/bankAccount"
@@ -101,6 +101,13 @@ export interface ImportDecisions {
   bankConsentAttested?: boolean
   /** The agency confirmed it HOLDS these deposits. Without it, nothing is posted to the trust ledger. */
   depositsHeldAttested?: boolean
+  /** The file's RAW header row, in file order.
+   *
+   *  Needed because papaparse builds each row as an OBJECT: two columns with the SAME header name collapse into
+   *  one key and the second silently overwrites the first. By the time the runner sees `rows`, the duplicate is
+   *  gone without a trace — there is no way to detect it downstream, only here. An agency with two "Email"
+   *  columns (a merged export, a copy-paste) loses one of them and is never told which. */
+  fileHeaders?: string[]
 }
 
 type TenantRole = "primary" | "co_tenant" | "previous"
@@ -142,6 +149,34 @@ function logIfError(label: string, error: { message: string } | null) {
 
 // ── Field helpers ──────────────────────────────────────────────────────
 
+/**
+ * A dedup lookup that FAILED is not a dedup lookup that found NOTHING.
+ *
+ * Every "does this already exist?" query in this file used to do:
+ *
+ *     const { data, error } = await ...select()...maybeSingle()
+ *     if (error) console.error(...)          // ← checked, logged, and then NOT ACTED ON
+ *     if (data) { skipped++; return }        // ← error ⇒ data is null ⇒ fall through to INSERT
+ *
+ * which means a transient query failure reads as "this row does not exist yet" and the importer creates it
+ * AGAIN. That is the exact fail-open this whole arc exists to kill — a write that fails, an error that is
+ * swallowed, a caller that proceeds as if all is well — and it was sitting in the guard that protects against
+ * duplication.
+ *
+ * It matters most under precisely the conditions the auto-retry is FOR. A dropped connection fails SELECTs, not
+ * only INSERTs; the retry then re-runs the book while the database is still flapping, a dedup SELECT errors,
+ * the guard falls open, and a SECOND active lease is created for the same tenant and unit. `postOpeningDeposit`
+ * keys on `lease_id` — a new lease is a new key — so it posts a SECOND opening balance into the trust ledger.
+ * The agency's trust account now over-states the deposits it holds. Money, silently wrong, from a dropped packet.
+ *
+ * My convergence proof did not cover this, because the crash client only ever failed WRITES. The pre-PR walk
+ * caught it. So: a failed lookup THROWS, the row is refused and reported by name, and nothing is written on the
+ * strength of a question we could not ask.
+ */
+function assertLookupOk(error: { message: string } | null, what: string): void {
+  if (error) throw new Error(`${what} lookup failed: ${error.message}`)
+}
+
 function getField(
   row: Record<string, string>,
   fieldName: string,
@@ -150,7 +185,16 @@ function getField(
   // The mapping key IS the original column name from the file
   for (const [columnName, mapped] of Object.entries(mapping)) {
     if (mapped.field === fieldName) {
-      return (row[columnName] ?? row[mapped.column] ?? "").trim()
+      const raw = (row[columnName] ?? row[mapped.column] ?? "").trim()
+      // FORMULA NEUTRALISATION, at the one boundary every entity path reads through — tenant, landlord,
+      // supplier, agent, property. A value beginning `=`, `+`, `@` (or a non-numeric `-`) is EXECUTED by Excel
+      // when the next person opens an export of this data, and the next person is the agency's own bookkeeper.
+      // The name field is attacker-controlled: anyone who can get onto a rent roll can put a formula in it.
+      // Storing it verbatim would make Pleks the delivery mechanism for an attack on our own customer.
+      //
+      // The row is also FLAGGED (see the scan in runImport) — silently altering an agency's data is its own
+      // sin, so we neutralise it AND say that we did.
+      return looksLikeFormula(raw) ? neutraliseFormula(raw) : raw
     }
   }
   return ""
@@ -383,7 +427,7 @@ async function upsertProperty(
 
   const { data: existing, error: existingError } = await ctx.supabase
     .from("properties").select("id").eq("org_id", ctx.orgId).ilike("name", propertyName).limit(1).maybeSingle()
-  if (existingError) console.error("importRunner properties lookup failed:", existingError.message)
+  assertLookupOk(existingError, "property")
 
   if (existing) {
     const id = String(existing.id)
@@ -527,7 +571,7 @@ async function upsertUnit(
 
   const { data: existing, error: existingError } = await ctx.supabase
     .from("units").select("id").eq("org_id", ctx.orgId).eq("property_id", propertyId).ilike("unit_number", unitNumber).limit(1).maybeSingle()
-  if (existingError) console.error("importRunner units lookup failed:", existingError.message)
+  assertLookupOk(existingError, "unit")
 
   if (existing) {
     const id = String(existing.id)
@@ -669,7 +713,12 @@ async function tenantIdForExistingContact(
 ): Promise<{ tenantId: string; created: boolean } | null> {
   const { data: existingTenant, error: etErr } = await ctx.supabase
     .from("tenants").select("id").eq("contact_id", contactId).is("deleted_at", null).limit(1).maybeSingle()
-  if (etErr) console.error("importRunner existing-contact tenant lookup failed:", etErr.message)
+  // The DB backstop is real here — uq_tenants_org_contact_live (org_id, contact_id) WHERE deleted_at IS NULL
+  // means a fall-through insert violates the constraint rather than duplicating. So this site was SAFE. It is
+  // still guarded, because it was the only lookup in the file whose safety depended on the reader knowing an
+  // index exists: "this cannot duplicate" should be legible from the code, not from a constraint two files away.
+  // The index remains, as defence in depth.
+  assertLookupOk(etErr, "tenant for existing contact")
   if (existingTenant) return { tenantId: String(existingTenant.id), created: false }
 
   // Contact exists but has no tenant row — create it. The partial unique (org_id, contact_id) WHERE
@@ -735,7 +784,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
   try {
     const { data: existing, error: existingError } = await ctx.supabase
       .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).order("created_at", { ascending: true }).limit(1).maybeSingle()
-    if (existingError) console.error("importRunner contacts lookup failed:", existingError.message)
+    assertLookupOk(existingError, "contact")
 
     if (existing) {
       // F-6a: `existing.id` is a CONTACTS id — resolve (or create) the TENANT for it via the shared helper.
@@ -945,7 +994,7 @@ async function insertSingleTenant(params: {
 
   const { data: existing, error: existingError } = await ctx.supabase
     .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).order("created_at", { ascending: true }).limit(1).maybeSingle()
-  if (existingError) console.error("importRunner contacts lookup failed:", existingError.message)
+  assertLookupOk(existingError, "contact")
 
   if (existing) {
     // F-6a (walker Finding 2): the sibling bug — this cached a CONTACTS id as a tenant id. Route through the
@@ -1758,7 +1807,7 @@ async function processActiveLease(
     // serial import → accepted; a partial-unique index would harden it but risks legitimate renewals).
     const { data: existingLease, error: existingLeaseError } = await ctx.supabase
       .from("leases").select("id").eq("org_id", ctx.orgId).eq("unit_id", unitId).eq("tenant_id", primaryTenantId).is("deleted_at", null).limit(1).maybeSingle()
-    if (existingLeaseError) console.error("importRunner existing-lease lookup failed:", existingLeaseError.message)
+    assertLookupOk(existingLeaseError, "existing-lease")
     if (existingLease) {
       ctx.result.skipped++
       return
@@ -1979,12 +2028,12 @@ async function resolveTenantIdForHistory(
   // 2. Try existing contact → tenant
   const { data: existingContact, error: existingContactError } = await ctx.supabase
     .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).order("created_at", { ascending: true }).limit(1).maybeSingle()
-  if (existingContactError) console.error("importRunner prev-tenant contacts lookup failed:", existingContactError.message)
+  assertLookupOk(existingContactError, "previous-tenant contact")
 
   if (existingContact) {
     const { data: existingTenant, error: existingTenantError } = await ctx.supabase
       .from("tenants").select("id").eq("contact_id", existingContact.id).limit(1).maybeSingle()
-    if (existingTenantError) console.error("importRunner prev-tenant tenants lookup failed:", existingTenantError.message)
+    assertLookupOk(existingTenantError, "previous-tenant")
     if (existingTenant) {
       const tenantId = String(existingTenant.id)
       ctx.tenantIdCache.set(email, tenantId)
@@ -2061,7 +2110,7 @@ async function createTenancyHistory(
     .from("tenancy_history").select("id")
     .eq("org_id", ctx.orgId).eq("unit_id", unitId).eq("tenant_id", tenantId).eq("move_in_date", moveIn)
     .limit(1).maybeSingle()
-  if (existingHistError) console.error("importRunner existing-history lookup failed:", existingHistError.message)
+  assertLookupOk(existingHistError, "lease-history")
   if (existingHist) {
     ctx.result.skipped++
     return
@@ -2306,7 +2355,7 @@ async function isExistingVendor(
       .ilike("email", email)
       .limit(1)
       .maybeSingle()
-    if (byEmailError) console.error("importRunner contractor_view email lookup failed:", byEmailError.message)
+    assertLookupOk(byEmailError, "contractor (by email)")
     if (byEmail) return true
   }
 
@@ -2318,7 +2367,7 @@ async function isExistingVendor(
       .ilike("company_name", displayName)
       .limit(1)
       .maybeSingle()
-    if (byNameError) console.error("importRunner contractor_view name lookup failed:", byNameError.message)
+    assertLookupOk(byNameError, "contractor (by name)")
     if (byName) return true
   }
 
@@ -2447,7 +2496,7 @@ async function importLandlords(
         .ilike("email", email)
         .limit(1)
         .maybeSingle()
-      logIfError("importRunner landlord_view email lookup failed", existingPendingError)
+      assertLookupOk(existingPendingError, "landlord (by email)")
 
       if (existingPending) {
         ctx.result.skipped++
@@ -2555,7 +2604,7 @@ async function linkLandlordsToProperties(ctx: ImportContext): Promise<void> {
     .eq("org_id", ctx.orgId)
     .is("landlord_id", null)
     .not("owner_email", "is", null)
-  logIfError("importRunner properties for landlord linking", error)
+  assertLookupOk(error, "properties for landlord linking")
 
   for (const property of properties ?? []) {
     const email = String(property.owner_email ?? "").toLowerCase().trim()
@@ -2610,7 +2659,7 @@ async function findOrCreateLandlord(
 ): Promise<string | null> {
   const { data: existing, error: existingError } = await ctx.supabase
     .from("landlord_view").select("id").eq("org_id", ctx.orgId).ilike("email", email).limit(1).maybeSingle()
-  logIfError("importRunner landlord_view lookup", existingError)
+  assertLookupOk(existingError, "landlord")
   if (existing) return String(existing.id)
 
   // The book never gave a landlord row for this owner — but the property told us who they are. Create them.
@@ -2685,7 +2734,7 @@ async function importAgents(
       // Dedup: check if already an org member
       const { data: existingMember, error: existingMemberError } = await ctx.supabase
         .rpc("get_org_member_by_email", { p_org_id: ctx.orgId, p_email: email })
-      if (existingMemberError) console.error("importRunner get_org_member_by_email rpc failed:", existingMemberError.message)
+      assertLookupOk(existingMemberError, "org member (by email)")
 
       if (existingMember && (Array.isArray(existingMember) ? existingMember.length > 0 : true)) {
         ctx.result.skipped++
@@ -2700,7 +2749,7 @@ async function importAgents(
         .ilike("email", email)
         .limit(1)
         .maybeSingle()
-      if (existingInviteError) console.error("importRunner invites lookup failed:", existingInviteError.message)
+      assertLookupOk(existingInviteError, "existing invite")
 
       if (existingInvite) {
         ctx.result.skipped++
@@ -2751,6 +2800,66 @@ async function importAgents(
 }
 
 // ── Main Import Runner ─────────────────────────────────────────────────
+
+/**
+ * FORMULA CELLS — neutralised at getField, but the agency must be TOLD: we changed what they gave us, and a
+ * silent correction is indistinguishable from a silent corruption.
+ */
+function reportFormulaCells(rows: Record<string, string>[], ctx: ImportContext): void {
+  // ONE MESSAGE PER COLUMN, not per cell. A book with a formula-shaped column would otherwise emit a warning
+  // for every row — two thousand near-identical messages that bury the findings the agency actually needs to
+  // act on. A report nobody can read is not a report. Count them, name the column, cite the first row.
+  const formulaCells = new Map<string, { count: number; firstRow: number }>()
+  for (const [index, row] of rows.entries()) {
+    for (const [column, value] of Object.entries(row)) {
+      if (typeof value !== "string" || !looksLikeFormula(value)) continue
+      const seen = formulaCells.get(column)
+      if (seen) seen.count++
+      else formulaCells.set(column, { count: 1, firstRow: index })
+    }
+  }
+  for (const [column, { count, firstRow }] of formulaCells) {
+    ctx.result.errors.push({
+      rowIndex: firstRow,
+      field: column,
+      severity: "warning",
+      message:
+        `${count === 1 ? "A cell" : `${count} cells`} in the "${column}" column ` +
+        `${count === 1 ? "begins" : "begin"} with a formula character, so a spreadsheet would EXECUTE ` +
+        `${count === 1 ? "it" : "them"} rather than read ${count === 1 ? "it" : "them"} as text. ` +
+        `${count === 1 ? "It was" : "They were"} imported with that character removed. Check the original ` +
+        `cells — a formula in a name or address field is almost always a copy-paste accident, and occasionally ` +
+        `it is not.`,
+    })
+  }
+}
+
+/**
+ * DUPLICATE HEADERS — papaparse keys each row by header name, so two columns called "Email" collapse into ONE
+ * key and the second silently overwrites the first. By the time the runner holds `rows` the duplicate is gone,
+ * so the raw header row travels with the decisions: this is the only place the evidence still exists.
+ */
+function reportDuplicateHeaders(decisions: ImportDecisions, ctx: ImportContext): void {
+  // DUPLICATE HEADERS. papaparse keys each row by header name, so two columns called "Email" become ONE key —
+  // the second overwrites the first, and the loss is invisible by the time we hold `rows`. This is the only
+  // place it can be caught, and it must be, because the agency cannot tell which of their two columns we kept.
+  const seenHeaders = new Set<string>()
+  for (const header of decisions.fileHeaders ?? []) {
+    const key = header.trim().toLowerCase()
+    if (!key) continue
+    if (seenHeaders.has(key)) {
+      ctx.result.errors.push({
+        rowIndex: -1,
+        field: header,
+        severity: "warning",
+        message:
+          `The file has more than one column called "${header}". Only ONE of them was imported — the other's ` +
+          `data was dropped, and we cannot tell you which was which. Rename or remove the duplicate and re-run.`,
+      })
+    }
+    seenHeaders.add(key)
+  }
+}
 
 export async function runImport(
   rows: Record<string, string>[],
@@ -2820,6 +2929,12 @@ export async function runImport(
       })
     }
   }
+
+  // FORMULA CELLS. Neutralised at getField (the value never reaches the database executable), but the agency
+  // must be TOLD — we changed what they gave us, and a silent correction is indistinguishable from a silent
+  // corruption. Reported per row so they can look at the source cell themselves.
+  reportFormulaCells(rows, ctx)
+  reportDuplicateHeaders(decisions, ctx)
 
   // Route rows by entity type
   const routed = routeRowsByType(rows, mapping)

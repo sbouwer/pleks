@@ -66,8 +66,19 @@ export function Step0Upload({ onAnalysed, onGlDetected }: Readonly<Step0UploadPr
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" })
         if (jsonData.length > 0) {
-          headers = Object.keys(jsonData[0])
           rows = jsonData
+
+          // THE HEADER ROW, READ FROM THE SHEET — not `Object.keys(jsonData[0])`.
+          //
+          // SheetJS DISAMBIGUATES duplicate column names: a file with two columns called "Email" comes back as
+          // keys ["Email", "Email_1"]. So Object.keys() shows NO duplicate, the duplicate-header guard never
+          // fires, and the second column's data is parked under a key nothing maps — silently dropped, on the
+          // file type agencies most commonly upload. (The CSV path is fine: papaparse preserves duplicates.)
+          //
+          // Reading row 1 of the sheet gives the header row as the agency actually wrote it, duplicates and all,
+          // which is the only thing the guard can act on.
+          const headerRow = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" })[0] ?? []
+          headers = headerRow.map((h) => String(h).trim()).filter((h) => h.length > 0)
         }
       }
 

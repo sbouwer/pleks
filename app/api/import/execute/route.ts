@@ -8,6 +8,27 @@
  * Data:   creates/updates import_sessions; runImport() creates tenants/units/leases/contractors/etc.
  * Notes:  existing sessions are org-scope-verified before reuse; failures mark the session 'failed'
  */
+
+/**
+ * The import is SLOW BY NATURE — it does per-row lookups and inserts, measured at ~93 ms/lease against a local
+ * Postgres (test/db/import-volume.dbtest.ts). That puts the wall-clock at:
+ *
+ *     100 leases ≈  9s      500 ≈ 47s      1 000 ≈ 93s      2 000 ≈ 186s      4 000 ≈ 372s
+ *
+ * Without a `maxDuration` this route takes Vercel's default, and ANY BOOK OVER A FEW HUNDRED LEASES IS KILLED
+ * MID-IMPORT. There is no wrapping transaction, so the agency is left with a half-written book and a failed
+ * request — and the first thing a Bespoke prospect does, before they trust us with anything, is upload their
+ * whole book. We would lose them in the first five minutes and never learn why.
+ *
+ * 300s is the platform ceiling, which buys roughly 3 000 leases. It is a REPRIEVE, NOT A FIX: beyond that the
+ * import must be batched and resumable, which is a design decision (OUTSTANDING § D-VOL-01), not something to
+ * improvise on a path that writes money.
+ *
+ * The saving grace is that a killed import is SAFE to re-run: crash-convergence is proven
+ * (test/db/import-crash.dbtest.ts — kill at any depth, re-run, converge on the clean-run database). What the
+ * agency does not yet get is a UI that TELLS them to.
+ */
+export const maxDuration = 300
 import { NextRequest, NextResponse } from "next/server"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
@@ -112,8 +133,12 @@ export async function POST(req: NextRequest) {
 
   // Run import
   try {
-    const { runImport } = await import("@/lib/import/importRunner")
-    const result = await runImport(
+    // runImportWithRecovery, not runImport: if the connection drops partway through, it re-runs ONCE and tells
+    // the agency plainly what happened. Safe to do FOR them because crash-convergence is proven — a re-run ends
+    // up exactly where a single clean run would have (test/db/import-crash.dbtest.ts). Only INFRASTRUCTURE
+    // failures retry; a refused row is refused for a reason and retrying it just says the same thing twice.
+    const { runImportWithRecovery } = await import("@/lib/import/recovery")
+    const result = await runImportWithRecovery(
       rows,
       columnMapping,
       runnerDecisions,
