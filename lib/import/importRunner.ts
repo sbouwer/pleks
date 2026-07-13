@@ -2375,38 +2375,6 @@ function resolveSupplierType(row: Record<string, string>, mapping: ColumnMapping
   return "contractor"
 }
 
-async function isExistingVendor(
-  email: string,
-  displayName: string,
-  orgId: string,
-  supabase: SupabaseClient,
-): Promise<boolean> {
-  if (email) {
-    const { data: byEmail, error: byEmailError } = await supabase
-      .from("contractor_view")
-      .select("id")
-      .eq("org_id", orgId)
-      .ilike("email", email)
-      .limit(1)
-      .maybeSingle()
-    assertLookupOk(byEmailError, "contractor (by email)")
-    if (byEmail) return true
-  }
-
-  if (displayName) {
-    const { data: byName, error: byNameError } = await supabase
-      .from("contractor_view")
-      .select("id")
-      .eq("org_id", orgId)
-      .ilike("company_name", displayName)
-      .limit(1)
-      .maybeSingle()
-    assertLookupOk(byNameError, "contractor (by name)")
-    if (byName) return true
-  }
-
-  return false
-}
 
 async function importVendors(
   vendorRows: IndexedRow[],
@@ -2425,7 +2393,13 @@ async function importVendors(
     if (email) seenEmails.add(email)
 
     try {
-      if (await isExistingVendor(email, displayName, ctx.orgId, ctx.supabase)) {
+      // IDENTITY FIRST. The supplier path matched on email, then on an EXACT company name — so "ABC Plumbing"
+      // and "ABC Plumbing (Pty) Ltd" were two suppliers, and a supplier whose email changed was a third. The
+      // CIPC registration number was being written and never matched on.
+      const candidate = identityCandidate(row, ctx)
+      const outcome = await resolveIdentity("contractor", { ...candidate, companyName: companyName || displayName || null }, i, ctx)
+      if (outcome.kind === "hold") continue
+      if (outcome.kind === "link") {
         ctx.result.skipped++
         continue
       }

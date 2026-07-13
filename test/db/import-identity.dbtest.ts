@@ -32,7 +32,7 @@ import { runImport, type ImportResult } from "@/lib/import/importRunner"
 const db = svc()
 
 const HEADERS = [
-  "Type", "First Name", "Surname", "Email", "Cell", "ID Number", "Registration Number",
+  "Type", "First Name", "Surname", "Company Name", "Email", "Cell", "ID Number", "Registration Number",
 ] as const
 
 /** One landlord row. The SAME person can be written with a different email — which is the whole point. */
@@ -43,11 +43,33 @@ function landlord(o: {
     Type: "Landlord",
     "First Name": o.first,
     Surname: o.last,
+    "Company Name": "",
     Email: o.email,
     Cell: o.phone ?? "0821234567",
     "ID Number": o.id ?? "",
     "Registration Number": o.reg ?? "",
   }
+}
+
+/** One supplier row. */
+function supplier(o: { company: string; email: string; phone?: string; reg?: string }): Record<string, string> {
+  return {
+    Type: "Supplier",
+    "First Name": "",
+    Surname: "",
+    "Company Name": o.company,
+    Email: o.email,
+    Cell: o.phone ?? "0111234567",
+    "ID Number": "",
+    "Registration Number": o.reg ?? "",
+  }
+}
+
+const countContractors = async (orgId: string) => {
+  const { count, error } = await db
+    .from("contractors").select("id", { count: "exact", head: true }).eq("org_id", orgId)
+  if (error) throw new Error(error.message)
+  return count ?? 0
 }
 
 async function importRows(
@@ -216,5 +238,38 @@ describe("IDENTITY — is this person already in the system?", () => {
     expect(await countLandlords(a), "org A has him").toBe(1)
     expect(await countLandlords(b), "org B has him TOO — separately").toBe(1)
     expect(result.identityHolds, "and org B was never told org A exists").toEqual([])
+  }, 120_000)
+
+  // ── SUPPLIERS. The third entity path, and it must not be left on the old key: a class fix that leaves one
+  //    of three paths on email is not a class fix, it is a gap with a clean story.
+
+  it("SUPPLIER — same CIPC registration, different email AND a different name variant → ONE supplier", async () => {
+    // The supplier path matched on email, then on an EXACT company name. So "ABC Plumbing" and "ABC Plumbing
+    // (Pty) Ltd" were two suppliers — and a supplier whose email changed was a third. Meanwhile their CIPC
+    // registration number was being written on every import and matched on never.
+    const o = await org()
+    const reg = "2015/987654/07"
+
+    await importRows(o, agentId, [supplier({
+      company: "ABC Plumbing", email: "accounts@abcplumbing.co.za", reg,
+    })])
+    expect(await countContractors(o), "the first import creates them").toBe(1)
+
+    await importRows(o, agentId, [supplier({
+      company: "ABC Plumbing (Pty) Ltd", email: "finance@abcplumbing.co.za", reg,
+    })])
+
+    expect(
+      await countContractors(o),
+      "the CIPC number is the company's identity — a new email and a longer trading name do not make it a " +
+      "second supplier with a second payment history",
+    ).toBe(1)
+  }, 120_000)
+
+  it("SUPPLIER — a genuinely different company → TWO suppliers", async () => {
+    const o = await org()
+    await importRows(o, agentId, [supplier({ company: "ABC Plumbing", email: "a@abc.co.za", reg: "2015/987654/07" })])
+    await importRows(o, agentId, [supplier({ company: "XYZ Electrical", email: "x@xyz.co.za", reg: "2018/111222/07" })])
+    expect(await countContractors(o), "two companies are two suppliers").toBe(2)
   }, 120_000)
 })

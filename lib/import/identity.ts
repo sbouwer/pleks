@@ -43,6 +43,7 @@ export type MatchBasis =
   | "registration_number"
   | "vat_number"
   | "email"
+  | "company_name"
   | "name_and_phone"
   | "phone"
   | "name"
@@ -149,6 +150,16 @@ export async function matchExistingContact(
     if (data) return asMatch(data as ContactRow, 0.95, "email")
   }
 
+  // ── 0.95 · An EXACT company name. Not an identity in principle — but this is what the supplier path already
+  //    matched on, and removing it would INTRODUCE duplicates while fixing duplicates. An exact full company
+  //    name inside one agency's own book is strong evidence; a VARIANT of it ("ABC Plumbing" vs "ABC Plumbing
+  //    (Pty) Ltd") is not, and falls to the fuzzy band where it belongs.
+  if (candidate.companyName) {
+    const { data, error } = await base().ilike("company_name", candidate.companyName).limit(1).maybeSingle()
+    if (error) throw new Error(`identity match (company_name) failed: ${error.message}`)
+    if (data) return asMatch(data as ContactRow, 0.95, "company_name")
+  }
+
   return fuzzyMatch(await roster(base), candidate)
 }
 
@@ -212,6 +223,7 @@ export function describeMatch(m: IdentityMatch, incoming: { name: string; email:
     registration_number: "the same company registration number",
     vat_number: "the same VAT number",
     email: "the same email address",
+    company_name: "exactly the same company name",
     name_and_phone: "the same name AND the same phone number, but a different email address",
     phone: "the same phone number",
     name: "the same name",
