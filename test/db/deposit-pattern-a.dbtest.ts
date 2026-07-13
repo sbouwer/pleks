@@ -9,22 +9,10 @@
  *         forced trust failure rolls the payment AND the charge link back (was a re-run double-consume gap).
  *         (2) Deposit trust postings now carry statement_month, so posting into a SIGNED-OFF period RAISEs +
  *         rolls back instead of silently corrupting closed books.
- *
- * ⚠ KNOWN RED ON A FRESH LOCAL STACK (2026-07-13) — this is a TRACKED FINDING, not a mystery.
- *   The closed-period case fails when the local DB is rebuilt from migrations (`supabase db reset`), because the
- *   migration files do NOT reproduce production:
- *     · `allocate_payment_atomic` — 0 in prod; exists only in the file. Pattern A PERFORMs it, so a real
- *       Pattern-A settlement in prod would fail at runtime with "function does not exist".
- *     · the file's `allocate_payment_atomic` posts NO trust transaction at all, though Pattern A's step-2 comment
- *       says it does — so nothing stamps `statement_month` and the guard never fires.
- *   This test passed for months only against a local DB carrying out-of-band state. The function it was proving
- *   is not the function in the file, and is not the function in prod. A green test as FALSE PROOF.
- *   SEVERITY: latent — prod's trust ledger holds ZERO rows and no period has ever been signed off, so nothing is
- *   mis-stated. Do NOT "fix" this by editing the assertion. See OUTSTANDING.md § D-LEDGER-01.
  */
 import { afterAll, describe, expect, it } from "vitest"
 import { svc, seedLedgerCase, teardownOrg, forceDepositTxnInsertFailure } from "./tier"
-import { saDateISO } from "@/lib/dates"
+import { saTodayISO, addCalendarDays, addCalendarMonths } from "@/lib/dates"
 
 const db = svc()
 const orgs: string[] = []
@@ -111,9 +99,15 @@ describe("deposit Pattern A + closed-period guard (ledger finale)", () => {
       org_id: c.orgId, account_holder: "T", bank_name: "T", type: "trust",
     }).select("id").single()
     if (bankErr) throw bankErr
-    const first = new Date(); first.setUTCDate(1)
-    const start = saDateISO(first)
-    const end = saDateISO(new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)))
+    // The period must be the SA CALENDAR month — the same month `date_trunc('month', CURRENT_DATE)` stamps on
+    // the trust posting. The first version mixed frames: it set the day-of-month in UTC (`setUTCDate(1)`) and
+    // then read the result back as an SA date. Between midnight and 02:00 SAST, UTC is still the previous day,
+    // so `period_start` came out as the 2nd while `statement_month` was the 1st — the posting fell OUTSIDE the
+    // period it was supposed to be blocked by, the guard correctly declined to fire, and the test failed. It
+    // passed all day and failed at night. Pure string arithmetic on the SA calendar, via the dates SSOT, cannot
+    // drift like that — which is exactly what `pleks/no-adhoc-dates` exists to enforce in prod code.
+    const start = `${saTodayISO().slice(0, 7)}-01`
+    const end = addCalendarDays(addCalendarMonths(start, 1), -1)
     const { error: perErr } = await db.from("trust_reconciliation_periods").insert({
       org_id: c.orgId, bank_account_id: bank!.id, period_start: start, period_end: end,
       bank_closing_balance_cents: 0, ledger_closing_balance_cents: 0, recon_computed_closing_cents: 0, status: "signed_off",
