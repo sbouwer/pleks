@@ -2955,6 +2955,87 @@ function identityCandidate(row: Record<string, string>, ctx: ImportContext): Ide
   }
 }
 
+/**
+ * PROJECT a file row into the lease row it WOULD become — without a database.
+ *
+ * `buildLeaseData` never touches Postgres: it is mapping, classification, normalisation, the CPA determination
+ * and the plausibility gate, and nothing else. That is where almost every real import bug this arc found
+ * actually lived — the header aliases, the af-ZA money, the day/month swap, the Excel serial, the escalation
+ * that was silently 10%, the formula lead, the negative rent.
+ *
+ * Which means those bugs can be hunted 446× faster than through the database (measured: 456 ms/book with
+ * Postgres, 1.02 ms/book without). This export is what lets the fuzz tier run five thousand books in seconds.
+ *
+ * ⚠ AND IT PROVES STRICTLY LESS, which must be said out loud every time the number gets quoted. A pure pass
+ * cannot see a phantom column, a NOT NULL, a CHECK, a trigger, or a unique index — it would never have caught
+ * `payment_method` (a column that does not exist), or `escalation_percent: null` hitting NOT NULL, or the trust
+ * ledger doubling. Those live at the WRITE boundary and nowhere else. So: 100 000 pure cases are not 100 000
+ * real ones, and anyone who reads "100 000 passed" as "the importer is proven" has been handed false proof —
+ * the exact failure this whole arc is named after. The DB tier stays, small and chosen, and proves what only it
+ * can.
+ */
+export interface RowProjection {
+  /** The lease row that would be INSERTED, or null when the importer refused it. */
+  lease: Record<string, unknown> | null
+  errors: ImportError[]
+}
+
+export function projectLeaseRow(
+  row: Record<string, string>,
+  mapping: ColumnMapping,
+  rowIndex = 0,
+): RowProjection {
+  const result = emptyImportResult()
+  const ctx: ImportContext = {
+    mapping,
+    decisions: { conflicts: [], expiredLeases: "import_active_only", skipRows: [], forceActiveRows: [] },
+    orgId: "00000000-0000-0000-0000-000000000000",
+    agentId: "00000000-0000-0000-0000-000000000000",
+    importSessionId: undefined,
+    // NEVER dereferenced on this path — buildLeaseData does not touch Postgres. If that ever changes, this
+    // throws LOUDLY rather than silently projecting a lie.
+    supabase: new Proxy({} as SupabaseClient, {
+      get() { throw new Error("projectLeaseRow: the lease projection must stay PURE — it touched the database") },
+    }),
+    result,
+    forceActiveRows: new Set(),
+    unitIdCache: new Map(),
+    unitPropertyCache: new Map(),
+    tenantIdCache: new Map(),
+  }
+
+  // The end date is normalised the same way the real path does it — a projection that parsed dates differently
+  // from the runner would be testing a fiction.
+  const normalisedEnd = normaliseDate(getField(row, "lease_end", mapping)) ?? null
+  const isExpired = normalisedEnd !== null && normalisedEnd < saTodayISO()
+
+  const build = buildLeaseData(
+    row,
+    "00000000-0000-0000-0000-000000000001",
+    "00000000-0000-0000-0000-000000000002",
+    "00000000-0000-0000-0000-000000000003",
+    rowIndex,
+    isExpired,
+    false,
+    normalisedEnd,
+    ctx,
+  )
+  return {
+    lease: build.ok ? (build.data as Record<string, unknown>) : null,
+    errors: result.errors,
+  }
+}
+
+/** A zero result, for the pure projection. */
+function emptyImportResult(): ImportResult {
+  return {
+    propertiesCreated: 0, unitsCreated: 0, tenantsCreated: 0, leasesCreated: 0, historyCreated: 0,
+    notesCreated: 0, contractorsCreated: 0, landlordsImported: 0, landlordsLinked: 0, agentInvitesSent: 0,
+    bankAccountsImported: 0, depositsMigratedCents: 0, skipped: 0, errors: [],
+    pendingLandlordLinks: [], agentInvites: [], identityHolds: [],
+  }
+}
+
 export async function runImport(
   rows: Record<string, string>[],
   mapping: ColumnMapping,
