@@ -19,4 +19,11 @@ Method, in order:
 4. **Test honesty:** does a test exist that FAILS on the pre-fix code? A test asserting a bug's current behaviour is a finding. Every closed fail-open needs its must-throw fixture.
 5. **SA-legal surface:** anything touching notices, deadlines, deposits, or cure periods gets checked against business-day arithmetic (weekends AND public holidays via lib/dates/saPublicHolidays), CPA/RHA timing rules, and the deemed-service model. Wrongness here voids notices — it is strictly worse than downtime.
 
+6. **Documentation truth:** a doc that CONTRADICTS the diff is a finding, and it is the kind only a fresh reader
+   catches — the author cannot see it, because they remember what they meant. Check: file headers still describe
+   what the file DOES; comments the change made false (especially absolutes like "the only place this can be
+   caught"); a spec the code silently deviated from; a register (`CURRENT.md` / `OUTSTANDING.md`) still listing
+   as OPEN something this branch closes. The next session TRUSTS the docs and acts on them without reading the
+   diff — so a doc that lies is a bug with a delay fuse. See `CLAUDE.md § DOCUMENTATION SWEEP`.
+
 Output: findings ranked most-severe first. Each finding: file + symbol (never line numbers), one-sentence defect statement, and a concrete failure scenario (specific inputs/state → specific wrong outcome). State what you checked and found clean, briefly, at the end. If nothing survives your best attempt to refute, say exactly that — do not pad.

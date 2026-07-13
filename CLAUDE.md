@@ -72,7 +72,17 @@ If you've changed multiple files, run the check after each logical change — do
 Quick commands:
 - `npm run typecheck` — TypeScript only (~15 seconds)
 - `npm run lint` — ESLint only
-- `npm run check` — both (run this before every commit)
+- `npm run check` — both, plus every gate script below (run this before every commit)
+- `npm run test:db` — the DB-integration tier (needs the local Supabase docker stack up)
+- `npm run schema:drift` — migrations vs LIVE production: functions, CHECKs, triggers, columns
+- `npm run fuzz [cases]` — generated agency books through the importer's pure path (default 5 000)
+
+`npm run check` runs these gates, each of which exists because something got through without it:
+- `check-import-fields` — a field the agent can PICK, or a header can MAP to, that the runner never reads
+- `check-server-action-exports` — a non-async export from a `"use server"` file (tsc and eslint pass; **only
+  `next build` fails**, so this used to surface at DEPLOY)
+- `check-csv-escaping` — a CSV emitter that does not route its cells through `escapeCsvCell` (formula injection)
+- `check-file-headers`, `schema-contract-scan`, `check-audit-columns`, `check-pii-classification`
 
 Common errors to watch for:
 - Missing imports after moving/renaming files
@@ -494,6 +504,90 @@ Current set: migrations · schema-gotchas · supabase-queries · data-access · 
 ## UNATTENDED SESSIONS — GATE SEQUENCING
 
 Sequence push / prod-SQL / deploy actions at the END of a task: complete all local work (edits, tests, commits) first, so an unattended session parks at the approval gate with everything finished rather than stalling mid-flow. The PreToolUse hook (`.claude/hooks/bash-gate.js`) allows routine bash without prompting; `git push` and prod DB operations deliberately require approval — those gates are load-bearing, do not engineer around them.
+
+---
+
+---
+
+---
+
+## ⚠ MANDATORY: DOCUMENTATION SWEEP AFTER EVERY IMPLEMENTATION
+
+**Before you call any piece of work done, sweep the docs.** Not "if it feels significant" — every time. The sweep
+is cheap (a minute); a stale register is not, because the next session TRUSTS it and acts on it.
+
+This is not hypothetical. `CURRENT.md` sat listing PR-IMP-1 … PR-IMP-7 as "NEXT" for days after every one of them
+had shipped. The stale-register pattern has bitten repeatedly — enough that the standing rule already exists:
+**verify any register item against the source before acting on it.** This section is the other half: *do not
+leave the register wrong in the first place.*
+
+### The sweep — walk all six, every time
+
+| # | Surface | Ask |
+|---|---|---|
+| 1 | `brief/build/CURRENT.md` | Is the "Active work" / "Next action" still TRUE? **Delete what shipped** — this file carries OPEN items only. |
+| 2 | `brief/build/INDEX.md` | Update the **Last updated** line + the build/addendum row. Status emoji 📝 → ✅. |
+| 3 | `brief/build/OUTSTANDING.md` | **Close what is done.** Open-only register — no DONE tombstones. |
+| 4 | `CLAUDE.md` (this file) | New command, gate script, ESLint rule, or doctrine? It belongs here. A gate nobody knows to run is not a gate. |
+| 5 | `.claude/rules/*.md` | Did a domain rule change (migrations, data-access, crons, comms)? Rules load by path and carry the SAME authority as this file. |
+| 6 | **Memory** (`~/.claude/.../memory/`) | Something learned that the code and git history do NOT record? A ruling, a why, a live-data fact, a trap. Then add the one-line pointer to `MEMORY.md`. |
+
+### Also sweep the code's own documentation
+- **File headers** — a purpose, route, auth or data source that CHANGED must be reflected. (`check-file-headers`
+  enforces presence, not truth. Only you can do truth.)
+- **The spec** (`brief/build/**`) — if the build DEVIATED from the spec, say so IN the spec and say WHY. A spec
+  that quietly disagrees with the code is worse than no spec, because it will be trusted.
+- **A comment you invalidated.** The comment that says "this is the only place it can be caught" is a lie the
+  moment you add a second place.
+
+### The test
+> **If the next session read only the docs and never the diff — would they be misled?**
+
+If yes, the work is not done. This applies to a one-line fix as much as a 3 000-line arc: the one-liner that
+removes a gate, changes a default, or closes a register item is exactly the change nobody remembers to document.
+
+---
+
+## ⚠ TESTING DOCTRINE — two rules, both earned the hard way
+
+The import-hardening arc found sixteen instances of one bug shape (*a write that fails, an error that is
+swallowed, a caller that reports success*). By the end, **every remaining miss was a COVERAGE miss, not a logic
+miss** — the code was locally correct and the PROOF had a hole exactly where the bug lived. These two rules are
+what came out of that, and they outrank any individual fix.
+
+### 1. PROBE-FIRES, OR IT IS THEATRE
+
+**Every test, harness, corrupter, guard or detector must be SHOWN FAILING against the broken code before it is
+allowed to pass.** A harness that cannot produce the failure the feature exists to handle is not a proof.
+
+This is not a formality. It has caught, at minimum:
+- a **crash client that failed WRITES** while the auto-retry it "proved" exists for **READ** failures — the
+  claim and the proof never overlapped, and the retry was a trust-ledger duplication engine
+- the same client then **THROWING**, when `supabase-js` **never throws** (it resolves to `{ data: null, error }`)
+  — so the code was fail-closed *by accident* and the probe proved nothing
+- a **corrupter that corrupted nothing** at 10% density, so every assertion passed vacuously
+- a **drift detector** that printed "✓ No drift" while suppressing every enum CHECK in the schema
+- a **fuzzer** that reported 5 912 failures which were all its own (it was asking the wrong function)
+
+When a probe finds nothing, the FIRST hypothesis is that the probe is broken.
+
+### 2. CENSUS, NOT SPOT-CHECK — a grep counts what you point it at
+
+**Never report the size of a class from a grep of one idiom.** "10 guards fixed" was a count of the sites that
+happened to log in the idiom just written; the real denominator was 14, and the two missed landlord guards would
+have duplicated an owner's payout identity. The same shape produced "the minus sign is fixed" while the **plus**
+(every E.164 phone number) shipped broken.
+
+If you are fixing a CLASS, enumerate the class by what it IS (every lookup that gates an insert), not by how it
+currently spells itself.
+
+### Corollaries
+- **No silent caps.** A bounded sweep (`.limit(2000)`, top-N, sampling) must SAY what it dropped, or "no match
+  found" is indistinguishable from "no match found in the first two thousand".
+- **Label what a tier proves.** The fuzz tier runs 50 000 books in 100 seconds and cannot see a `NOT NULL`, a
+  `CHECK`, a trigger or a phantom column. "50 000 passed" is NOT "proven" — say so wherever the number appears.
+- **A green test can be FALSE PROOF.** `deposit-pattern-a` passed for months against a function production has
+  never had. Green means "the test ran"; it does not mean "the claim is true".
 
 ---
 

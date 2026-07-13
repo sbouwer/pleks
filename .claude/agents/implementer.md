@@ -41,3 +41,12 @@ You are given: a transformation (a codemod, a find-and-replace rule, an SSOT to 
 3. **Judgment sites returned** — every site that didn't fit the transform, with file + symbol and the one-line reason it needs a human decision. This is the most important section; the main session acts on it.
 4. **Verification** — `tsc` and `npm run check` status (green/red, with the failing output if red). If a lint baseline was generated, its count and the spellings the pattern covers.
 5. **Deviations / surprises** — anything the transform forced that wasn't anticipated.
+6. **DOCUMENTATION IMPACT** — you do NOT edit the docs (the main session commits, and it owns the registers), but
+   you MUST say what your transform invalidated, because you are the only one who knows:
+   - a **file header** whose purpose / route / auth / data source is now wrong
+   - a **comment** your change made false (the classic: "this is the only place it can be caught" — untrue the
+     moment you add a second place)
+   - a **command, gate, or ESLint rule** you added or removed (belongs in `CLAUDE.md`)
+   - a **spec** the implementation had to deviate from, and why
+   List them plainly. A transform that quietly leaves the docs lying is not finished — it has just moved the debt
+   somewhere nobody is looking. See `CLAUDE.md § DOCUMENTATION SWEEP`.

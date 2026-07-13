@@ -134,8 +134,41 @@ After any schema change, verify that the migrations file and the live DB
 produce identical schemas:
 
 ```bash
-node scripts/check-schema-drift.mjs
+npm run schema:drift          # node scripts/check-schema-drift.mjs
 ```
+
+**It now counts FUNCTIONS and CHECK CONSTRAINTS, not just columns** (2026-07-13). It did not before, and for
+months it printed **"✓ No drift"** while:
+- suppressing the value-set comparison for **every enum CHECK in the schema** (the auto-name filter also matched
+  our own `ALTER TABLE … ADD CONSTRAINT` widenings, which use the same `{table}_{col}_check` name), and
+- reporting a **missing money function** as *"pending deploy — informational, never fails"*.
+
+Production had drifted **behind its own committed migrations** across the trust ledger, POPIA consent and
+payments. A green drift report meant nothing.
+
+### ⚠ DIRECTION is the load-bearing axis, and the two directions have OPPOSITE fixes
+
+| | | Fix |
+|---|---|---|
+| **FILE-AHEAD** | defined in the migrations, absent (or stale) in prod | **DEPLOY it.** It is not dead code. |
+| **PROD-AHEAD** | live, absent (or wider) in the migrations | **AMEND THE FILE FORWARD.** Prod governs real rows. |
+
+Confusing them **deletes a function production depends on**, or **revokes a value live data already uses**.
+`allocate_payment_atomic` looked like dead code and was 100 lines of clause-6.6 allocation that the LIVE
+Pattern-A settlement calls.
+
+### ⚠ LAST DEFINITION WINS — a DROP+ADD must re-state EVERY value it means to keep
+
+Migrations replay top-to-bottom. A later `DROP CONSTRAINT … ADD CONSTRAINT` **supersedes** an earlier one, and an
+edit to an inline `CHECK` inside `CREATE TABLE` is **silently superseded** if a named `ADD CONSTRAINT` exists
+further down.
+
+This is not theoretical: a DROP+ADD on `auth_events_event_type_check` re-stated the allowed list to add four
+resolver types and **silently dropped the eight `consent_*` types** an earlier migration had added. Every POPIA
+consent-verification audit write was rejected with a 23514 for **six weeks** — and the route logged it and
+returned **200**.
+
+**Before editing a CHECK: grep for the constraint NAME across all migrations and edit the LAST one.**
 
 Exit clean: `✓ No drift — migrations match the live database.`
 
