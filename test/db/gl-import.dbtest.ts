@@ -24,6 +24,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { svc, seedLedgerCase, seedUser, teardownOrg, teardownUser, type SeededCase } from "@/test/db/tier"
 import { runGLImport } from "@/lib/import/glImportRunner"
+import { saDateISO } from "@/lib/dates"
 import type { GLPropertyBlock, GLTransaction, GLDepositTransaction } from "@/lib/import/parseGLReport"
 
 const db = svc()
@@ -87,7 +88,9 @@ describe("GL IMPORT — the trust ledger", () => {
 
   const options = (orgId: string) => ({
     orgId, agentId, importDeposits: true,
-    dateFilter: { from: asOf(365).toISOString().slice(0, 10), to: asOf(-1).toISOString().slice(0, 10) },
+    // saDateISO, not toISOString().slice(0,10) — the latter resolves an instant in UTC, which is a different
+    // calendar day from SA's for two hours of every day. `pleks/no-adhoc-dates` exists to stop exactly this.
+    dateFilter: { from: saDateISO(asOf(365)), to: saDateISO(asOf(-1)) },
   })
 
   // ── MATCH, NEVER GUESS ────────────────────────────────────────────────────────────────────────

