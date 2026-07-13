@@ -6,6 +6,7 @@
  *         User-agent reduced to browser family only.
  *         Row-by-row streaming avoids loading all rows into memory simultaneously.
  */
+import { escapeCsvCell } from "@/lib/security/csvInjection"
 import { createServiceClient } from "@/lib/supabase/server"
 
 export function redactIp(ip: string | null): string {
@@ -30,13 +31,14 @@ export function redactUserAgent(ua: string | null): string {
   return "Other"
 }
 
+/**
+ * The audit export streams `new_values`, which routinely carries the names, notes and descriptions people
+ * typed. So a formula planted anywhere in the product surfaces HERE, in a file a platform admin opens — the
+ * one reader with the most access in the system.
+ */
 function escapeCsvField(value: unknown): string {
   if (value === null || value === undefined) return ""
-  const str = typeof value === "object" ? JSON.stringify(value) : String(value)
-  if (str.includes('"') || str.includes(",") || str.includes("\n") || str.includes("\r")) {
-    return `"${str.replace(/"/g, '""')}"`
-  }
-  return str
+  return escapeCsvCell(typeof value === "object" ? JSON.stringify(value) : value)
 }
 
 const CSV_HEADERS = [
