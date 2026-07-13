@@ -221,3 +221,13 @@ export function looksLikeEmail(value: string): boolean {
   if (dot <= 0) return false                                  // a dot, not leading
   return domain.length - dot - 1 >= 2                         // a TLD of at least two characters
 }
+
+// ── CSV / FORMULA INJECTION ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Re-exported from the SSOT, NOT re-implemented. The rule now lives in lib/security/csvInjection.ts because it
+ * is not an import concern: a tenant can type `=HYPERLINK(...)` straight into the application portal, and the
+ * payload reaches the bookkeeper's Excel through any EXPORT, with no import anywhere in the story. Hardening
+ * only the importer was guarding one door of a building with four.
+ */
+export { looksLikeFormula, neutraliseFormula } from "@/lib/security/csvInjection"

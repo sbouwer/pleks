@@ -40,6 +40,8 @@ export interface WizardDecisions {
   /** Step 2's POPIA bank-details notice: the agent attests they hold the tenants' consent to migrate banking
    *  details. This acceptance used to terminate in the component's local state and reach nothing (F-10). */
   bankConsentAttested?: boolean
+  /** The file's raw header row — the ONLY place a duplicate column name is still visible (see ImportDecisions). */
+  fileHeaders?: string[]
   /** Step 4's CUTOVER attestation: the agency confirms it actually HOLDS these deposits (in its trust or
    *  deposit account). Only then are they posted to the trust sub-ledger as opening balances — a trust ledger
    *  that silently disagrees with the bank is worse than an empty one. */
@@ -103,6 +105,7 @@ export function toImportDecisions(wire: WizardDecisions | null | undefined): Imp
     expiredLeases,
     skipRows,
     forceActiveRows,
+    fileHeaders: wire?.fileHeaders,
     // Strictly true-or-not. Anything other than an explicit `true` means the agent did NOT attest, and the
     // bank accounts are recorded as unconsented rather than being handed a manufactured consent.
     bankConsentAttested: wire?.bankConsentAttested === true,

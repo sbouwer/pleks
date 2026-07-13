@@ -56,6 +56,25 @@ export function Step4Confirm({ analysis, rows, decisions, onBack, onImportComple
     inactive: "Inactive (skipped)",
   }
 
+  /**
+   * What an agency is told when the import is INTERRUPTED rather than REJECTED.
+   *
+   * A killed import leaves the book half-written (there is no wrapping transaction — a 5 000-row book cannot be
+   * one). The agency sees a failure and has no way to know whether pressing the button again will DOUBLE their
+   * data. It will not: the import is idempotent, and crash-convergence is proven under test — a run killed at
+   * any depth, re-run, ends up exactly where one clean run would have.
+   *
+   * That certainty is worthless while it lives only in a test file. This is where it reaches the person who
+   * needs it. (~3 000 leases is the ceiling of the platform's function time limit; above it, splitting the file
+   * is the honest workaround until the import is batched — OUTSTANDING § D-VOL-01. A known ceiling with a
+   * signposted path is fine; a silent cliff is not.)
+   */
+  const INTERRUPTED_MESSAGE =
+    "The import was interrupted before it finished — a dropped connection, or a book large enough to run past " +
+    "the time limit. Your data is fine and NOTHING WAS DUPLICATED: it is safe to press Import again, and it " +
+    "will pick up exactly what is missing. If your book is very large (roughly 3 000 leases or more), split " +
+    "the file and import it in parts."
+
   async function handleImport() {
     setLoading(true)
     setProgress("Importing...")
@@ -74,6 +93,15 @@ export function Step4Confirm({ analysis, rows, decisions, onBack, onImportComple
       })
 
       if (!res.ok) {
+        // A 504/502/503 is the import being KILLED mid-run (a big book against the function's time limit), not
+        // the agency's data being rejected. Those are opposite messages: one says "your file is wrong", the
+        // other says "nothing is wrong, press the button again". Telling an agency their book is bad when their
+        // import merely timed out is how you lose them.
+        if (res.status === 504 || res.status === 502 || res.status === 503) {
+          setError(INTERRUPTED_MESSAGE)
+          setLoading(false)
+          return
+        }
         const body = await res.json()
         setError(body.error || "Import failed")
         setLoading(false)
@@ -87,7 +115,11 @@ export function Step4Confirm({ analysis, rows, decisions, onBack, onImportComple
         errors: result.errors ?? [],
       })
     } catch {
-      setError("Import failed. Please try again.")
+      // The request never completed — the connection dropped, or the import ran past its time limit and the
+      // function was killed. Either way the agency's data is fine and a re-run is SAFE: the import is
+      // idempotent by construction and crash-convergence is proven (a killed import, re-run, ends up exactly
+      // where a single clean run would have). They are the only ones who cannot know that, so we say it.
+      setError(INTERRUPTED_MESSAGE)
       setLoading(false)
     }
   }
