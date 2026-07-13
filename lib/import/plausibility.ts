@@ -221,3 +221,48 @@ export function looksLikeEmail(value: string): boolean {
   if (dot <= 0) return false                                  // a dot, not leading
   return domain.length - dot - 1 >= 2                         // a TLD of at least two characters
 }
+
+// ── CSV / FORMULA INJECTION ──────────────────────────────────────────────────────────────────────
+
+/**
+ * A cell that Excel will EXECUTE.
+ *
+ * A value beginning `=`, `+`, `-` or `@` is treated as a formula by Excel, LibreOffice and Google Sheets when
+ * the file is opened. The threat model is not our parser — it is the NEXT reader: the agency exports their own
+ * tenant list, their bookkeeper opens it, and the formula runs on that machine. `=HYPERLINK("http://…"&A1)`
+ * exfiltrates the neighbouring cell on a single click; `=cmd|…` is worse.
+ *
+ * The name field is ATTACKER-CONTROLLED. Anyone who can get themselves onto a rent roll — every applicant, every
+ * tenant — can put a formula in it. If we store it verbatim we become the delivery mechanism for an attack on
+ * our own customer, and we would have done it by being faithful to their data.
+ *
+ * So it is NEUTRALISED on the way in (the leading character is stripped) and the row is FLAGGED, because
+ * silently altering an agency's data is its own sin: we changed what they gave us, and they must be told.
+ */
+const FORMULA_LEAD = /^[=+@\t\r]/
+
+/**
+ * `-` is the dangerous one, and the first version of this got it wrong in the most instructive way possible:
+ * it treated EVERY leading minus as a formula lead and stripped it. That silently turns `-6600.50` into
+ * `6600.50` — a NEGATIVE RENT quietly becoming a positive one, which is precisely the class of bug this whole
+ * harness exists to kill. A defence that introduces the vulnerability it is defending against.
+ *
+ * The poison harness caught it within minutes (two `-5` cases went from REFUSED/FLAGGED to SILENT), which is
+ * the entire argument for having it.
+ *
+ * So: a leading `-` is a formula lead ONLY when what follows is not a number.
+ */
+export function looksLikeFormula(value: string): boolean {
+  const v = value.trim()
+  if (!v) return false
+  if (FORMULA_LEAD.test(v)) return true
+  if (!v.startsWith("-")) return false
+  return Number.isNaN(Number(v.replaceAll(/[\s,]/g, "")))     // "-6600.50" is a number, not a formula
+}
+
+/** Strip the leading formula character(s). Returns the value unchanged when it is not a formula. */
+export function neutraliseFormula(value: string): string {
+  let out = value.trim()
+  while (looksLikeFormula(out)) out = out.slice(1).trim()
+  return out
+}

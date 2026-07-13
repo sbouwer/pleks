@@ -15,7 +15,7 @@ import {
   SA_PROVINCES, type Classification,
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
-import { checkLeasePlausibility, looksLikeEmail } from "./plausibility"
+import { checkLeasePlausibility, looksLikeEmail, looksLikeFormula, neutraliseFormula } from "./plausibility"
 import { resolveDepositRate, postOpeningDeposit } from "./depositImport"
 import { normaliseBranchCode } from "./bankImport"
 import { bankAccountColumns } from "@/lib/crypto/bankAccount"
@@ -101,6 +101,13 @@ export interface ImportDecisions {
   bankConsentAttested?: boolean
   /** The agency confirmed it HOLDS these deposits. Without it, nothing is posted to the trust ledger. */
   depositsHeldAttested?: boolean
+  /** The file's RAW header row, in file order.
+   *
+   *  Needed because papaparse builds each row as an OBJECT: two columns with the SAME header name collapse into
+   *  one key and the second silently overwrites the first. By the time the runner sees `rows`, the duplicate is
+   *  gone without a trace — there is no way to detect it downstream, only here. An agency with two "Email"
+   *  columns (a merged export, a copy-paste) loses one of them and is never told which. */
+  fileHeaders?: string[]
 }
 
 type TenantRole = "primary" | "co_tenant" | "previous"
@@ -150,7 +157,16 @@ function getField(
   // The mapping key IS the original column name from the file
   for (const [columnName, mapped] of Object.entries(mapping)) {
     if (mapped.field === fieldName) {
-      return (row[columnName] ?? row[mapped.column] ?? "").trim()
+      const raw = (row[columnName] ?? row[mapped.column] ?? "").trim()
+      // FORMULA NEUTRALISATION, at the one boundary every entity path reads through — tenant, landlord,
+      // supplier, agent, property. A value beginning `=`, `+`, `@` (or a non-numeric `-`) is EXECUTED by Excel
+      // when the next person opens an export of this data, and the next person is the agency's own bookkeeper.
+      // The name field is attacker-controlled: anyone who can get onto a rent roll can put a formula in it.
+      // Storing it verbatim would make Pleks the delivery mechanism for an attack on our own customer.
+      //
+      // The row is also FLAGGED (see the scan in runImport) — silently altering an agency's data is its own
+      // sin, so we neutralise it AND say that we did.
+      return looksLikeFormula(raw) ? neutraliseFormula(raw) : raw
     }
   }
   return ""
@@ -2819,6 +2835,45 @@ export async function runImport(
         message: `No ${col.label} column mapped — ${col.unmappedNote}. Map it if that is not true of every lease.`,
       })
     }
+  }
+
+  // FORMULA CELLS. Neutralised at getField (the value never reaches the database executable), but the agency
+  // must be TOLD — we changed what they gave us, and a silent correction is indistinguishable from a silent
+  // corruption. Reported per row so they can look at the source cell themselves.
+  for (const [index, row] of rows.entries()) {
+    for (const [column, value] of Object.entries(row)) {
+      if (typeof value === "string" && looksLikeFormula(value)) {
+        ctx.result.errors.push({
+          rowIndex: index,
+          field: column,
+          severity: "warning",
+          message:
+            `The cell "${column}" begins with a formula character, so a spreadsheet would EXECUTE it rather ` +
+            `than read it as text. It was imported with that character removed. Check the original cell — a ` +
+            `formula in a name or address field is almost always a copy-paste accident, and occasionally not.`,
+        })
+      }
+    }
+  }
+
+  // DUPLICATE HEADERS. papaparse keys each row by header name, so two columns called "Email" become ONE key —
+  // the second overwrites the first, and the loss is invisible by the time we hold `rows`. This is the only
+  // place it can be caught, and it must be, because the agency cannot tell which of their two columns we kept.
+  const seenHeaders = new Set<string>()
+  for (const header of decisions.fileHeaders ?? []) {
+    const key = header.trim().toLowerCase()
+    if (!key) continue
+    if (seenHeaders.has(key)) {
+      ctx.result.errors.push({
+        rowIndex: -1,
+        field: header,
+        severity: "warning",
+        message:
+          `The file has more than one column called "${header}". Only ONE of them was imported — the other's ` +
+          `data was dropped, and we cannot tell you which was which. Rename or remove the duplicate and re-run.`,
+      })
+    }
+    seenHeaders.add(key)
   }
 
   // Route rows by entity type
