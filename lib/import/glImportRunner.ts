@@ -6,7 +6,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { GLPropertyBlock, GLTransaction, GLDepositTransaction } from "./parseGLReport"
-import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordTrustTransaction, type TrustTransactionType } from "@/lib/trust/invariants"
 import { saDateISO } from "@/lib/dates"
 
@@ -106,8 +105,30 @@ function depositRowIncoherence(dep: GLDepositTransaction): string | null {
  * because idempotence should be a property of the DATA, not of how long the agency waited before pressing the
  * button a second time.
  */
-function glReference(leaseId: string, kind: string, date: Date, amountCents: number): string {
-  return `GL:${leaseId}:${kind}:${saDateISO(date)}:${amountCents}`
+function glReference(leaseId: string, kind: string, date: Date, amountCents: number, occurrence: number): string {
+  return `GL:${leaseId}:${kind}:${saDateISO(date)}:${amountCents}:${occurrence}`
+}
+
+/**
+ * The OCCURRENCE ORDINAL, and why the key is incomplete without it.
+ *
+ * Lease + type + date + amount does not identify a ledger line — it identifies a SHAPE, and a real book has
+ * repeats. A tenant pays R6 600 as two R3 300 EFTs on the same day (routine in SA: one from each joint
+ * tenant). A property carries two identical R500 utility recoveries dated the same day. Without an ordinal the
+ * second row's key MATCHES the first, the dedup check says "already imported", and the row is silently dropped:
+ * the trust ledger is short by R3 300 and the reconciliation will never balance.
+ *
+ * That would have been a NEW silent money loss introduced while fixing a double-import — a bad trade, and the
+ * pre-PR walk caught it.
+ *
+ * The ordinal is the nth occurrence of that exact tuple IN THE FILE, counted in file order. It is deterministic,
+ * so re-importing the same book produces the same keys and the same skips — idempotence survives — while two
+ * genuinely distinct lines get distinct keys and both land.
+ */
+function nextOccurrence(ctx: GLImportContext, key: string): number {
+  const n = (ctx.occurrences.get(key) ?? 0) + 1
+  ctx.occurrences.set(key, n)
+  return n
 }
 
 async function alreadyImported(
@@ -121,7 +142,13 @@ async function alreadyImported(
     .eq("org_id", orgId)          // dedup is within the caller's org — never an existence oracle on another org's ledger
     .eq("reference", reference)
     .limit(1)
-  logQueryError("alreadyImported trust_transactions", error)
+
+  // FAIL CLOSED. A lookup that FAILED is not a lookup that found nothing: `logQueryError` then
+  // `(data?.length ?? 0) > 0` returns FALSE on an error, so a transient query failure read as "not yet
+  // imported" and posted the transaction AGAIN — into the trust ledger, which is other people's money.
+  // Throwing refuses the row and reports it; the caller's catch names it.
+  if (error) throw new Error(`GL duplicate-check lookup failed: ${error.message}`)
+
   return (data?.length ?? 0) > 0
 }
 
@@ -183,6 +210,8 @@ interface GLImportContext {
   agentId: string
   supabase: SupabaseClient
   result: GLImportResult
+  /** How many times each (lease, type, date, amount) SHAPE has been seen so far, in file order. */
+  occurrences: Map<string, number>
 }
 
 async function importArTransaction(
@@ -213,9 +242,17 @@ async function importArTransaction(
     return
   }
 
-  const reference = glReference(leaseId, "ar", tx.date, tx.amountCents)
+  const shape = `ar:${leaseId}:${saDateISO(tx.date)}:${tx.amountCents}`
+  const reference = glReference(leaseId, "ar", tx.date, tx.amountCents, nextOccurrence(ctx, shape))
   if (await alreadyImported(ctx.supabase, ctx.orgId, reference)) {
+    // Already in the ledger from an earlier run of THIS book. Expected on a re-run — and now reported, because
+    // a skip an agency cannot see is indistinguishable from a row we lost.
     ctx.result.skipped++
+    ctx.result.errors.push({
+      description: tx.rawDescription,
+      message: "Already imported from this book on a previous run — not posted again. (This is what stops a " +
+        "re-run from doubling your ledger.)",
+    })
     return
   }
 
@@ -299,9 +336,14 @@ async function importDepositTransaction(
   }
 
   const amount = mapDepositAmount(dep)
-  const reference = glReference(leaseId, dep.type, dep.date, amount)
+  const shape = `${dep.type}:${leaseId}:${saDateISO(dep.date)}:${amount}`
+  const reference = glReference(leaseId, dep.type, dep.date, amount, nextOccurrence(ctx, shape))
   if (await alreadyImported(ctx.supabase, ctx.orgId, reference)) {
     ctx.result.skipped++
+    ctx.result.errors.push({
+      description: dep.rawDescription,
+      message: "Already imported from this book on a previous run — not posted again.",
+    })
     return
   }
 
@@ -358,6 +400,7 @@ export async function runGLImport(
     orgId,
     agentId,
     supabase,
+    occurrences: new Map(),
     result: {
       transactionsCreated: 0,
       depositsCreated: 0,

@@ -327,4 +327,28 @@ describe("GL IMPORT — the trust ledger", () => {
     const rows = await trustRows(c.orgId)
     expect(rows.length, "no orphan may have been attached to the lease we DID know").toBe(matched.length)
   }, 180_000)
+
+  it("two IDENTICAL payments on the same day BOTH land — a repeat is not a duplicate", async () => {
+    // The joint-tenant case, and it is routine: R6 600 rent paid as two R3 300 EFTs on the same day, one from
+    // each tenant. Lease + type + date + amount does not identify a ledger LINE — it identifies a SHAPE, and a
+    // real book has repeats. Without an occurrence ordinal the second row's key matches the first, the dedup
+    // says "already imported", and R3 300 is silently dropped: the trust ledger is short and the reconciliation
+    // never balances. That would have been a NEW silent money loss, introduced while fixing a double-import.
+    const c = await seed()
+    const blocks = [block({ arTransactions: [payment(3_300_00, 10), payment(3_300_00, 10)] })]
+    const propertyMatches = { [PROPERTY_KEY]: c.leaseId }
+
+    const result = await runGLImport(blocks, {}, propertyMatches, options(c.orgId), db)
+
+    expect(result.transactionsCreated, "both halves of the rent must post").toBe(2)
+    const rows = await trustRows(c.orgId)
+    expect(
+      rows.reduce((sum, r) => sum + Math.abs(r.amount_cents as number), 0),
+      "the full R6 600 reaches the trust ledger, not half of it",
+    ).toBe(6_600_00)
+
+    // …and the whole thing is STILL idempotent: re-running the same book adds nothing.
+    await runGLImport(blocks, {}, propertyMatches, options(c.orgId), db)
+    expect((await trustRows(c.orgId)).length, "a re-run still posts nothing twice").toBe(2)
+  }, 180_000)
 })

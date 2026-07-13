@@ -36,6 +36,7 @@ export class InjectedCrash extends Error {
  */
 export function crashAfter(
   db: SupabaseClient, writes: number, failFor = Number.POSITIVE_INFINITY,
+  opts: { failReads?: boolean } = {},
 ): { client: SupabaseClient; count: () => number } {
   let n = 0
   const failing = () => n > writes && n <= writes + failFor
@@ -45,8 +46,23 @@ export function crashAfter(
       get(target, prop, receiver) {
         const value = Reflect.get(target, prop, receiver)
 
-        // The write verbs. Everything else (select, eq, order, …) passes through untouched, so reads keep
-        // working right up to the moment of death — which is what a dropped connection actually looks like.
+        // READS. A real dropped connection fails SELECTs too, not only INSERTs — and that is the case that
+        // matters most, because every "does this already exist?" guard in the importer is a SELECT. If a failed
+        // lookup reads as "not found", the importer creates the row AGAIN.
+        //
+        // The first version of this client passed reads through untouched and said so in a comment ("reads keep
+        // working right up to the moment of death"). That made the whole convergence proof a proof about
+        // WRITE-ONLY failure — which is not the failure the auto-retry exists to handle. The pre-PR walk caught
+        // it. `failReads` is how the harness can now see the class it was previously blind to.
+        if (opts.failReads && prop === "select") {
+          return (...args: unknown[]) => {
+            n++
+            if (failing()) throw new InjectedCrash(writes)
+            return wrapBuilder((value as (...a: unknown[]) => unknown).apply(target, args))
+          }
+        }
+
+        // The write verbs.
         if (prop === "insert" || prop === "upsert" || prop === "update" || prop === "delete") {
           return (...args: unknown[]) => {
             n++

