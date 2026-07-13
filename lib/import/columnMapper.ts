@@ -58,6 +58,11 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "sa id": { field: "id_number", entity: "tenant" },
   identity_number: { field: "id_number", entity: "tenant" },
   "identity number": { field: "id_number", entity: "tenant" },
+  // PayProp writes ONE column for both. The distinction matters downstream (a passport has no checksum), but
+  // an unmapped column means the identity is silently dropped — worse than a mixed one we can classify on read.
+  "id/passport": { field: "id_number", entity: "tenant" },
+  "id / passport": { field: "id_number", entity: "tenant" },
+  "id or passport": { field: "id_number", entity: "tenant" },
   employer_name: { field: "employer_name", entity: "tenant" },
   "employer name": { field: "employer_name", entity: "tenant" },
   employer: { field: "employer_name", entity: "tenant" },
@@ -67,11 +72,10 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   tenant_role: { field: "tenant_role", entity: "tenant" },
   "tenant role": { field: "tenant_role", entity: "tenant" },
   role: { field: "tenant_role", entity: "tenant" },
+  // NOTE: work_phone / office_phone are NOT mapped — `contacts` has no work_phone column, so a mapped
+  // header would be silently dropped (the payment_method class). Same for trust_number. If those columns are
+  // added, map them here AND read them in importRunner — check-import-fields.mjs enforces the pair.
   // Tenant identity — extended
-  work_phone: { field: "work_phone", entity: "tenant" },
-  "work phone": { field: "work_phone", entity: "tenant" },
-  office_phone: { field: "work_phone", entity: "tenant" },
-  "office phone": { field: "work_phone", entity: "tenant" },
   date_of_birth: { field: "date_of_birth", entity: "tenant" },
   "date of birth": { field: "date_of_birth", entity: "tenant" },
   dob: { field: "date_of_birth", entity: "tenant" },
@@ -81,6 +85,8 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   citizenship: { field: "nationality", entity: "tenant" },
   company_name: { field: "company_name", entity: "tenant" },
   "company name": { field: "company_name", entity: "tenant" },
+  maatskappy: { field: "company_name", entity: "tenant" },
+  maatskappynaam: { field: "company_name", entity: "tenant" },
   organisation_name: { field: "company_name", entity: "tenant" },
   registration_number: { field: "registration_number", entity: "tenant" },
   "registration number": { field: "registration_number", entity: "tenant" },
@@ -134,6 +140,16 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "unit name": { field: "unit_number", entity: "unit" },
   flat_number: { field: "unit_number", entity: "unit" },
   "flat number": { field: "unit_number", entity: "unit" },
+
+  // ── Headers the STRESS HARNESS proved we did not recognise (test/db/import-stress.dbtest.ts).
+  //    Each of these is a real exporter's real column, and each failure was silent, not loud:
+  //    "Unit No" (PayProp) unmapped meant every tenant in a property collapsed into ONE unit — five leases
+  //    became one, and four tenants became co-tenants of a lease they had nothing to do with, with no message.
+  "unit no": { field: "unit_number", entity: "unit" },
+  "unit #": { field: "unit_number", entity: "unit" },
+  "unit no.": { field: "unit_number", entity: "unit" },
+  "door number": { field: "unit_number", entity: "unit" },
+  "door no": { field: "unit_number", entity: "unit" },
   address: { field: "address", entity: "unit" },
   address_line1: { field: "address", entity: "unit" },
   "address line 1": { field: "address", entity: "unit" },
@@ -188,6 +204,9 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   // Lease fields
   lease_start: { field: "lease_start", entity: "lease" },
   "lease start": { field: "lease_start", entity: "lease" },
+  // af-ZA: an Excel installed in South Africa writes these. Unmapped, `lease_start` is absent — and lease_start
+  // is REQUIRED, so the harness's Afrikaans book imported ZERO leases out of 100. A whole agency, refused.
+  "huur begin": { field: "lease_start", entity: "lease" },
   lease_start_date: { field: "lease_start", entity: "lease" },
   "lease start date": { field: "lease_start", entity: "lease" },
   start_date: { field: "lease_start", entity: "lease" },
@@ -196,6 +215,9 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "commencement date": { field: "lease_start", entity: "lease" },
   lease_end: { field: "lease_end", entity: "lease" },
   "lease end": { field: "lease_end", entity: "lease" },
+  "huur eindig": { field: "lease_end", entity: "lease" },
+  // TPN — the largest tenant bureau in the country. We did not recognise their END-DATE column.
+  "termination date": { field: "lease_end", entity: "lease" },
   lease_end_date: { field: "lease_end", entity: "lease" },
   "lease end date": { field: "lease_end", entity: "lease" },
   end_date: { field: "lease_end", entity: "lease" },
@@ -203,6 +225,10 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   expiry_date: { field: "lease_end", entity: "lease" },
   "expiry date": { field: "lease_end", entity: "lease" },
   rent_amount_cents: { field: "rent_amount_cents", entity: "lease" },
+  // TPN writes "Rental Amount". We did not recognise the RENT column of the biggest bureau in South Africa —
+  // and rent is required, so their export could not produce a single lease.
+  "rental amount": { field: "rent_amount_cents", entity: "lease" },
+  rental: { field: "rent_amount_cents", entity: "lease" },
   monthly_rent: { field: "rent_amount_cents", entity: "lease" },
   "monthly rent": { field: "rent_amount_cents", entity: "lease" },
   rent: { field: "rent_amount_cents", entity: "lease" },
@@ -210,6 +236,10 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "rent amount": { field: "rent_amount_cents", entity: "lease" },
   monthly_rent_cents: { field: "rent_amount_cents", entity: "lease" },
   deposit_amount_cents: { field: "deposit_amount_cents", entity: "lease" },
+  deposit_interest_rate: { field: "deposit_interest_rate_percent", entity: "lease" },
+  "deposit interest rate": { field: "deposit_interest_rate_percent", entity: "lease" },
+  deposit_rate: { field: "deposit_interest_rate_percent", entity: "lease" },
+  "deposit rate": { field: "deposit_interest_rate_percent", entity: "lease" },
   deposit: { field: "deposit_amount_cents", entity: "lease" },
   deposit_amount: { field: "deposit_amount_cents", entity: "lease" },
   "deposit amount": { field: "deposit_amount_cents", entity: "lease" },
@@ -284,10 +314,9 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   // "registration number" intentionally omitted — already mapped to registration_number in tenant section above
   "reg number": { field: "registration_number", entity: "tenant" },
   regnumber: { field: "registration_number", entity: "tenant" },
-  "trust/npo/gov number": { field: "trust_number", entity: "extra" },
-  reference: { field: "__tpn_reference", entity: "extra" },
-  "entity id": { field: "__entity_id", entity: "extra" },
-  entityid: { field: "__entity_id", entity: "extra" },
+  reference: { field: "tpn_reference", entity: "tenant" },
+  "entity id": { field: "tpn_entity_id", entity: "tenant" },
+  entityid: { field: "tpn_entity_id", entity: "tenant" },
   description: { field: "__description", entity: "extra" },
   // "date of birth" intentionally omitted — already mapped to date_of_birth in tenant section above
   dateofbirth: { field: "date_of_birth", entity: "tenant" },
@@ -316,6 +345,137 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "bank branch 2": { field: "tenant_bank_branch_2", entity: "bank" },
   bankbranch2: { field: "tenant_bank_branch_2", entity: "bank" },
 
+  // ── af-ZA (Afrikaans) headers ────────────────────────────────────────────────────────────────────
+  // A South African agency's export is very often in Afrikaans, and the acceptance run found the mapper could
+  // not read a single one of these — so rent came back unmapped and every lease was (correctly) refused for
+  // having no rent. A book we cannot map is a book we cannot import.
+  // NOTE: keys under 6 chars are EXACT-match only (the fuzzy pass skips them), so short words like "van" and
+  // "huur" cannot bleed into unrelated headers.
+  eiendom: { field: "property_name", entity: "unit" },
+  "eiendom naam": { field: "property_name", entity: "unit" },
+  gebou: { field: "property_name", entity: "unit" },
+  eenheid: { field: "unit_number", entity: "unit" },
+  eenheidnommer: { field: "unit_number", entity: "unit" },
+  "eenheid nommer": { field: "unit_number", entity: "unit" },
+  adres: { field: "address", entity: "unit" },
+  straatadres: { field: "address", entity: "unit" },
+  voorstad: { field: "suburb", entity: "unit" },
+  stad: { field: "city", entity: "unit" },
+  dorp: { field: "city", entity: "unit" },
+  provinsie: { field: "province", entity: "unit" },
+  poskode: { field: "postal_code", entity: "unit" },
+  slaapkamers: { field: "bedrooms", entity: "unit" },
+  badkamers: { field: "bathrooms", entity: "unit" },
+  // Tenant
+  naam: { field: "first_name", entity: "tenant" },
+  voornaam: { field: "first_name", entity: "tenant" },
+  van: { field: "last_name", entity: "tenant" },
+  familienaam: { field: "last_name", entity: "tenant" },
+  "volle naam": { field: "__split_name", entity: "tenant" },
+  epos: { field: "email", entity: "tenant" },
+  "e-pos": { field: "email", entity: "tenant" },
+  "e-pos adres": { field: "email", entity: "tenant" },
+  selfoon: { field: "phone", entity: "tenant" },
+  selfoonnommer: { field: "phone", entity: "tenant" },
+  "kontak nommer": { field: "phone", entity: "tenant" },
+  identiteitsnommer: { field: "id_number", entity: "tenant" },
+  "id nommer": { field: "id_number", entity: "tenant" },
+  geboortedatum: { field: "date_of_birth", entity: "tenant" },
+  werkgewer: { field: "employer_name", entity: "tenant" },
+  beroep: { field: "occupation", entity: "tenant" },
+  // Lease
+  huurbegin: { field: "lease_start", entity: "lease" },
+  begindatum: { field: "lease_start", entity: "lease" },
+  "begin datum": { field: "lease_start", entity: "lease" },
+  aanvangsdatum: { field: "lease_start", entity: "lease" },
+  huureinde: { field: "lease_end", entity: "lease" },
+  einddatum: { field: "lease_end", entity: "lease" },
+  "eind datum": { field: "lease_end", entity: "lease" },
+  verstrykingsdatum: { field: "lease_end", entity: "lease" },
+  huur: { field: "rent_amount_cents", entity: "lease" },
+  huurbedrag: { field: "rent_amount_cents", entity: "lease" },
+  "maandelikse huur": { field: "rent_amount_cents", entity: "lease" },
+  maandhuur: { field: "rent_amount_cents", entity: "lease" },
+  deposito: { field: "deposit_amount_cents", entity: "lease" },
+  borg: { field: "deposit_amount_cents", entity: "lease" },
+  eskalasie: { field: "escalation_percent", entity: "lease" },
+  "eskalasie persentasie": { field: "escalation_percent", entity: "lease" },
+  huurtipe: { field: "lease_type", entity: "lease" },
+  "tipe huurkontrak": { field: "lease_type", entity: "lease" },
+  kennisgewingsdae: { field: "notice_period_days", entity: "lease" },
+  // Bank
+  bankrekening: { field: "tenant_bank_account_1", entity: "bank" },
+  "bank rekening": { field: "tenant_bank_account_1", entity: "bank" },
+  banknaam: { field: "tenant_bank_name_1", entity: "bank" },
+  "bank naam": { field: "tenant_bank_name_1", entity: "bank" },
+  takkode: { field: "tenant_bank_branch_1", entity: "bank" },
+
+  // ── Coverage added 2026-07-12 (field audit): columns that EXIST and an agency's book carries, but the
+  // importer could not take. Highest value first — the CPA size bands turn an "indeterminate" juristic lease
+  // into a determined one, which is the difference between a statutory notice that can cite the CPA and one
+  // that cannot.
+  turnover_under_2m: { field: "turnover_under_2m", entity: "tenant" },
+  "turnover under 2m": { field: "turnover_under_2m", entity: "tenant" },
+  "annual turnover under 2m": { field: "turnover_under_2m", entity: "tenant" },
+  asset_value_under_2m: { field: "asset_value_under_2m", entity: "tenant" },
+  "asset value under 2m": { field: "asset_value_under_2m", entity: "tenant" },
+  juristic_type: { field: "juristic_type", entity: "tenant" },
+  "juristic type": { field: "juristic_type", entity: "tenant" },
+  "entity type (legal)": { field: "juristic_type", entity: "tenant" },
+  // Tenant identity
+  title: { field: "title", entity: "tenant" },
+  titel: { field: "title", entity: "tenant" },
+  initials: { field: "initials", entity: "tenant" },
+  voorletters: { field: "initials", entity: "tenant" },
+  gender: { field: "gender", entity: "tenant" },
+  geslag: { field: "gender", entity: "tenant" },
+  trading_as: { field: "trading_as", entity: "tenant" },
+  "trading as": { field: "trading_as", entity: "tenant" },
+  handelend_as: { field: "trading_as", entity: "tenant" },
+  // Lease
+  payment_reference: { field: "payment_reference", entity: "lease" },
+  "payment reference": { field: "payment_reference", entity: "lease" },
+  "rent reference": { field: "payment_reference", entity: "lease" },
+  "tenant reference": { field: "payment_reference", entity: "lease" },
+  verwysing: { field: "payment_reference", entity: "lease" },
+  betalingsverwysing: { field: "payment_reference", entity: "lease" },
+  deposit_return_days: { field: "deposit_return_days", entity: "lease" },
+  "deposit return days": { field: "deposit_return_days", entity: "lease" },
+  deposit_interest_to: { field: "deposit_interest_to", entity: "lease" },
+  "deposit interest to": { field: "deposit_interest_to", entity: "lease" },
+  arrears_interest_margin_percent: { field: "arrears_interest_margin_percent", entity: "lease" },
+  "arrears interest margin": { field: "arrears_interest_margin_percent", entity: "lease" },
+  // Unit
+  market_rent_cents: { field: "market_rent_cents", entity: "unit" },
+  "market rent": { field: "market_rent_cents", entity: "unit" },
+  markhuur: { field: "market_rent_cents", entity: "unit" },
+  unit_type_field: { field: "unit_type", entity: "unit" },
+  "unit category": { field: "unit_type", entity: "unit" },
+  furnishing_status: { field: "furnishing_status", entity: "unit" },
+  "furnishing status": { field: "furnishing_status", entity: "unit" },
+  access_instructions: { field: "access_instructions", entity: "unit" },
+  "access instructions": { field: "access_instructions", entity: "unit" },
+  toegang: { field: "access_instructions", entity: "unit" },
+  // Property
+  address_line_2: { field: "address_line2", entity: "unit" },
+  "address line 2": { field: "address_line2", entity: "unit" },
+  levy_amount: { field: "levy_amount_cents", entity: "unit" },
+  "levy amount": { field: "levy_amount_cents", entity: "unit" },
+  heffing: { field: "levy_amount_cents", entity: "unit" },
+  levy_account_number: { field: "levy_account_number", entity: "unit" },
+  "levy account number": { field: "levy_account_number", entity: "unit" },
+  sectional_title_number: { field: "sectional_title_number", entity: "unit" },
+  "sectional title number": { field: "sectional_title_number", entity: "unit" },
+  "scheme number": { field: "sectional_title_number", entity: "unit" },
+  owner_tax_number: { field: "owner_tax_number", entity: "owner" },
+  "owner tax number": { field: "owner_tax_number", entity: "owner" },
+  insurance_policy_number: { field: "insurance_policy_number", entity: "unit" },
+  "insurance policy number": { field: "insurance_policy_number", entity: "unit" },
+  insurance_provider: { field: "insurance_provider", entity: "unit" },
+  "insurance provider": { field: "insurance_provider", entity: "unit" },
+  insurance_renewal_date: { field: "insurance_renewal_date", entity: "unit" },
+  "insurance renewal date": { field: "insurance_renewal_date", entity: "unit" },
+
   // State/filter fields
   state: { field: "__entity_state", entity: "filter" },
   "entity state": { field: "__entity_state", entity: "filter" },
@@ -323,6 +483,11 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "entity state 1": { field: "__entity_state", entity: "filter" },
   status: { field: "__entity_state", entity: "filter" },
   "contact type": { field: "__entity_type", entity: "filter" },
+  // af-ZA. Unmapped, EVERY row routes as a tenant (blank type ⇒ tenant) — so an Afrikaans book's landlords,
+  // suppliers and agents were silently processed as tenants and produced nothing at all.
+  tipe: { field: "__entity_type", entity: "filter" },
+  kontaktipe: { field: "__entity_type", entity: "filter" },
+  "kontak tipe": { field: "__entity_type", entity: "filter" },
   type: { field: "__entity_type", entity: "filter" },
   entitytype1: { field: "__entity_type", entity: "filter" },
   "entity type 1": { field: "__entity_type", entity: "filter" },

@@ -12,7 +12,7 @@
  */
 import { afterAll, describe, expect, it } from "vitest"
 import { svc, seedLedgerCase, teardownOrg, forceDepositTxnInsertFailure } from "./tier"
-import { saDateISO } from "@/lib/dates"
+import { saTodayISO, addCalendarDays, addCalendarMonths } from "@/lib/dates"
 
 const db = svc()
 const orgs: string[] = []
@@ -99,9 +99,15 @@ describe("deposit Pattern A + closed-period guard (ledger finale)", () => {
       org_id: c.orgId, account_holder: "T", bank_name: "T", type: "trust",
     }).select("id").single()
     if (bankErr) throw bankErr
-    const first = new Date(); first.setUTCDate(1)
-    const start = saDateISO(first)
-    const end = saDateISO(new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)))
+    // The period must be the SA CALENDAR month — the same month `date_trunc('month', CURRENT_DATE)` stamps on
+    // the trust posting. The first version mixed frames: it set the day-of-month in UTC (`setUTCDate(1)`) and
+    // then read the result back as an SA date. Between midnight and 02:00 SAST, UTC is still the previous day,
+    // so `period_start` came out as the 2nd while `statement_month` was the 1st — the posting fell OUTSIDE the
+    // period it was supposed to be blocked by, the guard correctly declined to fire, and the test failed. It
+    // passed all day and failed at night. Pure string arithmetic on the SA calendar, via the dates SSOT, cannot
+    // drift like that — which is exactly what `pleks/no-adhoc-dates` exists to enforce in prod code.
+    const start = `${saTodayISO().slice(0, 7)}-01`
+    const end = addCalendarDays(addCalendarMonths(start, 1), -1)
     const { error: perErr } = await db.from("trust_reconciliation_periods").insert({
       org_id: c.orgId, bank_account_id: bank!.id, period_start: start, period_end: end,
       bank_closing_balance_cents: 0, ledger_closing_balance_cents: 0, recon_computed_closing_cents: 0, status: "signed_off",

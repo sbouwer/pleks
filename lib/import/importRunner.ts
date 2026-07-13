@@ -10,13 +10,16 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { normaliseDate, normaliseMoneyCents, normalisePercent, normalisePaymentDueDay } from "./normalise"
 import {
-  classifyLeaseType, classifyEscalationType, classifyBoolean, classifyProvince,
+  classifyLeaseType, classifyEscalationType, classifyBoolean, classifyProvince, classifyTenantEntity,
+  classifyJuristicType, classifyGender, classifyFurnishing, classifyDepositInterestTo,
   SA_PROVINCES, type Classification,
 } from "./classify"
 import { detectMappingCollisions } from "./columnMapper"
+import { checkLeasePlausibility, looksLikeEmail } from "./plausibility"
+import { resolveDepositRate, postOpeningDeposit } from "./depositImport"
 import { normaliseBranchCode } from "./bankImport"
 import { bankAccountColumns } from "@/lib/crypto/bankAccount"
-import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { idNumberColumns, validateSAIdNumber } from "@/lib/crypto/idNumber"
 import { optionalEnv } from "@/lib/env"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
@@ -49,8 +52,12 @@ export interface ImportResult {
   notesCreated: number
   contractorsCreated: number
   landlordsImported: number
+  /** Properties attached to a real landlord ENTITY (not just denormalised owner text). */
+  landlordsLinked: number
   agentInvitesSent: number
   bankAccountsImported: number
+  /** Total deposit money carried into the deposit/trust sub-ledger as opening balances. */
+  depositsMigratedCents: number
   skipped: number
   errors: ImportError[]
   pendingLandlordLinks: Array<{ pendingLandlordId: string; name: string; email: string }>
@@ -92,6 +99,8 @@ export interface ImportDecisions {
    *  This is the AGENT'S declaration — never the data subject's consent. Undefined/false ⇒ bank accounts are
    *  recorded as UNCONSENTED (they used to be written `consent_given: true` unconditionally). */
   bankConsentAttested?: boolean
+  /** The agency confirmed it HOLDS these deposits. Without it, nothing is posted to the trust ledger. */
+  depositsHeldAttested?: boolean
 }
 
 type TenantRole = "primary" | "co_tenant" | "previous"
@@ -308,6 +317,7 @@ function buildUnitGroups(
   skipSet: Set<number>
 ): Map<string, UnitGroup> {
   const unitGroups = new Map<string, UnitGroup>()
+  const unitColumnMapped = Object.values(ctx.mapping).some((m) => m.field === "unit_number")
 
   // `i` is the row's index IN THE FILE, not its position among the tenant rows. It is what every ImportError
   // reports, and it is the key `skipRows` / `conflicts` are expressed in — indexing the tenant subset instead
@@ -330,6 +340,25 @@ function buildUnitGroups(
 
     const existing = unitGroups.get(unitKey)
     if (existing) {
+      // SILENT MERGE GUARD. Extra rows in a unit group are treated as CO-TENANTS — which is right when the file
+      // really says two people share a unit. But if no unit column was mapped at all, every unit normalises to
+      // "1", so every tenant in a property collapses into ONE lease and the others become co-tenants of a lease
+      // they have nothing to do with. The stress harness caught exactly this on a PayProp export ("Unit No" was
+      // not a recognised header): five leases became one, four tenants were absorbed, and NOTHING was reported.
+      //
+      // Aliases fix the exporters we have seen. This fixes the ones we have not: if the co-tenancy is an
+      // artefact of a missing column rather than a fact in the file, say so.
+      if (!unitColumnMapped) {
+        ctx.result.errors.push({
+          rowIndex: i,
+          field: "unit_number",
+          severity: "warning",
+          message:
+            `No unit column was mapped, so this row was treated as a CO-TENANT of the lease created for ` +
+            `"${propertyName || "(unnamed property)"}" rather than as its own lease. If these are separate ` +
+            `units, map the unit column and re-run — otherwise separate tenants will share one lease.`,
+        })
+      }
       existing.rows.push({ index: i, row, role })
     } else {
       unitGroups.set(unitKey, { propertyName, unitNumber, rows: [{ index: i, row, role }] })
@@ -418,6 +447,9 @@ async function upsertProperty(
       owner_bank_account: getField(row, "owner_bank_account", ctx.mapping) || null,
       owner_bank_branch: getField(row, "owner_bank_branch", ctx.mapping) || null,
       ...(normOwnerBankType ? { owner_bank_type: normOwnerBankType } : {}),
+      // Coverage (field audit): sectional-title, levies and insurance — a large share of SA agencies manage
+      // sectional-title stock, and every one of these columns already existed.
+      ...propertyCoverageColumns(row, ctx),
     })
     .select("id").single()
 
@@ -433,6 +465,48 @@ async function upsertProperty(
   cache.set(cacheKey, id)
   ctx.result.propertiesCreated++
   return id
+}
+
+/** Property columns the importer could not previously take. `is_sectional_title` is DERIVED from the presence
+ *  of a scheme number rather than asked for separately — an agency that gives you a sectional-title number has
+ *  told you it is sectional title. */
+function propertyCoverageColumns(row: Record<string, string>, ctx: ImportContext): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+
+  const line2 = getField(row, "address_line2", ctx.mapping)
+  if (line2) out.address_line2 = line2
+
+  const levy = getFieldSource(row, "levy_amount_cents", ctx.mapping)
+  if (levy.value) {
+    const cents = normaliseMoneyCents(levy.value, levy.column)
+    if (cents !== null) out.levy_amount_cents = cents
+  }
+
+  const levyAccount = getField(row, "levy_account_number", ctx.mapping)
+  if (levyAccount) out.levy_account_number = levyAccount
+
+  const scheme = getField(row, "sectional_title_number", ctx.mapping)
+  if (scheme) {
+    out.sectional_title_number = scheme
+    out.is_sectional_title = true
+  }
+
+  const ownerTax = getField(row, "owner_tax_number", ctx.mapping)
+  if (ownerTax) out.owner_tax_number = ownerTax
+
+  const policy = getField(row, "insurance_policy_number", ctx.mapping)
+  if (policy) out.insurance_policy_number = policy
+
+  const insurer = getField(row, "insurance_provider", ctx.mapping)
+  if (insurer) out.insurance_provider = insurer
+
+  const renewal = getField(row, "insurance_renewal_date", ctx.mapping)
+  if (renewal) {
+    const iso = normaliseDate(renewal)
+    if (iso) out.insurance_renewal_date = iso
+  }
+
+  return out
 }
 
 async function upsertUnit(
@@ -481,6 +555,8 @@ async function upsertUnit(
       size_m2: sizeRaw ? Number.parseFloat(sizeRaw) || null : null,
       parking_bays: parkingRaw ? Number.parseInt(parkingRaw, 10) || null : null,
       ...(furnishedRaw ? { furnished: normaliseBoolean(furnishedRaw) } : {}),
+      // Coverage (field audit): columns that exist and an agency's book carries.
+      ...unitCoverageColumns(row, ctx),
     })
     .select("id").single()
 
@@ -498,6 +574,33 @@ async function upsertUnit(
   ctx.unitIdCache.set(unitKey, id)
   ctx.result.unitsCreated++
   return id
+}
+
+/** Unit columns the importer could not previously take. `furnishing_status` is CHECK-constrained
+ *  (unfurnished|semi_furnished|furnished), so an unrecognised value is simply not written rather than
+ *  rejected by Postgres. `market_rent_cents` is money and goes through the same header-aware parser as rent. */
+function unitCoverageColumns(row: Record<string, string>, ctx: ImportContext): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+
+  const market = getFieldSource(row, "market_rent_cents", ctx.mapping)
+  if (market.value) {
+    const cents = normaliseMoneyCents(market.value, market.column)
+    if (cents !== null) out.market_rent_cents = cents
+  }
+
+  const unitType = getField(row, "unit_type", ctx.mapping)
+  if (unitType) out.unit_type = unitType
+
+  const furnishing = getField(row, "furnishing_status", ctx.mapping)
+  if (furnishing) {
+    const f = classifyFurnishing(furnishing)
+    if (f) out.furnishing_status = f
+  }
+
+  const access = getField(row, "access_instructions", ctx.mapping)
+  if (access) out.access_instructions = access
+
+  return out
 }
 
 async function upsertPropertiesAndUnits(
@@ -624,6 +727,9 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Tenant email is required", severity: "error" })
     return
   }
+
+  const dataQualityTags = checkTenantIdentity(email, entry, ctx)
+
   if (ctx.tenantIdCache.has(email)) return
 
   try {
@@ -671,6 +777,9 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         nationality: getField(entry.row, "nationality", ctx.mapping) || null,
         registration_number: getField(entry.row, "registration_number", ctx.mapping) || null,
         vat_number: getField(entry.row, "vat_number", ctx.mapping) || null,
+        ...contactIdentityColumns(entry.row, ctx),
+        // The known-wrong marks, PERSISTED. `is_verified` stays false while any of these stand.
+        ...(dataQualityTags.length ? { tags: dataQualityTags, is_verified: false } : {}),
       })
       .select("id").single()
 
@@ -711,6 +820,77 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
     const msg = err instanceof Error ? err.message : "Unknown error"
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Tenant error: ${msg}`, severity: "error" })
   }
+}
+
+/**
+ * Identity + CPA-band columns on `contacts` that the importer could not previously take.
+ *
+ * The size bands are the valuable ones. `determineCpaApplicability` returns "indeterminate" for a juristic
+ * tenant whose turnover and asset value are unknown — and an imported lease could NEVER be anything else,
+ * because no import format carried them. It does now: if the agency's book has the bands, the juristic lease
+ * lands DETERMINED and a statutory notice can cite (or correctly not cite) the CPA for it.
+ *
+ * `tpn_reference` / `tpn_entity_id` are the agency's own identifiers. They were already MAPPED (as
+ * `__tpn_reference` / `__entity_id`) and then thrown away, while the columns to hold them existed all along.
+ */
+function contactIdentityColumns(row: Record<string, string>, ctx: ImportContext): Record<string, unknown> {
+  const turnover = optionalBoolean(row, "turnover_under_2m", ctx)
+  const assets = optionalBoolean(row, "asset_value_under_2m", ctx)
+
+  const juristicRaw = getField(row, "juristic_type", ctx.mapping)
+  const genderRaw = getField(row, "gender", ctx.mapping)
+
+  return {
+    title: getField(row, "title", ctx.mapping) || null,
+    initials: getField(row, "initials", ctx.mapping) || null,
+    gender: genderRaw ? classifyGender(genderRaw) : null,
+    trading_as: getField(row, "trading_as", ctx.mapping) || null,
+    juristic_type: juristicRaw ? classifyJuristicType(juristicRaw) : null,
+    turnover_under_2m: turnover,
+    asset_value_under_2m: assets,
+    // Only a real capture stamps the date — both bands must be present, or the determination is not made.
+    size_bands_captured_at: turnover !== null && assets !== null ? new Date().toISOString() : null,
+    tpn_reference: getField(row, "tpn_reference", ctx.mapping) || null,
+    tpn_entity_id: getField(row, "tpn_entity_id", ctx.mapping) || null,
+  }
+}
+
+/**
+ * KNOWN-WRONG, NOT REJECTED (Stéan ruling, 2026-07-12).
+ *
+ * A bad identity value must NOT cost the agency the row. A book of 5 000 leases cannot hang on two mistyped ID
+ * digits — refusing here would make our strictness the agency's problem. So: import it, MARK it as known-wrong
+ * on the contact, and let the agent correct it the moment they next touch that lease.
+ *
+ * The mark is PERSISTED on `contacts.tags`, not merely raised in the import report. An import warning is read
+ * once and gone; a tag is queryable, so "every contact with a broken ID" becomes a worklist rather than a memory.
+ */
+function checkTenantIdentity(email: string, entry: UnitGroupEntry, ctx: ImportContext): string[] {
+  const tags: string[] = []
+
+  // This address is BOTH the dedup key AND where the tenant's mail goes. A malformed one silently merges two
+  // people into one contact, or silently reaches nobody — and the importer used to accept anything at all.
+  if (!looksLikeEmail(email)) {
+    tags.push("email_malformed")
+    flagForReview(ctx, entry.index, "email",
+      `"${email}" does not look like an email address. It was imported and flagged on the tenant, but this ` +
+      `address is how we RECOGNISE this tenant and how we CONTACT them — a malformed one can merge two people ` +
+      `into one, or reach nobody at all.`)
+  }
+
+  // `validateSAIdNumber` has existed all along and the importer never called it: a 13-digit number failing its
+  // own checksum was accepted as an identity, and would go on to a credit check and onto a lease document.
+  // Flagged, never refused — a real book legitimately carries passports and permits too.
+  const idForCheck = getField(entry.row, "id_number", ctx.mapping).replaceAll(/\s/g, "")
+  if (/^\d{13}$/.test(idForCheck) && !validateSAIdNumber(idForCheck).valid) {
+    tags.push("id_checksum_failed")
+    flagForReview(ctx, entry.index, "id_number",
+      "This looks like an SA ID number but fails its checksum, so at least one digit is wrong. The tenant WAS " +
+      "imported and the ID marked unverified — correct it before it is used for a credit check or written onto " +
+      "a lease document.")
+  }
+
+  return tags
 }
 
 async function insertNextOfKin(
@@ -977,6 +1157,15 @@ async function createLeasesAndHistory(
   }
 }
 
+/** An optional boolean cell: true / false / null-when-not-stated. Unlike the statutory booleans this never
+ *  refuses a row — these columns are nullable and "we don't know" is representable. */
+function optionalBoolean(row: Record<string, string>, field: string, ctx: ImportContext): boolean | null {
+  const raw = getField(row, field, ctx.mapping)
+  if (!raw) return null
+  const c = classifyBoolean(raw)
+  return c.ok ? c.value : null
+}
+
 /** Raise a row-level review item. The doctrine for every ambiguity at this boundary (money, dates, statutory
  *  classifications): the agent decides, the importer never guesses. Warnings ride out on the import report
  *  AND land in import_sessions.error_report, so the record survives the wizard session. */
@@ -1102,6 +1291,11 @@ const CLASSIFIED_LEASE_COLUMNS: Array<{
   label: string
   why: string
   unmappedNote: string
+  /** A BLANK cell in this column is an honest "we do not know", not bad data — so it must not refuse the row.
+   *  Only cpa_applies qualifies: unlike lease_type (whose absence silently becomes 'residential'), CPA has a
+   *  representable unknown — `cpa_applies_at_signing = 'indeterminate'`, which fails SAFE and is flagged for
+   *  the agent. An agency's book will very often leave this blank; refusing those leases would be absurd. */
+  blankMeansUnknown?: boolean
 }> = [
   {
     field: "lease_type", classify: classifyLeaseType, label: "lease type",
@@ -1116,7 +1310,8 @@ const CLASSIFIED_LEASE_COLUMNS: Array<{
   {
     field: "cpa_applies", classify: classifyBoolean, label: "CPA-applies flag",
     why: "Reading an unrecognised value as false would strip CPA s14 protection from the lease.",
-    unmappedNote: "every lease will import with the CPA applying (the system default)",
+    unmappedNote: "CPA applicability will be derived from each tenant (a natural person is always covered)",
+    blankMeansUnknown: true,
   },
   {
     field: "is_fixed_term", classify: classifyBoolean, label: "fixed-term flag",
@@ -1135,6 +1330,11 @@ const CLASSIFIED_LEASE_COLUMNS: Array<{
 const DEFAULTED_IF_UNMAPPED: Array<{ field: string; label: string; unmappedNote: string }> = [
   { field: "escalation_percent", label: "escalation percentage", unmappedNote: "every lease will import at 10% a year (the system default)" },
   { field: "payment_due_day", label: "payment due day", unmappedNote: "every lease will import as due on the 1st (the system default)" },
+  // Found by field ablation (test/db/import-ablation.dbtest.ts): removing each of these silently handed the
+  // column a DIFFERENT confident value. All three are statutory or money terms, and none of them said a word.
+  { field: "notice_period_days", label: "notice period", unmappedNote: "every lease will import with a 20-day notice period (the system default) — this decides when a notice to vacate is valid" },
+  { field: "deposit_return_days", label: "deposit return days", unmappedNote: "every lease will import with a 30-day deposit-return deadline (the system default)" },
+  { field: "deposit_interest_to", label: "deposit-interest beneficiary", unmappedNote: "deposit interest will accrue to the TENANT on every lease (the system default) — RHA s5(3) makes this a money term" },
 ]
 
 /**
@@ -1157,6 +1357,10 @@ function leaseClassifications(
     const src = getFieldSource(row, col.field, ctx.mapping)
     if (!src.column) continue   // not mapped → uniform DB default, warned once at import level
 
+    // A blank cell where blankness is MEANINGFUL: not bad data, just an unstated fact. Leave the column unset
+    // and let the determination speak (cpaSnapshot).
+    if (!src.value && col.blankMeansUnknown) continue
+
     const result = col.classify(src.value)
     if (!result.ok) {
       refuse(ctx, rowIndex, col.field, src.value
@@ -1165,6 +1369,27 @@ function leaseClassifications(
       return null
     }
     out[col.field] = result.value
+  }
+
+  // "NO ESCALATION" → fixed @ 0%. The column cannot hold "none" (CHECK: fixed|cpi|prime_plus), but a lease
+  // whose rent simply does not increase is ordinary, and we used to REFUSE every one of those rows.
+  //
+  // The zero must be FORCED, not merely allowed. `escalation_percent` is NOT NULL DEFAULT 10.00, so a "None"
+  // row whose percentage cell is blank — which is exactly how a real book writes it — would otherwise import
+  // as a 10% compounding annual increase. A lease that says "no increase" silently becoming a 10% increase is
+  // the whole bug class in one line, and it is charged to a tenant every year for the life of the lease.
+  if (out.escalation_type === "none") {
+    const stated = out.escalation_percent
+    if (typeof stated === "number" && stated !== 0) {
+      // The file says BOTH "no escalation" AND a rate. One of the two cells is wrong and we cannot know which.
+      refuse(ctx, rowIndex, "escalation_type",
+        `This lease says its escalation is "none" but also gives a rate of ${stated}%. Those cannot both be ` +
+        `true, and guessing which one the agency meant would either give a tenant an increase they never ` +
+        `agreed to, or take one away from a landlord. The lease was NOT imported — correct one of the two cells.`)
+      return null
+    }
+    out.escalation_type = "fixed"
+    out.escalation_percent = 0
   }
 
   return out
@@ -1202,6 +1427,18 @@ function optionalLeaseFields(
     } else out.payment_due_day = dueDay
   }
 
+  // The rate this deposit was actually taken at, if the agency's export carries it. Locale-aware (an af-ZA
+  // "7,5" through parseFloat is 7). Nothing beats the real rate — see migrateDeposit's ladder.
+  const depositRateRaw = getField(row, "deposit_interest_rate_percent", ctx.mapping)
+  if (depositRateRaw) {
+    const pct = normalisePercent(depositRateRaw)
+    if (pct === null) {
+      flagForReview(ctx, rowIndex, "deposit_interest_rate_percent",
+        `Could not read the deposit interest rate "${depositRateRaw}" as a percentage — the deposit was migrated ` +
+        `without a rate, so interest is NOT accruing on it until you set one.`)
+    } else out.deposit_interest_rate_percent = pct
+  }
+
   const noticeDaysRaw = getField(row, "notice_period_days", ctx.mapping)
   if (noticeDaysRaw) {
     const noticeDays = Number.parseInt(noticeDaysRaw, 10)
@@ -1215,6 +1452,56 @@ function optionalLeaseFields(
   const leaseConditions = getField(row, "lease_conditions", ctx.mapping)
   out.escalation_review_date = escalationReviewRaw ? normaliseDate(escalationReviewRaw) : null
   out.notes = leaseConditions || null
+
+  return { ...out, ...leaseCoverageColumns(row, rowIndex, ctx) }
+}
+
+/**
+ * Lease columns the importer could not previously take, though every one of them already existed.
+ *
+ * `payment_reference` is the rent reference every agency has — and the wizard used to offer `payment_method`,
+ * a column that does not exist at all, while never offering the real one.
+ *
+ * `migrated` is a boolean that exists literally for this and was never set. It marks a lease that arrived from
+ * another system rather than being originated in Pleks — exactly what a trust auditor, a support engineer, or
+ * a "why does this lease have no signed document?" question needs to know.
+ */
+function leaseCoverageColumns(
+  row: Record<string, string>, rowIndex: number, ctx: ImportContext,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    payment_reference: getField(row, "payment_reference", ctx.mapping) || null,
+    migrated: true,
+  }
+
+  const returnDaysRaw = getField(row, "deposit_return_days", ctx.mapping)
+  if (returnDaysRaw) {
+    const days = Number.parseInt(returnDaysRaw, 10)
+    if (!Number.isNaN(days)) out.deposit_return_days = days
+  }
+
+  const interestToRaw = getField(row, "deposit_interest_to", ctx.mapping)
+  if (interestToRaw) {
+    const to = classifyDepositInterestTo(interestToRaw)
+    if (to) out.deposit_interest_to = to
+    else {
+      flagForReview(ctx, rowIndex, "deposit_interest_to",
+        `Could not read "${interestToRaw}" — deposit interest accrues to the TENANT or the LANDLORD, and the ` +
+        `system default (tenant) applies. RHA s5(3) makes that a money term; set it if the default is wrong.`)
+    }
+  }
+
+  const arrearsMarginRaw = getField(row, "arrears_interest_margin_percent", ctx.mapping)
+  if (arrearsMarginRaw) {
+    const margin = normalisePercent(arrearsMarginRaw)
+    if (margin === null) {
+      flagForReview(ctx, rowIndex, "arrears_interest_margin_percent",
+        `Could not read the arrears-interest margin "${arrearsMarginRaw}" as a percentage — not applied.`)
+    } else {
+      out.arrears_interest_margin_percent = margin
+      out.arrears_interest_enabled = true   // a margin was supplied ⇒ the agency charges arrears interest
+    }
+  }
 
   return out
 }
@@ -1248,39 +1535,86 @@ function cpaSnapshot(
   row: Record<string, string>, rowIndex: number, ctx: ImportContext,
   explicitCpaApplies: unknown,
 ): Record<string, unknown> {
-  // The COMPANY FIELD only — never the business-suffix guess on a display name. `resolveEntityType` reads
-  // BUSINESS_SUFFIX_RE ("trust", "properties", "holdings"…) against the name, so a tenant called
-  // "Trust Ndlovu" resolves to `organisation`. That was tolerable when it only picked a contacts.entity_type;
-  // it is not tolerable driving a STATUTORY column, where it would strip a natural person's CPA protection
-  // from every notice and then tell the agent "this tenant is a juristic person".
-  const { companyName } = resolveName(row, ctx.mapping)
-  const entityType = companyName.trim() ? "organisation" : "individual"
+  // Certain markers decide; suggestive ones FLAG. See classifyTenantEntity: a company read as a person asserts
+  // the CPA for a juristic that may be over-threshold, and a person read as a company STRIPS the CPA from an
+  // actual consumer. Both are statutory errors, so ambiguity is escalated to the agent rather than guessed.
+  const { firstName, lastName, companyName } = resolveName(row, ctx.mapping)
+  const entity = classifyTenantEntity(companyName, `${firstName} ${lastName}`.trim())
 
+  if (entity === "ambiguous") {
+    flagForReview(ctx, rowIndex, "cpa_applies",
+      `We could not tell whether "${`${firstName} ${lastName}`.trim()}" is a person or a company, and that decides ` +
+      `whether the CPA protects them. The lease was imported with the CPA undetermined — set the tenant type on ` +
+      `the lease so statutory notices cite the right basis.`)
+  }
+
+  // THE SIZE BANDS. Until now these were hard-coded null, so a juristic lease could never be anything but
+  // "indeterminate" — no import format carried them. If the agency's book DOES carry them, the determination
+  // resolves properly and a statutory notice can cite (or correctly decline to cite) the CPA for that lease.
+  // A `juristic_type` of "sole_proprietor" is decisive on its own: a sole proprietor is a NATURAL PERSON under
+  // CPA s5(2), whatever the trading name says.
+  const juristicRaw = getField(row, "juristic_type", ctx.mapping)
   const determination = determineCpaApplicability({
     tenant: {
-      entityType,
-      juristicType: null,
-      turnoverUnder2m: null,      // not in any import format
-      assetValueUnder2m: null,
+      // "ambiguous" is passed through as a juristic-shaped value on purpose: determineCpaApplicability then
+      // returns "indeterminate", which is the honest answer and the one that makes cpaGoverns fail SAFE (it
+      // fires only on an explicit "yes"). The agent's flag above is what resolves it.
+      entityType: entity === "individual" ? "individual" : "organisation",
+      juristicType: juristicRaw ? classifyJuristicType(juristicRaw) : null,
+      turnoverUnder2m: optionalBoolean(row, "turnover_under_2m", ctx),
+      assetValueUnder2m: optionalBoolean(row, "asset_value_under_2m", ctx),
       sizeBandsCapturedAt: null,
     },
     lease: { isFranchiseAgreement: false },
   })
 
-  if (determination.applies === "indeterminate") {
+  // ── Who wins when the file and the determination disagree? It depends on WHO CAN KNOW.
+  //
+  // NATURAL PERSON — the STATUTE wins. CPA s5(2) makes a natural person a consumer, full stop. A file that says
+  // "CPA: N" for one is simply wrong, and honouring it would strip a real protection. Flag it and apply the Act.
+  //
+  // JURISTIC (or ambiguous) — the AGENCY wins, if they said anything. Applicability turns on turnover and asset
+  // bands, which no import format carries and Pleks therefore cannot compute. The agency KNOWS their tenant; a
+  // deliberate "Y"/"N" in their book is a determination they have made and we have no basis to overrule. Silence
+  // from them means genuinely unknown ⇒ "indeterminate", which fails SAFE (cpaGoverns fires only on "yes") and
+  // is flagged for them to resolve.
+  //
+  // Whatever the answer, BOTH columns come from it. The renewal cron gates on the boolean and the citation
+  // engine reads the snapshot; a per-lease disagreement makes a lease CPA-governed for demands and invisible to
+  // the notice engine at the same time.
+  const explicit = typeof explicitCpaApplies === "boolean" ? explicitCpaApplies : undefined
+
+  let applies = determination.applies
+  let category = determination.category
+  let notes = determination.notes
+
+  if (entity === "individual") {
+    if (explicit === false) {
+      flagForReview(ctx, rowIndex, "cpa_applies",
+        `Your file says the CPA does NOT apply to ${`${firstName} ${lastName}`.trim()}, but the CPA applies to ` +
+        `every natural person (s5(2)). The lease was imported WITH the CPA applying. Correct the file if this ` +
+        `tenant is in fact a company.`)
+    }
+    // applies stays "yes" — the statute, not the spreadsheet.
+  } else if (explicit !== undefined) {
+    applies = explicit ? "yes" : "no"
+    category = explicit ? "juristic_under_threshold" : "juristic_over_threshold"
+    notes = "Juristic tenant: applicability taken from the agency's import file — the size bands it rests on are " +
+      "not carried by any import format, so the agency's own determination stands."
+  } else {
     flagForReview(ctx, rowIndex, "cpa_applies",
-      "This tenant is a company, so whether the CPA applies depends on their turnover and asset value — which " +
-      "no import format carries. Capture the size bands on the lease; until then a statutory notice cannot cite " +
-      "the CPA for it.")
+      "This tenant is a company, so whether the CPA applies depends on their turnover and asset value — which no " +
+      "import format carries, and your file did not say. The lease was imported with the CPA undetermined, so a " +
+      "statutory notice cannot cite it. Capture the size bands on the lease and it resolves.")
   }
 
   return {
-    cpa_applies_at_signing: determination.applies,
-    cpa_determination_category: determination.category,
-    cpa_determination_notes: determination.notes,
+    cpa_applies_at_signing: applies,
+    cpa_determination_category: category,
+    cpa_determination_notes: notes,
     cpa_determined_at: new Date().toISOString(),
-    // Keep the boolean the cron gates on IN STEP with the snapshot the citations read. A mapped column wins.
-    ...(explicitCpaApplies === undefined ? { cpa_applies: determination.applies === "yes" } : {}),
+    // ONE source for both. The boolean the cron gates on and the snapshot the citations read can never diverge.
+    cpa_applies: applies === "yes",
   }
 }
 
@@ -1322,6 +1656,31 @@ function buildLeaseData(
     ...cpaSnapshot(row, rowIndex, ctx, classifications.cpa_applies),
     ...optionalLeaseFields(row, rowIndex, ctx),
   }
+
+  // ── BOUNDS. "It parses" is a much weaker claim than "it could be true". A negative rent, a lease that ends
+  // before it starts, a 500% escalation: all type-valid, all nonsense. INCOHERENT values refuse the row;
+  // IMPLAUSIBLE ones import with a warning, because refusing them would block a legitimate edge case.
+  const issues = checkLeasePlausibility({
+    rentCents: required.rentCents,
+    depositCents: depositCents,
+    escalationPercent: typeof data.escalation_percent === "number" ? data.escalation_percent : null,
+    arrearsMarginPercent: typeof data.arrears_interest_margin_percent === "number" ? data.arrears_interest_margin_percent : null,
+    noticePeriodDays: typeof data.notice_period_days === "number" ? data.notice_period_days : null,
+    depositReturnDays: typeof data.deposit_return_days === "number" ? data.deposit_return_days : null,
+    startDate: required.startDate,
+    endDate: normalisedEnd,
+    todayISO: saTodayISO(),
+  })
+  let refused = false
+  for (const issue of issues) {
+    if (issue.severity === "error") {
+      refuse(ctx, rowIndex, issue.field, issue.message)
+      refused = true
+    } else {
+      flagForReview(ctx, rowIndex, issue.field, issue.message)
+    }
+  }
+  if (refused) return { ok: false }
 
   // "Keep active" on a lease whose end date has already passed: the renewal was never captured in the old
   // system, so the date in the file is stale — we know the lease is LIVE and we do NOT know when it ends.
@@ -1427,6 +1786,10 @@ async function processActiveLease(
       await markUnitOccupied(unitId, ctx)
     }
 
+    // The deposit the agency ALREADY HOLDS: resolve its interest rate (or hold), and carry the money into the
+    // deposit/trust sub-ledger as an opening balance.
+    await migrateDeposit(leaseId, unitId, propertyId, primaryTenantId, built.data, index, ctx)
+
     // Primary tenant_id is already set at insert; this loop now only surfaces the co-tenant "not linked" notice.
     for (const ar of activeRows) {
       await linkTenantToLease(ar, leaseId, ctx)
@@ -1435,6 +1798,96 @@ async function processActiveLease(
     const msg = err instanceof Error ? err.message : "Unknown error"
     ctx.result.errors.push({ rowIndex: index, field: "lease_start", message: `Lease error: ${msg}`, severity: "error" })
   }
+}
+
+/**
+ * Migrate the deposit the agency ALREADY HOLDS (Stéan ruling, 2026-07-12).
+ *
+ * Two things, kept apart on purpose:
+ *
+ * THE RATE. RHA s5(3) interest cannot accrue without one, and the rate a deposit was taken at years ago by
+ * another system is not something Pleks can infer. `accrueDepositInterest` would otherwise fall back to a
+ * HARD-CODED 5% p.a. — inventing a rate and applying it to money held in trust for someone else. So:
+ * the file's rate → else the agency's own CONFIGURED rate → else `not_set`, which HOLDS accrual until
+ * an agent sets one. A held deposit accrues NOTHING; it does not accrue wrongly.
+ *
+ * THE LEDGER. The money is real, so it belongs in the deposit/trust sub-ledger as an OPENING BALANCE, or a
+ * move-out reconciliation has no principal and the trust ledger under-states what the agency holds. But posting
+ * into a trust ledger asserts a bank reality Pleks cannot see, so it is gated on the agent confirming the
+ * agency actually holds these deposits. Not confirmed ⇒ the amount stays on the lease, NOTHING is posted, and
+ * the lease is flagged. A trust ledger that silently disagrees with the bank is worse than an empty one.
+ */
+async function migrateDeposit(
+  leaseId: string,
+  unitId: string,
+  propertyId: string,
+  tenantId: string,
+  leaseData: Record<string, unknown>,
+  rowIndex: number,
+  ctx: ImportContext,
+): Promise<void> {
+  const depositCents = typeof leaseData.deposit_amount_cents === "number" ? leaseData.deposit_amount_cents : 0
+  if (depositCents <= 0) return
+
+  // ── The rate ladder.
+  const filePercent = typeof leaseData.deposit_interest_rate_percent === "number"
+    ? leaseData.deposit_interest_rate_percent
+    : null
+  // The SAME scope the accrual engine will use. A lease has no deposit/trust account at import, so this is
+  // (property → unit → org) — which is exactly why an ACCOUNT-scoped config would not reach it, and why the
+  // flag below must say so instead of just "no rate".
+  const rate = await resolveDepositRate(
+    ctx.supabase, ctx.orgId,
+    { propertyId, unitId, bankAccountId: null },
+    filePercent,
+  )
+
+  // Only the rate itself is persisted. The HOLD is not: it is what the accrual engine concludes, live, when
+  // no rate reaches the lease — so it self-heals the moment one does, instead of a stale stamp freezing it.
+  if (rate.ratePercent !== null) {
+    const { error: rateError } = await ctx.supabase
+      .from("leases")
+      .update({ deposit_interest_rate_percent: rate.ratePercent })
+      .eq("id", leaseId).eq("org_id", ctx.orgId)
+    logIfError("importRunner deposit rate", rateError)
+  }
+
+  if (rate.held) {
+    // Two different problems, and telling them apart is the difference between one click and a support ticket.
+    flagForReview(ctx, rowIndex, "deposit_amount_cents",
+      rate.source === "config_unreachable"
+        ? "Deposit interest is NOT accruing on this lease. You DO have a deposit-interest rate configured, but " +
+          "it is scoped to a specific deposit/trust account and this lease is not linked to that account, so the " +
+          "rate does not reach it. Link the lease to the account (or add a rate for the lease) and accrual starts."
+        : "This deposit was migrated but no interest rate is known for it — not in the file, and your agency has " +
+          "no deposit-interest rate configured. Interest is NOT accruing on it: we will not guess a rate on money " +
+          "you hold in trust for someone else. Set a rate and accrual starts, backdated to the deposit.",
+    )
+  }
+
+  // ── The ledger. Fail-closed: no attestation, no trust posting.
+  if (ctx.decisions.depositsHeldAttested !== true) {
+    flagForReview(ctx, rowIndex, "deposit_amount_cents",
+      "The deposit amount is recorded on the lease, but nothing was posted to your deposit/trust ledger because " +
+      "you did not confirm the agency holds these deposits. Until it is posted, a move-out reconciliation for " +
+      "this lease has no principal.")
+    return
+  }
+
+  const posted = await postOpeningDeposit(ctx.supabase, {
+    orgId: ctx.orgId, leaseId, tenantId, propertyId, unitId,
+    amountCents: depositCents, actorId: ctx.agentId,
+  })
+
+  if (posted.error) {
+    ctx.result.errors.push({
+      rowIndex, field: "deposit_amount_cents", severity: "error",
+      message: `The lease imported, but its deposit could NOT be posted to the trust ledger: ${posted.error}. ` +
+        `The money is not represented in the ledger — resolve this before relying on any trust balance.`,
+    })
+    return
+  }
+  if (posted.posted) ctx.result.depositsMigratedCents += depositCents
 }
 
 /**
@@ -1708,6 +2161,8 @@ interface RoutedRows {
   vendorRows: IndexedRow[]
   landlordRows: IndexedRow[]
   agentRows: IndexedRow[]
+  /** Rows whose `__entity_type` we do not recognise. NOT a silent drop — the caller reports every one. */
+  unknownRows: Array<IndexedRow & { entityType: string }>
 }
 
 function routeRowsByType(
@@ -1719,10 +2174,14 @@ function routeRowsByType(
     vendorRows: [],
     landlordRows: [],
     agentRows: [],
+    unknownRows: [],
   }
 
   for (const [index, row] of rows.entries()) {
-    const raw = getField(row, "__entity_type", mapping).toLowerCase().trim()
+    // Keep the agency's own text. When we report a row we could not route, we quote what THEY wrote — echoing a
+    // lowercased version back at them makes the message read like it is about some other file.
+    const original = getField(row, "__entity_type", mapping).trim()
+    const raw = original.toLowerCase()
     // Strip individual/company qualifiers so "contractor individual", "landlord company" etc. all normalize cleanly
     const entityType = raw
       .replace(/\b(individual|person|company|organisation|organization|cc|pty\s*ltd|ltd|inc)\b/g, "")
@@ -1761,7 +2220,11 @@ function routeRowsByType(
         result.agentRows.push({ row, index })
         break
       default:
-        // Unknown entity type — skip silently
+        // An entity type we do not recognise. This USED TO `break` with the comment "skip silently" — the row
+        // was not imported, not counted in `skipped`, and not reported. A whole class of an agency's book
+        // ("Guarantor", "Beneficiary", a typo'd "Tennant") could vanish between the file and the database with
+        // nothing anywhere saying so. Route it to `unknownRows` and let the caller SAY it was not imported.
+        result.unknownRows.push({ row, index, entityType: original })
         break
     }
   }
@@ -1968,20 +2431,13 @@ async function importLandlords(
     }
 
     try {
-      // Dedup against properties.owner_email
-      const { data: existingProperty, error: existingPropertyError } = await ctx.supabase
-        .from("properties")
-        .select("id")
-        .eq("org_id", ctx.orgId)
-        .ilike("owner_email", email)
-        .limit(1)
-        .maybeSingle()
-      logIfError("importRunner properties owner_email lookup failed", existingPropertyError)
-
-      if (existingProperty) {
-        ctx.result.skipped++
-        continue
-      }
+      // NO dedup against properties.owner_email any more — it was SELF-DEFEATING. Phase 2 of this very import
+      // writes owner_email onto every property, so by the time we got here the check always matched and the
+      // landlord was skipped: in the ordinary case, where a book gives both the property's owner and a landlord
+      // row for that owner, NO LANDLORD ENTITY WAS EVER CREATED. The owner existed only as denormalised text on
+      // the property — so their ledger was empty, and Finance grouped the money owed to them under "unknown".
+      // A property carrying an owner's email is a reason to LINK, not a reason to skip. That happens in
+      // linkLandlordsToProperties below.
 
       // Dedup against pending_landlords.email
       const { data: existingPending, error: existingPendingError } = await ctx.supabase
@@ -2066,6 +2522,136 @@ async function importLandlords(
       })
     }
   }
+}
+
+// ── Landlord ↔ property linking ─────────────────────────────────────────
+
+/**
+ * Attach every imported property to a real landlord ENTITY, and cascade that to its leases.
+ *
+ * The importer wrote the owner onto the property as denormalised text (owner_name / owner_email /
+ * owner_bank_*) and, separately, created `landlords` rows — and never linked the two. The consequences were
+ * quiet and financial:
+ *   - `ownerLedger` finds a landlord's properties via `properties.landlord_id`. Null ⇒ the landlord's ledger
+ *     page is EMPTY, however many properties they own.
+ *   - `financeHub` groups owner balances by `owner_statements.landlord_id` with `?? "unknown"` ⇒ money owed to
+ *     owners collapses into a single unnamed "unknown" bucket.
+ *   - Owner statements still generate and email (they key off `owner_email`), so nothing looks broken — which
+ *     is exactly why nobody would notice.
+ *
+ * The join key was in the file all along: `properties.owner_email` IS the landlord's contact email. So we
+ * match on it, and CREATE the landlord from the property's own owner columns when the book never gave a
+ * separate landlord row (the common shape: a tenant list with owner_name/owner_email columns and no landlord
+ * rows at all — which previously produced no landlord entity anywhere).
+ *
+ * `pendingLandlordLinks` now carries only the GENUINE misses — a landlord whose email matched no property —
+ * which is what that list was always supposed to mean. It used to list every landlord, linked or not, and tell
+ * the agent to go and link 200 of them by hand.
+ */
+async function linkLandlordsToProperties(ctx: ImportContext): Promise<void> {
+  const { data: properties, error } = await ctx.supabase
+    .from("properties")
+    .select("id, name, owner_email, owner_name, owner_phone")
+    .eq("org_id", ctx.orgId)
+    .is("landlord_id", null)
+    .not("owner_email", "is", null)
+  logIfError("importRunner properties for landlord linking", error)
+
+  for (const property of properties ?? []) {
+    const email = String(property.owner_email ?? "").toLowerCase().trim()
+    if (!email) continue
+
+    const landlordId = await findOrCreateLandlord(email, property, ctx)
+    if (!landlordId) continue
+
+    const { error: linkError } = await ctx.supabase
+      .from("properties").update({ landlord_id: landlordId })
+      .eq("id", property.id).eq("org_id", ctx.orgId)
+    if (linkError) {
+      ctx.result.errors.push({
+        rowIndex: -1, field: "owner_email", severity: "warning",
+        message: `Could not link "${property.name}" to its owner: ${linkError.message}`,
+      })
+      continue
+    }
+    ctx.result.landlordsLinked++
+
+    // Cascade to the leases on that property. leases.landlord_id is nullable and read by the lease detail,
+    // maintenance-approval and finance surfaces; a lease that knows its owner does not have to go via the
+    // property to find them.
+    const { error: leaseError } = await ctx.supabase
+      .from("leases").update({ landlord_id: landlordId })
+      .eq("property_id", property.id).eq("org_id", ctx.orgId).is("landlord_id", null)
+    logIfError("importRunner cascade landlord to leases", leaseError)
+  }
+
+  // Whatever is left in pendingLandlordLinks is a landlord who matched NO property — a real miss the agent
+  // must resolve, not a chore we made for them.
+  const { data: linked, error: linkedError } = await ctx.supabase
+    .from("properties").select("owner_email").eq("org_id", ctx.orgId).not("landlord_id", "is", null)
+  logIfError("importRunner linked-owner read-back", linkedError)
+
+  // Fail CONSERVATIVE: if we cannot read back what got linked, leave the list alone. Treating an errored read
+  // as "nothing is linked" would be harmless; treating it as "everything is linked" would silently drop a real
+  // miss. Showing the agent a chore they have already done is the cheaper mistake.
+  if (linkedError) return
+
+  const linkedEmails = new Set((linked ?? []).map((p) => String(p.owner_email ?? "").toLowerCase()))
+  ctx.result.pendingLandlordLinks = ctx.result.pendingLandlordLinks.filter(
+    (l) => !linkedEmails.has(l.email.toLowerCase()),
+  )
+}
+
+/** An existing landlord for this email, or one created from the property's own owner columns. */
+async function findOrCreateLandlord(
+  email: string,
+  property: { name?: unknown; owner_name?: unknown; owner_phone?: unknown },
+  ctx: ImportContext,
+): Promise<string | null> {
+  const { data: existing, error: existingError } = await ctx.supabase
+    .from("landlord_view").select("id").eq("org_id", ctx.orgId).ilike("email", email).limit(1).maybeSingle()
+  logIfError("importRunner landlord_view lookup", existingError)
+  if (existing) return String(existing.id)
+
+  // The book never gave a landlord row for this owner — but the property told us who they are. Create them.
+  const ownerName = String(property.owner_name ?? "").trim()
+  const { firstName, lastName } = splitFullName(ownerName)
+
+  const { data: contact, error: contactError } = await ctx.supabase
+    .from("contacts")
+    .insert({
+      org_id: ctx.orgId,
+      entity_type: resolveEntityType("", ownerName),
+      primary_role: "landlord",
+      first_name: firstName || (ownerName ? null : "Unknown"),
+      last_name: lastName || (ownerName ? null : "Unknown"),
+      company_name: resolveEntityType("", ownerName) === "organisation" ? ownerName : null,
+      primary_email: email,
+      primary_phone: String(property.owner_phone ?? "") || null,
+    })
+    .select("id").single()
+  if (contactError || !contact) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "owner_email", severity: "warning",
+      message: `Could not create the owner of "${String(property.name ?? "")}": ${contactError?.message ?? "unknown error"}`,
+    })
+    return null
+  }
+
+  const { data: landlord, error: landlordError } = await ctx.supabase
+    .from("landlords")
+    .insert({ org_id: ctx.orgId, contact_id: contact.id, created_by: ctx.agentId })
+    .select("id").single()
+  if (landlordError || !landlord) {
+    ctx.result.errors.push({
+      rowIndex: -1, field: "owner_email", severity: "warning",
+      message: `Could not create the owner of "${String(property.name ?? "")}": ${landlordError?.message ?? "unknown error"}`,
+    })
+    return null
+  }
+
+  ctx.result.landlordsImported++
+  return String(landlord.id)
 }
 
 // ── Agent import ───────────────────────────────────────────────────────
@@ -2191,8 +2777,10 @@ export async function runImport(
       notesCreated: 0,
       contractorsCreated: 0,
       landlordsImported: 0,
+      landlordsLinked: 0,
       agentInvitesSent: 0,
       bankAccountsImported: 0,
+      depositsMigratedCents: 0,
       skipped: 0,
       errors: [],
       pendingLandlordLinks: [],
@@ -2236,6 +2824,21 @@ export async function runImport(
   // Route rows by entity type
   const routed = routeRowsByType(rows, mapping)
 
+  // REPORT-HONESTY: imported + flagged + skipped must account for every row in the file. A row we cannot route
+  // is a row we did not import, and the agency must be told which one and why — not left to discover it missing.
+  for (const unknown of routed.unknownRows) {
+    ctx.result.skipped++
+    ctx.result.errors.push({
+      rowIndex: unknown.index,
+      field: "__entity_type",
+      message:
+        `This row is a "${unknown.entityType}", which is not a record type Pleks imports (tenant, landlord, ` +
+        `supplier or agent). It was NOT imported. If it is one of those under another name, map its type ` +
+        `column accordingly and re-run; otherwise it is safe to leave out.`,
+      severity: "warning",
+    })
+  }
+
   // Build conflict lookup (applies to tenant rows only)
   const skipSet = new Set<number>(decisions.skipRows ?? [])
   const conflictMap = new Map<number, ConflictDecision>()
@@ -2268,6 +2871,9 @@ export async function runImport(
 
   // Phase 9: Import landlords
   await importLandlords(routed.landlordRows, ctx)
+
+  // Phase 9b: attach every property to a real landlord entity, and cascade to its leases.
+  await linkLandlordsToProperties(ctx)
 
   // Phase 10: Import agents
   await importAgents(routed.agentRows, ctx)

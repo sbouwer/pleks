@@ -223,6 +223,17 @@ function setsEqual(a, b) {
  */
 function getMigrationCheckValues(constraintName, migrations) {
   const nameLower = constraintName.toLowerCase()
+
+  // LAST DEFINITION WINS. Migrations replay top-to-bottom, so a later `DROP CONSTRAINT … ADD CONSTRAINT …`
+  // SUPERSEDES an earlier one — which is how every widening in this repo is written, sometimes twice in the
+  // SAME file. Returning the FIRST match read the superseded definition and reported drift that does not
+  // exist: it claimed the file still allowed the eight `consent_*` auth event types, when 010 §30.2 had
+  // silently dropped them 13 days after §25 added them. The file agreed with prod; the DETECTOR was wrong.
+  //
+  // (The real bug that finding sat on top of is worse, and this fix is what made it legible: the code writes
+  // those event types and NEITHER the file NOR prod accepts them.)
+  let last = null
+
   for (const mig of migrations) {
     // Search + extract BOTH against mig.content (indices must reference the same string — using the
     // comment-stripped `searchable` for the index but slicing `content` for the body mislocates the CHECK
@@ -253,11 +264,16 @@ function getMigrationCheckValues(constraintName, migrations) {
         else if (mig.content[i] === ")") { depth--; if (depth === 0) { end = i; break } }
       }
 
-      const vals = extractQuotedValues(mig.content.slice(absStart, end + 1))
-      if (vals.size > 0) return vals
+      // Strip `--` comments before reading values. An apostrophe in ordinary English prose inside a comment —
+      // "the landlord's consent (never the tenant's)" — parses as a quoted SQL literal, and the detector duly
+      // reported `consent_log` as missing an allowed value of `'s consent (never the tenant'`. Prose is not a
+      // constraint. (Second time today a comment has broken this parser; the first made it go silent.)
+      const raw = mig.content.slice(absStart, end + 1).replaceAll(/--[^\n]*/g, "")
+      const vals = extractQuotedValues(raw)
+      if (vals.size > 0) last = vals            // keep going — a later definition supersedes this one
     }
   }
-  return null
+  return last
 }
 
 // Split a string on commas that are at depth 0 (ignoring commas inside parens).
@@ -391,7 +407,14 @@ async function getLiveSchema() {
       AND prokind = 'f'
     ORDER BY proname
   `)
-  return { tables, columns, checks, indexes, policies, triggers, functions }
+  // BODIES, not just names. A name tells you a function exists; only the body tells you what it CALLS — and a
+  // live function calling a function the database does not have is a dead path, right now, in production.
+  const functionDefs = await query(`
+    SELECT proname, pg_get_functiondef(oid) AS def
+    FROM pg_proc
+    WHERE pronamespace = 'public'::regnamespace AND prokind = 'f'
+  `)
+  return { tables, columns, checks, indexes, policies, triggers, functions, functionDefs }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -403,6 +426,51 @@ function columnTypeString(col) {
   const nn = col.is_nullable === "NO" ? " NOT NULL" : ""
   const def = col.column_default ? ` DEFAULT ${col.column_default}` : ""
   return `${type}${nn}${def}`
+}
+
+/**
+ * The allowed values of an INLINE `CHECK (col IN (...))` declared inside a CREATE TABLE.
+ *
+ * `getMigrationCheckValues` only finds constraints the migrations NAME (an explicit ADD CONSTRAINT). Most
+ * CHECKs are not named — they are written inline and auto-named by Postgres — and those were skipped entirely.
+ * That is the gap `contractors.supplier_type` lived in.
+ */
+function getInlineCheckValues(tableName, col, migrations) {
+  // ANCHOR the table name immediately after CREATE TABLE. `CREATE TABLE[^;]*?\bunits\b` also matches
+  // `CREATE TABLE leases ( … unit_id uuid REFERENCES units(id) … )` — landing on the LEASES body and reading
+  // ITS `status` CHECK. That is how the first run accused `units_status_check` of admitting 'active', 'ended',
+  // 'evicted': lease statuses, reported against the units table. Third instance of the same bleed today.
+  const CREATE_RE = new RegExp(
+    String.raw`CREATE TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?${tableName}\b`, "i",
+  )
+  // From the column's own declaration to the CHECK that belongs to it. Bounded, so a column with no CHECK of
+  // its own cannot run on and swallow the NEXT column's — which would report a drift on the wrong column.
+  const DECL_RE = new RegExp(String.raw`\n\s*${col}\s[\s\S]{0,300}?CHECK\s*\(([\s\S]{0,400}?)\)\s*[,\n]`, "i")
+
+  for (const mig of migrations) {
+    const create = CREATE_RE.exec(mig.content)
+    if (!create) continue
+
+    // BOUND THE SEARCH TO THIS TABLE'S BODY. Slicing to end-of-file lets the column pattern match a same-named
+    // column in a LATER table — the first version reported `auth_events.event_type` as admitting 'queued',
+    // 'sent', 'delivered', which are communication-delivery values from a different table entirely. The same
+    // bleed I already fixed once today in the function reconciler. A detector's false positives are not a
+    // cosmetic problem: they are the thing that gets the detector switched off.
+    const rest = mig.content.slice(create.index)
+    const endOfTable = rest.search(/\n\s*\);/)
+    // Comments must not affect parsing. A `--` note between the column and its CHECK pushed them apart by more
+    // than the match window, and the extractor silently found nothing — so the detector reported a clean bill
+    // of health for the very constraint it was written to catch. (The comment that broke it was the one I wrote
+    // in 005 explaining this drift.) A detector that goes quiet when it fails is the worst kind: it is
+    // indistinguishable from a detector that passed.
+    const body = (endOfTable === -1 ? rest : rest.slice(0, endOfTable)).replaceAll(/--[^\n]*/g, "")
+
+    const decl = DECL_RE.exec(body)
+    if (!decl) continue
+    const vals = extractQuotedValues(decl[1])
+    if (vals.size > 0) return vals
+  }
+  return null
 }
 
 function inlineCheckColumn(cname, tname) {
@@ -526,7 +594,45 @@ function inlineCheckColumn(cname, tname) {
     const liveChecks = liveChecksByTable.get(t) ?? new Map()
     for (const [cname, cdata] of liveChecks) {
       const inferredCol = inlineCheckColumn(cname, t)
-      if (inferredCol && (expectedCols.has(inferredCol) || extraColsHere.has(inferredCol))) continue
+      // A LATER `ALTER TABLE … ADD CONSTRAINT <name> CHECK (…)` SUPERSEDES the inline one from CREATE TABLE —
+      // that is how every widening in this repo is written (007 and 009 both do it). Comparing against the
+      // inline declaration while a named ALTER redefines it downstream reports drift that does not exist: the
+      // first version accused `consent_log_consent_type_check` of missing 'bank_details_import', which migration
+      // 009 adds by name. So: if the migrations NAME the constraint anywhere, the named definition is the truth
+      // and the inline path must not run.
+      const isNamedInMigrations = findOrigin(cname, migrations).length > 0
+      const isAutoInline = !isNamedInMigrations && inferredCol &&
+        (expectedCols.has(inferredCol) || extraColsHere.has(inferredCol))
+
+      // An auto-named inline CHECK ({table}_{col}_check) used to `continue` straight past EVERYTHING here —
+      // including the value-set comparison below. That single line is how `contractors.supplier_type` came to
+      // allow SIX values in production while the migration file declared THREE, for months, with this tool
+      // printing "✓ No drift". The constraint NAME was noise; the VALUE SET never was.
+      //
+      // Suppress the "extra constraint" report (the name genuinely is auto-generated and uninteresting), but
+      // still compare what the constraint ADMITS — which is the only thing about it that governs real rows.
+      if (isAutoInline) {
+        const liveVals = extractQuotedValues(cdata.definition)
+        const migVals = liveVals.size > 0 ? getInlineCheckValues(t, inferredCol, migrations) : null
+        if (migVals && migVals.size > 0 && !setsEqual(liveVals, migVals)) {
+          const missingFromLive = [...migVals].filter((v) => !liveVals.has(v))
+          const extraInLive = [...liveVals].filter((v) => !migVals.has(v))
+          const parts = []
+          if (extraInLive.length) {
+            parts.push(`PROD-AHEAD (widened out-of-band, amend the file forward): ${extraInLive.map((v) => `'${v}'`).join(", ")}`)
+          }
+          if (missingFromLive.length) {
+            parts.push(`FILE-AHEAD (declared but never deployed): ${missingFromLive.map((v) => `'${v}'`).join(", ")}`)
+          }
+          add(t, {
+            kind: "check-stale",
+            msg: `Inline CHECK **${cname}** admits different values in the file than in the database`,
+            detail: parts.join(" · "),
+          })
+          counts.checkStale++
+        }
+        continue
+      }
 
       const origins = findOrigin(cname, migrations)
       if (origins.length > 0) {
@@ -620,6 +726,32 @@ function inlineCheckColumn(cname, tname) {
     if (!liveFunctions.has(fname)) pendingFunctions.push({ name: fname, reason: "in migrations, not yet in live" })
   }
   pendingFunctions.sort((a, b) => a.name.localeCompare(b.name))
+
+  // ── A pending function that a LIVE function CALLS is not "pending". It is BROKEN IN PRODUCTION. ──────
+  //
+  // "Migrations lead live before a deploy" is true, and it is exactly why this was left informational — with
+  // `allocate_payment_atomic` NAMED in the comment above as the benign example. It was not benign. It has been
+  // "pending" for months, and `settle_deposit_charge_pattern_a_atomic` — which IS deployed — PERFORMs it, so
+  // every real Pattern-A settlement raises "function does not exist". A forgotten deploy stayed visible, and
+  // being visible turned out to be worth nothing, because nothing ever failed.
+  //
+  // The distinction that matters is not "is it deployed yet" but "does anything LIVE depend on it". If a live
+  // function calls a function the database does not have, that path is dead NOW, and it is drift, not a plan.
+  const brokenInProd = []
+  for (const p of pendingFunctions) {
+    const callers = (live.functionDefs ?? [])
+      .filter((f) => new RegExp(String.raw`\b${p.name}\s*\(`, "i").test(f.def))
+      .map((f) => f.proname)
+    if (callers.length) brokenInProd.push({ name: p.name, callers })
+  }
+  for (const b of brokenInProd) {
+    add("(functions)", {
+      kind: "fn-broken",
+      msg: `Live function(s) **${b.callers.join(", ")}** call **${b.name}()**, which is NOT in the database`,
+      detail: `Every invocation raises "function does not exist". FILE-AHEAD: deploy ${b.name}, do not delete it.`,
+    })
+    counts.fnBroken = (counts.fnBroken ?? 0) + 1
+  }
 
   const totalDrift = Object.values(counts).reduce((s, n) => s + n, 0)
   const tablesWithDrift = perTable.size

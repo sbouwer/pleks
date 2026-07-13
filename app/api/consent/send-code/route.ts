@@ -24,6 +24,29 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { normalizePhone } from "@/lib/validation/contact"
 import { recordAudit } from "@/lib/audit/recordAudit"
 
+/**
+ * A POPIA consent event that FAILED TO RECORD is not a logging problem — it is a missing compliance record
+ * behind a screen that said "verified".
+ *
+ * These inserts have been failing with a 23514 on EVERY consent round since 2026-05-27, when a DROP+ADD on
+ * `auth_events_event_type_check` silently dropped the eight consent_* values a fortnight after they were added.
+ * Nobody noticed for seven weeks, because the failure went to `console.error` and the route returned 200. The
+ * constraint is fixed (010 § restore); this makes the NEXT one impossible to miss.
+ *
+ * Deliberately does NOT fail the request: whether a tenant's verification should be REFUSED when its audit row
+ * cannot be written is a POPIA question, not an engineering one, and it is flagged for a ruling rather than
+ * guessed at (OUTSTANDING § D-CONSENT-01). What it must never do again is stay quiet.
+ */
+function reportConsentAuditFailure(event: string, err: { message: string }): void {
+  console.error(`[consent] auth_events ${event} insert FAILED:`, err.message)
+  Sentry.captureMessage(`consent audit row not written: ${event}`, {
+    level: "error",
+    tags: { area: "popia-consent-audit", event },
+    extra: { dbError: err.message },
+  })
+}
+
+
 const SMS_TEMPLATE = (code: string, special: boolean) =>
   special
     ? `Pleks: Your special-information consent code is ${code}. Valid 5 min. Do not share. If you did not request this, ignore.`
@@ -37,6 +60,7 @@ interface TokenContext {
   orgId:         string | null
   directorToken: string | null
 }
+
 
 type TokenContextResult =
   | { ok: true;  ctx: TokenContext }
@@ -210,7 +234,7 @@ export async function POST(req: Request) {
       success:   true,
       metadata:  auditMeta,
     })
-    if (aeErr) console.error("[send-code] auth_events insert failed:", aeErr.message)
+    if (aeErr) reportConsentAuditFailure("consent_code_sent", aeErr)
 
     return NextResponse.json({
       verificationId: verif.id,

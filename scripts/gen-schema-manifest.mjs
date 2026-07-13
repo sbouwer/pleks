@@ -56,7 +56,25 @@ const RPC_SQL = `
   WHERE r.routine_schema = 'public' AND r.routine_type = 'FUNCTION'
   ORDER BY r.routine_name, p.ordinal_position;`
 
-const [colRows, rpcRows] = await Promise.all([runQuery(COLS_SQL), runQuery(RPC_SQL)])
+/**
+ * CHECK constraints, by name, with their normalised definition.
+ *
+ * The manifest counted columns and functions and NOT the constraints on them — which is exactly how
+ * `contractors.supplier_type` came to accept six values in production while the migration file declared three,
+ * for months, with nothing anywhere noticing. Prod governs live data; the FILE governs every fresh local reset.
+ * When they disagree, every dbtest in the drifted region is testing a schema that does not exist.
+ */
+const CHECK_SQL = `
+  SELECT c.conname, t.relname AS table_name, pg_get_constraintdef(c.oid) AS def
+  FROM pg_constraint c
+  JOIN pg_class t ON t.oid = c.conrelid
+  JOIN pg_namespace n ON n.oid = t.relnamespace
+  WHERE n.nspname = 'public' AND c.contype = 'c'
+  ORDER BY t.relname, c.conname;`
+
+const [colRows, rpcRows, checkRows] = await Promise.all([
+  runQuery(COLS_SQL), runQuery(RPC_SQL), runQuery(CHECK_SQL),
+])
 
 const tables = {}
 for (const { table_name, column_name } of colRows) (tables[table_name] ??= []).push(column_name)
@@ -68,8 +86,17 @@ for (const { routine_name, parameter_name } of rpcRows) {
   if (parameter_name) rpcs[routine_name].push(parameter_name)
 }
 
+// Whitespace-normalised, so a mere reformat is never mistaken for a semantic change.
+const checks = {}
+for (const { conname, table_name, def } of checkRows) {
+  checks[conname] = { table: table_name, def: def.replaceAll(/\s+/g, " ").trim() }
+}
+
 const sortKeys = (o) => Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]))
-const manifest = { tables: sortKeys(tables), rpcs: sortKeys(rpcs) }
+const manifest = { tables: sortKeys(tables), rpcs: sortKeys(rpcs), checks: sortKeys(checks) }
 
 writeFileSync(OUT_PATH, JSON.stringify(manifest, null, 2) + "\n")
-console.log(`✓ wrote schema-manifest.json — ${Object.keys(manifest.tables).length} tables/views, ${Object.keys(manifest.rpcs).length} rpcs`)
+console.log(
+  `✓ wrote schema-manifest.json — ${Object.keys(manifest.tables).length} tables/views, ` +
+  `${Object.keys(manifest.rpcs).length} rpcs, ${Object.keys(manifest.checks).length} check constraints`,
+)

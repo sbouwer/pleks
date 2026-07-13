@@ -1627,7 +1627,18 @@ BEGIN
       USING ERRCODE = 'check_violation';
   END IF;
 
-  RETURN NEW;
+  -- COALESCE(NEW, OLD), not NEW.
+  --
+  -- This trigger fires BEFORE UPDATE **OR DELETE**. On a DELETE, NEW is NULL — and a BEFORE-row trigger that
+  -- returns NULL SILENTLY CANCELS THE ROW. So `RETURN NEW` meant every DELETE against trust_transactions
+  -- reported success and removed nothing, in EVERY period, open or closed. Not immutability by design: a typo
+  -- that silently swallowed the operation and left the caller believing it had worked.
+  --
+  -- Found the hard way (2026-07-12): a purge of 144 invented interest postings deleted the deposit-side rows
+  -- and "deleted" the paired trust rows, leaving the two ledgers disagreeing with each other — the one thing a
+  -- dual-write ledger must never do. The signed-off guard above is the real invariant and it still RAISEs
+  -- loudly; an open period must be able to correct itself.
+  RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
 

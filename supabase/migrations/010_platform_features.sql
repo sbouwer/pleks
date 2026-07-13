@@ -3899,3 +3899,41 @@ $$ LANGUAGE plpgsql;
 INSERT INTO organisations (id, name, type, is_platform, email)
 VALUES ('00000000-0000-0000-0000-000000000002'::uuid, 'Pleks', 'platform', true, 'no-reply@pleks.co.za')
 ON CONFLICT (id) DO NOTHING;
+
+-- =============================================================================
+-- §  auth_events.event_type — restore the eight consent_* types that §30.2 silently dropped
+-- =============================================================================
+-- ADDENDUM_14F (§25, 2026-05-14) added the consent_* event types. BUILD_AUTH_RESOLVER (§30.2, 2026-05-27 —
+-- thirteen days later) did a DROP + ADD on the SAME constraint to add the resolver types, and its new value
+-- list simply OMITTED all eight. Migrations replay top-to-bottom, so §30.2's narrower list is what is live.
+--
+-- The consequence is not theoretical. `app/api/consent/send-code` and `app/api/consent/verify-code` write
+-- `consent_code_sent` / `consent_code_verified` / `consent_verification_failed` /
+-- `consent_verification_locked_out` on every SMS consent round. Postgres has rejected every one of them with
+-- a 23514 since 2026-05-27; the route only `console.error`s the failure and STILL RETURNS 200. So the user
+-- sees a successful verification, and the POPIA audit row it exists to create does not exist.
+--
+-- Confirmed against production: 173 rows in auth_events, ZERO of any consent_* type. Not one has ever landed.
+--
+-- This is the same trap that ate `bank_details_import` (a later DROP+ADD reverting an earlier widening), and
+-- the same shape as every other bug this week: a write that fails, an error that is swallowed, and a caller
+-- that reports success. The value list below is the LIVE set plus the eight restored — a DROP+ADD must
+-- re-state every value it intends to keep, which is exactly what §30.2 got wrong.
+ALTER TABLE auth_events DROP CONSTRAINT IF EXISTS auth_events_event_type_check;
+ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
+  CHECK (event_type IN (
+    -- session / credential (unchanged)
+    'login_success', 'login_failure', 'logout', 'password_changed', 'email_changed',
+    'totp_enrolled', 'totp_unenrolled', 'totp_verified', 'totp_failed',
+    'passkey_enrolled', 'passkey_unenrolled', 'passkey_verified', 'passkey_failed',
+    'step_up_challenged', 'step_up_verified', 'step_up_failed',
+    'session_revoked', 'new_device_detected', 'recovery_used', 'role_switched',
+    'tenant_portal_login', 'landlord_portal_login', 'supplier_portal_login', 'agent_portal_login',
+    -- resolver (§30.2, kept)
+    'resolver_decision', 'email_existence_check', 'membership_claimed',
+    'membership_claim_blocked_by_invariant',
+    -- consent (ADDENDUM_14F §25 — RESTORED; these are WRITTEN by the live consent routes)
+    'consent_code_sent', 'consent_code_verified', 'consent_verification_failed',
+    'consent_verification_locked_out', 'consent_email_link_sent', 'consent_email_link_verified',
+    'consent_special_information_given', 'consent_special_information_revoked'
+  ));

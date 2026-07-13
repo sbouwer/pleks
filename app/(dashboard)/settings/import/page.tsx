@@ -83,6 +83,7 @@ export default function ImportWizardPage() {
     expiredLeaseAction: "skip",
     perRowOverrides: {},
     bankConsentAttested: false,
+    depositsHeldAttested: false,
   })
   const [result, setResult] = useState<ImportResultData | null>(null)
 
@@ -170,6 +171,7 @@ export default function ImportWizardPage() {
       expiredLeaseAction: "skip",
       perRowOverrides: {},
       bankConsentAttested: false,
+      depositsHeldAttested: false,
     })
     setResult(null)
     setGlBlocks([])

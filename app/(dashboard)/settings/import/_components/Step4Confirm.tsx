@@ -25,6 +25,10 @@ export function Step4Confirm({ analysis, rows, decisions, onBack, onImportComple
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState("")
   const [error, setError] = useState<string | null>(null)
+  // Fail-closed by default: nothing is posted to the trust ledger unless the agent says the agency holds it.
+  const [depositsHeld, setDepositsHeld] = useState(decisions.depositsHeldAttested)
+
+  const hasDeposits = Object.values(decisions.columnMapping).some((m) => m.field === "deposit_amount_cents")
 
   const mappedCount = Object.keys(decisions.columnMapping).length
   const extraCount = Object.keys(decisions.extraColumnRouting).length
@@ -63,7 +67,9 @@ export function Step4Confirm({ analysis, rows, decisions, onBack, onImportComple
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           rows,
-          decisions,
+          // The cutover attestation is taken HERE, on the confirm screen, so send the decisions with it —
+          // not the stale copy from the wizard's state.
+          decisions: { ...decisions, depositsHeldAttested: hasDeposits && depositsHeld },
         }),
       })
 
@@ -144,6 +150,37 @@ export function Step4Confirm({ analysis, rows, decisions, onBack, onImportComple
           <p>Expired leases will be imported with &apos;expired&apos; status</p>
         )}
       </div>
+
+      {/* CUTOVER ATTESTATION. A migrating agency is already HOLDING its tenants' deposits, so that money
+          belongs in the deposit/trust sub-ledger as an opening balance — without it, a move-out reconciliation
+          has no principal and the trust ledger under-states what the agency holds. But posting into a trust
+          ledger asserts a bank reality Pleks cannot see. So it is opt-IN and fail-closed: unticked, the deposit
+          amount is still recorded on each lease and nothing is posted. A trust ledger that silently disagrees
+          with the bank is worse than an empty one. */}
+      {hasDeposits && (
+        <Card className="mb-6 text-left border-amber-500/20">
+          <CardContent className="pt-4 space-y-3">
+            <p className="text-sm font-medium">Deposits in this file</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Your file carries deposit amounts. If your agency is <strong>currently holding</strong> these
+              deposits, we can carry them into your deposit and trust ledger as opening balances — which is what
+              makes interest accrual and move-out refunds work. If you don&apos;t confirm this, the amounts are
+              still recorded against each lease, but nothing is posted to your trust ledger.
+            </p>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={depositsHeld}
+                onChange={(e) => setDepositsHeld(e.target.checked)}
+                className="accent-brand mt-0.5"
+              />
+              <span className="text-xs">
+                My agency holds these deposits — post them as opening balances to my trust ledger.
+              </span>
+            </label>
+          </CardContent>
+        </Card>
+      )}
 
       <p className="text-xs text-muted-foreground mb-6">
         This cannot be undone. Records will be created in your account immediately.

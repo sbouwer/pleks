@@ -23,79 +23,8 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { addCalendarDays, addCalendarMonths, fmtDateLongZA, saTodayISO } from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
+import { parseLeaseFormData } from "@/lib/leases/leaseFormFields"
 
-type LeaseFormFields = {
-  unitId: string
-  propertyId: string
-  tenantId: string
-  leaseType: string
-  tenantIsJuristic: boolean
-  cpaApplies: boolean
-  isFranchiseAgreement: boolean
-  startDate: string
-  endDate: string | null
-  isFixedTerm: boolean
-  noticePeriod: number
-  rentCents: number
-  paymentDueDay: string
-  escalationPercent: number
-  escalationType: string
-  depositCents: number | null
-  depositInterestTo: string
-  depositInterestRatePercent: number | null
-  arrearsInterestEnabled: boolean
-  arrearsInterestMarginPercent: number
-  specialTerms: unknown[]
-  escalationReviewDate: string
-}
-
-function parseLeaseFormData(formData: FormData): LeaseFormFields {
-  const leaseType = (formData.get("lease_type") as string) || "residential"
-  const cpaApplies = formData.get("cpa_applies") !== "false"
-  const startDate = formData.get("start_date") as string
-  const endDate = (formData.get("end_date") as string) || null
-  const isFixedTerm = formData.get("is_fixed_term") !== "false"
-
-  // setFullYear/getFullYear are LOCAL-time accessors and the result was sliced in UTC — mixed coordinates.
-  const escalationReviewDate = addCalendarMonths(startDate, 12)
-
-  // The CPA s14(2)(b)(ii) expiry-notice date is NO LONGER stamped here. It used to be `endDate − 40 calendar
-  // days`, which is ~27 business days — statutorily too late (the Act requires 40–80 BUSINESS days). It is
-  // now DERIVED at evaluation time by the lease-expiry-check cron via lib/leases/cpaRenewal, so it self-heals
-  // and never drifts. `auto_renewal_notice_due` is being dropped (ADDENDUM_70K §6).
-
-  const depositInterestRateRaw = formData.get("deposit_interest_rate") as string
-  const specialTermsRaw = formData.get("special_terms") as string
-  let specialTerms: unknown[] = []
-  try { specialTerms = specialTermsRaw ? JSON.parse(specialTermsRaw) : [] } catch { /* empty */ }
-
-  return {
-    unitId: formData.get("unit_id") as string,
-    propertyId: formData.get("property_id") as string,
-    tenantId: formData.get("tenant_id") as string,
-    leaseType,
-    tenantIsJuristic: formData.get("tenant_is_juristic") === "true",
-    cpaApplies,
-    isFranchiseAgreement: formData.get("is_franchise_agreement") === "true",
-    startDate,
-    endDate,
-    isFixedTerm,
-    noticePeriod: Number.parseInt(formData.get("notice_period_days") as string) || 20,
-    rentCents: Math.round(Number.parseFloat(formData.get("rent_amount") as string) * 100),
-    paymentDueDay: (formData.get("payment_due_day") as string) || "1",
-    escalationPercent: Number.parseFloat(formData.get("escalation_percent") as string) || 10,
-    escalationType: (formData.get("escalation_type") as string) || "fixed",
-    depositCents: formData.get("deposit_amount")
-      ? Math.round(Number.parseFloat(formData.get("deposit_amount") as string) * 100)
-      : null,
-    depositInterestTo: leaseType === "residential" ? "tenant" : ((formData.get("deposit_interest_to") as string) || "landlord"),
-    depositInterestRatePercent: depositInterestRateRaw ? Number.parseFloat(depositInterestRateRaw) : null,
-    arrearsInterestEnabled: formData.get("arrears_interest_enabled") !== "false",
-    arrearsInterestMarginPercent: Number.parseFloat(formData.get("arrears_interest_margin") as string) || 2,
-    specialTerms,
-    escalationReviewDate: escalationReviewDate,
-  }
-}
 
 type DbClient = GatewayContext["db"]
 

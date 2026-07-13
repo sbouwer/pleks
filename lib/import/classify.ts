@@ -30,6 +30,20 @@ export type Classification<T> = { ok: true; value: T } | { ok: false; raw: strin
 export type LeaseType = "residential" | "commercial"
 export type EscalationType = "fixed" | "cpi" | "prime_plus"
 
+/**
+ * What an agency's escalation cell can SAY — which is one value wider than what the column can HOLD.
+ *
+ * `leases.escalation_type` is CHECK (fixed|cpi|prime_plus): there is no "none". But "None" / "No escalation" /
+ * "Geen" is an ordinary thing for a real lease to say, and the importer used to REFUSE those rows outright.
+ * Refusing is honest, but it is still a book the agency cannot import.
+ *
+ * "No escalation" is exactly representable as FIXED at ZERO PERCENT — same arithmetic, no schema change. The
+ * runner performs that translation, and it must FORCE the zero: `escalation_percent` is NOT NULL DEFAULT 10.00,
+ * so a "None" row with a blank percentage cell would otherwise import as a 10% annual escalation. A lease that
+ * says "no increase" becoming a 10% compounding increase is the bug class in its purest form.
+ */
+export type EscalationBasis = EscalationType | "none"
+
 /** Split a cell into lowercase word tokens ("Semi-Commercial" → ["semi","commercial"]). */
 function words(raw: string): Set<string> {
   return new Set(raw.toLowerCase().split(/[^a-z]+/).filter(Boolean))
@@ -75,14 +89,17 @@ export function classifyLeaseType(raw: string): Classification<LeaseType> {
  * Classify a raw `escalation_type` cell. "fixed" must be STATED, not inferred from silence, and a cell naming
  * two bases ("CPI or Prime") is contradictory rather than first-match.
  */
-export function classifyEscalationType(raw: string): Classification<EscalationType> {
+export function classifyEscalationType(raw: string): Classification<EscalationBasis> {
   const w = words(raw)
   if (w.size === 0) return { ok: false, raw }
 
-  const hits: EscalationType[] = []
+  const hits: EscalationBasis[] = []
   if (w.has("cpi") || w.has("inflation") || (w.has("consumer") && w.has("price"))) hits.push("cpi")
   if (w.has("prime")) hits.push("prime_plus")
   if (w.has("fixed") || w.has("vaste") || w.has("vast")) hits.push("fixed")
+  // "No escalation" is a real lease term, not a blank cell. The caller translates it to fixed @ 0%.
+  if (w.has("none") || w.has("nil") || w.has("geen") || w.has("na") ||
+      (w.has("no") && w.has("escalation"))) hits.push("none")
 
   const only = hits.length === 1 ? hits[0] : undefined
   return only ? { ok: true, value: only } : { ok: false, raw }
@@ -102,6 +119,43 @@ export function classifyBoolean(raw: string): Classification<boolean> {
   if ((TRUE_WORDS as readonly string[]).includes(s)) return { ok: true, value: true }
   if ((FALSE_WORDS as readonly string[]).includes(s)) return { ok: true, value: false }
   return { ok: false, raw }
+}
+
+// ── Tenant entity: person or company? (drives the CPA determination) ───────────────────────────────────
+//
+// This decides `cpa_applies_at_signing`, so getting it wrong is a statutory error in EITHER direction:
+//   a company read as a person   → the CPA is asserted for a juristic that may be over the threshold
+//   a person read as a company   → the CPA is STRIPPED from an actual consumer (CPA s5(2))
+//
+// The old `resolveEntityType` matched BUSINESS_SUFFIX_RE — which includes "trust", "properties", "holdings" —
+// against the display NAME. Tolerable when it only picked a contacts.entity_type; not when it drives a
+// statutory column, because "Trust Ndlovu" is a person. But narrowing it to "only trust a company_name column"
+// then misses every real company whose name sits in the surname field, which is how agency exports actually
+// look ("Kagiso | Trading (Pty) Ltd").
+//
+// So: markers that are LEGALLY UNAMBIGUOUS decide. Markers that are merely suggestive FLAG.
+
+/** A registered legal-entity suffix. No natural person is called "(Pty) Ltd" — these are certain. */
+const JURISTIC_SUFFIX_RE = /\b(pty|ltd|cc|inc|npc|bk|rf)\b/
+
+/** Suggestive, NOT decisive: every one of these is also a South African given name or surname
+ *  ("Trust Ndlovu", "Group", "Solutions"). They mean "ask", never "assume". */
+const AMBIGUOUS_ENTITY_RE = /\b(trust|holdings|properties|investments|group|enterprises|solutions|corp)\b/
+
+export type TenantEntity = "individual" | "organisation" | "ambiguous"
+
+/**
+ * Is this tenant a natural person or a juristic one? `companyField` is a mapped company/legal/trading-name
+ * column (authoritative when present); `displayName` is the tenant's name as the file gives it.
+ */
+export function classifyTenantEntity(companyField: string, displayName: string): TenantEntity {
+  if (companyField.trim()) return "organisation"          // the file says so outright
+
+  const name = displayName.toLowerCase()
+  if (JURISTIC_SUFFIX_RE.test(name)) return "organisation" // "(Pty) Ltd", "CC", "Inc" — unambiguous
+  if (AMBIGUOUS_ENTITY_RE.test(name)) return "ambiguous"   // "Trust ..." — could be a person. Ask.
+
+  return "individual"
 }
 
 // ── Province (properties.province CHECK constraint, 003_properties.sql) ────────────────────────────────
@@ -148,4 +202,54 @@ export function classifyProvince(raw: string): Classification<SaProvince> {
     if (compact.includes(key)) return { ok: true, value: province }
   }
   return { ok: false, raw }
+}
+
+// ── Schema-constrained enums an agency's book actually carries ─────────────────────────────────────────
+// Each of these is a CHECK-constrained column, so an unrecognised value is a hard Postgres rejection — the
+// same reason every classifier here flags rather than guesses. Unknown ⇒ null ⇒ the column is not written.
+
+/** contacts.juristic_type — CHECK (sole_proprietor|pty_ltd|cc|trust|partnership|npc|other_juristic).
+ *  Feeds determineCpaApplicability: a sole proprietor is a NATURAL PERSON under CPA s5(2), so getting this
+ *  right flips a lease from "indeterminate" to "the CPA applies". */
+export function classifyJuristicType(raw: string): string | null {
+  const w = new Set(raw.toLowerCase().split(/[^a-z]+/).filter(Boolean))
+  const s = raw.toLowerCase()
+
+  if (w.has("sole") || s.includes("sole prop") || w.has("eenmansaak")) return "sole_proprietor"
+  if (/\bpty\b/.test(s) || /\bltd\b/.test(s) || s.includes("(pty)")) return "pty_ltd"
+  if (/\bcc\b/.test(s) || s.includes("close corp") || w.has("bk")) return "cc"
+  if (w.has("trust")) return "trust"
+  if (w.has("partnership") || w.has("vennootskap")) return "partnership"
+  if (/\bnpc\b/.test(s) || s.includes("non profit") || s.includes("non-profit")) return "npc"
+  return null
+}
+
+/** contacts.gender — CHECK (male|female|other|prefer_not_to_say). Plaintext at rest by CD ruling. */
+export function classifyGender(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+  if (["m", "male", "man", "manlik"].includes(s)) return "male"
+  if (["f", "female", "woman", "vroulik", "v"].includes(s)) return "female"
+  if (["other", "o", "ander"].includes(s)) return "other"
+  if (s.includes("prefer") || s.includes("not say")) return "prefer_not_to_say"
+  return null
+}
+
+/** units.furnishing_status — CHECK (unfurnished|semi_furnished|furnished). */
+export function classifyFurnishing(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+  if (s.includes("semi") || s.includes("part") || s.includes("half")) return "semi_furnished"
+  if (s.includes("un") || s.includes("no") || s.includes("onge")) return "unfurnished"
+  if (s.includes("furnish") || s.includes("gemeubileer") || s === "yes" || s === "y" || s === "ja") return "furnished"
+  return null
+}
+
+/** leases.deposit_interest_to — CHECK (tenant|landlord). Who the deposit interest accrues TO (RHA s5(3)). */
+export function classifyDepositInterestTo(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+  if (s.includes("tenant") || s.includes("huurder")) return "tenant"
+  if (s.includes("landlord") || s.includes("owner") || s.includes("verhuurder") || s.includes("eienaar")) return "landlord"
+  return null
 }

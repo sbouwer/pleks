@@ -31,7 +31,13 @@ CREATE TABLE IF NOT EXISTS contractors (
 
   -- Supplier extension
   supplier_type   text DEFAULT 'contractor'
-                  CHECK (supplier_type IN ('contractor', 'recurring', 'both')),
+                  -- ⚠ WIDENED to match PRODUCTION. This file declared only (contractor|recurring|both) while the
+                  -- LIVE constraint has long accepted six values — widened out-of-band, never captured here. So
+                  -- `resolveSupplierType` (importRunner) emits 'managing_scheme'/'utility' that PROD accepts and a
+                  -- LOCAL stack built from this file REJECTS. A migration that disagrees with the database is worse
+                  -- than no migration: every test written against local is testing a schema that does not exist.
+                  CHECK (supplier_type IN ('contractor', 'recurring', 'both',
+                                           'managing_scheme', 'utility', 'other')),
   vat_registered  boolean DEFAULT false,
   -- Banking moved to contact_bank_accounts (002 Â§16) â€” multi-account, contact-scoped, read by contact_id.
 
@@ -3194,3 +3200,14 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION sign_off_maintenance_financials_atomic(uuid,uuid,uuid,uuid,uuid,uuid,date,jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION sign_off_maintenance_financials_atomic(uuid,uuid,uuid,uuid,uuid,uuid,date,jsonb) TO service_role;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- § contractors.supplier_type — reconcile an ALREADY-CREATED table with the widened CHECK above.
+--   The inline CHECK only helps a stack built from scratch. Existing local stacks (and any replay onto
+--   a DB that predates the widening) keep the narrow 3-value constraint until this runs. Prod is already
+--   wide, so this is a no-op there — it exists to make LOCAL tell the same truth as LIVE.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+ALTER TABLE contractors DROP CONSTRAINT IF EXISTS contractors_supplier_type_check;
+ALTER TABLE contractors ADD CONSTRAINT contractors_supplier_type_check
+  CHECK (supplier_type IN ('contractor', 'recurring', 'both', 'managing_scheme', 'utility', 'other'));

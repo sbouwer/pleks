@@ -36,8 +36,9 @@ export function calculateDepositInterest(
  * Called by the monthly cron (last day of each month or 1st of next month).
  * Also called at lease end when finalising deposit reconciliation.
  *
- * Rate is resolved via the config hierarchy: unit → property → org default.
- * Falls back to lease.deposit_interest_rate_percent if no config found.
+ * Rate is resolved via the config hierarchy (account → unit → property → org), else the per-lease rate.
+ * If NEITHER exists, accrual is HELD — it accrues nothing rather than inventing a rate on trust money.
+ * (It used to fall back to a hard-coded 5%. See the hold below for what that cost.)
  */
 export async function accrueDepositInterest(
   leaseId: string,
@@ -103,9 +104,30 @@ export async function accrueDepositInterest(
     }
     ratePercent = resolved
     rateConfigId = config.id
+  } else if (lease.deposit_interest_rate_percent != null) {
+    // No config reaches this lease, but the lease itself carries a rate someone chose. Use it.
+    ratePercent = lease.deposit_interest_rate_percent
   } else {
-    // Fall back to per-lease rate
-    ratePercent = lease.deposit_interest_rate_percent ?? 5
+    // ── THE HOLD. No config resolves, and the lease has no rate. This used to accrue at a HARD-CODED 5% p.a.
+    //
+    // That fallback did two kinds of damage, and the second is the worse one:
+    //   1. It invented a rate and applied it to money the agency holds in trust for someone else. An
+    //      under-accrual short-changes the tenant, an over-accrual the landlord, and neither is discoverable
+    //      from the ledger afterwards.
+    //   2. It SUPPRESSED THE SIGNAL. In prod, an agency's rate configs were scoped to their deposit-holding
+    //      bank account while the leases had no account linked — so the configs resolved to nothing and this
+    //      branch quietly posted 5% for three weeks. The configured 3% was unreachable and NOBODY KNEW,
+    //      because the fallback made the failure look like success. 88 postings at a rate nobody chose.
+    //
+    // A hold does not just protect the money. It surfaces the truth on the day it breaks, rather than the
+    // month somebody reads the ledger. So: accrue NOTHING.
+    //
+    // NOTE the hold is EMERGENT, not a stamped flag on the lease. An earlier draft persisted a
+    // `deposit_rate_status = 'not_set'` column and gated accrual on it — which would have held the lease
+    // FOREVER, even after the agency fixed their config, because the stamp never re-evaluates. That is the
+    // ADDENDUM_70K Phase E lesson exactly: a column that cannot exist cannot be stamped wrong. Deriving the
+    // hold from live resolution means it heals itself the moment a rate becomes reachable.
+    return { interestCents: 0, fromDate, toDate: upToDate, ratePercent: 0 }
   }
 
   const interestCents = calculateDepositInterest(
