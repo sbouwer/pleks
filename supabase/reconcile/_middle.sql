@@ -1,0 +1,14 @@
+
+-- §3 ── REAL FIX · record_payment_atomic IS THE PRE-#134 BODY IN PRODUCTION ─────────────────────
+--
+-- BODY DRIFT — the class a presence check cannot see. The function exists in BOTH, and they are not
+-- the same function. Production's body credits the selected invoice inline and NEVER calls
+-- allocate_payment_atomic: no interest-first allocation, no surplus spread across invoices, no
+-- arrears refresh, no payment_allocated audit row.
+--
+-- The live signature of exactly this: 191 UNWAIVED arrears_interest_charges in production. Prod's
+-- body has never consumed a single one, so interest keeps accruing on debt that payments should have
+-- cleared.
+--
+-- This is the #134 body from 004, verbatim. It DEPENDS on §2, which lands first in this same
+-- transaction — deploying it without allocate_payment_atomic would break payments outright.
