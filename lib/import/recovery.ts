@@ -75,7 +75,7 @@ function emptyResult(): ImportResult {
     propertiesCreated: 0, unitsCreated: 0, tenantsCreated: 0, leasesCreated: 0, historyCreated: 0,
     notesCreated: 0, contractorsCreated: 0, landlordsImported: 0, landlordsLinked: 0, agentInvitesSent: 0,
     bankAccountsImported: 0, depositsMigratedCents: 0, skipped: 0, errors: [],
-    pendingLandlordLinks: [], agentInvites: [],
+    pendingLandlordLinks: [], agentInvites: [], identityHolds: [],
   }
 }
 
@@ -107,6 +107,9 @@ function mergeCounts(first: ImportResult, second: ImportResult): ImportResult {
     // second run's alone would silently drop everything the FIRST run surfaced before the connection died.
     pendingLandlordLinks: [...first.pendingLandlordLinks, ...second.pendingLandlordLinks],
     agentInvites: [...first.agentInvites, ...second.agentInvites],
+    // A hold is a QUESTION the agency must answer. Taking only the second run's would silently drop the ones
+    // the first run raised before the connection died — and a question nobody sees is a row nobody imports.
+    identityHolds: [...first.identityHolds, ...second.identityHolds],
   }
 }
 

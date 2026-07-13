@@ -180,6 +180,9 @@ export async function POST(req: NextRequest) {
       errors: result.errors,
       pendingLandlordLinks: result.pendingLandlordLinks ?? [],
       agentInvites: result.agentInvites ?? [],
+      // Rows we would not guess about. They did NOT import. The wizard asks, and re-runs with the answers —
+      // safe to re-run because the import is idempotent and crash-convergence is proven.
+      identityHolds: result.identityHolds ?? [],
     })
   } catch (err) {
     await service

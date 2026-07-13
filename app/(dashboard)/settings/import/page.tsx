@@ -19,6 +19,7 @@ import { GLLeaseMatch } from "./_components/GLLeaseMatch"
 import { GLReview, type GLImportResultData } from "./_components/GLReview"
 import { GLSuccess } from "./_components/GLSuccess"
 import { WizardStepBar } from "./_components/WizardStepBar"
+import { StepIdentityHolds, type IdentityHold, type IdentityAnswer } from "./_components/StepIdentityHolds"
 import type { ColumnSuggestion } from "@/lib/import/columnMapper"
 import type { WizardDecisions } from "@/lib/import/decisions"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
@@ -43,6 +44,8 @@ export interface AnalysisResult {
 export type ImportDecisions = Required<WizardDecisions>
 
 export interface ImportResultData {
+  /** Rows the importer would not guess about. They did NOT import; the agent answers, and we re-run. */
+  identityHolds?: IdentityHold[]
   created: {
     tenants: number
     units: number
@@ -67,7 +70,7 @@ export interface ImportResultData {
   agentInvites?: Array<{ email: string; role: string }>
 }
 
-type WizardStep = "upload" | "detected" | "mapping" | "expired" | "confirm" | "success"
+type WizardStep = "upload" | "detected" | "mapping" | "expired" | "confirm" | "identity" | "success"
   | "gl_detected" | "gl_lease_match" | "gl_review" | "gl_success"
 
 const STEP_ORDER: WizardStep[] = ["upload", "detected", "mapping", "expired", "confirm", "success"]
@@ -83,6 +86,7 @@ export default function ImportWizardPage() {
     expiredLeaseAction: "skip",
     perRowOverrides: {},
     fileHeaders: [],
+    identityDecisions: {},
     bankConsentAttested: false,
     depositsHeldAttested: false,
   })
@@ -159,10 +163,57 @@ export default function ImportWizardPage() {
     setStep("confirm")
   }, [])
 
+  const [resolving, setResolving] = useState(false)
+
   const handleImportComplete = useCallback((res: ImportResultData) => {
     setResult(res)
-    setStep("success")
+    // The import already ran and everything certain landed. What is left is the handful of rows we would not
+    // guess about — so ASK, rather than quietly leaving them out of a book the agency believes is complete.
+    setStep((res.identityHolds?.length ?? 0) > 0 ? "identity" : "success")
   }, [])
+
+  /**
+   * The agent answered. Re-run the import with their decisions.
+   *
+   * Safe to re-run because the import is IDEMPOTENT by construction — every dedup guard fails closed, and
+   * crash-convergence is proven under test (kill it at any depth, run it again, and the database ends up
+   * exactly where one clean run would have left it). So the second pass creates only what the first held back,
+   * and touches nothing it already wrote.
+   */
+  const handleIdentityResolve = useCallback(async (answers: Record<number, IdentityAnswer>) => {
+    setResolving(true)
+    try {
+      const res = await fetch("/api/import/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rows: allRows,
+          decisions: { ...decisions, identityDecisions: answers },
+        }),
+      })
+      if (!res.ok) throw new Error("resolve failed")
+      const second: ImportResultData = await res.json()
+
+      // Merge the counts: the first run imported the certain rows, this one imported the answered ones. The
+      // agency cares about their BOOK, not about which of our passes wrote which row.
+      setResult((prev) => (!prev ? second : {
+        ...second,
+        created: {
+          tenants: prev.created.tenants + second.created.tenants,
+          units: prev.created.units + second.created.units,
+          leases: prev.created.leases + second.created.leases,
+          contractors: (prev.created.contractors ?? 0) + (second.created.contractors ?? 0),
+          landlords: (prev.created.landlords ?? 0) + (second.created.landlords ?? 0),
+          agentInvites: (prev.created.agentInvites ?? 0) + (second.created.agentInvites ?? 0),
+          bankAccounts: (prev.created.bankAccounts ?? 0) + (second.created.bankAccounts ?? 0),
+        },
+      }))
+      setStep("success")
+    } catch {
+      // The answers did not reach us. Do NOT pretend they did — leave them on the screen to try again.
+      setResolving(false)
+    }
+  }, [allRows, decisions])
 
   const handleReset = useCallback(() => {
     setStep("upload")
@@ -177,6 +228,7 @@ export default function ImportWizardPage() {
       bankConsentAttested: false,
       depositsHeldAttested: false,
       fileHeaders: [],
+      identityDecisions: {},
     })
     setResult(null)
     setGlBlocks([])
@@ -255,6 +307,18 @@ export default function ImportWizardPage() {
             setStep(hasExpired ? "expired" : "mapping")
           }}
           onImportComplete={handleImportComplete}
+        />
+      )}
+
+      {step === "identity" && result?.identityHolds && (
+        <StepIdentityHolds
+          holds={result.identityHolds}
+          loading={resolving}
+          onResolve={handleIdentityResolve}
+          // "Leave them out for now" is a real choice, and it must not pretend otherwise: the rows stay out,
+          // and the success screen still reports them as not imported. Safe — nothing is duplicated, and they
+          // can be imported later — but never silent.
+          onSkip={() => setStep("success")}
         />
       )}
 
