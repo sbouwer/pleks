@@ -211,11 +211,16 @@ ALTER TABLE buildings
 -- Ã‚Â§6  CONTACTS: INSURANCE BROKER ROLE  (BUILD_59)
 -- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
+-- 'company_contact' is PROD-AHEAD: production has accepted it for months (widened out-of-band, never captured
+-- in any migration). Prod is the authority on what governs REAL ROWS, so the FILE catches up — no DDL.
+-- Direction is load-bearing: deploying the file's narrower list to prod instead would have REVOKED a value that
+-- live data may already use. This is the LAST definition of the constraint in migration order, so it is the one
+-- a replay leaves behind — an earlier edit to the inline CHECK in 002 would have been silently superseded.
 ALTER TABLE contacts DROP CONSTRAINT IF EXISTS contacts_primary_role_check;
 ALTER TABLE contacts ADD CONSTRAINT contacts_primary_role_check
   CHECK (primary_role IN (
     'tenant', 'landlord', 'contractor', 'agent',
-    'body_corporate', 'guarantor', 'insurance_broker', 'other'
+    'body_corporate', 'guarantor', 'insurance_broker', 'company_contact', 'other'
   ));
 
 

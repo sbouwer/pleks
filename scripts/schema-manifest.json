@@ -3806,6 +3806,13 @@
     ]
   },
   "rpcs": {
+    "allocate_payment_atomic": [
+      "p_org_id",
+      "p_payment_id",
+      "p_lease_id",
+      "p_amount_cents",
+      "p_actor"
+    ],
     "apply_invoice_payment_atomic": [
       "p_org_id",
       "p_invoice_id",
@@ -4322,7 +4329,7 @@
     },
     "auth_events_event_type_check": {
       "table": "auth_events",
-      "def": "CHECK ((event_type = ANY (ARRAY['login_success'::text, 'login_failure'::text, 'logout'::text, 'password_changed'::text, 'email_changed'::text, 'totp_enrolled'::text, 'totp_unenrolled'::text, 'totp_verified'::text, 'totp_failed'::text, 'passkey_enrolled'::text, 'passkey_unenrolled'::text, 'passkey_verified'::text, 'passkey_failed'::text, 'step_up_challenged'::text, 'step_up_verified'::text, 'step_up_failed'::text, 'session_revoked'::text, 'new_device_detected'::text, 'recovery_used'::text, 'role_switched'::text, 'tenant_portal_login'::text, 'landlord_portal_login'::text, 'supplier_portal_login'::text, 'agent_portal_login'::text, 'resolver_decision'::text, 'email_existence_check'::text, 'membership_claimed'::text, 'membership_claim_blocked_by_invariant'::text])))"
+      "def": "CHECK ((event_type = ANY (ARRAY['login_success'::text, 'login_failure'::text, 'logout'::text, 'password_changed'::text, 'email_changed'::text, 'totp_enrolled'::text, 'totp_unenrolled'::text, 'totp_verified'::text, 'totp_failed'::text, 'passkey_enrolled'::text, 'passkey_unenrolled'::text, 'passkey_verified'::text, 'passkey_failed'::text, 'step_up_challenged'::text, 'step_up_verified'::text, 'step_up_failed'::text, 'session_revoked'::text, 'new_device_detected'::text, 'recovery_used'::text, 'role_switched'::text, 'tenant_portal_login'::text, 'landlord_portal_login'::text, 'supplier_portal_login'::text, 'agent_portal_login'::text, 'resolver_decision'::text, 'email_existence_check'::text, 'membership_claimed'::text, 'membership_claim_blocked_by_invariant'::text, 'consent_code_sent'::text, 'consent_code_verified'::text, 'consent_verification_failed'::text, 'consent_verification_locked_out'::text, 'consent_email_link_sent'::text, 'consent_email_link_verified'::text, 'consent_special_information_given'::text, 'consent_special_information_revoked'::text])))"
     },
     "bank_accounts_account_type_check": {
       "table": "bank_accounts",
@@ -5094,7 +5101,7 @@
     },
     "properties_insurance_policy_type_check": {
       "table": "properties",
-      "def": "CHECK ((insurance_policy_type = ANY (ARRAY['standard_buildings'::text, 'heritage_specialist'::text, 'commercial_property'::text, 'sectional_title'::text, 'other'::text])))"
+      "def": "CHECK ((insurance_policy_type = ANY (ARRAY['standard_buildings'::text, 'heritage_specialist'::text, 'commercial_property'::text, 'sectional_title'::text, 'farm_specialist'::text, 'other'::text])))"
     },
     "properties_managed_mode_check": {
       "table": "properties",
@@ -5122,7 +5129,7 @@
     },
     "properties_scenario_type_check": {
       "table": "properties",
-      "def": "CHECK ((scenario_type = ANY (ARRAY['r1'::text, 'r2'::text, 'r3'::text, 'r4'::text, 'r5'::text, 'c1'::text, 'c2'::text, 'c3'::text, 'c4'::text, 'm1'::text, 'm2'::text, 'other'::text])))"
+      "def": "CHECK ((scenario_type = ANY (ARRAY['r1'::text, 'r2'::text, 'r3'::text, 'r4'::text, 'r5'::text, 'r6'::text, 'r7'::text, 'c1'::text, 'c2'::text, 'c3'::text, 'c4'::text, 'c5'::text, 'c6'::text, 'm1'::text, 'm2'::text, 'm3'::text, 'm4'::text, 'other'::text])))"
     },
     "properties_type_check": {
       "table": "properties",
