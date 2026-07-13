@@ -4002,5 +4002,1423 @@
     ],
     "verify_record_deposit_atomicity": [],
     "verify_record_payment_atomicity": []
+  },
+  "checks": {
+    "agm_records_agm_type_check": {
+      "table": "agm_records",
+      "def": "CHECK ((agm_type = ANY (ARRAY['agm'::text, 'sgm'::text, 'trustees_meeting'::text])))"
+    },
+    "agm_records_status_check": {
+      "table": "agm_records",
+      "def": "CHECK ((status = ANY (ARRAY['scheduled'::text, 'notice_sent'::text, 'held'::text, 'minutes_pending'::text, 'minutes_distributed'::text, 'complete'::text])))"
+    },
+    "agm_resolutions_resolution_type_check": {
+      "table": "agm_resolutions",
+      "def": "CHECK ((resolution_type = ANY (ARRAY['ordinary'::text, 'special'::text, 'unanimous'::text])))"
+    },
+    "agm_resolutions_result_check": {
+      "table": "agm_resolutions",
+      "def": "CHECK ((result = ANY (ARRAY['passed'::text, 'failed'::text, 'deferred'::text])))"
+    },
+    "ai_credit_purchases_status_check": {
+      "table": "ai_credit_purchases",
+      "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'completed'::text, 'failed'::text])))"
+    },
+    "application_additional_docs_doc_type_check": {
+      "table": "application_additional_docs",
+      "def": "CHECK ((doc_type = ANY (ARRAY['savings_account'::text, 'investment_portfolio'::text, 'pension_statement'::text, 'guarantor_letter'::text, 'property_sale_agreement'::text, 'trust_income'::text, 'rental_income'::text, 'other_income'::text])))"
+    },
+    "application_additional_docs_extraction_status_check": {
+      "table": "application_additional_docs",
+      "def": "CHECK ((extraction_status = ANY (ARRAY['pending'::text, 'extracted'::text, 'failed'::text])))"
+    },
+    "application_co_applicants_adverse_factor_codes_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (is_valid_adverse_factor_array(adverse_factor_codes))"
+    },
+    "application_co_applicants_bank_account_ownership_status_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((bank_account_ownership_status IS NULL) OR (bank_account_ownership_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "application_co_applicants_bank_statement_status_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK ((bank_statement_status = ANY (ARRAY['not_uploaded'::text, 'pending'::text, 'extracted'::text, 'confirmed'::text])))"
+    },
+    "application_co_applicants_decision_stage_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((decision_stage IS NULL) OR (decision_stage = ANY (ARRAY['prescreened'::text, 'reviewed'::text]))))"
+    },
+    "application_co_applicants_decline_reason_code_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((decline_reason_code IS NULL) OR (decline_reason_code = ANY (ARRAY['decline_credit_judgment'::text, 'decline_credit_default'::text, 'decline_credit_admin_order'::text, 'decline_credit_arrears_current'::text, 'decline_credit_score_low'::text, 'decline_affordability_income_low'::text, 'decline_affordability_dti_high'::text, 'decline_income_unverifiable'::text, 'decline_employment_tenure_below_threshold'::text, 'decline_employment_verification_incomplete'::text, 'decline_employment_denied_by_employer'::text, 'decline_identity_verification_failed'::text, 'decline_documentation_incomplete'::text, 'decline_documentation_invalid'::text, 'decline_right_to_occupy_unverifiable'::text, 'decline_reference_landlord_negative'::text, 'decline_reference_landlord_unverifiable'::text, 'decline_reference_employer_negative'::text, 'decline_reference_employer_unverifiable'::text, 'decline_rental_history_arrears'::text, 'decline_rental_history_eviction'::text, 'decline_fitscore_hard_flag'::text, 'decline_fitscore_ldp_insufficient'::text, 'decline_criminal_record_relevant'::text, 'decline_director_disqualified'::text, 'decline_commercial_composite_below_threshold'::text, 'decline_property_no_longer_available'::text, 'decline_agent_discretion_documented'::text]))))"
+    },
+    "application_co_applicants_document_consistency_status_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((document_consistency_status IS NULL) OR (document_consistency_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "application_co_applicants_employer_verification_status_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((employer_verification_status IS NULL) OR (employer_verification_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "application_co_applicants_employment_type_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK ((employment_type = ANY (ARRAY['permanent'::text, 'contract'::text, 'self_employed'::text, 'student'::text, 'unemployed'::text, 'retired'::text, 'other'::text])))"
+    },
+    "application_co_applicants_id_type_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK ((id_type = ANY (ARRAY['sa_id'::text, 'passport'::text, 'asylum_permit'::text])))"
+    },
+    "application_co_applicants_identity_match_status_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((identity_match_status IS NULL) OR (identity_match_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "application_co_applicants_income_evidence_tier_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((income_evidence_tier IS NULL) OR (income_evidence_tier = ANY (ARRAY[1, 2, 3, 4]))))"
+    },
+    "application_co_applicants_pleks_network_history_status_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((pleks_network_history_status IS NULL) OR (pleks_network_history_status = ANY (ARRAY['trusted'::text, 'adverse'::text, 'none'::text]))))"
+    },
+    "application_co_applicants_role_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK ((role = ANY (ARRAY['co_applicant'::text, 'guarantor'::text])))"
+    },
+    "application_co_applicants_salary_reconciliation_status_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((salary_reconciliation_status IS NULL) OR (salary_reconciliation_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "application_co_applicants_verification_integrity_grade_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK (((verification_integrity_grade IS NULL) OR (verification_integrity_grade = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text, 'limited'::text]))))"
+    },
+    "application_guarantors_id_type_check": {
+      "table": "application_guarantors",
+      "def": "CHECK ((id_type = ANY (ARRAY['sa_id'::text, 'passport'::text])))"
+    },
+    "application_guarantors_nationality_type_check": {
+      "table": "application_guarantors",
+      "def": "CHECK ((nationality_type = ANY (ARRAY['sa_citizen'::text, 'sa_permanent_resident'::text, 'foreign_national'::text])))"
+    },
+    "application_prescreens_affordability_score_check": {
+      "table": "application_prescreens",
+      "def": "CHECK (((affordability_score >= 0) AND (affordability_score <= 25)))"
+    },
+    "application_prescreens_affordability_source_check": {
+      "table": "application_prescreens",
+      "def": "CHECK ((affordability_source = ANY (ARRAY['income'::text, 'capital'::text, 'hybrid'::text])))"
+    },
+    "application_prescreens_commitments_score_check": {
+      "table": "application_prescreens",
+      "def": "CHECK (((commitments_score >= 0) AND (commitments_score <= 15)))"
+    },
+    "application_prescreens_documents_score_check": {
+      "table": "application_prescreens",
+      "def": "CHECK (((documents_score >= 0) AND (documents_score <= 5)))"
+    },
+    "application_prescreens_flag_check": {
+      "table": "application_prescreens",
+      "def": "CHECK ((flag = ANY (ARRAY['green'::text, 'yellow'::text, 'red'::text])))"
+    },
+    "application_prescreens_identity_match_check": {
+      "table": "application_prescreens",
+      "def": "CHECK ((identity_match = ANY (ARRAY['exact'::text, 'variant'::text, 'mismatch'::text, 'unable_to_extract'::text, 'not_checked'::text])))"
+    },
+    "application_prescreens_total_score_check": {
+      "table": "application_prescreens",
+      "def": "CHECK (((total_score >= 0) AND (total_score <= 55)))"
+    },
+    "application_screening_evaluations_affordability_tier_check": {
+      "table": "application_screening_evaluations",
+      "def": "CHECK ((affordability_tier = ANY (ARRAY['within'::text, 'marginal'::text, 'below'::text, 'demonstrated-override'::text, 'residual-override'::text])))"
+    },
+    "application_screening_evaluations_confidence_tier_check": {
+      "table": "application_screening_evaluations",
+      "def": "CHECK ((confidence_tier = ANY (ARRAY['strong'::text, 'adequate'::text, 'needs-evidence'::text])))"
+    },
+    "application_screening_evaluations_ruling_tier_check": {
+      "table": "application_screening_evaluations",
+      "def": "CHECK ((ruling_tier = ANY (ARRAY['strong'::text, 'adequate'::text, 'needs-evidence'::text, 'below-threshold'::text])))"
+    },
+    "application_screening_lines_status_check": {
+      "table": "application_screening_lines",
+      "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'completed'::text, 'failed'::text, 'skipped'::text, 'refunded'::text])))"
+    },
+    "application_screening_lines_subject_type_check": {
+      "table": "application_screening_lines",
+      "def": "CHECK ((subject_type = ANY (ARRAY['company'::text, 'co_applicant'::text, 'guarantor'::text])))"
+    },
+    "application_screening_payments_expired_state_check": {
+      "table": "application_screening_payments",
+      "def": "CHECK ((expired_state = ANY (ARRAY['paid_but_no_consent'::text, 'consented_but_no_payment'::text, 'neither'::text])))"
+    },
+    "application_screening_payments_subject_type_check": {
+      "table": "application_screening_payments",
+      "def": "CHECK ((subject_type = ANY (ARRAY['company'::text, 'co_applicant'::text, 'guarantor'::text])))"
+    },
+    "application_tokens_token_type_check": {
+      "table": "application_tokens",
+      "def": "CHECK ((token_type = ANY (ARRAY['application'::text, 'shortlist_invite'::text])))"
+    },
+    "applications_adverse_factor_codes_check": {
+      "table": "applications",
+      "def": "CHECK (is_valid_adverse_factor_array(adverse_factor_codes))"
+    },
+    "applications_applicant_nationality_type_check": {
+      "table": "applications",
+      "def": "CHECK ((applicant_nationality_type = ANY (ARRAY['sa_citizen'::text, 'sa_permanent_resident'::text, 'foreign_work_permit'::text, 'foreign_study_permit'::text, 'foreign_business_permit'::text, 'foreign_retired_permit'::text, 'foreign_other_permit'::text, 'naturalising'::text, 'asylum_seeker'::text])))"
+    },
+    "applications_applicant_type_check": {
+      "table": "applications",
+      "def": "CHECK ((applicant_type = ANY (ARRAY['individual'::text, 'couple'::text, 'company'::text, 'guarantor'::text])))"
+    },
+    "applications_assignee_not_both": {
+      "table": "applications",
+      "def": "CHECK (((assigned_user_id IS NULL) OR (assigned_team_id IS NULL)))"
+    },
+    "applications_bank_account_ownership_status_check": {
+      "table": "applications",
+      "def": "CHECK (((bank_account_ownership_status IS NULL) OR (bank_account_ownership_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "applications_bank_statement_holder_match_check": {
+      "table": "applications",
+      "def": "CHECK ((bank_statement_holder_match = ANY (ARRAY['exact'::text, 'variant'::text, 'mismatch'::text, 'unable_to_extract'::text, 'not_checked'::text])))"
+    },
+    "applications_bank_statement_status_check": {
+      "table": "applications",
+      "def": "CHECK ((bank_statement_status = ANY (ARRAY['not_uploaded'::text, 'pending'::text, 'extracted'::text, 'confirmed'::text])))"
+    },
+    "applications_criminal_policy_required_check": {
+      "table": "applications",
+      "def": "CHECK ((((decline_reason_code IS DISTINCT FROM 'decline_criminal_record_relevant'::text) AND (NOT (COALESCE(adverse_factor_codes, ARRAY[]::text[]) @> ARRAY['adverse_criminal_record_relevant'::text]))) OR ((criminal_screening_policy_id IS NOT NULL) AND (criminal_screening_policy_version IS NOT NULL))))"
+    },
+    "applications_current_housing_status_check": {
+      "table": "applications",
+      "def": "CHECK ((current_housing_status = ANY (ARRAY['renting'::text, 'home_owner'::text, 'living_with_family'::text, 'on_company_housing'::text, 'transitional'::text, 'other'::text])))"
+    },
+    "applications_deciding_agent_capacity_check": {
+      "table": "applications",
+      "def": "CHECK (((deciding_agent_capacity IS NULL) OR (deciding_agent_capacity = ANY (ARRAY['agent_under_mandate'::text, 'landlord_direct'::text, 'pleks_platform_admin'::text]))))"
+    },
+    "applications_decision_stage_check": {
+      "table": "applications",
+      "def": "CHECK (((decision_stage IS NULL) OR (decision_stage = ANY (ARRAY['prescreened'::text, 'reviewed'::text]))))"
+    },
+    "applications_decline_reason_code_check": {
+      "table": "applications",
+      "def": "CHECK (((decline_reason_code IS NULL) OR (decline_reason_code = ANY (ARRAY['decline_credit_judgment'::text, 'decline_credit_default'::text, 'decline_credit_admin_order'::text, 'decline_credit_arrears_current'::text, 'decline_credit_score_low'::text, 'decline_affordability_income_low'::text, 'decline_affordability_dti_high'::text, 'decline_income_unverifiable'::text, 'decline_employment_tenure_below_threshold'::text, 'decline_employment_verification_incomplete'::text, 'decline_employment_denied_by_employer'::text, 'decline_identity_verification_failed'::text, 'decline_documentation_incomplete'::text, 'decline_documentation_invalid'::text, 'decline_right_to_occupy_unverifiable'::text, 'decline_reference_landlord_negative'::text, 'decline_reference_landlord_unverifiable'::text, 'decline_reference_employer_negative'::text, 'decline_reference_employer_unverifiable'::text, 'decline_rental_history_arrears'::text, 'decline_rental_history_eviction'::text, 'decline_fitscore_hard_flag'::text, 'decline_fitscore_ldp_insufficient'::text, 'decline_criminal_record_relevant'::text, 'decline_director_disqualified'::text, 'decline_commercial_composite_below_threshold'::text, 'decline_property_no_longer_available'::text, 'decline_agent_discretion_documented'::text]))))"
+    },
+    "applications_document_consistency_status_check": {
+      "table": "applications",
+      "def": "CHECK (((document_consistency_status IS NULL) OR (document_consistency_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "applications_employer_verification_status_check": {
+      "table": "applications",
+      "def": "CHECK (((employer_verification_status IS NULL) OR (employer_verification_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "applications_employment_type_check": {
+      "table": "applications",
+      "def": "CHECK ((employment_type = ANY (ARRAY['permanent'::text, 'contract'::text, 'commission'::text, 'self_employed'::text, 'freelance'::text, 'part_time'::text, 'student'::text, 'unemployed'::text, 'retired'::text, 'grant'::text, 'other'::text])))"
+    },
+    "applications_entity_type_check": {
+      "table": "applications",
+      "def": "CHECK ((entity_type = ANY (ARRAY['individual'::text, 'organisation'::text])))"
+    },
+    "applications_fee_status_check": {
+      "table": "applications",
+      "def": "CHECK ((fee_status = ANY (ARRAY['not_applicable'::text, 'pending'::text, 'paid'::text, 'refunded'::text])))"
+    },
+    "applications_fitscore_band_check": {
+      "table": "applications",
+      "def": "CHECK (((fitscore_band IS NULL) OR (fitscore_band = ANY (ARRAY['verified_stability'::text, 'stable_profile'::text, 'cautious_review'::text, 'limited_confidence'::text, 'adverse_signals'::text, 'limited_data_profile'::text, 'blocked'::text]))))"
+    },
+    "applications_fitscore_check": {
+      "table": "applications",
+      "def": "CHECK (((fitscore >= 0) AND (fitscore <= 100)))"
+    },
+    "applications_fitscore_confidence_index_check": {
+      "table": "applications",
+      "def": "CHECK (((fitscore_confidence_index IS NULL) OR (fitscore_confidence_index = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text, 'insufficient'::text]))))"
+    },
+    "applications_fitscore_verification_integrity_check": {
+      "table": "applications",
+      "def": "CHECK (((fitscore_verification_integrity IS NULL) OR (fitscore_verification_integrity = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text, 'limited'::text]))))"
+    },
+    "applications_id_type_check": {
+      "table": "applications",
+      "def": "CHECK ((id_type = ANY (ARRAY['sa_id'::text, 'passport'::text, 'asylum_permit'::text])))"
+    },
+    "applications_identity_match_status_check": {
+      "table": "applications",
+      "def": "CHECK (((identity_match_status IS NULL) OR (identity_match_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "applications_income_evidence_tier_check": {
+      "table": "applications",
+      "def": "CHECK (((income_evidence_tier IS NULL) OR (income_evidence_tier = ANY (ARRAY[1, 2, 3, 4]))))"
+    },
+    "applications_income_verification_status_check": {
+      "table": "applications",
+      "def": "CHECK (((income_verification_status_at_decision IS NULL) OR (income_verification_status_at_decision = ANY (ARRAY['verified'::text, 'partially_verified'::text, 'unverifiable'::text]))))"
+    },
+    "applications_not_shortlisted_reason_code_check": {
+      "table": "applications",
+      "def": "CHECK (((not_shortlisted_reason_code IS NULL) OR (not_shortlisted_reason_code = ANY (ARRAY['not_shortlisted_other_applicant_selected'::text, 'not_shortlisted_no_decision_provided'::text, 'not_shortlisted_property_withdrawn'::text, 'not_shortlisted_property_changed'::text, 'not_shortlisted_expired_unactioned'::text]))))"
+    },
+    "applications_pleks_network_history_status_check": {
+      "table": "applications",
+      "def": "CHECK (((pleks_network_history_status IS NULL) OR (pleks_network_history_status = ANY (ARRAY['trusted'::text, 'adverse'::text, 'none'::text]))))"
+    },
+    "applications_salary_reconciliation_status_check": {
+      "table": "applications",
+      "def": "CHECK (((salary_reconciliation_status IS NULL) OR (salary_reconciliation_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
+    },
+    "applications_searchworx_check_status_check": {
+      "table": "applications",
+      "def": "CHECK ((searchworx_check_status = ANY (ARRAY['not_run'::text, 'pending'::text, 'complete'::text, 'failed'::text])))"
+    },
+    "applications_stage1_status_check": {
+      "table": "applications",
+      "def": "CHECK ((stage1_status = ANY (ARRAY['pending_documents'::text, 'documents_submitted'::text, 'extracting'::text, 'screening'::text, 'pre_screen_complete'::text, 'shortlisted'::text, 'not_shortlisted'::text])))"
+    },
+    "applications_stage2_status_check": {
+      "table": "applications",
+      "def": "CHECK ((stage2_status = ANY (ARRAY['invited'::text, 'pending_consent'::text, 'pending_payment'::text, 'payment_received'::text, 'screening_in_progress'::text, 'screening_complete'::text, 'approved'::text, 'declined'::text, 'withdrawn'::text])))"
+    },
+    "applications_verification_integrity_grade_check": {
+      "table": "applications",
+      "def": "CHECK (((verification_integrity_grade IS NULL) OR (verification_integrity_grade = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text, 'limited'::text]))))"
+    },
+    "applications_withdrawn_reason_code_check": {
+      "table": "applications",
+      "def": "CHECK (((withdrawn_reason_code IS NULL) OR (withdrawn_reason_code = ANY (ARRAY['withdrawn_applicant_initiated'::text, 'withdrawn_applicant_unreachable'::text, 'withdrawn_alternate_property'::text]))))"
+    },
+    "arrears_cases_status_check": {
+      "table": "arrears_cases",
+      "def": "CHECK ((status = ANY (ARRAY['open'::text, 'payment_arrangement'::text, 'legal'::text, 'tribunal'::text, 'eviction_notice'::text, 'resolved'::text, 'written_off'::text, 'vacated_with_debt'::text])))"
+    },
+    "arrears_sequence_steps_action_type_check": {
+      "table": "arrears_sequence_steps",
+      "def": "CHECK ((action_type = ANY (ARRAY['sms'::text, 'email'::text, 'whatsapp'::text, 'formal_email'::text, 'letter_of_demand'::text, 'pre_legal_notice'::text, 'agent_task'::text])))"
+    },
+    "arrears_sequence_steps_tone_check": {
+      "table": "arrears_sequence_steps",
+      "def": "CHECK ((tone = ANY (ARRAY['friendly'::text, 'firm'::text, 'formal'::text, 'legal'::text])))"
+    },
+    "audit_exports_status_check": {
+      "table": "audit_exports",
+      "def": "CHECK ((status = ANY (ARRAY['queued'::text, 'processing'::text, 'completed'::text, 'failed'::text])))"
+    },
+    "audit_log_action_check": {
+      "table": "audit_log",
+      "def": "CHECK ((action = ANY (ARRAY['INSERT'::text, 'UPDATE'::text, 'DELETE'::text, 'NOTE'::text, 'SYNC'::text, 'OWNERSHIP_TRANSFERRED'::text, 'CONFLICT_ACKNOWLEDGED'::text])))"
+    },
+    "auth_events_aal_check": {
+      "table": "auth_events",
+      "def": "CHECK ((aal = ANY (ARRAY['aal1'::text, 'aal2'::text])))"
+    },
+    "auth_events_auth_method_check": {
+      "table": "auth_events",
+      "def": "CHECK ((auth_method = ANY (ARRAY['password'::text, 'magic_link'::text, 'totp'::text, 'passkey'::text, 'recovery_code'::text, 'oauth'::text, 'admin'::text, 'token_link'::text])))"
+    },
+    "auth_events_event_type_check": {
+      "table": "auth_events",
+      "def": "CHECK ((event_type = ANY (ARRAY['login_success'::text, 'login_failure'::text, 'logout'::text, 'password_changed'::text, 'email_changed'::text, 'totp_enrolled'::text, 'totp_unenrolled'::text, 'totp_verified'::text, 'totp_failed'::text, 'passkey_enrolled'::text, 'passkey_unenrolled'::text, 'passkey_verified'::text, 'passkey_failed'::text, 'step_up_challenged'::text, 'step_up_verified'::text, 'step_up_failed'::text, 'session_revoked'::text, 'new_device_detected'::text, 'recovery_used'::text, 'role_switched'::text, 'tenant_portal_login'::text, 'landlord_portal_login'::text, 'supplier_portal_login'::text, 'agent_portal_login'::text, 'resolver_decision'::text, 'email_existence_check'::text, 'membership_claimed'::text, 'membership_claim_blocked_by_invariant'::text])))"
+    },
+    "bank_accounts_account_type_check": {
+      "table": "bank_accounts",
+      "def": "CHECK ((account_type = ANY (ARRAY['cheque'::text, 'savings'::text, 'transmission'::text])))"
+    },
+    "bank_accounts_type_check": {
+      "table": "bank_accounts",
+      "def": "CHECK ((type = ANY (ARRAY['trust'::text, 'business'::text, 'deposit_holding'::text, 'ppra_trust'::text])))"
+    },
+    "bank_feed_connections_last_sync_status_check": {
+      "table": "bank_feed_connections",
+      "def": "CHECK ((last_sync_status = ANY (ARRAY['success'::text, 'partial'::text, 'error'::text])))"
+    },
+    "bank_feed_connections_status_check": {
+      "table": "bank_feed_connections",
+      "def": "CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'error'::text, 'disconnected'::text])))"
+    },
+    "bank_recon_sessions_status_check": {
+      "table": "bank_recon_sessions",
+      "def": "CHECK ((status = ANY (ARRAY['in_progress'::text, 'ready_for_close'::text, 'signed_off'::text, 'superseded'::text])))"
+    },
+    "bank_statement_imports_detected_bank_check": {
+      "table": "bank_statement_imports",
+      "def": "CHECK ((detected_bank = ANY (ARRAY['fnb'::text, 'absa'::text, 'standard_bank'::text, 'nedbank'::text, 'capitec'::text, 'investec'::text, 'other'::text])))"
+    },
+    "bank_statement_imports_extraction_status_check": {
+      "table": "bank_statement_imports",
+      "def": "CHECK ((extraction_status = ANY (ARRAY['pending'::text, 'extracting'::text, 'extracted'::text, 'matching'::text, 'complete'::text, 'failed'::text])))"
+    },
+    "bank_statement_imports_import_source_check": {
+      "table": "bank_statement_imports",
+      "def": "CHECK ((import_source = ANY (ARRAY['upload'::text, 'yodlee'::text, 'ofx'::text, 'csv'::text, 'qif'::text])))"
+    },
+    "bank_statement_lines_direction_check": {
+      "table": "bank_statement_lines",
+      "def": "CHECK ((direction = ANY (ARRAY['credit'::text, 'debit'::text])))"
+    },
+    "bank_statement_lines_match_status_check": {
+      "table": "bank_statement_lines",
+      "def": "CHECK ((match_status = ANY (ARRAY['matched_exact'::text, 'matched_fuzzy'::text, 'matched_ai'::text, 'matched_manual'::text, 'unmatched'::text, 'ignored'::text, 'split'::text])))"
+    },
+    "bsc_final_classification_check": {
+      "table": "application_bank_statement_classifications",
+      "def": "CHECK ((final_classification = ANY (ARRAY['rent_or_housing'::text, 'debt_repayment'::text, 'subscription'::text, 'utility'::text, 'insurance'::text, 'medical_aid'::text, 'school_fees'::text, 'transfer_to_business'::text, 'family_support_or_personal'::text, 'once_off_treated_as_such'::text, 'dont_recognise_flag_for_agent'::text, 'other'::text, 'unclassified_skipped'::text])))"
+    },
+    "bsc_sonnet_confidence_check": {
+      "table": "application_bank_statement_classifications",
+      "def": "CHECK (((sonnet_confidence >= (0)::numeric) AND (sonnet_confidence <= (1)::numeric)))"
+    },
+    "buildings_building_type_check": {
+      "table": "buildings",
+      "def": "CHECK ((building_type = ANY (ARRAY['residential'::text, 'commercial'::text, 'mixed_use'::text, 'industrial'::text, 'heritage'::text, 'heritage_commercial'::text, 'heritage_residential'::text])))"
+    },
+    "buildings_heritage_status_check": {
+      "table": "buildings",
+      "def": "CHECK ((heritage_status = ANY (ARRAY['none'::text, 'grade_1'::text, 'grade_2'::text, 'grade_3a'::text, 'grade_3b'::text, 'local_significance'::text])))"
+    },
+    "buildings_maintenance_rhythm_check": {
+      "table": "buildings",
+      "def": "CHECK ((maintenance_rhythm = ANY (ARRAY['standard'::text, 'heritage'::text, 'new_build'::text, 'industrial'::text, 'custom'::text])))"
+    },
+    "communication_delivery_events_event_type_check": {
+      "table": "communication_delivery_events",
+      "def": "CHECK ((event_type = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'opened'::text, 'clicked'::text, 'bounced_hard'::text, 'bounced_soft'::text, 'complained'::text, 'unsubscribed'::text, 'failed'::text, 'page_view'::text, 'portal_view'::text])))"
+    },
+    "communication_delivery_events_provider_check": {
+      "table": "communication_delivery_events",
+      "def": "CHECK ((provider = ANY (ARRAY['resend'::text, 'africastalking_sms'::text, 'africastalking_whatsapp'::text, 'pleks_portal'::text])))"
+    },
+    "communication_log_channel_check": {
+      "table": "communication_log",
+      "def": "CHECK ((channel = ANY (ARRAY['email'::text, 'sms'::text, 'whatsapp'::text, 'phone_call'::text, 'portal_message'::text, 'internal_note'::text])))"
+    },
+    "communication_log_direction_check": {
+      "table": "communication_log",
+      "def": "CHECK ((direction = ANY (ARRAY['outbound'::text, 'inbound'::text, 'internal'::text])))"
+    },
+    "communication_log_status_check": {
+      "table": "communication_log",
+      "def": "CHECK ((status = ANY (ARRAY['sent'::text, 'delivered'::text, 'read'::text, 'failed'::text, 'received'::text, 'logged'::text])))"
+    },
+    "communication_log_tone_variant_check": {
+      "table": "communication_log",
+      "def": "CHECK ((tone_variant = ANY (ARRAY['friendly'::text, 'professional'::text, 'firm'::text, 'n/a'::text])))"
+    },
+    "consent_log_consent_type_check": {
+      "table": "consent_log",
+      "def": "CHECK ((consent_type = ANY (ARRAY['credit_check'::text, 'data_processing'::text, 'marketing'::text, 'trust_account_notice'::text, 'popia_application'::text, 'lease_template_disclaimer'::text, 'bank_details_import'::text])))"
+    },
+    "consent_log_verification_method_check": {
+      "table": "consent_log",
+      "def": "CHECK ((verification_method = ANY (ARRAY['sms_code'::text, 'email_link'::text, 'none'::text])))"
+    },
+    "consent_log_verification_status_check": {
+      "table": "consent_log",
+      "def": "CHECK ((verification_status = ANY (ARRAY['not_required'::text, 'pending'::text, 'verified'::text, 'expired'::text, 'abandoned'::text, 'failed_lockout'::text])))"
+    },
+    "consent_verifications_consent_type_check": {
+      "table": "consent_verifications",
+      "def": "CHECK ((consent_type = ANY (ARRAY['standard_bundle'::text, 'estate_criminal'::text, 'director_standard'::text, 'director_estate_criminal'::text, 'application_email'::text])))"
+    },
+    "consent_verifications_status_check": {
+      "table": "consent_verifications",
+      "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'verified'::text, 'expired'::text, 'invalidated'::text, 'abandoned'::text])))"
+    },
+    "consent_verifications_verification_method_check": {
+      "table": "consent_verifications",
+      "def": "CHECK ((verification_method = ANY (ARRAY['sms_code'::text, 'email_link'::text, 'email_otp'::text])))"
+    },
+    "contact_addresses_address_type_check": {
+      "table": "contact_addresses",
+      "def": "CHECK ((address_type = ANY (ARRAY['physical'::text, 'postal'::text, 'billing'::text, 'work'::text, 'other'::text])))"
+    },
+    "contact_bank_accounts_account_type_check": {
+      "table": "contact_bank_accounts",
+      "def": "CHECK ((account_type = ANY (ARRAY['cheque'::text, 'savings'::text, 'transmission'::text])))"
+    },
+    "contact_emails_email_type_check": {
+      "table": "contact_emails",
+      "def": "CHECK ((email_type = ANY (ARRAY['personal'::text, 'work'::text, 'billing'::text, 'other'::text])))"
+    },
+    "contact_employment_employment_type_check": {
+      "table": "contact_employment",
+      "def": "CHECK ((employment_type = ANY (ARRAY['permanent'::text, 'contract'::text, 'self_employed'::text, 'director'::text, 'trustee'::text, 'other'::text])))"
+    },
+    "contact_leads_intent_check": {
+      "table": "contact_leads",
+      "def": "CHECK ((intent = ANY (ARRAY['founding'::text, 'support'::text, 'general'::text])))"
+    },
+    "contact_leads_status_check": {
+      "table": "contact_leads",
+      "def": "CHECK ((status = ANY (ARRAY['new'::text, 'contacted'::text, 'demoed'::text, 'closed_won'::text, 'closed_lost'::text, 'spam'::text])))"
+    },
+    "contact_phones_phone_type_check": {
+      "table": "contact_phones",
+      "def": "CHECK ((phone_type = ANY (ARRAY['mobile'::text, 'work'::text, 'home'::text, 'fax'::text, 'other'::text])))"
+    },
+    "contact_roles_role_check": {
+      "table": "contact_roles",
+      "def": "CHECK ((role = ANY (ARRAY['tenant'::text, 'landlord'::text, 'contractor'::text, 'agent'::text, 'body_corporate'::text, 'guarantor'::text, 'other'::text])))"
+    },
+    "contacts_company_function_check": {
+      "table": "contacts",
+      "def": "CHECK (((company_function IS NULL) OR (company_function = ANY (ARRAY['owner_director'::text, 'account_manager'::text, 'accounts'::text, 'maintenance'::text, 'leasing'::text, 'other'::text]))))"
+    },
+    "contacts_entity_type_check": {
+      "table": "contacts",
+      "def": "CHECK ((entity_type = ANY (ARRAY['individual'::text, 'organisation'::text])))"
+    },
+    "contacts_gender_check": {
+      "table": "contacts",
+      "def": "CHECK ((gender = ANY (ARRAY['male'::text, 'female'::text, 'other'::text, 'prefer_not_to_say'::text])))"
+    },
+    "contacts_id_type_check": {
+      "table": "contacts",
+      "def": "CHECK ((id_type = ANY (ARRAY['sa_id'::text, 'passport'::text, 'asylum_permit'::text])))"
+    },
+    "contacts_juristic_type_check": {
+      "table": "contacts",
+      "def": "CHECK ((juristic_type = ANY (ARRAY['sole_proprietor'::text, 'pty_ltd'::text, 'cc'::text, 'trust'::text, 'partnership'::text, 'npc'::text, 'other_juristic'::text])))"
+    },
+    "contacts_preferred_channel_check": {
+      "table": "contacts",
+      "def": "CHECK ((preferred_channel = ANY (ARRAY['email'::text, 'sms'::text, 'whatsapp'::text, 'phone'::text, 'post'::text])))"
+    },
+    "contacts_primary_role_check": {
+      "table": "contacts",
+      "def": "CHECK ((primary_role = ANY (ARRAY['tenant'::text, 'landlord'::text, 'contractor'::text, 'agent'::text, 'body_corporate'::text, 'guarantor'::text, 'insurance_broker'::text, 'company_contact'::text, 'other'::text])))"
+    },
+    "contacts_signatory_needs_id": {
+      "table": "contacts",
+      "def": "CHECK (((NOT is_signatory) OR (id_number_hash IS NOT NULL)))"
+    },
+    "contractors_portal_status_check": {
+      "table": "contractors",
+      "def": "CHECK ((portal_status = ANY (ARRAY['none'::text, 'invited'::text, 'active'::text, 'suspended'::text])))"
+    },
+    "contractors_supplier_type_check": {
+      "table": "contractors",
+      "def": "CHECK ((supplier_type = ANY (ARRAY['contractor'::text, 'recurring'::text, 'both'::text, 'managing_scheme'::text, 'utility'::text, 'other'::text])))"
+    },
+    "cron_runs_status_check": {
+      "table": "cron_runs",
+      "def": "CHECK ((status = ANY (ARRAY['running'::text, 'completed'::text, 'failed'::text])))"
+    },
+    "custom_lease_requests_status_check": {
+      "table": "custom_lease_requests",
+      "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'invoice_sent'::text, 'paid'::text, 'in_progress'::text, 'complete'::text, 'rejected'::text])))"
+    },
+    "data_subject_requests_request_type_check": {
+      "table": "data_subject_requests",
+      "def": "CHECK ((request_type = ANY (ARRAY['access'::text, 'correction'::text, 'erasure'::text, 'objection'::text, 'restriction'::text, 'portability'::text, 'consent_withdrawal'::text, 'nuke'::text])))"
+    },
+    "data_subject_requests_status_check": {
+      "table": "data_subject_requests",
+      "def": "CHECK ((status = ANY (ARRAY['new'::text, 'verifying_identity'::text, 'under_review'::text, 'approved'::text, 'rejected'::text, 'completed'::text, 'cancelled'::text])))"
+    },
+    "data_subject_requests_subject_role_context_check": {
+      "table": "data_subject_requests",
+      "def": "CHECK ((subject_role_context = ANY (ARRAY['tenant'::text, 'landlord'::text, 'supplier'::text, 'applicant'::text, 'reference'::text, 'emergency_contact'::text, 'household_member'::text, 'platform_account'::text, 'other'::text])))"
+    },
+    "data_subject_requests_submitted_via_check": {
+      "table": "data_subject_requests",
+      "def": "CHECK ((submitted_via = ANY (ARRAY['portal'::text, 'email'::text, 'platform_admin_route'::text, 'agency_initiated'::text])))"
+    },
+    "deposit_charges_charge_type_check": {
+      "table": "deposit_charges",
+      "def": "CHECK ((charge_type = ANY (ARRAY['rent_arrears'::text, 'unpaid_utilities'::text, 'cleaning'::text, 'contractual_penalty'::text, 'lock_replacement'::text, 'key_replacement'::text, 'admin_fee'::text, 'dilapidation'::text, 'fittings_removal'::text, 'early_termination_fee'::text, 'other'::text])))"
+    },
+    "deposit_charges_deduction_amount_cents_check": {
+      "table": "deposit_charges",
+      "def": "CHECK ((deduction_amount_cents > 0))"
+    },
+    "deposit_deduction_items_classification_check": {
+      "table": "deposit_deduction_items",
+      "def": "CHECK ((classification = ANY (ARRAY['tenant_damage'::text, 'wear_and_tear'::text, 'pre_existing'::text, 'disputed'::text])))"
+    },
+    "deposit_interest_config_audit_action_check": {
+      "table": "deposit_interest_config_audit",
+      "def": "CHECK ((action = ANY (ARRAY['created'::text, 'ended'::text, 'updated'::text])))"
+    },
+    "deposit_interest_config_compounding_check": {
+      "table": "deposit_interest_config",
+      "def": "CHECK ((compounding = ANY (ARRAY['daily'::text, 'monthly'::text])))"
+    },
+    "deposit_interest_config_rate_type_check": {
+      "table": "deposit_interest_config",
+      "def": "CHECK ((rate_type = ANY (ARRAY['fixed'::text, 'prime_linked'::text, 'repo_linked'::text, 'manual'::text])))"
+    },
+    "deposit_reconciliations_status_check": {
+      "table": "deposit_reconciliations",
+      "def": "CHECK ((status = ANY (ARRAY['draft'::text, 'pending_review'::text, 'sent_to_tenant'::text, 'disputed'::text, 'finalised'::text, 'refunded'::text, 'overdue'::text])))"
+    },
+    "deposit_timers_status_check": {
+      "table": "deposit_timers",
+      "def": "CHECK ((status = ANY (ARRAY['running'::text, 'completed'::text, 'overdue'::text, 'disputed'::text])))"
+    },
+    "deposit_transactions_authorisation_type_check": {
+      "table": "deposit_transactions",
+      "def": "CHECK ((authorisation_type = ANY (ARRAY['tenant_request'::text, 'lease_clause'::text, 'agent_decision'::text])))"
+    },
+    "deposit_transactions_direction_check": {
+      "table": "deposit_transactions",
+      "def": "CHECK ((direction = ANY (ARRAY['credit'::text, 'debit'::text])))"
+    },
+    "deposit_transactions_transaction_type_check": {
+      "table": "deposit_transactions",
+      "def": "CHECK ((transaction_type = ANY (ARRAY['deposit_received'::text, 'deposit_topup'::text, 'interest_accrued'::text, 'interest_capitalised'::text, 'deposit_partial_release'::text, 'deposit_partial_replenish'::text, 'deduction_applied'::text, 'deduction_reversed'::text, 'deposit_returned_to_tenant'::text, 'deduction_paid_to_landlord'::text, 'forfeited'::text, 'charge_applied'::text, 'charge_reversed'::text, 'arrears_offset_to_invoice'::text])))"
+    },
+    "document_generation_jobs_delivery_method_check": {
+      "table": "document_generation_jobs",
+      "def": "CHECK ((delivery_method = ANY (ARRAY['email'::text, 'download'::text, 'draft'::text])))"
+    },
+    "document_generation_jobs_status_check": {
+      "table": "document_generation_jobs",
+      "def": "CHECK ((status = ANY (ARRAY['draft'::text, 'generating'::text, 'generated'::text, 'sent'::text, 'failed'::text])))"
+    },
+    "document_template_versions_legal_review_status_check": {
+      "table": "document_template_versions",
+      "def": "CHECK ((legal_review_status = ANY (ARRAY['draft'::text, 'approved'::text, 'superseded'::text])))"
+    },
+    "document_templates_comms_class_check": {
+      "table": "document_templates",
+      "def": "CHECK (((comms_class IS NULL) OR (comms_class = ANY (ARRAY['service'::text, 'correspondence'::text, 'statutory'::text]))))"
+    },
+    "document_templates_legal_flag_check": {
+      "table": "document_templates",
+      "def": "CHECK ((legal_flag = ANY (ARRAY['wet_ink_only'::text, 'aes_recommended'::text])))"
+    },
+    "document_templates_legal_review_status_check": {
+      "table": "document_templates",
+      "def": "CHECK ((legal_review_status = ANY (ARRAY['draft'::text, 'approved'::text, 'superseded'::text])))"
+    },
+    "document_templates_meta_template_status_check": {
+      "table": "document_templates",
+      "def": "CHECK ((meta_template_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))"
+    },
+    "document_templates_scope_check": {
+      "table": "document_templates",
+      "def": "CHECK ((scope = ANY (ARRAY['system'::text, 'organisation'::text])))"
+    },
+    "document_templates_template_type_check": {
+      "table": "document_templates",
+      "def": "CHECK ((template_type = ANY (ARRAY['letter'::text, 'email'::text, 'whatsapp'::text, 'sms'::text])))"
+    },
+    "document_templates_whatsapp_meta_category_check": {
+      "table": "document_templates",
+      "def": "CHECK ((whatsapp_meta_category = ANY (ARRAY['utility'::text, 'marketing'::text, 'authentication'::text])))"
+    },
+    "external_links_category_check": {
+      "table": "external_links",
+      "def": "CHECK ((category = ANY (ARRAY['regulatory'::text, 'browser_help'::text, 'service_policy'::text, 'infrastructure'::text, 'other'::text])))"
+    },
+    "feedback_submissions_category_check": {
+      "table": "feedback_submissions",
+      "def": "CHECK ((category = ANY (ARRAY['bug'::text, 'feature'::text, 'general'::text, 'billing'::text, 'ux'::text, 'praise'::text])))"
+    },
+    "feedback_submissions_rating_check": {
+      "table": "feedback_submissions",
+      "def": "CHECK (((rating >= 1) AND (rating <= 5)))"
+    },
+    "feedback_submissions_role_check": {
+      "table": "feedback_submissions",
+      "def": "CHECK ((role = ANY (ARRAY['landlord'::text, 'tenant'::text, 'supplier'::text, 'agent'::text])))"
+    },
+    "feedback_submissions_status_check": {
+      "table": "feedback_submissions",
+      "def": "CHECK ((status = ANY (ARRAY['open'::text, 'in_progress'::text, 'resolved'::text, 'wont_fix'::text])))"
+    },
+    "hoa_entities_entity_type_check": {
+      "table": "hoa_entities",
+      "def": "CHECK ((entity_type = ANY (ARRAY['body_corporate'::text, 'hoa'::text, 'share_block'::text, 'poa'::text])))"
+    },
+    "hoa_unit_owners_owner_type_check": {
+      "table": "hoa_unit_owners",
+      "def": "CHECK ((owner_type = ANY (ARRAY['individual'::text, 'company'::text, 'trust'::text, 'cc'::text])))"
+    },
+    "import_sessions_expired_lease_action_check": {
+      "table": "import_sessions",
+      "def": "CHECK ((expired_lease_action = ANY (ARRAY['skip'::text, 'import_as_expired'::text])))"
+    },
+    "import_sessions_status_check": {
+      "table": "import_sessions",
+      "def": "CHECK ((status = ANY (ARRAY['mapping'::text, 'reviewing'::text, 'importing'::text, 'complete'::text, 'partial'::text, 'failed'::text])))"
+    },
+    "incident_notifications_channel_check": {
+      "table": "incident_notifications",
+      "def": "CHECK ((channel = ANY (ARRAY['email'::text, 'whatsapp'::text, 'sms'::text])))"
+    },
+    "incident_notifications_notified_party_check": {
+      "table": "incident_notifications",
+      "def": "CHECK ((notified_party = ANY (ARRAY['broker'::text, 'managing_scheme'::text, 'landlord'::text, 'tenant'::text])))"
+    },
+    "inspection_items_classification_check": {
+      "table": "inspection_items",
+      "def": "CHECK ((classification = ANY (ARRAY['wear_and_tear'::text, 'tenant_damage'::text, 'pre_existing'::text, 'acceptable'::text, 'unclassified'::text])))"
+    },
+    "inspection_items_condition_check": {
+      "table": "inspection_items",
+      "def": "CHECK ((condition = ANY (ARRAY['excellent'::text, 'good'::text, 'fair'::text, 'poor'::text, 'damaged'::text, 'missing'::text, 'not_inspected'::text])))"
+    },
+    "inspection_items_dilapidation_type_check": {
+      "table": "inspection_items",
+      "def": "CHECK ((dilapidation_type = ANY (ARRAY['fair_wear'::text, 'dilapidation'::text, 'make_good_required'::text, 'tenant_improvement_retained'::text, 'tenant_improvement_remove'::text, 'pre_existing'::text, 'acceptable'::text, 'unclassified'::text])))"
+    },
+    "inspection_items_item_category_check": {
+      "table": "inspection_items",
+      "def": "CHECK ((item_category = ANY (ARRAY['walls'::text, 'ceiling'::text, 'floor'::text, 'window'::text, 'door'::text, 'electrical'::text, 'plumbing'::text, 'fixture'::text, 'fitting'::text, 'carpet'::text, 'paint'::text, 'appliance'::text, 'garden'::text, 'hvac'::text, 'fire_equipment'::text, 'access_control'::text, 'signage'::text, 'partition'::text, 'cabling'::text, 'tenant_improvement'::text, 'other'::text])))"
+    },
+    "inspection_reschedule_requests_status_check": {
+      "table": "inspection_reschedule_requests",
+      "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'declined'::text, 'countered'::text])))"
+    },
+    "inspection_rooms_overall_condition_check": {
+      "table": "inspection_rooms",
+      "def": "CHECK ((overall_condition = ANY (ARRAY['excellent'::text, 'good'::text, 'fair'::text, 'poor'::text, 'unacceptable'::text])))"
+    },
+    "inspections_ai_assessment_status_check": {
+      "table": "inspections",
+      "def": "CHECK ((ai_assessment_status = ANY (ARRAY['not_run'::text, 'running'::text, 'complete'::text, 'failed'::text])))"
+    },
+    "inspections_assignee_not_both": {
+      "table": "inspections",
+      "def": "CHECK (((assigned_user_id IS NULL) OR (assigned_team_id IS NULL)))"
+    },
+    "inspections_deposit_action_check": {
+      "table": "inspections",
+      "def": "CHECK ((deposit_action = ANY (ARRAY['return_full'::text, 'return_partial'::text, 'retain_full'::text, 'pending'::text])))"
+    },
+    "inspections_inspection_type_check": {
+      "table": "inspections",
+      "def": "CHECK ((inspection_type = ANY (ARRAY['move_in'::text, 'periodic'::text, 'move_out'::text, 'pre_listing'::text, 'commercial_handover'::text, 'commercial_dilapidations'::text])))"
+    },
+    "inspections_lease_type_check": {
+      "table": "inspections",
+      "def": "CHECK ((lease_type = ANY (ARRAY['residential'::text, 'commercial'::text])))"
+    },
+    "inspections_overall_condition_check": {
+      "table": "inspections",
+      "def": "CHECK ((overall_condition = ANY (ARRAY['excellent'::text, 'good'::text, 'fair'::text, 'poor'::text, 'unacceptable'::text])))"
+    },
+    "inspections_status_check": {
+      "table": "inspections",
+      "def": "CHECK ((status = ANY (ARRAY['scheduled'::text, 'in_progress'::text, 'completed'::text, 'awaiting_tenant_review'::text, 'disputed'::text, 'dispute_resolved'::text, 'finalised'::text])))"
+    },
+    "insurance_checklist_items_evidence_type_check": {
+      "table": "insurance_checklist_items",
+      "def": "CHECK ((evidence_type = ANY (ARRAY['agent_confirmation'::text, 'document_upload'::text, 'broker_email'::text, 'auto_derived'::text])))"
+    },
+    "insurance_checklist_items_severity_check": {
+      "table": "insurance_checklist_items",
+      "def": "CHECK ((severity = ANY (ARRAY['critical'::text, 'important'::text, 'optional'::text])))"
+    },
+    "invites_role_check": {
+      "table": "invites",
+      "def": "CHECK ((role = ANY (ARRAY['owner'::text, 'property_manager'::text, 'agent'::text, 'accountant'::text, 'maintenance_manager'::text, 'tenant'::text, 'contractor'::text])))"
+    },
+    "landlords_payment_method_check": {
+      "table": "landlords",
+      "def": "CHECK ((payment_method = ANY (ARRAY['eft'::text, 'cash'::text, 'other'::text])))"
+    },
+    "landlords_portal_status_check": {
+      "table": "landlords",
+      "def": "CHECK ((portal_status = ANY (ARRAY['none'::text, 'invited'::text, 'active'::text, 'suspended'::text])))"
+    },
+    "lease_amendments_amendment_type_check": {
+      "table": "lease_amendments",
+      "def": "CHECK ((amendment_type = ANY (ARRAY['rent_escalation'::text, 'deposit_top_up'::text, 'special_term_change'::text, 'term_extension'::text, 'early_termination'::text, 'other'::text])))"
+    },
+    "lease_charges_charge_type_check": {
+      "table": "lease_charges",
+      "def": "CHECK ((charge_type = ANY (ARRAY['body_corporate_levy'::text, 'special_levy'::text, 'parking'::text, 'water_flat_rate'::text, 'electricity_flat_rate'::text, 'garden_service'::text, 'security'::text, 'internet'::text, 'maintenance_recovery'::text, 'other'::text])))"
+    },
+    "lease_charges_payable_to_check": {
+      "table": "lease_charges",
+      "def": "CHECK ((payable_to = ANY (ARRAY['landlord'::text, 'body_corporate'::text, 'agent'::text, 'third_party'::text])))"
+    },
+    "lease_clause_library_lease_type_check": {
+      "table": "lease_clause_library",
+      "def": "CHECK ((lease_type = ANY (ARRAY['residential'::text, 'commercial'::text, 'both'::text])))"
+    },
+    "lease_documents_doc_type_check": {
+      "table": "lease_documents",
+      "def": "CHECK ((doc_type = ANY (ARRAY['signed_lease'::text, 'welcome_pack_tenant'::text, 'welcome_pack_landlord'::text, 'lod'::text, 's14_notice'::text, 'section_4_notice'::text, 'tribunal_submission'::text, 'statement_tenant'::text, 'statement_owner'::text, 'inspection_report'::text, 'amendment'::text, 'generated_letter'::text, 'other'::text])))"
+    },
+    "lease_lifecycle_events_event_type_check": {
+      "table": "lease_lifecycle_events",
+      "def": "CHECK ((event_type = ANY (ARRAY['lease_created'::text, 'lease_signed'::text, 'cpa_notice_sent'::text, 'renewal_offer_sent'::text, 'renewal_accepted'::text, 'renewal_declined'::text, 'escalation_processed'::text, 'escalation_amendment_signed'::text, 'notice_given_tenant'::text, 'notice_given_landlord'::text, 'converted_to_month_to_month'::text, 'deposit_timer_started'::text, 'lease_expired'::text, 'lease_renewed'::text, 'lease_cancelled'::text, 'lease_sent_for_signing'::text, 'lease_signing_declined'::text, 'lease_signing_expired'::text, 'lease_cancelled_for_breach'::text, 'demand_to_vacate_issued'::text, 'termination_notice_issued'::text])))"
+    },
+    "lease_lifecycle_events_triggered_by_check": {
+      "table": "lease_lifecycle_events",
+      "def": "CHECK ((triggered_by = ANY (ARRAY['system'::text, 'agent'::text, 'tenant'::text, 'cron'::text])))"
+    },
+    "lease_notes_note_type_check": {
+      "table": "lease_notes",
+      "def": "CHECK ((note_type = ANY (ARRAY['tenant'::text, 'owner'::text, 'general'::text])))"
+    },
+    "lease_renewal_offers_status_check": {
+      "table": "lease_renewal_offers",
+      "def": "CHECK ((status = ANY (ARRAY['draft'::text, 'sent'::text, 'accepted'::text, 'declined'::text, 'expired'::text, 'superseded'::text])))"
+    },
+    "lease_templates_template_type_check": {
+      "table": "lease_templates",
+      "def": "CHECK ((template_type = ANY (ARRAY['residential'::text, 'commercial'::text])))"
+    },
+    "leases_cpa_applies_at_signing_check": {
+      "table": "leases",
+      "def": "CHECK ((cpa_applies_at_signing = ANY (ARRAY['yes'::text, 'no'::text, 'indeterminate'::text])))"
+    },
+    "leases_cpa_determination_category_check": {
+      "table": "leases",
+      "def": "CHECK ((cpa_determination_category = ANY (ARRAY['natural_person'::text, 'franchise_agreement'::text, 'juristic_under_threshold'::text, 'juristic_over_threshold'::text, 'indeterminate_bands'::text])))"
+    },
+    "leases_deposit_interest_to_check": {
+      "table": "leases",
+      "def": "CHECK ((deposit_interest_to = ANY (ARRAY['tenant'::text, 'landlord'::text])))"
+    },
+    "leases_escalation_type_check": {
+      "table": "leases",
+      "def": "CHECK ((escalation_type = ANY (ARRAY['fixed'::text, 'cpi'::text, 'prime_plus'::text])))"
+    },
+    "leases_lease_type_check": {
+      "table": "leases",
+      "def": "CHECK ((lease_type = ANY (ARRAY['residential'::text, 'commercial'::text])))"
+    },
+    "leases_notice_given_by_check": {
+      "table": "leases",
+      "def": "CHECK ((notice_given_by = ANY (ARRAY['tenant'::text, 'landlord'::text])))"
+    },
+    "leases_status_check": {
+      "table": "leases",
+      "def": "CHECK ((status = ANY (ARRAY['draft'::text, 'pending_signing'::text, 'active'::text, 'notice'::text, 'expired'::text, 'cancelled'::text, 'month_to_month'::text])))"
+    },
+    "leases_template_source_check": {
+      "table": "leases",
+      "def": "CHECK ((template_source = ANY (ARRAY['pleks'::text, 'uploaded'::text])))"
+    },
+    "leases_template_type_check": {
+      "table": "leases",
+      "def": "CHECK ((template_type = ANY (ARRAY['pleks_residential'::text, 'pleks_commercial'::text, 'custom'::text])))"
+    },
+    "legal_hold_events_capacity_check": {
+      "table": "legal_hold_events",
+      "def": "CHECK ((placed_by_capacity = ANY (ARRAY['agency_io'::text, 'pleks_io'::text, 'pleks_platform_admin'::text, 'system'::text])))"
+    },
+    "legal_hold_events_event_type_check": {
+      "table": "legal_hold_events",
+      "def": "CHECK ((event_type = ANY (ARRAY['hold_placed'::text, 'hold_lifted'::text, 'hold_suppressed'::text])))"
+    },
+    "legal_hold_events_lift_consistency": {
+      "table": "legal_hold_events",
+      "def": "CHECK ((((event_type = 'hold_lifted'::text) AND (lift_event_id IS NOT NULL)) OR ((event_type <> 'hold_lifted'::text) AND (lift_event_id IS NULL))))"
+    },
+    "legal_hold_events_scope_type_check": {
+      "table": "legal_hold_events",
+      "def": "CHECK ((scope_type = ANY (ARRAY['org'::text, 'application'::text, 'subject'::text, 'lease'::text])))"
+    },
+    "legal_hold_events_trigger_category_check": {
+      "table": "legal_hold_events",
+      "def": "CHECK ((trigger_category = ANY (ARRAY['customer_dispute'::text, 'attorney_correspondence'::text, 'threatened_litigation_anticipated'::text, 'regulator_inquiry'::text, 'legal_demand'::text, 'dsar_contested'::text, 'tribunal_matter'::text, 'manual_information_officer'::text, 'pleks_platform_directive'::text])))"
+    },
+    "levy_invoices_status_check": {
+      "table": "levy_invoices",
+      "def": "CHECK ((status = ANY (ARRAY['open'::text, 'partial'::text, 'paid'::text, 'overdue'::text, 'cancelled'::text])))"
+    },
+    "levy_schedules_calculation_method_check": {
+      "table": "levy_schedules",
+      "def": "CHECK ((calculation_method = ANY (ARRAY['participation_quota'::text, 'floor_area_m2'::text, 'equal_split'::text, 'fixed_amount'::text, 'percentage_of_budget'::text, 'manual'::text])))"
+    },
+    "levy_schedules_schedule_type_check": {
+      "table": "levy_schedules",
+      "def": "CHECK ((schedule_type = ANY (ARRAY['admin_levy'::text, 'reserve_levy'::text, 'special_levy'::text, 'utility_recovery'::text])))"
+    },
+    "listings_screening_bundle_check": {
+      "table": "listings",
+      "def": "CHECK ((screening_bundle = ANY (ARRAY['standard'::text, 'estate'::text])))"
+    },
+    "listings_status_check": {
+      "table": "listings",
+      "def": "CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'filled'::text, 'expired'::text])))"
+    },
+    "maintenance_cost_allocations_allocation_type_check": {
+      "table": "maintenance_cost_allocations",
+      "def": "CHECK ((allocation_type = ANY (ARRAY['landlord_expense'::text, 'tenant_charge'::text, 'insurance_claim'::text, 'hoa_levy'::text])))"
+    },
+    "maintenance_cost_allocations_collection_method_check": {
+      "table": "maintenance_cost_allocations",
+      "def": "CHECK ((collection_method = ANY (ARRAY['next_invoice'::text, 'separate_invoice'::text, 'deposit_deduction'::text, 'already_paid'::text])))"
+    },
+    "maintenance_delay_events_attributed_to_check": {
+      "table": "maintenance_delay_events",
+      "def": "CHECK ((attributed_to = ANY (ARRAY['tenant'::text, 'contractor'::text, 'agent'::text, 'external'::text])))"
+    },
+    "maintenance_delay_events_delay_type_check": {
+      "table": "maintenance_delay_events",
+      "def": "CHECK ((delay_type = ANY (ARRAY['tenant_not_available'::text, 'tenant_rescheduled'::text, 'tenant_no_response'::text, 'tenant_denied_access'::text, 'contractor_no_show'::text, 'contractor_rescheduled'::text, 'contractor_no_response'::text, 'contractor_returned_incomplete'::text, 'agent_pending_approval'::text, 'agent_pending_quote_review'::text, 'agent_pending_landlord_approval'::text, 'parts_on_order'::text, 'weather'::text, 'access_issue_other'::text])))"
+    },
+    "maintenance_photos_photo_phase_check": {
+      "table": "maintenance_photos",
+      "def": "CHECK ((photo_phase = ANY (ARRAY['before'::text, 'during'::text, 'after'::text])))"
+    },
+    "maintenance_photos_uploaded_by_type_check": {
+      "table": "maintenance_photos",
+      "def": "CHECK ((uploaded_by_type = ANY (ARRAY['tenant'::text, 'agent'::text, 'contractor'::text])))"
+    },
+    "maintenance_quotes_quote_type_check": {
+      "table": "maintenance_quotes",
+      "def": "CHECK ((quote_type = ANY (ARRAY['quote'::text, 'estimate'::text])))"
+    },
+    "maintenance_quotes_status_check": {
+      "table": "maintenance_quotes",
+      "def": "CHECK ((status = ANY (ARRAY['draft'::text, 'submitted'::text, 'approved'::text, 'rejected'::text, 'superseded'::text, 'expired'::text])))"
+    },
+    "maintenance_requests_ai_suggested_urgency_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((ai_suggested_urgency = ANY (ARRAY['emergency'::text, 'urgent'::text, 'routine'::text, 'cosmetic'::text])))"
+    },
+    "maintenance_requests_assignee_not_both": {
+      "table": "maintenance_requests",
+      "def": "CHECK (((assigned_user_id IS NULL) OR (assigned_team_id IS NULL)))"
+    },
+    "maintenance_requests_cancellation_category_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK (((cancellation_category IS NULL) OR (cancellation_category = ANY (ARRAY['tenant_withdrew'::text, 'duplicate_request'::text, 'no_longer_required'::text, 'contractor_unavailable'::text, 'agent_decision'::text, 'work_completed_externally'::text, 'wrong_property'::text, 'other'::text]))))"
+    },
+    "maintenance_requests_category_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((category = ANY (ARRAY['electrical'::text, 'plumbing'::text, 'hvac'::text, 'structural'::text, 'roofing'::text, 'windows_doors'::text, 'appliances'::text, 'garden'::text, 'pest_control'::text, 'painting'::text, 'flooring'::text, 'security'::text, 'access_control'::text, 'cleaning'::text, 'other'::text])))"
+    },
+    "maintenance_requests_insurance_decision_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((insurance_decision = ANY (ARRAY['reported'::text, 'declined'::text, 'unsure'::text, 'pending'::text])))"
+    },
+    "maintenance_requests_logged_by_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((logged_by = ANY (ARRAY['tenant'::text, 'agent'::text, 'system'::text])))"
+    },
+    "maintenance_requests_reported_via_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((reported_via = ANY (ARRAY['dashboard'::text, 'portal'::text, 'email'::text, 'phone'::text])))"
+    },
+    "maintenance_requests_severity_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((severity = ANY (ARRAY['routine'::text, 'elevated'::text, 'urgent'::text, 'critical'::text])))"
+    },
+    "maintenance_requests_severity_source_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((severity_source = ANY (ARRAY['agent'::text, 'ai_triage'::text, 'tenant'::text])))"
+    },
+    "maintenance_requests_status_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((status = ANY (ARRAY['pending_review'::text, 'approved'::text, 'pending_landlord'::text, 'landlord_approved'::text, 'landlord_rejected'::text, 'rejected'::text, 'work_order_sent'::text, 'acknowledged'::text, 'in_progress'::text, 'pending_completion'::text, 'completed'::text, 'tenant_notified'::text, 'closed'::text, 'cancelled'::text])))"
+    },
+    "maintenance_requests_tenant_rating_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK (((tenant_rating >= 1) AND (tenant_rating <= 5)))"
+    },
+    "maintenance_requests_tenant_reported_urgency_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((tenant_reported_urgency = ANY (ARRAY['emergency'::text, 'urgent'::text, 'routine'::text, 'cosmetic'::text])))"
+    },
+    "maintenance_requests_urgency_check": {
+      "table": "maintenance_requests",
+      "def": "CHECK ((urgency = ANY (ARRAY['emergency'::text, 'urgent'::text, 'routine'::text, 'cosmetic'::text])))"
+    },
+    "management_fee_invoices_status_check": {
+      "table": "management_fee_invoices",
+      "def": "CHECK ((status = ANY (ARRAY['generated'::text, 'deducted'::text, 'invoiced_to_owner'::text, 'paid'::text])))"
+    },
+    "managing_schemes_levy_cycle_check": {
+      "table": "managing_schemes",
+      "def": "CHECK ((levy_cycle = ANY (ARRAY['monthly'::text, 'quarterly'::text, 'annually'::text])))"
+    },
+    "managing_schemes_scheme_type_check": {
+      "table": "managing_schemes",
+      "def": "CHECK ((scheme_type = ANY (ARRAY['body_corporate'::text, 'hoa'::text, 'share_block'::text, 'retirement_village'::text, 'other'::text])))"
+    },
+    "municipal_bill_allocations_allocation_method_check": {
+      "table": "municipal_bill_allocations",
+      "def": "CHECK ((allocation_method = ANY (ARRAY['equal_split'::text, 'occupied_only'::text, 'meter_reading'::text, 'floor_area'::text, 'manual'::text])))"
+    },
+    "municipal_bills_allocation_status_check": {
+      "table": "municipal_bills",
+      "def": "CHECK ((allocation_status = ANY (ARRAY['unallocated'::text, 'allocated'::text, 'not_required'::text])))"
+    },
+    "municipal_bills_extraction_status_check": {
+      "table": "municipal_bills",
+      "def": "CHECK ((extraction_status = ANY (ARRAY['pending'::text, 'extracting'::text, 'extracted'::text, 'needs_review'::text, 'confirmed'::text, 'failed'::text])))"
+    },
+    "municipal_bills_payment_status_check": {
+      "table": "municipal_bills",
+      "def": "CHECK ((payment_status = ANY (ARRAY['unpaid'::text, 'paid'::text, 'partial'::text, 'overdue'::text])))"
+    },
+    "notice_service_events_channel_check": {
+      "table": "notice_service_events",
+      "def": "CHECK ((channel = ANY (ARRAY['email'::text, 'sms'::text, 'whatsapp'::text, 'physical'::text, 'hand'::text, 'sheriff'::text, 'registered_post'::text, 'other'::text])))"
+    },
+    "notice_service_events_service_method_check": {
+      "table": "notice_service_events",
+      "def": "CHECK ((service_method = ANY (ARRAY['electronic'::text, 'manual_attested'::text])))"
+    },
+    "notice_service_events_status_check": {
+      "table": "notice_service_events",
+      "def": "CHECK ((status = ANY (ARRAY['dispatched'::text, 'delivered'::text, 'bounced'::text, 'attested'::text, 'failed'::text])))"
+    },
+    "org_whatsapp_template_preferences_tone_variant_check": {
+      "table": "org_whatsapp_template_preferences",
+      "def": "CHECK ((tone_variant = ANY (ARRAY['friendly'::text, 'professional'::text, 'firm'::text])))"
+    },
+    "organisations_addr2_province_check": {
+      "table": "organisations",
+      "def": "CHECK ((addr2_province = ANY (ARRAY['Eastern Cape'::text, 'Free State'::text, 'Gauteng'::text, 'KwaZulu-Natal'::text, 'Limpopo'::text, 'Mpumalanga'::text, 'Northern Cape'::text, 'North West'::text, 'Western Cape'::text])))"
+    },
+    "organisations_addr2_type_check": {
+      "table": "organisations",
+      "def": "CHECK ((addr2_type = ANY (ARRAY['residential'::text, 'postal'::text, 'work'::text, 'business'::text, 'other'::text])))"
+    },
+    "organisations_addr_province_check": {
+      "table": "organisations",
+      "def": "CHECK ((addr_province = ANY (ARRAY['Eastern Cape'::text, 'Free State'::text, 'Gauteng'::text, 'KwaZulu-Natal'::text, 'Limpopo'::text, 'Mpumalanga'::text, 'Northern Cape'::text, 'North West'::text, 'Western Cape'::text])))"
+    },
+    "organisations_addr_type_check": {
+      "table": "organisations",
+      "def": "CHECK ((addr_type = ANY (ARRAY['residential'::text, 'postal'::text, 'work'::text, 'business'::text, 'other'::text])))"
+    },
+    "organisations_brand_cover_template_check": {
+      "table": "organisations",
+      "def": "CHECK ((brand_cover_template = ANY (ARRAY['classic'::text, 'modern'::text, 'bold'::text, 'minimal'::text])))"
+    },
+    "organisations_brand_font_check": {
+      "table": "organisations",
+      "def": "CHECK ((brand_font = ANY (ARRAY['inter'::text, 'merriweather'::text, 'lato'::text, 'playfair'::text])))"
+    },
+    "organisations_default_lease_document_source_check": {
+      "table": "organisations",
+      "def": "CHECK ((default_lease_document_source = ANY (ARRAY['pleks'::text, 'external'::text])))"
+    },
+    "organisations_deposit_account_type_check": {
+      "table": "organisations",
+      "def": "CHECK ((deposit_account_type = ANY (ARRAY['interest_bearing'::text, 'ppra_trust'::text, 'none'::text])))"
+    },
+    "organisations_gender_check": {
+      "table": "organisations",
+      "def": "CHECK ((gender = ANY (ARRAY['male'::text, 'female'::text, 'non_binary'::text, 'prefer_not_to_say'::text])))"
+    },
+    "organisations_management_fee_type_check": {
+      "table": "organisations",
+      "def": "CHECK ((management_fee_type = ANY (ARRAY['percent'::text, 'fixed'::text])))"
+    },
+    "organisations_management_scope_check": {
+      "table": "organisations",
+      "def": "CHECK ((management_scope = ANY (ARRAY['own_only'::text, 'own_and_others'::text, 'others_only'::text])))"
+    },
+    "organisations_ppra_status_check": {
+      "table": "organisations",
+      "def": "CHECK ((ppra_status = ANY (ARRAY['registered'::text, 'pending'::text, 'not_registered'::text, 'unknown'::text])))"
+    },
+    "organisations_product_line_check": {
+      "table": "organisations",
+      "def": "CHECK ((product_line = ANY (ARRAY['residential'::text, 'hoa'::text])))"
+    },
+    "organisations_property_type_check": {
+      "table": "organisations",
+      "def": "CHECK ((property_type = ANY (ARRAY['residential'::text, 'commercial'::text, 'mixed'::text])))"
+    },
+    "organisations_type_check": {
+      "table": "organisations",
+      "def": "CHECK ((type = ANY (ARRAY['agency'::text, 'landlord'::text, 'sole_prop'::text, 'hoa_manager'::text, 'platform'::text])))"
+    },
+    "organisations_user_type_check": {
+      "table": "organisations",
+      "def": "CHECK ((user_type = ANY (ARRAY['owner'::text, 'agent'::text, 'agency'::text, 'family'::text, 'exploring'::text])))"
+    },
+    "owner_statements_owner_payment_status_check": {
+      "table": "owner_statements",
+      "def": "CHECK ((owner_payment_status = ANY (ARRAY['pending'::text, 'paid'::text, 'on_hold'::text, 'partial'::text])))"
+    },
+    "owner_statements_status_check": {
+      "table": "owner_statements",
+      "def": "CHECK ((status = ANY (ARRAY['draft'::text, 'generated'::text, 'sent'::text, 'viewed'::text, 'archived'::text])))"
+    },
+    "passkey_challenges_ceremony_type_check": {
+      "table": "passkey_challenges",
+      "def": "CHECK ((ceremony_type = ANY (ARRAY['registration'::text, 'authentication'::text, 'step_up'::text])))"
+    },
+    "payments_payment_method_check": {
+      "table": "payments",
+      "def": "CHECK ((payment_method = ANY (ARRAY['eft'::text, 'cash'::text, 'card'::text, 'bank_recon_matched'::text, 'deposit_offset'::text])))"
+    },
+    "payments_recon_method_check": {
+      "table": "payments",
+      "def": "CHECK ((recon_method = ANY (ARRAY['manual'::text, 'exact_match'::text, 'fuzzy_match'::text, 'ai_match'::text])))"
+    },
+    "payments_surplus_disposition_check": {
+      "table": "payments",
+      "def": "CHECK ((surplus_disposition = ANY (ARRAY['credit_next_month'::text, 'refund_to_tenant'::text, 'pending'::text])))"
+    },
+    "popia_exports_controller_role_check": {
+      "table": "popia_exports",
+      "def": "CHECK ((controller_role = ANY (ARRAY['pleks_rp'::text, 'agency_operator'::text])))"
+    },
+    "popia_exports_export_type_check": {
+      "table": "popia_exports",
+      "def": "CHECK ((export_type = ANY (ARRAY['access'::text, 'portability'::text, 'nuke_predelivery'::text])))"
+    },
+    "prescreens_identity_score_check": {
+      "table": "application_prescreens",
+      "def": "CHECK (((identity_score >= 0) AND (identity_score <= 5)))"
+    },
+    "prescreens_pleks_bonus_score_check": {
+      "table": "application_prescreens",
+      "def": "CHECK (((pleks_bonus_score >= 0) AND (pleks_bonus_score <= 5)))"
+    },
+    "privacy_policy_versions_change_type_check": {
+      "table": "privacy_policy_versions",
+      "def": "CHECK ((change_type = ANY (ARRAY['minor'::text, 'material'::text])))"
+    },
+    "properties_after_hours_access_check": {
+      "table": "properties",
+      "def": "CHECK ((after_hours_access = ANY (ARRAY['unrestricted'::text, 'with_notice'::text, 'not_permitted'::text])))"
+    },
+    "properties_backup_power_check": {
+      "table": "properties",
+      "def": "CHECK ((backup_power = ANY (ARRAY['none'::text, 'ups'::text, 'inverter'::text, 'solar'::text, 'generator'::text, 'multiple'::text, 'unknown'::text])))"
+    },
+    "properties_cell_signal_quality_check": {
+      "table": "properties",
+      "def": "CHECK ((cell_signal_quality = ANY (ARRAY['good'::text, 'patchy'::text, 'none'::text, 'unknown'::text])))"
+    },
+    "properties_insurance_policy_type_check": {
+      "table": "properties",
+      "def": "CHECK ((insurance_policy_type = ANY (ARRAY['standard_buildings'::text, 'heritage_specialist'::text, 'commercial_property'::text, 'sectional_title'::text, 'other'::text])))"
+    },
+    "properties_managed_mode_check": {
+      "table": "properties",
+      "def": "CHECK ((managed_mode = ANY (ARRAY['self_owned'::text, 'managed_for_owner'::text])))"
+    },
+    "properties_manager_not_both": {
+      "table": "properties",
+      "def": "CHECK (((managing_agent_id IS NULL) OR (managing_team_id IS NULL)))"
+    },
+    "properties_onboarding_completed_pct_check": {
+      "table": "properties",
+      "def": "CHECK (((onboarding_completed_pct >= 0) AND (onboarding_completed_pct <= 100)))"
+    },
+    "properties_operating_hours_preset_check": {
+      "table": "properties",
+      "def": "CHECK ((operating_hours_preset = ANY (ARRAY['standard_business'::text, 'extended'::text, 'retail'::text, '24_7'::text, 'custom'::text])))"
+    },
+    "properties_owner_bank_type_check": {
+      "table": "properties",
+      "def": "CHECK ((owner_bank_type = ANY (ARRAY['cheque'::text, 'savings'::text, 'transmission'::text])))"
+    },
+    "properties_province_check": {
+      "table": "properties",
+      "def": "CHECK ((province = ANY (ARRAY['Western Cape'::text, 'Eastern Cape'::text, 'Northern Cape'::text, 'North West'::text, 'Free State'::text, 'KwaZulu-Natal'::text, 'Gauteng'::text, 'Limpopo'::text, 'Mpumalanga'::text])))"
+    },
+    "properties_scenario_type_check": {
+      "table": "properties",
+      "def": "CHECK ((scenario_type = ANY (ARRAY['r1'::text, 'r2'::text, 'r3'::text, 'r4'::text, 'r5'::text, 'c1'::text, 'c2'::text, 'c3'::text, 'c4'::text, 'm1'::text, 'm2'::text, 'other'::text])))"
+    },
+    "properties_type_check": {
+      "table": "properties",
+      "def": "CHECK ((type = ANY (ARRAY['residential'::text, 'commercial'::text, 'mixed'::text])))"
+    },
+    "properties_wifi_available_check": {
+      "table": "properties",
+      "def": "CHECK ((wifi_available = ANY (ARRAY['yes'::text, 'no'::text, 'unknown'::text])))"
+    },
+    "property_brokers_notify_channels_check": {
+      "table": "property_brokers",
+      "def": "CHECK ((notify_channels <@ ARRAY['email'::text, 'whatsapp'::text, 'sms'::text]))"
+    },
+    "property_documents_document_type_check": {
+      "table": "property_documents",
+      "def": "CHECK ((document_type = ANY (ARRAY['title_deed'::text, 'compliance_certificate'::text, 'insurance'::text, 'rates_clearance'::text, 'levy_schedule'::text, 'plans'::text, 'electrical_coc'::text, 'gas_coc'::text, 'beetle_coc'::text, 'other'::text])))"
+    },
+    "property_info_request_events_channel_check": {
+      "table": "property_info_request_events",
+      "def": "CHECK ((channel = ANY (ARRAY['email'::text, 'whatsapp'::text, 'sms'::text, 'in_app'::text])))"
+    },
+    "property_info_request_events_event_type_check": {
+      "table": "property_info_request_events",
+      "def": "CHECK ((event_type = ANY (ARRAY['created'::text, 'email_sent'::text, 'email_reminder_sent'::text, 'viewed'::text, 'partial_response'::text, 'completed'::text, 'expired'::text, 'dismissed'::text, 'resent_manually'::text])))"
+    },
+    "property_info_requests_recipient_type_check": {
+      "table": "property_info_requests",
+      "def": "CHECK ((recipient_type = ANY (ARRAY['owner'::text, 'broker'::text, 'self'::text])))"
+    },
+    "property_info_requests_status_check": {
+      "table": "property_info_requests",
+      "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'viewed'::text, 'completed'::text, 'expired'::text, 'dismissed'::text, 'failed'::text])))"
+    },
+    "property_info_requests_topic_check": {
+      "table": "property_info_requests",
+      "def": "CHECK ((topic = ANY (ARRAY['landlord'::text, 'insurance'::text, 'broker'::text, 'scheme'::text, 'banking'::text, 'documents'::text, 'compliance'::text, 'other'::text])))"
+    },
+    "property_insurance_checklist_events_event_type_check": {
+      "table": "property_insurance_checklist_events",
+      "def": "CHECK ((event_type = ANY (ARRAY['initialized'::text, 'confirmed'::text, 'unconfirmed'::text, 'marked_not_applicable'::text, 'unmarked_not_applicable'::text, 'renewal_reset'::text, 'evidence_attached'::text, 'note_added'::text])))"
+    },
+    "property_insurance_checklist_events_source_check": {
+      "table": "property_insurance_checklist_events",
+      "def": "CHECK ((source = ANY (ARRAY['agent'::text, 'owner'::text, 'broker'::text, 'auto'::text, 'cron'::text])))"
+    },
+    "property_insurance_checklists_confirmed_via_check": {
+      "table": "property_insurance_checklists",
+      "def": "CHECK ((confirmed_via = ANY (ARRAY['agent_inline'::text, 'owner_response'::text, 'broker_pdf_reply'::text, 'auto_derived'::text, 'document_upload'::text])))"
+    },
+    "property_insurance_checklists_state_check": {
+      "table": "property_insurance_checklists",
+      "def": "CHECK ((state = ANY (ARRAY['confirmed'::text, 'unknown'::text, 'not_applicable'::text])))"
+    },
+    "property_intelligence_pulls_product_type_check": {
+      "table": "property_intelligence_pulls",
+      "def": "CHECK ((product_type = ANY (ARRAY['deeds_search'::text, 'lightstone_erf_short'::text, 'cipc_company'::text, 'cipc_director'::text])))"
+    },
+    "property_intelligence_pulls_status_check": {
+      "table": "property_intelligence_pulls",
+      "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'complete'::text, 'failed'::text, 'no_data_found'::text])))"
+    },
+    "rent_invoices_status_check": {
+      "table": "rent_invoices",
+      "def": "CHECK ((status = ANY (ARRAY['open'::text, 'partial'::text, 'paid'::text, 'overdue'::text, 'cancelled'::text, 'credit'::text])))"
+    },
+    "report_configs_period_type_check": {
+      "table": "report_configs",
+      "def": "CHECK ((period_type = ANY (ARRAY['this_month'::text, 'last_month'::text, 'this_quarter'::text, 'last_quarter'::text, 'this_tax_year'::text, 'last_tax_year'::text, 'custom'::text])))"
+    },
+    "report_configs_report_type_check": {
+      "table": "report_configs",
+      "def": "CHECK ((report_type = ANY (ARRAY['portfolio_summary'::text, 'occupancy'::text, 'income_collection'::text, 'arrears_aging'::text, 'maintenance_costs'::text, 'lease_expiry'::text, 'application_pipeline'::text, 'owner_portfolio'::text, 'rent_roll'::text, 'annual_tax_summary'::text])))"
+    },
+    "report_configs_schedule_day_check": {
+      "table": "report_configs",
+      "def": "CHECK (((schedule_day IS NULL) OR ((schedule_day >= 1) AND (schedule_day <= 28))))"
+    },
+    "reserve_fund_entries_direction_check": {
+      "table": "reserve_fund_entries",
+      "def": "CHECK ((direction = ANY (ARRAY['credit'::text, 'debit'::text])))"
+    },
+    "reserve_fund_entries_entry_type_check": {
+      "table": "reserve_fund_entries",
+      "def": "CHECK ((entry_type = ANY (ARRAY['levy_contribution'::text, 'capital_expenditure'::text, 'interest_earned'::text, 'adjustment'::text])))"
+    },
+    "retention_purge_runs_status_check": {
+      "table": "retention_purge_runs",
+      "def": "CHECK ((status = ANY (ARRAY['running'::text, 'completed'::text, 'failed'::text])))"
+    },
+    "rule_runs_condition_check": {
+      "table": "rule_runs",
+      "def": "CHECK ((condition = ANY (ARRAY['met'::text, 'not_met'::text, 'error'::text])))"
+    },
+    "rule_runs_outcome_check": {
+      "table": "rule_runs",
+      "def": "CHECK ((outcome = ANY (ARRAY['actioned'::text, 'no_op'::text, 'cooldown'::text, 'tier_gated'::text, 'sub_gated'::text, 'error'::text])))"
+    },
+    "screening_artifacts_artifact_type_check": {
+      "table": "screening_artifacts",
+      "def": "CHECK ((artifact_type = ANY (ARRAY['commercial_consumer_report'::text, 'director_consumer_report'::text, 'individual_consumer_report'::text, 'agent_report'::text])))"
+    },
+    "screening_artifacts_recipient_type_check": {
+      "table": "screening_artifacts",
+      "def": "CHECK ((recipient_type = ANY (ARRAY['company_rep'::text, 'director'::text, 'applicant'::text, 'agency'::text])))"
+    },
+    "screening_jobs_status_check": {
+      "table": "screening_jobs",
+      "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'done'::text, 'failed'::text])))"
+    },
+    "signature_sign_tokens_kind_check": {
+      "table": "signature_sign_tokens",
+      "def": "CHECK ((kind = ANY (ARRAY['signature'::text, 'initial'::text])))"
+    },
+    "step_up_challenges_action_check": {
+      "table": "step_up_challenges",
+      "def": "CHECK ((action = ANY (ARRAY['trust_account_write'::text, 'deposit_refund_approval'::text, 'bank_detail_change'::text, 'team_role_change'::text, 'subscription_change'::text, 'tenant_data_deletion'::text, 'ownership_transfer'::text, 'security_settings_change'::text, 'passkey_unenroll'::text, 'totp_unenroll'::text, 'bulk_export'::text])))"
+    },
+    "step_up_challenges_required_aal_check": {
+      "table": "step_up_challenges",
+      "def": "CHECK ((required_aal = 'aal2'::text))"
+    },
+    "subscriptions_billing_cycle_check": {
+      "table": "subscriptions",
+      "def": "CHECK ((billing_cycle = ANY (ARRAY['monthly'::text, 'annual'::text])))"
+    },
+    "subscriptions_status_check": {
+      "table": "subscriptions",
+      "def": "CHECK ((status = ANY (ARRAY['trialing'::text, 'active'::text, 'past_due'::text, 'paused'::text, 'pending_cancellation'::text, 'cancelled'::text, 'purged'::text])))"
+    },
+    "subscriptions_tier_check": {
+      "table": "subscriptions",
+      "def": "CHECK ((tier = ANY (ARRAY['owner'::text, 'steward'::text, 'growth'::text, 'portfolio'::text, 'firm'::text, 'bespoke'::text])))"
+    },
+    "subscriptions_trial_tier_check": {
+      "table": "subscriptions",
+      "def": "CHECK (((trial_tier IS NULL) OR (trial_tier = ANY (ARRAY['steward'::text, 'growth'::text, 'portfolio'::text, 'firm'::text]))))"
+    },
+    "supplier_invoices_payment_source_check": {
+      "table": "supplier_invoices",
+      "def": "CHECK ((payment_source = ANY (ARRAY['trust'::text, 'agency'::text, 'owner_direct'::text])))"
+    },
+    "supplier_invoices_status_check": {
+      "table": "supplier_invoices",
+      "def": "CHECK ((status = ANY (ARRAY['submitted'::text, 'under_review'::text, 'approved'::text, 'pending_payment'::text, 'paid'::text, 'rejected'::text, 'disputed'::text, 'owner_direct_recorded'::text])))"
+    },
+    "supplier_schedules_frequency_check": {
+      "table": "supplier_schedules",
+      "def": "CHECK ((frequency = ANY (ARRAY['weekly'::text, 'monthly'::text, 'quarterly'::text, 'bi_annual'::text, 'annual'::text, 'ad_hoc'::text])))"
+    },
+    "teams_function_check": {
+      "table": "teams",
+      "def": "CHECK ((function = ANY (ARRAY['maintenance'::text, 'rentals'::text, 'billing'::text, 'inspections'::text, 'general'::text])))"
+    },
+    "tenancy_history_status_check": {
+      "table": "tenancy_history",
+      "def": "CHECK ((status = ANY (ARRAY['active'::text, 'ended'::text, 'vacated_early'::text, 'evicted'::text])))"
+    },
+    "tenant_bank_accounts_account_type_check": {
+      "table": "tenant_bank_accounts",
+      "def": "CHECK ((account_type = ANY (ARRAY['current'::text, 'savings'::text, 'transmission'::text])))"
+    },
+    "tenant_documents_document_type_check": {
+      "table": "tenant_documents",
+      "def": "CHECK ((document_type = ANY (ARRAY['id_document'::text, 'passport'::text, 'proof_of_income'::text, 'bank_statement'::text, 'payslip'::text, 'employment_letter'::text, 'reference_letter'::text, 'credit_report'::text, 'other'::text])))"
+    },
+    "tenant_notices_notice_type_check": {
+      "table": "tenant_notices",
+      "def": "CHECK ((notice_type = ANY (ARRAY['demand_vacate_breach'::text, 'demand_vacate_expiry'::text, 'demand_vacate_m2m'::text])))"
+    },
+    "tenants_employment_type_check": {
+      "table": "tenants",
+      "def": "CHECK ((employment_type = ANY (ARRAY['permanent'::text, 'contract'::text, 'self_employed'::text, 'student'::text, 'unemployed'::text, 'retired'::text, 'other'::text])))"
+    },
+    "tenants_preferred_contact_check": {
+      "table": "tenants",
+      "def": "CHECK ((preferred_contact = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'call'::text])))"
+    },
+    "tos_acceptances_context_check": {
+      "table": "tos_acceptances",
+      "def": "CHECK ((context = ANY (ARRAY['signup'::text, 'version_update'::text, 'reactivation'::text, 'ownership_transfer'::text])))"
+    },
+    "trust_reconciliation_periods_status_check": {
+      "table": "trust_reconciliation_periods",
+      "def": "CHECK ((status = ANY (ARRAY['open'::text, 'reconciled'::text, 'signed_off'::text, 'superseded'::text])))"
+    },
+    "trust_transactions_direction_check": {
+      "table": "trust_transactions",
+      "def": "CHECK ((direction = ANY (ARRAY['credit'::text, 'debit'::text])))"
+    },
+    "trust_transactions_initiated_by_check": {
+      "table": "trust_transactions",
+      "def": "CHECK (((initiated_by IS NULL) OR (initiated_by = ANY (ARRAY['agent'::text, 'tenant'::text, 'pleks_system'::text]))))"
+    },
+    "trust_transactions_payment_method_check": {
+      "table": "trust_transactions",
+      "def": "CHECK (((payment_method IS NULL) OR (payment_method = ANY (ARRAY['eft'::text, 'cash'::text, 'card'::text, 'bank_recon_matched'::text]))))"
+    },
+    "trust_transactions_source_check": {
+      "table": "trust_transactions",
+      "def": "CHECK (((source IS NULL) OR (source = ANY (ARRAY['agency_bank'::text, 'tenant_initiated'::text, 'pleks_controlled_account'::text]))))"
+    },
+    "trust_transactions_transaction_type_check": {
+      "table": "trust_transactions",
+      "def": "CHECK ((transaction_type = ANY (ARRAY['rent_received'::text, 'deposit_received'::text, 'deposit_interest'::text, 'expense_paid'::text, 'management_fee'::text, 'owner_payment'::text, 'deposit_returned'::text, 'deposit_deduction'::text, 'adjustment'::text, 'maintenance_expense'::text])))"
+    },
+    "units_assignee_not_both": {
+      "table": "units",
+      "def": "CHECK (((assigned_agent_id IS NULL) OR (assigned_team_id IS NULL)))"
+    },
+    "units_business_use_permitted_check": {
+      "table": "units",
+      "def": "CHECK ((business_use_permitted = ANY (ARRAY['not_permitted'::text, 'home_office_only'::text, 'practice_consultancy'::text, 'commercial_activity'::text])))"
+    },
+    "units_clear_height_category_check": {
+      "table": "units",
+      "def": "CHECK ((clear_height_category = ANY (ARRAY['3_5m'::text, '5_8m'::text, '8m_plus'::text])))"
+    },
+    "units_floor_loading_check": {
+      "table": "units",
+      "def": "CHECK ((floor_loading = ANY (ARRAY['standard'::text, 'heavy'::text, 'heavy_plus'::text])))"
+    },
+    "units_furnishing_status_check": {
+      "table": "units",
+      "def": "CHECK ((furnishing_status = ANY (ARRAY['unfurnished'::text, 'semi_furnished'::text, 'furnished'::text])))"
+    },
+    "units_loading_bay_type_check": {
+      "table": "units",
+      "def": "CHECK ((loading_bay_type = ANY (ARRAY['none'::text, 'drive_in'::text, 'dock_level'::text, 'mixed'::text])))"
+    },
+    "units_office_component_pct_check": {
+      "table": "units",
+      "def": "CHECK ((office_component_pct = ANY (ARRAY['none'::text, 'lt_10'::text, '10_25'::text, 'gt_25'::text])))"
+    },
+    "units_status_check": {
+      "table": "units",
+      "def": "CHECK ((status = ANY (ARRAY['vacant'::text, 'occupied'::text, 'notice'::text, 'maintenance'::text, 'archived'::text])))"
+    },
+    "user_capabilities_name_check": {
+      "table": "user_capabilities",
+      "def": "CHECK ((capability_name = ANY (ARRAY['can_generate_popia_s23'::text, 'can_run_fitscore_replay'::text, 'can_view_sensitive_identity_data'::text])))"
+    },
+    "user_orgs_role_nonempty": {
+      "table": "user_orgs",
+      "def": "CHECK (((role IS NOT NULL) AND (length(TRIM(BOTH FROM role)) > 0)))"
+    },
+    "user_passkeys_device_type_check": {
+      "table": "user_passkeys",
+      "def": "CHECK ((device_type = ANY (ARRAY['singleDevice'::text, 'multiDevice'::text])))"
+    },
+    "user_profiles_onboarding_state_check": {
+      "table": "user_profiles",
+      "def": "CHECK ((onboarding_state = ANY (ARRAY['pending_profile'::text, 'pending_org'::text, 'pending_invite'::text, 'complete'::text])))"
+    },
+    "user_signatures_kind_check": {
+      "table": "user_signatures",
+      "def": "CHECK ((kind = ANY (ARRAY['signature'::text, 'initial'::text])))"
+    },
+    "user_signatures_source_check": {
+      "table": "user_signatures",
+      "def": "CHECK ((source = ANY (ARRAY['qr_phone'::text, 'mouse_desktop'::text, 'uploaded_file'::text, 'typed_name'::text])))"
+    },
+    "vendor_usage_vendor_check": {
+      "table": "vendor_usage",
+      "def": "CHECK ((vendor = ANY (ARRAY['searchworx'::text, 'payfast'::text])))"
+    },
+    "waitlist_role_check": {
+      "table": "waitlist",
+      "def": "CHECK (((role IS NULL) OR (role = ANY (ARRAY['agent'::text, 'portfolio_manager'::text, 'landlord'::text, 'other'::text]))))"
+    },
+    "warranties_source_type_check": {
+      "table": "warranties",
+      "def": "CHECK ((source_type = ANY (ARRAY['manual'::text, 'maintenance_signoff'::text, 'owner_questionnaire'::text, 'nhbrc_auto'::text, 'document_upload'::text])))"
+    },
+    "warranties_warranty_type_check": {
+      "table": "warranties",
+      "def": "CHECK ((warranty_type = ANY (ARRAY['manufacturer'::text, 'workmanship'::text, 'building_defects'::text, 'roof'::text, 'waterproofing'::text, 'other'::text])))"
+    },
+    "whatsapp_messages_direction_check": {
+      "table": "whatsapp_messages",
+      "def": "CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text])))"
+    },
+    "whatsapp_messages_status_check": {
+      "table": "whatsapp_messages",
+      "def": "CHECK ((status = ANY (ARRAY['submitted'::text, 'sent'::text, 'delivered'::text, 'read'::text, 'failed'::text, 'received'::text])))"
+    },
+    "whatsapp_messages_tone_variant_check": {
+      "table": "whatsapp_messages",
+      "def": "CHECK ((tone_variant = ANY (ARRAY['friendly'::text, 'professional'::text, 'firm'::text])))"
+    },
+    "whatsapp_template_variants_meta_approval_status_check": {
+      "table": "whatsapp_template_variants",
+      "def": "CHECK ((meta_approval_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'paused'::text])))"
+    },
+    "whatsapp_template_variants_tone_variant_check": {
+      "table": "whatsapp_template_variants",
+      "def": "CHECK ((tone_variant = ANY (ARRAY['friendly'::text, 'professional'::text, 'firm'::text, 'n/a'::text])))"
+    }
   }
 }
