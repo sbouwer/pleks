@@ -133,8 +133,12 @@ export async function POST(req: NextRequest) {
 
   // Run import
   try {
-    const { runImport } = await import("@/lib/import/importRunner")
-    const result = await runImport(
+    // runImportWithRecovery, not runImport: if the connection drops partway through, it re-runs ONCE and tells
+    // the agency plainly what happened. Safe to do FOR them because crash-convergence is proven — a re-run ends
+    // up exactly where a single clean run would have (test/db/import-crash.dbtest.ts). Only INFRASTRUCTURE
+    // failures retry; a refused row is refused for a reason and retrying it just says the same thing twice.
+    const { runImportWithRecovery } = await import("@/lib/import/recovery")
+    const result = await runImportWithRecovery(
       rows,
       columnMapping,
       runnerDecisions,

@@ -24,9 +24,21 @@ export class InjectedCrash extends Error {
   }
 }
 
-/** Wrap a real client so the Nth write (insert/upsert/update/rpc) throws instead of reaching Postgres. */
-export function crashAfter(db: SupabaseClient, writes: number): { client: SupabaseClient; count: () => number } {
+/**
+ * Wrap a real client so writes fail in a chosen window, and then HEAL.
+ *
+ * `crashAfter(db, 4)` — fail every write from the 5th onward, forever. That is a dead database.
+ * `crashAfter(db, 4, 6)` — fail writes 5..10, then work normally again. That is a dropped connection: the thing
+ *                          that actually happens, and the only thing an automatic retry can help with.
+ *
+ * The healing variant is what makes the auto-retry testable at all. Against a permanently dead client the
+ * retry can only ever fail, so a test using one would prove that the retry RUNS — never that it WORKS.
+ */
+export function crashAfter(
+  db: SupabaseClient, writes: number, failFor = Number.POSITIVE_INFINITY,
+): { client: SupabaseClient; count: () => number } {
   let n = 0
+  const failing = () => n > writes && n <= writes + failFor
 
   const wrapBuilder = (builder: unknown): unknown =>
     new Proxy(builder as object, {
@@ -38,7 +50,7 @@ export function crashAfter(db: SupabaseClient, writes: number): { client: Supaba
         if (prop === "insert" || prop === "upsert" || prop === "update" || prop === "delete") {
           return (...args: unknown[]) => {
             n++
-            if (n > writes) throw new InjectedCrash(writes)
+            if (failing()) throw new InjectedCrash(writes)
             return wrapBuilder((value as (...a: unknown[]) => unknown).apply(target, args))
           }
         }
@@ -62,7 +74,7 @@ export function crashAfter(db: SupabaseClient, writes: number): { client: Supaba
       if (prop === "rpc") {
         return (...args: unknown[]) => {
           n++
-          if (n > writes) throw new InjectedCrash(writes)
+          if (failing()) throw new InjectedCrash(writes)
           return (target.rpc as unknown as (...a: unknown[]) => unknown)(...args)
         }
       }
