@@ -42,6 +42,9 @@ export interface WizardDecisions {
   bankConsentAttested?: boolean
   /** The file's raw header row — the ONLY place a duplicate column name is still visible (see ImportDecisions). */
   fileHeaders?: string[]
+  /** The agent's answers to the identity holds a previous run raised, keyed by file-row index. Their word is
+   *  the merge authority — a score never is. */
+  identityDecisions?: Record<number, { action: "link"; contactId: string } | { action: "create" }>
   /** Step 4's CUTOVER attestation: the agency confirms it actually HOLDS these deposits (in its trust or
    *  deposit account). Only then are they posted to the trust sub-ledger as opening balances — a trust ledger
    *  that silently disagrees with the bank is worse than an empty one. */
@@ -106,6 +109,7 @@ export function toImportDecisions(wire: WizardDecisions | null | undefined): Imp
     skipRows,
     forceActiveRows,
     fileHeaders: wire?.fileHeaders,
+    identityDecisions: wire?.identityDecisions,
     // Strictly true-or-not. Anything other than an explicit `true` means the agent did NOT attest, and the
     // bank accounts are recorded as unconsented rather than being handed a manufactured consent.
     bankConsentAttested: wire?.bankConsentAttested === true,
