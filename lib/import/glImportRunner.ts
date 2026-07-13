@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { GLPropertyBlock, GLTransaction, GLDepositTransaction } from "./parseGLReport"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordTrustTransaction, type TrustTransactionType } from "@/lib/trust/invariants"
+import { saDateISO } from "@/lib/dates"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -62,30 +63,65 @@ function mapDepositAmount(dep: GLDepositTransaction): number {
   return dep.creditCents > 0 ? dep.creditCents : dep.debitCents
 }
 
+/**
+ * Is this deposit row a coherent MOVEMENT of money? Returns the reason it is not, or null.
+ *
+ * `mapDepositAmount` takes the credit if there is one, otherwise the debit — which means a row carrying BOTH
+ * silently drops the debit side. A row reading "credit 1 000,00 / debit 500,00" posts R1 000 into trust and
+ * loses the R500 entirely, with nothing said. And a row with NEITHER posts a zero-amount transaction into the
+ * trust ledger: a movement of no money, which will sit in the reconciliation forever meaning nothing.
+ *
+ * Neither can be resolved by guessing. A single line cannot be a credit AND a debit; if the agency's export
+ * says it is, one of the two figures is wrong and only they know which.
+ */
+function depositRowIncoherence(dep: GLDepositTransaction): string | null {
+  if (dep.creditCents > 0 && dep.debitCents > 0) {
+    return `This row is BOTH a credit of ${(dep.creditCents / 100).toFixed(2)} and a debit of ` +
+      `${(dep.debitCents / 100).toFixed(2)}. A single ledger line cannot be both, so one of the two figures ` +
+      `is wrong — and taking the credit (as we used to) would silently discard the debit. Not imported.`
+  }
+  if (dep.creditCents <= 0 && dep.debitCents <= 0) {
+    return "This row moves no money — neither a debit nor a credit. A zero-amount trust transaction is not a " +
+      "transaction; it would sit in the reconciliation forever, meaning nothing. Not imported."
+  }
+  return null
+}
+
 // ── Duplicate check ────────────────────────────────────────────────────
 
-async function isDuplicate(
-  supabase: SupabaseClient,
-  leaseId: string,
-  amountCents: number,
-  date: Date,
-  orgId: string,
-): Promise<boolean> {
-  const threeDaysMs = 3 * 24 * 60 * 60 * 1000
-  const fromDate = new Date(date.getTime() - threeDaysMs)
-  const toDate = new Date(date.getTime() + threeDaysMs)
+/**
+ * A GL row's IDEMPOTENCY KEY — derived from what the transaction IS, never from when we imported it.
+ *
+ * The previous guard searched for a trust row whose `created_at` fell within ±3 days of the GL transaction's
+ * DATE. But `created_at` is the moment of import, and GL rows are historical by definition — a payment from
+ * three weeks ago can never have a `created_at` within three days of itself. The window could not match, so
+ * NOTHING was ever deduplicated, and re-running a GL import doubled the agency's entire trust ledger. Not once
+ * the calendar drifted; every single time.
+ *
+ * (It was also wrong in the other direction: two legitimately identical rent payments a day apart would have
+ * been collapsed into one, silently losing a real receipt.)
+ *
+ * So the key is the transaction itself — lease, type, date, amount — written to `reference`, which the trust
+ * table already carries. Re-running the same book finds the same key and skips. It is calendar-independent,
+ * because idempotence should be a property of the DATA, not of how long the agency waited before pressing the
+ * button a second time.
+ */
+function glReference(leaseId: string, kind: string, date: Date, amountCents: number): string {
+  return `GL:${leaseId}:${kind}:${saDateISO(date)}:${amountCents}`
+}
 
-  const { data, error: queryError } = await supabase
+async function alreadyImported(
+  supabase: SupabaseClient,
+  orgId: string,
+  reference: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
     .from("trust_transactions")
     .select("id")
     .eq("org_id", orgId)          // dedup is within the caller's org — never an existence oracle on another org's ledger
-    .eq("lease_id", leaseId)
-    .eq("amount_cents", amountCents)
-    .gte("created_at", fromDate.toISOString())
-    .lte("created_at", toDate.toISOString())
+    .eq("reference", reference)
     .limit(1)
-    logQueryError("isDuplicate trust_transactions", queryError)
-
+  logQueryError("alreadyImported trust_transactions", error)
   return (data?.length ?? 0) > 0
 }
 
@@ -177,8 +213,8 @@ async function importArTransaction(
     return
   }
 
-  const duplicate = await isDuplicate(ctx.supabase, leaseId, tx.amountCents, tx.date, ctx.orgId)
-  if (duplicate) {
+  const reference = glReference(leaseId, "ar", tx.date, tx.amountCents)
+  if (await alreadyImported(ctx.supabase, ctx.orgId, reference)) {
     ctx.result.skipped++
     return
   }
@@ -212,6 +248,17 @@ async function importArTransaction(
       direction: "credit",
       amountCents: tx.amountCents,
       description: `${tx.description} (imported from TPN GL)`,
+      reference,
+      // ⚠ statementMonth is deliberately NOT set. `idx_trust_txn_one_opening_per_period` is a UNIQUE index on
+      // (org_id, statement_month) WHERE is_opening_balance — ONE opening balance per org per month. Stamping
+      // each GL row with its own month therefore caps the entire import at one row per month; the money-
+      // conservation test caught it instantly (3 payments in one month → 1 landed, 2 silently rejected).
+      //
+      // Leaving it NULL keeps every row importable (Postgres treats NULLs as distinct in a unique index), which
+      // is the behaviour that has always shipped. But it means the CLOSED-PERIOD guard cannot see these rows
+      // either — the guard early-returns on a NULL statement_month. Reconciling "many historical GL rows" with
+      // "one opening balance per period" is a LEDGER DESIGN question, not something to guess at on a money
+      // path. Flagged for a ruling (OUTSTANDING § D-GL-01); the behaviour here is unchanged from what ships.
       isOpeningBalance: true,
       createdBy: ctx.agentId,
       source: "agency_bank",
@@ -244,9 +291,16 @@ async function importDepositTransaction(
     return
   }
 
+  const incoherent = depositRowIncoherence(dep)
+  if (incoherent) {
+    ctx.result.errors.push({ description: dep.rawDescription, message: incoherent })
+    ctx.result.skipped++
+    return
+  }
+
   const amount = mapDepositAmount(dep)
-  const duplicate = await isDuplicate(ctx.supabase, leaseId, amount, dep.date, ctx.orgId)
-  if (duplicate) {
+  const reference = glReference(leaseId, dep.type, dep.date, amount)
+  if (await alreadyImported(ctx.supabase, ctx.orgId, reference)) {
     ctx.result.skipped++
     return
   }
@@ -271,6 +325,9 @@ async function importDepositTransaction(
       direction: mapDepositDirection(dep),
       amountCents: amount,
       description: `${dep.rawDescription} (imported from TPN GL)`,
+      reference,
+      // See the AR path: statementMonth is deliberately unset — one-opening-balance-per-period would cap the
+      // import at a single row per month. OUTSTANDING § D-GL-01.
       isOpeningBalance: true,
       createdBy: ctx.agentId,
       source: "agency_bank",
