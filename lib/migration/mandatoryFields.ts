@@ -42,6 +42,22 @@ export function isFieldBlank(value: unknown): boolean {
 }
 
 /**
+ * A contact's name is satisfied by a `company_name` (a juristic) OR by `first_name` + `last_name` (a natural
+ * person) — a company legitimately has null first/last, so flagging those would be wrong. Email + phone are
+ * required either way. This is the one entity whose floor is conditional, so it is not a flat field list.
+ */
+function missingContactFields(record: Record<string, unknown>): string[] {
+  const missing: string[] = []
+  if (isFieldBlank(record.company_name)) {
+    if (isFieldBlank(record.first_name)) missing.push("first_name")
+    if (isFieldBlank(record.last_name)) missing.push("last_name")
+  }
+  if (isFieldBlank(record.primary_email)) missing.push("primary_email")
+  if (isFieldBlank(record.primary_phone)) missing.push("primary_phone")
+  return missing
+}
+
+/**
  * Which mandatory fields are absent on a record — the `incomplete_mandatory` set (§5). Empty ⇒ complete. Reads the
  * record by the registry's storage-column names, so the SAME call serves import-marking, the server-side create
  * gate, and first-touch enforcement. Never a hand-maintained second list.
@@ -50,10 +66,24 @@ export function missingMandatoryFields(
   entity: CompletableEntity,
   record: Record<string, unknown>,
 ): string[] {
+  if (entity === "tenant" || entity === "landlord") return missingContactFields(record)
   return MANDATORY_FIELDS[entity].filter((field) => isFieldBlank(record[field]))
 }
 
 /** True when a record satisfies its entity's mandatory floor. */
 export function isRecordComplete(entity: CompletableEntity, record: Record<string, unknown>): boolean {
   return missingMandatoryFields(entity, record).length === 0
+}
+
+/**
+ * The `incomplete_mandatory` column value for an insert — the missing-field SET, or `null` when complete (§5).
+ * Spread into an importer insert so the record lands FLAGGED with exactly what it lacks; `null` keeps a complete
+ * record clean. This is the ONLY writer of the column — always derived from the registry, never hand-set.
+ */
+export function incompleteMandatoryColumn(
+  entity: CompletableEntity,
+  record: Record<string, unknown>,
+): { incomplete_mandatory: string[] | null } {
+  const missing = missingMandatoryFields(entity, record)
+  return { incomplete_mandatory: missing.length ? missing : null }
 }

@@ -974,3 +974,15 @@ CREATE INDEX IF NOT EXISTS idx_supplier_invoices_schedule_id ON supplier_invoice
 CREATE INDEX IF NOT EXISTS idx_supplier_invoices_unit_id ON supplier_invoices(unit_id);
 CREATE INDEX IF NOT EXISTS idx_warranties_contractor_id ON warranties(contractor_id);
 CREATE INDEX IF NOT EXISTS idx_warranties_created_by ON warranties(created_by);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §13  ADDENDUM_21E: migration-completeness flag + address relaxation (properties)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- A real migration source (MRI) exports a property NAME but no address. Import must not refuse it (21E §1), so the
+-- address columns are relaxed to NULLABLE and the record lands flagged with what it is MISSING (the §4 registry:
+-- address_line1, city, province). Live-create still refuses these SERVER-SIDE (registry-driven, §1), so an
+-- incomplete property can only be born from import — which keeps the burn-down (§6) converging.
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS incomplete_mandatory text[];
+ALTER TABLE properties ALTER COLUMN address_line1 DROP NOT NULL;
+ALTER TABLE properties ALTER COLUMN city         DROP NOT NULL;
+ALTER TABLE properties ALTER COLUMN province     DROP NOT NULL;

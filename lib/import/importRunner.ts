@@ -23,6 +23,7 @@ import { resolveDepositRate, postOpeningDeposit } from "./depositImport"
 import { normaliseBranchCode } from "./bankImport"
 import { bankAccountColumns } from "@/lib/crypto/bankAccount"
 import { idNumberColumns, validateSAIdNumber, hashIdNumber } from "@/lib/crypto/idNumber"
+import { incompleteMandatoryColumn } from "@/lib/migration/mandatoryFields"
 import { optionalEnv } from "@/lib/env"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
@@ -479,13 +480,14 @@ async function upsertProperty(
   if (!city) missing.push("city")
   if (!provinceRaw) missing.push("province")
 
+  // 21E §1/§5: import RELAXES the address. A real source (MRI) exports only a property NAME, so land the property
+  // FLAGGED with what it lacks (a WARNING, not a refusal) rather than dropping it. Live-create still refuses these
+  // server-side (registry-driven), so an incomplete property can only be born from import. The address columns are
+  // nullable now (012 §13); the `incomplete_mandatory` set below is the burn-down item.
   if (missing.length > 0) {
-    ctx.result.errors.push({
-      rowIndex, field: "property_name", severity: "error",
-      message: `Property "${propertyName}" is missing required ${missing.join(", ")} — a property cannot be ` +
-        `created without ${missing.length > 1 ? "these" : "this"}. Map the ${missing.join("/")} column(s) and re-import.`,
-    })
-    return null
+    flagForReview(ctx, rowIndex, "property_name",
+      `Property "${propertyName}" was imported without ${missing.join(", ")}. It is flagged incomplete — add ` +
+      `${missing.length > 1 ? "them" : "it"} before serving a notice or a statement on this property.`)
   }
   if (province && !province.ok) {
     ctx.result.errors.push({
@@ -506,10 +508,14 @@ async function upsertProperty(
     .insert({
       org_id: ctx.orgId,
       name: propertyName,
-      address_line1: addressLine1,
+      address_line1: addressLine1 || null,
       suburb: getField(row, "suburb", ctx.mapping) || null,
-      city,
-      province: province?.ok ? province.value : undefined,
+      city: city || null,
+      province: province?.ok ? province.value : null,
+      // 21E §5: the mandatory fields this property lacks (address_line1/city/province) — the burn-down item.
+      ...incompleteMandatoryColumn("property", {
+        name: propertyName, address_line1: addressLine1, city, province: province?.ok ? province.value : null,
+      }),
       postal_code: getField(row, "postal_code", ctx.mapping) || null,
       erf_number: getField(row, "erf_number", ctx.mapping) || null,
       ...(normPropertyType ? { type: normPropertyType } : {}),
@@ -856,17 +862,25 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
     const idTypeRaw = getField(entry.row, "id_type", ctx.mapping)
     const normIdType = ["sa_id", "passport", "asylum_permit"].includes(idTypeRaw) ? idTypeRaw : null
 
+    // Hoisted so the identity columns AND the 21E completeness mark read the SAME values (no duplicated ternaries).
+    const contactCore = {
+      first_name: firstName || (tenantCompany ? null : "Unknown"),
+      last_name: lastName || (tenantCompany ? null : "Unknown"),
+      company_name: tenantCompany || null,
+      primary_email: email || null,
+      primary_phone: getField(entry.row, "phone", ctx.mapping) || null,
+    }
+
     const { data: contact, error: contactError } = await ctx.supabase
       .from("contacts")
       .insert({
         org_id: ctx.orgId,
         entity_type: resolveEntityType(tenantCompany, displayForTenant),
         primary_role: "tenant",
-        first_name: firstName || (tenantCompany ? null : "Unknown"),
-        last_name: lastName || (tenantCompany ? null : "Unknown"),
-        company_name: tenantCompany || null,
-        primary_email: email || null,
-        primary_phone: getField(entry.row, "phone", ctx.mapping) || null,
+        ...contactCore,
+        // 21E §5/§7: land the record FLAGGED with the mandatory fields it lacks (email is instance #1), rather
+        // than refusing it. Derived from the §4 registry, from the SAME values written above.
+        ...incompleteMandatoryColumn("tenant", contactCore),
         ...idNumberColumns(getField(entry.row, "id_number", ctx.mapping)), // encrypted at rest + lookup hash
         ...(normIdType ? { id_type: normIdType } : {}),
         date_of_birth: dobRaw ? normaliseDate(dobRaw) : null,
@@ -2529,17 +2543,24 @@ async function importLandlords(
       // (until this) could never be matched on. Found by the identity test, not by review.
       const regNumber = getField(row, "registration_number", ctx.mapping) || null
 
+      // Hoisted so the identity columns AND the 21E completeness mark read the SAME values (no duplicated ternaries).
+      const contactCore = {
+        first_name: firstName || (landlordCompany ? null : "Unknown"),
+        last_name: lastName || (landlordCompany ? null : "Unknown"),
+        company_name: landlordCompany || null,
+        primary_email: email || null,
+        primary_phone: phone,
+      }
+
       const { data: contact, error: contactError } = await ctx.supabase
         .from("contacts")
         .insert({
           org_id: ctx.orgId,
           entity_type: resolveEntityType(landlordCompany, landlordDisplay),
           primary_role: "landlord",
-          first_name: firstName || (landlordCompany ? null : "Unknown"),
-          last_name: lastName || (landlordCompany ? null : "Unknown"),
-          company_name: landlordCompany || null,
-          primary_email: email || null,
-          primary_phone: phone,
+          ...contactCore,
+          // 21E §5/§7: flag the missing mandatory fields (email is instance #1) rather than refuse the landlord.
+          ...incompleteMandatoryColumn("landlord", contactCore),
           ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
           registration_number: regNumber,
           vat_number: vatNumber,

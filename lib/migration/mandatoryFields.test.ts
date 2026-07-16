@@ -38,4 +38,16 @@ describe("missingMandatoryFields — the incomplete_mandatory set", () => {
   it("landlord and tenant share the same mandatory floor (both are contacts)", () => {
     expect(MANDATORY_FIELDS.landlord).toEqual(MANDATORY_FIELDS.tenant)
   })
+
+  it("a JURISTIC contact (company_name set) is NOT flagged for first/last — a company has no first name", () => {
+    const co = { company_name: "DW Plumbing PTY LTD", first_name: null, last_name: null, primary_email: "dw@x.co.za", primary_phone: "0111112222" }
+    expect(missingMandatoryFields("landlord", co)).toEqual([])
+    // ...but a company still needs a way to reach it:
+    expect(missingMandatoryFields("tenant", { company_name: "X Ltd", primary_phone: "0111112222" })).toEqual(["primary_email"])
+  })
+
+  it("a natural person with no name is flagged for both first and last", () => {
+    expect(missingMandatoryFields("tenant", { primary_email: "a@b.co", primary_phone: "0821112222" }))
+      .toEqual(["first_name", "last_name"])
+  })
 })
