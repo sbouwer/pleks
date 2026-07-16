@@ -33,9 +33,11 @@ export const MANDATORY_FIELDS: Record<CompletableEntity, readonly string[]> = {
   lease: ["start_date", "rent_amount_cents"],
 } as const
 
-/** A value counts as ABSENT when it is null/undefined, an empty/whitespace string, or an empty array. */
+/** A value counts as ABSENT when it is null/undefined, NaN (a failed numeric parse — e.g. a blank rent field that
+ *  became `Number.parseFloat("") * 100`), an empty/whitespace string, or an empty array. A real 0 is PRESENT. */
 export function isFieldBlank(value: unknown): boolean {
   if (value === null || value === undefined) return true
+  if (typeof value === "number") return Number.isNaN(value)
   if (typeof value === "string") return value.trim() === ""
   if (Array.isArray(value)) return value.length === 0
   return false

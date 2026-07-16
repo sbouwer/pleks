@@ -16,22 +16,39 @@ import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { propertyHasInForceLease } from "@/lib/parties/archive"
+import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 
 export async function createProperty(formData: FormData) {
   const gw = await requireAgentWriteAccess("create_property")
   const { db, userId, orgId } = gw
 
+  // 21E §1: live-create refuses a missing mandatory field SERVER-SIDE (the classic form had no guard — a blank
+  // city/province landed silently once the DB NOT NULL floor was relaxed for import). Import lands flagged; here
+  // the agent is filling a form, so refuse and name what to add.
+  const name = (formData.get("name") as string | null)?.trim() || null
+  const address_line1 = (formData.get("address_line1") as string | null)?.trim() || null
+  const city = (formData.get("city") as string | null)?.trim() || null
+  const province = (formData.get("province") as string | null)?.trim() || null
+  let propGate: { incomplete_mandatory: null }
+  try {
+    propGate = mandatoryGate("property", { name, address_line1, city, province }, { relax: false }) as { incomplete_mandatory: null }
+  } catch (e) {
+    if (e instanceof MissingMandatoryFieldsError) return { error: `Please add the property's ${e.missing.join(", ")}.` }
+    throw e
+  }
+
   const { data: property, error } = await db
     .from("properties")
     .insert({
       org_id: orgId,
-      name: formData.get("name") as string,
+      name,
       type: formData.get("type") as string || "residential",
-      address_line1: formData.get("address_line1") as string,
+      address_line1,
       address_line2: formData.get("address_line2") as string || null,
       suburb: formData.get("suburb") as string || null,
-      city: formData.get("city") as string,
-      province: formData.get("province") as string,
+      city,
+      province,
+      ...propGate,
       postal_code: formData.get("postal_code") as string || null,
       erf_number: formData.get("erf_number") as string || null,
       sectional_title_number: formData.get("sectional_title_number") as string || null,
