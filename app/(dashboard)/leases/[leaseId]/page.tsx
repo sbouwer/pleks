@@ -16,6 +16,7 @@ import { checkLeasePrerequisites } from "@/lib/leases/checkPrerequisites"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { BackLink } from "@/components/ui/BackLink"
+import { MandatoryFieldsBanner } from "@/components/migration/MandatoryFieldsBanner"
 import { LeaseTabs } from "./LeaseTabs"
 import { OverviewTab } from "./OverviewTab"
 import { LeaseDetailsTab } from "./LeaseDetailsTab"
@@ -668,6 +669,10 @@ export default async function LeaseDetailPage({
     <LeaseDisclaimerGate initialAccepted={accepted}>
       <div>
         <BackLink href="/leases" label="Leases" />
+
+        {/* 21E §3 first-touch: an import-incomplete lease (held 'draft') prompts completion — it cannot activate
+            until start_date + rent are filled (checkLeasePrerequisites gate). */}
+        <MandatoryFieldsBanner entity="lease" missing={(lease as { incomplete_mandatory?: string[] | null }).incomplete_mandatory} editHref={`/leases/${leaseId}/edit`} />
 
         <LeasePageHeader
           landlordName={landlordName}
