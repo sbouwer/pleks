@@ -50,11 +50,18 @@ describe("IMPORT COMPLETENESS — records land flagged, never refused (21E §5/�
     "First Name": "Full", Surname: "Person", Email: "full@x.co.za", Cell: "0829998888",
     "Lease Start": "2024-01-01", "Lease End": "2026-12-31", "Monthly Rent": "9000",
   })
+  // A joint tenancy: two emails (triggers the co-tenant split) but ONE phone — the second half (Apphia) lands
+  // with no phone. This is the insertSingleTenant path the census found relaxed-but-UNTRACKED; it must now flag.
+  const JOINT = row({
+    Property: "Joint House", Address: "2 Oak Ave", City: "Durban", Province: "KwaZulu-Natal", Unit: "1",
+    "First Name": "Donovan & Apphia", Surname: "Farao", Email: "don@x.co.za,apphia@x.co.za", Cell: "0821112222",
+    "Lease Start": "2024-01-01", "Lease End": "2026-12-31", "Monthly Rent": "7500",
+  })
 
   beforeAll(async () => {
     agentId = seedUser()
     orgId = await seedEmptyOrg(db)
-    await importRows(orgId, agentId, [INCOMPLETE, COMPLETE])
+    await importRows(orgId, agentId, [INCOMPLETE, COMPLETE, JOINT])
   }, 120_000)
 
   afterAll(() => {
@@ -76,6 +83,16 @@ describe("IMPORT COMPLETENESS — records land flagged, never refused (21E §5/�
       .from("contacts").select("incomplete_mandatory").eq("org_id", orgId).eq("primary_role", "tenant").eq("first_name", "Nomsa").single()
     if (error) throw new Error(error.message)
     expect(data.incomplete_mandatory).toEqual(["primary_email"])
+  })
+
+  it("a JOINT-tenancy co-tenant (insertSingleTenant path) is flagged too — no untracked relaxed writer", async () => {
+    // Donovan has both email + phone → complete; Apphia (the split-off half) got no phone → flagged.
+    const { data: donovan, error: dErr } = await db.from("contacts").select("incomplete_mandatory").eq("org_id", orgId).eq("first_name", "Donovan").single()
+    if (dErr) throw new Error(dErr.message)
+    expect(donovan.incomplete_mandatory).toBeNull()
+    const { data: apphia, error: aErr } = await db.from("contacts").select("incomplete_mandatory").eq("org_id", orgId).eq("first_name", "Apphia").single()
+    if (aErr) throw new Error(aErr.message)
+    expect(apphia.incomplete_mandatory, "the co-tenant lands ON the burn-down, not off it").toEqual(["primary_phone"])
   })
 
   it("a COMPLETE property and tenant carry a NULL flag (not a burn-down item)", async () => {

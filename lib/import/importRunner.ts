@@ -1082,6 +1082,8 @@ async function insertSingleTenant(params: {
       last_name: lastName || "Unknown",
       primary_email: email,
       primary_phone: phone || null,
+      // 21E §5/§7: a co-tenant (joint-tenancy half) is a full tenant — flag what it lacks (was untracked).
+      ...incompleteMandatoryColumn("tenant", { first_name: firstName || "Unknown", last_name: lastName || "Unknown", primary_email: email, primary_phone: phone || null }),
       ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
     })
     .select("id").single()
@@ -2117,6 +2119,15 @@ async function resolveTenantIdForHistory(
       last_name: lastName || (prevTenantCompany ? null : "Unknown"),
       company_name: prevTenantCompany || null,
       primary_email: email,
+      // 21E §5/§7: a prior-tenant history row is a tenant contact — flag what it lacks (was untracked; it carries
+      // no phone at all, so primary_phone is always part of its incomplete set).
+      ...incompleteMandatoryColumn("tenant", {
+        first_name: firstName || (prevTenantCompany ? null : "Unknown"),
+        last_name: lastName || (prevTenantCompany ? null : "Unknown"),
+        company_name: prevTenantCompany || null,
+        primary_email: email,
+        primary_phone: null,
+      }),
     })
     .select("id").single()
   if (contactError) console.error("importRunner prev-tenant contacts insert failed:", contactError.message)
@@ -2719,6 +2730,15 @@ async function findOrCreateLandlord(
       company_name: resolveEntityType("", ownerName) === "organisation" ? ownerName : null,
       primary_email: email,
       primary_phone: String(property.owner_phone ?? "") || null,
+      // 21E §5/§7: a landlord synthesised from a property's owner name is a landlord contact — flag what it lacks
+      // (was untracked; owner_phone is often blank, and this path never has an email of its own).
+      ...incompleteMandatoryColumn("landlord", {
+        first_name: firstName || (ownerName ? null : "Unknown"),
+        last_name: lastName || (ownerName ? null : "Unknown"),
+        company_name: resolveEntityType("", ownerName) === "organisation" ? ownerName : null,
+        primary_email: email,
+        primary_phone: String(property.owner_phone ?? "") || null,
+      }),
     })
     .select("id").single()
   if (contactError || !contact) {
