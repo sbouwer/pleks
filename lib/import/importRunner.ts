@@ -730,6 +730,13 @@ function primaryEmailKey(cell: string): string {
   return cell.split(",")[0]?.trim().toLowerCase() ?? ""
 }
 
+/** Cache a tenant id under its email for within-batch dedup — but ONLY when there is an email. An email-less
+ *  tenant (the relaxed migration case) is deliberately kept out of the cache so two of them never collide on the
+ *  empty key; those dedup on SA ID / name+phone via resolveIdentity instead. */
+function cacheTenant(ctx: ImportContext, email: string, tenantId: string): void {
+  if (email) ctx.tenantIdCache.set(email, tenantId)
+}
+
 /**
  * F-6a: given an EXISTING contact, return its tenant id — resolving the tenant row (or creating one if the
  * contact has none). NEVER returns a contacts id. Both the single-tenant and co-tenant paths route through
@@ -802,12 +809,18 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
   // Single tenant (normal path)
   const email = primaryEmailKey(rawEmail)
   if (!email) {
-    ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Tenant email is required", severity: "error" })
-    return
+    // RELAXED for MIGRATION: a legacy book legitimately carries email-less tenants, and dropping the row is
+    // migration data loss. Import with a loud WARNING instead. Dedup does NOT depend on email — resolveIdentity
+    // matches on SA ID / name+phone — and an email-less tenant is deliberately kept OUT of tenantIdCache (keyed
+    // by email), so two of them never collide on the empty key. Email stays required on live agent-side create.
+    flagForReview(ctx, entry.index, "email",
+      "No email on this tenant. Imported without one — but email is how we recognise and reach a tenant; add it " +
+      "before serving a notice or running a screening.")
   }
 
   const dataQualityTags = checkTenantIdentity(email, entry, ctx)
 
+  // cacheTenant never stores the empty key, so has("") is always false — no `email &&` guard needed here.
   if (ctx.tenantIdCache.has(email)) return
 
   try {
@@ -830,7 +843,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Failed to resolve tenant for existing contact", severity: "error" })
         return
       }
-      ctx.tenantIdCache.set(email, resolved.tenantId)
+      cacheTenant(ctx, email, resolved.tenantId)
       if (resolved.created) ctx.result.tenantsCreated++
       else ctx.result.skipped++
       return
@@ -852,7 +865,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         first_name: firstName || (tenantCompany ? null : "Unknown"),
         last_name: lastName || (tenantCompany ? null : "Unknown"),
         company_name: tenantCompany || null,
-        primary_email: email,
+        primary_email: email || null,
         primary_phone: getField(entry.row, "phone", ctx.mapping) || null,
         ...idNumberColumns(getField(entry.row, "id_number", ctx.mapping)), // encrypted at rest + lookup hash
         ...(normIdType ? { id_type: normIdType } : {}),
@@ -892,7 +905,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
     }
 
     const tenantId = String(created.id)
-    ctx.tenantIdCache.set(email, tenantId)
+    cacheTenant(ctx, email, tenantId)
     ctx.result.tenantsCreated++
     await insertNextOfKin(tenantId, entry.row, ctx.mapping, ctx.orgId, ctx.supabase)
 
@@ -953,7 +966,9 @@ function checkTenantIdentity(email: string, entry: UnitGroupEntry, ctx: ImportCo
 
   // This address is BOTH the dedup key AND where the tenant's mail goes. A malformed one silently merges two
   // people into one contact, or silently reaches nobody — and the importer used to accept anything at all.
-  if (!looksLikeEmail(email)) {
+  // An EMPTY email is not "malformed" — it is the relaxed email-less migration case, warned about at the call
+  // site — so only the present-but-wrong address is flagged here.
+  if (email && !looksLikeEmail(email)) {
     tags.push("email_malformed")
     flagForReview(ctx, entry.index, "email",
       `"${email}" does not look like an email address. It was imported and flagged on the tenant, but this ` +
@@ -2478,13 +2493,11 @@ async function importLandlords(
 
     const email = getField(row, "email", ctx.mapping).toLowerCase()
     if (!email) {
-      ctx.result.errors.push({
-        rowIndex: i,
-        field: "email",
-        message: "Landlord email is required",
-        severity: "error",
-      })
-      continue
+      // RELAXED for MIGRATION (mirrors the tenant path): import an email-less landlord with a loud WARNING
+      // rather than dropping them — a dropped landlord means their payouts group under "unknown". resolveIdentity
+      // dedups on SA ID / CIPC / VAT / name+phone, so no email is needed to avoid a double payout identity.
+      flagForReview(ctx, i, "email",
+        "No email on this landlord. Imported without one — add it before any payout or statement communication.")
     }
 
     try {
@@ -2525,7 +2538,7 @@ async function importLandlords(
           first_name: firstName || (landlordCompany ? null : "Unknown"),
           last_name: lastName || (landlordCompany ? null : "Unknown"),
           company_name: landlordCompany || null,
-          primary_email: email,
+          primary_email: email || null,
           primary_phone: phone,
           ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
           registration_number: regNumber,

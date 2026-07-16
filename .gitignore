@@ -63,6 +63,11 @@ lib/reports/screening/_pdf/__samples__/
 # Build specs, legal docs, and design references — local only
 brief/
 
+# Acceptance-run museum: REAL MRI exports carry real SA ID numbers + names (POPIA).
+# The README documenting the museum stays tracked; the exports never leave this machine.
+test/db/fixtures/museum/*.xlsx
+test/db/fixtures/museum/*.csv
+
 # Codemod dry-run/report output (regenerated each run)
 scripts/codemod-supabase-error.report.json
 
