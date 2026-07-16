@@ -74,3 +74,91 @@ is a genuine double-entry figure, not a single-report assertion.
    path ignores `id_number`), but real. Tracked in OUTSTANDING.
 3. **Multi-tab silent-drop** — `Step0Upload` reads `SheetNames[0]` only; 6 Boegoe St lives on tab 2
    of `rptGLByProperty` and would be silently lost by the single-sheet reader.
+
+---
+
+# ADDENDUM_21C · PHASE 0 — the MRI export topology map (the assembler's contract)
+
+The gate deliverable for the multi-table assembler (ADDENDUM_21C §4 Phase 0). Empirically walked from the real
+museum set — every report's header row, key column, prefix namespace, and cross-report edge. PII-free. **No
+assembly code until this map exists (CD ruling).**
+
+## The report set — what each is, and whether it is an IMPORT SOURCE or REFERENCE-ONLY
+
+| Report | tabs | header row | key column | namespace | role | import source? |
+|---|---|---|---|---|---|---|
+| `AdmRentbookBillingDetail` | 1 | 0 | `REFERENCE` | **LEA** | lease spine — dates, rent, status | **yes** (lease) |
+| `LeaseRentRoll` | 1 | 1 | `REFERENCE` (+`INVOICE`) | **LEA**, INV | per-invoice money breakdown (RENTAL/REPAIRS/UTILITIES/FEES/OTHER/CREDITS/TOTAL DUE/COMMISSION) | **yes** (money) |
+| `ContactsExport` | 1 | 1 | `ENTITY ID` + `REFERENCE` | **TEN/ONR/SUP/AGT** | contact identity master — SA ID, bank, VAT, email, address | **yes** (identity) |
+| `PropertySummary` | 1 | 5 | `REFERENCE` | **PRO** | property master (PRO code → property name, state) | **yes** (property) |
+| `DepositHeld` | 1 | 1 | `REFERENCE` | **LEA** | deposit held per lease (TOTAL/BY AGENT/BY LANDLORD) | **yes** (deposit) |
+| `DepositSummary` | 1 | 1 | `REFERENCE` | **LEA** | deposit required/held/still-due per lease | yes (deposit, dup of Held) |
+| `LeaseExpiry` | 1 | 1 | `REFERENCE` | **LEA** | **the only lease↔party link** — by NAME string; FILTERED (expiring only) | ref-only (see edges) |
+| `GLByProperty` | **2** | 6 / 5 | none (DATE/DESC/DR/CR/BAL) | none | GL ledger; property context in **section breaks** | **reference-only** |
+| `TrialBalance` | **2** | 6 / 5 | none | none | control totals per property (the reconciliation oracle) | reference-only |
+| `VendorGL` | 1 | 6 | none | none | vendor ledger | reference-only |
+
+## The namespace map — FIVE typed, DISJOINT `REFERENCE` namespaces
+
+`REFERENCE` is not one join key — it is a **typed discriminator** (ADDENDUM_21C D-5). Five namespaces, no value
+overlap between them:
+
+- **`LEA…`** — leases (BillingDetail, RentRoll, DepositHeld, DepositSummary, LeaseExpiry)
+- **`PRO…`** — properties (PropertySummary) ← *not named in the spec's §1; found in Phase 0*
+- **`TEN… / ONR… / SUP… / AGT…`** — contacts, one sub-namespace per party type (ContactsExport)
+- **`INV…`** — invoices (RentRoll, secondary key)
+
+## The edge map — what is KEYED, what is a NAME STRING, what is MISSING
+
+Applying D-8 (a reference is resolved by VERIFIED value-overlap, never by name/container):
+
+| Edge | mechanism | D-8 class | verdict |
+|---|---|---|---|
+| LEA → money | `REFERENCE=LEA…` shared by BillingDetail / RentRoll / DepositHeld | key overlap | **deterministic** ✓ |
+| LEA → deposit | `DepositHeld/Summary.REFERENCE = LEA…` | key overlap | **deterministic** ✓ (answers §5 Q1) |
+| LEA → property | lease reports carry `PROPERTY NAME` as **text**, never the `PRO` code | display-value overlap | **fuzzy** (name; hold-if-ambiguous) |
+| LEA → tenant/landlord | **only** `LeaseExpiry.TENANTS = "Family Farao (0719780357)"` + `LANDLORD` name | display-value, and INCOMPLETE | **MISSING as a key; held** |
+| TEN/ONR/SUP/AGT ↔ LEA | `LEA…` ∩ `TEN…` = ∅ (no shared values) | **no overlap** | **no edge — separate namespaces** |
+
+### The missing junction edge, named explicitly (ADDENDUM_21C §2)
+
+**There is NO key-level lease↔party edge in these eleven reports.** The contact namespaces (`TEN/ONR/SUP/AGT`)
+and the lease namespace (`LEA`) share no values, so D-8 correctly yields *no edge* — not a fuzzy join to attempt,
+an edge that is **absent from the dataset**. The only lease→party link is the `LeaseExpiry` display string, and
+that report is **FILTERED** (leases expiring soon): it lists `LEA000001` but **not `LEA000002`**, so even the
+name-string edge is incomplete — `LEA000002` has *no* party linkage in any of the eleven files. The set is
+**missing its junction report** (the MRI tenancy-schedule / lease-detail report that carries `LEA` **and** the
+`TEN/ONR` codes per row). This is a COMPLETENESS gap, not a join-cleverness gap (D-2/D-3).
+
+## The two §5 open questions — RESOLVED from the data
+
+1. **Deposit keys on `LEA`, not `TEN`.** `DepositHeld.REFERENCE` and `DepositSummary.REFERENCE` are both `LEA…`.
+   The deposit edge is owned by the **lease** — imported deposits attach to the lease (composes cleanly with the
+   deposit-attestation + rate-hold model, which is lease-scoped).
+2. **`RentRoll` (LEA-keyed) carries the money the importer needs; `GLByProperty`/`TrialBalance`/`VendorGL` are
+   REFERENCE-ONLY.** RentRoll gives the full per-lease breakdown (RENTAL/REPAIRS/UTILITIES/FEES/OTHER/CREDITS/
+   COMMISSION) by key. The GL reports have no key column — their property/lease context lives in **sheet section
+   breaks** (e.g. a `Twin Peaks(Johan Bouwer)` title row above each block) — so attributing GL rows needs
+   structural section parsing. But the importer never needs to: RentRoll supersedes GL as the money source, so
+   **GL section-parsing is a RECONCILIATION concern (control-total checks), not an import path.** GL/TrialBalance/
+   VendorGL do not enter the assembler's import output.
+
+## The required-report manifest (ADDENDUM_21C D-2) — minimal sufficient set to import a portfolio
+
+| # | Report (MRI) | Must carry (keys) | Supplies | Status in museum set |
+|---|---|---|---|---|
+| 1 | **junction / tenancy schedule** | `LEA` **and** `TEN`/`ONR` per row | the lease↔party edge | **MISSING — must be exported** |
+| 2 | lease detail | `LEA` → dates, rent, status | lease spine | present (`AdmRentbookBillingDetail`) |
+| 3 | contacts export | `TEN/ONR/SUP/AGT` → ID, bank, VAT, email | party identity | present (`ContactsExport`) |
+| 4 | property summary | `PRO` → property; ideally `LEA`→`PRO` | property + lease-property edge | present (`PropertySummary`), but LEA→PRO only by name |
+| 5 | deposit held | `LEA` → deposit | trust deposit liability | present (`DepositHeld`) |
+| 6 | rent roll (optional) | `LEA` → money breakdown | per-lease charges | present (`LeaseRentRoll`) |
+
+**Reference-only, NOT in the manifest:** `GLByProperty`, `TrialBalance`, `VendorGL` (control/reconciliation).
+
+**The gate on Phase 1:** without report #1 (the junction), the assembler resolves the lease spine, money,
+deposits and property (name-fuzzy), but **every lease↔party edge is HELD** (D-3) — the book imports with all
+tenancies flagged "no resolvable party linkage". The correct first action is to obtain the junction report, not
+to fuzzy-match names. If the agency cannot export it, the D-7 fallback (name+phone via the identity matcher,
+hold-if-ambiguous) is the safety net — never the primary path.
+
