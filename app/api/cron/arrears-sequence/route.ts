@@ -27,6 +27,7 @@ import { fmtDateLongZA, saDateISO } from "@/lib/dates"
 import { optionalEnv } from "@/lib/env"
 import { normalizePhone } from "@/lib/validation/contact"
 import { formatZAR } from "@/lib/constants"
+import { recordBlockedPendingField, resolveBlockedPendingField } from "@/lib/migration/blockedPendingField"
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -415,6 +416,19 @@ async function advanceSequenceStep(
   const ref     = arrearsCase.id.slice(0, 8).toUpperCase()
   const subject = resolveSubject(templateKey, amountDisplay, ref)
 
+  // 21E §3A-safety: a tenant with NEITHER email nor phone cannot be reached — the arrears comm must NOT fire
+  // (send-to-nowhere) and must NOT silently advance the sequence past it (vanished-action). Both were happening:
+  // the send at the bottom was gated on `email || phone`, but the step advanced regardless. Fail CLOSED — record a
+  // blocked_pending_field so it surfaces on the completeness metric, and do NOT advance. When the contact detail is
+  // added and this cron re-runs, it sends and clears the block.
+  if (!tenant?.email && !tenant?.phone) {
+    await recordBlockedPendingField(supabase, {
+      orgId: arrearsCase.org_id, action: "arrears_comm", subjectType: "tenant",
+      subjectId: arrearsCase.tenant_id, missingFields: ["primary_email", "primary_phone"],
+    })
+    return false // blocked, not done — the step does not advance
+  }
+
   // Record the action before sending (idempotency anchor)
   await supabase.from("arrears_actions").insert({
     org_id:      arrearsCase.org_id,
@@ -448,6 +462,8 @@ async function advanceSequenceStep(
       triggerEventType: "arrears_action",
       triggerEventId:   arrearsCase.id,
     })
+    // 21E §3A-safety: the comm reached the tenant — clear any prior block for this action+subject.
+    await resolveBlockedPendingField(supabase, { orgId: arrearsCase.org_id, action: "arrears_comm", subjectId: arrearsCase.tenant_id })
   }
 
   await supabase.from("arrears_cases").update({ current_step: nextStep }).eq("id", arrearsCase.id)

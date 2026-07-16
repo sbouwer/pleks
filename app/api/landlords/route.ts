@@ -14,6 +14,19 @@ import { getMembership } from "@/lib/supabase/getMembership"
 import { landlordHasInForceLease } from "@/lib/parties/archive"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { mandatoryGate, MissingMandatoryFieldsError, recomputeIncompleteMandatory } from "@/lib/migration/mandatoryGate"
+
+const MANDATORY_COLS = "first_name,last_name,company_name,primary_email,primary_phone"
+/** 21E §1 corollary 12: apply a partial landlord-contact edit, recomputing the flag from the MERGED record. */
+async function patchLandlordContactRecomputing(
+  service: Awaited<ReturnType<typeof createServiceClient>>, contactId: string, orgId: string, contactUpdate: Record<string, unknown>,
+): Promise<string | null> {
+  const { data: existing, error: exErr } = await service.from("contacts").select(MANDATORY_COLS).eq("id", contactId).eq("org_id", orgId).single()
+  if (exErr) return exErr.message
+  const { error } = await service.from("contacts")
+    .update({ ...contactUpdate, ...recomputeIncompleteMandatory("landlord", existing, contactUpdate) }).eq("id", contactId).eq("org_id", orgId)
+  return error ? error.message : null
+}
 
 export async function GET() {
   const supabase = await createClient()
@@ -47,8 +60,20 @@ export async function POST(req: NextRequest) {
 
   const { firstName, lastName, email, phone, idNumber, companyName } = await req.json()
 
-  if (!firstName?.trim() && !lastName?.trim() && !companyName?.trim()) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 })
+  // 21E §1: this legacy CRUD route bypasses the party wizard, so it must run the SAME registry gate server-side.
+  const landlordContact = {
+    first_name: firstName?.trim() || null,
+    last_name: lastName?.trim() || null,
+    company_name: companyName?.trim() || null,
+    primary_email: email?.trim() || null,
+    primary_phone: phone?.trim() || null,
+  }
+  let lGate: { incomplete_mandatory: null }
+  try {
+    lGate = mandatoryGate("landlord", landlordContact, { relax: false }) as { incomplete_mandatory: null }
+  } catch (e) {
+    if (e instanceof MissingMandatoryFieldsError) return NextResponse.json({ error: `Please add the landlord's ${e.missing.join(", ")}.` }, { status: 400 })
+    throw e
   }
 
   // Create contact first
@@ -56,11 +81,8 @@ export async function POST(req: NextRequest) {
     org_id: membership.org_id,
     entity_type: companyName?.trim() ? "organisation" : "individual",
     primary_role: "landlord",
-    first_name: firstName?.trim() || null,
-    last_name: lastName?.trim() || null,
-    company_name: companyName?.trim() || null,
-    primary_email: email?.trim() || null,
-    primary_phone: phone?.trim() || null,
+    ...landlordContact,
+    ...lGate,
     ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
     created_by: user.id,
   }).select("id").single()
@@ -143,9 +165,8 @@ export async function PATCH(req: NextRequest) {
 
   const contactUpdate = buildLandlordContactUpdate(body)
   if (Object.keys(contactUpdate).length > 0) {
-    const { error: contactError } = await service.from("contacts")
-      .update(contactUpdate).eq("id", body.contactId).eq("org_id", membership.org_id)
-    if (contactError) return NextResponse.json({ error: contactError.message }, { status: 500 })
+    const err = await patchLandlordContactRecomputing(service, body.contactId, membership.org_id, contactUpdate)
+    if (err) return NextResponse.json({ error: err }, { status: 500 })
   }
 
   const landlordUpdate = buildLandlordUpdate(body)

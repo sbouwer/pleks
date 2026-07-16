@@ -12,6 +12,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendInfoRequestCompletionNotify } from "@/lib/info-requests/sendInfoRequestEmail"
 import type { InfoRequestTopic } from "@/lib/info-requests/sendInfoRequestEmail"
+import { mandatoryGate } from "@/lib/migration/mandatoryGate"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,15 +67,22 @@ async function writebackLandlord(
   // Create contact + landlord if not already linked
   if (!property.landlord_id) {
     const isOrg = values.entity_type === "company" || values.entity_type === "trust"
-    const { data: contact, error: contactError } = await service.from("contacts").insert({
-      org_id:        property.org_id,
-      entity_type:   isOrg ? "organisation" : "individual",
-      primary_role:  "landlord",
+    // 21E §1: a PUBLIC, unauthenticated owner writeback. It returns void (fire-and-forget), so refusing would
+    // silently DROP the owner's submission — worse than tracking it. So RELAX+FLAG: capture whatever they gave and
+    // land it on the burn-down for the agent to complete. (Reclassified from "refuse" on inspecting the void contract.)
+    const wbContact = {
       first_name:    values.first_name || null,
       last_name:     values.last_name || null,
       company_name:  values.company_name || null,
       primary_email: values.email || null,
       primary_phone: values.phone || null,
+    }
+    const { data: contact, error: contactError } = await service.from("contacts").insert({
+      org_id:        property.org_id,
+      entity_type:   isOrg ? "organisation" : "individual",
+      primary_role:  "landlord",
+      ...wbContact,
+      ...mandatoryGate("landlord", wbContact, { relax: true }),
     }).select("id").single()
     if (contactError) console.error("writebackLandlord contacts insert failed:", contactError.message)
     if (!contact) return

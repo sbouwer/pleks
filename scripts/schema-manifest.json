@@ -782,6 +782,16 @@
       "created_at",
       "external_id"
     ],
+    "blocked_pending_field": [
+      "id",
+      "org_id",
+      "action",
+      "subject_type",
+      "subject_id",
+      "missing_fields",
+      "created_at",
+      "resolved_at"
+    ],
     "bug_context": [
       "submission_id",
       "route_path",
@@ -1098,7 +1108,8 @@
       "organisation_contact_id",
       "company_function",
       "is_primary_contact",
-      "is_signatory"
+      "is_signatory",
+      "incomplete_mandatory"
     ],
     "contractor_preferences": [
       "id",
@@ -1998,7 +2009,8 @@
       "vacated",
       "vacated_at",
       "service_address",
-      "legal_review_flags"
+      "legal_review_flags",
+      "incomplete_mandatory"
     ],
     "legal_hold_events": [
       "id",
@@ -2839,7 +2851,8 @@
       "after_hours_access",
       "after_hours_notice_hours",
       "after_hours_notes",
-      "managing_team_id"
+      "managing_team_id",
+      "incomplete_mandatory"
     ],
     "property_annual_summaries": [
       "id",

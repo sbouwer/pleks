@@ -24,6 +24,7 @@ import { addCalendarDays, addCalendarMonths, fmtDateLongZA, saTodayISO } from "@
 import { formatZAR } from "@/lib/constants"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { parseLeaseFormData } from "@/lib/leases/leaseFormFields"
+import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 
 
 type DbClient = GatewayContext["db"]
@@ -155,6 +156,15 @@ export async function createLease(formData: FormData) {
 
   const f = parseLeaseFormData(formData)
 
+  // 21E §1: refuse a live-create lease missing its start date or rent SERVER-SIDE (a blank rent parses to NaN and
+  // silently dropped to NULL before). A lease without rent/date is not a partial record — it's a non-lease.
+  try {
+    mandatoryGate("lease", { start_date: f.startDate, rent_amount_cents: f.rentCents }, { relax: false })
+  } catch (e) {
+    if (e instanceof MissingMandatoryFieldsError) return { error: `Please add the lease's ${e.missing.join(", ")}.` }
+    throw e
+  }
+
   // Fail-safe: never create a lease that overlaps the unit's current in-force lease (must start end+1).
   const overlap = await findLeaseOverlapBlock(db, orgId, f.unitId, f.startDate)
   if (overlap) return { error: overlap }
@@ -258,6 +268,14 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
   const depositCents = formData.get("deposit_amount")
     ? Math.round(Number.parseFloat(formData.get("deposit_amount") as string) * 100)
     : null
+
+  // 21E §1: refuse a live-create lease missing start date or rent server-side (blank rent → NaN, was NULL-dropped).
+  try {
+    mandatoryGate("lease", { start_date: startDate, rent_amount_cents: rentCents }, { relax: false })
+  } catch (e) {
+    if (e instanceof MissingMandatoryFieldsError) return { error: `Please add the lease's ${e.missing.join(", ")}.` }
+    throw e
+  }
 
   // Fail-safe: never create a lease that overlaps the unit's current in-force lease (must start end+1).
   const uploadOverlap = await findLeaseOverlapBlock(db, orgId, unitId, startDate)

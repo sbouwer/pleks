@@ -30,6 +30,18 @@ type LeaseUnit = {
   properties: LeaseUnitProperty
 } | null
 
+function checkMandatoryFields(lease: { incomplete_mandatory?: string[] | null }, leaseId: string): PrerequisiteResult {
+  const missing = lease.incomplete_mandatory ?? []
+  if (missing.length === 0) {
+    return { key: "mandatory_fields", label: "Lease details complete", status: "pass", message: "All mandatory lease fields are present" }
+  }
+  return {
+    key: "mandatory_fields", label: "Lease details complete", status: "fail",
+    message: `Imported without ${missing.join(", ")} — complete before activating this lease`,
+    action: { label: "Complete lease", href: `/leases/${leaseId}/edit` },
+  }
+}
+
 function checkLandlord(property: LeaseUnitProperty | null, propertyId: string | null): PrerequisiteResult {
   if (property?.landlord_id != null) {
     return { key: "landlord", label: "Landlord assigned", status: "pass", message: "Landlord is assigned to this property" }
@@ -189,6 +201,10 @@ export async function checkLeasePrerequisites(
   const propertyId = property?.id ?? null
   const unitId = lease.unit_id
   const tenantView = lease.tenant_view as { id: string; first_name: string; last_name: string } | null
+
+  // 0. 21E §3A / F3: an import-incomplete lease (missing start_date/rent — held as 'draft') cannot be activated
+  //    until its mandatory fields are filled. This is the activation gate that makes the lease relaxation safe.
+  items.push(checkMandatoryFields(lease, leaseId))
 
   // 1. Landlord assigned
   items.push(checkLandlord(property, propertyId))

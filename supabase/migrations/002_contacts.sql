@@ -1142,3 +1142,12 @@ CREATE INDEX IF NOT EXISTS idx_tenant_next_of_kin_tenant_id ON tenant_next_of_ki
 CREATE INDEX IF NOT EXISTS idx_tenants_created_by ON tenants(created_by);
 CREATE INDEX IF NOT EXISTS idx_user_orgs_tenants_tenant_id ON user_orgs_tenants(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_user_orgs_tenants_user_id ON user_orgs_tenants(user_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §21  ADDENDUM_21E: migration-completeness flag (contacts)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The SET of mandatory fields (§4 registry: first_name, last_name, primary_email, primary_phone) a contact is
+-- MISSING because it was imported without them. Import relaxes; the record lands flagged; first-touch / the
+-- server gate burn it down (21E §5). Empty/NULL = complete. Contacts' name/email/phone are ALREADY nullable, so
+-- no column-nullability change is needed here — only the flag. Derived from the registry, never hand-maintained.
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS incomplete_mandatory text[];

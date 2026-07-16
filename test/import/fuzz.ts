@@ -119,7 +119,12 @@ function checkNotSilent(
   if (corruption.scope !== "lease") return []
   if (corruption.expect === "imported") return []
   if (!projection.lease) return []                                  // refused — honest
-  if (projection.errors.some((e) => e.rowIndex === base.rowIndex)) return []   // flagged — honest
+  if (projection.errors.some((e) => e.rowIndex === base.rowIndex)) return []   // flagged in the report — honest
+  // 21E F3: a lease missing a MANDATORY field (start_date / rent) no longer refuses — it lands held 'draft' with
+  // its `incomplete_mandatory` set. That flag IS the "something was said": the record is on the burn-down and
+  // cannot activate. So a flagged-incomplete lease is honest, not silently-accepted.
+  const flag = projection.lease.incomplete_mandatory
+  if (Array.isArray(flag) && flag.length > 0) return []
 
   return [{
     ...base,

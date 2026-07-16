@@ -2922,3 +2922,15 @@ ALTER TABLE lease_lifecycle_events ADD CONSTRAINT lease_lifecycle_events_event_t
 -- from the CREATE TABLE above so a fresh replay never creates it; this DROP handles
 -- DBs that predate the change (idempotent). All values were nulled before the drop.
 ALTER TABLE leases DROP COLUMN IF EXISTS auto_renewal_notice_due;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_21E §7A: migration-completeness flag + start/rent relaxation (leases)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- F3 ruling (Stéan, CD walk 2026-07-16): lease import RELAXES like the rest — a lease missing start_date/rent is
+-- not dropped, it lands FLAGGED and INACTIVE (status='draft'). So start_date + rent_amount_cents are relaxed to
+-- NULLABLE. The runtime-NaN concern is contained by the held state: a draft lease cannot activate, invoice, or
+-- generate a notice (the escalation/notice engines key off status='active' + start_date), and the activation gate
+-- (checkLeasePrerequisites) refuses while incomplete_mandatory is non-empty — so null rent never reaches the math.
+ALTER TABLE leases ADD COLUMN IF NOT EXISTS incomplete_mandatory text[];
+ALTER TABLE leases ALTER COLUMN start_date        DROP NOT NULL;
+ALTER TABLE leases ALTER COLUMN rent_amount_cents DROP NOT NULL;

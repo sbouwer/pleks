@@ -84,9 +84,20 @@ const HEADERS = Object.keys(BOOK)
 const LEASE_COLS =
   "rent_amount_cents, deposit_amount_cents, lease_type, escalation_type, escalation_percent, cpa_applies, " +
   "cpa_applies_at_signing, is_fixed_term, payment_due_day, notice_period_days, payment_reference, " +
-  "deposit_interest_to, deposit_return_days, start_date, end_date, status, landlord_id"
+  "deposit_interest_to, deposit_return_days, start_date, end_date, status, landlord_id, incomplete_mandatory"
 
 type Row = Record<string, unknown>
+
+/** Was the agent TOLD about this column change? Via an import message on the column/field, OR — 21E F3 — the
+ *  lease was held status='draft' with a non-empty incomplete_mandatory (on the burn-down, cannot activate). */
+function columnChangeTold(lease: Row, col: string, now: unknown, dropped: string, messages: string): boolean {
+  if (messages.includes(col) || messages.includes(dropped.toLowerCase())) return true
+  // 21E F3: the incomplete_mandatory column IS the "the agent was told" signal — its change to name the missing
+  // field is honest by definition; and a lease held status='draft' with a non-empty flag is likewise not silent.
+  if (col === "incomplete_mandatory") return true
+  const incompleteFlag = Array.isArray(lease.incomplete_mandatory) && (lease.incomplete_mandatory as string[]).length > 0
+  return col === "status" && now === "draft" && incompleteFlag
+}
 
 async function importWith(orgId: string, agentId: string, book: Record<string, string>, headers: string[]) {
   const suggestions = matchColumns(headers)
@@ -162,8 +173,7 @@ describe("ABLATION — remove one field at a time and catch the defaults that li
 
         // The column took a DIFFERENT, CONFIDENT value because the field went missing. That is a default
         // speaking on the agency's behalf. It is only acceptable if the agent was TOLD.
-        const flagged = messages.includes(col) || messages.includes(dropped.toLowerCase())
-        findings.push({ field: dropped, column: col, was, now, flagged })
+        findings.push({ field: dropped, column: col, was, now, flagged: columnChangeTold(lease, col, now, dropped, messages) })
       }
     }
 

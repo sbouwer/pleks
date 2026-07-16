@@ -17,8 +17,20 @@ import { idNumberColumns, decryptIdNumber } from "@/lib/crypto/idNumber"
 import { PARTY_ROLES, toContactEntityType, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
 import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson, PartyAddressInput, PartyBankAccountInput } from "@/lib/parties/partyValidation"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 
 type Db = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
+
+/** 21E §1: refuse a live-create contact that lacks a mandatory field, server-side (the client validator can be
+ *  bypassed by a direct action call). Returns an error result; a complete record gets a null flag to spread. */
+function gateContact(role: "tenant" | "landlord", data: Record<string, unknown>): { incomplete_mandatory: null } | { error: string } {
+  try {
+    return mandatoryGate(role, data, { relax: false }) as { incomplete_mandatory: null }
+  } catch (e) {
+    if (e instanceof MissingMandatoryFieldsError) return { error: `Please add the ${role}'s ${e.missing.join(", ")}.` }
+    throw e
+  }
+}
 
 /** Parse a ZAR string (possibly "R 450,00" / "450") to integer cents; null when blank/unparseable. */
 function zarToCents(v: string | undefined): number | null {
@@ -472,8 +484,12 @@ export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyRe
     const f = input.form
     const name = partyDisplayName("landlord", input.entity, f)
 
+    const landlordData = buildPartyContactData("landlord", input.entity, f, orgId, userId)
+    const gate = gateContact("landlord", landlordData) // 21E §1: server-side refusal (live-create stays strict)
+    if ("error" in gate) return { ok: false, error: gate.error }
+
     const { data: contact, error: contactErr } = await db
-      .from("contacts").insert(buildPartyContactData("landlord", input.entity, f, orgId, userId)).select("id").single()
+      .from("contacts").insert({ ...landlordData, ...gate }).select("id").single()
     if (contactErr || !contact) {
       console.error("[addLandlordParty] contact insert failed:", contactErr?.message)
       return { ok: false, error: "Failed to create the contact" }
@@ -556,8 +572,14 @@ export async function updateLandlordParty(input: AddPartyInput, landlordId: stri
     const contactId = ll.contact_id as string
 
     const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    // 21E §1 corollary 12 + §3 first-touch: this is a FULL-form edit, so refuse if it would leave a mandatory
+    // field blank (prevents blanking a complete record, and forces completion when editing an import-incomplete
+    // one). Recomputes the flag to null on a complete save.
+    const landlordUpd = buildContactScalarUpdate(input.entity, f, primary)
+    const upGate = gateContact("landlord", landlordUpd)
+    if ("error" in upGate) return { ok: false, error: upGate.error }
     const { error: cErr } = await db.from("contacts")
-      .update(buildContactScalarUpdate(input.entity, f, primary)).eq("id", contactId).eq("org_id", orgId)
+      .update({ ...landlordUpd, ...upGate }).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateLandlordParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
 
     if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
@@ -669,8 +691,12 @@ export async function addTenantParty(input: AddPartyInput): Promise<AddPartyResu
     const primaryPerson = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
     const subjectEmail = (input.entity === "company" ? (f.companyEmail || primaryPerson?.email) : f.email)?.trim() || null
 
+    const tenantData = buildPartyContactData("tenant", input.entity, f, orgId, userId)
+    const gate = gateContact("tenant", tenantData) // 21E §1: server-side refusal (live-create stays strict)
+    if ("error" in gate) return { ok: false, error: gate.error }
+
     const { data: contact, error: contactErr } = await db
-      .from("contacts").insert(buildPartyContactData("tenant", input.entity, f, orgId, userId)).select("id").single()
+      .from("contacts").insert({ ...tenantData, ...gate }).select("id").single()
     if (contactErr || !contact) {
       console.error("[addTenantParty] contact insert failed:", contactErr?.message)
       return { ok: false, error: "Failed to create the contact" }
@@ -775,8 +801,13 @@ export async function updateTenantParty(input: AddPartyInput, tenantId: string):
     const contactId = tn.contact_id as string
 
     const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    // 21E §1 corollary 12 + §3 first-touch: full-form edit refuses if it would leave a mandatory field blank,
+    // and recomputes the flag on a complete save.
+    const tenantUpd = buildContactScalarUpdate(input.entity, f, primary)
+    const upGate = gateContact("tenant", tenantUpd)
+    if ("error" in upGate) return { ok: false, error: upGate.error }
     const { error: cErr } = await db.from("contacts")
-      .update(buildContactScalarUpdate(input.entity, f, primary)).eq("id", contactId).eq("org_id", orgId)
+      .update({ ...tenantUpd, ...upGate }).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateTenantParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
 
     const { error: tErr } = await db.from("tenants").update({

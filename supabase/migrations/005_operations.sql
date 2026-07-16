@@ -3211,3 +3211,32 @@ GRANT EXECUTE ON FUNCTION sign_off_maintenance_financials_atomic(uuid,uuid,uuid,
 ALTER TABLE contractors DROP CONSTRAINT IF EXISTS contractors_supplier_type_check;
 ALTER TABLE contractors ADD CONSTRAINT contractors_supplier_type_check
   CHECK (supplier_type IN ('contractor', 'recurring', 'both', 'managing_scheme', 'utility', 'other'));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_21E §3A-safety: automated-action fail-closed state
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- When a CRON / automated action (no human present to prompt) hits a missing required field, it must NOT fire
+-- (send-to-nowhere / defective notice) and must NOT silently advance (vanished-action). Instead it records a
+-- durable, queryable BLOCKED state here — surfacing on the completeness metric (§6) — and waits until the field
+-- is filled. Idempotent: one open block per (org, action, subject); the cron re-runs every few hours.
+CREATE TABLE IF NOT EXISTS blocked_pending_field (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id         uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  action         text NOT NULL,               -- e.g. 'arrears_comm'
+  subject_type   text NOT NULL,               -- e.g. 'tenant'
+  subject_id     uuid NOT NULL,               -- the record missing the field
+  missing_fields text[] NOT NULL,             -- which required fields are absent (>=1 needed to proceed)
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  resolved_at    timestamptz                  -- NULL = still blocked; set when the field is filled + action retried
+);
+-- One OPEN block per (org, action, subject) — a re-running cron updates the existing row, never piles up.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_blocked_pending_field_open
+  ON blocked_pending_field(org_id, action, subject_id) WHERE resolved_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_blocked_pending_field_org ON blocked_pending_field(org_id) WHERE resolved_at IS NULL;
+
+ALTER TABLE blocked_pending_field ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_blocked_pending_field" ON blocked_pending_field;
+CREATE POLICY "org_blocked_pending_field" ON blocked_pending_field
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+  );
