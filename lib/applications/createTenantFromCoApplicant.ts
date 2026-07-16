@@ -15,6 +15,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { decryptIdNumber, decryptDob, idNumberColumns } from "@/lib/crypto/idNumber"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { incompleteMandatoryColumn } from "@/lib/migration/mandatoryFields"
 
 export async function createTenantFromCoApplicant(
   coApplicantId: string,
@@ -70,6 +71,12 @@ export async function createTenantFromCoApplicant(
       org_id: co.org_id, entity_type: "individual", primary_role: "tenant",
       first_name: co.first_name, last_name: co.last_name,
       primary_email: co.applicant_email, primary_phone: co.applicant_phone,
+      // 21E §1 (F1, CD walk): a promote is a live net-new tenant, but from application data that may be
+      // incomplete. RELAX+flag (never hard-refuse a promote) — an incomplete conversion lands on the burn-down.
+      ...incompleteMandatoryColumn("tenant", {
+        first_name: co.first_name, last_name: co.last_name,
+        primary_email: co.applicant_email, primary_phone: co.applicant_phone,
+      }),
       id_type: co.id_type, ...idNumberColumns(decryptIdNumber(co.id_number)),
       date_of_birth: decryptDob(co.date_of_birth),
       created_by: authUserId,

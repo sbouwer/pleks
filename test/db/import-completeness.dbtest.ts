@@ -17,6 +17,7 @@ import { svc, seedEmptyOrg, seedUser, teardownOrg, teardownUser } from "@/test/d
 import { matchColumns } from "@/lib/import/columnMapper"
 import { toColumnMapping, toImportDecisions } from "@/lib/import/decisions"
 import { runImport } from "@/lib/import/importRunner"
+import { checkLeasePrerequisites } from "@/lib/leases/checkPrerequisites"
 
 const db = svc()
 
@@ -57,11 +58,22 @@ describe("IMPORT COMPLETENESS — records land flagged, never refused (21E §5/�
     "First Name": "Donovan & Apphia", Surname: "Farao", Email: "don@x.co.za,apphia@x.co.za", Cell: "0821112222",
     "Lease Start": "2024-01-01", "Lease End": "2026-12-31", "Monthly Rent": "7500",
   })
+  // F2 (CD walk): a tenant row with NO name — must be flagged [first_name,last_name], not masked by "Unknown".
+  const NONAME = row({
+    Property: "Nameless House", Address: "3 Elm St", City: "Pretoria", Province: "Gauteng", Unit: "1",
+    Email: "someone@x.co.za", Cell: "0823334444", "Lease Start": "2024-01-01", "Lease End": "2026-12-31", "Monthly Rent": "6000",
+  })
+  // F3 (CD walk): a lease row with BLANK rent — the lease must LAND (held 'draft', flagged), not be dropped.
+  const NORENT = row({
+    Property: "No Rent House", Address: "4 Fir Rd", City: "Cape Town", Province: "Western Cape", Unit: "1",
+    "First Name": "Rent", Surname: "Less", Email: "rentless@x.co.za", Cell: "0825556666", "Lease Start": "2024-01-01", "Lease End": "2026-12-31",
+    // NO Monthly Rent
+  })
 
   beforeAll(async () => {
     agentId = seedUser()
     orgId = await seedEmptyOrg(db)
-    await importRows(orgId, agentId, [INCOMPLETE, COMPLETE, JOINT])
+    await importRows(orgId, agentId, [INCOMPLETE, COMPLETE, JOINT, NONAME, NORENT])
   }, 120_000)
 
   afterAll(() => {
@@ -93,6 +105,29 @@ describe("IMPORT COMPLETENESS — records land flagged, never refused (21E §5/�
     const { data: apphia, error: aErr } = await db.from("contacts").select("incomplete_mandatory").eq("org_id", orgId).eq("first_name", "Apphia").single()
     if (aErr) throw new Error(aErr.message)
     expect(apphia.incomplete_mandatory, "the co-tenant lands ON the burn-down, not off it").toEqual(["primary_phone"])
+  })
+
+  it("F2: a nameless tenant is flagged [first_name, last_name] — not masked by the 'Unknown' fallback", async () => {
+    const { data, error } = await db.from("contacts")
+      .select("first_name, incomplete_mandatory").eq("org_id", orgId).eq("primary_email", "someone@x.co.za").single()
+    if (error) throw new Error(error.message)
+    expect(data.first_name, "still stored as the 'Unknown' display placeholder").toBe("Unknown")
+    expect(data.incomplete_mandatory, "but flagged on the RAW missing name").toEqual(["first_name", "last_name"])
+  })
+
+  it("F3: a lease with blank rent LANDS held 'draft', flagged [rent_amount_cents], and cannot activate", async () => {
+    const { data: leases, error: lErr } = await db.from("leases")
+      .select("id, status, rent_amount_cents, incomplete_mandatory").eq("org_id", orgId)
+    if (lErr) throw new Error(lErr.message)
+    const norent = leases!.find((l) => (l.incomplete_mandatory ?? []).includes("rent_amount_cents"))
+    expect(norent, "the lease landed — not dropped into errors[]").toBeTruthy()
+    expect(norent!.status, "held inactive").toBe("draft")
+    expect(norent!.rent_amount_cents, "rent is null, not invented").toBeNull()
+
+    const prereqs = await checkLeasePrerequisites(db, norent!.id as string, orgId)
+    const gate = prereqs.items.find((i) => i.key === "mandatory_fields")
+    expect(gate?.status, "the activation gate fails while a mandatory field is missing").toBe("fail")
+    expect(prereqs.canProceed, "cannot activate an incomplete lease").toBe(false)
   })
 
   it("a COMPLETE property and tenant carry a NULL flag (not a burn-down item)", async () => {

@@ -2924,12 +2924,13 @@ ALTER TABLE lease_lifecycle_events ADD CONSTRAINT lease_lifecycle_events_event_t
 ALTER TABLE leases DROP COLUMN IF EXISTS auto_renewal_notice_due;
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- ADDENDUM_21E: migration-completeness flag (leases)
+-- ADDENDUM_21E §7A: migration-completeness flag + start/rent relaxation (leases)
 -- ═══════════════════════════════════════════════════════════════════════════════
--- The flag column, for uniformity across the three completable entities. NOTE (CC 2026-07-16, deliberate scope):
--- `start_date` and `rent_amount_cents` stay NOT NULL — unlike the property address, they are NOT relaxed. MRI's
--- billing detail carries both, so the relax is not exercised; and nullable rent would risk runtime NaN across the
--- financial math (rent flows everywhere). A lease genuinely missing rent/start is better HELD by the importer than
--- inserted as a null lease. Revisit (make nullable + null-handle the financial paths) only if a real source lacks
--- them. The column exists now so a lease missing a FUTURE non-load-bearing mandatory field can be flagged uniformly.
+-- F3 ruling (Stéan, CD walk 2026-07-16): lease import RELAXES like the rest — a lease missing start_date/rent is
+-- not dropped, it lands FLAGGED and INACTIVE (status='draft'). So start_date + rent_amount_cents are relaxed to
+-- NULLABLE. The runtime-NaN concern is contained by the held state: a draft lease cannot activate, invoice, or
+-- generate a notice (the escalation/notice engines key off status='active' + start_date), and the activation gate
+-- (checkLeasePrerequisites) refuses while incomplete_mandatory is non-empty — so null rent never reaches the math.
 ALTER TABLE leases ADD COLUMN IF NOT EXISTS incomplete_mandatory text[];
+ALTER TABLE leases ALTER COLUMN start_date        DROP NOT NULL;
+ALTER TABLE leases ALTER COLUMN rent_amount_cents DROP NOT NULL;

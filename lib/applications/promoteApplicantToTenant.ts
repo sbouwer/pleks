@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { decryptIdNumber, decryptDob, idNumberColumns } from "@/lib/crypto/idNumber"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { incompleteMandatoryColumn } from "@/lib/migration/mandatoryFields"
 
 export async function promoteApplicationToTenant(
   db: SupabaseClient,
@@ -85,6 +86,11 @@ export async function promoteApplicationToTenant(
       org_id: application.org_id, entity_type: "individual", primary_role: "tenant",
       first_name: application.first_name, last_name: application.last_name,
       primary_email: application.applicant_email, primary_phone: application.applicant_phone,
+      // 21E §1 (F1, CD walk): promote from application data — RELAX+flag (never hard-refuse a promote).
+      ...incompleteMandatoryColumn("tenant", {
+        first_name: application.first_name, last_name: application.last_name,
+        primary_email: application.applicant_email, primary_phone: application.applicant_phone,
+      }),
       id_type: application.id_type,
       ...idNumberColumns(decryptIdNumber(application.id_number)),
       date_of_birth: decryptDob(application.date_of_birth),

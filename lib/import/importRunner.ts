@@ -879,8 +879,9 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         primary_role: "tenant",
         ...contactCore,
         // 21E §5/§7: land the record FLAGGED with the mandatory fields it lacks (email is instance #1), rather
-        // than refusing it. Derived from the §4 registry, from the SAME values written above.
-        ...incompleteMandatoryColumn("tenant", contactCore),
+        // than refusing it. F2 (CD walk): flag on the RAW names, not the "Unknown" fallback — else a nameless
+        // import is "Unknown Unknown", off the burn-down. The stored first_name keeps the "Unknown" display.
+        ...incompleteMandatoryColumn("tenant", { ...contactCore, first_name: firstName || null, last_name: lastName || null }),
         ...idNumberColumns(getField(entry.row, "id_number", ctx.mapping)), // encrypted at rest + lookup hash
         ...(normIdType ? { id_type: normIdType } : {}),
         date_of_birth: dobRaw ? normaliseDate(dobRaw) : null,
@@ -1082,8 +1083,8 @@ async function insertSingleTenant(params: {
       last_name: lastName || "Unknown",
       primary_email: email,
       primary_phone: phone || null,
-      // 21E §5/§7: a co-tenant (joint-tenancy half) is a full tenant — flag what it lacks (was untracked).
-      ...incompleteMandatoryColumn("tenant", { first_name: firstName || "Unknown", last_name: lastName || "Unknown", primary_email: email, primary_phone: phone || null }),
+      // 21E §5/§7 + F2: a co-tenant (joint-tenancy half) is a full tenant — flag what it lacks, on the RAW names.
+      ...incompleteMandatoryColumn("tenant", { first_name: firstName || null, last_name: lastName || null, primary_email: email, primary_phone: phone || null }),
       ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
     })
     .select("id").single()
@@ -1369,23 +1370,23 @@ function refuse(ctx: ImportContext, rowIndex: number, field: string, message: st
  *  (rather than letting Postgres 23502 and surfacing as a generic "Failed to create lease"). */
 function requiredLeaseFields(
   row: Record<string, string>, rowIndex: number, ctx: ImportContext,
-): { startDate: string; rentCents: number } | null {
+): { startDate: string | null; rentCents: number | null } {
+  // F3 (21E §7A, CD walk): a missing/unreadable start_date or rent NO LONGER refuses the lease. The lease lands
+  // FLAGGED + INACTIVE (status='draft', buildLeaseData) rather than being dropped into errors[] — never lose a
+  // lease over a mandatory field. A present-but-UNREADABLE value gets a warning so the agent knows it wasn't just
+  // absent; a truly blank one is covered by the incomplete_mandatory flag.
   const leaseStartRaw = getField(row, "lease_start", ctx.mapping)
   const startDate = leaseStartRaw ? normaliseDate(leaseStartRaw) : null
-  if (!startDate) {
-    refuse(ctx, rowIndex, "lease_start", leaseStartRaw
-      ? `Could not read lease start "${leaseStartRaw}" as a date — a lease cannot be created without a start date.`
-      : "A lease start date is required — map the lease start column and re-import.")
-    return null
+  if (leaseStartRaw && !startDate) {
+    flagForReview(ctx, rowIndex, "lease_start",
+      `Could not read lease start "${leaseStartRaw}" as a date — imported without a start date; the lease is held inactive until it is added.`)
   }
 
   const rent = getFieldSource(row, "rent_amount_cents", ctx.mapping)
   const rentCents = rent.value ? normaliseMoneyCents(rent.value, rent.column) : null
-  if (rentCents === null) {
-    refuse(ctx, rowIndex, "rent_amount_cents", rent.value
-      ? `Could not read rent "${rent.value}" (column "${rent.column}") as an amount — a lease cannot be created without rent.`
-      : "A rent amount is required — map the rent column and re-import.")
-    return null
+  if (rent.value && rentCents === null) {
+    flagForReview(ctx, rowIndex, "rent_amount_cents",
+      `Could not read rent "${rent.value}" (column "${rent.column}") as an amount — imported without rent; the lease is held inactive until it is added.`)
   }
 
   return { startDate, rentCents }
@@ -1744,8 +1745,7 @@ function buildLeaseData(
   normalisedEnd: string | null,
   ctx: ImportContext
 ): LeaseBuild {
-  const required = requiredLeaseFields(row, rowIndex, ctx)
-  if (!required) return { ok: false }
+  const required = requiredLeaseFields(row, rowIndex, ctx) // F3: never null now — a missing field flags, not drops
 
   const classifications = leaseClassifications(row, rowIndex, ctx)
   if (!classifications) return { ok: false }
@@ -1753,6 +1753,15 @@ function buildLeaseData(
   // Advisory — import, but tell the agent (F-9 end date, F-8 deposit).
   checkLeaseEnd(row, normalisedEnd, rowIndex, ctx)
   const depositCents = moneyCentsOrFlag(row, "deposit_amount_cents", rowIndex, ctx)
+
+  // F3 (21E §7A): a lease missing start_date/rent lands FLAGGED and HELD as 'draft' — it cannot activate/invoice/
+  // notice (those key off status='active'; the activation gate refuses while incomplete_mandatory is non-empty),
+  // so null rent never reaches the financial math. Filling the fields clears the flag and permits activation.
+  const leaseGate = incompleteMandatoryColumn("lease", { start_date: required.startDate, rent_amount_cents: required.rentCents })
+  const leaseIncomplete = (leaseGate.incomplete_mandatory?.length ?? 0) > 0
+  let leaseStatus: string = "active"
+  if (leaseIncomplete) leaseStatus = "draft"      // F3: held until start_date + rent are filled
+  else if (isExpired) leaseStatus = "expired"
 
   const data: Record<string, unknown> = {
     unit_id: unitId,
@@ -1763,7 +1772,8 @@ function buildLeaseData(
     end_date: normalisedEnd,
     rent_amount_cents: required.rentCents,
     deposit_amount_cents: depositCents,
-    status: isExpired ? "expired" : "active",
+    ...leaseGate,
+    status: leaseStatus,
     // NO payment_method: `leases` has no such column. Writing it made PostgREST reject EVERY lease insert
     // ("Could not find the 'payment_method' column ... in the schema cache"). Its aliases are gone too.
     ...classifications,
@@ -1774,14 +1784,16 @@ function buildLeaseData(
   // ── BOUNDS. "It parses" is a much weaker claim than "it could be true". A negative rent, a lease that ends
   // before it starts, a 500% escalation: all type-valid, all nonsense. INCOHERENT values refuse the row;
   // IMPLAUSIBLE ones import with a warning, because refusing them would block a legitimate edge case.
-  const issues = checkLeasePlausibility({
-    rentCents: required.rentCents,
+  // An incomplete lease is held 'draft' with null start/rent — plausibility (negative rent, end-before-start) is
+  // moot until those are filled, and can't run on nulls. Complete leases still get the full bounds check.
+  const issues = leaseIncomplete ? [] : checkLeasePlausibility({
+    rentCents: required.rentCents!,
     depositCents: depositCents,
     escalationPercent: typeof data.escalation_percent === "number" ? data.escalation_percent : null,
     arrearsMarginPercent: typeof data.arrears_interest_margin_percent === "number" ? data.arrears_interest_margin_percent : null,
     noticePeriodDays: typeof data.notice_period_days === "number" ? data.notice_period_days : null,
     depositReturnDays: typeof data.deposit_return_days === "number" ? data.deposit_return_days : null,
-    startDate: required.startDate,
+    startDate: required.startDate!,
     endDate: normalisedEnd,
     todayISO: saTodayISO(),
   })
@@ -2122,8 +2134,8 @@ async function resolveTenantIdForHistory(
       // 21E §5/§7: a prior-tenant history row is a tenant contact — flag what it lacks (was untracked; it carries
       // no phone at all, so primary_phone is always part of its incomplete set).
       ...incompleteMandatoryColumn("tenant", {
-        first_name: firstName || (prevTenantCompany ? null : "Unknown"),
-        last_name: lastName || (prevTenantCompany ? null : "Unknown"),
+        first_name: firstName || null, // F2: raw, not the "Unknown" fallback
+        last_name: lastName || null,
         company_name: prevTenantCompany || null,
         primary_email: email,
         primary_phone: null,
@@ -2570,8 +2582,9 @@ async function importLandlords(
           entity_type: resolveEntityType(landlordCompany, landlordDisplay),
           primary_role: "landlord",
           ...contactCore,
-          // 21E §5/§7: flag the missing mandatory fields (email is instance #1) rather than refuse the landlord.
-          ...incompleteMandatoryColumn("landlord", contactCore),
+          // 21E §5/§7 + F2: flag the missing mandatory fields (email is instance #1), on the RAW names not the
+          // "Unknown" fallback.
+          ...incompleteMandatoryColumn("landlord", { ...contactCore, first_name: firstName || null, last_name: lastName || null }),
           ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
           registration_number: regNumber,
           vat_number: vatNumber,
@@ -2733,8 +2746,8 @@ async function findOrCreateLandlord(
       // 21E §5/§7: a landlord synthesised from a property's owner name is a landlord contact — flag what it lacks
       // (was untracked; owner_phone is often blank, and this path never has an email of its own).
       ...incompleteMandatoryColumn("landlord", {
-        first_name: firstName || (ownerName ? null : "Unknown"),
-        last_name: lastName || (ownerName ? null : "Unknown"),
+        first_name: firstName || null, // F2: raw, not the "Unknown" fallback
+        last_name: lastName || null,
         company_name: resolveEntityType("", ownerName) === "organisation" ? ownerName : null,
         primary_email: email,
         primary_phone: String(property.owner_phone ?? "") || null,
