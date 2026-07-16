@@ -6,7 +6,7 @@
  *         — not merely undefined — so a record imported with `city: ""` is flagged, not silently counted complete.
  */
 import { describe, it, expect } from "vitest"
-import { missingMandatoryFields, isRecordComplete, MANDATORY_FIELDS } from "./mandatoryFields"
+import { missingMandatoryFields, isRecordComplete, MANDATORY_FIELDS, describeMissingFields } from "./mandatoryFields"
 
 describe("missingMandatoryFields — the incomplete_mandatory set", () => {
   it("a property with only a name is missing address+city+province (the MRI case)", () => {
@@ -49,5 +49,14 @@ describe("missingMandatoryFields — the incomplete_mandatory set", () => {
   it("a natural person with no name is flagged for both first and last", () => {
     expect(missingMandatoryFields("tenant", { primary_email: "a@b.co", primary_phone: "0821112222" }))
       .toEqual(["first_name", "last_name"])
+  })
+})
+
+describe("describeMissingFields — the first-touch prompt text (§3)", () => {
+  it("turns storage columns into a plain-language list", () => {
+    expect(describeMissingFields(["address_line1", "city", "province"])).toBe("address, city and province")
+    expect(describeMissingFields(["primary_email"])).toBe("email")
+    expect(describeMissingFields(["rent_amount_cents"])).toBe("rent")
+    expect(describeMissingFields([])).toBe("")
   })
 })
