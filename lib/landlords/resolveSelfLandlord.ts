@@ -12,6 +12,7 @@
  */
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import type { GatewayContext } from "@/lib/supabase/gateway"
+import { mandatoryGate } from "@/lib/migration/mandatoryGate"
 
 type Db = GatewayContext["db"]
 
@@ -71,13 +72,15 @@ export async function resolveSelfLandlord(
   const lastName  = fullName.includes(" ") ? fullName.slice(fullName.indexOf(" ") + 1).trim() : null
   const phone     = (profile?.mobile as string | null) ?? (profile?.phone as string | null) ?? null
 
+  // 21E §1: an onboarding identity-mirror ("add me as landlord"), created BEFORE the user has entered an email —
+  // so it RELAXES + flags (refusing would break onboarding). It lands on the burn-down, completed on first touch.
+  const selfContact = { first_name: firstName, last_name: lastName, primary_phone: phone }
   const { data: contact, error: contactErr } = await db.from("contacts").insert({
     org_id:        orgId,
     entity_type:   "individual",
     primary_role:  "landlord",
-    first_name:    firstName,
-    last_name:     lastName,
-    primary_phone: phone,
+    ...selfContact,
+    ...mandatoryGate("landlord", selfContact, { relax: true }),
     created_by:    userId,
   }).select("id").single()
   if (contactErr || !contact) {

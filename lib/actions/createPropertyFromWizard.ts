@@ -22,6 +22,7 @@ import { createPropertyInfoRequest } from "./propertyInfoRequests"
 import { initializeInsuranceChecklist } from "@/lib/insurance-checklist/initializeChecklist"
 import { reEvaluatePolicyHeader } from "@/lib/insurance-checklist/reEvaluatePolicyHeader"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -154,15 +155,28 @@ async function resolveLandlord(
   }
 
   const isCompany = l.entity_type === "company" || l.entity_type === "trust"
-  const { data: contact, error: contactErr } = await db.from("contacts").insert({
-    org_id:        orgId,
-    entity_type:   isCompany ? "organisation" : "individual",
-    primary_role:  "landlord",
+  // 21E §1: a NEW owner entered in the wizard is a live-create landlord — refuse if incomplete (the "later" paths
+  // above return before this; resolveSelfLandlord relaxes). Same registry as everywhere else.
+  const ownerContact = {
     first_name:    l.first_name?.trim() || null,
     last_name:     l.last_name?.trim() || null,
     company_name:  l.company_name?.trim() || null,
     primary_email: l.email?.trim() || null,
     primary_phone: l.phone?.trim() || null,
+  }
+  let ownerGate: { incomplete_mandatory: null }
+  try {
+    ownerGate = mandatoryGate("landlord", ownerContact, { relax: false }) as { incomplete_mandatory: null }
+  } catch (e) {
+    if (e instanceof MissingMandatoryFieldsError) return { ok: false, error: `Please add the owner's ${e.missing.join(", ")}.` }
+    throw e
+  }
+  const { data: contact, error: contactErr } = await db.from("contacts").insert({
+    org_id:        orgId,
+    entity_type:   isCompany ? "organisation" : "individual",
+    primary_role:  "landlord",
+    ...ownerContact,
+    ...ownerGate,
     created_by:    userId,
   }).select("id").single()
 
@@ -509,8 +523,11 @@ export async function createPropertyFromWizard(formData: FormData): Promise<Wiza
 
   try {
     const propertyRow = buildPropertyInsertRow(payload, universals, profile, orgId, landlordId)
+    // 21E §1: refuse a wizard property missing city/province (validatePayload never checked them; province falls
+    // back to null). The self-describing error propagates through this try's catch as the failure reason.
+    const propGate = mandatoryGate("property", propertyRow, { relax: false })
     const { data: property, error: propErr } = await db.from("properties")
-      .insert(propertyRow).select("id").single()
+      .insert({ ...propertyRow, ...propGate }).select("id").single()
     if (propErr || !property) {
       console.error("createPropertyFromWizard: property insert failed:", propErr?.message)
       throw new Error(propErr?.message ?? "Failed to create property")

@@ -14,6 +14,7 @@ import { getMembership } from "@/lib/supabase/getMembership"
 import { landlordHasInForceLease } from "@/lib/parties/archive"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 
 export async function GET() {
   const supabase = await createClient()
@@ -47,8 +48,20 @@ export async function POST(req: NextRequest) {
 
   const { firstName, lastName, email, phone, idNumber, companyName } = await req.json()
 
-  if (!firstName?.trim() && !lastName?.trim() && !companyName?.trim()) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 })
+  // 21E §1: this legacy CRUD route bypasses the party wizard, so it must run the SAME registry gate server-side.
+  const landlordContact = {
+    first_name: firstName?.trim() || null,
+    last_name: lastName?.trim() || null,
+    company_name: companyName?.trim() || null,
+    primary_email: email?.trim() || null,
+    primary_phone: phone?.trim() || null,
+  }
+  let lGate: { incomplete_mandatory: null }
+  try {
+    lGate = mandatoryGate("landlord", landlordContact, { relax: false }) as { incomplete_mandatory: null }
+  } catch (e) {
+    if (e instanceof MissingMandatoryFieldsError) return NextResponse.json({ error: `Please add the landlord's ${e.missing.join(", ")}.` }, { status: 400 })
+    throw e
   }
 
   // Create contact first
@@ -56,11 +69,8 @@ export async function POST(req: NextRequest) {
     org_id: membership.org_id,
     entity_type: companyName?.trim() ? "organisation" : "individual",
     primary_role: "landlord",
-    first_name: firstName?.trim() || null,
-    last_name: lastName?.trim() || null,
-    company_name: companyName?.trim() || null,
-    primary_email: email?.trim() || null,
-    primary_phone: phone?.trim() || null,
+    ...landlordContact,
+    ...lGate,
     ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
     created_by: user.id,
   }).select("id").single()
