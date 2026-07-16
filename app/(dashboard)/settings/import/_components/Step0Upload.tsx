@@ -61,9 +61,24 @@ export function Step0Upload({ onAnalysed, onGlDetected }: Readonly<Step0UploadPr
         rows = result.data
       } else {
         const XLSX = await import("xlsx")
+        const { nonEmptySheetNames } = await import("@/lib/import/xlsxSheets")
         const buffer = await file.arrayBuffer()
         const workbook = XLSX.read(buffer, { type: "array" })
-        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+
+        // A multi-tab workbook is a relational table SET, not one sheet — reading tab 1 and dropping the rest
+        // silently discards data (ADDENDUM_21C §0.2, report-honesty fail-open). Multi-table import (the assembler)
+        // is not built yet, so HALT rather than import tab 1 alone. Blank spacer tabs do not count.
+        const dataSheets = nonEmptySheetNames(workbook, XLSX)
+        if (dataSheets.length > 1) {
+          setError(
+            `This workbook has ${dataSheets.length} tabs with data (${dataSheets.join(", ")}). A multi-tab export ` +
+            `is a set of related tables — importing only the first would silently drop the rest. Multi-table ` +
+            `import isn't available yet: please upload one table at a time (a single-tab workbook, or a CSV).`,
+          )
+          setLoading(false)
+          return
+        }
+        const sheet = workbook.Sheets[dataSheets[0] ?? workbook.SheetNames[0]]
         const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" })
         if (jsonData.length > 0) {
           rows = jsonData

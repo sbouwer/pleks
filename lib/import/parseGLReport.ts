@@ -6,6 +6,7 @@
 import Papa from "papaparse"
 import * as XLSX from "xlsx"
 import { normaliseCurrencyCents } from "./normalise"
+import { nonEmptySheetNames } from "./xlsxSheets"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -438,28 +439,31 @@ function buildXlsxPropertyBlock(
 export function parseGLXlsx(buffer: ArrayBuffer): GLPropertyBlock[] {
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true })
 
-  const firstSheetName = workbook.SheetNames.at(0)
-  if (!firstSheetName) {
+  // A GL export commonly carries ONE PROPERTY PER TAB (ADDENDUM_21C §0.2 — the museum's rptGLByProperty puts its
+  // second property on tab 2). Reading only sheet 0 silently dropped every property after the first. Parse the
+  // section boundaries of EVERY non-empty tab and accumulate — nothing vanishes. Blank spacer tabs are skipped.
+  const dataSheets = nonEmptySheetNames(workbook, XLSX)
+  if (dataSheets.length === 0) {
     throw new Error("XLSX file has no sheets")
   }
 
-  const sheet = workbook.Sheets[firstSheetName]
-  if (!sheet) {
-    throw new Error("Could not read first sheet")
-  }
-
-  const range = XLSX.utils.decode_range(sheet["!ref"] ?? "A1")
-  const boundaries = findXlsxBoundaries(sheet, range)
   const blocks: GLPropertyBlock[] = []
+  for (const sheetName of dataSheets) {
+    const sheet = workbook.Sheets[sheetName]
+    if (!sheet) continue
 
-  for (const boundary of boundaries) {
-    const headerMatch = PROPERTY_HEADER_RE.exec(boundary.propertyHeader)
-    if (!headerMatch) continue
+    const range = XLSX.utils.decode_range(sheet["!ref"] ?? "A1")
+    const boundaries = findXlsxBoundaries(sheet, range)
 
-    const propertyName = (headerMatch[1] ?? "").trim()
-    const ownerName = (headerMatch[2] ?? "").trim()
+    for (const boundary of boundaries) {
+      const headerMatch = PROPERTY_HEADER_RE.exec(boundary.propertyHeader)
+      if (!headerMatch) continue
 
-    blocks.push(buildXlsxPropertyBlock(propertyName, ownerName, boundary, sheet))
+      const propertyName = (headerMatch[1] ?? "").trim()
+      const ownerName = (headerMatch[2] ?? "").trim()
+
+      blocks.push(buildXlsxPropertyBlock(propertyName, ownerName, boundary, sheet))
+    }
   }
 
   return blocks
