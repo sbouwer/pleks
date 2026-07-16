@@ -183,6 +183,28 @@ function indexByLea(table: StagedTable | undefined, ...valueCols: string[]): Map
   return map
 }
 
+/**
+ * D-4 report-honesty for SATELLITE references: a deposit / parties row whose LEA matches no lease in the spine is
+ * an orphan — reported, never silently dropped. `resolved + held = total` covers the satellite class too.
+ */
+function orphanHolds(tables: StagedTable[], validLeases: Set<string>): Hold[] {
+  const holds: Hold[] = []
+  for (const kind of ["deposit", "lease_parties"] as const) {
+    const t = tables.find((x) => x.kind === kind)
+    for (const row of t?.rows ?? []) {
+      const ref = cell(row, t!.keyColumn ?? "REFERENCE")
+      if (ref && !validLeases.has(normaliseRef(ref))) {
+        holds.push({
+          kind: "reference", subject: ref,
+          reason: `A ${kind === "deposit" ? "deposit" : "lease-parties"} row references lease ${ref}, which is in no uploaded lease report — an orphan; nothing is imported for it.`,
+          decisions: ["upload_table", "exclude"],
+        })
+      }
+    }
+  }
+  return holds
+}
+
 export function assemble(tables: StagedTable[]): AssembledBook {
   const first = (k: StagedEntityKind) => tables.find((t) => t.kind === k)
   const leaseTable = first("lease")
@@ -209,8 +231,18 @@ export function assemble(tables: StagedTable[]): AssembledBook {
   let resolved = 0
   let held = 0
   const usedContacts = new Set<string>()
+  const seenLeases = new Set<string>()
 
   for (const leaseRow of leaseTable?.rows ?? []) {
+    const leaseKey = normaliseRef(cell(leaseRow, leaseTable!.keyColumn ?? "REFERENCE"))
+    if (leaseKey && seenLeases.has(leaseKey)) {
+      // A duplicate LEA is imported ONCE and the repeat is reported — never two silent leases for one (D-4).
+      holds.push({ kind: "reference", subject: leaseKey, reason: `Lease ${leaseKey} appears more than once in the lease report — imported once; the duplicate is ignored.`, decisions: ["exclude"] })
+      held++
+      continue
+    }
+    if (leaseKey) seenLeases.add(leaseKey)
+
     const out = processLease(leaseRow, leaseTable!.keyColumn ?? "REFERENCE", ctx)
     holds.push(...out.holds)
     resolved += out.resolved
@@ -218,6 +250,11 @@ export function assemble(tables: StagedTable[]): AssembledBook {
     out.used.forEach((u) => usedContacts.add(u))
     if (out.row) rows.push(out.row)
   }
+
+  // Satellite orphans (D-4) — a deposit / parties row pointing at a lease that does not exist.
+  const orphans = orphanHolds(tables, seenLeases)
+  holds.push(...orphans)
+  held += orphans.length
 
   // Every contact not already denormalised onto an emitted lease imports standalone, so no identity is lost.
   for (const [key, c] of contactsByRef) {
