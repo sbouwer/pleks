@@ -110,9 +110,11 @@ describe.skipIf(!PRESENT)("MRI ACCEPTANCE — a real Rentbook contacts export th
     // build leases from it. The acceptance criterion is that it says so BY ROW AND FIELD rather than importing
     // half a portfolio in silence. Probe-fires: if `property_name` were not required, that error vanishes and
     // this assertion FAILS — it can produce the failure it exists to catch.
-    const fields = new Set(result.errors.map((e) => e.field))
-    expect(fields.has("property_name"), "no property on an identity row → named, not guessed").toBe(true)
-    expect(fields.has("email"), "an email-less legacy party → named, not dropped in silence").toBe(true)
+    const byField = new Map(result.errors.map((e) => [e.field, e.severity]))
+    expect(byField.has("property_name"), "no property on an identity row → named, not guessed").toBe(true)
+    // Email-less parties are now IMPORTED with a warning (the migration relax), not rejected — but still NAMED,
+    // never silently dropped. So email appears as a WARNING here, not an error.
+    expect(byField.get("email"), "an email-less legacy party → flagged, not dropped in silence").toBe("warning")
     expect(result.errors.length, "a contacts-only file cannot import clean — it is not a rent roll").toBeGreaterThan(0)
     expect(result.errors.every((e) => e.message.length > 0), "no blank/silent error").toBe(true)
   })
