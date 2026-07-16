@@ -6,7 +6,7 @@
  *         on the burn-down. Same registry, one exemption.
  */
 import { describe, it, expect } from "vitest"
-import { mandatoryGate, MissingMandatoryFieldsError } from "./mandatoryGate"
+import { mandatoryGate, MissingMandatoryFieldsError, recomputeIncompleteMandatory } from "./mandatoryGate"
 
 describe("mandatoryGate — the one validated write gate", () => {
   it("relax:false REFUSES a missing field (live-create), carrying the missing set", () => {
@@ -33,5 +33,19 @@ describe("mandatoryGate — the one validated write gate", () => {
   it("a juristic contact is not refused for a missing first name (company floor)", () => {
     expect(() => mandatoryGate("landlord", { company_name: "X Ltd", primary_email: "a@b.co", primary_phone: "0821112222" }, { relax: false }))
       .not.toThrow()
+  })
+})
+
+describe("recomputeIncompleteMandatory — a partial edit keeps the flag accurate (corollary 12)", () => {
+  it("filling the last missing field on an import-incomplete record CLEARS the flag", () => {
+    const existing = { first_name: "Nomsa", last_name: "Dlamini", primary_email: null, primary_phone: "0821112222" }
+    expect(recomputeIncompleteMandatory("tenant", existing, { primary_email: "nomsa@x.co" }))
+      .toEqual({ incomplete_mandatory: null })
+  })
+
+  it("a partial edit that touches nothing mandatory leaves the flag as the record's real state", () => {
+    const existing = { first_name: "Nomsa", last_name: "Dlamini", primary_email: null, primary_phone: "0821112222" }
+    expect(recomputeIncompleteMandatory("tenant", existing, { occupation: "Nurse" }))
+      .toEqual({ incomplete_mandatory: ["primary_email"] })
   })
 })

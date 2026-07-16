@@ -43,3 +43,17 @@ export function mandatoryGate(
   if (missing.length > 0 && !opts.relax) throw new MissingMandatoryFieldsError(entity, missing)
   return { incomplete_mandatory: missing.length > 0 ? missing : null }
 }
+
+/**
+ * Recompute the `incomplete_mandatory` column for a PARTIAL edit (corollary 12): merge the update over the record's
+ * existing mandatory values and re-derive the flag. Keeps the flag accurate so it never DRIFTS — filling the last
+ * missing field on an import-incomplete record clears it. Does not throw (a partial PATCH can't be validated as a
+ * full record); the primary full-form edit path refuses a blank via `mandatoryGate(..., { relax: false })`.
+ */
+export function recomputeIncompleteMandatory(
+  entity: CompletableEntity,
+  existing: Record<string, unknown>,
+  update: Record<string, unknown>,
+): { incomplete_mandatory: string[] | null } {
+  return mandatoryGate(entity, { ...existing, ...update }, { relax: true })
+}

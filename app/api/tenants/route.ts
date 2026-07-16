@@ -14,6 +14,8 @@ import { getMembership } from "@/lib/supabase/getMembership"
 import { tenantHasInForceLease } from "@/lib/parties/archive"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { recomputeIncompleteMandatory } from "@/lib/migration/mandatoryGate"
+const MANDATORY_COLS = "first_name,last_name,company_name,primary_email,primary_phone"
 
 interface TenantPatchBody {
   tenantId: string; contactId: string
@@ -58,6 +60,18 @@ function buildTenantUpdate(body: TenantPatchBody): Record<string, unknown> {
   return u
 }
 
+/** 21E §1 corollary 12: apply a partial contact edit, recomputing the incomplete_mandatory flag from the MERGED
+ *  record so it never drifts. Returns an error string or null. Kept out of the PATCH handler to bound its size. */
+async function patchContactRecomputing(
+  service: Awaited<ReturnType<typeof createServiceClient>>, contactId: string, orgId: string, contactUpdate: Record<string, unknown>,
+): Promise<string | null> {
+  const { data: existing, error: exErr } = await service.from("contacts").select(MANDATORY_COLS).eq("id", contactId).eq("org_id", orgId).single()
+  if (exErr) return exErr.message
+  const { error } = await service.from("contacts")
+    .update({ ...contactUpdate, ...recomputeIncompleteMandatory("tenant", existing, contactUpdate) }).eq("id", contactId).eq("org_id", orgId)
+  return error ? error.message : null
+}
+
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -89,11 +103,8 @@ export async function PATCH(req: NextRequest) {
 
   const contactUpdate = buildTenantContactUpdate(body)
   if (Object.keys(contactUpdate).length > 0) {
-    const { error: contactError } = await service.from("contacts")
-      .update(contactUpdate)
-      .eq("id", body.contactId)
-      .eq("org_id", membership.org_id)
-    if (contactError) return NextResponse.json({ error: contactError.message }, { status: 500 })
+    const err = await patchContactRecomputing(service, body.contactId, membership.org_id, contactUpdate)
+    if (err) return NextResponse.json({ error: err }, { status: 500 })
   }
 
   const tenantUpdate = buildTenantUpdate(body)

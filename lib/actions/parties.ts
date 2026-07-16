@@ -572,8 +572,14 @@ export async function updateLandlordParty(input: AddPartyInput, landlordId: stri
     const contactId = ll.contact_id as string
 
     const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    // 21E §1 corollary 12 + §3 first-touch: this is a FULL-form edit, so refuse if it would leave a mandatory
+    // field blank (prevents blanking a complete record, and forces completion when editing an import-incomplete
+    // one). Recomputes the flag to null on a complete save.
+    const landlordUpd = buildContactScalarUpdate(input.entity, f, primary)
+    const upGate = gateContact("landlord", landlordUpd)
+    if ("error" in upGate) return { ok: false, error: upGate.error }
     const { error: cErr } = await db.from("contacts")
-      .update(buildContactScalarUpdate(input.entity, f, primary)).eq("id", contactId).eq("org_id", orgId)
+      .update({ ...landlordUpd, ...upGate }).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateLandlordParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
 
     if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
@@ -795,8 +801,13 @@ export async function updateTenantParty(input: AddPartyInput, tenantId: string):
     const contactId = tn.contact_id as string
 
     const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    // 21E §1 corollary 12 + §3 first-touch: full-form edit refuses if it would leave a mandatory field blank,
+    // and recomputes the flag on a complete save.
+    const tenantUpd = buildContactScalarUpdate(input.entity, f, primary)
+    const upGate = gateContact("tenant", tenantUpd)
+    if ("error" in upGate) return { ok: false, error: upGate.error }
     const { error: cErr } = await db.from("contacts")
-      .update(buildContactScalarUpdate(input.entity, f, primary)).eq("id", contactId).eq("org_id", orgId)
+      .update({ ...tenantUpd, ...upGate }).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateTenantParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
 
     const { error: tErr } = await db.from("tenants").update({
