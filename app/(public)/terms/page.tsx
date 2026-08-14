@@ -36,7 +36,7 @@ export default function TermsOfServicePage() {
       titleHighlight="service"
       subtitle="The agreement that governs your use of the Pleks property management platform. By using Pleks you confirm that you have read and accepted these terms."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 05 · 07", mono: true },
+        { label: "Last reviewed", value: "2026 · 08 · 14", mono: true },
         { label: "Effective",     value: "2026 · 05 · 07", mono: true },
         { label: "Jurisdiction",  value: "Republic of South Africa" },
         { label: "Framework",     value: "CPA · ECT Act · PPA · POPIA" },
@@ -44,6 +44,7 @@ export default function TermsOfServicePage() {
       sections={SECTIONS}
       hasSummary
       endLabel={`END · TERMS OF SERVICE · ${LEGAL_VERSIONS.terms}`}
+      effective="7 May 2026"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -51,11 +52,11 @@ export default function TermsOfServicePage() {
         <h2 className="sc-h">What you&rsquo;re agreeing to</h2>
         <ul className="summary-list">
           <li><span className="b" /><span>By using Pleks you accept these terms — they form a legally binding agreement with Pleks (Pty) Ltd concluded by data message under the ECT Act.</span></li>
-          <li><span className="b" /><span>Subscription fees are billed monthly or annually via our payment processor, in ZAR inclusive of VAT where applicable.</span></li>
+          <li><span className="b" /><span>Subscription fees are billed monthly via our payment processor, in ZAR inclusive of VAT where applicable.</span></li>
           <li><span className="b" /><span>Cancel at any time from your account settings; access continues until your billing period ends. Cancellation is confirmed by passkey, authenticator code, or email link — an unconfirmed request expires and your subscription continues. Natural-person CPA subscribers may cancel on 20 business days&rsquo; notice at any time on a fixed-term plan.</span></li>
           <li><span className="b" /><span>After cancellation you have 12 months of read-only access before operational data is deleted. Statutory obligations require some categories to be retained for longer — see §04 and the POPIA register.</span></li>
           <li><span className="b" /><span>§09 sets out the full data-processing terms governing Pleks&rsquo;s obligations as Operator under POPIA s20–s21, including a 72-hour breach-notification target as a self-imposed standard.</span></li>
-          <li><span className="b" /><span>Pleks does not hold client funds. Trust money is held in the agency&rsquo;s own Section 86 account.</span></li>
+          <li><span className="b" /><span>Pleks does not hold client funds. Trust money is held in the agency&rsquo;s own Section 54 account.</span></li>
           <li><span className="b" /><span>Governing law: Republic of South Africa. CPA subscribers may also approach the National Consumer Tribunal or Magistrate&rsquo;s Court.</span></li>
         </ul>
       </div>
@@ -105,7 +106,7 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           <strong>Trust funds.</strong>{" "}Pleks does not hold client funds. Trust money for rental management is held in the Agency&rsquo;s
-          own Section 86 trust account at the Agency&rsquo;s own bank. Pleks is not a trustee and does not initiate or control
+          own Section 54 trust account at the Agency&rsquo;s own bank. Pleks is not a trustee and does not initiate or control
           payments on behalf of any party.
         </p>
       </section>
@@ -125,7 +126,7 @@ export default function TermsOfServicePage() {
           <li>We reserve the right to change pricing with 30 days&rsquo; written notice to your registered email address.</li>
           <li>Applicant credit check fees are paid directly by the applicant at the time of their application — not by your agency subscription.</li>
           <li>Failed payments may result in temporary suspension of your account until the balance is settled.</li>
-          <li>If you subscribe on an annual basis and are a natural person (not a juristic entity), we will notify you by email between 40 and 80 business days before your renewal date, as required by section 14 of the Consumer Protection Act <span className="act-pill">CPA · S14</span>. Agency and company subscribers are not subject to this notice obligation.</li>
+          <li>Annual subscriptions are not currently offered. Should annual billing be introduced, natural-person subscribers (not juristic entities) will be notified by email between 40 and 80 business days before each renewal date, as required by section 14 of the Consumer Protection Act <span className="act-pill">CPA · S14</span>. Agency and company subscribers are not subject to this notice obligation.</li>
         </ul>
       </section>
 

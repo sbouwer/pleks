@@ -158,7 +158,7 @@ export default async function LandlordTrustSummaryPage() {
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
         <div className="space-y-0.5 text-sm text-muted-foreground">
           <p className="font-medium text-foreground">Your agency holds these deposits in trust</p>
-          <p>Your deposits are held in your agency&apos;s Section 86 trust account. Pleks is the management software — Pleks does not hold your funds.</p>
+          <p>Your deposits are held in your agency&apos;s Section 54 trust account. Pleks is the management software — Pleks does not hold your funds.</p>
           {lastReconDate && (
             <p className="mt-1">
               Last reconciliation signed off:{" "}

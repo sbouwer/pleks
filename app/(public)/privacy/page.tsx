@@ -42,7 +42,7 @@ export default function PrivacyPolicyPage() {
       titleHighlight="policy"
       subtitle="How Pleks (Pty) Ltd collects, uses, stores and shares personal information — as Responsible Party for platform operations and as Operator for agency-managed rental data."
       kicker={[
-        { label: "Last reviewed",  value: "2026 · 05 · 07", mono: true },
+        { label: "Last reviewed",  value: "2026 · 08 · 14", mono: true },
         { label: "Effective from", value: "2026 · 05 · 07", mono: true },
         { label: "Jurisdiction",   value: "Republic of South Africa" },
         { label: "Standards",      value: "POPIA · PAIA · CPA · NCA · RHA · FICA · PPA · STSMA" },
@@ -50,6 +50,7 @@ export default function PrivacyPolicyPage() {
       sections={SECTIONS}
       hasSummary
       endLabel={`END · PRIVACY POLICY · ${LEGAL_VERSIONS.privacy}`}
+      effective="7 May 2026"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -106,7 +107,7 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           <strong>Trust account framing.</strong>{" "}Pleks does not hold client funds. Trust money for rental management is held in the
-          agency&rsquo;s own Section 86 trust account at the agency&rsquo;s own bank; Pleks is not a trustee and does not initiate payments.
+          agency&rsquo;s own Section 54 trust account at the agency&rsquo;s own bank; Pleks is not a trustee and does not initiate payments.
         </p>
         <div className="officer-card">
           <span className="l">Information<br />officer</span>
@@ -181,7 +182,7 @@ export default function PrivacyPolicyPage() {
           <li><strong>Application and screening (Part B).</strong>{" "}Receiving rental applications, processing application fees, verifying identity and income, running credit checks with explicit consent, generating FitScore, supporting agency shortlist and decision workflows.</li>
           <li><strong>Lease lifecycle (Part B).</strong>{" "}Generating, signing, and storing lease documents; tracking lease state, escalations, amendments, notices, and terminations; producing <span className="act-pill">CPA · S14</span> auto-renewal notices for fixed-term agreements where CPA applies (40–80 business days before expiry per CPA s14(2)(d)).</li>
           <li><strong>Communications and notifications (Part B).</strong>{" "}Sending mandatory notices required by <span className="act-pill">RHA</span> and <span className="act-pill">CPA</span>, and transactional notifications relating to rent, deposits, inspections, maintenance, and tenancy events, via WhatsApp (primary), SMS (backup), and email.</li>
-          <li><strong>Financial and trust (Part B).</strong>{" "}Maintaining the rent ledger, reconciling the agency&rsquo;s Section 86 trust account, generating owner statements, managing arrears and letters of demand, recording deposit transactions and interest, producing PPRA-compliant audit exports.</li>
+          <li><strong>Financial and trust (Part B).</strong>{" "}Maintaining the rent ledger, reconciling the agency&rsquo;s Section 54 trust account, generating owner statements, managing arrears and letters of demand, recording deposit transactions and interest, producing PPRA-compliant audit exports.</li>
           <li><strong>FICA and KYC storage (Part B).</strong>{" "}Storing FICA documentation on behalf of agencies that are Accountable Institutions under the Financial Intelligence Centre Act <span className="act-pill">FICA</span>. Pleks does not perform FICA verification — it provides secure storage and workflow tooling for the agency&rsquo;s own compliance.</li>
           <li><strong>Subject-rights handling.</strong>{" "}Routing access, correction, deletion, objection, and reconsideration requests to the correct Responsible Party (Pleks for Part A, agency for Part B), and supporting the agency&rsquo;s 30-calendar-day response under POPIA s23.</li>
           <li><strong>Compliance with law.</strong>{" "}Statutory record retention (Tax Administration Act s29, FICA s23, PPA s54 + Reg 33, Companies Act s24), audit-log retention for accountability under <span className="act-pill">POPIA · S17</span>, breach notification under POPIA s21–s22.</li>

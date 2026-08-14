@@ -35,7 +35,7 @@ export default function CreditCheckPolicyPage() {
       titleHighlight="policy"
       subtitle="How credit and background checks work on Pleks, what the application fee covers, and the rights you hold as a data subject under POPIA and the National Credit Act."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
+        { label: "Last reviewed", value: "2026 · 08 · 14", mono: true },
         { label: "In force from",  value: "2026 · 05 · 05", mono: true },
         { label: "Conducted by",   value: "Searchworx (Pty) Ltd" },
         { label: "Acts",           value: "POPIA · NCA · Credit Bureau Code of Conduct" },
@@ -43,6 +43,7 @@ export default function CreditCheckPolicyPage() {
       sections={SECTIONS}
       hasSummary
       endLabel={`END · CREDIT CHECK POLICY · ${LEGAL_VERSIONS.creditCheckPolicy}`}
+      effective="5 May 2026"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">

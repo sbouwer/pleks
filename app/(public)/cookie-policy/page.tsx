@@ -33,7 +33,7 @@ export default function CookiePolicyPage() {
       titleHighlight="policy"
       subtitle="How Pleks uses cookies and similar browser storage technologies to keep you signed in, measure performance, and improve the platform."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
+        { label: "Last reviewed", value: "2026 · 08 · 14", mono: true },
         { label: "In force from",  value: "2026 · 05 · 05", mono: true },
         { label: "Jurisdiction",   value: "Republic of South Africa" },
         { label: "Framework",      value: "POPIA s11 · s69" },
@@ -41,6 +41,7 @@ export default function CookiePolicyPage() {
       sections={SECTIONS}
       hasSummary
       endLabel={`END · COOKIE POLICY · ${LEGAL_VERSIONS.cookiePolicy}`}
+      effective="5 May 2026"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -119,6 +120,51 @@ export default function CookiePolicyPage() {
               <td className="who">pub-theme<span className="sub">Pleks · localStorage</span></td>
               <td>Stores your light/dark mode preference on the marketing site.</td>
               <td>1 year</td>
+            </tr>
+            <tr>
+              <td className="who">pleks_org<span className="sub">Pleks · cookie</span></td>
+              <td>Caches your current organisation, role and tier so each page load does not re-query the database. Treated as a hint only — organisation and role are always re-verified against the database before any data is returned.</td>
+              <td>5 minutes</td>
+            </tr>
+            <tr>
+              <td className="who">pleks_has_org<span className="sub">Pleks · cookie</span></td>
+              <td>Records that your account has completed onboarding and belongs to an organisation, so the routing layer can admit you to the workspace without a database call.</td>
+              <td>7 days</td>
+            </tr>
+            <tr>
+              <td className="who">pleks_tos_version<span className="sub">Pleks · cookie</span></td>
+              <td>Records which version of the Terms of Service you accepted, so you are only asked again when the Terms actually change.</td>
+              <td>1 year</td>
+            </tr>
+            <tr>
+              <td className="who">pleks_privacy_version<span className="sub">Pleks · cookie</span></td>
+              <td>Records which version of the Privacy Policy you acknowledged, so you are only asked again when this policy actually changes.</td>
+              <td>1 year</td>
+            </tr>
+            <tr>
+              <td className="who">pleks_aal<span className="sub">Pleks · cookie</span></td>
+              <td>Records that you completed a passkey sign-in, so the routing layer can treat the session as multi-factor verified. Signed and bound to your specific session; it cannot be copied to another session or device.</td>
+              <td>12 hours</td>
+            </tr>
+            <tr>
+              <td className="who">pleks_tenant_token<span className="sub">Pleks · tenant portal</span></td>
+              <td>Signs you in to the tenant portal when you arrive through an access link, so you do not have to re-enter the link on every page.</td>
+              <td>90 days</td>
+            </tr>
+            <tr>
+              <td className="who">pleks_admin_token<span className="sub">Pleks · admin portal</span></td>
+              <td>Authenticates internal Pleks staff on the administration portal. Never set on tenant, landlord, supplier or agency sessions.</td>
+              <td>24 hours</td>
+            </tr>
+            <tr>
+              <td className="who">pleks_rdr<span className="sub">Pleks · cookie</span></td>
+              <td>Counts consecutive redirects so a misconfigured sign-in cannot trap your browser in a loop. Cleared as soon as you land on a page.</td>
+              <td>15 seconds</td>
+            </tr>
+            <tr>
+              <td className="who">pleks_trace<span className="sub">Pleks · cookie</span></td>
+              <td>Carries a short random reference for one request so a support query can be matched to the correct server log. Contains no personal information.</td>
+              <td>30 seconds</td>
             </tr>
           </tbody>
         </table>
