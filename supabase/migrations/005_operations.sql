@@ -3252,6 +3252,13 @@ CREATE POLICY "org_blocked_pending_field" ON blocked_pending_field
 -- (lib/constants.ts APPLICATION_FEE_CENTS).
 ALTER TABLE applications ALTER COLUMN fee_amount_cents SET DEFAULT 25000;
 
+-- Changing a DEFAULT does not touch existing rows. Listings created BEFORE the §BUILD_14_v2 ALTER
+-- above still carry the old R399 default and render "Application fee: R 399" to the agent on the
+-- listing page, while the billing route charges APPLICATION_FEE_CENTS. Backfill only rows still
+-- sitting on the old default — a listing deliberately priced at something else is left alone.
+UPDATE listings   SET application_fee_cents = 25000 WHERE application_fee_cents = 39900;
+UPDATE applications SET fee_amount_cents    = 25000 WHERE fee_amount_cents    = 39900 AND fee_status IS DISTINCT FROM 'paid';
+
 -- The screening_bundle comment still described the PRE-2026-05-18 bundle composition
 -- (TU PP + Trace + VCCB + Default Listing — Default Listing was retired permanently) and
 -- the 'estate' tier, which was CANCELLED on 2026-05-21 together with Huru (ADDENDUM_14E

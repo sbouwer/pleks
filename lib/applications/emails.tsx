@@ -7,15 +7,24 @@ import { EmailLayout, EmailButton, EmailSectionHeading, EmailDetail } from "@/li
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { ApplicantLegalFooter } from "@/lib/comms/templates/ApplicantLegalFooter"
 import { sendEmail } from "@/lib/comms/send-email"
-import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { formatZAR } from "@/lib/constants"
+import { getApplicationFee } from "@/lib/screening/searchworxBundle"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { fmtDateLongZA } from "@/lib/dates"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
-/** Derived, never a literal — this is the fee quoted to an applicant before they pay. */
-const SCREENING_FEE = formatZAR(APPLICATION_FEE_CENTS)
+/**
+ * The fee quoted to an applicant — derived, and JOINT-AWARE. A single module constant used to quote
+ * R250 to everyone while buildApplicationFeeForm charged a joint applicant R470, so the decline email
+ * then told them "the screening fee of R250 is non-refundable" about a sum they had paid R470 for.
+ * `isJoint` is deliberately REQUIRED at every call site: an optional flag would default to the single
+ * fee and reproduce exactly that silent mis-quote.
+ */
+function screeningFeeDisplay(isJoint: boolean): string {
+  return formatZAR(getApplicationFee(isJoint))
+}
 
 interface ApplicationSummary {
   id: string
@@ -338,7 +347,7 @@ export async function sendShortlistInvitation(
   app: ApplicationSummary,
   listing: ListingSummary,
   org: OrgContext,
-  opts: { inviteToken: string }
+  opts: { inviteToken: string; isJoint: boolean }
 ) {
   const inviteLink = absoluteUrl(`/apply/invite/${opts.inviteToken}`)
 
@@ -354,7 +363,7 @@ export async function sendShortlistInvitation(
         <EmailSectionHeading>Next step: Tenant screening</EmailSectionHeading>
         <p style={S.body}>To complete your application we need to run a credit and background check. This requires:</p>
         <p style={S.body}>1. Your consent (POPIA requirement)</p>
-        <p style={S.body}>2. A screening fee of {SCREENING_FEE}</p>
+        <p style={S.body}>2. A screening fee of {screeningFeeDisplay(opts.isJoint)}</p>
         <p style={S.body}>The screening is conducted by Searchworx, an independent credit bureau. Results are shared with {org.orgName} only.</p>
         <EmailButton href={inviteLink} accentColor={org.branding.accentColor}>Continue to screening →</EmailButton>
         <p style={S.footer}>This link expires in 7 days.{org.orgPhone ? ` Contact: ${org.orgPhone}` : ""}{org.orgEmail ? ` · ${org.orgEmail}` : ""}</p>
@@ -673,7 +682,7 @@ export async function sendDeclinedStage2(
   app: ApplicationSummary,
   listing: ListingSummary,
   org: OrgContext,
-  opts: { reason?: string }
+  opts: { reason?: string; isJoint: boolean }
 ) {
   return sendEmail({
     orgId: org.orgId,
@@ -687,7 +696,7 @@ export async function sendDeclinedStage2(
         <p style={S.body}>{opts.reason
           ? `After completing the full screening, we have decided not to proceed. ${opts.reason}`
           : "After completing the full screening evaluation, we have decided not to proceed with your application."}</p>
-        <p style={S.body}>The screening fee of {SCREENING_FEE} is non-refundable as communicated at the time of payment.</p>
+        <p style={S.body}>The screening fee of {screeningFeeDisplay(opts.isJoint)} is non-refundable as communicated at the time of payment.</p>
         <p style={S.body}>We wish you well in finding your next home.</p>
         <ApplicantLegalFooter />
       </EmailLayout>

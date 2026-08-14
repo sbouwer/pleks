@@ -19,6 +19,13 @@
  *         If a line item changes, that test fails and the rate card must be amended in the same change.
  */
 import { APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
+// The LIVE per-call costs — the same constants lib/screening/bundle-runner.ts charges and writes to
+// application_screening_lines.cost_cents. Imported, NEVER re-declared: an earlier version of this file
+// restated 17000/635 as its own literals, which meant a bureau price rise could be applied to the live
+// product modules while this file (and the below-cost test that reads it) stayed happily green. Deriving
+// from the live values is what makes the margin guard actually load-bearing.
+import { COMBINED_COST_CENTS, COMBINED_PRODUCT_KEY } from "@/lib/searchworx/products/combinedConsumerCreditReport"
+import { VCCB_COST_CENTS, VCCB_PRODUCT_KEY } from "@/lib/searchworx/products/vccbIncomeEstimator"
 
 /** SA VAT. Pleks pays input VAT on Searchworx invoices; see rate-card §3 for the registration scenarios. */
 export const VAT_RATE = 0.15
@@ -34,14 +41,14 @@ export interface SearchworxCheck {
 /** Standard bundle — every SA-citizen residential and commercial application. Rate card §1.1. */
 export const SEARCHWORX_BUNDLE_SA: readonly SearchworxCheck[] = [
   {
-    check_code: "COMBINED_CONSUMER_CREDIT_REPORT",
-    cost_excl_vat_cents: 17000, // R170.00
+    check_code: COMBINED_PRODUCT_KEY,
+    cost_excl_vat_cents: COMBINED_COST_CENTS,
     fitscore_component: "credit_score",
     note: "Multi-bureau profile in ONE call — TransUnion + XDS + Experian Sigma + VeriCred (CompuScan + Experian non-Sigma when online). Carries Home Affairs verification, SAFPS fraud listing, dual Delphi scores, adverse listings + DebtReviewStatus + AlsoKnownAs, ConsumerDebtSummary.",
   },
   {
-    check_code: "VCCB_INCOME_ESTIMATOR",
-    cost_excl_vat_cents: 635, // R6.35
+    check_code: VCCB_PRODUCT_KEY,
+    cost_excl_vat_cents: VCCB_COST_CENTS,
     fitscore_component: "income_estimate",
     note: "Bureau-sourced income estimate — independent cross-check of declared income. SA citizens only.",
   },
@@ -53,7 +60,7 @@ export const SEARCHWORX_BUNDLE_SA: readonly SearchworxCheck[] = [
  * classification instead. Same fee is charged either way — no differentiation in the applicant UI.
  */
 export const SEARCHWORX_BUNDLE_FOREIGN: readonly SearchworxCheck[] =
-  SEARCHWORX_BUNDLE_SA.filter((c) => c.check_code !== "VCCB_INCOME_ESTIMATOR")
+  SEARCHWORX_BUNDLE_SA.filter((c) => c.check_code !== VCCB_PRODUCT_KEY)
 
 export function getSearchworxBundle(isForeignNational: boolean): readonly SearchworxCheck[] {
   return isForeignNational ? SEARCHWORX_BUNDLE_FOREIGN : SEARCHWORX_BUNDLE_SA

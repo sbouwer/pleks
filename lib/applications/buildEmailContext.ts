@@ -46,6 +46,8 @@ export interface AppEmailContext {
   }
   accessToken: string | null
   listingSlug: string | null
+  /** Joint application? Derived ONCE here so every email quotes the fee the applicant is actually charged. */
+  isJoint: boolean
 }
 
 export async function buildEmailContext(applicationId: string): Promise<AppEmailContext | null> {
@@ -137,5 +139,6 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
     },
     accessToken: tokenRow?.token ?? null,
     listingSlug: listing?.public_slug as string | null,
+    isJoint: Boolean(app.has_co_applicant),
   }
 }

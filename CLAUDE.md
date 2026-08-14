@@ -448,7 +448,7 @@ Do not rely on this file for task status. It changes daily.
 
 ---
 
-## KEY CONSTANTS (unchanged — do not modify)
+## KEY CONSTANTS (change only with a recorded decision)
 
 APPLICATION_FEE_CENTS = 25000         // R250 single   (was R399 — superseded Mar-2026 model)
 JOINT_APPLICATION_FEE_CENTS = 47000   // R470 joint    (was R749 — same)

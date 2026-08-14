@@ -25,6 +25,10 @@ import {
   getRequiredChecks,
   VAT_RATE,
 } from "@/lib/screening/searchworxBundle"
+// The LIVE constants — what bundle-runner actually charges and records.
+import { COMBINED_COST_CENTS, COMBINED_PRODUCT_KEY } from "@/lib/searchworx/products/combinedConsumerCreditReport"
+import { VCCB_COST_CENTS, VCCB_PRODUCT_KEY } from "@/lib/searchworx/products/vccbIncomeEstimator"
+import { SEARCHWORX_COSTS } from "@/lib/searchworx/costs"
 
 // ── Rate card §1.1, amended 2026-05-18 ───────────────────────────────────────
 const RATE_CARD = {
@@ -38,20 +42,42 @@ const RATE_CARD = {
 
 describe("bundle composition matches the rate card", () => {
   it("is the post-2026-05-18 Combined call, not the retired per-bureau bundle", () => {
-    expect(getRequiredChecks(false)).toEqual(["COMBINED_CONSUMER_CREDIT_REPORT", "VCCB_INCOME_ESTIMATOR"])
+    expect(getRequiredChecks(false)).toEqual([COMBINED_PRODUCT_KEY, VCCB_PRODUCT_KEY])
     // Default Listing was retired permanently; its presence means the file has regressed.
-    expect(getRequiredChecks(false)).not.toContain("DEFAULT_LISTING_CONSUMER_COMBINED")
+    expect(getRequiredChecks(false)).not.toContain("default_listing_consumer_combined")
   })
 
   it("prices each line item at the rate-card figure", () => {
     const byCode = Object.fromEntries(SEARCHWORX_BUNDLE_SA.map((c) => [c.check_code, c.cost_excl_vat_cents]))
-    expect(byCode.COMBINED_CONSUMER_CREDIT_REPORT).toBe(RATE_CARD.combinedReportExclVat)
-    expect(byCode.VCCB_INCOME_ESTIMATOR).toBe(RATE_CARD.vccbExclVat)
+    expect(byCode[COMBINED_PRODUCT_KEY]).toBe(RATE_CARD.combinedReportExclVat)
+    expect(byCode[VCCB_PRODUCT_KEY]).toBe(RATE_CARD.vccbExclVat)
   })
 
   it("omits the VCCB income estimator for foreign nationals (SA citizens only)", () => {
-    expect(getRequiredChecks(true)).toEqual(["COMBINED_CONSUMER_CREDIT_REPORT"])
+    expect(getRequiredChecks(true)).toEqual([COMBINED_PRODUCT_KEY])
     expect(SEARCHWORX_BUNDLE_FOREIGN).toHaveLength(SEARCHWORX_BUNDLE_SA.length - 1)
+  })
+})
+
+describe("every copy of the per-call cost agrees", () => {
+  // There are THREE declarations of these two figures in the repo. The ones that reach the database are
+  // the product-module constants (bundle-runner imports them and writes cost_cents). If the others drift,
+  // the margin guard below silently protects the wrong numbers — which is exactly the failure this file
+  // was written to prevent and, for one revision, itself had.
+  it("the live product constants match the rate card", () => {
+    expect(COMBINED_COST_CENTS).toBe(RATE_CARD.combinedReportExclVat)
+    expect(VCCB_COST_CENTS).toBe(RATE_CARD.vccbExclVat)
+  })
+
+  it("the SEARCHWORX_COSTS registry matches the live product constants", () => {
+    expect(SEARCHWORX_COSTS[COMBINED_PRODUCT_KEY]).toBe(COMBINED_COST_CENTS)
+    expect(SEARCHWORX_COSTS[VCCB_PRODUCT_KEY]).toBe(VCCB_COST_CENTS)
+  })
+
+  it("the bundle derives from the live constants rather than restating them", () => {
+    const byCode = Object.fromEntries(SEARCHWORX_BUNDLE_SA.map((c) => [c.check_code, c.cost_excl_vat_cents]))
+    expect(byCode[COMBINED_PRODUCT_KEY]).toBe(COMBINED_COST_CENTS)
+    expect(byCode[VCCB_PRODUCT_KEY]).toBe(VCCB_COST_CENTS)
   })
 })
 
@@ -78,7 +104,11 @@ describe("no bundle is ever sold below cost", () => {
     expect(screeningMarginCents(false)).toBe(RATE_CARD.marginAt250)
   })
 
-  it("keeps every combination profitable", () => {
+  it("keeps the 1- and 2-applicant cases profitable", () => {
+    // NOT "every combination": the fee is currently `has_co_applicant ? joint : single`, a BOOLEAN, so
+    // 3+ applicants pay the 2-applicant fee against N bundles of cost and ARE sold below cost. That hole
+    // is real and tracked in OUTSTANDING.md § Per-head screening fee; this loop only covers what the fee
+    // function can currently express. Widen it to N = 1…8 when per-head pricing lands.
     for (const isJoint of [false, true]) {
       for (const isForeign of [false, true]) {
         const margin = screeningMarginCents(isJoint, isForeign)

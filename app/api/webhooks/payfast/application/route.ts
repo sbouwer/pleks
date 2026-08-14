@@ -40,24 +40,61 @@ export async function POST(req: Request) {
     // we meant to charge. Until 2026-08-14 buildApplicationFeeForm hardcoded "399.00" while the route
     // wrote R250 to fee_amount_cents — the two diverged for three months and nothing noticed, because
     // this handler marked the fee paid on trust. Compare what was actually paid against what we recorded.
-    const paidCents = Math.round(Number.parseFloat(params.amount_gross || "0") * 100)
+    const rawGross = params.amount_gross
+    const parsedGross = Number.parseFloat(rawGross ?? "")
+    // A missing/garbage amount_gross must NOT be treated as 0 (which reads as underpaid) or as NaN
+    // (which slips past `<` into the overpaid branch and puts NaN on the applicant's receipt).
+    const paidCents = Number.isFinite(parsedGross) ? Math.round(parsedGross * 100) : null
+
     const { data: expectedRow, error: expectedError } = await supabase
-      .from("applications").select("fee_amount_cents").eq("id", applicationId).maybeSingle()
-    if (expectedError) console.error("fee cross-check lookup failed:", expectedError.message)
+      .from("applications").select("org_id, fee_amount_cents").eq("id", applicationId).maybeSingle()
+    logQueryError("POST applications fee cross-check", expectedError)
     const expectedCents = expectedRow?.fee_amount_cents ?? null
 
-    if (expectedCents !== null && paidCents !== expectedCents) {
+    /** Durable record of a payment we are NOT accepting — log, audit row, Sentry. Never silent. */
+    const flagMismatch = async (reason: string) => {
       // PII-free: ids and amounts only.
       console.error("[payfast] application fee MISMATCH " + JSON.stringify({
-        applicationId, expectedCents, paidCents, pf_payment_id: params.pf_payment_id ?? null,
+        applicationId, expectedCents, paidCents, rawGross: rawGross ?? null, reason,
+        pf_payment_id: params.pf_payment_id ?? null,
       }))
+      Sentry.captureMessage("PayFast application fee mismatch", {
+        level: "error",
+        tags: { route: "webhooks/payfast/application", reason },
+        extra: { applicationId, expectedCents, paidCents, rawGross: rawGross ?? null, pfPaymentId: params.pf_payment_id ?? null },
+      })
+      if (expectedRow?.org_id) {
+        // The money exists at PayFast even though we refuse it here — an audit row is the only thing
+        // that makes it visible to reconciliation. Without it the payment is invisible everywhere.
+        await recordAudit(supabase, {
+          orgId: expectedRow.org_id, table: "applications", recordId: applicationId, action: "UPDATE",
+          after: { fee_payment_rejected: reason, expected_fee_cents: expectedCents, paid_cents: paidCents, payfast_payment_id: params.pf_payment_id ?? null },
+        }).catch((e) => console.error("mismatch audit write failed:", e))
+      }
+    }
+
+    if (expectedError) {
+      // FAIL CLOSED. Previously a transient lookup failure silently disabled the money control for this
+      // ITN. We cannot verify the amount, so we do not accept it — and we leave a durable trace.
+      await flagMismatch("expected_fee_lookup_failed")
+      return NextResponse.json({ ok: false, reason: "fee_lookup_failed" }, { status: 503 })
+    }
+
+    if (paidCents === null) {
+      await flagMismatch("unparseable_amount_gross")
+      return NextResponse.json({ ok: false, reason: "unparseable_amount" })
+    }
+
+    if (expectedCents !== null && paidCents !== expectedCents) {
       if (paidCents < expectedCents) {
         // UNDERPAID — do not mark paid and do not start screening; screening costs real money per head.
-        // 200 (not 4xx) so PayFast stops retrying: a retry cannot fix an underpayment, and this needs a
-        // human. The loud log above is the signal.
+        // 200 (not 4xx) so PayFast stops retrying: a retry cannot fix an underpayment. The audit row +
+        // Sentry event raised above are what make this visible; the console line alone is not a signal.
+        await flagMismatch("underpaid")
         return NextResponse.json({ ok: false, reason: "amount_mismatch_underpaid" })
       }
-      // OVERPAID — proceed. The applicant has paid; stranding them punishes the wrong party. Logged above.
+      // OVERPAID — proceed. The applicant has paid; stranding them punishes the wrong party.
+      await flagMismatch("overpaid")
     }
 
     // Update application: fee paid, trigger screening
@@ -81,7 +118,7 @@ export async function POST(req: Request) {
         paymentRef: params.pf_payment_id || params.m_payment_id || "",
         slug: ctx.listingSlug ?? "",
         accessToken: ctx.accessToken ?? "",
-        amountCents: Math.round(Number.parseFloat(params.amount_gross || "0") * 100),
+        amountCents: paidCents,
         paidAt: new Date().toISOString(),
       })
     } catch (e) { console.error("sendPaymentReceived failed:", e) }
