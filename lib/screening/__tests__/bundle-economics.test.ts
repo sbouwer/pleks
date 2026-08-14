@@ -95,7 +95,7 @@ describe("derived totals equal the published rate-card totals", () => {
   })
 })
 
-describe("no bundle is ever sold below cost", () => {
+describe("the 1- and 2-applicant cases are never sold below cost", () => {
   it("charges R250 for a single application", () => {
     expect(APPLICATION_FEE_CENTS).toBe(RATE_CARD.feeSingle)
   })
@@ -107,7 +107,7 @@ describe("no bundle is ever sold below cost", () => {
   it("keeps the 1- and 2-applicant cases profitable", () => {
     // NOT "every combination": the fee is currently `has_co_applicant ? joint : single`, a BOOLEAN, so
     // 3+ applicants pay the 2-applicant fee against N bundles of cost and ARE sold below cost. That hole
-    // is real and tracked in OUTSTANDING.md § Per-head screening fee; this loop only covers what the fee
+    // is real and tracked in brief/build/OUTSTANDING.md (gitignored symlink) § Per-head screening fee; this loop only covers what the fee
     // function can currently express. Widen it to N = 1…8 when per-head pricing lands.
     for (const isJoint of [false, true]) {
       for (const isForeign of [false, true]) {

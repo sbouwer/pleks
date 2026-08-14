@@ -7,8 +7,7 @@ import { EmailLayout, EmailButton, EmailSectionHeading, EmailDetail } from "@/li
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { ApplicantLegalFooter } from "@/lib/comms/templates/ApplicantLegalFooter"
 import { sendEmail } from "@/lib/comms/send-email"
-import { formatZAR } from "@/lib/constants"
-import { getApplicationFee } from "@/lib/screening/searchworxBundle"
+import { formatZAR, getApplicationFee } from "@/lib/constants"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { fmtDateLongZA } from "@/lib/dates"
@@ -682,7 +681,7 @@ export async function sendDeclinedStage2(
   app: ApplicationSummary,
   listing: ListingSummary,
   org: OrgContext,
-  opts: { reason?: string; isJoint: boolean }
+  opts: { reason?: string; feeCents: number | null }
 ) {
   return sendEmail({
     orgId: org.orgId,
@@ -696,7 +695,7 @@ export async function sendDeclinedStage2(
         <p style={S.body}>{opts.reason
           ? `After completing the full screening, we have decided not to proceed. ${opts.reason}`
           : "After completing the full screening evaluation, we have decided not to proceed with your application."}</p>
-        <p style={S.body}>The screening fee of {screeningFeeDisplay(opts.isJoint)} is non-refundable as communicated at the time of payment.</p>
+        <p style={S.body}>The screening fee of {opts.feeCents == null ? "paid" : formatZAR(opts.feeCents)} is non-refundable as communicated at the time of payment.</p>
         <p style={S.body}>We wish you well in finding your next home.</p>
         <ApplicantLegalFooter />
       </EmailLayout>

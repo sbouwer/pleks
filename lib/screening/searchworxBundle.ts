@@ -1,7 +1,8 @@
 /**
  * lib/screening/searchworxBundle.ts — screening bundle composition, cost, fee and margin (SSOT)
  *
- * Data:   line-item costs transcribed from brief/legal/SEARCHWORX_RATE_CARD.md §1.1 (amended 2026-05-18)
+ * Data:   line-item costs IMPORTED from the live Searchworx product modules (the same constants
+ *         bundle-runner charges); brief/legal/SEARCHWORX_RATE_CARD.md §1.1 is the commercial source
  * Notes:  THE one place the screening economics are stated. Totals are DERIVED, never transcribed —
  *         the previous version carried hand-maintained BUNDLE_COST_* constants with a header asking
  *         future editors to "keep them in sync when checks change", and they duly went stale.
@@ -18,7 +19,7 @@
  *         still equal the rate card's published figures and that no bundle is ever sold below cost.
  *         If a line item changes, that test fails and the rate card must be amended in the same change.
  */
-import { APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { getApplicationFee } from "@/lib/constants"
 // The LIVE per-call costs — the same constants lib/screening/bundle-runner.ts charges and writes to
 // application_screening_lines.cost_cents. Imported, NEVER re-declared: an earlier version of this file
 // restated 17000/635 as its own literals, which meant a bureau price rise could be applied to the live
@@ -80,12 +81,17 @@ export function bundleCostInclVatCents(isForeignNational: boolean): number {
   return Math.round(bundleCostExclVatCents(isForeignNational) * (1 + VAT_RATE))
 }
 
-/** What the applicant pays. Joint applications carry two bundles at a small joint discount. */
-export function getApplicationFee(isJoint: boolean): number {
-  return isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
-}
+/** Re-exported for callers already holding this module; the definition lives in lib/constants.ts. */
+export { getApplicationFee }
 
-/** How many bundles a given application consumes — a joint application screens BOTH applicants. */
+/**
+ * How many bundles a given application consumes — a joint application screens BOTH applicants.
+ * ⚠ This models the v2 AUTOMATED pipeline. Today runStandardBundle has ONE caller (the
+ * screening-line-runner cron) reading v_application_screening_lines, whose branches are
+ * entity_type='organisation' and application_co_applicants — neither covers a RESIDENTIAL primary
+ * applicant, and BUILD_14 Phase 1 has agents running checks on their own Searchworx accounts. So the
+ * margin figures here are the intended steady state, not what Pleks pays today.
+ */
 export function bundlesPerApplication(isJoint: boolean): number {
   return isJoint ? 2 : 1
 }

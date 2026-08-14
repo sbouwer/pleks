@@ -289,7 +289,7 @@ export async function declineStage2Action(applicationId: string, decision: Decli
   // Email 9: Declined after screening (neutral — no reason disclosed to the applicant)
   try {
     const ctx = await buildEmailContext(applicationId)
-    if (ctx) await sendDeclinedStage2(ctx.appSummary, ctx.listingSummary, ctx.orgContext, { isJoint: ctx.isJoint })
+    if (ctx) await sendDeclinedStage2(ctx.appSummary, ctx.listingSummary, ctx.orgContext, { feeCents: ctx.feeAmountCents })
   } catch (e) { console.error("sendDeclinedStage2 failed:", e) }
 
   revalidatePath(`/applications/${applicationId}`)

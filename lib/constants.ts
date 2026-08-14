@@ -84,8 +84,21 @@ export const FOUNDING_AGENT_DURATION_MONTHS = 24
 // R170 + VCCB R6.35 + fees), so R250 carries R47.20 (19%) margin. Do NOT price below R250 without
 // re-reading rate-card §5: a R150 Lite tier was evaluated and rejected (D-RATE-08) because the R170
 // Combined call is the floor for credible screening.
-export const APPLICATION_FEE_CENTS = 25000 // R250 single
-export const JOINT_APPLICATION_FEE_CENTS = 47000 // R470 joint — 2 applicants at a ~6% joint discount
+export const APPLICATION_FEE_CENTS = 25000 // R250 single — rate card §1.1
+// R470 joint. NOT from the rate card: `grep -i joint` over SEARCHWORX_RATE_CARD.md returns ZERO hits —
+// §1.1 prices ONE bundle and the card's only multi-subject pricing is D-RATE-06 (commercial: R250 company
+// + R250 per director, which would imply R500 for two). R470 is a STÉAN DECISION of 2026-08-14, carrying
+// the ~6% joint discount implied by the superseded R399/R749 pair. Recorded here because an earlier
+// version of this comment mis-attributed it to the rate card. Amend the card, or keep the decision here —
+// but do not cite §1.1 for it.
+export const JOINT_APPLICATION_FEE_CENTS = 47000
+
+/** What the applicant pays. Lives HERE, not in searchworxBundle: that module imports the Searchworx
+ *  product modules (and through them supabase/server -> next/headers), which any consumer wanting only
+ *  the fee should not have to load. */
+export function getApplicationFee(isJoint: boolean): number {
+  return isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
+}
 export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income — PRINCIPAL/co-applicant ceiling (rent ÷ combined gross; ≈ income ≥ 3.33× rent)
 // Guarantor/surety floor — DECOUPLED from and STRICTER than the principal threshold. A guarantor must cover the
 // WHOLE lease on default (not share it), so their independent income is checked against a higher multiple of rent

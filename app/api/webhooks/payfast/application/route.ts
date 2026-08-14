@@ -3,7 +3,10 @@
  *
  * Route:  POST /api/webhooks/payfast/application
  * Auth:   PayFast ITN signature validation (validatePayFastITN)
- * Data:   applications table — updates fee_status, triggers screening
+ * Data:   applications (fee_status, screening trigger) + audit_log on any rejected/mismatched payment
+ * Notes:  Cross-checks amount_gross against the recorded fee. Fails CLOSED on a lookup error (503) or a
+ *         missing application row; ignores a duplicate delivery once fee_status is paid, so a PayFast
+ *         retry cannot re-arm a completed screening and bill Searchworx twice.
  */
 import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -47,7 +50,7 @@ export async function POST(req: Request) {
     const paidCents = Number.isFinite(parsedGross) ? Math.round(parsedGross * 100) : null
 
     const { data: expectedRow, error: expectedError } = await supabase
-      .from("applications").select("org_id, fee_amount_cents").eq("id", applicationId).maybeSingle()
+      .from("applications").select("org_id, fee_amount_cents, fee_status").eq("id", applicationId).maybeSingle()
     logQueryError("POST applications fee cross-check", expectedError)
     const expectedCents = expectedRow?.fee_amount_cents ?? null
 
@@ -63,9 +66,11 @@ export async function POST(req: Request) {
         tags: { route: "webhooks/payfast/application", reason },
         extra: { applicationId, expectedCents, paidCents, rawGross: rawGross ?? null, pfPaymentId: params.pf_payment_id ?? null },
       })
+      // The money exists at PayFast even though we refuse it here — an audit row is what makes it visible
+      // to reconciliation. It needs an org_id, which we only have when the application row was READ. When
+      // the row is missing or the lookup failed there is no org to scope an audit row to, so Sentry above
+      // is the only durable trace for those two paths. Stated plainly rather than claimed otherwise.
       if (expectedRow?.org_id) {
-        // The money exists at PayFast even though we refuse it here — an audit row is the only thing
-        // that makes it visible to reconciliation. Without it the payment is invisible everywhere.
         await recordAudit(supabase, {
           orgId: expectedRow.org_id, table: "applications", recordId: applicationId, action: "UPDATE",
           after: { fee_payment_rejected: reason, expected_fee_cents: expectedCents, paid_cents: paidCents, payfast_payment_id: params.pf_payment_id ?? null },
@@ -80,9 +85,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, reason: "fee_lookup_failed" }, { status: 503 })
     }
 
+    if (!expectedRow) {
+      // FAIL CLOSED on a MISSING row. maybeSingle() returns {data:null,error:null} for zero rows, so this
+      // does NOT reach the branch above — and with expectedCents null the amount check would be skipped
+      // entirely, the two .update()s would touch 0 rows, buildEmailContext would return null, and the
+      // trailing audit would be skipped. A real R250 would vanish with no record anywhere. Refuse instead.
+      await flagMismatch("application_not_found")
+      return NextResponse.json({ ok: false, reason: "application_not_found" })
+    }
+
     if (paidCents === null) {
       await flagMismatch("unparseable_amount_gross")
       return NextResponse.json({ ok: false, reason: "unparseable_amount" })
+    }
+
+    // IDEMPOTENCY. PayFast retries, and this handler re-arms screening (searchworx_check_status → pending)
+    // unconditionally. A duplicate delivery after a completed screening would flip it back to pending, the
+    // screening-line-runner cron would re-claim it, and Pleks would pay Searchworx for the bundle a SECOND
+    // time — plus send a second receipt. The sibling director handler already guards this; this one did not.
+    if (expectedRow.fee_status === "paid") {
+      console.warn("[payfast] duplicate application ITN ignored " + JSON.stringify({
+        applicationId, pf_payment_id: params.pf_payment_id ?? null,
+      }))
+      return NextResponse.json({ ok: true, duplicate: true })
     }
 
     if (expectedCents !== null && paidCents !== expectedCents) {
