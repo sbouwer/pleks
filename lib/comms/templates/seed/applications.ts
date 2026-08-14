@@ -6,7 +6,7 @@
  * Notes:  Legal-pass resolutions applied:
  *           F1 (BLOCKING) — declines (declined_stage1/2) carry NO {{reason}} free-text; neutral
  *             else-text only + "contact the agency"; commsClass correspondence + locked:true.
- *           F4 — shortlisted screening-consent chain (Searchworx / POPIA consent / R399) verbatim.
+ *           F4 — shortlisted screening-consent chain (Searchworx / POPIA consent / screening fee) verbatim.
  *           F5 — canonical tokens ({{recipient.salutation}}, {{branding.orgName}}); no "via Pleks".
  *           F6 — agent_notify + review_reminder = service (no popiaSlot); review_reminder pending
  *             list → callout placeholder.
@@ -31,6 +31,11 @@ import type { TemplateSeed } from "./types"
 // Single source for the applicant POPIA/IR footer — same constant the live ApplicantLegalFooter renders, so
 // the seed twin can't drift from what actually sends (O-16-R6 / ADDENDUM_70G, R7.3 Standard Applicant Footer).
 import { APPLICANT_POPIA_FOOTER_TEXT } from "@/lib/comms/templates/ApplicantLegalFooter"
+import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
+
+/** Derived from the fee SSOT — these bodies are quoted to applicants before they pay, so a stale
+ *  literal here is a mis-quote. Regenerate document_templates.seed.generated.sql after any change. */
+const SCREENING_FEE = formatZAR(APPLICATION_FEE_CENTS)
 
 export const APPLICATION_SEEDS: TemplateSeed[] = [
   {
@@ -112,7 +117,7 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
       { type: "paragraph", text: "To complete your application we need to run a credit and background check. This requires:" },
       { type: "list", ordered: true, items: [
         "Your consent (POPIA requirement)",
-        "A screening fee of R399",
+        `A screening fee of ${SCREENING_FEE}`,
       ] },
       { type: "paragraph", text: "The screening is conducted by Searchworx, an independent credit bureau. Results are shared with {{branding.orgName}} only." },
       { type: "cta", label: "Continue to screening", href: "{{inviteUrl}}" },
@@ -222,7 +227,7 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "Thank you for your application for **{{unitLabel}}** at {{propertyName}}." },
       { type: "paragraph", text: "After completing the full screening evaluation, we have decided not to proceed with your application. If you have any questions, please contact {{branding.orgName}}." },
-      { type: "paragraph", text: "The screening fee of R399 is non-refundable as communicated at the time of payment." },
+      { type: "paragraph", text: `The screening fee of ${SCREENING_FEE} is non-refundable as communicated at the time of payment.` },
       { type: "paragraph", text: "We wish you well in finding your next home." },
       { type: "paragraph", text: APPLICANT_POPIA_FOOTER_TEXT },
     ],

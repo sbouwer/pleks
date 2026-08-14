@@ -450,9 +450,13 @@ Do not rely on this file for task status. It changes daily.
 
 ## KEY CONSTANTS (unchanged — do not modify)
 
-APPLICATION_FEE_CENTS = 39900         // R399
-JOINT_APPLICATION_FEE_CENTS = 74900   // R749
+APPLICATION_FEE_CENTS = 25000         // R250 single   (was R399 — superseded Mar-2026 model)
+JOINT_APPLICATION_FEE_CENTS = 47000   // R470 joint    (was R749 — same)
 INCOME_AFFORDABILITY_THRESHOLD = 0.30
+
+Screening fee SSOT: `lib/constants.ts` (price) + `lib/screening/searchworxBundle.ts` (cost, margin —
+all DERIVED). Bundle cost is R202.80 incl VAT, so R250 carries R47.20 (19%). Never hardcode a fee
+literal — `lib/screening/__tests__/bundle-economics.test.ts` asserts no bundle is sold below cost.
 
 Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 (not ANON_KEY — match this exactly)

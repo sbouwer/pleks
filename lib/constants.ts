@@ -77,9 +77,15 @@ export const HOA_LIMITS = {
 export const FOUNDING_AGENT_PRICE_CENTS = 29900 // R299/month
 export const FOUNDING_AGENT_DURATION_MONTHS = 24
 
-// Application screening fees (D-003 REVISED)
-export const APPLICATION_FEE_CENTS = 39900 // R399 Stage 2 single
-export const JOINT_APPLICATION_FEE_CENTS = 74900 // R749 Stage 2 joint
+// Application screening fees. SSOT: brief/legal/SEARCHWORX_RATE_CARD.md §1.1 (amended 2026-05-18).
+// R250 is the CURRENT price and R399 the superseded March-2026 single-bundle model — these constants
+// were the last place still charging R399, three months after 005_operations.sql:1790 dropped the
+// listings default to 25000 "down from R399". Bundle cost is R202.80 (Combined Consumer Credit Report
+// R170 + VCCB R6.35 + fees), so R250 carries R47.20 (19%) margin. Do NOT price below R250 without
+// re-reading rate-card §5: a R150 Lite tier was evaluated and rejected (D-RATE-08) because the R170
+// Combined call is the floor for credible screening.
+export const APPLICATION_FEE_CENTS = 25000 // R250 single
+export const JOINT_APPLICATION_FEE_CENTS = 47000 // R470 joint — 2 applicants at a ~6% joint discount
 export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income — PRINCIPAL/co-applicant ceiling (rent ÷ combined gross; ≈ income ≥ 3.33× rent)
 // Guarantor/surety floor — DECOUPLED from and STRICTER than the principal threshold. A guarantor must cover the
 // WHOLE lease on default (not share it), so their independent income is checked against a higher multiple of rent

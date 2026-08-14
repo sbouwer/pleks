@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
     orgId: application.org_id,
     propertyName: listing?.properties?.name ?? "Property",
     unitName: listing?.units?.unit_number ?? "",
+    feeCents,
   })
 
   return NextResponse.json({

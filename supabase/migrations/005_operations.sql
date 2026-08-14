@@ -3240,3 +3240,25 @@ CREATE POLICY "org_blocked_pending_field" ON blocked_pending_field
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
+
+-- ═══════════════════════════════════════════════════════════════
+-- SECTION: Screening fee reconciliation (amend-forward 2026-08-14)
+-- ═══════════════════════════════════════════════════════════════
+-- The R399 single-bundle model was superseded on 2026-05-13 by the R250 rate card, and
+-- listings.application_fee_cents was re-defaulted to 25000 at §BUILD_14_v2 above. The
+-- applications.fee_amount_cents DEFAULT was missed in that pass and still read 39900 —
+-- latent (app code always sets it explicitly) but wrong, and it is the value any manual
+-- INSERT or backfill would have picked up. Bring it in line with the fee SSOT
+-- (lib/constants.ts APPLICATION_FEE_CENTS).
+ALTER TABLE applications ALTER COLUMN fee_amount_cents SET DEFAULT 25000;
+
+-- The screening_bundle comment still described the PRE-2026-05-18 bundle composition
+-- (TU PP + Trace + VCCB + Default Listing — Default Listing was retired permanently) and
+-- the 'estate' tier, which was CANCELLED on 2026-05-21 together with Huru (ADDENDUM_14E
+-- superseded: Huru required in-person fingerprinting, incompatible with a digital flow).
+-- The column itself is read nowhere in app/ or lib/ — it is orphan schema pending removal.
+COMMENT ON COLUMN listings.screening_bundle IS
+  '"standard" = the only live bundle: Combined Consumer Credit Report (multi-bureau, one call)
+   + VCCB Income Estimator. Fee is NOT stored here — see lib/constants.ts APPLICATION_FEE_CENTS.
+   "estate" = CANCELLED 2026-05-21 with Huru; no code path selects it. Column is orphan schema
+   kept only so the CHECK constraint does not break historical rows. See SEARCHWORX_RATE_CARD.md.';

@@ -3937,3 +3937,14 @@ ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
     'consent_verification_locked_out', 'consent_email_link_sent', 'consent_email_link_verified',
     'consent_special_information_given', 'consent_special_information_revoked'
   ));
+
+-- ── Amend-forward 2026-08-14: marketing copy must not name the screening fee ──
+-- The seeded pillar_1_body named "R399", which was superseded by the R250 rate card on
+-- 2026-05-13. The seed uses ON CONFLICT (key) DO NOTHING, so the live row kept the stale
+-- figure and the homepage quoted a price no code charged. Rather than swap in R250 and
+-- recreate the drift surface, the copy is now price-agnostic: the fee is quoted to the
+-- applicant at the point of payment (and is subject to change), which is where it belongs.
+-- Fee SSOT is lib/constants.ts APPLICATION_FEE_CENTS — never marketing copy.
+UPDATE site_content
+   SET value = 'Applicants apply free. They pay for the credit check only when you shortlist them. You see a FitScore, not a raw report.'
+ WHERE key = 'pillar_1_body';

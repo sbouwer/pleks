@@ -7,14 +7,15 @@ import { EmailLayout, EmailButton, EmailSectionHeading, EmailDetail } from "@/li
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { ApplicantLegalFooter } from "@/lib/comms/templates/ApplicantLegalFooter"
 import { sendEmail } from "@/lib/comms/send-email"
-import { formatZAR } from "@/lib/constants"
+import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { fmtDateLongZA } from "@/lib/dates"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
-const SCREENING_FEE = "R399"
+/** Derived, never a literal — this is the fee quoted to an applicant before they pay. */
+const SCREENING_FEE = formatZAR(APPLICATION_FEE_CENTS)
 
 interface ApplicationSummary {
   id: string
@@ -686,7 +687,7 @@ export async function sendDeclinedStage2(
         <p style={S.body}>{opts.reason
           ? `After completing the full screening, we have decided not to proceed. ${opts.reason}`
           : "After completing the full screening evaluation, we have decided not to proceed with your application."}</p>
-        <p style={S.body}>The screening fee of R399 is non-refundable as communicated at the time of payment.</p>
+        <p style={S.body}>The screening fee of {SCREENING_FEE} is non-refundable as communicated at the time of payment.</p>
         <p style={S.body}>We wish you well in finding your next home.</p>
         <ApplicantLegalFooter />
       </EmailLayout>
