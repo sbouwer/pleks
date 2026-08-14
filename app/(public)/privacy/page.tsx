@@ -299,7 +299,7 @@ export default function PrivacyPolicyPage() {
         <ul className="legal-list">
           <li><strong>Africa&rsquo;s Talking</strong>{" "}is also subject to the Kenya Data Protection Act 2019; SCCs are applied as the primary mechanism in addition to that local-law protection.</li>
           <li><strong>Anthropic</strong>{" "}AI processing is governed by SCCs supplemented by a zero-retention Enterprise DPA — API inputs and outputs are not retained for model training or any other purpose beyond returning the immediate response; operational retention by the provider is minimised under the Enterprise DPA. Pleks does not intentionally retain prompts or responses beyond the workflow output required for the underlying purpose.</li>
-          <li><strong>US-domiciled operators</strong>{" "}(Supabase, Vercel, Sentry, Resend, Better Stack, Meta) operate under Standard Contractual Clauses incorporated into their respective Data Processing Addenda.</li>
+          <li><strong>Cross-border operators</strong>{" "}operate under Standard Contractual Clauses incorporated into their respective Data Processing Addenda. Our database and storage provider (Supabase) hosts in <strong>Ireland (EU)</strong>; Vercel, Sentry, Resend, Better Stack and Meta are US-domiciled or globally distributed. Per-operator domiciles are listed in the <a href="/popia-register">operators directory</a>.</li>
           <li><strong>Contract-necessity backstop.</strong>{" "}In limited cases, transfers may also occur where necessary for the performance of a contract with the data subject, as permitted by <span className="act-pill">POPIA · S72(1)(C)</span>. This is a backstop basis; SCCs remain Pleks&rsquo;s primary mechanism.</li>
         </ul>
         <p>

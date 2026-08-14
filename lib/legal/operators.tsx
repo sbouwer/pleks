@@ -16,7 +16,13 @@ export interface Operator {
   crossBorder: boolean   // true if domicile !== 'South Africa'
   instrument: string     // e.g. 'Terms of Service + DPA with SCCs'
   sub: string            // short display label for §C operators table
-  purposesDisplay: string  // formatted string e.g. "A1–A12, B1–B27"
+  /**
+   * Human-readable purpose range shown in the §C operators directory, e.g. "A1–A12, B1–B25, B27".
+   * MUST agree with `purposes` below — a contiguous range that implies a purpose POPIA_PURPOSES does not
+   * define is exactly the defect B26's removal was meant to eliminate. Guarded by the operators↔purposes
+   * integrity test in lib/legal/__tests__/purpose-integrity.test.ts.
+   */
+  purposesDisplay: string
   purposes: string[]     // purpose IDs this operator processes, e.g. ['A1','A2']
   surfaceInShareTable: boolean   // true = appears in privacy §05 share table
   shareTableSub?: string         // overrides `sub` in the §05 table (editorial variant)
@@ -32,7 +38,7 @@ export const OPERATORS: readonly Operator[] = [
     crossBorder: true,
     instrument: "Terms of Service + Data Processing Addendum with SCCs. Sub-processor: AWS.",
     sub: "database · storage · auth",
-    purposesDisplay: "A1–A12, B1–B27",
+    purposesDisplay: "A1–A12, B1–B25, B27",
     purposes: [
       "A1","A2","A3","A4","A5","A6","A7","A8","A9","A10","A11","A12",
       "B1","B2","B3","B4","B5","B6","B7","B8","B9","B10","B11","B12",
@@ -158,7 +164,7 @@ export const OPERATORS: readonly Operator[] = [
     crossBorder: true,
     instrument: "Vercel Terms of Service + DPA with SCCs. Logs are POPIA-scrubbed consistent with observability policy.",
     sub: "application hosting",
-    purposesDisplay: "A1–A12, B1–B27",
+    purposesDisplay: "A1–A12, B1–B25, B27",
     purposes: [
       "A1","A2","A3","A4","A5","A6","A7","A8","A9","A10","A11","A12",
       "B1","B2","B3","B4","B5","B6","B7","B8","B9","B10","B11","B12",

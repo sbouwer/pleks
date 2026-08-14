@@ -147,6 +147,13 @@ export default function TermsOfServicePage() {
           juristic-entity subscribers on fixed-term agreements are subject to any notice and penalty terms agreed at sign-up.
         </p>
         <p>
+          <strong>Which subscribers this applies to.</strong>{" "}Pleks currently offers month-to-month subscriptions only, and a
+          month-to-month subscription is not a fixed-term agreement. The fixed-term provisions in this section — and the renewal
+          notice under <span className="act-pill">CPA · S14</span>{" "}in §03 — therefore apply only where a fixed-term agreement has
+          been separately concluded. On a month-to-month subscription you may cancel at any time from your account settings, with
+          access continuing until the end of the period you have paid for, and no cancellation penalty applies.
+        </p>
+        <p>
           Cancellation is confirmed by passkey or authenticator code challenge. Where neither is enrolled, an email confirmation
           link with 24-hour validity is sent instead. An unconfirmed cancellation request expires automatically and the subscription
           continues uninterrupted. The 12-month read-only access period begins only upon confirmed cancellation.

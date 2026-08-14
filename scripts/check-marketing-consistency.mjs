@@ -140,6 +140,13 @@ const CANONICAL_PHRASES = parseCanonicalPhrases(CANONICAL_PHRASES_FILE)
 const EXTRA_DRIFT_PATTERNS = [
   [/PDF \+ JSON(?!\s*\+\s*ZIP)/,  '"PDF + JSON" without ZIP — canonical: "PDF + JSON + ZIP"'],
   [/\b72\s*hr(s)?\b/i,            '"72hr/72hrs" — canonical: "72 hours"'],
+  // REVERSION GUARD (2026-08-14). The case-drift check above cannot catch a WRONG-NUMBER citation: once
+  // "Section 86 trust account" stopped appearing anywhere, its canonical entry matched nothing and passed
+  // vacuously — a fail-open on the single most load-bearing claim in the Charter. PPA 22 of 2019 s54 is the
+  // trust-account provision and the Act ends at s77; s86 is the Legal Practice Act (attorneys'). Fail loudly
+  // if it ever comes back.
+  [/\bSection\s*86\b/i,           '"Section 86" — the PPA trust-account provision is s54; the PPA ends at s77'],
+  [/\bPPA\s*s\s*86\b/i,           '"PPA s86" — no such section; the trust-account provision is PPA s54'],
 ]
 
 for (const file of PUBLIC_FILES) {

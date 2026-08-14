@@ -107,14 +107,14 @@ export default function CookiePolicyPage() {
           </thead>
           <tbody>
             <tr>
-              <td className="who">sb-[projectId]-auth-token<span className="sub">Supabase · localStorage</span></td>
-              <td>Stores your authenticated session after sign-in. Required to access the dashboard. <em>[projectId] is the unique identifier of the Pleks Supabase project.</em></td>
+              <td className="who">sb-[projectId]-auth-token<span className="sub">Supabase · cookie</span></td>
+              <td>Stores your authenticated session after sign-in. Required to access the dashboard. Sent to the server with every request so your session can be verified. Where the token exceeds the browser&rsquo;s 4&nbsp;KB cookie limit it is split across numbered companions (<em>…auth-token.0</em>, <em>…auth-token.1</em>). <em>[projectId] is the unique identifier of the Pleks Supabase project.</em></td>
               <td>7 days from issue; refreshed on each authenticated request; cleared on sign-out</td>
             </tr>
             <tr>
-              <td className="who">sb-[projectId]-auth-token-code-verifier<span className="sub">Supabase · sessionStorage</span></td>
-              <td>PKCE code verifier used during the OAuth authentication flow. Cleared immediately after sign-in completes.</td>
-              <td>Session</td>
+              <td className="who">sb-[projectId]-auth-token-code-verifier<span className="sub">Supabase · cookie</span></td>
+              <td>PKCE code verifier used during the sign-in exchange. Cleared immediately after sign-in completes.</td>
+              <td>Until sign-in completes</td>
             </tr>
             <tr>
               <td className="who">pub-theme<span className="sub">Pleks · localStorage</span></td>
@@ -169,16 +169,17 @@ export default function CookiePolicyPage() {
           </tbody>
         </table>
         <p>
-          <strong>A note on storage type:</strong>{" "}Supabase session tokens are stored in <strong>localStorage</strong>{" "}(not as HTTP
-          cookies) in the Pleks configuration. This means they are accessible via JavaScript and are not automatically sent with every
-          server request. They are cleared when you sign out or clear your browser data. The same POPIA obligations apply regardless
-          of whether data is stored in a cookie or in localStorage.
+          <strong>A note on storage type:</strong>{" "}Your Pleks session is held in <strong>cookies</strong>, not in browser
+          localStorage. Because the server must verify your session on every request, the session cookie is transmitted with each
+          request and is marked <em>HttpOnly</em>{" "}where it carries authentication state — meaning it cannot be read by JavaScript
+          running in the page. Cookies are cleared when you sign out or clear your browser data. The same POPIA obligations apply
+          regardless of whether data is stored in a cookie or in browser storage.
         </p>
         <p>
-          Session tokens are held in <strong>localStorage</strong>{" "}on your device. Session validation and the underlying user record
-          are stored at our database and storage provider&rsquo;s US infrastructure (see the operators directory in the{" "}
-          <a href="/popia-register">POPIA processing register</a>) under Standard Contractual Clauses per{" "}
-          <span className="act-pill">POPIA · S72(1)(a)</span>.
+          Session validation and the underlying user record are stored at our database and storage provider&rsquo;s{" "}
+          <strong>Ireland (EU)</strong>{" "}infrastructure (see the operators directory in the{" "}
+          <a href="/popia-register">POPIA processing register</a>). Transfers outside South Africa are governed by Standard
+          Contractual Clauses per <span className="act-pill">POPIA · S72(1)(a)</span>.
         </p>
       </section>
 
