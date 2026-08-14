@@ -36,6 +36,30 @@ export async function POST(req: Request) {
   try {
     const supabase = await createServiceClient()
 
+    // AMOUNT CROSS-CHECK. The ITN signature proves PayFast sent this, NOT that the amount matches what
+    // we meant to charge. Until 2026-08-14 buildApplicationFeeForm hardcoded "399.00" while the route
+    // wrote R250 to fee_amount_cents — the two diverged for three months and nothing noticed, because
+    // this handler marked the fee paid on trust. Compare what was actually paid against what we recorded.
+    const paidCents = Math.round(Number.parseFloat(params.amount_gross || "0") * 100)
+    const { data: expectedRow, error: expectedError } = await supabase
+      .from("applications").select("fee_amount_cents").eq("id", applicationId).maybeSingle()
+    if (expectedError) console.error("fee cross-check lookup failed:", expectedError.message)
+    const expectedCents = expectedRow?.fee_amount_cents ?? null
+
+    if (expectedCents !== null && paidCents !== expectedCents) {
+      // PII-free: ids and amounts only.
+      console.error("[payfast] application fee MISMATCH " + JSON.stringify({
+        applicationId, expectedCents, paidCents, pf_payment_id: params.pf_payment_id ?? null,
+      }))
+      if (paidCents < expectedCents) {
+        // UNDERPAID — do not mark paid and do not start screening; screening costs real money per head.
+        // 200 (not 4xx) so PayFast stops retrying: a retry cannot fix an underpayment, and this needs a
+        // human. The loud log above is the signal.
+        return NextResponse.json({ ok: false, reason: "amount_mismatch_underpaid" })
+      }
+      // OVERPAID — proceed. The applicant has paid; stranding them punishes the wrong party. Logged above.
+    }
+
     // Update application: fee paid, trigger screening
     await supabase.from("applications").update({
       fee_status: "paid",
