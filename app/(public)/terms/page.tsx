@@ -6,6 +6,7 @@
  */
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
+import { SupplierDisclosure } from "@/components/legal/SupplierDisclosure"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
 import { ExtLink } from "@/components/legal/ExtLink"
@@ -250,13 +251,12 @@ export default function TermsOfServicePage() {
         <p>
           We prefer to resolve disputes amicably before going to court. If you have a complaint, please contact us first — we will respond within 10 business days.
         </p>
-        <div className="officer-card">
-          <span className="l">Legal<br />contact</span>
-          <span className="v">
-            Pleks (Pty) Ltd
-            <br /><span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
-          </span>
-        </div>
+        <p>
+          <strong>Supplier information.</strong>{" "}The following details are provided in accordance with section 43(1) of the
+          Electronic Communications and Transactions Act 25 of 2002 <span className="act-pill">ECT Act · S43</span>, which requires
+          a supplier offering goods or services electronically to identify itself.
+        </p>
+        <SupplierDisclosure heading="Supplier & legal contact" />
       </section>
 
       {/* 08 */}

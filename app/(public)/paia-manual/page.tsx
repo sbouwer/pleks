@@ -9,6 +9,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
+import { SupplierDisclosure } from "@/components/legal/SupplierDisclosure"
 import { PrintButton } from "@/components/legal/PrintButton"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
@@ -102,13 +103,7 @@ export default function PAIAManualPage() {
           Pleks has registered its Information Officer with the Information Regulator of South Africa. For the purposes of
           PAIA s51(1)(a), the head of Pleks (Pty) Ltd is Stéan Bouwer, who also serves as Information Officer.
         </p>
-        <div className="officer-card">
-          <span className="l">Head &amp; Information<br />officer</span>
-          <span className="v">
-            Stéan Bouwer · Pleks (Pty) Ltd
-            <br /><span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a> · Western Cape, South Africa</span>
-          </span>
-        </div>
+        <SupplierDisclosure heading="Head & Information officer" />
         <p>
           <strong>2.2 Information Regulator</strong>
         </p>
