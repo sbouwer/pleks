@@ -27,6 +27,14 @@ interface Props {
   readonly hasSummary?: boolean
   readonly showDocLinks?: boolean
   readonly endLabel: string
+  /**
+   * This document's OWN effective date, rendered in the endstamp. Each legal document commences on its
+   * own date — do NOT hardcode a shared one here. A single literal previously stamped "Effective 1 April
+   * 2026" onto all seven documents regardless of their kicker, so /paia-manual simultaneously claimed a
+   * 2025-06-01 and a 2026-04-01 commencement on the same page. Omit to render no footer date at all
+   * rather than an inherited (and therefore wrong) one.
+   */
+  readonly effective?: string
   readonly children: React.ReactNode
 }
 
@@ -42,7 +50,7 @@ const LEGAL_DOCS = [
 
 export function LegalPageLayout({
   eyebrowParts, titleBefore, titleHighlight, titleAfter = "",
-  subtitle, kicker, sections, hasSummary = false, showDocLinks = true, endLabel, children,
+  subtitle, kicker, sections, hasSummary = false, showDocLinks = true, endLabel, effective, children,
 }: Props) {
   const pathname = usePathname()
   const [activeId, setActiveId] = useState<string>("")
@@ -154,7 +162,7 @@ export function LegalPageLayout({
               <span className="ring">P</span>
               <span>{endLabel}</span>
             </span>
-            <span style={{ color: "var(--ink-faint)" }}>Effective 1 April 2026</span>
+            {effective ? <span style={{ color: "var(--ink-faint)" }}>Effective {effective}</span> : null}
           </div>
         </main>
       </div>

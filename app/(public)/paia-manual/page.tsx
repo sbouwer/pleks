@@ -9,6 +9,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
+import { SupplierDisclosure } from "@/components/legal/SupplierDisclosure"
 import { PrintButton } from "@/components/legal/PrintButton"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
@@ -41,7 +42,7 @@ export default function PAIAManualPage() {
       titleHighlight="manual"
       subtitle="Pleks (Pty) Ltd's manual compiled in accordance with section 51 of the Promotion of Access to Information Act 2 of 2000 — record categories, access request procedure, and contact details."
       kicker={[
-        { label: "Last reviewed",  value: "2026 · 05 · 05",  mono: true },
+        { label: "Last reviewed",  value: "2026 · 08 · 14",  mono: true },
         { label: "Effective date", value: "2025 · 06 · 01",  mono: true },
         { label: "Compiled by",    value: "Pleks (Pty) Ltd"             },
         { label: "Act",            value: "PAIA · s51"                  },
@@ -49,6 +50,7 @@ export default function PAIAManualPage() {
       sections={SECTIONS}
       hasSummary
       endLabel={`END · PAIA MANUAL · ${LEGAL_VERSIONS.paiaManual}`}
+      effective="1 June 2025"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -101,13 +103,7 @@ export default function PAIAManualPage() {
           Pleks has registered its Information Officer with the Information Regulator of South Africa. For the purposes of
           PAIA s51(1)(a), the head of Pleks (Pty) Ltd is Stéan Bouwer, who also serves as Information Officer.
         </p>
-        <div className="officer-card">
-          <span className="l">Head &amp; Information<br />officer</span>
-          <span className="v">
-            Stéan Bouwer · Pleks (Pty) Ltd
-            <br /><span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a> · Western Cape, South Africa</span>
-          </span>
-        </div>
+        <SupplierDisclosure heading="Head & Information officer" />
         <p>
           <strong>2.2 Information Regulator</strong>
         </p>
@@ -237,7 +233,7 @@ export default function PAIAManualPage() {
                 Contact details, employment information, income documentation, identity documents, bank statements, credit bureau reports (where explicit consent was obtained), FitScore assessment, application status.
                 <br /><br />
                 <strong>Successful applicants:</strong>{" "}retained as tenant records.{" "}
-                <strong>Unsuccessful applicants:</strong>{" "}raw screening data — identity documents, bank statements, income records, the credit bureau report, contact details, and the AI-generated narrative — is purged 90 days after the terminal decision, in storage and not only database rows. A limited decision-accountability record (FitScore scoring outputs, the categorical decision-reason and adverse-factor codes, the decision date and stage, the deciding-agent identity and capacity, the screening- and criminal-screening-policy versions, and the audit-log entry reference) is retained for up to 5 years for legal-compliance, accountability and dispute-resolution purposes. Active legal holds suspend purge until resolution. This manual constitutes a public commitment to that two-tier window.
+                <strong>Unsuccessful applicants:</strong>{" "}raw screening data — identity documents, bank statements, income records, the credit bureau report, contact details, and the AI-generated narrative — is purged 90 days after the terminal decision, in storage and not only database rows. A limited decision-accountability record (FitScore scoring outputs, the categorical decision-reason and adverse-factor codes, the decision date and stage, the deciding-agent identity and capacity, the screening-policy version, and the audit-log entry reference) is retained for up to 5 years for legal-compliance, accountability and dispute-resolution purposes. Active legal holds suspend purge until resolution. This manual constitutes a public commitment to that two-tier window.
               </td>
               <td>Successful: 5 years.<br />Unsuccessful raw screening data: 90 days; decision-accountability record: up to 5 years.</td>
             </tr>
@@ -436,7 +432,7 @@ export default function PAIAManualPage() {
           <tbody>
             <tr>
               <td className="who">Supabase<span className="sub">database &amp; auth</span></td>
-              <td>Database storage and authentication — United States</td>
+              <td>Database storage and authentication — Ireland (EU, eu-west-1)</td>
               <td>Standard Contractual Clauses</td>
             </tr>
             <tr>

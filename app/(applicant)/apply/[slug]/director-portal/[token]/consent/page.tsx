@@ -85,8 +85,7 @@ export default async function DirectorConsentPage({
             You have the right to access, correct, or delete your information under POPIA.
           </p>
           <p className="text-xs">
-            This consent covers Standard bundle checks. If the property requires an Estate bundle,
-            you will be asked for additional consent for criminal history screening (Huru Criminal Standard).
+            This consent covers the checks listed above. Pleks does not perform criminal-record screening.
           </p>
         </CardContent>
       </Card>

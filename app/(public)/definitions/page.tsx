@@ -36,7 +36,7 @@ export default function DefinitionsPage() {
       titleHighlight="definitions"
       subtitle="Key terms used consistently across the Pleks legal document suite. Start here if you are reading any Pleks legal document for the first time."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 05 · 07", mono: true },
+        { label: "Last reviewed", value: "2026 · 08 · 14", mono: true },
         { label: "Effective",     value: "2026 · 05 · 07", mono: true },
         { label: "Applies to",    value: "All Pleks legal documents"   },
         { label: "Jurisdiction",  value: "Republic of South Africa"    },
@@ -44,6 +44,7 @@ export default function DefinitionsPage() {
       sections={SECTIONS}
       hasSummary={false}
       endLabel={`END · DEFINITIONS · ${LEGAL_VERSIONS.definitions}`}
+      effective="7 May 2026"
     >
 
       {/* 01 — About */}
@@ -384,7 +385,7 @@ export default function DefinitionsPage() {
         <p><strong>Trust Account</strong></p>
         <p>
           A separate bank account maintained by a property practitioner in accordance with the Property
-          Practitioners Act 22 of 2019 (PPA s86) for holding rental income, deposits, and other funds on behalf
+          Practitioners Act 22 of 2019 (PPA s54) for holding rental income, deposits, and other funds on behalf
           of clients. Pleks does not hold, control, or initiate payments from Trust Accounts — it provides tools
           for Agencies to reconcile and audit their own Trust Account against bank statement imports. Trust
           Account records are Compliance Records subject to a 5-year Retention Period from the end of the

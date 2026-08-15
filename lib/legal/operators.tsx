@@ -16,7 +16,13 @@ export interface Operator {
   crossBorder: boolean   // true if domicile !== 'South Africa'
   instrument: string     // e.g. 'Terms of Service + DPA with SCCs'
   sub: string            // short display label for §C operators table
-  purposesDisplay: string  // formatted string e.g. "A1–A12, B1–B27"
+  /**
+   * Human-readable purpose range shown in the §C operators directory, e.g. "A1–A12, B1–B25, B27".
+   * MUST agree with `purposes` below — a contiguous range that implies a purpose POPIA_PURPOSES does not
+   * define is exactly the defect B26's removal was meant to eliminate. Guarded by the operators↔purposes
+   * integrity test in lib/legal/__tests__/purpose-integrity.test.ts.
+   */
+  purposesDisplay: string
   purposes: string[]     // purpose IDs this operator processes, e.g. ['A1','A2']
   surfaceInShareTable: boolean   // true = appears in privacy §05 share table
   shareTableSub?: string         // overrides `sub` in the §05 table (editorial variant)
@@ -28,20 +34,20 @@ export const OPERATORS: readonly Operator[] = [
   {
     name: "Supabase",
     role: "Backend-as-a-service — Postgres database, authentication, storage, realtime",
-    domicile: "US (regional data residency configurable)",
+    domicile: "Ireland (EU — eu-west-1)",
     crossBorder: true,
     instrument: "Terms of Service + Data Processing Addendum with SCCs. Sub-processor: AWS.",
     sub: "database · storage · auth",
-    purposesDisplay: "A1–A12, B1–B27",
+    purposesDisplay: "A1–A12, B1–B25, B27",
     purposes: [
       "A1","A2","A3","A4","A5","A6","A7","A8","A9","A10","A11","A12",
       "B1","B2","B3","B4","B5","B6","B7","B8","B9","B10","B11","B12",
       "B13","B14","B15","B16","B17","B18","B19","B20","B21","B22","B23",
-      "B24","B25","B26","B27",
+      "B24","B25","B27",
     ],
     surfaceInShareTable: true,
     shareTableSub: "database, auth & storage",
-    shareTablePurpose: "All platform and agency purposes · database storage, authentication, file storage · United States",
+    shareTablePurpose: "All platform and agency purposes · database storage, authentication, file storage · Ireland (EU)",
     shareTableTransfer: <>Standard Contractual Clauses <span className="act-pill">POPIA · S72</span></>,
   },
   {
@@ -158,12 +164,12 @@ export const OPERATORS: readonly Operator[] = [
     crossBorder: true,
     instrument: "Vercel Terms of Service + DPA with SCCs. Logs are POPIA-scrubbed consistent with observability policy.",
     sub: "application hosting",
-    purposesDisplay: "A1–A12, B1–B27",
+    purposesDisplay: "A1–A12, B1–B25, B27",
     purposes: [
       "A1","A2","A3","A4","A5","A6","A7","A8","A9","A10","A11","A12",
       "B1","B2","B3","B4","B5","B6","B7","B8","B9","B10","B11","B12",
       "B13","B14","B15","B16","B17","B18","B19","B20","B21","B22","B23",
-      "B24","B25","B26","B27",
+      "B24","B25","B27",
     ],
     surfaceInShareTable: true,
     shareTablePurpose: "All platform and agency purposes · application hosting and global edge delivery · United States and global edge",
@@ -171,27 +177,16 @@ export const OPERATORS: readonly Operator[] = [
   },
   {
     name: "Searchworx",
-    role: "Multi-product data intermediary — aggregates TransUnion, Experian, Compuscan, and XDS (credit products); Deeds Office of South Africa (property ownership); CIPC (company and director data); Lightstone (property valuations); Home Affairs (DHA); TPN. Explicit applicant consent required per credit check (B4, B26). Property-intelligence pulls (B27) operate under s11(1)(c)/(f) — no applicant consent required. Lightstone operates as a sub-Operator to Searchworx for the valuation product family.",
+    role: "Multi-product data intermediary — aggregates TransUnion, Experian, Compuscan, and XDS (credit products); Deeds Office of South Africa (property ownership); CIPC (company and director data); Lightstone (property valuations); Home Affairs (DHA); TPN. Explicit applicant consent required per credit check (B4). Property-intelligence pulls (B27) operate under s11(1)(c)/(f) — no applicant consent required. Lightstone operates as a sub-Operator to Searchworx for the valuation product family.",
     domicile: "South Africa (Johannesburg — domestic)",
     crossBorder: false,
     instrument: "Searchworx Services Agreement + POPIA-compliant DPA. Searchworx is itself bound by NCA, POPIA, and FICA regulatory obligations. Data residency: asserted as SA-domiciled; Pleks is seeking written confirmation from Searchworx that all credit data (including data transiting to underlying bureaus TransUnion, Experian, XDS, Compuscan) remains within SA infrastructure. This entry will be updated on receipt of confirmation. Lightstone POPIA compliance incorporated by reference per POPIA s21(2).",
     sub: "credit bureau aggregator",
-    purposesDisplay: "B4, B26, B27",
-    purposes: ["B4","B26","B27"],
+    purposesDisplay: "B4, B27",
+    purposes: ["B4","B27"],
     surfaceInShareTable: true,
     shareTablePurpose: "Credit bureau queries — TransUnion, Experian, Compuscan, XDS, Home Affairs (DHA), TPN · South Africa · Consent-gated",
     shareTableTransfer: "South Africa (domestic)",
-  },
-  {
-    name: "Huru",
-    role: "Enhanced credit reporting for the Estate bundle — ITC Affordability Index and civil-judgement deep-dive consolidated bureau pull. Operates as a sub-operator within the Searchworx operator chain; Estate bundle applicants only.",
-    domicile: "South Africa (domestic)",
-    crossBorder: false,
-    instrument: "Huru Services Agreement via Searchworx operator chain. SA-domiciled; no cross-border transfer and no separate DPA required from Pleks — relationship is governed through Searchworx.",
-    sub: "enhanced credit reporting",
-    purposesDisplay: "B4 (Estate bundle only)",
-    purposes: ["B4"],
-    surfaceInShareTable: false,
   },
   {
     name: "Lightstone",

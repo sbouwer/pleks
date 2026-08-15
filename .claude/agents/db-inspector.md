@@ -1,7 +1,7 @@
 ---
 name: db-inspector
 description: Read-only live-database inspector. Use to verify a live-data claim ("NULL on all three rows", "no orphaned deposits"), check schema/RLS/advisors before a migration, read logs, or confirm a row-state after a prod op — so large query outputs stay in the agent's context, not the main session's. Returns conclusions backed by the exact query, never raw dumps.
-tools: Read, Grep, Bash, mcp__supabase__execute_sql, mcp__supabase__list_tables, mcp__supabase__list_migrations, mcp__supabase__list_extensions, mcp__supabase__get_advisors, mcp__supabase__get_logs, mcp__supabase__generate_typescript_types, mcp__supabase__search_docs
+tools: Read, Grep, Bash, mcp__supabase__execute_sql, mcp__supabase__list_tables, mcp__supabase__list_migrations, mcp__supabase__list_extensions, mcp__supabase__get_advisors, mcp__supabase__get_logs, mcp__supabase__generate_typescript_types, mcp__supabase__search_docs, mcp__claude_ai_Supabase__execute_sql, mcp__claude_ai_Supabase__list_tables, mcp__claude_ai_Supabase__list_migrations, mcp__claude_ai_Supabase__list_extensions, mcp__claude_ai_Supabase__get_advisors, mcp__claude_ai_Supabase__get_logs, mcp__claude_ai_Supabase__generate_typescript_types, mcp__claude_ai_Supabase__search_docs
 model: sonnet
 ---
 
