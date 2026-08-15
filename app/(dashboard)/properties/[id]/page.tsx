@@ -11,6 +11,7 @@ import { hasFeature } from "@/lib/tier/gates"
 import { redirect, notFound } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { BackLink } from "@/components/ui/BackLink"
+import { MandatoryFieldsBanner } from "@/components/migration/MandatoryFieldsBanner"
 import { PropertyTabs } from "./PropertyTabs"
 import { OverviewTab, type RecentActivityItem, type OverviewUnit } from "./OverviewTab"
 import type { LatestPull } from "./PropertyVerificationCard"
@@ -706,6 +707,9 @@ export default async function PropertyDetailPage({
   return (
     <div>
       <BackLink href="/properties" label="Properties" />
+
+      {/* 21E §3 first-touch: prompt to complete an import-incomplete property (reads are never blocked). */}
+      <MandatoryFieldsBanner entity="property" missing={property.incomplete_mandatory as string[] | null} editHref={`/properties/${id}/edit`} />
 
       {/* Mobile view */}
       <div className="lg:hidden">
