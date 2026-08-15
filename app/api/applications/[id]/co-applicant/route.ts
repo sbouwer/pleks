@@ -5,9 +5,10 @@
  * Auth:   PUBLIC / unauthenticated by design — the apply flow has no session. Service client; the application
  *         id in the path is the capability. Rate-limited per IP (it sends an invite email). org_id is read
  *         from the application server-side, never trusted from the client.
- * Data:   inserts application_co_applicants (incl. id_number + id_number_hash so the person can be LINKED to
+ * Data:   inserts application_co_applicants (incl. the encrypted id_number + its lookup hash so the person can be LINKED to
  *         the application at promotion), bumps applications.co_applicants_count, emails the invitee a link.
- * Notes:  id_number is hashed at rest (hashIdNumber) and never logged. The invite email is best-effort.
+ * Notes:  id_number goes through idNumberColumns (ciphertext + RAW-derived lookup hash) and is never logged.
+ *         The invite email is best-effort.
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -15,7 +16,7 @@ import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
-import { hashIdNumber, encryptIdNumber } from "@/lib/crypto/idNumber"
+import { idNumberColumns } from "@/lib/crypto/idNumber"
 
 export async function POST(
   req: Request,
@@ -50,8 +51,9 @@ export async function POST(
       applicant_email: body.email,
       applicant_phone: body.phone || null,
       id_type: body.id_type || null,
-      id_number: encryptIdNumber(body.id_number), // encrypted at rest; the hash (from RAW) stays the lookup key
-      id_number_hash: body.id_number ? hashIdNumber(body.id_number) : null,
+      // idNumberColumns bundles the ciphertext + the RAW-derived lookup hash — the canonical write
+      // helper, so the hash name never appears under app/ (pleks/no-id-number-hash-in-app).
+      ...idNumberColumns(body.id_number),
       role: body.role === "guarantor" ? "guarantor" : "co_applicant",
     })
     .select("id, access_token")
