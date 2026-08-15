@@ -94,6 +94,12 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
         {/* SECTION sign-off — consent is captured here (per member), so the application Review is consent-free. */}
         <ConsentVerify applicationId={applicationId} token={token} isCo={isCo} email={form.email} signedInEmail={verifiedEmail} verified={emailGateSatisfied} onVerified={() => setEmailVerified(true)} consent={consent} setConsent={setConsent}>
           I consent to Pleks processing the information and documents I&apos;ve provided — including automated (AI) analysis of my uploaded documents — to pre-screen this application (POPIA). No credit check or bureau enquiry runs at this stage; that only happens later if I&apos;m shortlisted and I consent again.
+          {/* SPEC_ANALYTICS_CAPTURE item 1 — the lawful basis for calibration, and the ONE genuinely
+              irreversible item in that spec. POPIA s15(3)(e) blesses further processing for statistical
+              purposes; s14(2) blesses retaining it beyond the operational period with safeguards. Neither
+              applies retroactively: every application scored BEFORE this sentence existed is permanently
+              outside the calibration cohort. Do not remove without replacing the basis. */}
+          {" "}The record of the decision on my application, and the inputs behind it, are kept in a pseudonymised form (no name, ID number or address) so Pleks can monitor the accuracy and fairness of its screening over time. Results are only ever published in aggregate, never about me individually.
           {coApplicants.length > 0 ? <> As this is a JOINT application, my co-applicants can see the shared affordability summary; my raw ID, bank-account and credit details are not shared with them.</> : null}
         </ConsentVerify>
         {/* The section sign-off action lives bottom-right in the pane (like the company co-review), not the top nav.

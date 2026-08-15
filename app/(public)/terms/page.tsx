@@ -37,7 +37,7 @@ export default function TermsOfServicePage() {
       titleHighlight="service"
       subtitle="The agreement that governs your use of the Pleks property management platform. By using Pleks you confirm that you have read and accepted these terms."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 08 · 14", mono: true },
+        { label: "Last reviewed", value: "2026 · 08 · 15", mono: true },
         { label: "Effective",     value: "2026 · 05 · 07", mono: true },
         { label: "Jurisdiction",  value: "Republic of South Africa" },
         { label: "Framework",     value: "CPA · ECT Act · PPA · POPIA" },
@@ -374,6 +374,31 @@ export default function TermsOfServicePage() {
           data, Pleks will route the request to the Agency within 5 business days for the Agency to respond as Responsible Party.
           Pleks will provide the Agency, within a timeframe that allows the Agency to meet its 30-calendar-day response obligation
           under POPIA s23 / PAIA s25, any information in Pleks&rsquo;s control that is necessary to respond to the request.
+        </p>
+
+        <p><strong>09.8 — Statistical and research processing (service improvement)</strong></p>
+        <p>
+          Pleks may process Customer Data in <strong>pseudonymised form</strong>{" "}— with direct identifiers such as name,
+          identity number, contact details and address removed — for service improvement, screening-model calibration, and
+          aggregate benchmarking across the platform. This is <em>further processing</em>{" "}permitted under{" "}
+          <span className="act-pill">POPIA · S15(3)(e)</span>, which treats processing for historical, statistical or research
+          purposes as compatible with the original purpose where the results are not published in an identifiable form, and the
+          associated records may be retained beyond the operational period under{" "}
+          <span className="act-pill">POPIA · S14(2)</span>{" "}subject to safeguards preventing their use for any other purpose.
+        </p>
+        <p>
+          <strong>What this does and does not permit.</strong>{" "}Results are published only in aggregate — never as, or
+          attributable to, an individual data subject, an individual Agency, or an identifiable property. Pseudonymised records
+          are not used to make or influence any decision about an individual outside the application they arose from, and are not
+          disclosed to any other Agency. Pleks does not operate, and this clause does not authorise, a shared tenant blacklist or
+          any cross-agency applicant register.
+        </p>
+        <p>
+          <strong>Erasure and this clause.</strong>{" "}A data-subject erasure request removes <em>identity</em>, not the
+          statistical record: identifying fields are deleted or severed while the de-identified fact is retained under s14(2).
+          Where the Agency instructs deletion of Customer Data, the same treatment applies. Retention of the operational record
+          itself continues to be governed by §04 and the retention schedule published in the{" "}
+          <a href="/popia-register">POPIA processing register</a>.
         </p>
       </section>
 

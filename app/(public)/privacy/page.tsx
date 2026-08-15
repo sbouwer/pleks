@@ -42,7 +42,7 @@ export default function PrivacyPolicyPage() {
       titleHighlight="policy"
       subtitle="How Pleks (Pty) Ltd collects, uses, stores and shares personal information — as Responsible Party for platform operations and as Operator for agency-managed rental data."
       kicker={[
-        { label: "Last reviewed",  value: "2026 · 08 · 14", mono: true },
+        { label: "Last reviewed",  value: "2026 · 08 · 15", mono: true },
         { label: "Effective from", value: "2026 · 05 · 07", mono: true },
         { label: "Jurisdiction",   value: "Republic of South Africa" },
         { label: "Standards",      value: "POPIA · PAIA · CPA · NCA · RHA · FICA · PPA · STSMA" },
@@ -411,6 +411,33 @@ export default function PrivacyPolicyPage() {
         <p>
           Purpose-level retention periods in this table are minimum commitments and may be overridden by mandatory statutory
           retention, active legal holds, subject-request restrictions, ongoing disputes, or subpoenas.
+        </p>
+
+        <p><strong>Statistical monitoring of screening accuracy and fairness (<span className="act-pill">POPIA · S15(3)(e)</span>{" "}<span className="act-pill">POPIA · S14(2)</span>)</strong></p>
+        <p>
+          Separately from the operational retention above, Pleks keeps a <strong>pseudonymised</strong>{" "}record of screening
+          decisions and the inputs behind them — with direct identifiers such as name, identity number, contact details and
+          address removed — in order to monitor, over time, whether its screening is accurate and whether it operates fairly.
+        </p>
+        <p>
+          This is <em>further processing</em>{" "}for statistical purposes, permitted under{" "}
+          <span className="act-pill">POPIA · S15(3)(e)</span>{" "}because it is compatible with the purpose for which the
+          information was collected and its results are not published in identifiable form. The associated records may be kept
+          beyond the operational retention period under <span className="act-pill">POPIA · S14(2)</span>, which permits retention
+          for historical, statistical or research purposes where safeguards prevent the records being used for any other purpose.
+        </p>
+        <p>
+          <strong>The safeguards, stated plainly.</strong>{" "}These records carry no name, identity number or address. They are
+          never used to make or influence a decision about you outside the application they came from. They are never shared with
+          another agency, and Pleks does not operate a shared tenant blacklist or any cross-agency applicant register. Anything
+          published or reported is aggregate only — never about an identifiable person, agency or property.
+        </p>
+        <p>
+          <strong>If you ask us to delete your information,</strong>{" "}we remove your <em>identity</em>, not the statistics.
+          Identifying fields are deleted or severed; the de-identified fact — that an application with certain characteristics
+          received a certain outcome — remains, because it no longer identifies you and because s14(2) permits its retention.
+          This is what allows Pleks to answer a fairness question honestly years later without holding onto anyone&rsquo;s
+          personal information to do it.
         </p>
       </section>
 
