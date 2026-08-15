@@ -6,6 +6,7 @@
  */
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
+import { SupplierDisclosure } from "@/components/legal/SupplierDisclosure"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
 import { ExtLink } from "@/components/legal/ExtLink"
@@ -36,7 +37,7 @@ export default function TermsOfServicePage() {
       titleHighlight="service"
       subtitle="The agreement that governs your use of the Pleks property management platform. By using Pleks you confirm that you have read and accepted these terms."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 05 · 07", mono: true },
+        { label: "Last reviewed", value: "2026 · 08 · 15", mono: true },
         { label: "Effective",     value: "2026 · 05 · 07", mono: true },
         { label: "Jurisdiction",  value: "Republic of South Africa" },
         { label: "Framework",     value: "CPA · ECT Act · PPA · POPIA" },
@@ -44,6 +45,7 @@ export default function TermsOfServicePage() {
       sections={SECTIONS}
       hasSummary
       endLabel={`END · TERMS OF SERVICE · ${LEGAL_VERSIONS.terms}`}
+      effective="7 May 2026"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -51,11 +53,11 @@ export default function TermsOfServicePage() {
         <h2 className="sc-h">What you&rsquo;re agreeing to</h2>
         <ul className="summary-list">
           <li><span className="b" /><span>By using Pleks you accept these terms — they form a legally binding agreement with Pleks (Pty) Ltd concluded by data message under the ECT Act.</span></li>
-          <li><span className="b" /><span>Subscription fees are billed monthly or annually via our payment processor, in ZAR inclusive of VAT where applicable.</span></li>
+          <li><span className="b" /><span>Subscription fees are billed monthly via our payment processor, in ZAR inclusive of VAT where applicable.</span></li>
           <li><span className="b" /><span>Cancel at any time from your account settings; access continues until your billing period ends. Cancellation is confirmed by passkey, authenticator code, or email link — an unconfirmed request expires and your subscription continues. Natural-person CPA subscribers may cancel on 20 business days&rsquo; notice at any time on a fixed-term plan.</span></li>
           <li><span className="b" /><span>After cancellation you have 12 months of read-only access before operational data is deleted. Statutory obligations require some categories to be retained for longer — see §04 and the POPIA register.</span></li>
           <li><span className="b" /><span>§09 sets out the full data-processing terms governing Pleks&rsquo;s obligations as Operator under POPIA s20–s21, including a 72-hour breach-notification target as a self-imposed standard.</span></li>
-          <li><span className="b" /><span>Pleks does not hold client funds. Trust money is held in the agency&rsquo;s own Section 86 account.</span></li>
+          <li><span className="b" /><span>Pleks does not hold client funds. Trust money is held in the agency&rsquo;s own Section 54 account.</span></li>
           <li><span className="b" /><span>Governing law: Republic of South Africa. CPA subscribers may also approach the National Consumer Tribunal or Magistrate&rsquo;s Court.</span></li>
         </ul>
       </div>
@@ -105,7 +107,7 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           <strong>Trust funds.</strong>{" "}Pleks does not hold client funds. Trust money for rental management is held in the Agency&rsquo;s
-          own Section 86 trust account at the Agency&rsquo;s own bank. Pleks is not a trustee and does not initiate or control
+          own Section 54 trust account at the Agency&rsquo;s own bank. Pleks is not a trustee and does not initiate or control
           payments on behalf of any party.
         </p>
       </section>
@@ -125,7 +127,7 @@ export default function TermsOfServicePage() {
           <li>We reserve the right to change pricing with 30 days&rsquo; written notice to your registered email address.</li>
           <li>Applicant credit check fees are paid directly by the applicant at the time of their application — not by your agency subscription.</li>
           <li>Failed payments may result in temporary suspension of your account until the balance is settled.</li>
-          <li>If you subscribe on an annual basis and are a natural person (not a juristic entity), we will notify you by email between 40 and 80 business days before your renewal date, as required by section 14 of the Consumer Protection Act <span className="act-pill">CPA · S14</span>. Agency and company subscribers are not subject to this notice obligation.</li>
+          <li>Annual subscriptions are not currently offered. Should annual billing be introduced, natural-person subscribers (not juristic entities) will be notified by email between 40 and 80 business days before each renewal date, as required by section 14 of the Consumer Protection Act <span className="act-pill">CPA · S14</span>. Agency and company subscribers are not subject to this notice obligation.</li>
         </ul>
       </section>
 
@@ -143,6 +145,13 @@ export default function TermsOfServicePage() {
           <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>. Pleks may impose a reasonable cancellation penalty calculated in
           accordance with regulation 5 of the CPA Regulations (<span className="act-pill">CPA · S14(2)(b)</span>). Agency and
           juristic-entity subscribers on fixed-term agreements are subject to any notice and penalty terms agreed at sign-up.
+        </p>
+        <p>
+          <strong>Which subscribers this applies to.</strong>{" "}Pleks currently offers month-to-month subscriptions only, and a
+          month-to-month subscription is not a fixed-term agreement. The fixed-term provisions in this section — and the renewal
+          notice under <span className="act-pill">CPA · S14</span>{" "}in §03 — therefore apply only where a fixed-term agreement has
+          been separately concluded. On a month-to-month subscription you may cancel at any time from your account settings, with
+          access continuing until the end of the period you have paid for, and no cancellation penalty applies.
         </p>
         <p>
           Cancellation is confirmed by passkey or authenticator code challenge. Where neither is enrolled, an email confirmation
@@ -249,13 +258,12 @@ export default function TermsOfServicePage() {
         <p>
           We prefer to resolve disputes amicably before going to court. If you have a complaint, please contact us first — we will respond within 10 business days.
         </p>
-        <div className="officer-card">
-          <span className="l">Legal<br />contact</span>
-          <span className="v">
-            Pleks (Pty) Ltd
-            <br /><span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
-          </span>
-        </div>
+        <p>
+          <strong>Supplier information.</strong>{" "}The following details are provided in accordance with section 43(1) of the
+          Electronic Communications and Transactions Act 25 of 2002 <span className="act-pill">ECT Act · S43</span>, which requires
+          a supplier offering goods or services electronically to identify itself.
+        </p>
+        <SupplierDisclosure heading="Supplier & legal contact" />
       </section>
 
       {/* 08 */}
@@ -366,6 +374,31 @@ export default function TermsOfServicePage() {
           data, Pleks will route the request to the Agency within 5 business days for the Agency to respond as Responsible Party.
           Pleks will provide the Agency, within a timeframe that allows the Agency to meet its 30-calendar-day response obligation
           under POPIA s23 / PAIA s25, any information in Pleks&rsquo;s control that is necessary to respond to the request.
+        </p>
+
+        <p><strong>09.8 — Statistical and research processing (service improvement)</strong></p>
+        <p>
+          Pleks may process Customer Data in <strong>pseudonymised form</strong>{" "}— with direct identifiers such as name,
+          identity number, contact details and address removed — for service improvement, screening-model calibration, and
+          aggregate benchmarking across the platform. This is <em>further processing</em>{" "}permitted under{" "}
+          <span className="act-pill">POPIA · S15(3)(e)</span>, which treats processing for historical, statistical or research
+          purposes as compatible with the original purpose where the results are not published in an identifiable form, and the
+          associated records may be retained beyond the operational period under{" "}
+          <span className="act-pill">POPIA · S14(2)</span>{" "}subject to safeguards preventing their use for any other purpose.
+        </p>
+        <p>
+          <strong>What this does and does not permit.</strong>{" "}Results are published only in aggregate — never as, or
+          attributable to, an individual data subject, an individual Agency, or an identifiable property. Pseudonymised records
+          are not used to make or influence any decision about an individual outside the application they arose from, and are not
+          disclosed to any other Agency. Pleks does not operate, and this clause does not authorise, a shared tenant blacklist or
+          any cross-agency applicant register.
+        </p>
+        <p>
+          <strong>Erasure and this clause.</strong>{" "}A data-subject erasure request removes <em>identity</em>, not the
+          statistical record: identifying fields are deleted or severed while the de-identified fact is retained under s14(2).
+          Where the Agency instructs deletion of Customer Data, the same treatment applies. Retention of the operational record
+          itself continues to be governed by §04 and the retention schedule published in the{" "}
+          <a href="/popia-register">POPIA processing register</a>.
         </p>
       </section>
 
