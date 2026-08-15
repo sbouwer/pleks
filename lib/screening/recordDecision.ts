@@ -121,3 +121,32 @@ export function extractDecisionRatios(
     income_verification_status_at_decision: incomeStatus,
   }
 }
+
+// ── Approve-side discretion (analytics capture, 2026-08-15) ───────────────────
+
+/**
+ * Bands that are NOT a positive recommendation. Approving one of these is the agent exercising
+ * discretion AGAINST the FitScore — the mirror of `decline_agent_discretion_documented` on the
+ * decline side, and the evidentiary limb of the human-in-the-loop discrimination defence.
+ *
+ * `limited_data_profile` is deliberately EXCLUDED. It signals an evidence gap (a thin file), not an
+ * adverse finding, and folding it in would conflate "approved despite adverse signals" with
+ * "approved without much signal" — two different things, and the first is the one the defence turns
+ * on. The nuance is not lost: fitscore_band_at_decision stores the actual band, so a thin-file
+ * approval rate can still be analysed separately. Do not "simplify" this by lumping them together.
+ */
+export const ADVERSE_RECOMMENDATION_BANDS: readonly string[] = [
+  "cautious_review",
+  "limited_confidence",
+  "adverse_signals",
+  "blocked",
+]
+
+/**
+ * Did this approval go against the FitScore recommendation? Null/unknown band ⇒ false: we record
+ * only what we can stand behind, never an inference. (The whole point of capturing this at decision
+ * time is that fitscore_band is mutable — a later re-score would otherwise rewrite history.)
+ */
+export function isApprovalAgainstRecommendation(band: string | null | undefined): boolean {
+  return typeof band === "string" && ADVERSE_RECOMMENDATION_BANDS.includes(band)
+}

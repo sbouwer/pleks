@@ -2934,3 +2934,31 @@ ALTER TABLE leases DROP COLUMN IF EXISTS auto_renewal_notice_due;
 ALTER TABLE leases ADD COLUMN IF NOT EXISTS incomplete_mandatory text[];
 ALTER TABLE leases ALTER COLUMN start_date        DROP NOT NULL;
 ALTER TABLE leases ALTER COLUMN rent_amount_cents DROP NOT NULL;
+
+-- ═══════════════════════════════════════════════════════════════
+-- SECTION: Analytics capture — lease → application linkage (2026-08-15)
+-- ═══════════════════════════════════════════════════════════════
+-- The LEASES half of the application ↔ lease pair; the applications half lives in
+-- 005_operations.sql. Split across the two files per domain routing (leases → 004),
+-- NOT kept together for convenience — the routing rule is what makes a table's history
+-- findable in one place.
+--
+-- The calibration join is application → lease → 12/24-month tenancy outcome. Today the only
+-- path is applications.tenant_id → tenants ← leases.tenant_id, which stops being precise the
+-- moment a tenant has more than one application or lease — a renewal, a second property, a
+-- re-application after a decline. That is the normal case, not the edge.
+--
+-- ⚠ ON DELETE SET NULL, DELIBERATELY — never CASCADE. A POPIA s24 erasure request must remove
+-- IDENTITY, not FACTS: the analytic row has to outlive its operational parent. A cascading FK
+-- here means the first erasure request silently deletes calibration history — including the
+-- history that evidences the fairness monitoring. Guarded behaviourally by
+-- test/db/analytics-erasure-survival.dbtest.ts (probe-fired against CASCADE).
+ALTER TABLE leases
+  ADD COLUMN IF NOT EXISTS originating_application_id uuid REFERENCES applications(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_leases_originating_application ON leases(originating_application_id)
+  WHERE originating_application_id IS NOT NULL;
+
+COMMENT ON COLUMN leases.originating_application_id IS
+  'The application this lease came from, if any. NULL for leases created directly or migrated in.
+   Pairs with applications.resulting_lease_id (005). SET NULL on delete — never cascade.';

@@ -515,7 +515,11 @@
       "marital_status",
       "matrimonial_regime",
       "spouse_info",
-      "all_complete_notified_at"
+      "all_complete_notified_at",
+      "resulting_lease_id",
+      "fitscore_band_at_decision",
+      "approve_below_band",
+      "approve_below_band_note"
     ],
     "arrears_actions": [
       "id",
@@ -2010,7 +2014,8 @@
       "vacated_at",
       "service_address",
       "legal_review_flags",
-      "incomplete_mandatory"
+      "incomplete_mandatory",
+      "originating_application_id"
     ],
     "legal_hold_events": [
       "id",

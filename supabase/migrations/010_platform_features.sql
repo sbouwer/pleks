@@ -3952,3 +3952,51 @@ ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
 UPDATE site_content
    SET value = 'Applicants apply free. They pay for the credit check only when you shortlist them. You see a FitScore, not a raw report.'
  WHERE key = 'pillar_1_body';
+
+-- ═══════════════════════════════════════════════════════════════
+-- SECTION: Analytics capture — approve-side override (2026-08-15)
+-- ═══════════════════════════════════════════════════════════════
+-- The §45 F3 block above already captures the DECLINE side of agent discretion:
+-- decline_reason_code = 'decline_agent_discretion_documented' with a mandatory ≥100-char
+-- justification enforced in lib/screening/recordDecision.ts. The APPROVE side had no
+-- equivalent — an agent approving a Flagged / High-Risk applicant against the FitScore
+-- recommendation left no positive record, only an inference from comparing fitscore_band
+-- to stage2_status after the fact.
+--
+-- That asymmetry matters for the discrimination defence. SA law does not permit collecting
+-- race for tenant screening, so a classic disparate-impact test is unavailable; the
+-- human-in-the-loop limb has to be evidenced instead. "We show all applicants regardless of
+-- score" is procedural. The EVIDENCE that it is meaningful is that agents demonstrably
+-- approve low-band applicants at a non-trivial rate — which is a number only if it is
+-- recorded at decision time. It cannot be reconstructed later: fitscore_band is mutable
+-- (a re-score overwrites it), so the band AS AT the decision must be frozen alongside.
+--
+-- Follows the existing *_at_decision convention (rent_to_income_ratio_at_decision et al).
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS fitscore_band_at_decision text,
+  ADD COLUMN IF NOT EXISTS approve_below_band boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS approve_below_band_note text;
+
+COMMENT ON COLUMN applications.fitscore_band_at_decision IS
+  'FitScore band frozen AT the terminal decision. fitscore_band itself is mutable (a re-score
+   overwrites it), so this is the only durable record of what the agent was actually looking at.';
+
+COMMENT ON COLUMN applications.approve_below_band IS
+  'TRUE when an agent approved an applicant whose band at decision was not a positive
+   recommendation. The approve-side counterpart to decline_agent_discretion_documented, and the
+   evidentiary limb of the human-in-the-loop discrimination defence — see ADDENDUM analytics
+   capture. Set by approveAction; never inferred after the fact.
+
+   ⚠ DELIBERATELY UNVALIDATED — there is NO required-note rule here, and the decline side''s
+   >=100-char justification (recordDecision.ts DISCRETION_MIN_TEXT_LENGTH) must NOT be mirrored onto
+   it. The asymmetry looks like an oversight and is not: friction on a DECLINE is defensive and
+   wanted, but friction on an APPROVE suppresses exactly the behaviour the discrimination defence
+   needs to be common and honest. Requiring paperwork to approve a low-band applicant lowers the
+   approve-below-band rate and destroys the evidence this column exists to produce, while looking
+   like diligence. See SPEC_ANALYTICS_CAPTURE §2.2.';
+
+COMMENT ON COLUMN applications.approve_below_band_note IS
+  'OPTIONAL agent colour on a below-band approval. Never required — see approve_below_band.';
+
+CREATE INDEX IF NOT EXISTS idx_applications_approve_below_band
+  ON applications(org_id) WHERE approve_below_band = true;
