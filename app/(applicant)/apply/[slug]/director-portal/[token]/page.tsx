@@ -11,7 +11,7 @@
  */
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
-import { formatZAR } from "@/lib/constants"
+import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import Link from "next/link"
@@ -94,7 +94,9 @@ export default async function DirectorPortalPage({
   const data: DirectorPortalData = {
     firstName:      coApp.first_name,
     propertyLabel,
-    feeCents:       coApp.individual_fee_cents ?? 25000,
+    // individual_fee_cents is currently never written, so this fallback is what renders today —
+    // derive it rather than duplicating the literal.
+    feeCents:       coApp.individual_fee_cents ?? APPLICATION_FEE_CENTS,
     consentGiven:   !!coApp.stage2_consent_given_at,
     paymentPaid:    !!payment?.paid_at,
     checksComplete: coApp.searchworx_check_status === "complete",

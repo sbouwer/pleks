@@ -63,6 +63,14 @@ interface ApplicationFeeFormData {
   orgId: string
   propertyName: string
   unitName: string
+  /**
+   * The fee to actually charge, in cents — from APPLICATION_FEE_CENTS / JOINT_APPLICATION_FEE_CENTS
+   * via the billing route, NEVER a literal here. This was hardcoded "399.00" until 2026-08-14, so the
+   * caller computed the correct fee, wrote it to applications.fee_amount_cents, and then charged a
+   * different (stale) amount — the DB said one thing and PayFast took another. buildDirectorFeeForm
+   * below always took feeCents as a parameter; this one simply never did.
+   */
+  feeCents: number
 }
 
 export function buildApplicationFeeForm({
@@ -71,6 +79,7 @@ export function buildApplicationFeeForm({
   orgId,
   propertyName,
   unitName,
+  feeCents,
 }: ApplicationFeeFormData) {
   const data: Record<string, string> = {
     merchant_id: PAYFAST_CONFIG.merchantId,
@@ -78,7 +87,7 @@ export function buildApplicationFeeForm({
     return_url: absoluteUrl(`/apply/${listingId}/status`),
     cancel_url: absoluteUrl(`/apply/${listingId}`),
     notify_url: absoluteUrl("/api/webhooks/payfast/application"),
-    amount: "399.00",
+    amount: (feeCents / 100).toFixed(2),
     item_name: `Application Fee — ${propertyName} ${unitName}`,
     item_description: "Tenant application screening fee",
     custom_str1: applicationId,

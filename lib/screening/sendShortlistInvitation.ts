@@ -70,6 +70,7 @@ export async function sendShortlistInvitation(applicationId: string) {
     if (ctx) {
       void sendShortlistEmail(ctx.appSummary, ctx.listingSummary, ctx.orgContext, {
         inviteToken: inviteToken.token,
+        isJoint: ctx.isJoint,
       })
     }
   } catch (e) { console.error("sendShortlistEmail failed:", e) }

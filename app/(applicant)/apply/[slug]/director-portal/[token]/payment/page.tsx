@@ -9,7 +9,7 @@
  */
 import { notFound, redirect } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
-import { formatZAR } from "@/lib/constants"
+import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { buildDirectorFeeForm } from "@/lib/payfast/forms"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PayFastForm } from "@/components/payfast/PayFastForm"
@@ -66,7 +66,7 @@ export default async function DirectorPaymentPage({
     ? [listing.units?.unit_number, listing.units?.properties?.name].filter(Boolean).join(" — ")
     : "the property"
 
-  const feeCents = coApp.individual_fee_cents ?? 25000
+  const feeCents = coApp.individual_fee_cents ?? APPLICATION_FEE_CENTS
   const directorName = [coApp.first_name, coApp.last_name].filter(Boolean).join(" ") || "Director"
 
   const { url, data: formData } = buildDirectorFeeForm({

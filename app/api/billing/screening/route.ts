@@ -4,12 +4,16 @@
  * Route:  POST /api/billing/screening
  * Auth:   token — body token must be an unexpired 'shortlist_invite' application_tokens row
  * Data:   reads application_tokens, applications, listings; updates applications fee fields
- * Notes:  joint applications charge JOINT_APPLICATION_FEE_CENTS, else APPLICATION_FEE_CENTS
+ * Notes:  Fee comes from screeningFeeCents. A JURISTIC application (pty_ltd/cc/npc/trust) is priced as
+ *         the entity line + one line per surety director/trustee and paid in ONE transaction; it is
+ *         REFUSED (409 surety_party_required) until at least one surety party is declared. Individual
+ *         applications stay R250 single / R470 joint.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildApplicationFeeForm } from "@/lib/payfast/forms"
-import { APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { screeningFeeCents } from "@/lib/constants"
+import { requiresSuretyParty, validateJuristicParties } from "@/lib/applications/juristicParties"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
@@ -42,7 +46,7 @@ export async function POST(req: NextRequest) {
   const { data: application, error: applicationError } = await supabase
     .from("applications")
     .select(`
-      id, org_id, listing_id, has_co_applicant,
+      id, org_id, listing_id, has_co_applicant, entity_type, applicant_type, company_info,
       listings(asking_rent_cents, units(unit_number), properties(name))
     `)
     .eq("id", tokenData.application_id)
@@ -59,8 +63,37 @@ export async function POST(req: NextRequest) {
     properties: { name: string } | null
   } | null
 
+  // JURISTIC APPLICATIONS ARE PAID AS ONE TRANSACTION (Stéan ruling 2026-08-15): the entity's line plus
+  // one line per surety director/trustee. A juristic applicant has no consumer credit profile of its own,
+  // so screening the company without a surety human screens nothing — hence at least one is REQUIRED, and
+  // the sureties are not left to pay separately afterwards. Consent stays per-person (D-14B-01).
+  const companyType = (application.company_info as Record<string, unknown> | null)?.companyType
+  const orgMarker = application.entity_type ?? application.applicant_type
+  const juristic = requiresSuretyParty(orgMarker, companyType)
+
+  let suretyCount = 0
+  if (juristic) {
+    const { count, error: suretyError } = await supabase
+      .from("application_co_applicants")
+      .select("id", { count: "exact", head: true })
+      .eq("primary_application_id", application.id)
+      .eq("is_surety_director", true)
+      .is("declined_at", null)
+    logQueryError("POST application_co_applicants surety count", suretyError)
+    if (suretyError) {
+      // Fail closed: without a reliable count we cannot price the application correctly.
+      return NextResponse.json({ error: "Could not verify surety parties" }, { status: 503 })
+    }
+    suretyCount = count ?? 0
+
+    const gate = validateJuristicParties({ entityType: orgMarker, companyType, suretyCount })
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.error, code: "surety_party_required" }, { status: 409 })
+    }
+  }
+
   const isJoint = application.has_co_applicant ?? false
-  const feeCents = isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
+  const feeCents = screeningFeeCents({ isJuristic: juristic, suretyCount, hasCoApplicant: isJoint })
 
   // Update fee amount on application
   // eslint-disable-next-line pleks/require-org-scope-on-service-write -- token-scoped: application.id resolves from application_tokens (validated shortlist_invite token, unexpired) above — the token is the credential, not a caller-supplied org id
@@ -75,6 +108,7 @@ export async function POST(req: NextRequest) {
     orgId: application.org_id,
     propertyName: listing?.properties?.name ?? "Property",
     unitName: listing?.units?.unit_number ?? "",
+    feeCents,
   })
 
   return NextResponse.json({

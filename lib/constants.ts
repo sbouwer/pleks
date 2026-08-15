@@ -77,9 +77,63 @@ export const HOA_LIMITS = {
 export const FOUNDING_AGENT_PRICE_CENTS = 29900 // R299/month
 export const FOUNDING_AGENT_DURATION_MONTHS = 24
 
-// Application screening fees (D-003 REVISED)
-export const APPLICATION_FEE_CENTS = 39900 // R399 Stage 2 single
-export const JOINT_APPLICATION_FEE_CENTS = 74900 // R749 Stage 2 joint
+// Application screening fees. SSOT: brief/legal/SEARCHWORX_RATE_CARD.md §1.1 (amended 2026-05-18).
+// R250 is the CURRENT price and R399 the superseded March-2026 single-bundle model — these constants
+// were the last place still charging R399, three months after 005_operations.sql:1790 dropped the
+// listings default to 25000 "down from R399". Bundle cost is R202.80 (Combined Consumer Credit Report
+// R170 + VCCB R6.35 + fees), so R250 carries R47.20 (19%) margin. Do NOT price below R250 without
+// re-reading rate-card §5: a R150 Lite tier was evaluated and rejected (D-RATE-08) because the R170
+// Combined call is the floor for credible screening.
+export const APPLICATION_FEE_CENTS = 25000 // R250 single — rate card §1.1
+// R470 joint. NOT from the rate card: `grep -i joint` over SEARCHWORX_RATE_CARD.md returns ZERO hits —
+// §1.1 prices ONE bundle and the card's only multi-subject pricing is D-RATE-06 (commercial: R250 company
+// + R250 per director, which would imply R500 for two). R470 is a STÉAN DECISION of 2026-08-14, carrying
+// the ~6% joint discount implied by the superseded R399/R749 pair. Recorded here because an earlier
+// version of this comment mis-attributed it to the rate card. Amend the card, or keep the decision here —
+// but do not cite §1.1 for it.
+export const JOINT_APPLICATION_FEE_CENTS = 47000
+
+/** What the applicant pays. Lives HERE, not in searchworxBundle: that module imports the Searchworx
+ *  product modules (and through them supabase/server -> next/headers), which any consumer wanting only
+ *  the fee should not have to load. */
+export function getApplicationFee(isJoint: boolean): number {
+  return isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
+}
+
+/**
+ * The WHOLE fee for an application, by the lines it screens. One transaction covers every line.
+ *
+ * JURISTIC (pty_ltd / cc / npc / trust): the entity's own line PLUS one line per surety party
+ * (director, or trustee for a trust) — rate card D-RATE-06, "R250 company + N × per-director". The
+ * entity and its sureties are paid for TOGETHER (Stéan ruling 2026-08-15): a juristic applicant has no
+ * consumer credit profile of its own, so screening the company without a surety human screens nothing.
+ * At least one surety party is required — enforced by validateJuristicParties, not here, so this stays
+ * a pure arithmetic function.
+ *
+ * INDIVIDUAL: R250 single, R470 joint. NOT per-head — that is a recorded pricing decision, and
+ * per-head pricing for 3+ residential applicants is blocked on the v2 Searchworx pipeline
+ * (brief/build/OUTSTANDING.md § Per-head screening fee).
+ */
+export function screeningFeeCents(input: {
+  readonly isJuristic: boolean
+  /** Surety directors/trustees accompanying a juristic application. */
+  readonly suretyCount: number
+  /** Residential joint application (a couple). Ignored when isJuristic. */
+  readonly hasCoApplicant: boolean
+}): number {
+  if (input.isJuristic) return APPLICATION_FEE_CENTS * (1 + Math.max(0, input.suretyCount))
+  return getApplicationFee(input.hasCoApplicant)
+}
+
+/** The per-subject lines a fee covers, for writing one application_screening_payments row per line. */
+export function screeningFeeLineCount(input: {
+  readonly isJuristic: boolean
+  readonly suretyCount: number
+  readonly hasCoApplicant: boolean
+}): number {
+  if (input.isJuristic) return 1 + Math.max(0, input.suretyCount)
+  return input.hasCoApplicant ? 2 : 1
+}
 export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income — PRINCIPAL/co-applicant ceiling (rent ÷ combined gross; ≈ income ≥ 3.33× rent)
 // Guarantor/surety floor — DECOUPLED from and STRICTER than the principal threshold. A guarantor must cover the
 // WHOLE lease on default (not share it), so their independent income is checked against a higher multiple of rent

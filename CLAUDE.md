@@ -448,11 +448,28 @@ Do not rely on this file for task status. It changes daily.
 
 ---
 
-## KEY CONSTANTS (unchanged — do not modify)
+## KEY CONSTANTS (change only with a recorded decision)
 
-APPLICATION_FEE_CENTS = 39900         // R399
-JOINT_APPLICATION_FEE_CENTS = 74900   // R749
+APPLICATION_FEE_CENTS = 25000         // R250 single   (was R399 — superseded Mar-2026 model)
+JOINT_APPLICATION_FEE_CENTS = 47000   // R470 joint    (was R749 — same)
 INCOME_AFFORDABILITY_THRESHOLD = 0.30
+
+Screening fee SSOT: `lib/constants.ts` (price) + `lib/screening/searchworxBundle.ts` (cost, margin —
+all DERIVED). Bundle cost is R202.80 incl VAT, so R250 carries R47.20 (19%). Never hardcode a fee
+literal — `lib/screening/__tests__/bundle-economics.test.ts` asserts no bundle is sold below cost.
+
+**PRICING PRECEDENCE (Stéan ruling 2026-08-15).** When `brief/legal/SEARCHWORX_RATE_CARD.md` and
+`brief/build/INDEX.md`/ADDENDUMs disagree about a DECISION — a bundle cancelled, a fee changed, a
+product dropped — **INDEX/ADDENDUM wins.** The rate card is a supplier-pricing reference, not a
+decision log, and its `updated:` date is the last EDIT, not the last ruling: it was edited 2026-07-10
+still describing the Estate bundle as live, seven weeks after ADDENDUM_14E cancelled it. A later edit
+date does not make a stale document authoritative. Supplier per-call prices remain the card's domain.
+Estate + Huru + criminal screening are CANCELLED — Pleks sells one bundle.
+
+**Citations must be verified, not plausible.** A fabricated SSOT reference is worse than none: it
+survives review by looking rigorous. `grep` the cited file for the claim before citing it — a
+zero-hit grep is the check (this is how `JOINT_APPLICATION_FEE_CENTS` was found citing a rate-card
+section that never mentioned joint applications).
 
 Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 (not ANON_KEY — match this exactly)
