@@ -3275,3 +3275,31 @@ COMMENT ON COLUMN listings.screening_bundle IS
    "Estate stays at R650", so the two disagree and the INDEX is the later decision. No code path selects
    this column (verified: zero reads in app/ or lib/); it is orphan schema kept so the CHECK does not
    break historical rows. Reconcile the rate card before any estate work resumes.';
+
+-- ═══════════════════════════════════════════════════════════════
+-- SECTION: Analytics capture — application → lease linkage (2026-08-15)
+-- NOTE: the LEASES side of this pair lives in 004_leases_financials.sql per domain routing.
+-- ═══════════════════════════════════════════════════════════════
+-- The calibration join is application → lease → 12/24-month tenancy outcome. Today there is
+-- NO direct link: the only path is applications.tenant_id → tenants ← leases.tenant_id, which
+-- stops being precise the moment a tenant has more than one application or more than one lease
+-- (a renewal, a second property, a re-application after a decline). Reconstructing "which lease
+-- did THIS application produce" is trivial at write time and impossible once the people who
+-- remember have moved on — which is exactly why it is cheap to add now and cannot be added later.
+--
+-- ⚠ ON DELETE SET NULL, DELIBERATELY — never CASCADE. A POPIA s24 erasure request must remove
+-- IDENTITY, not FACTS: the analytic row has to be able to outlive its operational parent. A
+-- cascading FK here would mean the first erasure request silently deletes calibration history,
+-- and nobody would notice until the cohort was already gone.
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS resulting_lease_id uuid REFERENCES leases(id) ON DELETE SET NULL;
+
+
+CREATE INDEX IF NOT EXISTS idx_applications_resulting_lease ON applications(resulting_lease_id)
+  WHERE resulting_lease_id IS NOT NULL;
+
+COMMENT ON COLUMN applications.resulting_lease_id IS
+  'The lease this application produced, if any. Bidirectional with leases.originating_application_id
+   (both cheap, and each answers a different question). SET NULL on delete — the fact must survive
+   the erasure of its parent.';
+

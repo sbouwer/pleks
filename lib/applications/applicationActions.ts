@@ -23,6 +23,7 @@ import {
   extractDecisionRatios,
   isDiscretionDecline,
   DEFAULT_DECIDING_AGENT_CAPACITY,
+  isApprovalAgainstRecommendation,
   type DeclineDecisionInput,
 } from "@/lib/screening/recordDecision"
 import type { NotShortlistedReasonCode } from "@/lib/screening/decisionReasons"
@@ -188,9 +189,22 @@ export async function approveAction(applicationId: string, agentId: string, tena
   const { db, userId, orgId } = gw
 
   const policy = await resolveActiveScreeningPolicy(db, orgId)
+
+  // Freeze the band AS AT this decision. fitscore_band is mutable — a re-score overwrites it — so
+  // without this the evidence of what the agent was actually looking at is destroyed by the next run.
+  const { data: scored, error: scoredError } = await db
+    .from("applications").select("fitscore_band").eq("id", applicationId).eq("org_id", orgId).maybeSingle()
+  if (scoredError) console.error("approveAction fitscore_band read failed:", scoredError.message)
+  const bandAtDecision = (scored?.fitscore_band as string | null) ?? null
+  const belowBand = isApprovalAgainstRecommendation(bandAtDecision)
+
   const auditId = await recordAuditReturningId(db, {
     orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: applicationId,
-    after: { action: "application_approved", tenant_id: tenantId },
+    after: {
+      action: "application_approved", tenant_id: tenantId,
+      fitscore_band_at_decision: bandAtDecision,
+      approve_below_band: belowBand,
+    },
   })
 
   const { error } = await db
@@ -204,6 +218,8 @@ export async function approveAction(applicationId: string, agentId: string, tena
       screening_policy_id: policy?.id ?? null,
       screening_policy_version: policy?.version ?? null,
       audit_log_decision_entry_id: auditId,
+      fitscore_band_at_decision: bandAtDecision,
+      approve_below_band: belowBand,
     })
     .eq("id", applicationId)
     .eq("org_id", orgId)
