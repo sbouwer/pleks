@@ -27,6 +27,7 @@ import { getApplicationFee } from "@/lib/constants"
 // from the live values is what makes the margin guard actually load-bearing.
 import { COMBINED_COST_CENTS, COMBINED_PRODUCT_KEY } from "@/lib/searchworx/products/combinedConsumerCreditReport"
 import { VCCB_COST_CENTS, VCCB_PRODUCT_KEY } from "@/lib/searchworx/products/vccbIncomeEstimator"
+import { SEARCHWORX_COSTS } from "@/lib/searchworx/costs"
 
 /** SA VAT. Pleks pays input VAT on Searchworx invoices; see rate-card §3 for the registration scenarios. */
 export const VAT_RATE = 0.15
@@ -63,8 +64,51 @@ export const SEARCHWORX_BUNDLE_SA: readonly SearchworxCheck[] = [
 export const SEARCHWORX_BUNDLE_FOREIGN: readonly SearchworxCheck[] =
   SEARCHWORX_BUNDLE_SA.filter((c) => c.check_code !== VCCB_PRODUCT_KEY)
 
+/**
+ * COMPANY-LEVEL bundle — the entity's own line on a juristic application. Rate card §2.1.
+ *
+ * ⛔ NOT IMPLEMENTED — the commercial application flow does not exist yet. There is no Compuscan Company
+ * Profile product module (only cipcCompany / cipcDirector), nothing calls a company-level bundle, and no
+ * code path writes a subject_type='company' screening line's RESULT. This lives here so the company
+ * line's economics sit in the SAME SSOT as the consumer bundle — a company score is NOT priced like a
+ * personal one (its cost is lower and its margin higher), and that difference must not get invented at
+ * build time. Costs derive from SEARCHWORX_COSTS; the CIPC-director figure there currently CONTRADICTS
+ * rate card §2.1, so the derived company margin is provisional until that is resolved.
+ * See brief/build/OUTSTANDING.md § Commercial application flow.
+ */
+export const SEARCHWORX_BUNDLE_COMPANY: readonly SearchworxCheck[] = [
+  {
+    check_code: "compuscan_company_profile",
+    cost_excl_vat_cents: SEARCHWORX_COSTS.compuscan_company_profile,
+    fitscore_component: "company_credit",
+    note: "Company credit profile, business deeds, payment behaviour. NO product module exists yet.",
+  },
+  {
+    check_code: "cipc_company",
+    cost_excl_vat_cents: SEARCHWORX_COSTS.cipc_company,
+    fitscore_component: null,
+    note: "Company registration status verification.",
+  },
+  {
+    check_code: "cipc_director",
+    cost_excl_vat_cents: SEARCHWORX_COSTS.cipc_director,
+    fitscore_component: null,
+    note: "Returns registered directors — auto-discovers undeclared ones. Cost disputed vs rate card §2.1.",
+  },
+] as const
+
 export function getSearchworxBundle(isForeignNational: boolean): readonly SearchworxCheck[] {
   return isForeignNational ? SEARCHWORX_BUNDLE_FOREIGN : SEARCHWORX_BUNDLE_SA
+}
+
+/** Company-line cost EXCLUDING VAT, derived. */
+export function companyBundleCostExclVatCents(): number {
+  return SEARCHWORX_BUNDLE_COMPANY.reduce((sum, c) => sum + c.cost_excl_vat_cents, 0)
+}
+
+/** Company-line cost INCLUDING VAT — what Pleks would pay for the entity's own check. */
+export function companyBundleCostInclVatCents(): number {
+  return Math.round(companyBundleCostExclVatCents() * (1 + VAT_RATE))
 }
 
 export function getRequiredChecks(isForeignNational: boolean): string[] {

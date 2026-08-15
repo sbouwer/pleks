@@ -24,6 +24,8 @@ import {
   screeningMarginCents,
   getRequiredChecks,
   VAT_RATE,
+  companyBundleCostExclVatCents,
+  companyBundleCostInclVatCents,
 } from "@/lib/screening/searchworxBundle"
 // The LIVE constants — what bundle-runner actually charges and records.
 import { COMBINED_COST_CENTS, COMBINED_PRODUCT_KEY } from "@/lib/searchworx/products/combinedConsumerCreditReport"
@@ -78,6 +80,32 @@ describe("every copy of the per-call cost agrees", () => {
     const byCode = Object.fromEntries(SEARCHWORX_BUNDLE_SA.map((c) => [c.check_code, c.cost_excl_vat_cents]))
     expect(byCode[COMBINED_PRODUCT_KEY]).toBe(COMBINED_COST_CENTS)
     expect(byCode[VCCB_PRODUCT_KEY]).toBe(VCCB_COST_CENTS)
+  })
+})
+
+describe("the COMPANY line is priced differently from a personal one", () => {
+  // A company score is NOT a consumer score: different products, lower cost, higher margin. Rate card
+  // §2.1 — Compuscan Company Profile R110.00 + CIPC Company R15.65 + CIPC Director R15.65.
+  // ⛔ The commercial flow is NOT BUILT (no Compuscan Company product module exists). These assertions
+  // protect the economics from drifting while it is unimplemented; they do not claim it works.
+  it("derives the company line from SEARCHWORX_COSTS, not from its own literals", () => {
+    const expected = SEARCHWORX_COSTS.compuscan_company_profile + SEARCHWORX_COSTS.cipc_company + SEARCHWORX_COSTS.cipc_director
+    expect(companyBundleCostExclVatCents()).toBe(expected)
+    expect(companyBundleCostInclVatCents()).toBe(Math.round(expected * (1 + VAT_RATE)))
+  })
+
+  it("costs LESS than the personal bundle — the two must not be conflated", () => {
+    expect(companyBundleCostInclVatCents()).toBeLessThan(bundleCostInclVatCents(false))
+  })
+
+  it("is profitable at R250 under BOTH readings of the disputed CIPC-director rate", () => {
+    // costs.ts says cipc_director = R21.74 "(verify with John)"; rate card §2.1 says R15.65. That is
+    // UNRESOLVED (brief/build/OUTSTANDING.md § Commercial application flow), so rather than assert a
+    // disputed margin, assert the thing that holds either way: the company line is never sold at a loss.
+    const withRateCardFigure = SEARCHWORX_COSTS.compuscan_company_profile + SEARCHWORX_COSTS.cipc_company + 1565
+    for (const exVat of [companyBundleCostExclVatCents(), withRateCardFigure]) {
+      expect(APPLICATION_FEE_CENTS - Math.round(exVat * (1 + VAT_RATE)), `exVat=${exVat}`).toBeGreaterThan(0)
+    }
   })
 })
 
