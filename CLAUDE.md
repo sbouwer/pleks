@@ -497,6 +497,17 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 6. Mask before display — never show raw decrypted ID/account in UI (a lease *document* legitimately carries the
    full ID; a UI surface masks via `maskIdNumber`)
 7. No PII in console.log, no PII in audit_log values
+8. **`id_number_hash` is dedup + analytics ONLY — service-role only, never cross-org in any org-facing query
+   path, and never under `app/`.** `hashIdNumber` salts with a single GLOBAL env var, not a per-org one, so the
+   same human hashes identically in every organisation on the platform — it is already a cross-org identity key
+   by construction. Today no caller resolves across orgs, but that is the *absence of a caller*, not a control.
+   The moment an agent can see "this applicant also applied at another agency", Pleks has shipped a shared
+   tenant blacklist: a different product, with a different consent basis and a different regulatory profile,
+   built by accident. Enforced by `pleks/no-id-number-hash-in-app` (ESLint) — 3 pre-existing route handlers are
+   baselined and burning down; a new site anywhere under `app/` fails immediately. Keep the lookup in `lib/`
+   (`hashIdNumber` / `idNumberColumns` / the import identity matcher), org-scoped. **Never rotate the salt** —
+   rotation breaks every historical join; if forced, version the column and dual-write through a transition.
+   See `brief/build/SPEC_ANALYTICS_CAPTURE.md` §2.3.
 
 ---
 
