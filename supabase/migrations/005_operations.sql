@@ -3240,3 +3240,38 @@ CREATE POLICY "org_blocked_pending_field" ON blocked_pending_field
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
+
+-- ═══════════════════════════════════════════════════════════════
+-- SECTION: Screening fee reconciliation (amend-forward 2026-08-14)
+-- ═══════════════════════════════════════════════════════════════
+-- The R399 single-bundle model was superseded on 2026-05-13 by the R250 rate card, and
+-- listings.application_fee_cents was re-defaulted to 25000 at §BUILD_14_v2 above. The
+-- applications.fee_amount_cents DEFAULT was missed in that pass and still read 39900 —
+-- latent (app code always sets it explicitly) but wrong, and it is the value any manual
+-- INSERT or backfill would have picked up. Bring it in line with the fee SSOT
+-- (lib/constants.ts APPLICATION_FEE_CENTS).
+ALTER TABLE applications ALTER COLUMN fee_amount_cents SET DEFAULT 25000;
+
+-- Changing a DEFAULT does not touch existing rows. Listings created BEFORE the §BUILD_14_v2 ALTER
+-- above still carry the old R399 default and render "Application fee: R 399" to the agent on the
+-- listing page, while the billing route charges APPLICATION_FEE_CENTS. Backfill only rows still
+-- sitting on the old default — a listing deliberately priced at something else is left alone.
+UPDATE listings   SET application_fee_cents = 25000 WHERE application_fee_cents = 39900;
+-- Guard on fee_paid_at, NOT on fee_status <> 'paid': 'refunded' also satisfies "not paid", and a refunded
+-- application genuinely CHARGED R399. Rewriting its recorded amount to R250 would falsify a money record.
+UPDATE applications SET fee_amount_cents = 25000
+ WHERE fee_amount_cents = 39900 AND fee_paid_at IS NULL AND fee_status NOT IN ('paid', 'refunded');
+
+-- The screening_bundle comment still described the PRE-2026-05-18 bundle composition
+-- (TU PP + Trace + VCCB + Default Listing — Default Listing was retired permanently) and
+-- the 'estate' tier, which was CANCELLED on 2026-05-21 together with Huru (ADDENDUM_14E
+-- superseded: Huru required in-person fingerprinting, incompatible with a digital flow).
+-- The column itself is read nowhere in app/ or lib/ — it is orphan schema pending removal.
+COMMENT ON COLUMN listings.screening_bundle IS
+  '"standard" = the only live bundle: Combined Consumer Credit Report (multi-bureau, one call)
+   + VCCB Income Estimator. Fee is NOT stored here — see lib/constants.ts APPLICATION_FEE_CENTS.
+   "estate" = cancelled 2026-05-21 with Huru per brief/build/INDEX.md (ADDENDUM_14E, SUPERSEDED) — NOTE
+   the rate card itself was updated 2026-07-10 and still carries §1.2 Estate at R650 and D-RATE-13
+   "Estate stays at R650", so the two disagree and the INDEX is the later decision. No code path selects
+   this column (verified: zero reads in app/ or lib/); it is orphan schema kept so the CHECK does not
+   break historical rows. Reconcile the rate card before any estate work resumes.';

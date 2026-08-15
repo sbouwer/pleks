@@ -14,7 +14,7 @@ import { useParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, Clock, Circle, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STEPS = [
@@ -43,6 +43,9 @@ export default function Stage2StatusPage() {
   const [currentStep, setCurrentStep] = useState(3)
   const [applicationId, setApplicationId] = useState<string | null>(null)
   const [stage2Status, setStage2Status] = useState<string | null>(null)
+  // The fee ACTUALLY charged, read from the application row — not the single-applicant constant, which
+  // quoted R250 to a joint applicant who paid R470.
+  const [feeCents, setFeeCents] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -66,7 +69,7 @@ export default function Stage2StatusPage() {
 
       const { data: app, error: appError } = await supabase
         .from("applications")
-        .select("stage2_status, fee_status")
+        .select("stage2_status, fee_status, fee_amount_cents")
         .eq("id", tokenData.application_id)
         .single()
         logQueryError("load applications", appError)
@@ -74,6 +77,7 @@ export default function Stage2StatusPage() {
       if (app) {
         setStage2Status(app.stage2_status)
         setCurrentStep(statusToStep(app.stage2_status, app.fee_status))
+        setFeeCents(app.fee_amount_cents ?? null)
       }
       setLoading(false)
 
@@ -122,7 +126,7 @@ export default function Stage2StatusPage() {
       <div>
         <h1 className="text-xl font-semibold">Application status</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Screening fee: {formatZAR(APPLICATION_FEE_CENTS)} paid
+          {feeCents == null ? "Screening fee paid" : `Screening fee: ${formatZAR(feeCents)} paid`}
         </p>
       </div>
 

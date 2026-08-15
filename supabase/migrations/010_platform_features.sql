@@ -3937,3 +3937,18 @@ ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
     'consent_verification_locked_out', 'consent_email_link_sent', 'consent_email_link_verified',
     'consent_special_information_given', 'consent_special_information_revoked'
   ));
+
+-- ── Amend-forward 2026-08-14: marketing copy must not name the screening fee ──
+-- The seeded pillar_1_body named "R399", superseded by the R250 rate card on 2026-05-13. The seed
+-- uses ON CONFLICT (key) DO NOTHING, so the live row kept the stale figure.
+-- CORRECTION to an earlier version of this comment: it claimed the HOMEPAGE quoted R399. It does
+-- not — app/(public)/page.tsx reads 15 site_content keys and pillar_1_body is not among them; the
+-- pillar copy on the homepage is hardcoded in the TSX. This row surfaces only in the admin
+-- site-content editor. The stale figure was therefore never public-facing, and this UPDATE is
+-- tidy-up, not an incident fix.
+-- Made price-agnostic rather than re-pointed at R250: the fee is quoted to the applicant at the
+-- point of payment and is subject to change, so copy should not name it at all. Fee SSOT is
+-- lib/constants.ts APPLICATION_FEE_CENTS.
+UPDATE site_content
+   SET value = 'Applicants apply free. They pay for the credit check only when you shortlist them. You see a FitScore, not a raw report.'
+ WHERE key = 'pillar_1_body';

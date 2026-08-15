@@ -33,6 +33,20 @@ export const MANDATORY_FIELDS: Record<CompletableEntity, readonly string[]> = {
   lease: ["start_date", "rent_amount_cents"],
 } as const
 
+/** Human labels for the mandatory storage columns — for the first-touch prompt + the burn-down surface (§3/§6). */
+export const MANDATORY_FIELD_LABELS: Record<string, string> = {
+  first_name: "first name", last_name: "last name", primary_email: "email", primary_phone: "phone",
+  address_line1: "address", city: "city", province: "province",
+  start_date: "lease start date", rent_amount_cents: "rent",
+}
+
+/** "address, city and province" — a plain-language list of missing fields for a prompt. Empty ⇒ "". */
+export function describeMissingFields(fields: string[]): string {
+  const words = fields.map((f) => MANDATORY_FIELD_LABELS[f] ?? f.replaceAll("_", " "))
+  if (words.length <= 1) return words[0] ?? ""
+  return `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`
+}
+
 /** A value counts as ABSENT when it is null/undefined, NaN (a failed numeric parse — e.g. a blank rent field that
  *  became `Number.parseFloat("") * 100`), an empty/whitespace string, or an empty array. A real 0 is PRESENT. */
 export function isFieldBlank(value: unknown): boolean {

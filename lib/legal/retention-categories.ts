@@ -86,7 +86,7 @@ export const RETENTION_CATEGORIES: readonly RetentionCategory[] = [
   },
   {
     category: "Rental applications — decision-accountability record",
-    subLabel: "FitScore composite, band, per-dimension components, inputs hash, and engine / interpretation / narrative-prompt versions; the categorical decision-reason and adverse-factor codes; the decision date, stage, deciding-agent identity and capacity; the screening- and criminal-screening-policy versions; and the audit-log entry reference",
+    subLabel: "FitScore composite, band, per-dimension components, inputs hash, and engine / interpretation / narrative-prompt versions; the categorical decision-reason and adverse-factor codes; the decision date, stage, deciding-agent identity and capacity; the screening-policy version; and the audit-log entry reference",
     retention: "Up to 5 years from the terminal decision",
     retentionYearsMin: 5,
     basis: "POPIA s14(1)(b) — accountability and the establishment, exercise or defence of legal rights (PEPUDA / Rental Housing Act / NCA adverse-action evidentiary record). Active legal hold suspends purge.",

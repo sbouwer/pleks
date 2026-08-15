@@ -736,11 +736,32 @@ function primaryEmailKey(cell: string): string {
   return cell.split(",")[0]?.trim().toLowerCase() ?? ""
 }
 
-/** Cache a tenant id under its email for within-batch dedup — but ONLY when there is an email. An email-less
- *  tenant (the relaxed migration case) is deliberately kept out of the cache so two of them never collide on the
- *  empty key; those dedup on SA ID / name+phone via resolveIdentity instead. */
-function cacheTenant(ctx: ImportContext, email: string, tenantId: string): void {
-  if (email) ctx.tenantIdCache.set(email, tenantId)
+/**
+ * §7B KEY LADDER — the tenantIdCache key for a row, so a tenant created in Phase 4 is FOUND when its lease is
+ * built in Phase 5. Both phases MUST derive the identical key from the same row; that is why one function owns it
+ * and every write/lookup routes through it. Precedence:
+ *   1. email                  — the normal key; a book with emails dedups by email exactly as before.
+ *   2. "id:"+hash(id_number)  — email-less but ID-bearing: an SA ID is unique-per-person, so two rows for the
+ *                               same person collapse to ONE tenant (real dedup). hashIdNumber is the RAW-derived
+ *                               deterministic key — never the ciphertext.
+ *   3. "__row:"+index         — id-less AND email-less: the last-resort floor. Its only failure mode is a
+ *                               duplicate FLAGGED tenant for the same id-less person across rows (recoverable),
+ *                               NEVER a merge of two different people.
+ * NOT name+phone: the assembler ruled that fuzzy-hold-only (0.90 < AUTO_LINK 0.95) because two people share a
+ * name — a hard key on it would re-introduce the exact D-3 mis-join the assembler exists to prevent.
+ */
+function tenantCacheKey(email: string, idNumber: string, index: number): string {
+  if (email) return email
+  const id = idNumber.trim()
+  if (id) return `id:${hashIdNumber(id)}`
+  return `__row:${index}`
+}
+
+/** Cache a tenant id under its §7B ladder key for within-batch dedup + Phase-5 lease resolution. The key is never
+ *  empty (the row-index floor guarantees it), so an email-less tenant is cached too — under its id/row key, not the
+ *  empty string — which is what lets its lease find it. The `key &&` guard is belt-and-suspenders. */
+function cacheTenant(ctx: ImportContext, key: string, tenantId: string): void {
+  if (key) ctx.tenantIdCache.set(key, tenantId)
 }
 
 /**
@@ -826,8 +847,10 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
 
   const dataQualityTags = checkTenantIdentity(email, entry, ctx)
 
-  // cacheTenant never stores the empty key, so has("") is always false — no `email &&` guard needed here.
-  if (ctx.tenantIdCache.has(email)) return
+  // §7B: key by the ladder (email → id → row-index), NOT by email alone — an email-less tenant now caches under
+  // its id/row key so its lease finds it in Phase 5. Two rows with the same SA ID dedup here to one tenant.
+  const cacheKey = tenantCacheKey(email, getField(entry.row, "id_number", ctx.mapping), entry.index)
+  if (ctx.tenantIdCache.has(cacheKey)) return
 
   try {
     // IDENTITY FIRST. A tenant matched on their SA ID is the same tenant, whatever email the new book gives.
@@ -849,7 +872,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Failed to resolve tenant for existing contact", severity: "error" })
         return
       }
-      cacheTenant(ctx, email, resolved.tenantId)
+      cacheTenant(ctx, cacheKey, resolved.tenantId)
       if (resolved.created) ctx.result.tenantsCreated++
       else ctx.result.skipped++
       return
@@ -920,7 +943,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
     }
 
     const tenantId = String(created.id)
-    cacheTenant(ctx, email, tenantId)
+    cacheTenant(ctx, cacheKey, tenantId)
     ctx.result.tenantsCreated++
     await insertNextOfKin(tenantId, entry.row, ctx.mapping, ctx.orgId, ctx.supabase)
 
@@ -1867,13 +1890,14 @@ async function processActiveLease(
 
   try {
     // F-1: leases.tenant_id is NOT NULL, so it must be set AT insert. The primary tenant was created/resolved
-    // in Phase 4 (upsertTenant) and cached by email; resolve it here. Without it the insert failed every time.
-    // A joint-tenant cell ("a@x, b@x") is cached under the SPLIT emails, so key on the FIRST email (the
-    // primary), not the whole cell — otherwise joint-tenant rows would cache-miss and create no lease.
-    const primaryEmail = primaryEmailKey(getField(row, "email", ctx.mapping))
-    const primaryTenantId = ctx.tenantIdCache.get(primaryEmail)
+    // in Phase 4 (upsertTenant) and cached under its §7B ladder key; resolve it here with the SAME key derived
+    // from the SAME row (this is firstActive — index === the entry.index used at creation), so an email-less
+    // tenant's lease finds it instead of cache-missing. A joint-tenant cell ("a@x, b@x") caches under the SPLIT
+    // emails, so the ladder's email rung keys on the FIRST email (the primary), not the whole cell.
+    const cacheKey = tenantCacheKey(primaryEmailKey(getField(row, "email", ctx.mapping)), getField(row, "id_number", ctx.mapping), index)
+    const primaryTenantId = ctx.tenantIdCache.get(cacheKey)
     if (!primaryTenantId) {
-      ctx.result.errors.push({ rowIndex: index, field: "email", message: "Cannot create lease: no tenant was resolved for the primary email", severity: "error" })
+      ctx.result.errors.push({ rowIndex: index, field: "email", message: "Cannot create lease: no tenant was resolved for this row", severity: "error" })
       return
     }
 
@@ -2072,12 +2096,15 @@ async function linkTenantToLease(
   ctx: ImportContext
 ): Promise<void> {
   const email = primaryEmailKey(getField(entry.row, "email", ctx.mapping))
-  const tenantId = ctx.tenantIdCache.get(email)
+  // §7B: resolve via the ladder (email → id → row-index) so an email-less primary is found, not skipped. Primary
+  // tenant_id is already set at insert; this is defence-in-depth + the co-tenant notice below.
+  const cacheKey = tenantCacheKey(email, getField(entry.row, "id_number", ctx.mapping), entry.index)
+  const tenantId = ctx.tenantIdCache.get(cacheKey)
   if (!tenantId) return
 
   if (entry.role === "co_tenant") {
     // Co-tenant support not yet in schema — log for manual review
-    ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Co-tenant "${email}" noted but not linked (no co-tenant table yet)`, severity: "warning" })
+    ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Co-tenant "${email || "(no email)"}" noted but not linked (no co-tenant table yet)`, severity: "warning" })
     return
   }
 

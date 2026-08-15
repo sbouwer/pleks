@@ -100,6 +100,10 @@ export default async function FitScoreHelpPage({ params }: Readonly<{ params: Pr
       hasSummary={false}
       showDocLinks={false}
       endLabel={`END · FITSCORE INTERPRETATION · ${label}`}
+      // Derived from the version entry, never hardcoded: these URLs are permanent and the FitScore PDF's
+      // AttestationCard links here, so an archived report's interpretation-of-record must carry ITS OWN
+      // publication date. (The shared footer previously stamped "Effective 1 April 2026" on every caller.)
+      effective={published}
     >
       {isHistoricalVersion && (
         <div className="pub-notice" style={{ marginBottom: 32 }}>

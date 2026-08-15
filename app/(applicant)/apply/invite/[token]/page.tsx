@@ -58,7 +58,11 @@ export default async function InvitePage({
 
   const application = tokenRecord.applications
   const listing = application?.listings
-  const isJoint = application?.is_joint === true
+  // `has_co_applicant`, NOT `is_joint` — there is no is_joint column on applications (verified against the
+  // live schema 2026-08-14). The select is `applications(*)`, so it silently came back undefined, isJoint was
+  // permanently false, and this page QUOTED R250 to a joint applicant whom /api/billing/screening then
+  // charged R470. Same flag the billing route reads, so the quote and the charge cannot diverge.
+  const isJoint = application?.has_co_applicant === true
   const fee = isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
 
   // Days remaining — computed server-side
