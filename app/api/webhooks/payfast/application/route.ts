@@ -136,6 +136,50 @@ export async function POST(req: Request) {
       searchworx_check_status: "pending",
     }).eq("id", applicationId)
 
+    // JURISTIC: one payment covers the entity AND every surety party (Stéan ruling 2026-08-15), so write
+    // ONE application_screening_payments row per screened subject here rather than leaving each director
+    // or trustee to pay their own. Their line is now paid on arrival — they still have to CONSENT
+    // individually (D-14B-01, no proxy consent), which is what their portal is for. This is also what
+    // makes the director-reminder copy ("X has already paid for your portion") true.
+    const { data: sureties, error: suretyError } = await supabase
+      .from("application_co_applicants")
+      .select("id")
+      .eq("primary_application_id", applicationId)
+      .eq("is_surety_director", true)
+      .is("declined_at", null)
+    logQueryError("POST application_co_applicants surety lines", suretyError)
+
+    if (!suretyError && sureties && sureties.length > 0) {
+      const perLineCents = Math.round(paidCents / (sureties.length + 1)) // entity line + one per surety
+      const lines = [
+        { subject_type: "company" as const, subject_id: applicationId },
+        ...sureties.map((s) => ({ subject_type: "co_applicant" as const, subject_id: s.id as string })),
+      ].map((l) => ({
+        org_id: expectedRow.org_id,
+        application_id: applicationId,
+        subject_type: l.subject_type,
+        subject_id: l.subject_id,
+        fee_cents: perLineCents,
+        paid_at: new Date().toISOString(),
+        paid_by_email: params.email_address ?? null,
+        payfast_transaction_id: params.pf_payment_id || params.m_payment_id,
+      }))
+
+      const { error: linesError } = await supabase
+        .from("application_screening_payments")
+        .upsert(lines, { onConflict: "application_id,subject_type,subject_id" })
+      if (linesError) {
+        // Do NOT fail the ITN — the money is taken and the application is marked paid. A missing line
+        // blocks that subject's screening, which is visible on the co-parties roster, so surface it loudly.
+        console.error("[payfast] surety line write failed:", linesError.message)
+        Sentry.captureMessage("PayFast juristic surety lines not written", {
+          level: "error",
+          tags: { route: "webhooks/payfast/application" },
+          extra: { applicationId, lineCount: lines.length, error: linesError.message },
+        })
+      }
+    }
+
     // Send Email 6: Payment received
     try {
       const ctx = await buildEmailContext(applicationId)

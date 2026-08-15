@@ -99,6 +99,41 @@ export const JOINT_APPLICATION_FEE_CENTS = 47000
 export function getApplicationFee(isJoint: boolean): number {
   return isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
 }
+
+/**
+ * The WHOLE fee for an application, by the lines it screens. One transaction covers every line.
+ *
+ * JURISTIC (pty_ltd / cc / npc / trust): the entity's own line PLUS one line per surety party
+ * (director, or trustee for a trust) — rate card D-RATE-06, "R250 company + N × per-director". The
+ * entity and its sureties are paid for TOGETHER (Stéan ruling 2026-08-15): a juristic applicant has no
+ * consumer credit profile of its own, so screening the company without a surety human screens nothing.
+ * At least one surety party is required — enforced by validateJuristicParties, not here, so this stays
+ * a pure arithmetic function.
+ *
+ * INDIVIDUAL: R250 single, R470 joint. NOT per-head — that is a recorded pricing decision, and
+ * per-head pricing for 3+ residential applicants is blocked on the v2 Searchworx pipeline
+ * (brief/build/OUTSTANDING.md § Per-head screening fee).
+ */
+export function screeningFeeCents(input: {
+  readonly isJuristic: boolean
+  /** Surety directors/trustees accompanying a juristic application. */
+  readonly suretyCount: number
+  /** Residential joint application (a couple). Ignored when isJuristic. */
+  readonly hasCoApplicant: boolean
+}): number {
+  if (input.isJuristic) return APPLICATION_FEE_CENTS * (1 + Math.max(0, input.suretyCount))
+  return getApplicationFee(input.hasCoApplicant)
+}
+
+/** The per-subject lines a fee covers, for writing one application_screening_payments row per line. */
+export function screeningFeeLineCount(input: {
+  readonly isJuristic: boolean
+  readonly suretyCount: number
+  readonly hasCoApplicant: boolean
+}): number {
+  if (input.isJuristic) return 1 + Math.max(0, input.suretyCount)
+  return input.hasCoApplicant ? 2 : 1
+}
 export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income — PRINCIPAL/co-applicant ceiling (rent ÷ combined gross; ≈ income ≥ 3.33× rent)
 // Guarantor/surety floor — DECOUPLED from and STRICTER than the principal threshold. A guarantor must cover the
 // WHOLE lease on default (not share it), so their independent income is checked against a higher multiple of rent

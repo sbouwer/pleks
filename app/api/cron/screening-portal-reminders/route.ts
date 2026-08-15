@@ -198,6 +198,25 @@ async function sendMilestoneReminder(
 
   const { slug, propertyLabel } = resolveListingLabel(app.listings)
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
+
+  // Who ACTUALLY paid this line. Previously `paidByPrimary: !!line.paid_at` — "the line is paid" inferred
+  // as "someone else paid it", so a director who had paid their OWN portion and simply not consented yet
+  // was told "{primary} has already paid for your portion". application_screening_payments records
+  // paid_by_email / paid_by_user_id; read the fact rather than infer it.
+  const { data: payment, error: paymentError } = await service
+    .from("application_screening_payments")
+    .select("paid_at, paid_by_email")
+    .eq("application_id", line.application_id)
+    .eq("subject_type", "co_applicant")
+    .eq("subject_id", line.subject_id)
+    .maybeSingle()
+  logQueryError("sendMilestoneReminder application_screening_payments", paymentError)
+
+  // Paid, and NOT by this director themselves. A null payer is unattributable, so we do not claim
+  // somebody else paid — the copy only appears when we can actually stand behind it.
+  const payerEmail = payment?.paid_by_email?.trim().toLowerCase() ?? null
+  const directorEmail = coApp.applicant_email?.trim().toLowerCase() ?? null
+  const paidBySomeoneElse = Boolean(payment?.paid_at) && payerEmail !== null && payerEmail !== directorEmail
   const portalUrl = absoluteUrl(`/apply/${slug || line.application_id}/director-portal/${coApp.access_token}`)
 
   const branding = buildBranding(await fetchOrgSettings(line.org_id))
@@ -211,7 +230,7 @@ async function sendMilestoneReminder(
       directorFirstName: coApp.first_name ?? "Director",
       primaryContactName, propertyLabel, portalUrl,
       daysRemaining: Math.max(0, 14 - daysElapsed),
-      stage, paidByPrimary: !!line.paid_at,
+      stage, paidByPrimary: paidBySomeoneElse,
       branding,
     }),
     entityType: "application_co_applicant", entityId: line.subject_id,
