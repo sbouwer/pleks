@@ -65,7 +65,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   },
   "application.payment_received": {
     key: "application.payment_received", channel: "email", category: "applications", is_mandatory: false,
-    description: "Screening fee R399 received — screening in progress",
+    description: "Screening fee received — screening in progress",
   },
   "application.screening_complete": {
     key: "application.screening_complete", channel: "email", category: "applications", is_mandatory: false,

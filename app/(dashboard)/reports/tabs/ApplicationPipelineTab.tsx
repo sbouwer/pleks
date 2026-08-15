@@ -32,7 +32,7 @@ export function ApplicationPipelineTab({ orgId, filters }: Props) {
                   { label: "Listing views", value: data.listing_views, pct: null },
                   { label: "Applications started", value: data.applications_started, pct: data.listing_views > 0 ? Math.round((data.applications_started / data.listing_views) * 100) : 0 },
                   { label: "Submitted", value: data.applications_submitted, pct: data.applications_started > 0 ? Math.round((data.applications_submitted / data.applications_started) * 100) : 0 },
-                  { label: "Fee paid (R399)", value: data.fee_paid, pct: data.applications_submitted > 0 ? Math.round((data.fee_paid / data.applications_submitted) * 100) : 0 },
+                  { label: "Fee paid", value: data.fee_paid, pct: data.applications_submitted > 0 ? Math.round((data.fee_paid / data.applications_submitted) * 100) : 0 },
                   { label: "Screening complete", value: data.screening_complete, pct: data.fee_paid > 0 ? Math.round((data.screening_complete / data.fee_paid) * 100) : 0 },
                   { label: "Approved", value: data.approved, pct: data.screening_complete > 0 ? Math.round((data.approved / data.screening_complete) * 100) : 0 },
                   { label: "Lease signed", value: data.lease_signed, pct: data.approved > 0 ? Math.round((data.lease_signed / data.approved) * 100) : 0 },
