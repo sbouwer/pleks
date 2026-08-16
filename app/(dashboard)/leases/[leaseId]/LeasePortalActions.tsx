@@ -1,19 +1,21 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/LeasePortalActions.tsx — Tenant portal invite / revoke / WhatsApp link actions
+ * app/(dashboard)/leases/[leaseId]/LeasePortalActions.tsx — Tenant portal send-link / revoke / email actions
  *
  * Route:  /leases/[leaseId] (Contacts tab)
  * Auth:   gateway (dashboard layout)
- * Data:   generateTenantPortalLink, revokeTenantPortalAccess, emailLeaseToTenant server actions
- * Notes:  Multi-tenant mode shows a dropdown to pick which tenant gets the WhatsApp link
+ * Data:   sendTenantPortalLink, revokeTenantPortalAccess, emailLeaseToTenant server actions
+ * Notes:  Multi-tenant mode shows a dropdown to pick which tenant is sent the link.
+ *         ⛔ The portal link is NEVER shown to the agent (ADDENDUM_62F §3.1/§16) — the server emails
+ *         the tenant and this component only reports success.
  */
 
 import { useState, useRef, useEffect } from "react"
 import { ActionButton } from "@/components/ui/actions"
 import { toast } from "sonner"
-import { Link2, ShieldOff, Copy, Check, Loader2, MessageCircle, Send, ChevronDown } from "lucide-react"
-import { generateTenantPortalLink, revokeTenantPortalAccess } from "@/lib/portal/inviteTenant"
+import { Link2, ShieldOff, Loader2, Send, ChevronDown } from "lucide-react"
+import { sendTenantPortalLink, revokeTenantPortalAccess } from "@/lib/portal/inviteTenant"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { emailLeaseToTenant } from "./actions"
 import type { TenantContactInfo } from "./ContactsTab"
@@ -30,8 +32,6 @@ interface Props {
 export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInviteSentAt, hasAuthUser }: Props) {
   const [generating, setGenerating] = useState(false)
   const [revoking, setRevoking] = useState(false)
-  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const [emailing, setEmailing] = useState(false)
   const [whatsappOpen, setWhatsappOpen] = useState(false)
   const [confirmRevoke, setConfirmRevoke] = useState(false)
@@ -54,23 +54,16 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
     else toast.success("Lease details emailed to tenant")
   }
 
-  async function handleGenerateLink(targetTenantId: string) {
+  // ADDENDUM_62F §3.1/§16: the agent triggers DELIVERY and never receives the link. This used to set
+  // a returned URL into state and render it with a copy button — three clicks to an agent-held
+  // tenant session, valid 90 days. The server now emails the tenant directly.
+  async function handleSendLink(targetTenantId: string) {
     setWhatsappOpen(false)
     setGenerating(true)
-    const result = await generateTenantPortalLink(targetTenantId, leaseId)
+    const result = await sendTenantPortalLink(targetTenantId, leaseId)
     setGenerating(false)
-    if (result.error) {
-      toast.error(result.error)
-    } else if (result.url) {
-      setGeneratedUrl(result.url)
-    }
-  }
-
-  async function handleCopy() {
-    if (!generatedUrl) return
-    await navigator.clipboard.writeText(generatedUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (result.error) toast.error(result.error)
+    else toast.success("Portal link sent to the tenant's email address.")
   }
 
   async function doRevoke() {
@@ -96,7 +89,7 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
           Email lease
         </ActionButton>
 
-        {/* WhatsApp link — single tenant: generate directly; multiple: pick first */}
+        {/* Send portal link — single tenant: send directly; multiple: pick which */}
         {hasMultipleTenants ? (
           <div ref={whatsappRef} className="relative">
             <ActionButton
@@ -105,19 +98,19 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
               onClick={() => setWhatsappOpen(v => !v)}
               disabled={generating}
             >
-              WhatsApp link
+              Send portal link
               <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
             </ActionButton>
             {whatsappOpen && (
               <div className="absolute left-0 top-9 z-20 min-w-[180px] rounded-lg border border-border bg-card shadow-md py-1">
                 <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-                  Generate link for
+                  Send link to
                 </p>
                 {allTenants.map((t) => (
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => handleGenerateLink(t.tenantId)}
+                    onClick={() => handleSendLink(t.tenantId)}
                     className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-muted transition-colors"
                   >
                     <span className="flex-1 truncate">{t.name}</span>
@@ -131,10 +124,10 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
           <ActionButton
             tone="secondary"
             icon={generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-            onClick={() => handleGenerateLink(tenantId)}
+            onClick={() => handleSendLink(tenantId)}
             disabled={generating}
           >
-            WhatsApp link
+            Send portal link
           </ActionButton>
         )}
 
@@ -168,23 +161,12 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
         </p>
       )}
 
-      {generatedUrl && (
-        <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 flex items-center gap-2">
-          <code className="flex-1 text-xs truncate">{generatedUrl}</code>
-          <button onClick={handleCopy} className="shrink-0 text-muted-foreground hover:text-foreground transition-colors" title="Copy link">
-            {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
-          </button>
-          <a
-            href={"https://wa.me/?text=" + encodeURIComponent("Hi, here is your Pleks tenant portal link: " + generatedUrl)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 text-muted-foreground hover:text-[#25D366] transition-colors"
-            title="Share via WhatsApp"
-          >
-            <MessageCircle className="h-4 w-4" />
-          </a>
-        </div>
-      )}
+      {/*
+        The token URL was rendered here with a copy button and a wa.me share link. Both are gone
+        (ADDENDUM_62F §3.1/§16): the agent never receives the credential, so there is nothing to
+        display. The wa.me link was the same leak by another route — it put the token in the agent's
+        own browser and clipboard on the way to WhatsApp.
+      */}
     </div>
   )
 }
