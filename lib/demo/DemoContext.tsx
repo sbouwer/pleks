@@ -7,6 +7,7 @@
  */
 import { createContext, useContext } from "react"
 import { DEMO_DATA, type DemoData } from "./demoData"
+import { hardNavigate } from "@/lib/navigation"
 
 interface DemoContextValue {
   data: DemoData
@@ -37,7 +38,7 @@ export function useDemoAction() {
         toast.info("This is a demo — set up your account to use this feature", {
           action: {
             label: "Set up account",
-            onClick: () => { globalThis.location.href = "/onboarding?setup=true" },
+            onClick: () => { hardNavigate("/onboarding?setup=true") },
           },
         })
       })

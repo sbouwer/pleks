@@ -24,6 +24,7 @@ import { useEnrolPasskey } from "@/lib/auth/passkeys/useEnrolPasskey"
 import { markWelcomeSeen } from "@/lib/actions/welcome"
 import { EnrolTotp } from "@/components/auth/EnrolTotp"
 import { TransitionLoader } from "@/components/onboarding/TransitionLoader"
+import { hardNavigate } from "@/lib/navigation"
 
 type Step = "orient" | "enrol-totp" | "secured" | "backup" | "enrol-totp-backup"
 type Primary = "passkey" | "totp"
@@ -101,10 +102,9 @@ export default function WelcomeClient({
   async function handleFinish() {
     setFinishing(true)
     await markWelcomeSeen()
-    // Full-page navigation (NOT router.push): /auth/resolver is a route handler that
-    // returns a server redirect. Client RSC navigation can't follow it cleanly and
-    // loops (ERR_TOO_MANY_REDIRECTS). The browser must follow resolver → dashboard.
-    globalThis.location.href = `/auth/resolver?redirect=${encodeURIComponent(redirect)}`
+    // /auth/resolver is a route handler returning a server redirect — router.push()
+    // loops on it (ERR_TOO_MANY_REDIRECTS). See lib/navigation.ts case 2.
+    hardNavigate(`/auth/resolver?redirect=${encodeURIComponent(redirect)}`)
   }
 
   // Primary = passkey: run the ceremony inline, then play the secured payoff.

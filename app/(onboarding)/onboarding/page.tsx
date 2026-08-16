@@ -24,6 +24,7 @@ import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye, Eye
 import { createClient } from "@/lib/supabase/client"
 
 import { marketingUrl } from "@/lib/routing/absoluteUrl"
+import { hardNavigate } from "@/lib/navigation"
 
 type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
 
@@ -157,7 +158,7 @@ function OnboardingWizard() {
   const [transitioning, setTransitioning] = useState(false)
   function transitionToResolver() {
     setTransitioning(true)
-    setTimeout(() => { globalThis.location.href = "/auth/resolver?redirect=/dashboard" }, 700)
+    setTimeout(() => { hardNavigate("/auth/resolver?redirect=/dashboard") }, 700)
   }
 
   useEffect(() => {
@@ -213,7 +214,7 @@ function OnboardingWizard() {
       }
       if (result.errorType === "email_exists") { setEmailExists(true); setLoading(false); return }
       if (result.errorType === "email_in_use_elsewhere") {
-        globalThis.location.href = `/login?redirect=/auth/resolver&email=${encodeURIComponent(acctEmail)}`
+        hardNavigate(`/login?redirect=/auth/resolver&email=${encodeURIComponent(acctEmail)}`)
         return
       }
       toast.error(result.error)
@@ -252,7 +253,7 @@ function OnboardingWizard() {
     if (userType === "exploring") {
       if (typeof globalThis.window !== "undefined") {
         globalThis.localStorage.setItem("pleks_demo_name", name)
-        globalThis.location.href = "/demo"
+        hardNavigate("/demo")   // leaves the authed shell for the demo sandbox
       }
       return
     }
@@ -306,7 +307,7 @@ function OnboardingWizard() {
         })
         transitionToResolver(); return
       }
-      if (result.errorType === "auth_required") { globalThis.location.href = `/login?redirect=/auth/resolver&email=${encodeURIComponent(emailToUse)}`; return }
+      if (result.errorType === "auth_required") { hardNavigate(`/login?redirect=/auth/resolver&email=${encodeURIComponent(emailToUse)}`); return }
       toast.error(result.error)
       setLoading(false)
       return
@@ -417,7 +418,7 @@ function OnboardingWizard() {
                   <p style={{ fontSize: 12, color: "var(--ink-soft)", margin: 0 }}>
                     Did you start setting up before?{" "}
                     <button type="button"
-                      onClick={() => { globalThis.location.href = `/login?redirect=/auth/resolver&email=${encodeURIComponent(acctEmail)}` }}
+                      onClick={() => { hardNavigate(`/login?redirect=/auth/resolver&email=${encodeURIComponent(acctEmail)}`) }}
                       style={{ color: "var(--amber-ink)", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "inherit" }}>
                       Sign in to continue →
                     </button>
