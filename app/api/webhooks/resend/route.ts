@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { bridgeNoticeDelivery } from "@/lib/notices/bridgeNoticeDelivery"
 import { optionalEnv } from "@/lib/env"
+import * as Sentry from "@sentry/nextjs"
 
 const RESEND_WEBHOOK_SECRET = optionalEnv("RESEND_WEBHOOK_SECRET")
 
@@ -86,6 +87,58 @@ function resolveEventType(payload: ResendWebhookPayload): string | null {
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 type LogRecord = { id: string; sent_to_email: string | null; org_id: string }
+
+/**
+ * Every table holding a DELIVERABLE CREDENTIAL TOKEN. ADDENDUM_62F §17.1.
+ *
+ * Enumerated by capability, not by table — the third time this arc has needed that rule (§18.5,
+ * §20.1). A new credential-token table adds `communication_log_id` and one line here, and the
+ * enumeration test in `__tests__` fails until it does. `contact_change_requests` joins when
+ * §15.2(b) lands, which is what made this a PREREQUISITE for that build rather than an adjacent
+ * chore — its confirmation OTP gets bounce handling for free (§18.4).
+ */
+export const CREDENTIAL_TOKEN_TABLES = ["tenant_portal_tokens"] as const
+
+/**
+ * A hard bounce means the credential reached nobody, so the token must die.
+ *
+ * ONLY on a hard bounce:
+ *   · `bounced_soft`  — transient, it may still deliver. Revoking would break a working invite.
+ *   · `unsubscribed`  — a complaint means it DID arrive; the recipient just objected to it.
+ *
+ * ⚠ A FAILED REVOKE MUST BE LOUD. This route returns 200 on uninteresting events to stop Resend
+ * retrying, and a DB failure here must not silently ride that 200 — an unrevoked live credential
+ * is exactly the outcome the whole mechanism exists to prevent. We still return 200 (retrying the
+ * webhook would not fix a DB error, and `expires_at` is the 90-day backstop), but the failure is
+ * captured at error severity rather than swallowed.
+ */
+async function revokeCredentialTokensOnHardBounce(
+  service: ServiceClient,
+  communicationLogId: string,
+  eventType: string,
+) {
+  if (eventType !== "bounced_hard") return
+
+  for (const table of CREDENTIAL_TOKEN_TABLES) {
+    const { data, error } = await service.from(table)
+      .update({ revoked: true })
+      .eq("communication_log_id", communicationLogId)
+      .eq("revoked", false)
+      .select("id")
+
+    if (error) {
+      console.error(`[resend-webhook] FAILED to revoke ${table} after hard bounce — a live credential may have no recipient:`, error.message)
+      Sentry.captureException(new Error(`Credential token revoke failed after hard bounce: ${table}`), {
+        level: "error",
+        extra: { table, communicationLogId, dbError: error.message },
+      })
+      continue
+    }
+    if (data?.length) {
+      console.warn(`[resend-webhook] revoked ${data.length} ${table} row(s) after hard bounce (comm ${communicationLogId})`)
+    }
+  }
+}
 
 async function applyPreferenceSideEffects(
   service: ServiceClient,
@@ -167,6 +220,7 @@ export async function POST(req: NextRequest) {
   await Promise.all([
     updateLogStatus(service, logRecord.id, payload),
     applyPreferenceSideEffects(service, logRecord, payload),
+    revokeCredentialTokensOnHardBounce(service, logRecord.id, eventType),
   ])
 
   return NextResponse.json({ ok: true })
