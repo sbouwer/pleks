@@ -133,7 +133,7 @@ export async function sendTenantPortalLink(tenantId: string, leaseId: string) {
   // a token that exists but reached nobody is a live credential with no recipient. Revoke and report.
   try {
     const branding = buildBranding(await fetchOrgSettings(orgId))
-    await sendEmail({
+    const sendResult = await sendEmail({
       orgId,
       templateKey: "portal.tenant_invite",
       to: { email: tenant.email as string, name: displayName },
@@ -147,6 +147,19 @@ export async function sendTenantPortalLink(tenantId: string, leaseId: string) {
       entityType: "lease",
       entityId: leaseId,
     })
+
+    // ADDENDUM_62F §17.1: bind the token to the comm that carried it, so a HARD BOUNCE can revoke
+    // exactly this credential. Resend returns success on ACCEPT, not delivery — without this link a
+    // token that is accepted and then bounces stays live for 90 days with no recipient, which is the
+    // same "live credential nobody received" case the synchronous revoke above exists to prevent,
+    // arriving by a slower route. Inferring the token from tenant_id + a time window would
+    // over-revoke; the explicit link is the point.
+    if (sendResult?.logId) {
+      const { error: linkErr } = await db.from("tenant_portal_tokens")
+        .update({ communication_log_id: sendResult.logId })
+        .eq("token", tokenRecord.token).eq("org_id", orgId)
+      if (linkErr) console.error("[sendTenantPortalLink] could not bind token to comm log:", linkErr.message)
+    }
   } catch (e) {
     console.error("[sendTenantPortalLink] delivery failed, revoking token:", e)
     await db.from("tenant_portal_tokens").update({ revoked: true }).eq("token", tokenRecord.token).eq("org_id", orgId)

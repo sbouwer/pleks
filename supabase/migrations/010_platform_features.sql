@@ -4000,3 +4000,41 @@ COMMENT ON COLUMN applications.approve_below_band_note IS
 
 CREATE INDEX IF NOT EXISTS idx_applications_approve_below_band
   ON applications(org_id) WHERE approve_below_band = true;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §51  ADDENDUM_62F §17.1 / §18.4: revoke a credential token when its email hard-bounces
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- The synchronous send check (sendTenantPortalLink) revokes when Resend REFUSES the
+-- message. But Resend returns success on ACCEPT, not on delivery — so a token that is
+-- accepted and then hard-bounces passes that check and stays live for 90 days with no
+-- recipient. That is exactly the "live credential nobody received" case the synchronous
+-- hard-fail exists to prevent, arriving by a slower route.
+--
+-- The join did not exist: communication_log carries tenant_id / lease_id / external_id
+-- but no reference to the token an email delivered, so a bounce could not identify which
+-- credential reached nobody. Do NOT infer it from tenant_id + lease_id + a time window —
+-- that over-revokes, and it is the same fuzzy-join the application<->lease linkage
+-- decision rejected.
+--
+-- No cascade (62F §13.3): a revoked-token record outlives the comm row it came from.
+--
+-- ⚠ FRAMEWORK, NOT A ONE-OFF. Any table holding a DELIVERABLE CREDENTIAL TOKEN carries
+-- communication_log_id and is revoked by the same handler — enumerate by capability, not
+-- by table. delivery_notice_tokens is the next member; contact_change_requests joins when
+-- 62F §15.2(b) lands, which is why §18.4 called this a prerequisite for that build rather
+-- than an adjacent chore: its confirmation OTP gets bounce handling for free.
+--
+-- Out of scope, deliberately: Supabase-issued action links (password reset, magic link)
+-- cannot be revoked from our side at all.
+
+ALTER TABLE tenant_portal_tokens
+  ADD COLUMN IF NOT EXISTS communication_log_id uuid REFERENCES communication_log(id);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_portal_tokens_comm_log
+  ON tenant_portal_tokens(communication_log_id) WHERE NOT revoked;
+
+COMMENT ON COLUMN tenant_portal_tokens.communication_log_id IS
+  'ADDENDUM_62F 17.1. The comm that delivered this token, so a hard bounce can revoke exactly the
+   credential that reached nobody. Hard bounce only: soft is transient and may still deliver, and a
+   complaint means it DID arrive. No cascade - the revoked record outlives the comm row.';

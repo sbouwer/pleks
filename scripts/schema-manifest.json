@@ -3399,7 +3399,8 @@
       "expires_at",
       "revoked",
       "created_by",
-      "created_at"
+      "created_at",
+      "communication_log_id"
     ],
     "tenant_view": [
       "id",
