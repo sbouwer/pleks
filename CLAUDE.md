@@ -382,6 +382,38 @@ All build specifications live in `brief/build/`. The master index is `brief/buil
 - Update the relevant row in the addendum/build table with what shipped, what's deferred, and any open work
 - Update the "Known open work" paragraph if the build changes what's pending
 
+**⚠ WHOLE-FILE RECONCILIATION — when you correct a status line, reconcile the WHOLE file in that same edit.**
+Never fix only the line someone happened to notice. A spec file's status lives in its header, its
+acceptance checklist, its open-decisions list, its sequencing notes and its inline "CC should…"
+instructions — and they rot independently. Fixing one and leaving the rest is worse than fixing none,
+because the file now *looks* reviewed.
+
+This is not hypothetical: `ADDENDUM_62E`'s header said "Slice B awaiting build" for two months after
+Slice B shipped. The header was corrected on 2026-08-15 — and the body still listed D-70-12 as a fix
+to make, still had nine unticked acceptance boxes for shipped work, and still asked to "confirm Slice
+A lands first". That stale file came within one grounding pass of sending ADDENDUM_62F off to rebuild
+working code. When you touch a status claim: grep the file for `awaiting`, `not yet`, `CC should`,
+`- [ ]`, `TODO`, and every decision marked open, and settle all of them or say explicitly why not.
+
+**Verify before you tick.** A checkbox is a claim that something was confirmed. Confirm it against the
+code — a commit message is evidence that work was attempted, not that it landed.
+
+**⚠ ANCHOR EVERY GROUNDING CLAIM to the version you read.** When you write "the code does X" into a
+spec or register, cite the commit SHA (or mtime/byte count for an untracked file) you read it
+against. A grounding report is a photograph, not a standing fact, and it starts rotting immediately —
+ADDENDUM_62F §13.0 went stale **within twelve minutes** because a concurrent edit fixed the thing it
+described. An anchored claim can be cheaply re-checked; an unanchored one has to be re-derived from
+scratch, and in the meantime it is indistinguishable from a current fact.
+
+Two corollaries: **a spec claim carrying no version anchor is itself a finding** — flag it rather than
+trusting it. And prefer dated/past-tense phrasing for observations ("as at `abc1234`, X was true")
+over present tense ("X is true"), because present tense about another file's contents is false the
+moment either file moves.
+
+The distinction that makes this workable: **authored** sections assert intent and cannot be anchored;
+**grounding** sections assert observation and must be. If it says the code *should* do X, no anchor.
+If it says the code *does* X, anchor it.
+
 **Read the actual source files before writing code.** Do not guess at the current state of a file — read it. This is non-negotiable.
 
 ---
@@ -478,7 +510,10 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 
 ## SECURITY RULES (unchanged — still apply to any new code)
 
-1. org_id on every new table
+1. org_id on every new table — **one bounded exception: identity-scoped tables** (a row describing a
+   HUMAN, read before `/switch-role` selects an org: `user_passkeys`, `passkey_challenges`,
+   `passkey_aal_grants`). Membership test + cascade companion rule in
+   `.claude/rules/identity-scoped-tables.md`. Do not invoke the exception without applying the test.
 2. RLS on every new table
 3. audit_log on every state change
 4. consent_log for any new POPIA-sensitive operation
