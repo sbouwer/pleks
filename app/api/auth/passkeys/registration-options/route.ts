@@ -44,7 +44,19 @@ export async function POST(req: Request) {
     timeout: 60_000,
     attestationType: "none",
     authenticatorSelection: {
-      residentKey: "preferred",
+      // ADDENDUM_62F §2.1 + §13.5 step 2. "required" ⇒ a DISCOVERABLE credential, which is what
+      // makes usernameless "just tap sign in" possible — no email typed. That matters most on budget
+      // Androids on 3G, where typing an email IS the friction, and those users are the whole point.
+      //
+      // The tradeoff, stated because it is the reason this is sequenced: "required" HARD-FAILS
+      // registration on authenticators with no discoverable-credential storage, and those skew to the
+      // oldest devices — the same constituency. The fallback is the email-first path, so §13.5 fixed
+      // that path FIRST (auth-options no longer suppresses hybrid). Reverting to "preferred" is an
+      // acceptable resting state now that the fallback is good; it was a trap before.
+      //
+      // ⚠ Watch the registration-failure rate after this ships. Material failures → revert to
+      // "preferred" per §13.5 step 3. That is a monitoring decision, not a design reversal.
+      residentKey: "required",
       // UV symmetry (ADDENDUM_62C D-62C-06): verify passes requireUserVerification:true,
       // so options must REQUIRE it too — "preferred" here let a no-UV authenticator through
       // that verify then rejected (a spurious 400). Trust-account posture → UV mandatory.

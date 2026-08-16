@@ -41,10 +41,22 @@ export async function POST(req: Request) {
         .is("revoked_at", null)
         logQueryError("POST user_passkeys", credsError)
 
-      allowCredentials = (creds ?? []).map(c => ({
-        id: c.credential_id as string,  // base64url text
-        transports: (c.transports ?? []) as AuthenticatorTransportFuture[],
-      }))
+      // ADDENDUM_62F §4 + §13.5: DO NOT send stored `transports` here.
+      //
+      // A credential registered on a laptop stores transports ["internal"]. Passing that back tells
+      // the platform "this credential is only reachable on this device's built-in authenticator",
+      // which SUPPRESSES the hybrid (scan-a-QR-with-your-phone) flow the browser would otherwise
+      // offer for free. That is the exact cross-device sign-in §4 exists to preserve, and this is
+      // the path where it was being suppressed — the usernameless path already passes
+      // `allowCredentials: undefined` and was never affected.
+      //
+      // It also matters for WHO lands here: this branch runs when the client posts an email, which
+      // is the fallback for a user whose authenticator could not create a discoverable credential.
+      // §13.5 sequences this fix BEFORE flipping residentKey to "required" precisely so the fallback
+      // is good before more users are pushed onto it.
+      //
+      // Omitting transports is the safe direction: the platform then offers every route it can.
+      allowCredentials = (creds ?? []).map(c => ({ id: c.credential_id as string }))  // base64url text
     }
   }
 
