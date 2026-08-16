@@ -1,6 +1,9 @@
 # .github/workflows/ci.yml
 # Runs on every PR and every push to main. Gates merging.
 # Does NOT release — that's release.yml.
+# Notes:   the Trivy job fails the build on main AND on any PR touching package.json /
+#          package-lock.json; it stays advisory elsewhere so an unfixable upstream CVE
+#          can't block unrelated work. See the comment on that job before loosening it.
 
 name: CI
 
@@ -97,14 +100,43 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # need the base commit to diff against
 
-      - name: Run Trivy (strict on main, advisory on PR)
+      # WHY THIS STEP EXISTS. The gate used to be strict on main and advisory on every
+      # PR. That let 16 HIGH CVEs (#226, 2026-08-10) pass their own PR as a green tick
+      # and only surface on the next merge to main — which was a month later, and which
+      # also held up Release, since Release depends on CI. Trivy had FOUND them and
+      # reported a pass.
+      #
+      # A CVE can only enter through a dependency manifest, so a PR that touches one is
+      # now gated exactly as strictly as main. Every other PR stays advisory, so an
+      # upstream disclosure with no fix available still cannot block unrelated work.
+      - name: Decide gate strictness
+        id: gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            reason="push to main"; code=1
+          elif [ -z "$BASE_SHA" ]; then
+            reason="no PR base to diff (unexpected) — failing open, main still gates"; code=0
+          elif git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -qE '^(package\.json|package-lock\.json)$'; then
+            reason="dependency manifest changed"; code=1
+          else
+            reason="no dependency manifest change"; code=0
+          fi
+          echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+          echo "Trivy gate: $([ "$code" = 1 ] && echo STRICT || echo advisory) — $reason"
+
+      - name: Run Trivy (strict on main and on any dependency change)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: '.'
           severity: 'HIGH,CRITICAL'
-          exit-code: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
+          exit-code: ${{ steps.gate.outputs.exit-code }}
           ignore-unfixed: true
 
   fitscore-parity:
