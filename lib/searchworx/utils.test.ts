@@ -27,52 +27,24 @@ describe("parseSearchworxDate", () => {
     expect(parseSearchworxDate("   ")).toBeNull()
   })
 
-  it("pattern 1 — dd/MM/yyyy HH:mm:ss (ReportDate)", () => {
-    const d = parseSearchworxDate("18/05/2026 08:42:19")
+  // All 5 patterns, plus the with/without-time variants of 1 and 2 and the recent-date
+  // edge of 4. Table-driven so the coverage reads as a matrix instead of eight
+  // near-identical blocks — every case is parse-then-compare-ISO, so the only thing that
+  // varies is the row. Cases with a different SHAPE (null inputs, the YYYY0000 clamp,
+  // unrecognised formats) stay as their own `it` blocks below and above.
+  it.each<[string, string, string]>([
+    ["pattern 1 — dd/MM/yyyy HH:mm:ss (ReportDate)", "18/05/2026 08:42:19", "2026-05-18T08:42:19.000Z"],
+    ["pattern 1 — dd/MM/yyyy without time (DOB)", "10/02/1960", "1960-02-10T00:00:00.000Z"],
+    ["pattern 2 — dd-MM-yyyy HH:mm (Experian Sigma EnquiryDate)", "12-05-2026 10:21", "2026-05-12T10:21:00.000Z"],
+    ["pattern 2 — dd-MM-yyyy without time", "10-02-1960", "1960-02-10T00:00:00.000Z"],
+    ["pattern 3 — yyyy/MM/dd (CIPC registration)", "2018/11/17", "2018-11-17T00:00:00.000Z"],
+    ["pattern 4 — yyyy-MM-dd (XDS LastUpdatedDate, VeriCred IDIssuedDate)", "2018-11-17", "2018-11-17T00:00:00.000Z"],
+    ["pattern 4 — yyyy-MM-dd edge: recent date", "2025-02-27", "2025-02-27T00:00:00.000Z"],
+    ["pattern 5 — yyyyMMdd (TU InformationDate)", "20260321", "2026-03-21T00:00:00.000Z"],
+  ])("%s", (_label, input, expectedIso) => {
+    const d = parseSearchworxDate(input)
     expect(d).not.toBeNull()
-    expect(d!.toISOString()).toBe("2026-05-18T08:42:19.000Z")
-  })
-
-  it("pattern 1 — dd/MM/yyyy without time (DOB)", () => {
-    const d = parseSearchworxDate("10/02/1960")
-    expect(d).not.toBeNull()
-    expect(d!.toISOString()).toBe("1960-02-10T00:00:00.000Z")
-  })
-
-  it("pattern 2 — dd-MM-yyyy HH:mm (Experian Sigma EnquiryDate)", () => {
-    const d = parseSearchworxDate("12-05-2026 10:21")
-    expect(d).not.toBeNull()
-    expect(d!.toISOString()).toBe("2026-05-12T10:21:00.000Z")
-  })
-
-  it("pattern 2 — dd-MM-yyyy without time", () => {
-    const d = parseSearchworxDate("10-02-1960")
-    expect(d).not.toBeNull()
-    expect(d!.toISOString()).toBe("1960-02-10T00:00:00.000Z")
-  })
-
-  it("pattern 3 — yyyy/MM/dd (CIPC registration)", () => {
-    const d = parseSearchworxDate("2018/11/17")
-    expect(d).not.toBeNull()
-    expect(d!.toISOString()).toBe("2018-11-17T00:00:00.000Z")
-  })
-
-  it("pattern 4 — yyyy-MM-dd (XDS LastUpdatedDate, VeriCred IDIssuedDate)", () => {
-    const d = parseSearchworxDate("2018-11-17")
-    expect(d).not.toBeNull()
-    expect(d!.toISOString()).toBe("2018-11-17T00:00:00.000Z")
-  })
-
-  it("pattern 4 — yyyy-MM-dd edge: recent date", () => {
-    const d = parseSearchworxDate("2025-02-27")
-    expect(d).not.toBeNull()
-    expect(d!.toISOString()).toBe("2025-02-27T00:00:00.000Z")
-  })
-
-  it("pattern 5 — yyyyMMdd (TU InformationDate)", () => {
-    const d = parseSearchworxDate("20260321")
-    expect(d).not.toBeNull()
-    expect(d!.toISOString()).toBe("2026-03-21T00:00:00.000Z")
+    expect(d!.toISOString()).toBe(expectedIso)
   })
 
   it("pattern 5 — yyyyMMdd year-only bond: YYYY0000 clamps to Jan 1", () => {

@@ -33,6 +33,7 @@ import { ApplicationStatusMenu } from "./applyStatusMenu"
 import { StepBar, SubTabs, ApplyNavRail } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { useApplyFlow, type ResumeState, type ApplyActor } from "./useApplyFlow"
+import { hardNavigate } from "@/lib/navigation"
 
 export type { ResumeState }
 
@@ -336,7 +337,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
             <p className="mt-1 text-sm leading-relaxed text-[var(--ink-soft)]">This part of the application is already complete. Please sign in as <strong className="text-[var(--ink)]">{form.email}</strong> to make changes.</p>
             <div className="mt-4 flex justify-end gap-2">
               <ActionButton tone="secondary" onClick={() => setAmendGateStep(null)} disabled={busy}>Cancel</ActionButton>
-              <ActionButton tone="primary" onClick={() => { globalThis.location.href = `/login?next=${encodeURIComponent(globalThis.location.pathname + globalThis.location.search)}` }}>Sign in</ActionButton>
+              <ActionButton tone="primary" onClick={() => { hardNavigate(`/login?next=${encodeURIComponent(globalThis.location.pathname + globalThis.location.search)}`) }}>Sign in</ActionButton>
             </div>
           </div>
         </div>

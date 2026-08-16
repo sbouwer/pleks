@@ -17,6 +17,7 @@ import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import { MARKETING_URL } from "@/lib/env"
 import "@/app/(public)/public.css"
 import "@/components/layout/focus-shell.css"
+import { hardNavigate } from "@/lib/navigation"
 
 export default function AdminLoginPage() {
   const [secret, setSecret] = useState("")
@@ -40,7 +41,7 @@ export default function AdminLoginPage() {
       return
     }
 
-    globalThis.location.href = "/admin"
+    hardNavigate("/admin")   // admin cookie just set
   }
 
   return (

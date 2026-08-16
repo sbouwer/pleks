@@ -31,6 +31,7 @@ import type { StatusMenuCompany, StatusMenuPerson, CardStatus } from "./applySta
 import { summariseStatus } from "./applyStatusMenu"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, type NavModel } from "./applyNav"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
+import { hardNavigate } from "@/lib/navigation"
 
 export const TYPE_LABEL: Record<ApplicantType, string> = { individual: "Individual", couple: "Couple", company: "Company", guarantor: "With a guarantor" }
 
@@ -619,7 +620,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     } catch { /* swallow — never reveal whether the email has a draft */ }
     toast.success("If a saved application exists for that email, we've emailed the link to continue.")
   }
-  function loginToPrefill() { globalThis.location.href = `/login?redirect=${encodeURIComponent(`/apply/${slug}`)}` }
+  function loginToPrefill() { hardNavigate(`/login?redirect=${encodeURIComponent(`/apply/${slug}`)}`) }
 
   function continueIdentity() {
     // Apply-only marital/spouse requirements live in maritalErrors (the shared validator doesn't know about them).

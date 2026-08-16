@@ -18,6 +18,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { TextField, SelectField } from "@/components/forms/fields"
 import { StepUpModal } from "@/components/auth/StepUpModal"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { hardNavigate } from "@/lib/navigation"
 
 interface TransferMember { user_id: string; name: string }
 type MemberRow = {
@@ -72,7 +73,7 @@ export function TransferOwnershipTab() {
     }
     if (res.ok) {
       toast.success("Ownership transferred. You are now a Property Manager.")
-      window.location.href = "/settings/team"  // role changed — hard reload to refresh session/cookies
+      hardNavigate("/settings/team")   // role changed — session/cookies must be re-read
     } else {
       toast.error(data.error ?? "Transfer failed")
     }

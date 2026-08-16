@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ActionButton } from "@/components/ui/actions"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -330,6 +331,7 @@ function SignatureBlocks({ label }: Readonly<{ label?: string }>) {
 }
 
 export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }: Readonly<LeasePreviewProps>) {
+  const router = useRouter()
   const [localLeaseType, setLocalLeaseType] = useState(initialLeaseType)
   const [previewTab, setPreviewTab] = useState<"structure" | "document">("structure")
   const [data, setData] = useState<PreviewData | null>(null)
@@ -532,7 +534,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                       Your lease is generated automatically when you create one from the Leases page.
                     </p>
                   </div>
-                  <ActionButton tone="secondary" onClick={() => globalThis.location.assign("/settings/subscription")}>
+                  <ActionButton tone="secondary" onClick={() => router.push("/settings/subscription")}>
                     View plans
                   </ActionButton>
                 </>

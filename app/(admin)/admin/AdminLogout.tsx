@@ -7,11 +7,12 @@
  *         session, then hard-navigates to /admin/login.
  */
 import { ActionButton } from "@/components/ui/actions"
+import { hardNavigate } from "@/lib/navigation"
 
 export function AdminLogout() {
   async function handleLogout() {
     await fetch("/api/admin/auth", { method: "DELETE" })
-    window.location.href = "/admin/login"
+    hardNavigate("/admin/login")   // admin session cookie just cleared
   }
 
   return (

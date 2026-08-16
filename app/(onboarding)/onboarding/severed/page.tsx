@@ -13,6 +13,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 
 import { marketingUrl } from "@/lib/routing/absoluteUrl"
+import { hardNavigate } from "@/lib/navigation"
 
 export default function SeveredPage() {
   const [email, setEmail] = useState<string | null>(null)
@@ -25,7 +26,7 @@ export default function SeveredPage() {
 
   async function handleSignOut() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null)
-    globalThis.location.href = "/"
+    hardNavigate("/")   // just signed out
   }
 
   return (

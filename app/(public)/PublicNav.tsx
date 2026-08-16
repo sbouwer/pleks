@@ -18,6 +18,7 @@ import { usePublicTheme } from "./PublicThemeProvider"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { MARKETING_URL } from "@/lib/env"
 import { absoluteUrl, marketingUrl } from "@/lib/routing/absoluteUrl"
+import { hardNavigate } from "@/lib/navigation"
 
 // Cross-subdomain links use absolute URLs — relative paths would be RSC-prefetched
 // as same-origin, hit the apex→app redirect, and fail the browser's CORS preflight.
@@ -46,7 +47,7 @@ const SECTION_IDS = NAV_LINKS
 async function handleLogout() {
   const supabase = createClient()
   await supabase.auth.signOut()
-  globalThis.location.href = "/"
+  hardNavigate("/")   // just signed out
 }
 
 export function PublicNav() {

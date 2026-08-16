@@ -14,6 +14,7 @@ import { useState } from "react"
 import { LogIn, LogOut, X, CheckCircle2, User, Moon, Sun } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { usePublicTheme } from "@/app/(public)/PublicThemeProvider"
+import { hardNavigate } from "@/lib/navigation"
 
 /** Light/dark toggle for the apply surface — same icon-button language as the portal TopBar (pa-iconbtn +
  *  Moon/Sun), driven by the public theme context. Sits next to the login affordance in the header. */
@@ -37,11 +38,11 @@ export function ApplyLoginButton({ slug, loggedIn, name }: Readonly<{ slug: stri
   const [open, setOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   function login() {
-    globalThis.location.href = `/login?redirect=${encodeURIComponent(`/apply/${slug}`)}`
+    hardNavigate(`/login?redirect=${encodeURIComponent(`/apply/${slug}`)}`)
   }
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null)
-    globalThis.location.href = `/apply/${slug}`
+    hardNavigate(`/apply/${slug}`)   // just signed out
   }
 
   // Already authenticated — the portal's user-profile icon button (pa-iconbtn + User); the "signed in as /
