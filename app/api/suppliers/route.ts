@@ -3,8 +3,9 @@
  *
  * Route:  POST/PATCH/DELETE /api/suppliers
  * Auth:   Supabase session + getMembership; DELETE requires isAdmin
- * Data:   contractors + contacts tables (service role). Dual-writes contact_emails alongside primary_email
- *         (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
+ * Data:   contractors + contacts tables (service role). Writes contact_emails via syncPrimaryContactEmail —
+ *         contacts.primary_email is a derived cache (trigger-maintained,
+ *         ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
  * Notes:  DELETE is a soft-delete (sets deleted_at) so FK references from
  *         maintenance_requests survive. contractor_view excludes deleted rows.
  */
@@ -31,7 +32,6 @@ export async function POST(req: NextRequest) {
     primary_role: "contractor",
     first_name: name.trim(),
     company_name: companyName?.trim() || null,
-    primary_email: email?.trim() || null,
     primary_phone: phone?.trim() || null,
     created_by: user.id,
   }).select("id").single()
@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
   // "work" — a contractor/supplier contact is inherently a business relationship, individual or company.
   await syncPrimaryContactEmail(service, membership.org_id, contact.id as string, email, "work")
 
@@ -108,15 +107,20 @@ export async function PATCH(req: NextRequest) {
 
   const contactUpdate = buildContractorContactUpdate(body)
   if (Object.keys(contactUpdate).length > 0) {
-    const { error: contactError } = await service.from("contacts")
-      .update(contactUpdate)
-      .eq("id", body.contactId)
-      .eq("org_id", membership.org_id)
-    if (contactError) return NextResponse.json({ error: contactError.message }, { status: 500 })
-    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    // primary_email is derived (trigger) — excluded from the write payload; syncPrimaryContactEmail below is the
+    // only write path for the value (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
+    const hasEmail = "primary_email" in contactUpdate
+    const { primary_email: newPrimaryEmail, ...contactUpdatePayload } = contactUpdate
+    if (Object.keys(contactUpdatePayload).length > 0) {
+      const { error: contactError } = await service.from("contacts")
+        .update(contactUpdatePayload)
+        .eq("id", body.contactId)
+        .eq("org_id", membership.org_id)
+      if (contactError) return NextResponse.json({ error: contactError.message }, { status: 500 })
+    }
     // "work" — contractor/supplier contact (business relationship).
-    if ("primary_email" in contactUpdate) {
-      await syncPrimaryContactEmail(service, membership.org_id, body.contactId, contactUpdate.primary_email as string | null, "work")
+    if (hasEmail) {
+      await syncPrimaryContactEmail(service, membership.org_id, body.contactId, newPrimaryEmail as string | null, "work")
     }
   }
 

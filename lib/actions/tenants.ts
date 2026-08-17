@@ -4,8 +4,9 @@
  * lib/actions/tenants.ts — update server actions for tenant contacts
  *
  * Auth:   requireAgentWriteAccess (all paths are writes)
- * Data:   contacts + tenants tables via gateway service client; dual-writes contact_emails alongside
- *         primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
+ * Data:   contacts + tenants tables via gateway service client; writes contact_emails via
+ *         syncPrimaryContactEmail — contacts.primary_email is a derived cache (trigger-maintained,
+ *         ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
  * Notes:  Tenant CREATE now goes through the shared add-party flow (addTenantParty); this file holds the
  *         post-create edit/communication actions. updateTenant edits the contact + tenant rows;
  *         logCommunication records a communication_log entry.
@@ -34,9 +35,12 @@ export async function updateTenant(tenantId: string, formData: FormData) {
 
   if (!tenantRecord) return { error: "Tenant not found" }
 
+  // primary_email is derived (trigger) — captured here, kept out of contactUpdates, and written only via
+  // syncPrimaryContactEmail below (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
+  const primaryEmail = (formData.get("email") as string | null) || null
+
   // Update contact fields
   const contactUpdates: Record<string, unknown> = {
-    primary_email: formData.get("email") || null,
     primary_phone: formData.get("phone") || null,
     notes: formData.get("notes") || null,
   }
@@ -54,9 +58,8 @@ export async function updateTenant(tenantId: string, formData: FormData) {
 
   const { error: contactError } = await db.from("contacts").update(contactUpdates).eq("id", tenantRecord.contact_id).eq("org_id", orgId)
   if (contactError) return { error: contactError.message }
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
   await syncPrimaryContactEmail(
-    db, orgId, tenantRecord.contact_id as string, contactUpdates.primary_email as string | null,
+    db, orgId, tenantRecord.contact_id as string, primaryEmail,
     tenantType === "individual" ? "personal" : "work",
   )
 

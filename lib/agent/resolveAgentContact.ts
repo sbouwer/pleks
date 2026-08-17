@@ -55,7 +55,6 @@ export async function resolveAgentContact(
     title:         (profile?.title as string | null) ?? null,
     first_name:    firstName,
     last_name:     lastName,
-    primary_email: email?.trim() || null,
     primary_phone: phone,
     created_by:    userId,
   }).select("id").single()

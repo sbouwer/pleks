@@ -3,8 +3,9 @@
  *
  * Route:  /api/landlords (GET list · POST create · PATCH edit|restore · DELETE archive)
  * Auth:   authenticated org member; archive/restore are admin-only
- * Data:   landlords (+ contacts), org-scoped service client; GET filters deleted_at (active only). Dual-writes
- *         contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
+ * Data:   landlords (+ contacts), org-scoped service client; GET filters deleted_at (active only). Writes
+ *         contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
+ *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
  * Notes:  DELETE = ARCHIVE (soft-delete, set deleted_at), NOT erase — blocked while an in-force lease
  *         exists (landlordHasInForceLease). Raw .delete() on landlords is forbidden outside
  *         lib/popia/erasure.ts (pleks/no-popia-raw-delete). See ADDENDUM_ARCHIVE_VS_ERASE.
@@ -25,16 +26,20 @@ async function patchLandlordContactRecomputing(
 ): Promise<string | null> {
   const { data: existing, error: exErr } = await service.from("contacts").select(MANDATORY_COLS).eq("id", contactId).eq("org_id", orgId).single()
   if (exErr) return exErr.message
+  // primary_email is derived (trigger) — excluded from the write payload below; recomputeIncompleteMandatory
+  // still needs it (merged with `existing`) to correctly flag completeness, and syncPrimaryContactEmail is the
+  // only write path for the value (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
+  const hasEmail = "primary_email" in contactUpdate
+  const { primary_email: newPrimaryEmail, ...contactUpdatePayload } = contactUpdate
   const { error } = await service.from("contacts")
-    .update({ ...contactUpdate, ...recomputeIncompleteMandatory("landlord", existing, contactUpdate) }).eq("id", contactId).eq("org_id", orgId)
+    .update({ ...contactUpdatePayload, ...recomputeIncompleteMandatory("landlord", existing, contactUpdate) }).eq("id", contactId).eq("org_id", orgId)
   if (error) return error.message
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column. No-ops
-  // when this partial update didn't touch email (contactUpdate.primary_email is undefined) or cleared it to null.
+  // No-op when this partial update didn't touch email (contactUpdate had no primary_email key).
   // company_name (merged: this update's value, falling back to the existing row) is the "work" signal here —
   // this generic helper doesn't have entity_type in MANDATORY_COLS.
-  if ("primary_email" in contactUpdate) {
+  if (hasEmail) {
     const companyName = (contactUpdate.company_name ?? existing?.company_name) as string | null
-    await syncPrimaryContactEmail(service, orgId, contactId, contactUpdate.primary_email as string | null, companyName ? "work" : "personal")
+    await syncPrimaryContactEmail(service, orgId, contactId, newPrimaryEmail as string | null, companyName ? "work" : "personal")
   }
   return null
 }
@@ -87,12 +92,16 @@ export async function POST(req: NextRequest) {
     throw e
   }
 
+  // primary_email is derived (trigger) — excluded from the insert payload; syncPrimaryContactEmail below is the
+  // only write path for the value (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
+  const { primary_email: landlordPrimaryEmail, ...landlordContactPayload } = landlordContact
+
   // Create contact first
   const { data: contact, error: contactError } = await service.from("contacts").insert({
     org_id: membership.org_id,
     entity_type: companyName?.trim() ? "organisation" : "individual",
     primary_role: "landlord",
-    ...landlordContact,
+    ...landlordContactPayload,
     ...lGate,
     ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
     created_by: user.id,
@@ -109,9 +118,8 @@ export async function POST(req: NextRequest) {
 
   if (error || !landlord) return NextResponse.json({ error: error?.message || "Failed to create landlord" }, { status: 500 })
 
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
   await syncPrimaryContactEmail(
-    service, membership.org_id, contact.id as string, landlordContact.primary_email,
+    service, membership.org_id, contact.id as string, landlordPrimaryEmail,
     companyName?.trim() ? "work" : "personal",
   )
 

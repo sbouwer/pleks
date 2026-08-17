@@ -7,8 +7,9 @@
  *         auth.users id. The co becomes a tenant-in-pre-lease-state, symmetric to the primary
  *         (application_co_applicants.tenant_id → tenants.auth_user_id).
  * Data:   reads the application_co_applicants row → dedups (by auth user, then id_number_hash) → creates contact +
- *         tenant (auth_user_id set) → links application_co_applicants.tenant_id → consent + audit. Dual-writes
- *         contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2).
+ *         tenant (auth_user_id set) → links application_co_applicants.tenant_id → consent + audit. Writes
+ *         contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache (trigger-
+ *         maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
  * Notes:  the co mirror of createTenantFromApplication; the identity lives on the co row, the binding one level over
  *         (co.tenant_id, §41). Dedup reuses an existing tenant — one person, one tenant/auth user.
  */
@@ -72,7 +73,7 @@ export async function createTenantFromCoApplicant(
     .insert({
       org_id: co.org_id, entity_type: "individual", primary_role: "tenant",
       first_name: co.first_name, last_name: co.last_name,
-      primary_email: co.applicant_email, primary_phone: co.applicant_phone,
+      primary_phone: co.applicant_phone,
       // 21E §1 (F1, CD walk): a promote is a live net-new tenant, but from application data that may be
       // incomplete. RELAX+flag (never hard-refuse a promote) — an incomplete conversion lands on the burn-down.
       ...incompleteMandatoryColumn("tenant", {
@@ -86,7 +87,6 @@ export async function createTenantFromCoApplicant(
     .select("id").single()
   if (contactError || !contact) return { error: contactError?.message ?? "Failed to create contact" }
 
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
   await syncPrimaryContactEmail(supabase, co.org_id, contact.id as string, co.applicant_email, "personal")
 
   const { data: tenant, error: insertError } = await supabase
