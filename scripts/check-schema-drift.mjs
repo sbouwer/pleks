@@ -25,11 +25,37 @@
 //   • Indexes in DB that no migration explicitly names
 //   • RLS policies in DB that no migration explicitly names
 //
+// ⚠ THE STRUCTURAL BLIND SPOT — READ BEFORE TRUSTING A CLEAN RUN (added 2026-08-17)
+//
+//   This tool compares PRODUCTION against the MIGRATION FILES. It does NOT replay them. Those two
+//   artefacts descend from the same history, so **a defect they inherited together is invisible to any
+//   comparison between them** — each agrees with the other while both disagree with what a rebuild
+//   would actually produce. Three real instances, all found on 2026-08-17 and none by this tool:
+//
+//     · 004 declared `REFERENCES applications(id)` while `applications` is created in 005. Both sides
+//       carried the column, so: no drift. A fresh replay died outright.
+//     · `get_rls_audit()` existed in production and in no migration — the manifest this tool compares
+//       against is GENERATED FROM PRODUCTION, so the function agreed with itself.
+//     · 009 §A/§B/§C consolidates four RLS policies, but 010/011 replay AFTER 009 and re-create three
+//       of them. Production was fine (the consolidation was applied by hand after 010/011 had run);
+//       a fresh build silently undid it. 291 policies replayed vs 287 live.
+//
+//   Ordering defects, unversioned live objects, and replay-order regressions are all in this class.
+//   The independent reference point is a FROM-SCRATCH REPLAY, which now runs in CI (the db-tests job,
+//   PR #249) and locally via `supabase db reset`. `npm run check` also runs
+//   `check-migration-forward-refs.mjs`, which catches the ordering subclass statically.
+//
+//   ALSO NOTE THE DIRECTION on policies and indexes: this tool reports objects in the DB that no
+//   migration names. It does NOT report the reverse — a policy the migrations define that production
+//   lacks. That asymmetry is what hid the 009/010 consolidation regression.
+//
 // Known blind spots (not resolvable without full SQL parsing):
 //   • Column attribute drift (nullability, type, default) for columns that
 //     exist on both sides — the tool only checks column existence, not content.
 //     For nullability specifically, look at ALTER COLUMN DROP/SET NOT NULL in
 //     migrations and compare manually if suspect.
+//   • Extensions are not compared at all (production carries pg_cron, hypopg and
+//     index_advisor that no migration creates — see .claude/rules/crons.md).
 //
 // Noise filters (aggressive by design):
 //   • Auto-generated inline CHECK constraints ({table}_{col}_check where col is
@@ -874,6 +900,12 @@ function inlineCheckColumn(cname, tname) {
 
   if (totalDrift === 0) {
     console.log(`  ${C.green}✓ No drift — migrations match the live database.${C.reset}`)
+    // State the scope of that claim where it is actually read. "No drift" means production and the
+    // migration FILES agree; it cannot mean a rebuild would reproduce production, because both sides
+    // descend from the same history. Three defects hid in exactly that gap on 2026-08-17.
+    console.log(`  ${C.dim}(compares prod ⇄ migration files — NOT a replay. Ordering defects and`)
+    console.log(`   objects live-but-unversioned can pass this. A from-scratch replay is the`)
+    console.log(`   independent check: CI db-tests job, or \`supabase db reset\` locally.)${C.reset}`)
     if (pendingFunctions.length > 0) {
       console.log(`  ${C.yellow}⏳ ${pendingFunctions.length} function(s) pending deploy${C.reset} ${C.dim}(informational — see report)${C.reset}`)
     }
