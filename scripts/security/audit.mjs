@@ -72,11 +72,22 @@ const singleCategory = args.includes("--category") ? parseInt(args[args.indexOf(
 const quickMode = args.includes("--quick")
 const ciMode = args.includes("--ci")
 
+// ⚠ THE ANON KEY MUST NOT BE THE SERVICE KEY. Until 2026-08-17 this mapped
+// NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY to SUPABASE_SERVICE_ROLE_KEY, so every "anon" probe in
+// Category 1 (Unauthenticated Table Access) and Category 2 actually ran with the master key — which
+// bypasses RLS by design. That breaks the category in BOTH directions: it false-positives on any table
+// holding rows ("anon returned 2 rows" when no anon was involved), and on an empty table it PASSES
+// because there was nothing to return rather than because a policy blocked anything. Never noticed,
+// because --ci had no database to talk to in the first place (item 14a).
+//
+// If no anon key is supplied, ANON_KEY stays undefined and the anon probes are reported as not-run
+// rather than silently downgraded to a service-key probe that cannot fail correctly.
 const ENV = ciMode
   ? {
       NEXT_PUBLIC_SUPABASE_URL: process.env.SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY:
+        process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY,
     }
   : loadEnv()
 
@@ -1177,20 +1188,47 @@ async function runCiMode() {
   // project would turn a green tick into an identical green tick, with no signal anything started
   // working. You have to be able to see it fail before a pass means anything.
   if (!SUPABASE_URL || !SERVICE_KEY) {
-    const missing = [!SUPABASE_URL && "CI_SUPABASE_URL", !SERVICE_KEY && "CI_SUPABASE_SERVICE_ROLE_KEY"]
+    const missing = [!SUPABASE_URL && "SUPABASE_URL", !SERVICE_KEY && "SUPABASE_SERVICE_ROLE_KEY"]
       .filter(Boolean).join(" + ")
-    console.log("\nDB categories (1, 2, 5, 7) DID NOT RUN: CI credentials absent")
+
+    // ── STRICT IN CI, TOLERANT LOCALLY — AND THE DIFFERENCE IS CAPABILITY, NOT LENIENCY ────────
+    //
+    // Read that distinction before "fixing" the tolerance, because it is the whole justification.
+    //
+    // In CI the database is SUPPOSED to be there — the db-tests job boots a Supabase stack and points
+    // this audit at it. Absent credentials there mean the wiring broke, and a green tick would be the
+    // exact defect this block exists to kill: a check reporting success without executing its subject.
+    //
+    // On a developer machine there are no CI credentials and there should not be. `npm run check:full`
+    // includes this audit, and failing it there would be the MIRROR of the same error — a check that
+    // fails in a context where it can never pass reports something other than the truth just as surely
+    // as one that passes without running. The local path for the real audit is `npm run security`,
+    // which targets localhost with .env.local.
+    //
+    // This is NOT the Trivy pattern (#234). Trivy was advisory where it COULD have run and found
+    // things. Here the scan genuinely cannot execute without a database the machine does not have.
+    const inCi = process.env.GITHUB_ACTIONS === "true"
+
+    if (!inCi) {
+      console.log(`\n⏭️  DB categories (1, 2, 5, 7) DID NOT RUN — ${missing} absent (local run).`)
+      console.log("   NOT a finding here: a dev machine is not supposed to hold these. This is a stated")
+      console.log("   coverage gap, not a pass — for the real audit run `npm run security` against localhost.")
+      printReport()
+      return
+    }
+
+    console.log("\nDB categories (1, 2, 5, 7) DID NOT RUN: credentials absent inside CI")
     finding(
       "14a", "CRITICAL",
-      "Security audit ran without credentials — categories 1, 2, 5 and 7 did not execute",
-      `${missing} not set, so the DB-backed categories were skipped. Category 7 is the RLS policy audit — ` +
-      "the automated proof that the org_id/RLS tenant boundary holds. Reporting success here would claim " +
-      "coverage that was never obtained.",
-      "Provision a dedicated CI Supabase project and set CI_SUPABASE_URL + CI_SUPABASE_SERVICE_ROLE_KEY " +
-      "in GitHub secrets (NOW.md item 14b). To run the static-only subset deliberately, invoke cat 15 " +
-      "directly rather than passing --ci without credentials.",
+      "Security audit ran in CI without a database — categories 1, 2, 5 and 7 did not execute",
+      `${missing} not set. In CI these come from the Supabase stack the db-tests job boots, so absent ` +
+      "means the wiring is broken. Category 7 is the RLS policy audit — the automated proof that the " +
+      "org_id/RLS tenant boundary actually holds. Reporting success here would claim coverage never obtained.",
+      "Check that the db-tests job started its stack and exported SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY " +
+      "to this step (NOW.md items 14d/14e). Do NOT silence this with continue-on-error — that recreates " +
+      "the advisory-gate bug closed in #234.",
     )
-    printReport() // now exits 1 — a check that cannot execute its subject must not report success
+    printReport() // exits 1 — a check that cannot execute its subject must not report success
     return
   }
   console.log(`   Target: ${SUPABASE_URL}`)

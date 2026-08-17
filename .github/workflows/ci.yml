@@ -4,11 +4,11 @@
 # Notes:   the Trivy job fails the build on main AND on any PR touching package.json /
 #          package-lock.json; it stays advisory elsewhere so an unfixable upstream CVE
 #          can't block unrelated work. See the comment on that job before loosening it.
-#          `db-tests` boots a real Supabase stack and runs the *.dbtest.ts tier, which
-#          `npm run check` cannot see. Added 2026-08-17 — before it, that tier ran on one
-#          laptop and in no workflow.
-#          ⚠ `security-scan` reads CI_SUPABASE_* secrets that are NOT set on this repo, so
-#          it short-circuits and reports green in ~45s without scanning. See OUTSTANDING.md.
+#          `db-tests` boots a real Supabase stack and runs BOTH the *.dbtest.ts tier (which
+#          `npm run check` cannot see) and the DB security categories. Added 2026-08-17 —
+#          before it, the tier ran on one laptop and in no workflow, and the security
+#          categories ran nowhere at all while reporting green. The old `security-scan` job
+#          was removed rather than fixed; see the comment where it used to be.
 
 name: CI
 
@@ -71,40 +71,26 @@ jobs:
       - name: Check marketing consistency
         run: node scripts/check-marketing-consistency.mjs
 
-  security-scan:
-    name: Security (static Supabase checks)
-    needs: quick-check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit
-
-      - name: Run security:db (static Supabase-only subset)
-        run: npm run security:db
-        env:
-          SUPABASE_URL: ${{ secrets.CI_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.CI_SUPABASE_SERVICE_ROLE_KEY }}
-        # ⚠ THESE SECRETS DO NOT EXIST ON THIS REPO — `gh secret list` returns only SENTRY_AUTH_TOKEN.
-        # GitHub substitutes an empty string for an undefined secret, so this job ran and went GREEN in
-        # ~45s while categories 1, 2, 5 and 7 — including the Category 7 RLS policy audit, the automated
-        # proof that the tenant boundary holds — never executed. It had done so since the job was written.
-        #
-        # `audit.mjs --ci` now raises a CRITICAL and exits 1 when credentials are absent (NOW.md item
-        # 14a), so THIS JOB IS EXPECTED TO FAIL until a dedicated CI Supabase project is provisioned and
-        # these two secrets are set (item 14b, SB — go-live blocker). That failure is the point: it is
-        # the probe-fire that makes a later pass mean something. Do NOT silence it with
-        # `continue-on-error: true` — that recreates the exact advisory-gate bug closed in #234.
-        # The full localhost audit (security:prod) remains a pre-deploy local step.
-        continue-on-error: false
+  # ── `security-scan` WAS HERE, AND ITS REMOVAL IS THE FIX, NOT A LOSS OF COVERAGE ──────────────
+  #
+  # It ran `npm run security:db` with SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY drawn from
+  # secrets.CI_SUPABASE_URL / secrets.CI_SUPABASE_SERVICE_ROLE_KEY. Neither secret has ever existed on
+  # this repo — `gh secret list` returns only SENTRY_AUTH_TOKEN — and GitHub substitutes an empty
+  # string for an undefined secret rather than failing. So the job ran, found nothing to connect to,
+  # short-circuited, and reported success in ~45 seconds for the entire life of the repo. Categories
+  # 1, 2, 5 and 7 never executed once. `continue-on-error: false` made it look strict.
+  #
+  # Those categories now run in the `db-tests` job below, against the Supabase stack it already boots
+  # (NOW.md item 14d). That is strictly better than provisioning a hosted CI project:
+  #   · no long-lived service-role key in GitHub secrets — a service key bypasses RLS entirely, so
+  #     storing one hands every workflow run and every transitive build dependency a path to customer
+  #     data. The exposure does not get mitigated; it ceases to exist.
+  #   · no drift — the stack is rebuilt from the migration files on every run, so the schema audited
+  #     is the schema under test. A hosted project needs someone to re-apply migrations forever.
+  #   · a hosted project would have FAILED Category 7 anyway until item 14e, because get_rls_audit()
+  #     lived in no migration.
+  #
+  # Do not reinstate a credential-fed security job without reading OUTSTANDING.md first.
 
   # The DB-integration tier (31 *.dbtest.ts files, 164 tests) hits a REAL Postgres through PostgREST.
   # Until 2026-08-17 it ran on ONE developer laptop and in no workflow at all: `npm run check` — the
@@ -152,6 +138,29 @@ jobs:
 
       - name: Run the DB integration tier
         run: npm run test:db
+
+      # NOW.md item 14d. These categories used to live in a separate `security-scan` job pointed at
+      # CI_SUPABASE_* secrets that were never set, so it went green in ~45s having scanned nothing.
+      # They run here instead, against the stack this job already booted — no long-lived service-role
+      # key in GitHub secrets, and the schema audited is exactly the migrations under test rather than
+      # a hosted project someone has to remember to re-migrate.
+      #
+      # Category 7 (RLS policy audit) is the load-bearing one and it is purely schema-level, so it
+      # transfers here intact. It needs get_rls_audit(), which is now versioned in 009 (item 14e) —
+      # before that it existed only in production, applied by hand, and would have 404'd here.
+      #
+      # ⚠ STATED COVERAGE LIMIT: cats 1, 2 and 5 are BEHAVIOURAL, and a freshly-migrated database has
+      # no rows. An anon SELECT returning nothing proves less here than in production, so those three
+      # partly pass for the wrong reason. Cat 1's DELETE check reads policies and is real. Closing the
+      # rest means seeding fixtures into this stack, not reaching for a hosted project — a real
+      # credential is a worse price than a coverage gap that fixtures can close.
+      - name: Security DB categories against the CI stack
+        run: |
+          eval "$(supabase status -o env)"
+          SUPABASE_URL="$API_URL" \
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+          SUPABASE_ANON_KEY="$ANON_KEY" \
+            npm run security:db
 
       - name: Stop the stack
         if: always()

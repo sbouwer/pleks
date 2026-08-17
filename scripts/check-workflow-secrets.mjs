@@ -48,16 +48,10 @@ const SECRET_MANIFEST = {
   // secret is a cleanup question, not a broken contract.
   SENTRY_AUTH_TOKEN: { status: "present", note: "Created 2026-04-30. No workflow references it." },
   GITHUB_TOKEN: { status: "present", note: "Injected by Actions; never set by hand." },
-  CI_SUPABASE_URL: {
-    status: "missing",
-    note: "NOW.md item 14b (SB) — go-live blocker. Without it, security audit categories 1/2/5/7, " +
-      "including the Category 7 RLS policy audit, do not run. audit.mjs --ci now exits 1 rather than " +
-      "reporting success (item 14a), so this is loud instead of silent.",
-  },
-  CI_SUPABASE_SERVICE_ROLE_KEY: {
-    status: "missing",
-    note: "NOW.md item 14b (SB) — see CI_SUPABASE_URL.",
-  },
+  // CI_SUPABASE_URL / CI_SUPABASE_SERVICE_ROLE_KEY were removed from ci.yml on 2026-08-17 (item 14d):
+  // the DB security categories now run against the Supabase stack the db-tests job boots, so no
+  // long-lived service-role key needs to exist at all. Deliberately NOT listed here — an entry for a
+  // secret nothing references would be exactly the stale bookkeeping this script exists to prevent.
 }
 
 /** Every `secrets.NAME` / `secrets['NAME']` reference in the workflow tree, with where it came from. */
@@ -69,6 +63,11 @@ function collectReferences() {
   for (const file of files) {
     const lines = readFileSync(join(WORKFLOW_DIR, file), "utf8").split(/\r?\n/)
     lines.forEach((line, i) => {
+      // A YAML comment is prose, not a contract. Documentation ABOUT a secret — including the note
+      // explaining why CI_SUPABASE_* was removed — must not read as a live reference, or removing a
+      // secret correctly and explaining why would fail this check. (Found by running this script
+      // against that very comment.)
+      if (line.trimStart().startsWith("#")) return
       // secrets.FOO  ·  secrets['FOO']  ·  secrets["FOO"]
       for (const m of line.matchAll(/secrets\.([A-Za-z_][A-Za-z0-9_]*)|secrets\[['"]([^'"]+)['"]\]/g)) {
         const name = m[1] ?? m[2]
