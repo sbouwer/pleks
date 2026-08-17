@@ -1236,3 +1236,81 @@ COMMENT ON CONSTRAINT contact_emails_primary_implies_active ON contact_emails IS
   'CD ruling 10.1 trap 4. The unique primary index keys on is_primary alone while every reader
    requires is_primary AND is_active, so a deactivated-but-still-primary row would occupy the slot
    invisibly and strand the contact with no primary email. Makes that state unrepresentable.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §23  UNIFICATION item 12: contacts.primary_phone becomes a DERIVED CACHE
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- NOW.md item 12, step 3 — the exact mirror of §22 above for the phone channel.
+-- `contact_phones` is the authoritative representation; `primary_phone` is maintained FROM it.
+--
+-- ⚠ THIS IS A NO-OP ON THE DAY IT LANDS, AND THAT IS THE POINT. Step 1 backfilled the 35
+-- existing contacts (contact_phones was EMPTY beforehand, so there was no survivorship
+-- decision to make) and step 2 (PR #246) made all 24 writer sites dual-write through
+-- syncPrimaryContactPhone. The trigger only formalises what the writers already do. Landing
+-- it before the writer sweep would have made primary_phone derived while sites still wrote it
+-- directly — an agent editing a tenant's number would have watched it silently vanish.
+--
+-- ⚠ GATE THE SOURCE, NEVER THE CACHE (62F §23.6). A future contact-change gate belongs on
+-- `contact_phones`. Do NOT add "defence in depth" validation to `primary_phone` — this trigger
+-- writes it on every set mutation, so a gate here would deadlock the derive path.
+
+-- ── Trap 4 (CD §10.1), phone edition ──────────────────────────────────────────
+--
+-- idx_contact_phones_primary is UNIQUE (contact_id) WHERE is_primary — predicate on is_primary
+-- ONLY, while every reader requires is_primary AND is_active. So (is_primary, NOT is_active)
+-- is a legal row that occupies the contact's single primary slot while being invisible to
+-- everything that reads: derived primary_phone NULL, and no new primary assignable until the
+-- stale row is un-primaried. Reachable through the obvious "remove a number" implementation
+-- that flips is_active and leaves is_primary alone.
+--
+-- Applied now because it is FREE now: 35 rows, all compliant, and no code path sets
+-- is_active=false yet. It gets expensive the moment a removal path exists.
+ALTER TABLE contact_phones DROP CONSTRAINT IF EXISTS contact_phones_primary_implies_active;
+ALTER TABLE contact_phones ADD CONSTRAINT contact_phones_primary_implies_active
+  CHECK (NOT is_primary OR is_active);
+
+-- ── The derive function ───────────────────────────────────────────────────────
+--
+-- Deterministic by construction: the partial unique index guarantees AT MOST ONE
+-- (is_primary AND is_active) row per contact, so there is no "which one wins" rule to invent.
+-- Empty set -> NULL. Note the source column is `number`, not `phone`.
+CREATE OR REPLACE FUNCTION derive_contact_primary_phone()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_contact_id uuid;
+  v_number     text;
+BEGIN
+  v_contact_id := CASE TG_OP WHEN 'DELETE' THEN OLD.contact_id ELSE NEW.contact_id END;
+
+  SELECT p.number INTO v_number
+  FROM contact_phones p
+  WHERE p.contact_id = v_contact_id AND p.is_primary AND p.is_active
+  LIMIT 1;
+
+  UPDATE contacts SET primary_phone = v_number
+  WHERE id = v_contact_id
+    AND primary_phone IS DISTINCT FROM v_number;   -- no-op write is skipped, so updated_at and any
+                                                   -- downstream contact triggers stay quiet
+
+  RETURN CASE TG_OP WHEN 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- AFTER, not BEFORE: the function reads the table it is triggered on, so it must see the
+-- committed post-image of the statement rather than the row mid-flight.
+DROP TRIGGER IF EXISTS trg_contact_phones_derive_primary ON contact_phones;
+CREATE TRIGGER trg_contact_phones_derive_primary
+  AFTER INSERT OR UPDATE OR DELETE ON contact_phones
+  FOR EACH ROW EXECUTE FUNCTION derive_contact_primary_phone();
+
+COMMENT ON FUNCTION derive_contact_primary_phone() IS
+  'NOW.md item 12 step 3. Maintains contacts.primary_phone as a derived cache of the single
+   (is_primary AND is_active) contact_phones row. Fires on INSERT/UPDATE/DELETE - the DELETE arm is
+   load-bearing: anonymisePlan erases via contact_phones (entry A.contact_phones), and without it a
+   POPIA erasure would clear the set and leave the number sitting in the cache. Gate the SOURCE.';
+
+COMMENT ON CONSTRAINT contact_phones_primary_implies_active ON contact_phones IS
+  'CD ruling 10.1 trap 4, phone edition. The unique primary index keys on is_primary alone while every
+   reader requires is_primary AND is_active, so a deactivated-but-still-primary row would occupy the slot
+   invisibly and strand the contact with no primary phone. Makes that state unrepresentable.';
