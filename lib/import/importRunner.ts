@@ -2,9 +2,11 @@
  * lib/import/importRunner.ts — bulk CSV/XLSX import engine (properties / units / tenants / leases)
  *
  * Auth:   service client passed in via ImportContext; org-scoped by the caller (agent import flow)
- * Data:   properties, units, tenants, leases, contacts (+ contact_bank_accounts, contact_emails), audit_log.
- *         Writes contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
- *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
+ * Data:   properties, units, tenants, leases, contacts (+ contact_bank_accounts, contact_emails,
+ *         contact_phones), audit_log. Writes contact_emails via syncPrimaryContactEmail — contacts.primary_email
+ *         is a derived cache (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no
+ *         longer written here. Dual-writes contact_phones alongside primary_phone (still the source of truth —
+ *         §7 step 2 only, for the phone column).
  * Notes:  Phased pipeline (parse → route → create → audit). Writes one bulk_import audit row at the
  *         end, keyed to the import session. Per-entity creates are not individually audited.
  */
@@ -30,6 +32,7 @@ import { optionalEnv } from "@/lib/env"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -275,6 +278,12 @@ function resolveEntityType(companyField: string, displayName: string): "organisa
  *  of the call sites (rather than an inline ternary) to keep their cognitive complexity down. */
 function importEmailType(companyField: string, displayName: string): "work" | "personal" {
   return resolveEntityType(companyField, displayName) === "organisation" ? "work" : "personal"
+}
+
+/** Phone-vocabulary mirror of importEmailType. contact_phones.phone_type has no "personal" member (CHECK:
+ *  mobile|work|home|fax|other) — "mobile" is the closest analogue for an individual's own number. */
+function importPhoneType(companyField: string, displayName: string): "work" | "mobile" {
+  return resolveEntityType(companyField, displayName) === "organisation" ? "work" : "mobile"
 }
 
 /** `units.unit_number` is NOT NULL, and a blank cell (a freestanding house — the commonest SA residential
@@ -897,10 +906,18 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
       // Do not make this conditional on "the email looks missing" — that reintroduces the read-then-
       // write race the whole delete-then-insert shape exists to avoid.
       const nameForType = resolveName(entry.row, ctx.mapping)
+      const nameForTypeDisplay = nameForType.companyName || `${nameForType.firstName} ${nameForType.lastName}`.trim()
       await syncPrimaryContactEmail(
         ctx.supabase, ctx.orgId, String(existing.id),
         getField(entry.row, "email", ctx.mapping) || null,
-        importEmailType(nameForType.companyName, nameForType.companyName || `${nameForType.firstName} ${nameForType.lastName}`.trim()),
+        importEmailType(nameForType.companyName, nameForTypeDisplay),
+      )
+      // Same crash-convergence repair as the email sync above, for primary_phone (§7 step 2 — dual-write only;
+      // primary_phone is still the column of record, so this is belt-and-suspenders rather than the sole repair).
+      await syncPrimaryContactPhone(
+        ctx.supabase, ctx.orgId, String(existing.id),
+        getField(entry.row, "phone", ctx.mapping) || null,
+        importPhoneType(nameForType.companyName, nameForTypeDisplay),
       )
 
       cacheTenant(ctx, cacheKey, resolved.tenantId)
@@ -958,6 +975,10 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
     await syncPrimaryContactEmail(
       ctx.supabase, ctx.orgId, String(contact.id), tenantPrimaryEmail,
       importEmailType(tenantCompany, displayForTenant),
+    )
+    await syncPrimaryContactPhone(
+      ctx.supabase, ctx.orgId, String(contact.id), contactCore.primary_phone,
+      importPhoneType(tenantCompany, displayForTenant),
     )
 
     const normEmploymentType = normaliseEmploymentType(getField(entry.row, "employment_type", ctx.mapping))
@@ -1156,6 +1177,7 @@ async function insertSingleTenant(params: {
   }
   // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
   await syncPrimaryContactEmail(ctx.supabase, ctx.orgId, String(contact.id), email, "personal")
+  await syncPrimaryContactPhone(ctx.supabase, ctx.orgId, String(contact.id), phone || null, "mobile")
 
   const { data: created, error } = await ctx.supabase
     .from("tenants")
@@ -2562,6 +2584,7 @@ async function importVendors(
       // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
       // "work" — a contractor/supplier contact is inherently a business relationship, individual or company.
       await syncPrimaryContactEmail(ctx.supabase, ctx.orgId, String(contact.id), email || null, "work")
+      await syncPrimaryContactPhone(ctx.supabase, ctx.orgId, String(contact.id), phone, "work")
 
       const supplierType = resolveSupplierType(row, ctx.mapping)
 
@@ -2681,6 +2704,10 @@ async function importLandlords(
       await syncPrimaryContactEmail(
         ctx.supabase, ctx.orgId, String(contact.id), landlordPrimaryEmail,
         importEmailType(landlordCompany, landlordDisplay),
+      )
+      await syncPrimaryContactPhone(
+        ctx.supabase, ctx.orgId, String(contact.id), contactCore.primary_phone,
+        importPhoneType(landlordCompany, landlordDisplay),
       )
 
       const { data: created, error } = await ctx.supabase
@@ -2847,6 +2874,10 @@ async function findOrCreateLandlord(
   await syncPrimaryContactEmail(
     ctx.supabase, ctx.orgId, String(contact.id), email,
     importEmailType("", ownerName),
+  )
+  await syncPrimaryContactPhone(
+    ctx.supabase, ctx.orgId, String(contact.id), String(property.owner_phone ?? "") || null,
+    importPhoneType("", ownerName),
   )
 
   const { data: landlord, error: landlordError } = await ctx.supabase

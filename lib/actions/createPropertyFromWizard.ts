@@ -7,6 +7,7 @@
  * Data:   contacts/landlords, properties/buildings/units, insurance checklist, property_documents;
  *         writes contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
  *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
+ *         Dual-writes contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
  * Notes:  ADDENDUM_01C D-01C-01 — a landlord record is ALWAYS created, including for self-owned
  *         ("for myself"): resolveSelfLandlord seeds it from the agent's profile and, on Owner tier,
  *         binds it via user_profiles.self_landlord_id (Model B sync; standalone on Steward+).
@@ -26,6 +27,7 @@ import { reEvaluatePolicyHeader } from "@/lib/insurance-checklist/reEvaluatePoli
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -205,6 +207,7 @@ async function resolveLandlord(
   }
 
   await syncPrimaryContactEmail(db, orgId, contact.id as string, ownerPrimaryEmail, isCompany ? "work" : "personal")
+  await syncPrimaryContactPhone(db, orgId, contact.id as string, ownerContactPayload.primary_phone as string | null, isCompany ? "work" : "mobile")
 
   return {
     ok:                 true,

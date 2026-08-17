@@ -8,7 +8,8 @@
  * Data:   reads applications by id → dedups (by auth user, then id_number_hash) → creates contacts + tenants →
  *         links applications.tenant_id → consent + audit. Writes contact_emails via syncPrimaryContactEmail —
  *         contacts.primary_email is a derived cache (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION
- *         §7 step 4) and no longer written here.
+ *         §7 step 4) and no longer written here. Dual-writes contact_phones alongside primary_phone (still the
+ *         source of truth — §7 step 2 only).
  * Notes:  SAFE under the service client BY CONSTRUCTION — single-application-scoped (reads by applicationId, writes
  *         with the row's own org_id, no cross-org queries), and the applicant path only ever reaches it through
  *         resolveApplicationCredential's IDOR guard (never a raw id). 14R: sets tenants.auth_user_id at the
@@ -20,6 +21,7 @@ import { decryptIdNumber, decryptDob, idNumberColumns } from "@/lib/crypto/idNum
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { incompleteMandatoryColumn } from "@/lib/migration/mandatoryFields"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 export async function promoteApplicationToTenant(
   db: SupabaseClient,
@@ -103,6 +105,7 @@ export async function promoteApplicationToTenant(
   if (contactError || !contact) return { error: contactError?.message ?? "Failed to create contact" }
 
   await syncPrimaryContactEmail(db, application.org_id, contact.id as string, application.applicant_email, "personal")
+  await syncPrimaryContactPhone(db, application.org_id, contact.id as string, application.applicant_phone, "mobile")
 
   const { data: tenant, error: insertError } = await db
     .from("tenants")

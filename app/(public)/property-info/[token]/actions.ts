@@ -8,6 +8,7 @@
  * Data:   properties, contacts, landlords, managing_schemes, property_insurance_checklists (Supabase service client).
  *         Writes contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
  *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
+ *         Dual-writes contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
  * Notes:  writes owner-submitted answers back to the linked property/landlord/scheme columns per topic
  */
 
@@ -16,6 +17,7 @@ import { sendInfoRequestCompletionNotify } from "@/lib/info-requests/sendInfoReq
 import type { InfoRequestTopic } from "@/lib/info-requests/sendInfoRequestEmail"
 import { mandatoryGate } from "@/lib/migration/mandatoryGate"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,6 +103,7 @@ async function writebackLandlord(
     if (!landlord) return
 
     await syncPrimaryContactEmail(service, property.org_id as string, contact.id as string, wbPrimaryEmail, isOrg ? "work" : "personal")
+    await syncPrimaryContactPhone(service, property.org_id as string, contact.id as string, wbContact.primary_phone, isOrg ? "work" : "mobile")
 
     await service.from("properties")
       .update({ landlord_id: landlord.id })

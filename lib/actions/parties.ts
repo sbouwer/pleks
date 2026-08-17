@@ -6,7 +6,9 @@
  * Auth:   requireAgentWriteAccess (agent write gate + subscription lockdown)
  * Data:   contacts (+ contact_addresses for company FICA) + the role extension table. Writes contact_emails via
  *         syncPrimaryContactEmail — contacts.primary_email is a derived cache (trigger-maintained,
- *         ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
+ *         ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here. Dual-writes
+ *         contact_phones via syncPrimaryContactPhone alongside primary_phone (still the source of truth —
+ *         §7 step 2 only, for the phone column).
  * Notes:  One DRY contact-row builder serves all three roles. FICA roles (landlord/tenant) capture the SA
  *         id_number ENCRYPTED at rest + its lookup hash via idNumberColumns (app-side AES-GCM — there is no
  *         DB-level encryption), and put the company's mandated signatory in the contact_* columns; contractors
@@ -21,6 +23,7 @@ import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson, PartyA
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 type Db = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
 
@@ -159,6 +162,7 @@ async function insertCompanyPeople(db: Db, orgId: string, userId: string, compan
   const insertedRows = inserted ?? []
   for (let i = 0; i < insertedRows.length; i++) {
     await syncPrimaryContactEmail(db, orgId, String(insertedRows[i].id), rows[i].primary_email, "work")
+    await syncPrimaryContactPhone(db, orgId, String(insertedRows[i].id), rows[i].primary_phone, "work")
   }
 }
 
@@ -263,6 +267,7 @@ async function upsertCompanyPeople(db: Db, orgId: string, userId: string, compan
     if (p.id && existingIds.has(p.id)) {
       await db.from("contacts").update(rowPayload).eq("id", p.id).eq("org_id", orgId)
       await syncPrimaryContactEmail(db, orgId, p.id, personPrimaryEmail, "work")
+      await syncPrimaryContactPhone(db, orgId, p.id, rowPayload.primary_phone, "work")
     } else {
       const { data: created, error: createErr } = await db.from("contacts").insert({
         org_id: orgId, entity_type: "individual", primary_role: "company_contact",
@@ -270,7 +275,10 @@ async function upsertCompanyPeople(db: Db, orgId: string, userId: string, compan
       }).select("id").single()
       if (createErr) console.error("[upsertCompanyPeople] insert failed:", createErr.message)
       // "work" — every person here is a company_contact (a rep of the organisation), not a personal party.
-      if (created) await syncPrimaryContactEmail(db, orgId, created.id as string, personPrimaryEmail, "work")
+      if (created) {
+        await syncPrimaryContactEmail(db, orgId, created.id as string, personPrimaryEmail, "work")
+        await syncPrimaryContactPhone(db, orgId, created.id as string, rowPayload.primary_phone, "work")
+      }
     }
   }
 }
@@ -391,6 +399,7 @@ export async function addContractorParty(input: AddPartyInput, supplierType: str
     }
     // "work" — a contractor/supplier contact is inherently a business relationship, individual or company.
     await syncPrimaryContactEmail(db, orgId, contact.id as string, contractorPrimaryEmail as string | null, "work")
+    await syncPrimaryContactPhone(db, orgId, contact.id as string, contractorContactPayload.primary_phone as string | null, "work")
 
     const { error: conErr } = await db.from("contractors").insert({
       org_id: orgId, contact_id: contact.id, is_active: f.isActive !== false,
@@ -484,6 +493,7 @@ export async function updateContractorParty(input: AddPartyInput, contractorId: 
     if (cErr) { console.error("[updateContractorParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
     // "work" — a contractor/supplier contact is inherently a business relationship, individual or company.
     await syncPrimaryContactEmail(db, orgId, contactId, contractorUpdPrimaryEmail as string | null, "work")
+    await syncPrimaryContactPhone(db, orgId, contactId, contractorContactUpdatePayload.primary_phone as string | null, "work")
 
     const { error: conErr } = await db.from("contractors").update({
       is_active: f.isActive !== false,
@@ -531,6 +541,10 @@ export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyRe
     await syncPrimaryContactEmail(
       db, orgId, contact.id as string, landlordPrimaryEmail as string | null,
       input.entity === "company" ? "work" : "personal",
+    )
+    await syncPrimaryContactPhone(
+      db, orgId, contact.id as string, landlordContactPayload.primary_phone as string | null,
+      input.entity === "company" ? "work" : "mobile",
     )
     if (input.entity === "company") {
       await insertCompanyAddresses(db, orgId, contact.id, f.addresses)
@@ -626,6 +640,10 @@ export async function updateLandlordParty(input: AddPartyInput, landlordId: stri
       db, orgId, contactId, landlordUpdPrimaryEmail as string | null,
       input.entity === "company" ? "work" : "personal",
     )
+    await syncPrimaryContactPhone(
+      db, orgId, contactId, landlordUpdPayload.primary_phone as string | null,
+      input.entity === "company" ? "work" : "mobile",
+    )
 
     if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
     await replaceTypedAddresses(db, orgId, contactId, f.addresses)
@@ -694,6 +712,7 @@ export async function updateAgentContactParty(form: PartyFormState, contactId: s
       .update(agentContactUpdatePayload).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateAgentContactParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update your profile" } }
     await syncPrimaryContactEmail(db, orgId, contactId, agentPrimaryEmail as string | null, "personal")
+    await syncPrimaryContactPhone(db, orgId, contactId, agentContactUpdatePayload.primary_phone as string | null, "mobile")
 
     await replaceTypedAddresses(db, orgId, contactId, f.addresses)
 
@@ -757,6 +776,10 @@ export async function addTenantParty(input: AddPartyInput): Promise<AddPartyResu
     await syncPrimaryContactEmail(
       db, orgId, contact.id as string, tenantPrimaryEmail as string | null,
       input.entity === "company" ? "work" : "personal",
+    )
+    await syncPrimaryContactPhone(
+      db, orgId, contact.id as string, tenantContactPayload.primary_phone as string | null,
+      input.entity === "company" ? "work" : "mobile",
     )
     if (input.entity === "company") {
       await insertCompanyAddresses(db, orgId, contact.id, f.addresses)
@@ -872,6 +895,10 @@ export async function updateTenantParty(input: AddPartyInput, tenantId: string):
     await syncPrimaryContactEmail(
       db, orgId, contactId, tenantUpdPrimaryEmail as string | null,
       input.entity === "company" ? "work" : "personal",
+    )
+    await syncPrimaryContactPhone(
+      db, orgId, contactId, tenantUpdPayload.primary_phone as string | null,
+      input.entity === "company" ? "work" : "mobile",
     )
 
     const { error: tErr } = await db.from("tenants").update({

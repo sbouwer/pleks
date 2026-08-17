@@ -6,6 +6,7 @@
  * Data:   contacts rows under the supplier's company contact via organisation_contact_id (ADDENDUM_25A).
  *         Writes contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
  *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
+ *         Dual-writes contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
  * Notes:  Replaces the retired contractor_contacts bridge. A person is a first-class individual contact
  *         (primary_role='company_contact') linked to the supplier's organisation contact. Only an
  *         organisation supplier has people (a sole-proprietor individual supplier has none).
@@ -14,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -85,6 +87,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
   // "work" — a company_contact (a person representing the supplier's organisation), not personal capacity.
   await syncPrimaryContactEmail(service, membership.org_id, contact.id as string, email, "work")
+  await syncPrimaryContactPhone(service, membership.org_id, contact.id as string, phone?.trim() || null, "work")
   return NextResponse.json({ ok: true, id: contact.id })
 }
 

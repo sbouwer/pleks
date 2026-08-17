@@ -6,6 +6,7 @@
  * Data:   landlords (+ contacts), org-scoped service client; GET filters deleted_at (active only). Writes
  *         contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
  *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
+ *         Dual-writes contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
  * Notes:  DELETE = ARCHIVE (soft-delete, set deleted_at), NOT erase — blocked while an in-force lease
  *         exists (landlordHasInForceLease). Raw .delete() on landlords is forbidden outside
  *         lib/popia/erasure.ts (pleks/no-popia-raw-delete). See ADDENDUM_ARCHIVE_VS_ERASE.
@@ -18,6 +19,7 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { mandatoryGate, MissingMandatoryFieldsError, recomputeIncompleteMandatory } from "@/lib/migration/mandatoryGate"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 const MANDATORY_COLS = "first_name,last_name,company_name,primary_email,primary_phone"
 /** 21E §1 corollary 12: apply a partial landlord-contact edit, recomputing the flag from the MERGED record. */
@@ -30,6 +32,7 @@ async function patchLandlordContactRecomputing(
   // still needs it (merged with `existing`) to correctly flag completeness, and syncPrimaryContactEmail is the
   // only write path for the value (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
   const hasEmail = "primary_email" in contactUpdate
+  const hasPhone = "primary_phone" in contactUpdate
   const { primary_email: newPrimaryEmail, ...contactUpdatePayload } = contactUpdate
   const { error } = await service.from("contacts")
     .update({ ...contactUpdatePayload, ...recomputeIncompleteMandatory("landlord", existing, contactUpdate) }).eq("id", contactId).eq("org_id", orgId)
@@ -37,9 +40,13 @@ async function patchLandlordContactRecomputing(
   // No-op when this partial update didn't touch email (contactUpdate had no primary_email key).
   // company_name (merged: this update's value, falling back to the existing row) is the "work" signal here —
   // this generic helper doesn't have entity_type in MANDATORY_COLS.
+  const companyName = (contactUpdate.company_name ?? existing?.company_name) as string | null
   if (hasEmail) {
-    const companyName = (contactUpdate.company_name ?? existing?.company_name) as string | null
     await syncPrimaryContactEmail(service, orgId, contactId, newPrimaryEmail as string | null, companyName ? "work" : "personal")
+  }
+  // primary_phone stays in contactUpdatePayload (still the column of record — §7 step 2 dual-write only).
+  if (hasPhone) {
+    await syncPrimaryContactPhone(service, orgId, contactId, contactUpdatePayload.primary_phone as string | null, companyName ? "work" : "mobile")
   }
   return null
 }
@@ -121,6 +128,10 @@ export async function POST(req: NextRequest) {
   await syncPrimaryContactEmail(
     service, membership.org_id, contact.id as string, landlordPrimaryEmail,
     companyName?.trim() ? "work" : "personal",
+  )
+  await syncPrimaryContactPhone(
+    service, membership.org_id, contact.id as string, landlordContactPayload.primary_phone as string | null,
+    companyName?.trim() ? "work" : "mobile",
   )
 
   return NextResponse.json({ ok: true, landlordId: landlord.id })
