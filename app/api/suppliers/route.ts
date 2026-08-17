@@ -3,13 +3,15 @@
  *
  * Route:  POST/PATCH/DELETE /api/suppliers
  * Auth:   Supabase session + getMembership; DELETE requires isAdmin
- * Data:   contractors + contacts tables (service role)
+ * Data:   contractors + contacts tables (service role). Dual-writes contact_emails alongside primary_email
+ *         (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  DELETE is a soft-delete (sets deleted_at) so FK references from
  *         maintenance_requests survive. contractor_view excludes deleted rows.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -45,6 +47,11 @@ export async function POST(req: NextRequest) {
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  // "work" — a contractor/supplier contact is inherently a business relationship, individual or company.
+  await syncPrimaryContactEmail(service, membership.org_id, contact.id as string, email, "work")
+
   return NextResponse.json({ ok: true })
 }
 
@@ -106,6 +113,11 @@ export async function PATCH(req: NextRequest) {
       .eq("id", body.contactId)
       .eq("org_id", membership.org_id)
     if (contactError) return NextResponse.json({ error: contactError.message }, { status: 500 })
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    // "work" — contractor/supplier contact (business relationship).
+    if ("primary_email" in contactUpdate) {
+      await syncPrimaryContactEmail(service, membership.org_id, body.contactId, contactUpdate.primary_email as string | null, "work")
+    }
   }
 
   const contractorUpdate = buildContractorUpdate(body)

@@ -3,7 +3,8 @@
  *
  * Route:  /api/landlords (GET list · POST create · PATCH edit|restore · DELETE archive)
  * Auth:   authenticated org member; archive/restore are admin-only
- * Data:   landlords (+ contacts), org-scoped service client; GET filters deleted_at (active only)
+ * Data:   landlords (+ contacts), org-scoped service client; GET filters deleted_at (active only). Dual-writes
+ *         contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  DELETE = ARCHIVE (soft-delete, set deleted_at), NOT erase — blocked while an in-force lease
  *         exists (landlordHasInForceLease). Raw .delete() on landlords is forbidden outside
  *         lib/popia/erasure.ts (pleks/no-popia-raw-delete). See ADDENDUM_ARCHIVE_VS_ERASE.
@@ -15,6 +16,7 @@ import { landlordHasInForceLease } from "@/lib/parties/archive"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { mandatoryGate, MissingMandatoryFieldsError, recomputeIncompleteMandatory } from "@/lib/migration/mandatoryGate"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 const MANDATORY_COLS = "first_name,last_name,company_name,primary_email,primary_phone"
 /** 21E §1 corollary 12: apply a partial landlord-contact edit, recomputing the flag from the MERGED record. */
@@ -25,7 +27,16 @@ async function patchLandlordContactRecomputing(
   if (exErr) return exErr.message
   const { error } = await service.from("contacts")
     .update({ ...contactUpdate, ...recomputeIncompleteMandatory("landlord", existing, contactUpdate) }).eq("id", contactId).eq("org_id", orgId)
-  return error ? error.message : null
+  if (error) return error.message
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column. No-ops
+  // when this partial update didn't touch email (contactUpdate.primary_email is undefined) or cleared it to null.
+  // company_name (merged: this update's value, falling back to the existing row) is the "work" signal here —
+  // this generic helper doesn't have entity_type in MANDATORY_COLS.
+  if ("primary_email" in contactUpdate) {
+    const companyName = (contactUpdate.company_name ?? existing?.company_name) as string | null
+    await syncPrimaryContactEmail(service, orgId, contactId, contactUpdate.primary_email as string | null, companyName ? "work" : "personal")
+  }
+  return null
 }
 
 export async function GET() {
@@ -97,6 +108,12 @@ export async function POST(req: NextRequest) {
   }).select("id").single()
 
   if (error || !landlord) return NextResponse.json({ error: error?.message || "Failed to create landlord" }, { status: 500 })
+
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  await syncPrimaryContactEmail(
+    service, membership.org_id, contact.id as string, landlordContact.primary_email,
+    companyName?.trim() ? "work" : "personal",
+  )
 
   return NextResponse.json({ ok: true, landlordId: landlord.id })
 }

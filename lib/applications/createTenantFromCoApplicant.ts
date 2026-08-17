@@ -7,7 +7,8 @@
  *         auth.users id. The co becomes a tenant-in-pre-lease-state, symmetric to the primary
  *         (application_co_applicants.tenant_id → tenants.auth_user_id).
  * Data:   reads the application_co_applicants row → dedups (by auth user, then id_number_hash) → creates contact +
- *         tenant (auth_user_id set) → links application_co_applicants.tenant_id → consent + audit.
+ *         tenant (auth_user_id set) → links application_co_applicants.tenant_id → consent + audit. Dual-writes
+ *         contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2).
  * Notes:  the co mirror of createTenantFromApplication; the identity lives on the co row, the binding one level over
  *         (co.tenant_id, §41). Dedup reuses an existing tenant — one person, one tenant/auth user.
  */
@@ -16,6 +17,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { decryptIdNumber, decryptDob, idNumberColumns } from "@/lib/crypto/idNumber"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { incompleteMandatoryColumn } from "@/lib/migration/mandatoryFields"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 export async function createTenantFromCoApplicant(
   coApplicantId: string,
@@ -83,6 +85,9 @@ export async function createTenantFromCoApplicant(
     })
     .select("id").single()
   if (contactError || !contact) return { error: contactError?.message ?? "Failed to create contact" }
+
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  await syncPrimaryContactEmail(supabase, co.org_id, contact.id as string, co.applicant_email, "personal")
 
   const { data: tenant, error: insertError } = await supabase
     .from("tenants")

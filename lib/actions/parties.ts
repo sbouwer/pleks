@@ -4,7 +4,8 @@
  * lib/actions/parties.ts — create actions for the unified add-party modal
  *
  * Auth:   requireAgentWriteAccess (agent write gate + subscription lockdown)
- * Data:   contacts (+ contact_addresses for company FICA) + the role extension table
+ * Data:   contacts (+ contact_addresses for company FICA) + the role extension table. Dual-writes contact_emails
+ *         alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  One DRY contact-row builder serves all three roles. FICA roles (landlord/tenant) capture the SA
  *         id_number ENCRYPTED at rest + its lookup hash via idNumberColumns (app-side AES-GCM — there is no
  *         DB-level encryption), and put the company's mandated signatory in the contact_* columns; contractors
@@ -18,6 +19,7 @@ import { PARTY_ROLES, toContactEntityType, type PartyRole, type PartyEntity } fr
 import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson, PartyAddressInput, PartyBankAccountInput } from "@/lib/parties/partyValidation"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 type Db = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
 
@@ -146,8 +148,15 @@ async function insertCompanyPeople(db: Db, orgId: string, userId: string, compan
       created_by: userId,
     }
   })
-  const { error } = await db.from("contacts").insert(rows)
-  if (error) console.error("[insertCompanyPeople] failed:", error.message)
+  const { data: inserted, error } = await db.from("contacts").insert(rows).select("id")
+  if (error) { console.error("[insertCompanyPeople] failed:", error.message); return }
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column, per row.
+  // "work" — every person here is a company_contact (a rep of the organisation), not a personal party.
+  // Relies on Supabase preserving insert-array order in the RETURNING set (same order as `rows`).
+  const insertedRows = inserted ?? []
+  for (let i = 0; i < insertedRows.length; i++) {
+    await syncPrimaryContactEmail(db, orgId, String(insertedRows[i].id), rows[i].primary_email, "work")
+  }
 }
 
 /**
@@ -247,11 +256,16 @@ async function upsertCompanyPeople(db: Db, orgId: string, userId: string, compan
     }
     if (p.id && existingIds.has(p.id)) {
       await db.from("contacts").update(row).eq("id", p.id).eq("org_id", orgId)
+      // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+      await syncPrimaryContactEmail(db, orgId, p.id, row.primary_email, "work")
     } else {
-      await db.from("contacts").insert({
+      const { data: created, error: createErr } = await db.from("contacts").insert({
         org_id: orgId, entity_type: "individual", primary_role: "company_contact",
         organisation_contact_id: companyContactId, created_by: userId, ...row,
-      })
+      }).select("id").single()
+      if (createErr) console.error("[upsertCompanyPeople] insert failed:", createErr.message)
+      // "work" — every person here is a company_contact (a rep of the organisation), not a personal party.
+      if (created) await syncPrimaryContactEmail(db, orgId, created.id as string, row.primary_email, "work")
     }
   }
 }
@@ -360,12 +374,16 @@ export async function addContractorParty(input: AddPartyInput, supplierType: str
     const f = input.form
     const name = partyDisplayName("supplier", input.entity, f)
 
+    const contractorContactData = buildPartyContactData("supplier", input.entity, f, orgId, userId)
     const { data: contact, error: contactErr } = await db
-      .from("contacts").insert(buildPartyContactData("supplier", input.entity, f, orgId, userId)).select("id").single()
+      .from("contacts").insert(contractorContactData).select("id").single()
     if (contactErr || !contact) {
       console.error("[addContractorParty] contact insert failed:", contactErr?.message)
       return { ok: false, error: "Failed to create the contact" }
     }
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    // "work" — a contractor/supplier contact is inherently a business relationship, individual or company.
+    await syncPrimaryContactEmail(db, orgId, contact.id as string, contractorContactData.primary_email as string | null, "work")
 
     const { error: conErr } = await db.from("contractors").insert({
       org_id: orgId, contact_id: contact.id, is_active: f.isActive !== false,
@@ -450,9 +468,13 @@ export async function updateContractorParty(input: AddPartyInput, contractorId: 
     const contactId = con.contact_id as string
 
     const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    const contractorContactUpdate = buildContactScalarUpdate(input.entity, f, primary)
     const { error: cErr } = await db.from("contacts")
-      .update(buildContactScalarUpdate(input.entity, f, primary)).eq("id", contactId).eq("org_id", orgId)
+      .update(contractorContactUpdate).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateContractorParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    // "work" — a contractor/supplier contact is inherently a business relationship, individual or company.
+    await syncPrimaryContactEmail(db, orgId, contactId, contractorContactUpdate.primary_email as string | null, "work")
 
     const { error: conErr } = await db.from("contractors").update({
       is_active: f.isActive !== false,
@@ -494,6 +516,11 @@ export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyRe
       console.error("[addLandlordParty] contact insert failed:", contactErr?.message)
       return { ok: false, error: "Failed to create the contact" }
     }
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    await syncPrimaryContactEmail(
+      db, orgId, contact.id as string, landlordData.primary_email as string | null,
+      input.entity === "company" ? "work" : "personal",
+    )
     if (input.entity === "company") {
       await insertCompanyAddresses(db, orgId, contact.id, f.addresses)
       await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
@@ -581,6 +608,11 @@ export async function updateLandlordParty(input: AddPartyInput, landlordId: stri
     const { error: cErr } = await db.from("contacts")
       .update({ ...landlordUpd, ...upGate }).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateLandlordParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    await syncPrimaryContactEmail(
+      db, orgId, contactId, landlordUpd.primary_email as string | null,
+      input.entity === "company" ? "work" : "personal",
+    )
 
     if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
     await replaceTypedAddresses(db, orgId, contactId, f.addresses)
@@ -641,9 +673,12 @@ export async function updateAgentContactParty(form: PartyFormState, contactId: s
     if (profErr) console.error("updateAgentContactParty profile read failed:", profErr.message)
     if (!prof || prof.agent_contact_id !== contactId) return { ok: false, error: "Not your profile" }
 
+    const agentContactUpdate = buildContactScalarUpdate("individual", f)
     const { error: cErr } = await db.from("contacts")
-      .update(buildContactScalarUpdate("individual", f)).eq("id", contactId).eq("org_id", orgId)
+      .update(agentContactUpdate).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateAgentContactParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update your profile" } }
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    await syncPrimaryContactEmail(db, orgId, contactId, agentContactUpdate.primary_email as string | null, "personal")
 
     await replaceTypedAddresses(db, orgId, contactId, f.addresses)
 
@@ -701,6 +736,11 @@ export async function addTenantParty(input: AddPartyInput): Promise<AddPartyResu
       console.error("[addTenantParty] contact insert failed:", contactErr?.message)
       return { ok: false, error: "Failed to create the contact" }
     }
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    await syncPrimaryContactEmail(
+      db, orgId, contact.id as string, tenantData.primary_email as string | null,
+      input.entity === "company" ? "work" : "personal",
+    )
     if (input.entity === "company") {
       await insertCompanyAddresses(db, orgId, contact.id, f.addresses)
       await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
@@ -809,6 +849,11 @@ export async function updateTenantParty(input: AddPartyInput, tenantId: string):
     const { error: cErr } = await db.from("contacts")
       .update({ ...tenantUpd, ...upGate }).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateTenantParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    await syncPrimaryContactEmail(
+      db, orgId, contactId, tenantUpd.primary_email as string | null,
+      input.entity === "company" ? "work" : "personal",
+    )
 
     const { error: tErr } = await db.from("tenants").update({
       employer_name: f.employer?.trim() || null,

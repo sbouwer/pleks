@@ -3,7 +3,8 @@
  *
  * Route:  /api/tenants (PATCH edit|restore · DELETE archive)
  * Auth:   authenticated org member; archive/restore are admin-only
- * Data:   tenants (+ contacts), org-scoped service client
+ * Data:   tenants (+ contacts), org-scoped service client. Dual-writes contact_emails alongside primary_email
+ *         (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  DELETE = ARCHIVE (soft-delete, set deleted_at), NOT erase — blocked while an in-force lease
  *         exists (tenantHasInForceLease). Raw .delete() on tenants is forbidden outside
  *         lib/popia/erasure.ts (pleks/no-popia-raw-delete). See ADDENDUM_ARCHIVE_VS_ERASE.
@@ -15,6 +16,7 @@ import { tenantHasInForceLease } from "@/lib/parties/archive"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { recomputeIncompleteMandatory } from "@/lib/migration/mandatoryGate"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 const MANDATORY_COLS = "first_name,last_name,company_name,primary_email,primary_phone"
 
 interface TenantPatchBody {
@@ -69,7 +71,16 @@ async function patchContactRecomputing(
   if (exErr) return exErr.message
   const { error } = await service.from("contacts")
     .update({ ...contactUpdate, ...recomputeIncompleteMandatory("tenant", existing, contactUpdate) }).eq("id", contactId).eq("org_id", orgId)
-  return error ? error.message : null
+  if (error) return error.message
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column. No-ops
+  // when this partial update didn't touch email (contactUpdate.primary_email is undefined) or cleared it to null.
+  // company_name (merged: this update's value, falling back to the existing row) is the "work" signal here —
+  // this generic helper doesn't have entity_type in MANDATORY_COLS.
+  if ("primary_email" in contactUpdate) {
+    const companyName = (contactUpdate.company_name ?? existing?.company_name) as string | null
+    await syncPrimaryContactEmail(service, orgId, contactId, contactUpdate.primary_email as string | null, companyName ? "work" : "personal")
+  }
+  return null
 }
 
 export async function PATCH(req: NextRequest) {

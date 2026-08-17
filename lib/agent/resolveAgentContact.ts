@@ -10,6 +10,7 @@
  *         / resolveSelfLandlord, which this mirrors.
  */
 import type { GatewayContext } from "@/lib/supabase/gateway"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 type Db = GatewayContext["db"]
 
@@ -72,6 +73,9 @@ export async function resolveAgentContact(
     await db.from("contacts").delete().eq("id", contact.id).eq("org_id", orgId)   // roll back orphan
     return { ok: false, error: "Failed to create your profile record" }
   }
+
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  await syncPrimaryContactEmail(db, orgId, contact.id as string, email, "personal")
 
   return { ok: true, contactId: contact.id as string, created: true }
 }
