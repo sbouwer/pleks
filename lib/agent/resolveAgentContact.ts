@@ -7,9 +7,9 @@
  *         safety net (an existing binding is reused, so it never makes a second agent contact). Settings →
  *         My profile reads/writes this contact. Seeded from user_profiles (name/phone). Landlord-ness is a
  *         separate, optional determination (self_landlord_id) — see [[project_pleks_agent_landlord_identity]]
- *         / resolveSelfLandlord, which this mirrors. Writes contact_emails via syncPrimaryContactEmail and
- *         contact_phones via syncPrimaryContactPhone, dual-write alongside the primary_email/primary_phone
- *         columns (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2 for phone — email is at step 4).
+ *         / resolveSelfLandlord, which this mirrors. Writes contact_emails/contact_phones via
+ *         syncPrimaryContactEmail/syncPrimaryContactPhone — contacts.primary_email and contacts.primary_phone
+ *         are derived caches (trigger-maintained, 002_contacts.sql §22/§23) and are no longer written directly here.
  */
 import type { GatewayContext } from "@/lib/supabase/gateway"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
@@ -58,7 +58,6 @@ export async function resolveAgentContact(
     title:         (profile?.title as string | null) ?? null,
     first_name:    firstName,
     last_name:     lastName,
-    primary_phone: phone,
     created_by:    userId,
   }).select("id").single()
   if (contactErr || !contact) {

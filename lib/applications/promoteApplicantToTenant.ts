@@ -6,10 +6,9 @@
  *         link-account route passes a SERVICE client (an applicant is not an org member, so cookie-RLS would block
  *         the cross-cutting writes).
  * Data:   reads applications by id → dedups (by auth user, then id_number_hash) → creates contacts + tenants →
- *         links applications.tenant_id → consent + audit. Writes contact_emails via syncPrimaryContactEmail —
- *         contacts.primary_email is a derived cache (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION
- *         §7 step 4) and no longer written here. Dual-writes contact_phones alongside primary_phone (still the
- *         source of truth — §7 step 2 only).
+ *         links applications.tenant_id → consent + audit. Writes contact_emails/contact_phones via
+ *         syncPrimaryContactEmail/syncPrimaryContactPhone — contacts.primary_email and contacts.primary_phone
+ *         are derived caches (trigger-maintained, 002_contacts.sql §22/§23) and are no longer written directly here.
  * Notes:  SAFE under the service client BY CONSTRUCTION — single-application-scoped (reads by applicationId, writes
  *         with the row's own org_id, no cross-org queries), and the applicant path only ever reaches it through
  *         resolveApplicationCredential's IDOR guard (never a raw id). 14R: sets tenants.auth_user_id at the
@@ -90,7 +89,6 @@ export async function promoteApplicationToTenant(
     .insert({
       org_id: application.org_id, entity_type: "individual", primary_role: "tenant",
       first_name: application.first_name, last_name: application.last_name,
-      primary_phone: application.applicant_phone,
       // 21E §1 (F1, CD walk): promote from application data — RELAX+flag (never hard-refuse a promote).
       ...incompleteMandatoryColumn("tenant", {
         first_name: application.first_name, last_name: application.last_name,

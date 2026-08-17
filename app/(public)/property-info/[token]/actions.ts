@@ -6,9 +6,9 @@
  * Route:  /property-info/[token] (public, tokenised — no auth session)
  * Auth:   access gated by the opaque request token; uses the service client (RLS-bypassing) scoped by the token's org/property
  * Data:   properties, contacts, landlords, managing_schemes, property_insurance_checklists (Supabase service client).
- *         Writes contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
- *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
- *         Dual-writes contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
+ *         Writes contact_emails/contact_phones via syncPrimaryContactEmail/syncPrimaryContactPhone — both
+ *         contacts.primary_email and contacts.primary_phone are derived caches (trigger-maintained,
+ *         002_contacts.sql §22/§23) and are no longer written directly here.
  * Notes:  writes owner-submitted answers back to the linked property/landlord/scheme columns per topic
  */
 
@@ -82,9 +82,9 @@ async function writebackLandlord(
       primary_email: values.email || null,
       primary_phone: values.phone || null,
     }
-    // primary_email is derived (trigger) — excluded from the insert payload; syncPrimaryContactEmail below is the
-    // only write path for the value (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
-    const { primary_email: wbPrimaryEmail, ...wbContactPayload } = wbContact
+    // primary_email/primary_phone are derived (triggers) — excluded from the insert payload; syncPrimaryContactEmail
+    // / syncPrimaryContactPhone below are the only write paths for the values (002_contacts.sql §22/§23).
+    const { primary_email: wbPrimaryEmail, primary_phone: wbPrimaryPhone, ...wbContactPayload } = wbContact
     const { data: contact, error: contactError } = await service.from("contacts").insert({
       org_id:        property.org_id,
       entity_type:   isOrg ? "organisation" : "individual",
@@ -103,7 +103,7 @@ async function writebackLandlord(
     if (!landlord) return
 
     await syncPrimaryContactEmail(service, property.org_id as string, contact.id as string, wbPrimaryEmail, isOrg ? "work" : "personal")
-    await syncPrimaryContactPhone(service, property.org_id as string, contact.id as string, wbContact.primary_phone, isOrg ? "work" : "mobile")
+    await syncPrimaryContactPhone(service, property.org_id as string, contact.id as string, wbPrimaryPhone, isOrg ? "work" : "mobile")
 
     await service.from("properties")
       .update({ landlord_id: landlord.id })

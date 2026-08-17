@@ -9,9 +9,9 @@
  *         self-owned property (or pressing "add me as landlord" twice) never creates a second self-landlord.
  *         Extracted from createPropertyFromWizard so the onboarding "Add me as landlord" path reuses the
  *         same canonical logic instead of duplicating identity behaviour. Writes contact_phones via
- *         syncPrimaryContactPhone, dual-write alongside the primary_phone column (ADDENDUM_CONTACT_
- *         REPRESENTATION_UNIFICATION §7 step 2) — this contact has no email at create time, so there is no
- *         email-side equivalent here.
+ *         syncPrimaryContactPhone — contacts.primary_phone is a derived cache (trigger-maintained,
+ *         002_contacts.sql §23) and is no longer written directly here. This contact has no email at
+ *         create time, so there is no email-side equivalent here.
  */
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import type { GatewayContext } from "@/lib/supabase/gateway"
@@ -79,11 +79,15 @@ export async function resolveSelfLandlord(
   // 21E §1: an onboarding identity-mirror ("add me as landlord"), created BEFORE the user has entered an email —
   // so it RELAXES + flags (refusing would break onboarding). It lands on the burn-down, completed on first touch.
   const selfContact = { first_name: firstName, last_name: lastName, primary_phone: phone }
+  // primary_phone is derived (trigger) — excluded from the insert payload below; mandatoryGate still needs it
+  // (on selfContact) to correctly flag completeness, and syncPrimaryContactPhone is the only write path for
+  // the value (002_contacts.sql §23).
+  const { primary_phone: selfPrimaryPhone, ...selfContactPayload } = selfContact
   const { data: contact, error: contactErr } = await db.from("contacts").insert({
     org_id:        orgId,
     entity_type:   "individual",
     primary_role:  "landlord",
-    ...selfContact,
+    ...selfContactPayload,
     ...mandatoryGate("landlord", selfContact, { relax: true }),
     created_by:    userId,
   }).select("id").single()
@@ -91,8 +95,7 @@ export async function resolveSelfLandlord(
     console.error("resolveSelfLandlord: self-landlord contact insert failed:", contactErr?.message)
     return { ok: false, error: "Failed to create your owner record" }
   }
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
-  await syncPrimaryContactPhone(db, orgId, contact.id as string, phone, "mobile")
+  await syncPrimaryContactPhone(db, orgId, contact.id as string, selfPrimaryPhone, "mobile")
 
   const { data: landlord, error: landlordErr } = await db.from("landlords").insert({
     org_id:     orgId,
