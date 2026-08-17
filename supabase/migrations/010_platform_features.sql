@@ -2908,9 +2908,13 @@ DROP POLICY IF EXISTS "org_property_rules" ON property_rules;
 CREATE POLICY "org_property_rules" ON property_rules
   FOR ALL USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 
-DROP POLICY IF EXISTS "comm_log_org_select" ON communication_log;
-CREATE POLICY "comm_log_org_select" ON communication_log
-  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+-- ⚠ "comm_log_org_select" SUPERSEDED by the RLS permissive-policy consolidation in 009_security.sql §A
+-- (ADDENDUM_RLS_PERMISSIVE_CONSOLIDATION). Its CREATE used to live here — but 009 replays BEFORE this
+-- file, so re-creating it here silently UNDID the consolidation on every fresh build: the merged policy
+-- and the superseded one both ended up present. Production never had that problem because the
+-- consolidation was applied by hand AFTER this file had already run, which is exactly why the
+-- divergence stayed invisible — see the 2026-08-17 replay-vs-production diff (NOW.md item 16).
+-- Do not reinstate. If this audience needs changing, change the merged policy in 009.
 
 DROP POLICY IF EXISTS "comm_prefs_org" ON communication_preferences;
 CREATE POLICY "comm_prefs_org" ON communication_preferences
@@ -2933,25 +2937,25 @@ CREATE POLICY "landlord_portal_units" ON units
     ))
   );
 
-DROP POLICY IF EXISTS "landlord_portal_maintenance" ON maintenance_requests;
-CREATE POLICY "landlord_portal_maintenance" ON maintenance_requests
-  FOR SELECT USING (
-    property_id IN (SELECT id FROM properties WHERE landlord_id IN (
-      SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())
-    ))
-  );
+-- ⚠ "landlord_portal_maintenance" SUPERSEDED by the RLS permissive-policy consolidation in 009_security.sql §B
+-- (ADDENDUM_RLS_PERMISSIVE_CONSOLIDATION). Its CREATE used to live here — but 009 replays BEFORE this
+-- file, so re-creating it here silently UNDID the consolidation on every fresh build: the merged policy
+-- and the superseded one both ended up present. Production never had that problem because the
+-- consolidation was applied by hand AFTER this file had already run, which is exactly why the
+-- divergence stayed invisible — see the 2026-08-17 replay-vs-production diff (NOW.md item 16).
+-- Do not reinstate. If this audience needs changing, change the merged policy in 009.
 
 DROP POLICY IF EXISTS "landlord_portal_statements" ON owner_statements;
 CREATE POLICY "landlord_portal_statements" ON owner_statements
   FOR SELECT USING (landlord_id IN (SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())));
 
-DROP POLICY IF EXISTS "landlord_portal_leases" ON leases;
-CREATE POLICY "landlord_portal_leases" ON leases
-  FOR SELECT USING (
-    property_id IN (SELECT id FROM properties WHERE landlord_id IN (
-      SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())
-    ))
-  );
+-- ⚠ "landlord_portal_leases" SUPERSEDED by the RLS permissive-policy consolidation in 009_security.sql §C
+-- (ADDENDUM_RLS_PERMISSIVE_CONSOLIDATION). Its CREATE used to live here — but 009 replays BEFORE this
+-- file, so re-creating it here silently UNDID the consolidation on every fresh build: the merged policy
+-- and the superseded one both ended up present. Production never had that problem because the
+-- consolidation was applied by hand AFTER this file had already run, which is exactly why the
+-- divergence stayed invisible — see the 2026-08-17 replay-vs-production diff (NOW.md item 16).
+-- Do not reinstate. If this audience needs changing, change the merged policy in 009.
 
 -- 008: org-isolation. The two shapes DIFFER (verified on disk):
 --   maintenance_cost_allocations uses `org_id IN (...)`; deposit_interest_config uses `org_id = (... LIMIT 1)`.

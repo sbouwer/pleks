@@ -880,15 +880,13 @@ END $wrap$;
 ALTER TABLE communication_log
   ALTER COLUMN direction SET DEFAULT 'outbound';
 
-DROP POLICY IF EXISTS "tenant_comms_read" ON communication_log;
-CREATE POLICY "tenant_comms_read" ON communication_log
-  FOR SELECT USING (
-    tenant_id IN (
-      SELECT id FROM tenants
-      WHERE auth_user_id = (SELECT auth.uid())
-        AND deleted_at IS NULL
-    )
-  );
+-- ⚠ "tenant_comms_read" SUPERSEDED by the RLS permissive-policy consolidation in 009_security.sql §A
+-- (ADDENDUM_RLS_PERMISSIVE_CONSOLIDATION). Its CREATE used to live here — but 009 replays BEFORE this
+-- file, so re-creating it here silently UNDID the consolidation on every fresh build: the merged policy
+-- and the superseded one both ended up present. Production never had that problem because the
+-- consolidation was applied by hand AFTER this file had already run, which is exactly why the
+-- divergence stayed invisible — see the 2026-08-17 replay-vs-production diff (NOW.md item 16).
+-- Do not reinstate. If this audience needs changing, change the merged policy in 009.
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
