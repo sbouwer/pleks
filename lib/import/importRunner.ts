@@ -882,6 +882,27 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Failed to resolve tenant for existing contact", severity: "error" })
         return
       }
+      // ⚠ CRASH-CONVERGENCE REPAIR (21C). `primary_email` used to be written in the SAME statement as
+      // the contact row, so a crash produced both or neither. It is now a derived cache fed by a
+      // SECOND statement (syncPrimaryContactEmail), which opens a window: crash between the two and
+      // the contact exists with no contact_emails row and a NULL derived email.
+      //
+      // On the re-run, identity matching resolves that contact here and returns — so without this
+      // call the email is never repaired, and the re-run does NOT converge on the clean-run database.
+      // That is the 21C invariant, and `contentHash` compares `contacts.primary_email` directly, so
+      // it is a real divergence rather than a cosmetic one.
+      //
+      // Unconditional and idempotent: syncPrimaryContactEmail clears any existing primary and
+      // re-inserts, so re-running a healthy import is a no-op and re-running a crashed one heals it.
+      // Do not make this conditional on "the email looks missing" — that reintroduces the read-then-
+      // write race the whole delete-then-insert shape exists to avoid.
+      const nameForType = resolveName(entry.row, ctx.mapping)
+      await syncPrimaryContactEmail(
+        ctx.supabase, ctx.orgId, String(existing.id),
+        getField(entry.row, "email", ctx.mapping) || null,
+        importEmailType(nameForType.companyName, nameForType.companyName || `${nameForType.firstName} ${nameForType.lastName}`.trim()),
+      )
+
       cacheTenant(ctx, cacheKey, resolved.tenantId)
       if (resolved.created) ctx.result.tenantsCreated++
       else ctx.result.skipped++
