@@ -3303,3 +3303,31 @@ COMMENT ON COLUMN applications.resulting_lease_id IS
    (both cheap, and each answers a different question). SET NULL on delete — the fact must survive
    the erasure of its parent.';
 
+-- ── The other half of the pair: leases.originating_application_id's FOREIGN KEY ──────────────
+--
+-- The COLUMN is declared in 004 (leases → 004 per domain routing). The CONSTRAINT has to live here,
+-- because `applications` does not exist until this file — 004 replays first. Declaring the reference
+-- inline in 004 made a fresh 001→012 replay fail with `relation "applications" does not exist`,
+-- so the migrations could patch an existing database but no longer build one. Caught 2026-08-17 by
+-- the CI db-tests job's first run; invisible to the drift check, which compares live-vs-migrations
+-- and saw the column on both sides.
+--
+-- ON DELETE SET NULL, never CASCADE — a POPIA s24 erasure removes IDENTITY, not FACTS, and a cascade
+-- here would silently delete the calibration history that evidences fairness monitoring. Guarded
+-- behaviourally by test/db/analytics-erasure-survival.dbtest.ts (probe-fired against CASCADE).
+--
+-- Guarded rather than dropped-and-recreated: the constraint already exists in production under the
+-- Postgres-generated name below (verified 2026-08-17), so re-adding it unconditionally would abort
+-- the migration on every replay against a live database.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'leases_originating_application_id_fkey' AND conrelid = 'leases'::regclass
+  ) THEN
+    ALTER TABLE leases
+      ADD CONSTRAINT leases_originating_application_id_fkey
+      FOREIGN KEY (originating_application_id) REFERENCES applications(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+

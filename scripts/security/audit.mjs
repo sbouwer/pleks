@@ -72,11 +72,22 @@ const singleCategory = args.includes("--category") ? parseInt(args[args.indexOf(
 const quickMode = args.includes("--quick")
 const ciMode = args.includes("--ci")
 
+// ⚠ THE ANON KEY MUST NOT BE THE SERVICE KEY. Until 2026-08-17 this mapped
+// NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY to SUPABASE_SERVICE_ROLE_KEY, so every "anon" probe in
+// Category 1 (Unauthenticated Table Access) and Category 2 actually ran with the master key — which
+// bypasses RLS by design. That breaks the category in BOTH directions: it false-positives on any table
+// holding rows ("anon returned 2 rows" when no anon was involved), and on an empty table it PASSES
+// because there was nothing to return rather than because a policy blocked anything. Never noticed,
+// because --ci had no database to talk to in the first place (item 14a).
+//
+// If no anon key is supplied, ANON_KEY stays undefined and the anon probes are reported as not-run
+// rather than silently downgraded to a service-key probe that cannot fail correctly.
 const ENV = ciMode
   ? {
       NEXT_PUBLIC_SUPABASE_URL: process.env.SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY:
+        process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY,
     }
   : loadEnv()
 
@@ -261,6 +272,19 @@ const WEBHOOK_ROUTES = [
 // "anon-applicable" = policy cmd is DELETE or ALL, AND its roles include a role
 // the anon key actually has: 'anon', 'public', or '{public}'. A policy scoped to
 // 'authenticated' does NOT grant anon, so it's correctly excluded.
+// A predicate that consults the caller's identity cannot be satisfied by an unauthenticated caller:
+// auth.uid()/auth.jwt()/auth.role() are NULL, and the request.jwt.* settings are unset. Anything else —
+// `true`, or a condition over ordinary columns — IS reachable by anon and stays a finding.
+const AUTH_DEPENDENT_QUAL = /\bauth\s*\.\s*(uid|jwt|role)\s*\(|current_setting\s*\(\s*'request\.jwt/i
+
+function qualIsAnonReachable(qual) {
+  const q = String(qual ?? "").trim()
+  if (q === "" || q === "(none)") return true                 // no restriction at all
+  if (/^\(*\s*false\s*\)*$/i.test(q)) return false            // USING (false) — service-role-only
+  if (AUTH_DEPENDENT_QUAL.test(q)) return false               // needs an authenticated identity
+  return true                                                  // USING (true), or auth-independent
+}
+
 async function fetchAnonDeletableTables() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_rls_audit`, {
     method: "POST",
@@ -290,7 +314,15 @@ async function fetchAnonDeletableTables() {
     // p.roles is a text[] like {anon} or {public} or {authenticated}
     const roles = Array.isArray(p.roles) ? p.roles : []
     const grantsAnon = roles.some(r => anonRoles.has(String(r).replace(/[{}]/g, "")))
-    if (grantsAnon) anonDeletable.add(p.tablename)
+    // ⚠ ROLE GRANT ALONE IS NOT REACHABILITY — the USING predicate decides.
+    // Nearly every Pleks policy is `FOR ALL TO public USING (org_id IN (SELECT ... WHERE user_id =
+    // auth.uid()))`. Its role list IS {public}, which includes anon — but `auth.uid()` is NULL for an
+    // unauthenticated caller, so the subquery is empty and no row is ever visible, let alone
+    // deletable. Matching on roles+cmd alone flagged 18 core tables (contacts, leases, payments,
+    // user_passkeys...) as anon-deletable. Verified false by attempting one: an anon DELETE returns
+    // 401 at the gateway. 18 wrong criticals would have made this gate permanently red, and a
+    // permanently red gate is the red-blindness that let main sit broken for a month.
+    if (grantsAnon && qualIsAnonReachable(p.qual)) anonDeletable.add(p.tablename)
   }
   return { rlsEnabled, anonDeletable }
 }
@@ -1162,10 +1194,62 @@ async function runCiMode() {
   // runs in CI UNCONDITIONALLY and hard-fails the build on a new ungated server action.
   try { cat15_serverActionAuth() } catch (e) { console.error(`\n❌ Cat 15 crashed: ${e.message}`) }
 
+  // ⚠ ABSENT CREDENTIALS ARE A CRITICAL FINDING, NOT A SKIP (NOW.md item 14a, CD ruling 2026-08-17).
+  //
+  // This block used to print the message below and fall through to printReport(), which exits 0 when
+  // there are no findings. The CI job therefore went GREEN in ~45 seconds while scanning nothing, and
+  // had done so since the job was written — `gh secret list` on this repo returns only
+  // SENTRY_AUTH_TOKEN, so CI_SUPABASE_* have never existed. Categories 1, 2, 5 and 7 have never run.
+  //
+  // Category 7 is the automated check that RLS — this platform's entire tenant-isolation boundary —
+  // actually holds. A green tick meaning "I had no credentials" is indistinguishable from "I looked
+  // and found nothing", and only one of those is assurance.
+  //
+  // This is also the PROBE-FIRE for item 14b: until this fails for the right reason, provisioning the
+  // project would turn a green tick into an identical green tick, with no signal anything started
+  // working. You have to be able to see it fail before a pass means anything.
   if (!SUPABASE_URL || !SERVICE_KEY) {
-    console.log("\nDB categories (1, 2, 5, 7) skipped: CI secrets absent")
-    console.log("Set CI_SUPABASE_URL + CI_SUPABASE_SERVICE_ROLE_KEY in GitHub secrets to enable static-RLS scanning.")
-    printReport() // exits 1 iff cat 15 raised a CRITICAL, else 0
+    const missing = [!SUPABASE_URL && "SUPABASE_URL", !SERVICE_KEY && "SUPABASE_SERVICE_ROLE_KEY"]
+      .filter(Boolean).join(" + ")
+
+    // ── STRICT IN CI, TOLERANT LOCALLY — AND THE DIFFERENCE IS CAPABILITY, NOT LENIENCY ────────
+    //
+    // Read that distinction before "fixing" the tolerance, because it is the whole justification.
+    //
+    // In CI the database is SUPPOSED to be there — the db-tests job boots a Supabase stack and points
+    // this audit at it. Absent credentials there mean the wiring broke, and a green tick would be the
+    // exact defect this block exists to kill: a check reporting success without executing its subject.
+    //
+    // On a developer machine there are no CI credentials and there should not be. `npm run check:full`
+    // includes this audit, and failing it there would be the MIRROR of the same error — a check that
+    // fails in a context where it can never pass reports something other than the truth just as surely
+    // as one that passes without running. The local path for the real audit is `npm run security`,
+    // which targets localhost with .env.local.
+    //
+    // This is NOT the Trivy pattern (#234). Trivy was advisory where it COULD have run and found
+    // things. Here the scan genuinely cannot execute without a database the machine does not have.
+    const inCi = process.env.GITHUB_ACTIONS === "true"
+
+    if (!inCi) {
+      console.log(`\n⏭️  DB categories (1, 2, 5, 7) DID NOT RUN — ${missing} absent (local run).`)
+      console.log("   NOT a finding here: a dev machine is not supposed to hold these. This is a stated")
+      console.log("   coverage gap, not a pass — for the real audit run `npm run security` against localhost.")
+      printReport()
+      return
+    }
+
+    console.log("\nDB categories (1, 2, 5, 7) DID NOT RUN: credentials absent inside CI")
+    finding(
+      "14a", "CRITICAL",
+      "Security audit ran in CI without a database — categories 1, 2, 5 and 7 did not execute",
+      `${missing} not set. In CI these come from the Supabase stack the db-tests job boots, so absent ` +
+      "means the wiring is broken. Category 7 is the RLS policy audit — the automated proof that the " +
+      "org_id/RLS tenant boundary actually holds. Reporting success here would claim coverage never obtained.",
+      "Check that the db-tests job started its stack and exported SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY " +
+      "to this step (NOW.md items 14d/14e). Do NOT silence this with continue-on-error — that recreates " +
+      "the advisory-gate bug closed in #234.",
+    )
+    printReport() // exits 1 — a check that cannot execute its subject must not report success
     return
   }
   console.log(`   Target: ${SUPABASE_URL}`)

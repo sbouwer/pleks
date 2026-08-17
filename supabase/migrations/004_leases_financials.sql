@@ -2953,8 +2953,22 @@ ALTER TABLE leases ALTER COLUMN rent_amount_cents DROP NOT NULL;
 -- here means the first erasure request silently deletes calibration history — including the
 -- history that evidences the fairness monitoring. Guarded behaviourally by
 -- test/db/analytics-erasure-survival.dbtest.ts (probe-fired against CASCADE).
+-- ⚠ THE FK IS DECLARED IN 005, NOT HERE, AND THAT IS NOT A ROUTING SLIP.
+-- `applications` is created in 005_operations.sql, which replays AFTER this file. Declaring
+-- `REFERENCES applications(id)` inline made a fresh 001→012 replay fail outright with
+-- `relation "applications" does not exist` — i.e. the migrations could no longer build a database
+-- from scratch, only patch an existing one.
+--
+-- Nothing caught that for two days. Production was unaffected (the column was applied to a DB where
+-- `applications` already existed) and the drift check is structurally blind to it: drift compares the
+-- live schema against the migrations, and BOTH carried the column, so there was no difference to
+-- report. Only an actual from-scratch replay can see this class of defect — and nothing ever did one
+-- until the CI db-tests job ran for the first time on 2026-08-17 and failed here.
+--
+-- Column stays in 004 (leases → 004 per domain routing); the constraint goes where its referent
+-- exists. Ordering beats tidiness when they conflict.
 ALTER TABLE leases
-  ADD COLUMN IF NOT EXISTS originating_application_id uuid REFERENCES applications(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS originating_application_id uuid;
 
 CREATE INDEX IF NOT EXISTS idx_leases_originating_application ON leases(originating_application_id)
   WHERE originating_application_id IS NOT NULL;
