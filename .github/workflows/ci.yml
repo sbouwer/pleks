@@ -93,7 +93,16 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.CI_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.CI_SUPABASE_SERVICE_ROLE_KEY }}
-        # Secrets are optional; security:db short-circuits gracefully if absent.
+        # ⚠ THESE SECRETS DO NOT EXIST ON THIS REPO — `gh secret list` returns only SENTRY_AUTH_TOKEN.
+        # GitHub substitutes an empty string for an undefined secret, so this job ran and went GREEN in
+        # ~45s while categories 1, 2, 5 and 7 — including the Category 7 RLS policy audit, the automated
+        # proof that the tenant boundary holds — never executed. It had done so since the job was written.
+        #
+        # `audit.mjs --ci` now raises a CRITICAL and exits 1 when credentials are absent (NOW.md item
+        # 14a), so THIS JOB IS EXPECTED TO FAIL until a dedicated CI Supabase project is provisioned and
+        # these two secrets are set (item 14b, SB — go-live blocker). That failure is the point: it is
+        # the probe-fire that makes a later pass mean something. Do NOT silence it with
+        # `continue-on-error: true` — that recreates the exact advisory-gate bug closed in #234.
         # The full localhost audit (security:prod) remains a pre-deploy local step.
         continue-on-error: false
 

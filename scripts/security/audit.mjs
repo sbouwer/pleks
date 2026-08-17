@@ -1162,10 +1162,35 @@ async function runCiMode() {
   // runs in CI UNCONDITIONALLY and hard-fails the build on a new ungated server action.
   try { cat15_serverActionAuth() } catch (e) { console.error(`\n❌ Cat 15 crashed: ${e.message}`) }
 
+  // ⚠ ABSENT CREDENTIALS ARE A CRITICAL FINDING, NOT A SKIP (NOW.md item 14a, CD ruling 2026-08-17).
+  //
+  // This block used to print the message below and fall through to printReport(), which exits 0 when
+  // there are no findings. The CI job therefore went GREEN in ~45 seconds while scanning nothing, and
+  // had done so since the job was written — `gh secret list` on this repo returns only
+  // SENTRY_AUTH_TOKEN, so CI_SUPABASE_* have never existed. Categories 1, 2, 5 and 7 have never run.
+  //
+  // Category 7 is the automated check that RLS — this platform's entire tenant-isolation boundary —
+  // actually holds. A green tick meaning "I had no credentials" is indistinguishable from "I looked
+  // and found nothing", and only one of those is assurance.
+  //
+  // This is also the PROBE-FIRE for item 14b: until this fails for the right reason, provisioning the
+  // project would turn a green tick into an identical green tick, with no signal anything started
+  // working. You have to be able to see it fail before a pass means anything.
   if (!SUPABASE_URL || !SERVICE_KEY) {
-    console.log("\nDB categories (1, 2, 5, 7) skipped: CI secrets absent")
-    console.log("Set CI_SUPABASE_URL + CI_SUPABASE_SERVICE_ROLE_KEY in GitHub secrets to enable static-RLS scanning.")
-    printReport() // exits 1 iff cat 15 raised a CRITICAL, else 0
+    const missing = [!SUPABASE_URL && "CI_SUPABASE_URL", !SERVICE_KEY && "CI_SUPABASE_SERVICE_ROLE_KEY"]
+      .filter(Boolean).join(" + ")
+    console.log("\nDB categories (1, 2, 5, 7) DID NOT RUN: CI credentials absent")
+    finding(
+      "14a", "CRITICAL",
+      "Security audit ran without credentials — categories 1, 2, 5 and 7 did not execute",
+      `${missing} not set, so the DB-backed categories were skipped. Category 7 is the RLS policy audit — ` +
+      "the automated proof that the org_id/RLS tenant boundary holds. Reporting success here would claim " +
+      "coverage that was never obtained.",
+      "Provision a dedicated CI Supabase project and set CI_SUPABASE_URL + CI_SUPABASE_SERVICE_ROLE_KEY " +
+      "in GitHub secrets (NOW.md item 14b). To run the static-only subset deliberately, invoke cat 15 " +
+      "directly rather than passing --ci without credentials.",
+    )
+    printReport() // now exits 1 — a check that cannot execute its subject must not report success
     return
   }
   console.log(`   Target: ${SUPABASE_URL}`)
