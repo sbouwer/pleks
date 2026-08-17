@@ -5,7 +5,8 @@
  *
  * Auth:   requireAgentWriteAccess (agent write gate + subscription lockdown)
  * Data:   contacts (the person is a first-class contact with organisation_contact_id + company_contact role);
- *         dual-writes contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
+ *         writes contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
+ *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
  * Notes:  Drives the detail-page People section's inline manage. A signatory needs a valid FICA ID (Luhn
  *         for SA ID; passport/permit accepted). Making a person primary unsets the others; removing the
  *         primary promotes another remaining person so the "exactly one primary" invariant holds.
@@ -75,12 +76,10 @@ export async function addCompanyPerson(input: AddCompanyPersonInput): Promise<{ 
       ...idNumberColumns(sigId),
       first_name: input.firstName?.trim() || null,
       last_name: input.lastName?.trim() || null,
-      primary_email: input.email?.trim() || null,
       primary_phone: input.phone?.trim() || null,
       created_by: userId,
     }).select("id").single()
     if (error || !person) { console.error("addCompanyPerson:", error?.message); return { ok: false, error: "Failed to add the person." } }
-    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
     // "work" — this person is a company_contact (a rep of the organisation), not a personal party.
     await syncPrimaryContactEmail(db, orgId, person.id as string, input.email, "work")
     return { ok: true }

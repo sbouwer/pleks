@@ -6,8 +6,9 @@
  *         link-account route passes a SERVICE client (an applicant is not an org member, so cookie-RLS would block
  *         the cross-cutting writes).
  * Data:   reads applications by id → dedups (by auth user, then id_number_hash) → creates contacts + tenants →
- *         links applications.tenant_id → consent + audit. Dual-writes contact_emails alongside primary_email
- *         (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2).
+ *         links applications.tenant_id → consent + audit. Writes contact_emails via syncPrimaryContactEmail —
+ *         contacts.primary_email is a derived cache (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION
+ *         §7 step 4) and no longer written here.
  * Notes:  SAFE under the service client BY CONSTRUCTION — single-application-scoped (reads by applicationId, writes
  *         with the row's own org_id, no cross-org queries), and the applicant path only ever reaches it through
  *         resolveApplicationCredential's IDOR guard (never a raw id). 14R: sets tenants.auth_user_id at the
@@ -87,7 +88,7 @@ export async function promoteApplicationToTenant(
     .insert({
       org_id: application.org_id, entity_type: "individual", primary_role: "tenant",
       first_name: application.first_name, last_name: application.last_name,
-      primary_email: application.applicant_email, primary_phone: application.applicant_phone,
+      primary_phone: application.applicant_phone,
       // 21E §1 (F1, CD walk): promote from application data — RELAX+flag (never hard-refuse a promote).
       ...incompleteMandatoryColumn("tenant", {
         first_name: application.first_name, last_name: application.last_name,
@@ -101,7 +102,6 @@ export async function promoteApplicationToTenant(
     .select("id").single()
   if (contactError || !contact) return { error: contactError?.message ?? "Failed to create contact" }
 
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
   await syncPrimaryContactEmail(db, application.org_id, contact.id as string, application.applicant_email, "personal")
 
   const { data: tenant, error: insertError } = await db

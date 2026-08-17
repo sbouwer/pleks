@@ -70,6 +70,14 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
       first_name: null, last_name: null, middle_names: null,
       id_number: null, id_number_hash: null, id_type: null,
       date_of_birth: null, gender: null, nationality: null,
+      // ⛔ DO NOT DELETE `primary_email` AS DEAD CODE. It is a DERIVED CACHE of the
+      // (is_primary AND is_active) contact_emails row (002_contacts.sql §22), so nulling it here
+      // looks redundant — the derive trigger's DELETE arm already clears it when entry A.contact_emails
+      // below erases the set. That redundancy is deliberate: it is the belt to the trigger's braces,
+      // and it is what makes erasure correct even if the trigger is ever dropped, disabled, or
+      // replaced. The dbtest that runs anonymisePlan and asserts primary_email IS NULL is what keeps
+      // this meaningful rather than decorative. An erasure that does not erase would pass review,
+      // because the plan correctly targets the authoritative table.
       primary_email: null, primary_phone: null,
       company_name: null, registration_number: null, vat_number: null,
       // within-row duplicate snapshot set (the easiest miss)

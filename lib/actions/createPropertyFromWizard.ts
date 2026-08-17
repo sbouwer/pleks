@@ -5,7 +5,8 @@
  *
  * Auth:   requireAgentWriteAccess("create_property") — agent write gate + subscription lockdown
  * Data:   contacts/landlords, properties/buildings/units, insurance checklist, property_documents;
- *         dual-writes contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
+ *         writes contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
+ *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
  * Notes:  ADDENDUM_01C D-01C-01 — a landlord record is ALWAYS created, including for self-owned
  *         ("for myself"): resolveSelfLandlord seeds it from the agent's profile and, on Owner tier,
  *         binds it via user_profiles.self_landlord_id (Model B sync; standalone on Steward+).
@@ -173,11 +174,14 @@ async function resolveLandlord(
     if (e instanceof MissingMandatoryFieldsError) return { ok: false, error: `Please add the owner's ${e.missing.join(", ")}.` }
     throw e
   }
+  // primary_email is derived (trigger) — excluded from the insert payload; syncPrimaryContactEmail below is the
+  // only write path for the value (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
+  const { primary_email: ownerPrimaryEmail, ...ownerContactPayload } = ownerContact
   const { data: contact, error: contactErr } = await db.from("contacts").insert({
     org_id:        orgId,
     entity_type:   isCompany ? "organisation" : "individual",
     primary_role:  "landlord",
-    ...ownerContact,
+    ...ownerContactPayload,
     ...ownerGate,
     created_by:    userId,
   }).select("id").single()
@@ -200,8 +204,7 @@ async function resolveLandlord(
     return { ok: false, error: "Failed to create owner record" }
   }
 
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
-  await syncPrimaryContactEmail(db, orgId, contact.id as string, ownerContact.primary_email, isCompany ? "work" : "personal")
+  await syncPrimaryContactEmail(db, orgId, contact.id as string, ownerPrimaryEmail, isCompany ? "work" : "personal")
 
   return {
     ok:                 true,
