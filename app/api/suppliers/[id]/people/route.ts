@@ -3,7 +3,8 @@
  *
  * Route:  POST/DELETE /api/suppliers/:id/people  (:id = contractor id)
  * Auth:   self-validated (auth.getUser) + org membership; DELETE is owner-only
- * Data:   contacts rows under the supplier's company contact via organisation_contact_id (ADDENDUM_25A)
+ * Data:   contacts rows under the supplier's company contact via organisation_contact_id (ADDENDUM_25A).
+ *         Dual-writes contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  Replaces the retired contractor_contacts bridge. A person is a first-class individual contact
  *         (primary_role='company_contact') linked to the supplier's organisation contact. Only an
  *         organisation supplier has people (a sole-proprietor individual supplier has none).
@@ -11,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -81,6 +83,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   if (error || !contact) {
     return NextResponse.json({ error: error?.message || "Failed to add person" }, { status: 500 })
   }
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  // "work" — a company_contact (a person representing the supplier's organisation), not personal capacity.
+  await syncPrimaryContactEmail(service, membership.org_id, contact.id as string, email, "work")
   return NextResponse.json({ ok: true, id: contact.id })
 }
 

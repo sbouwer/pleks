@@ -4,7 +4,8 @@
  * lib/actions/createPropertyFromWizard.ts — wizard save: create property (+ owner, units, insurance, docs)
  *
  * Auth:   requireAgentWriteAccess("create_property") — agent write gate + subscription lockdown
- * Data:   contacts/landlords, properties/buildings/units, insurance checklist, property_documents
+ * Data:   contacts/landlords, properties/buildings/units, insurance checklist, property_documents;
+ *         dual-writes contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  ADDENDUM_01C D-01C-01 — a landlord record is ALWAYS created, including for self-owned
  *         ("for myself"): resolveSelfLandlord seeds it from the agent's profile and, on Owner tier,
  *         binds it via user_profiles.self_landlord_id (Model B sync; standalone on Steward+).
@@ -23,6 +24,7 @@ import { initializeInsuranceChecklist } from "@/lib/insurance-checklist/initiali
 import { reEvaluatePolicyHeader } from "@/lib/insurance-checklist/reEvaluatePolicyHeader"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -197,6 +199,9 @@ async function resolveLandlord(
     await db.from("contacts").delete().eq("id", contact.id).eq("org_id", orgId)
     return { ok: false, error: "Failed to create owner record" }
   }
+
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  await syncPrimaryContactEmail(db, orgId, contact.id as string, ownerContact.primary_email, isCompany ? "work" : "personal")
 
   return {
     ok:                 true,

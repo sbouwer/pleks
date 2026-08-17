@@ -5,7 +5,8 @@
  *
  * Route:  /property-info/[token] (public, tokenised — no auth session)
  * Auth:   access gated by the opaque request token; uses the service client (RLS-bypassing) scoped by the token's org/property
- * Data:   properties, contacts, landlords, managing_schemes, property_insurance_checklists (Supabase service client)
+ * Data:   properties, contacts, landlords, managing_schemes, property_insurance_checklists (Supabase service client).
+ *         Dual-writes contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  writes owner-submitted answers back to the linked property/landlord/scheme columns per topic
  */
 
@@ -13,6 +14,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { sendInfoRequestCompletionNotify } from "@/lib/info-requests/sendInfoRequestEmail"
 import type { InfoRequestTopic } from "@/lib/info-requests/sendInfoRequestEmail"
 import { mandatoryGate } from "@/lib/migration/mandatoryGate"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -93,6 +95,9 @@ async function writebackLandlord(
     }).select("id").single()
     if (landlordError) console.error("writebackLandlord landlords insert failed:", landlordError.message)
     if (!landlord) return
+
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    await syncPrimaryContactEmail(service, property.org_id as string, contact.id as string, wbContact.primary_email, isOrg ? "work" : "personal")
 
     await service.from("properties")
       .update({ landlord_id: landlord.id })

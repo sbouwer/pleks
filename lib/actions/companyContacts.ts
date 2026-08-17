@@ -4,7 +4,8 @@
  * lib/actions/companyContacts.ts — add / remove a person under a company contact (ADDENDUM_25A §6)
  *
  * Auth:   requireAgentWriteAccess (agent write gate + subscription lockdown)
- * Data:   contacts (the person is a first-class contact with organisation_contact_id + company_contact role)
+ * Data:   contacts (the person is a first-class contact with organisation_contact_id + company_contact role);
+ *         dual-writes contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  Drives the detail-page People section's inline manage. A signatory needs a valid FICA ID (Luhn
  *         for SA ID; passport/permit accepted). Making a person primary unsets the others; removing the
  *         primary promotes another remaining person so the "exactly one primary" invariant holds.
@@ -13,6 +14,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { validateSAId } from "@/lib/parties/partyValidation"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 export interface AddCompanyPersonInput {
   companyContactId: string
@@ -60,7 +62,7 @@ export async function addCompanyPerson(input: AddCompanyPersonInput): Promise<{ 
     }
 
     const sigId = input.isSignatory ? (input.idNumber?.trim() || null) : null
-    const { error } = await db.from("contacts").insert({
+    const { data: person, error } = await db.from("contacts").insert({
       org_id: orgId,
       entity_type: "individual",
       primary_role: "company_contact",
@@ -76,8 +78,11 @@ export async function addCompanyPerson(input: AddCompanyPersonInput): Promise<{ 
       primary_email: input.email?.trim() || null,
       primary_phone: input.phone?.trim() || null,
       created_by: userId,
-    })
-    if (error) { console.error("addCompanyPerson:", error.message); return { ok: false, error: "Failed to add the person." } }
+    }).select("id").single()
+    if (error || !person) { console.error("addCompanyPerson:", error?.message); return { ok: false, error: "Failed to add the person." } }
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    // "work" — this person is a company_contact (a rep of the organisation), not a personal party.
+    await syncPrimaryContactEmail(db, orgId, person.id as string, input.email, "work")
     return { ok: true }
   } catch (e) {
     console.error("addCompanyPerson failed:", e instanceof Error ? e.message : e)

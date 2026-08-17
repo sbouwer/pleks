@@ -4,7 +4,8 @@
  * lib/actions/tenants.ts — update server actions for tenant contacts
  *
  * Auth:   requireAgentWriteAccess (all paths are writes)
- * Data:   contacts + tenants tables via gateway service client
+ * Data:   contacts + tenants tables via gateway service client; dual-writes contact_emails alongside
+ *         primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  Tenant CREATE now goes through the shared add-party flow (addTenantParty); this file holds the
  *         post-create edit/communication actions. updateTenant edits the contact + tenant rows;
  *         logCommunication records a communication_log entry.
@@ -14,6 +15,7 @@ import { hasCapability } from "@/lib/auth/can"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 export async function updateTenant(tenantId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_tenant")
@@ -52,6 +54,11 @@ export async function updateTenant(tenantId: string, formData: FormData) {
 
   const { error: contactError } = await db.from("contacts").update(contactUpdates).eq("id", tenantRecord.contact_id).eq("org_id", orgId)
   if (contactError) return { error: contactError.message }
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  await syncPrimaryContactEmail(
+    db, orgId, tenantRecord.contact_id as string, contactUpdates.primary_email as string | null,
+    tenantType === "individual" ? "personal" : "work",
+  )
 
   // Update tenant-specific fields
   const tenantUpdates: Record<string, unknown> = {

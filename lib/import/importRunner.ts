@@ -2,7 +2,8 @@
  * lib/import/importRunner.ts — bulk CSV/XLSX import engine (properties / units / tenants / leases)
  *
  * Auth:   service client passed in via ImportContext; org-scoped by the caller (agent import flow)
- * Data:   properties, units, tenants, leases, contacts (+ contact_bank_accounts), audit_log
+ * Data:   properties, units, tenants, leases, contacts (+ contact_bank_accounts, contact_emails), audit_log.
+ *         Dual-writes contact_emails alongside primary_email (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2)
  * Notes:  Phased pipeline (parse → route → create → audit). Writes one bulk_import audit row at the
  *         end, keyed to the import session. Per-entity creates are not individually audited.
  */
@@ -27,6 +28,7 @@ import { incompleteMandatoryColumn } from "@/lib/migration/mandatoryFields"
 import { optionalEnv } from "@/lib/env"
 import { HOLIDAY_TABLE_COVERS_THROUGH, saTodayISO } from "@/lib/dates"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -265,6 +267,13 @@ function resolveEntityType(companyField: string, displayName: string): "organisa
   if (companyField.trim()) return "organisation"
   if (displayName && BUSINESS_SUFFIX_RE.test(displayName)) return "organisation"
   return "individual"
+}
+
+/** ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2 — the contact_emails email_type for an imported
+ *  contact, derived from the same entity-type resolution as the row's own `entity_type` column. Pulled out
+ *  of the call sites (rather than an inline ternary) to keep their cognitive complexity down. */
+function importEmailType(companyField: string, displayName: string): "work" | "personal" {
+  return resolveEntityType(companyField, displayName) === "organisation" ? "work" : "personal"
 }
 
 /** `units.unit_number` is NOT NULL, and a blank cell (a freestanding house — the commonest SA residential
@@ -921,6 +930,11 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
       ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Failed to create contact: ${contactError?.message ?? "Unknown error"}`, severity: "error" })
       return
     }
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    await syncPrimaryContactEmail(
+      ctx.supabase, ctx.orgId, String(contact.id), contactCore.primary_email,
+      importEmailType(tenantCompany, displayForTenant),
+    )
 
     const normEmploymentType = normaliseEmploymentType(getField(entry.row, "employment_type", ctx.mapping))
     const normPreferredContact = normalisePreferredContact(getField(entry.row, "preferred_contact", ctx.mapping))
@@ -1116,6 +1130,8 @@ async function insertSingleTenant(params: {
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Co-tenant contact error: ${contactError?.message}`, severity: "error" })
     return
   }
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  await syncPrimaryContactEmail(ctx.supabase, ctx.orgId, String(contact.id), email, "personal")
 
   const { data: created, error } = await ctx.supabase
     .from("tenants")
@@ -2172,6 +2188,12 @@ async function resolveTenantIdForHistory(
   if (contactError) console.error("importRunner prev-tenant contacts insert failed:", contactError.message)
 
   if (contact) {
+    // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+    await syncPrimaryContactEmail(
+      ctx.supabase, ctx.orgId, String(contact.id), email,
+      importEmailType(prevTenantCompany, prevDisplay),
+    )
+
     const { data: tenant, error: tenantError } = await ctx.supabase
       .from("tenants")
       .insert({ org_id: ctx.orgId, contact_id: contact.id })
@@ -2514,6 +2536,9 @@ async function importVendors(
         })
         continue
       }
+      // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+      // "work" — a contractor/supplier contact is inherently a business relationship, individual or company.
+      await syncPrimaryContactEmail(ctx.supabase, ctx.orgId, String(contact.id), email || null, "work")
 
       const supplierType = resolveSupplierType(row, ctx.mapping)
 
@@ -2627,6 +2652,11 @@ async function importLandlords(
         })
         continue
       }
+      // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+      await syncPrimaryContactEmail(
+        ctx.supabase, ctx.orgId, String(contact.id), contactCore.primary_email,
+        importEmailType(landlordCompany, landlordDisplay),
+      )
 
       const { data: created, error } = await ctx.supabase
         .from("landlords")
@@ -2788,6 +2818,11 @@ async function findOrCreateLandlord(
     })
     return null
   }
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  await syncPrimaryContactEmail(
+    ctx.supabase, ctx.orgId, String(contact.id), email,
+    importEmailType("", ownerName),
+  )
 
   const { data: landlord, error: landlordError } = await ctx.supabase
     .from("landlords")
