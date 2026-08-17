@@ -25,12 +25,12 @@ describe("AAGUID registry — vendored data integrity", () => {
   it("every key is a well-formed lowercase UUID and every entry has a name", () => {
     // Catches hand-editing, which the module header forbids: the most likely corruption is someone
     // adding an entry from memory with a plausible-looking but wrong UUID.
-    const entries = Object.entries(registry as Record<string, { name?: string }>)
-    for (const [aaguid, entry] of entries) {
+    const entries = Object.entries(registry as Record<string, string>)
+    for (const [aaguid, name] of entries) {
       expect(aaguid, `${aaguid} is not a lowercase UUID`).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       )
-      expect(entry.name?.length ?? 0, `${aaguid} has no name`).toBeGreaterThan(0)
+      expect(typeof name === "string" && name.length > 0, `${aaguid} has no name (or the file was re-vendored unstripped)`).toBe(true)
     }
   })
 

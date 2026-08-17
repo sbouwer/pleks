@@ -27,8 +27,20 @@
  */
 import registry from "./aaguid-registry.json"
 
-interface RegistryEntry { name: string; icon_dark?: string; icon_light?: string }
-const REGISTRY = registry as Record<string, RegistryEntry>
+/**
+ * FLAT shape: `{ "<aaguid>": "<name>" }`.
+ *
+ * Upstream ships `{ name, icon_light, icon_dark }`, where the two base64 icons are **99% of the
+ * file** — 328,455 bytes down to 3,224 when stripped. §1 only ever asked for the NAME, and shipping
+ * 320KB of unused base64 to a tenant on a budget Android on 3G is the exact user this arc keeps
+ * saying it is building for. So the vendor step strips to name-only, and this module reads the
+ * stripped shape.
+ *
+ * ⚠ If you re-vendor, strip. A raw upstream copy makes every lookup here return `undefined` —
+ * silently, because `"a string"?.name` is not a type error at runtime. The registry test asserts the
+ * shape for exactly that reason.
+ */
+const REGISTRY = registry as Record<string, string>
 
 /** All-zero AAGUID: the spec's "authenticator declines to identify itself". Common and not an error. */
 const ANONYMOUS_AAGUID = "00000000-0000-0000-0000-000000000000"
@@ -44,7 +56,7 @@ export function resolveAuthenticatorName(aaguid: string | null | undefined): str
   if (!aaguid) return null
   const key = aaguid.trim().toLowerCase()
   if (key === ANONYMOUS_AAGUID) return null
-  return REGISTRY[key]?.name ?? null
+  return REGISTRY[key] ?? null
 }
 
 /**
