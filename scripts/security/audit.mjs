@@ -272,6 +272,19 @@ const WEBHOOK_ROUTES = [
 // "anon-applicable" = policy cmd is DELETE or ALL, AND its roles include a role
 // the anon key actually has: 'anon', 'public', or '{public}'. A policy scoped to
 // 'authenticated' does NOT grant anon, so it's correctly excluded.
+// A predicate that consults the caller's identity cannot be satisfied by an unauthenticated caller:
+// auth.uid()/auth.jwt()/auth.role() are NULL, and the request.jwt.* settings are unset. Anything else —
+// `true`, or a condition over ordinary columns — IS reachable by anon and stays a finding.
+const AUTH_DEPENDENT_QUAL = /\bauth\s*\.\s*(uid|jwt|role)\s*\(|current_setting\s*\(\s*'request\.jwt/i
+
+function qualIsAnonReachable(qual) {
+  const q = String(qual ?? "").trim()
+  if (q === "" || q === "(none)") return true                 // no restriction at all
+  if (/^\(*\s*false\s*\)*$/i.test(q)) return false            // USING (false) — service-role-only
+  if (AUTH_DEPENDENT_QUAL.test(q)) return false               // needs an authenticated identity
+  return true                                                  // USING (true), or auth-independent
+}
+
 async function fetchAnonDeletableTables() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_rls_audit`, {
     method: "POST",
@@ -301,7 +314,15 @@ async function fetchAnonDeletableTables() {
     // p.roles is a text[] like {anon} or {public} or {authenticated}
     const roles = Array.isArray(p.roles) ? p.roles : []
     const grantsAnon = roles.some(r => anonRoles.has(String(r).replace(/[{}]/g, "")))
-    if (grantsAnon) anonDeletable.add(p.tablename)
+    // ⚠ ROLE GRANT ALONE IS NOT REACHABILITY — the USING predicate decides.
+    // Nearly every Pleks policy is `FOR ALL TO public USING (org_id IN (SELECT ... WHERE user_id =
+    // auth.uid()))`. Its role list IS {public}, which includes anon — but `auth.uid()` is NULL for an
+    // unauthenticated caller, so the subquery is empty and no row is ever visible, let alone
+    // deletable. Matching on roles+cmd alone flagged 18 core tables (contacts, leases, payments,
+    // user_passkeys...) as anon-deletable. Verified false by attempting one: an anon DELETE returns
+    // 401 at the gateway. 18 wrong criticals would have made this gate permanently red, and a
+    // permanently red gate is the red-blindness that let main sit broken for a month.
+    if (grantsAnon && qualIsAnonReachable(p.qual)) anonDeletable.add(p.tablename)
   }
   return { rlsEnabled, anonDeletable }
 }

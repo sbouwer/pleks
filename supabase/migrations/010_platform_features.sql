@@ -4038,3 +4038,38 @@ COMMENT ON COLUMN tenant_portal_tokens.communication_log_id IS
   'ADDENDUM_62F 17.1. The comm that delivered this token, so a hard bounce can revoke exactly the
    credential that reached nobody. Hard bounce only: soft is transient and may still deliver, and a
    complaint means it DID arrive. No cascade - the revoked record outlives the comm row.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §52  NOW.md item 16 (2026-08-17): three tables whose RLS was UNVERSIONED
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- `cron_runs`, `rule_runs` and `whatsapp_template_variants` all have RLS enabled in production with a
+-- service-role-only policy, and NO MIGRATION DID IT — applied by hand, like `audit_exports` (001 §21)
+-- and `get_rls_audit()` (009). Every database built from these files had all three with RLS OFF.
+--
+-- Found 2026-08-17 by running the security audit's Category 7 against a stack built purely from the
+-- migrations (item 14d). The drift check is structurally blind to this class: it compares production
+-- against the migrations, and the manifest it uses is generated FROM production, so anything the two
+-- inherited together agrees with itself. A from-scratch replay is the only independent reference.
+--
+-- ⚠ These are RLS statements for tables created in THIS file, so they cannot live in 009_security.sql
+-- despite that being the RLS-hardening domain — 009 replays BEFORE 010. Ordering beats routing.
+--
+-- Policies replicated verbatim from the live definitions (pg_policies, 2026-08-17): FOR ALL, roles
+-- {public}, USING (false), WITH CHECK (false). The service role bypasses RLS, so these tables stay
+-- reachable by server-side code and by nothing else — correct for cron/rule execution logs and for
+-- WhatsApp template variants, none of which any org-facing client should read directly.
+ALTER TABLE cron_runs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "cron_runs_service_role_only" ON cron_runs;
+CREATE POLICY "cron_runs_service_role_only" ON cron_runs
+  FOR ALL USING (false) WITH CHECK (false);
+
+ALTER TABLE rule_runs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "rule_runs_service_role_only" ON rule_runs;
+CREATE POLICY "rule_runs_service_role_only" ON rule_runs
+  FOR ALL USING (false) WITH CHECK (false);
+
+ALTER TABLE whatsapp_template_variants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "whatsapp_template_variants_service_role_only" ON whatsapp_template_variants;
+CREATE POLICY "whatsapp_template_variants_service_role_only" ON whatsapp_template_variants
+  FOR ALL USING (false) WITH CHECK (false);

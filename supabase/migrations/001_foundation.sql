@@ -887,3 +887,26 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_changed_by ON audit_log(changed_by);
 CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_compliance_confirmed_by ON custom_lease_requests(compliance_confirmed_by);
 CREATE INDEX IF NOT EXISTS idx_custom_lease_requests_submitted_by ON custom_lease_requests(submitted_by);
 CREATE INDEX IF NOT EXISTS idx_invites_invited_by ON invites(invited_by);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §21  NOW.md item 16 (2026-08-17): audit_exports RLS was UNVERSIONED
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- Production has RLS enabled on this table with a service-role-only policy. NO MIGRATION DID THAT —
+-- it was applied by hand. So every database built from these files had `audit_exports` with RLS OFF,
+-- readable and writable by any authenticated caller through PostgREST.
+--
+-- Found 2026-08-17 by pointing the security audit's Category 7 at a stack built purely from the
+-- migrations (item 14d) — the first time a from-scratch database had ever been audited. Neither
+-- existing check could see it: `check-schema-drift.mjs` compares production against the migrations
+-- and `schema-manifest.json` is generated FROM production, so a difference the two artefacts inherited
+-- together is invisible to both. Same shape as the 004/005 forward reference and `get_rls_audit()`.
+--
+-- Policy replicated verbatim from the live definition (read via pg_policies, 2026-08-17):
+-- FOR ALL, roles {public}, USING (false), WITH CHECK (false). `false` for everyone is correct rather
+-- than paranoid — the service role BYPASSES RLS entirely, so this table is reachable by service-role
+-- code and by nothing else. Deliberate: audit exports are evidence artefacts, not org-facing data.
+ALTER TABLE audit_exports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "audit_exports_service_role_only" ON audit_exports;
+CREATE POLICY "audit_exports_service_role_only" ON audit_exports
+  FOR ALL USING (false) WITH CHECK (false);
