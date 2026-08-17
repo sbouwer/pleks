@@ -8,11 +8,15 @@
  *         forks an existing binding on upgrade). Idempotent: an existing binding is reused, so a second
  *         self-owned property (or pressing "add me as landlord" twice) never creates a second self-landlord.
  *         Extracted from createPropertyFromWizard so the onboarding "Add me as landlord" path reuses the
- *         same canonical logic instead of duplicating identity behaviour.
+ *         same canonical logic instead of duplicating identity behaviour. Writes contact_phones via
+ *         syncPrimaryContactPhone, dual-write alongside the primary_phone column (ADDENDUM_CONTACT_
+ *         REPRESENTATION_UNIFICATION §7 step 2) — this contact has no email at create time, so there is no
+ *         email-side equivalent here.
  */
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import type { GatewayContext } from "@/lib/supabase/gateway"
 import { mandatoryGate } from "@/lib/migration/mandatoryGate"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 type Db = GatewayContext["db"]
 
@@ -87,6 +91,8 @@ export async function resolveSelfLandlord(
     console.error("resolveSelfLandlord: self-landlord contact insert failed:", contactErr?.message)
     return { ok: false, error: "Failed to create your owner record" }
   }
+  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  await syncPrimaryContactPhone(db, orgId, contact.id as string, phone, "mobile")
 
   const { data: landlord, error: landlordErr } = await db.from("landlords").insert({
     org_id:     orgId,

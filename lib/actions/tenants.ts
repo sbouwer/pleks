@@ -6,7 +6,8 @@
  * Auth:   requireAgentWriteAccess (all paths are writes)
  * Data:   contacts + tenants tables via gateway service client; writes contact_emails via
  *         syncPrimaryContactEmail — contacts.primary_email is a derived cache (trigger-maintained,
- *         ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
+ *         ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here. Dual-writes
+ *         contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
  * Notes:  Tenant CREATE now goes through the shared add-party flow (addTenantParty); this file holds the
  *         post-create edit/communication actions. updateTenant edits the contact + tenant rows;
  *         logCommunication records a communication_log entry.
@@ -17,6 +18,7 @@ import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 export async function updateTenant(tenantId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_tenant")
@@ -61,6 +63,10 @@ export async function updateTenant(tenantId: string, formData: FormData) {
   await syncPrimaryContactEmail(
     db, orgId, tenantRecord.contact_id as string, primaryEmail,
     tenantType === "individual" ? "personal" : "work",
+  )
+  await syncPrimaryContactPhone(
+    db, orgId, tenantRecord.contact_id as string, contactUpdates.primary_phone as string | null,
+    tenantType === "individual" ? "mobile" : "work",
   )
 
   // Update tenant-specific fields

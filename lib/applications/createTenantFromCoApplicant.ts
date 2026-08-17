@@ -10,6 +10,7 @@
  *         tenant (auth_user_id set) → links application_co_applicants.tenant_id → consent + audit. Writes
  *         contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache (trigger-
  *         maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
+ *         Dual-writes contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
  * Notes:  the co mirror of createTenantFromApplication; the identity lives on the co row, the binding one level over
  *         (co.tenant_id, §41). Dedup reuses an existing tenant — one person, one tenant/auth user.
  */
@@ -19,6 +20,7 @@ import { decryptIdNumber, decryptDob, idNumberColumns } from "@/lib/crypto/idNum
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { incompleteMandatoryColumn } from "@/lib/migration/mandatoryFields"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 export async function createTenantFromCoApplicant(
   coApplicantId: string,
@@ -88,6 +90,7 @@ export async function createTenantFromCoApplicant(
   if (contactError || !contact) return { error: contactError?.message ?? "Failed to create contact" }
 
   await syncPrimaryContactEmail(supabase, co.org_id, contact.id as string, co.applicant_email, "personal")
+  await syncPrimaryContactPhone(supabase, co.org_id, contact.id as string, co.applicant_phone, "mobile")
 
   const { data: tenant, error: insertError } = await supabase
     .from("tenants")

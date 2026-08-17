@@ -7,6 +7,7 @@
  * Data:   contacts (the person is a first-class contact with organisation_contact_id + company_contact role);
  *         writes contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
  *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
+ *         Dual-writes contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
  * Notes:  Drives the detail-page People section's inline manage. A signatory needs a valid FICA ID (Luhn
  *         for SA ID; passport/permit accepted). Making a person primary unsets the others; removing the
  *         primary promotes another remaining person so the "exactly one primary" invariant holds.
@@ -16,6 +17,7 @@ import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { validateSAId } from "@/lib/parties/partyValidation"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 
 export interface AddCompanyPersonInput {
   companyContactId: string
@@ -82,6 +84,7 @@ export async function addCompanyPerson(input: AddCompanyPersonInput): Promise<{ 
     if (error || !person) { console.error("addCompanyPerson:", error?.message); return { ok: false, error: "Failed to add the person." } }
     // "work" — this person is a company_contact (a rep of the organisation), not a personal party.
     await syncPrimaryContactEmail(db, orgId, person.id as string, input.email, "work")
+    await syncPrimaryContactPhone(db, orgId, person.id as string, input.phone?.trim() || null, "work")
     return { ok: true }
   } catch (e) {
     console.error("addCompanyPerson failed:", e instanceof Error ? e.message : e)
