@@ -3868,6 +3868,7 @@
       "target_table"
     ],
     "derive_contact_primary_email": [],
+    "derive_contact_primary_phone": [],
     "disburse_deposit_atomic": [
       "p_org_id",
       "p_lease_id",
@@ -4490,6 +4491,10 @@
     "contact_phones_phone_type_check": {
       "table": "contact_phones",
       "def": "CHECK ((phone_type = ANY (ARRAY['mobile'::text, 'work'::text, 'home'::text, 'fax'::text, 'other'::text])))"
+    },
+    "contact_phones_primary_implies_active": {
+      "table": "contact_phones",
+      "def": "CHECK (((NOT is_primary) OR is_active))"
     },
     "contact_roles_role_check": {
       "table": "contact_roles",
