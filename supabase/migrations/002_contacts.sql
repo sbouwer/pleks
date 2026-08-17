@@ -1151,3 +1151,88 @@ CREATE INDEX IF NOT EXISTS idx_user_orgs_tenants_user_id ON user_orgs_tenants(us
 -- server gate burn it down (21E §5). Empty/NULL = complete. Contacts' name/email/phone are ALREADY nullable, so
 -- no column-nullability change is needed here — only the flag. Derived from the registry, never hand-maintained.
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS incomplete_mandatory text[];
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §22  UNIFICATION step 3: contacts.primary_email becomes a DERIVED CACHE
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 3. `contact_emails` is the
+-- authoritative representation; `primary_email` is now maintained FROM it.
+--
+-- ⚠ THIS IS A NO-OP ON THE DAY IT LANDS, AND THAT IS THE POINT. Step 2 (PR #241) already
+-- made every writer dual-write, and step 1 backfilled the 34 existing contacts. So the
+-- trigger only formalises what the writers already do. The ORIGINAL build order put this
+-- BEFORE the writer sweep, which would have made primary_email derived while ~15 sites
+-- still wrote it directly — an agent editing a tenant's email would have watched it
+-- silently vanish. Order is the whole design here.
+--
+-- ⚠ GATE THE SOURCE, NEVER THE CACHE (62F §23.6). Any future contact-change gate belongs
+-- on `contact_emails`. Do NOT add "defence in depth" validation to `primary_email` — this
+-- trigger writes it on every set mutation, so a gate here would deadlock the derive path
+-- and block the very writes it is meant to authorise.
+
+-- ── Trap 4 (CD §10.1): the unique index and the readers disagree about is_active ──
+--
+-- idx_contact_emails_primary is UNIQUE (contact_id) WHERE is_primary — predicate on
+-- is_primary ONLY. But every reader, and all three divergence counts, require
+-- `is_primary AND is_active`. So (is_primary=true, is_active=false) is a LEGAL row that
+-- occupies the contact's single primary slot while being invisible to everything that
+-- reads. Derived primary_email would be NULL, and the contact could not be given a new
+-- primary until the stale row was un-primaried. Silent, and reachable through the obvious
+-- "remove an address" implementation that flips is_active without clearing is_primary.
+--
+-- Applied now because it is FREE now: 34 rows, all compliant, and no code path sets
+-- is_active=false yet. It gets expensive the moment a removal path exists.
+--
+-- CHECK rather than widening the index predicate (CD's preference): this makes the bad
+-- state UNREPRESENTABLE rather than merely unindexed.
+ALTER TABLE contact_emails DROP CONSTRAINT IF EXISTS contact_emails_primary_implies_active;
+ALTER TABLE contact_emails ADD CONSTRAINT contact_emails_primary_implies_active
+  CHECK (NOT is_primary OR is_active);
+
+-- ── The derive function ───────────────────────────────────────────────────────
+--
+-- Deterministic by construction: the partial unique index guarantees AT MOST ONE
+-- (is_primary AND is_active) row per contact, so there is no "which one wins" rule to
+-- invent. Empty set -> NULL, which is correct and is the measurement working: a stale
+-- non-null column currently MASKS tenants who were never reachable, so
+-- tenants_without_reachable_channel will rise. That is a truer number, not a regression.
+CREATE OR REPLACE FUNCTION derive_contact_primary_email()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_contact_id uuid;
+  v_email      text;
+BEGIN
+  v_contact_id := CASE TG_OP WHEN 'DELETE' THEN OLD.contact_id ELSE NEW.contact_id END;
+
+  SELECT e.email INTO v_email
+  FROM contact_emails e
+  WHERE e.contact_id = v_contact_id AND e.is_primary AND e.is_active
+  LIMIT 1;
+
+  UPDATE contacts SET primary_email = v_email
+  WHERE id = v_contact_id
+    AND primary_email IS DISTINCT FROM v_email;   -- no-op write is skipped, so updated_at and any
+                                                  -- downstream contact triggers stay quiet
+
+  RETURN CASE TG_OP WHEN 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- AFTER, not BEFORE: the function reads the table it is triggered on, so it must see the
+-- committed post-image of the statement rather than the row mid-flight.
+DROP TRIGGER IF EXISTS trg_contact_emails_derive_primary ON contact_emails;
+CREATE TRIGGER trg_contact_emails_derive_primary
+  AFTER INSERT OR UPDATE OR DELETE ON contact_emails
+  FOR EACH ROW EXECUTE FUNCTION derive_contact_primary_email();
+
+COMMENT ON FUNCTION derive_contact_primary_email() IS
+  'UNIFICATION step 3. Maintains contacts.primary_email as a derived cache of the single
+   (is_primary AND is_active) contact_emails row. Fires on INSERT/UPDATE/DELETE - the DELETE arm is
+   load-bearing: anonymisePlan erases via contact_emails, and without it a POPIA erasure would clear
+   the set and leave the address sitting in the cache. Gate the SOURCE, never this.';
+
+COMMENT ON CONSTRAINT contact_emails_primary_implies_active ON contact_emails IS
+  'CD ruling 10.1 trap 4. The unique primary index keys on is_primary alone while every reader
+   requires is_primary AND is_active, so a deactivated-but-still-primary row would occupy the slot
+   invisibly and strand the contact with no primary email. Makes that state unrepresentable.';

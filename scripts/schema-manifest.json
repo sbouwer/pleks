@@ -3867,6 +3867,7 @@
     "count_distinct_orgs": [
       "target_table"
     ],
+    "derive_contact_primary_email": [],
     "disburse_deposit_atomic": [
       "p_org_id",
       "p_lease_id",
@@ -4469,6 +4470,10 @@
     "contact_emails_email_type_check": {
       "table": "contact_emails",
       "def": "CHECK ((email_type = ANY (ARRAY['personal'::text, 'work'::text, 'billing'::text, 'other'::text])))"
+    },
+    "contact_emails_primary_implies_active": {
+      "table": "contact_emails",
+      "def": "CHECK (((NOT is_primary) OR is_active))"
     },
     "contact_employment_employment_type_check": {
       "table": "contact_employment",
