@@ -4,9 +4,9 @@
  * Route:  /api/landlords (GET list · POST create · PATCH edit|restore · DELETE archive)
  * Auth:   authenticated org member; archive/restore are admin-only
  * Data:   landlords (+ contacts), org-scoped service client; GET filters deleted_at (active only). Writes
- *         contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
- *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
- *         Dual-writes contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
+ *         contact_emails/contact_phones via syncPrimaryContactEmail/syncPrimaryContactPhone — contacts.primary_email
+ *         and contacts.primary_phone are derived caches (trigger-maintained, 002_contacts.sql §22/§23) and are
+ *         no longer written directly here.
  * Notes:  DELETE = ARCHIVE (soft-delete, set deleted_at), NOT erase — blocked while an in-force lease
  *         exists (landlordHasInForceLease). Raw .delete() on landlords is forbidden outside
  *         lib/popia/erasure.ts (pleks/no-popia-raw-delete). See ADDENDUM_ARCHIVE_VS_ERASE.
@@ -28,12 +28,12 @@ async function patchLandlordContactRecomputing(
 ): Promise<string | null> {
   const { data: existing, error: exErr } = await service.from("contacts").select(MANDATORY_COLS).eq("id", contactId).eq("org_id", orgId).single()
   if (exErr) return exErr.message
-  // primary_email is derived (trigger) — excluded from the write payload below; recomputeIncompleteMandatory
-  // still needs it (merged with `existing`) to correctly flag completeness, and syncPrimaryContactEmail is the
-  // only write path for the value (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
+  // primary_email/primary_phone are derived (triggers) — excluded from the write payload below;
+  // recomputeIncompleteMandatory still needs them (merged with `existing`) to correctly flag completeness, and
+  // syncPrimaryContactEmail/syncPrimaryContactPhone are the only write paths for the values (002_contacts.sql §22/§23).
   const hasEmail = "primary_email" in contactUpdate
   const hasPhone = "primary_phone" in contactUpdate
-  const { primary_email: newPrimaryEmail, ...contactUpdatePayload } = contactUpdate
+  const { primary_email: newPrimaryEmail, primary_phone: newPrimaryPhone, ...contactUpdatePayload } = contactUpdate
   const { error } = await service.from("contacts")
     .update({ ...contactUpdatePayload, ...recomputeIncompleteMandatory("landlord", existing, contactUpdate) }).eq("id", contactId).eq("org_id", orgId)
   if (error) return error.message
@@ -44,9 +44,8 @@ async function patchLandlordContactRecomputing(
   if (hasEmail) {
     await syncPrimaryContactEmail(service, orgId, contactId, newPrimaryEmail as string | null, companyName ? "work" : "personal")
   }
-  // primary_phone stays in contactUpdatePayload (still the column of record — §7 step 2 dual-write only).
   if (hasPhone) {
-    await syncPrimaryContactPhone(service, orgId, contactId, contactUpdatePayload.primary_phone as string | null, companyName ? "work" : "mobile")
+    await syncPrimaryContactPhone(service, orgId, contactId, newPrimaryPhone as string | null, companyName ? "work" : "mobile")
   }
   return null
 }
@@ -99,9 +98,10 @@ export async function POST(req: NextRequest) {
     throw e
   }
 
-  // primary_email is derived (trigger) — excluded from the insert payload; syncPrimaryContactEmail below is the
-  // only write path for the value (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
-  const { primary_email: landlordPrimaryEmail, ...landlordContactPayload } = landlordContact
+  // primary_email/primary_phone are derived (triggers) — excluded from the insert payload;
+  // syncPrimaryContactEmail/syncPrimaryContactPhone below are the only write paths for the values
+  // (002_contacts.sql §22/§23).
+  const { primary_email: landlordPrimaryEmail, primary_phone: landlordPrimaryPhone, ...landlordContactPayload } = landlordContact
 
   // Create contact first
   const { data: contact, error: contactError } = await service.from("contacts").insert({
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     companyName?.trim() ? "work" : "personal",
   )
   await syncPrimaryContactPhone(
-    service, membership.org_id, contact.id as string, landlordContactPayload.primary_phone as string | null,
+    service, membership.org_id, contact.id as string, landlordPrimaryPhone,
     companyName?.trim() ? "work" : "mobile",
   )
 

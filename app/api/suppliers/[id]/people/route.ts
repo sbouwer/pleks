@@ -4,9 +4,9 @@
  * Route:  POST/DELETE /api/suppliers/:id/people  (:id = contractor id)
  * Auth:   self-validated (auth.getUser) + org membership; DELETE is owner-only
  * Data:   contacts rows under the supplier's company contact via organisation_contact_id (ADDENDUM_25A).
- *         Writes contact_emails via syncPrimaryContactEmail — contacts.primary_email is a derived cache
- *         (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here.
- *         Dual-writes contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
+ *         Writes contact_emails/contact_phones via syncPrimaryContactEmail/syncPrimaryContactPhone —
+ *         contacts.primary_email and contacts.primary_phone are derived caches (trigger-maintained,
+ *         002_contacts.sql §22/§23) and are no longer written directly here.
  * Notes:  Replaces the retired contractor_contacts bridge. A person is a first-class individual contact
  *         (primary_role='company_contact') linked to the supplier's organisation contact. Only an
  *         organisation supplier has people (a sole-proprietor individual supplier has none).
@@ -78,7 +78,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     designation: designation?.trim() || null,
     first_name: firstName?.trim() || null,
     last_name: lastName?.trim() || null,
-    primary_phone: phone?.trim() || null,
     created_by: user.id,
   }).select("id").single()
 

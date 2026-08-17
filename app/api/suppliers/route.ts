@@ -3,10 +3,9 @@
  *
  * Route:  POST/PATCH/DELETE /api/suppliers
  * Auth:   Supabase session + getMembership; DELETE requires isAdmin
- * Data:   contractors + contacts tables (service role). Writes contact_emails via syncPrimaryContactEmail —
- *         contacts.primary_email is a derived cache (trigger-maintained,
- *         ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here. Dual-writes
- *         contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
+ * Data:   contractors + contacts tables (service role). Writes contact_emails/contact_phones via
+ *         syncPrimaryContactEmail/syncPrimaryContactPhone — contacts.primary_email and contacts.primary_phone
+ *         are derived caches (trigger-maintained, 002_contacts.sql §22/§23) and are no longer written directly here.
  * Notes:  DELETE is a soft-delete (sets deleted_at) so FK references from
  *         maintenance_requests survive. contractor_view excludes deleted rows.
  */
@@ -34,7 +33,6 @@ export async function POST(req: NextRequest) {
     primary_role: "contractor",
     first_name: name.trim(),
     company_name: companyName?.trim() || null,
-    primary_phone: phone?.trim() || null,
     created_by: user.id,
   }).select("id").single()
 
@@ -110,11 +108,12 @@ export async function PATCH(req: NextRequest) {
 
   const contactUpdate = buildContractorContactUpdate(body)
   if (Object.keys(contactUpdate).length > 0) {
-    // primary_email is derived (trigger) — excluded from the write payload; syncPrimaryContactEmail below is the
-    // only write path for the value (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
+    // primary_email/primary_phone are derived (triggers) — excluded from the write payload;
+    // syncPrimaryContactEmail/syncPrimaryContactPhone below are the only write paths for the values
+    // (002_contacts.sql §22/§23).
     const hasEmail = "primary_email" in contactUpdate
     const hasPhone = "primary_phone" in contactUpdate
-    const { primary_email: newPrimaryEmail, ...contactUpdatePayload } = contactUpdate
+    const { primary_email: newPrimaryEmail, primary_phone: newPrimaryPhone, ...contactUpdatePayload } = contactUpdate
     if (Object.keys(contactUpdatePayload).length > 0) {
       const { error: contactError } = await service.from("contacts")
         .update(contactUpdatePayload)
@@ -126,9 +125,8 @@ export async function PATCH(req: NextRequest) {
     if (hasEmail) {
       await syncPrimaryContactEmail(service, membership.org_id, body.contactId, newPrimaryEmail as string | null, "work")
     }
-    // primary_phone stays in contactUpdatePayload (still the column of record — §7 step 2 dual-write only).
     if (hasPhone) {
-      await syncPrimaryContactPhone(service, membership.org_id, body.contactId, contactUpdatePayload.primary_phone as string | null, "work")
+      await syncPrimaryContactPhone(service, membership.org_id, body.contactId, newPrimaryPhone as string | null, "work")
     }
   }
 

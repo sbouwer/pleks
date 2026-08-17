@@ -4,10 +4,9 @@
  * lib/actions/tenants.ts — update server actions for tenant contacts
  *
  * Auth:   requireAgentWriteAccess (all paths are writes)
- * Data:   contacts + tenants tables via gateway service client; writes contact_emails via
- *         syncPrimaryContactEmail — contacts.primary_email is a derived cache (trigger-maintained,
- *         ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no longer written here. Dual-writes
- *         contact_phones alongside primary_phone (still the source of truth — §7 step 2 only).
+ * Data:   contacts + tenants tables via gateway service client; writes contact_emails/contact_phones via
+ *         syncPrimaryContactEmail/syncPrimaryContactPhone — contacts.primary_email and contacts.primary_phone
+ *         are derived caches (trigger-maintained, 002_contacts.sql §22/§23) and are no longer written directly here.
  * Notes:  Tenant CREATE now goes through the shared add-party flow (addTenantParty); this file holds the
  *         post-create edit/communication actions. updateTenant edits the contact + tenant rows;
  *         logCommunication records a communication_log entry.
@@ -37,13 +36,13 @@ export async function updateTenant(tenantId: string, formData: FormData) {
 
   if (!tenantRecord) return { error: "Tenant not found" }
 
-  // primary_email is derived (trigger) — captured here, kept out of contactUpdates, and written only via
-  // syncPrimaryContactEmail below (ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4).
+  // primary_email/primary_phone are derived (triggers) — captured here, kept out of contactUpdates, and
+  // written only via syncPrimaryContactEmail/syncPrimaryContactPhone below (002_contacts.sql §22/§23).
   const primaryEmail = (formData.get("email") as string | null) || null
+  const primaryPhone = (formData.get("phone") as string | null) || null
 
   // Update contact fields
   const contactUpdates: Record<string, unknown> = {
-    primary_phone: formData.get("phone") || null,
     notes: formData.get("notes") || null,
   }
 
@@ -65,7 +64,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     tenantType === "individual" ? "personal" : "work",
   )
   await syncPrimaryContactPhone(
-    db, orgId, tenantRecord.contact_id as string, contactUpdates.primary_phone as string | null,
+    db, orgId, tenantRecord.contact_id as string, primaryPhone,
     tenantType === "individual" ? "mobile" : "work",
   )
 

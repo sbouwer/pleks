@@ -3,10 +3,9 @@
  *
  * Auth:   service client passed in via ImportContext; org-scoped by the caller (agent import flow)
  * Data:   properties, units, tenants, leases, contacts (+ contact_bank_accounts, contact_emails,
- *         contact_phones), audit_log. Writes contact_emails via syncPrimaryContactEmail — contacts.primary_email
- *         is a derived cache (trigger-maintained, ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 4) and no
- *         longer written here. Dual-writes contact_phones alongside primary_phone (still the source of truth —
- *         §7 step 2 only, for the phone column).
+ *         contact_phones), audit_log. Writes contact_emails/contact_phones via
+ *         syncPrimaryContactEmail/syncPrimaryContactPhone — contacts.primary_email and contacts.primary_phone
+ *         are derived caches (trigger-maintained, 002_contacts.sql §22/§23) and are no longer written directly here.
  * Notes:  Phased pipeline (parse → route → create → audit). Writes one bulk_import audit row at the
  *         end, keyed to the import session. Per-entity creates are not individually audited.
  */
@@ -941,9 +940,10 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
       primary_email: email || null,
       primary_phone: getField(entry.row, "phone", ctx.mapping) || null,
     }
-    // primary_email is derived (trigger) — excluded from the insert payload below, but contactCore keeps it for
-    // the completeness check + the syncPrimaryContactEmail call, which is now the only write path for the value.
-    const { primary_email: tenantPrimaryEmail, ...contactCoreColumns } = contactCore
+    // primary_email/primary_phone are derived (triggers) — excluded from the insert payload below, but
+    // contactCore keeps them for the completeness check + the syncPrimaryContactEmail/syncPrimaryContactPhone
+    // calls, which are now the only write paths for the values.
+    const { primary_email: tenantPrimaryEmail, primary_phone: tenantPrimaryPhone, ...contactCoreColumns } = contactCore
 
     const { data: contact, error: contactError } = await ctx.supabase
       .from("contacts")
@@ -977,7 +977,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
       importEmailType(tenantCompany, displayForTenant),
     )
     await syncPrimaryContactPhone(
-      ctx.supabase, ctx.orgId, String(contact.id), contactCore.primary_phone,
+      ctx.supabase, ctx.orgId, String(contact.id), tenantPrimaryPhone,
       importPhoneType(tenantCompany, displayForTenant),
     )
 
@@ -1163,9 +1163,9 @@ async function insertSingleTenant(params: {
       primary_role: "tenant",
       first_name: firstName || "Unknown",
       last_name: lastName || "Unknown",
-      primary_phone: phone || null,
       // 21E §5/§7 + F2: a co-tenant (joint-tenancy half) is a full tenant — flag what it lacks, on the RAW names.
-      // primary_email is derived (trigger); fed into the completeness check only, not the insert payload.
+      // primary_email/primary_phone are derived (triggers); fed into the completeness check only, not the
+      // insert payload.
       ...incompleteMandatoryColumn("tenant", { first_name: firstName || null, last_name: lastName || null, primary_email: email, primary_phone: phone || null }),
       ...idNumberColumns(idNumber), // encrypted at rest + lookup hash (was raw, no hash)
     })
@@ -1175,7 +1175,7 @@ async function insertSingleTenant(params: {
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Co-tenant contact error: ${contactError?.message}`, severity: "error" })
     return
   }
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  // primary_email/primary_phone are derived (triggers) — these are the only write paths for the values.
   await syncPrimaryContactEmail(ctx.supabase, ctx.orgId, String(contact.id), email, "personal")
   await syncPrimaryContactPhone(ctx.supabase, ctx.orgId, String(contact.id), phone || null, "mobile")
 
@@ -2565,7 +2565,6 @@ async function importVendors(
           first_name: firstName || null,
           last_name: lastName || null,
           company_name: displayName || null,
-          primary_phone: phone,
           registration_number: regNumber,
           vat_number: vatNumber,
           notes,
@@ -2581,7 +2580,7 @@ async function importVendors(
         })
         continue
       }
-      // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+      // primary_email/primary_phone are derived (triggers) — these are the only write paths for the values.
       // "work" — a contractor/supplier contact is inherently a business relationship, individual or company.
       await syncPrimaryContactEmail(ctx.supabase, ctx.orgId, String(contact.id), email || null, "work")
       await syncPrimaryContactPhone(ctx.supabase, ctx.orgId, String(contact.id), phone, "work")
@@ -2672,9 +2671,10 @@ async function importLandlords(
         primary_email: email || null,
         primary_phone: phone,
       }
-      // primary_email is derived (trigger) — excluded from the insert payload below, but contactCore keeps it for
-      // the completeness check + the syncPrimaryContactEmail call, which is now the only write path for the value.
-      const { primary_email: landlordPrimaryEmail, ...contactCoreColumns } = contactCore
+      // primary_email/primary_phone are derived (triggers) — excluded from the insert payload below, but
+      // contactCore keeps them for the completeness check + the syncPrimaryContactEmail/syncPrimaryContactPhone
+      // calls, which are now the only write paths for the values.
+      const { primary_email: landlordPrimaryEmail, primary_phone: landlordPrimaryPhone, ...contactCoreColumns } = contactCore
 
       const { data: contact, error: contactError } = await ctx.supabase
         .from("contacts")
@@ -2706,7 +2706,7 @@ async function importLandlords(
         importEmailType(landlordCompany, landlordDisplay),
       )
       await syncPrimaryContactPhone(
-        ctx.supabase, ctx.orgId, String(contact.id), contactCore.primary_phone,
+        ctx.supabase, ctx.orgId, String(contact.id), landlordPrimaryPhone,
         importPhoneType(landlordCompany, landlordDisplay),
       )
 
@@ -2850,8 +2850,8 @@ async function findOrCreateLandlord(
       first_name: firstName || (ownerName ? null : "Unknown"),
       last_name: lastName || (ownerName ? null : "Unknown"),
       company_name: resolveEntityType("", ownerName) === "organisation" ? ownerName : null,
-      primary_phone: String(property.owner_phone ?? "") || null,
-      // primary_email is derived (trigger); fed into the completeness check below only, not the insert payload.
+      // primary_email/primary_phone are derived (triggers); fed into the completeness check below only, not the
+      // insert payload.
       // 21E §5/§7: a landlord synthesised from a property's owner name is a landlord contact — flag what it lacks
       // (was untracked; owner_phone is often blank, and this path never has an email of its own).
       ...incompleteMandatoryColumn("landlord", {
@@ -2870,7 +2870,7 @@ async function findOrCreateLandlord(
     })
     return null
   }
-  // ADDENDUM_CONTACT_REPRESENTATION_UNIFICATION §7 step 2: dual-write the set alongside the column.
+  // primary_email/primary_phone are derived (triggers) — these are the only write paths for the values.
   await syncPrimaryContactEmail(
     ctx.supabase, ctx.orgId, String(contact.id), email,
     importEmailType("", ownerName),
