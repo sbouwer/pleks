@@ -370,3 +370,62 @@ ALTER TABLE consent_log ADD CONSTRAINT consent_log_consent_type_check
     'lease_template_disclaimer',
     'bank_details_import'   -- an AGENT attesting they hold the tenant's consent (never the tenant's own consent)
   ));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §  NOW.md item 14e (2026-08-17): get_rls_audit() becomes VERSIONED schema
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- This function is what Category 7 — the RLS policy audit — depends on entirely. It has existed in
+-- production since someone ran `scripts/security/setup-rls-audit.sql` in the SQL editor by hand, and
+-- it appeared in NO migration. So the real choice was never migration-or-nothing; it was VERSIONED or
+-- UNVERSIONED, and it was unversioned.
+--
+-- Two consequences, both live until now:
+--   1. A database built from the migrations did not have it, so Category 7 would 404 on a fresh
+--      environment — including the CI stack, and including the hosted CI project that was nearly
+--      provisioned to fix exactly this problem. That plan would have reported a NEW wrong thing.
+--   2. `check-schema-drift.mjs` could not see the gap. Drift compares the live schema against the
+--      migrations, and `scripts/schema-manifest.json` is generated FROM production — so a function
+--      present in production and absent from every migration is agreed-upon by both artefacts the
+--      check compares. Same blindness that hid the 004/005 forward reference: two artefacts with a
+--      common ancestor cannot reveal a defect they inherited together.
+--
+-- SECURITY DEFINER is required: it reads pg_policies/pg_tables, which the service role cannot
+-- otherwise enumerate through PostgREST. It exposes policy DEFINITIONS, not data — and only to a
+-- caller already holding the service key.
+--
+-- ⚠ `scripts/security/setup-rls-audit.sql` is kept as the standalone bootstrap for a database that
+-- somehow predates this section. The two MUST stay identical; this file is the authority.
+CREATE OR REPLACE FUNCTION get_rls_audit()
+RETURNS TABLE(
+  tablename text,
+  policyname text,
+  permissive text,
+  roles text[],
+  cmd text,
+  qual text,
+  with_check text,
+  rls_enabled boolean
+) LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT
+    t.tablename::text,
+    COALESCE(p.policyname, '(none)')::text,
+    COALESCE(p.permissive, 'N/A')::text,
+    COALESCE(p.roles, ARRAY['(none)']::text[]),
+    COALESCE(p.cmd, 'N/A')::text,
+    COALESCE(p.qual::text, '(none)'),
+    COALESCE(p.with_check::text, '(none)'),
+    t.rowsecurity
+  FROM pg_tables t
+  LEFT JOIN pg_policies p ON t.tablename = p.tablename AND t.schemaname = p.schemaname
+  WHERE t.schemaname = 'public'
+    AND t.tablename NOT LIKE 'pg_%'
+    AND t.tablename NOT LIKE '_realtime%'
+    AND t.tableowner != 'supabase_admin'
+  ORDER BY t.tablename, p.policyname;
+$$;
+
+COMMENT ON FUNCTION get_rls_audit() IS
+  'Security audit Category 7 support. Returns every public table with its RLS policies and rowsecurity
+   flag. Versioned here as at 2026-08-17 (item 14e) after existing in production unversioned; keep in
+   sync with scripts/security/setup-rls-audit.sql, which is now only a bootstrap for older databases.';
