@@ -1,47 +1,9 @@
 # CLAUDE CODE INSTRUCTIONS
 # Pleks
 # Repository: github.com/sbouwer/pleks
-<!-- ═══ HARNESS EXPERIMENT REGISTER (SPEC_CLAUDE_MD_STANDARD v3 §8) ═══════════════════════════
-     Recorded in an HTML comment because E2 proved that costs nothing. Re-run on a harness upgrade;
-     these are OBSERVATIONS of one version, not documented mechanisms.
-
-     E2 · Are HTML comments stripped before injection?            ANSWERED 2026-08-18: YES
-       Canary token planted at this exact position (between "# Repository:" and the "---"), then a
-       session that demonstrably loaded the POST-canary file — it quoted the new tier POINTER text
-       and named commit 0bf57989 — was asked to reproduce the first 12 lines from context. It
-       reproduced line 3 and then "---", skipping precisely the canary's five lines, while
-       positively identifying both neighbours. That positive ID either side is what makes the
-       absence evidential rather than "didn't notice".
-       CONSEQUENCE: @enforced markers are free here. The tagging pass economy holds, and the
-       ceiling legitimately excludes comments.
-
-     E1b · Do scoped rules trigger on WRITE?                     ANSWERED 2026-08-18: NO
-       READ-TRIGGERED ONLY. Five probes, four rules, both directions, with a positive control:
-         Read lib/screening/… ............. fitscore.md      ARRIVED
-         Read lib/comms/delivery-notice-… . comms-urls.md    ARRIVED
-         Bash-edit that SAME comms file ... comms-urls.md    did not arrive   <- the A/B
-         Bash-edit lib/tier/… ............. billing-gates.md did not arrive
-         Write NEW lib/offline/_probe.ts .. inspections.md   did not arrive
-       The comms pair is the clean experiment: one file, one rule, one variable (read vs write).
-       Note the Edit tool REFUSES to run without a prior Read, so Edit can never be the uncovered
-       case — the exposed paths are exactly Bash-mediated edits and Write-tool creations.
-       Untested: Write OVERWRITING an existing file (probe created a new one).
-
-       ⚠ CONSEQUENCE FOR THIS REPO, AND IT IS NOT SMALL. All 18 rule files are scoped, so ALL
-       path-scoped doctrine — migrations.md (176 lines of amend-forward discipline),
-       identity-scoped-tables.md (the org_id exception + membership test), data-access.md (the
-       gateway rules) — is absent from any session that writes without reading first. Spec §8 says
-       do not move incident-class content to a scoped rule until E1b resolves; it has now resolved
-       AGAINST that, and this repo moved everything before the question was asked.
-       Rung 4 is a convenience layer for reading sessions, NOT a control. Anything in a scoped file
-       that must hold regardless needs a rung-1/2 twin (spec §0.1) — that audit is now open work.
-
-     E1 · Does paths: frontmatter defer loading?                  OBSERVED YES, not A/B tested
-       Scoped rule files arrive mid-session on relevance, not at launch. Not the controlled
-       cross-session A/B the spec specifies — treat as suggestive.
-
-     E3 · Does this file reach a subagent?                        OPEN
-════════════════════════════════════════════════════════════════════════════════════════════════ -->
+<!-- Harness experiments: full results, protocols + re-run instructions in brief/build/EXPERIMENTS.md
+     (E1 yes-observed · E1b NO, read-triggered · E2 yes, placement-dependent · E3 open).
+     Re-run E1b/E2 on a Claude Code major upgrade before trusting rule scoping or marker invisibility. -->
 
 ---
 
@@ -60,7 +22,6 @@ All of the following are connected and available in every session. Use them dire
 | **Google Drive** | Read, search, and create files |
 
 Default to using these instead of asking the user to copy-paste data. For example: check GitHub for open PRs rather than asking; check Vercel for deployment status rather than asking; query Supabase directly rather than asking for schema details.
-**UNENFORCEABLE** — a preference about which tool to reach for; nothing in a diff or transcript distinguishes "queried Supabase" from "asked the user to paste a schema", so there is no artefact a check could inspect.
 
 ---
 
@@ -69,7 +30,7 @@ Default to using these instead of asking the user to copy-paste data. For exampl
 Every `.ts`, `.tsx`, and `.yml` file must have a filled-in header. Rules:
 
 - **Touch a file with a stub header (contains `FILL:`)** → fill it in before committing. Replace every `FILL:` line with real content; delete unused placeholder lines.
-  **UNENFORCEABLE** — MECHANISABLE AND NOT DONE. `check-file-headers.mjs` only fails on a `FILL:` stub NOT already in `file-headers.baseline.json`; touching a baselined file's body without filling its header leaves the file still baselined and still passing. A check could diff staged files against the baseline and fail if a staged, baselined file still contains `FILL:`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `check-file-headers.mjs` only fails on a `FILL:` stub NOT already in `file-headers.baseline.json`; touching a baselined file's body without filling its header leaves the file still baselined and still passing. Full sketch → **M-048** in `brief/build/MECHANISABLE.md`.
 - **Update a file that already has a filled header** → update the header if the purpose, route, auth, or data source has changed.
   **UNENFORCEABLE** — requires judging whether the file's purpose/route/auth/data actually changed; no check reads header prose against code semantics.
 - **Create a new file** → write the header filled in from the start. Never commit a `FILL:` stub. <!-- @enforced check:check-file-headers -->
@@ -96,7 +57,7 @@ YAML format:
 ```
 
 Delete any lines that don't apply (e.g. omit `Route:` for a utility library, omit `Notes:` if there's nothing worth saying).
-**UNENFORCEABLE** — mechanisable and not done: a check could scan filled headers for surviving literal placeholder text (e.g. "(omit if not a page)"), but nothing does today.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — sketch: scan filled headers for surviving literal placeholder text (e.g. "(omit if not a page)") and fail; nothing does today.
 
 ---
 
@@ -111,10 +72,9 @@ npm run check
 This runs `tsc --noEmit` (type check) + `eslint . --max-warnings 0` (lint).
 
 **If it fails, fix the errors before committing.** Do not push code that fails `npm run check`. Do not skip this step. Do not use `--no-verify`.
-**UNENFORCEABLE** — same gap as the identical rule under DO NOT DO: there is no pre-commit hook in this repo (no `.husky`, no `core.hooksPath`), so nothing stops a commit that fails `npm run check`. CI's `quick-check` job (`ci:quick-check`) runs `npm run check` but only after the commit exists, on the PR.
+**UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — same gap as the identical rule under DO NOT DO (twin, same mechanism, not re-annotated there). There is no pre-commit hook in this repo (no `.husky`, no `core.hooksPath`), so nothing stops a commit that fails `npm run check`. CI's `quick-check` job (`ci:quick-check`) runs `npm run check` but only after the commit exists, on the PR. Full sketch → **M-049** in `brief/build/MECHANISABLE.md`.
 
 If you've changed multiple files, run the check after each logical change — don't batch 10 changes and discover 8 errors at the end.
-**UNENFORCEABLE** — a cadence preference across a session; no artefact records how often the check was run between edits.
 
 Quick commands:
 - `npm run typecheck` — TypeScript only (~15 seconds)
@@ -167,21 +127,21 @@ export default async function MyPage() {
 
 **Rules:**
 - `requireAgentWriteAccess(action)` for ALL agent-side mutations — never bare `gateway()` on a write path
-  **UNENFORCEABLE** — the server-action census (Cat-15, `scripts/security/server-action-census.mjs`) only requires SOME recognized gate to be present (`requireAgentWriteAccess`, `gateway`, `gatewaySSR`, etc. are all interchangeable to it outside `app/(admin)`); it does not distinguish `gateway()` from `requireAgentWriteAccess`, nor a read path from a write path. A write silently gated with bare `gateway()` and no allowlist entry does NOT fail Cat-15, contrary to the "provably intentional" claim in `.claude/rules/data-access.md`. Mechanisable, not done: flag a `"use server"` module containing an `.update(`/`.insert(`/`.upsert(`/`.delete(` call whose file only resolves via `gateway()`/`gatewaySSR()`, absent an allowlist reason.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: money) — twin of `.claude/rules/data-access.md:28`, same mechanism, not re-annotated there. The server-action census (Cat-15, `scripts/security/server-action-census.mjs`) only requires SOME recognized gate to be present (`requireAgentWriteAccess`, `gateway`, `gatewaySSR`, etc. are all interchangeable to it outside `app/(admin)`); it does not distinguish `gateway()` from `requireAgentWriteAccess`, nor a read path from a write path. A write silently gated with bare `gateway()` and no allowlist entry does NOT fail Cat-15, contrary to the "provably intentional" claim in `.claude/rules/data-access.md`. Full sketch → **M-011** in `brief/build/MECHANISABLE.md`.
 - `gateway()` for server action reads (not cached — one-shot)
 - `gatewaySSR()` for server component reads (React.cache — deduplicates per render)
 - Cron and webhook handlers: do NOT use `requireAgentWriteAccess` — they fire regardless of subscription state
-  **UNENFORCEABLE** — mechanisable and not done: `route-census.mjs` classifies a route as `cron`/`webhook` by path prefix or secret header, but nothing greps those same files for a `requireAgentWriteAccess(` call and fails if found.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `route-census.mjs` classifies a route as `cron`/`webhook` by path prefix or secret header, but nothing greps those same files for a `requireAgentWriteAccess(` call and fails if found. Full sketch → **M-037** in `brief/build/MECHANISABLE.md`.
 - Tenant/landlord/supplier portal actions: use `getTenantSession()` — not subject to agent lockdown
-  **UNENFORCEABLE** — `server-action-census.mjs`'s `expectedGateFamily()` only special-cases `app/(admin)/`; every other location (including portal routes) accepts ANY recognized gate, so a portal action gated with `gateway()` instead of `getTenantSession()` passes Cat-15 undetected. Mechanisable: extend `expectedGateFamily` to require the portal gate under `app/(tenant)/`, `app/(landlord)/`, `app/(supplier)/`.
-- Every query MUST include `.eq("org_id", orgId)` — the service client bypasses RLS
-  **UNENFORCEABLE** — PARTIAL. `pleks/require-org-scope-on-service-write` covers `.update()`/`.upsert()` and `pleks/require-scope-on-delete` covers `.delete()`, both baseline-limited (pre-existing sites grandfathered). Plain `.select()` reads have no scoping check of any kind — an unscoped read is invisible to both rules and to Category 7.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: auth) — `server-action-census.mjs`'s `expectedGateFamily()` only special-cases `app/(admin)/`; every other location (including portal routes) accepts ANY recognized gate, so a portal action gated with `gateway()` instead of `getTenantSession()` passes Cat-15 undetected. Full sketch → **M-031** in `brief/build/MECHANISABLE.md`.
+- Every service-client `.update()` / `.upsert()` MUST include `.eq("org_id", orgId)` — the service client bypasses RLS <!-- @enforced eslint:pleks/require-org-scope-on-service-write -->
+- Every service-client `.delete()` MUST include `.eq("org_id", orgId)` <!-- @enforced eslint:pleks/require-scope-on-delete -->
+- Every service-client `.select()` MUST include `.eq("org_id", orgId)`
+  **UNENFORCEABLE** — MECHANISABLE → **M-002** (twin: **M-014**, `.claude/rules/data-access.md:13`). The two rules above are baseline-limited (pre-existing sites grandfathered) and cover writes/deletes ONLY. Plain `.select()` reads have NO scoping check of any kind — an unscoped read is invisible to both rules and to Category 7. **This is the half that leaks.**
 - The only valid use of `createClient()` is for `auth.getUser()` — never for data queries. **Enforced by `pleks/no-cookie-client-from`** (ESLint): `.from()` on the cookie client hard-fails CI. ~75 pre-existing sites are grandfathered in `eslint-rules/no-cookie-client-from.baseline.json` and burning down via the caller-supplied-ID census — remove a file from that JSON as you fix it (the baseline only shrinks); a NEW violation anywhere else fails immediately. (Same control as `eslint:pleks/no-cookie-client-from`, tagged above — not re-tagged here to avoid a double claim.)
 - Always check `{ data, error }` from Supabase queries — never use `(data ?? [])` without logging `error` first <!-- @enforced eslint:pleks/require-supabase-error-check -->
-- `any` types leaking through (fix them, don't suppress)
-  **UNENFORCEABLE** — genuinely enforced (verified: `@typescript-eslint/no-explicit-any` fires as an error on a planted `const x: any = 1`, part of `eslint . --max-warnings 0`), but it is a built-in ESLint rule, not a `pleks/*` custom rule, and the `eslint:` marker namespace only resolves `pleks/*` ids against `eslint-rules/`. No namespace exists yet for "a stock rule is turned on in `eslint.config.mjs`".
-- Missing `key` props in .map() renders
-  **UNENFORCEABLE** — same gap as above: genuinely enforced by the built-in `react/jsx-key` rule (verified: fires on a planted keyless `.map()`), but not expressible under the current `eslint:` (pleks-only) grammar.
+- `any` types leaking through (fix them, don't suppress) <!-- @enforced eslint:@typescript-eslint/no-explicit-any -->
+- Missing `key` props in .map() renders <!-- @enforced eslint:react/jsx-key -->
 
 ---
 
@@ -212,10 +172,9 @@ Allowed types and their release effect:
 
 Breaking changes: add `!` after type (e.g. `feat!: rename /portal to /tenant`)
 AND a `BREAKING CHANGE:` footer in the commit body explaining the migration.
-**UNENFORCEABLE** — the `pr-title` job validates only the title's `type(scope): subject` grammar (`amannn/action-semantic-pull-request`, no `subjectPattern` configured); it does not check the PR/commit body for a `BREAKING CHANGE:` footer. `semantic-release` (the `release` job) parses the footer at RELEASE time to size the version bump, but that runs after merge — nothing blocks a `!` with no matching footer from merging.
+**UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: other) — the `pr-title` job validates only the title's `type(scope): subject` grammar (`amannn/action-semantic-pull-request`, no `subjectPattern` configured); it does not check the PR/commit body for a `BREAKING CHANGE:` footer. `semantic-release` (the `release` job) parses the footer at RELEASE time to size the version bump, but that runs after merge — nothing blocks a `!` with no matching footer from merging. Full sketch → **M-052** in `brief/build/MECHANISABLE.md`.
 
 Subject line: lowercase, imperative, under 72 chars, no trailing period.
-**UNENFORCEABLE** — mechanisable and not done: the `pr-title` job has no `subjectPattern`, by design (Dependabot's "Bump X from Y to Z" needs a capital B) — so casing, length and trailing-period are unchecked. A repo-specific `subjectPattern` could allow the Dependabot exception and still enforce the rest.
 
 Examples:
 - `feat: add passkey enrolment to settings`
@@ -240,8 +199,6 @@ a versioning decision, not just a label.
 - Is this internal cleanup with no behaviour change? → `refactor` / `chore` (no release)
 - Does it break existing behaviour or URLs? → add `!` and a `BREAKING CHANGE:` footer
 
-**UNENFORCEABLE** — classifying a change as feat/fix/refactor/breaking requires judging its user-visible effect; the `pr-title` job checks the chosen word is one of the allowed types, never that the word chosen was the CORRECT one.
-
 **Commit message discipline:**
 - Subject line must be meaningful in a changelog: "fix contact form submit"
   not "fix stuff"
@@ -250,8 +207,6 @@ a versioning decision, not just a label.
 - Imperative mood: "add resolver-owned welcome" not "added" or "adds"
 - Branch commits are squash-merged, so each branch PR = one changelog entry;
   write the PR title as the changelog line you want users to see
-
-**UNENFORCEABLE** — all four are prose-quality judgements ("meaningful", "imperative mood", scope choice) that `pr-title`'s grammar check cannot evaluate; `requireScope: false` explicitly makes scope optional, so nothing even nudges toward including one.
 
 **GitHub Releases are the changelog.** Consumers of this repo (and Stéan
 reviewing releases) read GitHub Releases to understand what shipped. Make
@@ -312,12 +267,11 @@ Commit and push are different gates with different bars.
 Before every `git push`, in order:
 
 1. `npm run check:full` (typecheck + lint + tests + architecture audit + security:db) — **must be green**
-   **UNENFORCEABLE** — `check:full` exists and is genuinely strict when run (it chains `check`, `test:db`, `security:db`, `check-drift-if-sql-changed`), but nothing forces it to run before a push: it is not in `ci.yml` (CI runs `npm run check` and `test:db`/`security:db` as SEPARATE jobs, never the literal `check:full` chain) and `hook:bash-gate` gates the push action on approval, not on this command's exit code.
+   **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — `check:full` exists and is genuinely strict when run (it chains `check`, `test:db`, `security:db`, `check-drift-if-sql-changed`), but nothing forces it to run before a push: it is not in `ci.yml` (CI's `db-tests` job, added 2026-08-17, now runs `test:db` and `security:db` as separate steps on the PR — a real, newer mitigation, but still POST-push/pre-merge, not the local pre-push gate this rule states, and it skips `check-drift-if-sql-changed`) and `hook:bash-gate` gates the push action on approval, not on this command's exit code. Full sketch → **M-051** in `brief/build/MECHANISABLE.md`.
 2. For behavioural changes (routing, auth, UI, data): manually walk the
    affected flow in dev. Console errors count as failures.
    **UNENFORCEABLE** — a manual walkthrough leaves no artefact; "I walked it, no console errors" is asserted in chat, not verifiable after the fact.
 4. Each commit message describes the actual change in imperative mood
-   **UNENFORCEABLE** — same prose-quality gap as the commit message discipline rule above; `pr-title` checks type/scope grammar only.
 
 If any step fails, fix it locally and **AMEND** the relevant commit before
 pushing. Don't pile fix commits on top of broken commits — squash them in.
@@ -354,7 +308,6 @@ pushing:
 This gives Stéan a chance to say "hold, I want to walk it first" without
 the work already being on the remote. Trivial commits (typo fixes, doc
 tweaks, JSDoc-only changes) can skip this step.
-**UNENFORCEABLE** — a chat-etiquette rule; `hook:bash-gate` requires approval on the underlying `git push` regardless, but whether the assistant SAID the announcement sentence beforehand is not something the gate reads.
 
 ### When tests genuinely can't run before push
 
@@ -426,17 +379,17 @@ This runs across 15 security categories:
 
 **Rules:**
 - Zero critical findings before any deployment. No exceptions.
-  **UNENFORCEABLE** — no gate blocks the actual deployment on this script's exit code; Vercel deploys on push independently of `npm run security`. Running it is a manual pre-deploy step, not a CI/deploy gate.
+  **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of the identical rule under DO NOT DO (`Do not deploy without running npm run security:quick first`), same mechanism, not re-annotated there. No gate blocks the actual deployment on this script's exit code; Vercel deploys on push independently of `npm run security`. Running it is a manual pre-deploy step, not a CI/deploy gate. Full sketch → **M-018** in `brief/build/MECHANISABLE.md`.
 - If a finding is a false positive (e.g. `prime_rates` intentionally has no RLS because it's read-only public data), the correct fix is to add a read-only RLS policy (`USING (true)` for SELECT, block INSERT/UPDATE/DELETE) — not to remove the test.
   **UNENFORCEABLE** — "add a policy" vs "delete the finding" are both edits to files the audit doesn't distinguish by intent; nothing stops the latter.
 - Never disable or skip categories to pass the audit.
-  **UNENFORCEABLE** — mechanisable and not done: a self-check could assert all 15 `catN_*` functions are invoked unconditionally in `main()`/`runCiMode()`, the same self-referential pattern this file's own `--selftest` uses.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: data-boundary) — sketch: a self-check asserting all 15 `catN_*` functions are invoked unconditionally in `main()`/`runCiMode()`, the same self-referential pattern this file's own `--selftest` uses.
 - When adding new tables: add RLS + org_id policy immediately. The Category 7 audit will catch you if you forget. <!-- @enforced audit:cat7_rlsPolicyAudit -->
 - When adding new API routes: Category 8 auto-discovers them from disk — no list to update. Just gate the route with a recognized auth helper; a route with no gate that isn't a conscious public route FAILS the census until you add it to `PUBLIC_ALLOWLIST` (with a reason) in `route-census.mjs`. <!-- @enforced audit:cat8_serverActionAbuse -->
 - When adding new server actions (`"use server"`): Category 15 auto-discovers them — gate each with the helper appropriate to its location (`app/(admin)` → `requireAdminAuth`; agent → `requireAgentWriteAccess`/`gateway`; portal → `getTenantSession`), or add the file to `ACTION_ALLOWLIST` (with a reason) in `server-action-census.mjs`. A bare `gateway()` on an `app/(admin)` action FAILS — admin surfaces need the admin gate. <!-- @enforced audit:cat15_serverActionAuth -->
 - When adding new webhook handlers: add signature verification from day one. Category 10 sends forged payloads. <!-- @enforced audit:cat10_webhookSignatures -->
 - When adding new public routes: add them to the Category 9 rate limit test list.
-  **UNENFORCEABLE** — `PUBLIC_API_ROUTES` is hand-maintained (unlike Category 8's disk-derived census) and `cat9_rateLimiting` only floods `.slice(0, 2)` of it regardless of length, so nothing fails if a new public route is never added. Mechanisable: derive the flood target list from `route-census.mjs`'s `byBucket.public`, the same pattern Category 8 already uses.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `PUBLIC_API_ROUTES` is hand-maintained (unlike Category 8's disk-derived census) and `cat9_rateLimiting` only floods `.slice(0, 2)` of it regardless of length, so nothing fails if a new public route is never added. Full sketch → **M-042** in `brief/build/MECHANISABLE.md`.
 
 **Prerequisites:**
 - `npm run dev` must be running (Categories 3, 4, 6, 8–12 test localhost)
@@ -453,7 +406,6 @@ Quick commands:
 All build specifications live in `brief/build/`. The master index is `brief/build/INDEX.md`. You can be referenced to as CC - Claude Code and CD - Claude Desktop, can be referenced as the architect / oversight that writes the builds and checks build completion for factual implementation, gaps that might have been created and bugs.
 
 **Before implementing any spec, read the INDEX first** to understand the numbering and relationships. Addendums are named `ADDENDUM_{NN}{letter}_*` where `{NN}` references the parent build.
-**UNENFORCEABLE** — whether a spec was read before implementation leaves no artefact; the resulting code is the only trace, and a correct implementation is consistent with having skipped the INDEX too.
 
 **After completing or making meaningful progress on any build or addendum, update `brief/build/INDEX.md`:**
 - Change the status emoji (📝 → ✅, or note partial progress)
@@ -506,7 +458,7 @@ If it says the code *does* X, anchor it.
 ## TIER MODEL (post-April 2026 — locked)
 
 Names, prices, lease caps → `lib/marketing/tiers.ts` (canonical) · cents → `lib/constants.ts`.
-**UNENFORCEABLE** — mechanisable and not done: nothing scans for a hardcoded tier name/price/lease-cap literal outside `lib/marketing/tiers.ts`/`lib/constants.ts`, the way `no-rerolled-money-format` or `no-adhoc-dates` guard their own SSOTs.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: money) — sketch: scan `app/**`/`lib/**` for tier-price/name/lease-cap-shaped literals (e.g. "R699", "R1,199", "R2,599", "R4,499", the lease-cap numbers 15/30/75/150) outside the two SSOT files, the way `no-rerolled-money-format`/`no-adhoc-dates` guard their own SSOTs.
 
 No per-user seat caps — **lease count is the only gate**. Annual pricing not live. Bespoke deferred.
 
@@ -526,8 +478,6 @@ Do not rely on this file for task status. It changes daily.
 5. Read `brief/build/CURRENT.md` — session state. What step is active, 
    what was just done, what the next action is, any mid-build decisions.
    This is what INDEX.md cannot carry.
-
-**UNENFORCEABLE** — a session-startup reading ritual; nothing distinguishes a session that read these files first from one that didn't, once both produce the same diff.
 
 **How builds and addendums work:**
 - Builds: `brief/build/BUILD_{NN}_{NAME}.md`
@@ -561,7 +511,6 @@ Do not rely on this file for task status. It changes daily.
 **UNENFORCEABLE** — nothing checks `CURRENT.md` was updated in step with the commits that landed alongside it; a stale `CURRENT.md` is caught only by the next session finding it wrong.
 
 **On compaction or new session:** read CURRENT.md first. It tells you where you are. Do not ask Stéan to re-explain — the answer is in the file.
-**UNENFORCEABLE** — same class as the INDEX/spec reading rules above: unobservable from the resulting diff.
 
 ---
 
@@ -569,12 +518,14 @@ Do not rely on this file for task status. It changes daily.
 
 `APPLICATION_FEE_CENTS` · `JOINT_APPLICATION_FEE_CENTS` · `INCOME_AFFORDABILITY_THRESHOLD`
 → `lib/constants.ts`. Open it; never trust a restatement.
-**UNENFORCEABLE** — mechanisable and not done: nothing scans for a raw `25000`/`47000`/`0.30`-shaped literal outside `lib/constants.ts` the way a `no-rerolled-*` rule guards its own SSOT.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: money) — sketch: scan for a raw `25000`/`47000`/`0.30`-shaped literal outside `lib/constants.ts`, the way a `no-rerolled-*` rule guards its own SSOT. Same mechanism family as the tier-literal check above — could ship as one combined script.
 
 Screening fee SSOT: `lib/constants.ts` (price) + `lib/screening/searchworxBundle.ts` (cost, margin —
 all DERIVED). Bundle cost is R202.80 incl VAT, so R250 carries R47.20 (19%). Never hardcode a fee
-literal — `lib/screening/__tests__/bundle-economics.test.ts` asserts no bundle is sold below cost.
-**UNENFORCEABLE** — PARTIAL. The test (`test:lib/screening/__tests__/bundle-economics.test.ts`, verified to exist and run under `vitest run` in `npm run check`) asserts price > cost WITHIN the SSOT module itself — a real, running invariant — but it does not scan call sites, so "never hardcode a fee literal" elsewhere in the codebase is unchecked; a call site that writes `25000` instead of importing `APPLICATION_FEE_CENTS` would not fail this test.
+
+- No bundle is sold below cost — asserted INSIDE the SSOT module, runs under `npm run check`. <!-- @enforced test:lib/screening/__tests__/bundle-economics.test.ts -->
+- Never hardcode a fee literal at a CALL SITE — import `APPLICATION_FEE_CENTS` instead.
+  **UNENFORCEABLE** — MECHANISABLE → **M-009**. The test above asserts price > cost WITHIN the SSOT module; it does not scan call sites. A call site writing `25000` rather than importing the constant would not fail it.
 
 **PRICING PRECEDENCE (Stéan ruling 2026-08-15).** When `brief/legal/SEARCHWORX_RATE_CARD.md` and
 `brief/build/INDEX.md`/ADDENDUMs disagree about a DECISION — a bundle cancelled, a fee changed, a
@@ -593,26 +544,26 @@ section that never mentioned joint applications).
 
 Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 (not ANON_KEY — match this exactly)
-**UNENFORCEABLE** — same coincidental-catch gap as the "Do not use ANON_KEY" rule under DO NOT DO below: `pleks/no-raw-process-env` blocks a raw read of ANY env var name outside `lib/env.ts`, so it happens to touch this one without knowing the string "ANON_KEY".
+**UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: other) — twin of the "Do not use ANON_KEY" rule under DO NOT DO, same mechanism, not re-annotated there. `pleks/no-raw-process-env` blocks a raw read of ANY env var name outside `lib/env.ts`, so it happens to touch this one without knowing the string "ANON_KEY" — it would equally flag the correct name, and would miss a wrong alias declared inside `lib/env.ts` itself. Full sketch → **M-035** in `brief/build/MECHANISABLE.md`.
 
 ---
 
 ## SECURITY RULES (unchanged — still apply to any new code)
 
 1. org_id on every new table — **one bounded exception: identity-scoped tables**
-   **UNENFORCEABLE** — nothing inspects migration SQL for the column. The org-scope ESLint rules
+   **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — twin of `.claude/rules/identity-scoped-tables.md:14`, same mechanism, not re-annotated there. Nothing inspects migration SQL for the column. The org-scope ESLint rules
    govern app-code USAGE (`require-org-scope-on-service-write`, `require-scope-on-delete`); a new
    table with no `org_id` at all is invisible to them and to Category 7. This is also the missing
-   twin for `.claude/rules/identity-scoped-tables.md` (E1b twin audit) — mechanisable, and one of
-   the three ratchet targets. (a row describing a
+   twin for `.claude/rules/identity-scoped-tables.md` (E1b twin audit) — one of
+   the three ratchet targets. Sketch: parse each migration's new `§N` section for `CREATE TABLE`, and assert an `org_id` column is present unless the table name is in the identity-scoped allowlist (`.claude/rules/identity-scoped-tables.md`'s "Current members" table). (a row describing a
    HUMAN, read before `/switch-role` selects an org: `user_passkeys`, `passkey_challenges`,
    `passkey_aal_grants`). Membership test + cascade companion rule in
    `.claude/rules/identity-scoped-tables.md`. Do not invoke the exception without applying the test.
 2. RLS on every new table
 3. audit_log on every state change
-  **UNENFORCEABLE** — enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists.
+  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists. Full sketch → **M-004** in `brief/build/MECHANISABLE.md`.
 4. consent_log for any new POPIA-sensitive operation
-  **UNENFORCEABLE** — no rule or script references `consent_log` as a write requirement. Same shape as the audit rule above and equally mechanisable, scoped to a consent-required table set.
+  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — no rule or script references `consent_log` as a write requirement. Full sketch → **M-015** in `brief/build/MECHANISABLE.md`.
 5. Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. <!-- @enforced eslint:pleks/require-id-number-encryption --> The SA **`id_number`** is
    encrypted at rest everywhere (AES-256-GCM `iv:ct:tag`, random IV) via `idNumberColumns(raw)` /
    `encryptIdNumber(raw)` — the write helper bundles the ciphertext + a RAW-derived `id_number_hash` (the
@@ -626,10 +577,10 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
    low-cardinality (~3 values → encryption is theatre). This carve-out is a deliberate deviation from "all PII" —
    do not "fix" it by encrypting DOB/gender.
 6. Mask before display — never show raw decrypted ID/account in UI (a lease *document* legitimately carries the
-  **UNENFORCEABLE** — no check inspects JSX for a raw decrypted identifier reaching render. Mechanisable, shaped like `no-id-number-hash-in-app`, with the lease-document path allowlisted.
+  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — no check inspects JSX for a raw decrypted identifier reaching render. Full sketch → **M-016** in `brief/build/MECHANISABLE.md`.
    full ID; a UI surface masks via `maskIdNumber`)
 7. No PII in console.log, no PII in audit_log values
-  **UNENFORCEABLE** — the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check.
+  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check. Full sketch → **M-017** in `brief/build/MECHANISABLE.md`.
 8. **`id_number_hash` is dedup + analytics ONLY — service-role only, never cross-org in any org-facing query <!-- @enforced eslint:pleks/no-id-number-hash-in-app -->
    path, and never under `app/`.** `hashIdNumber` salts with a single GLOBAL env var, not a per-org one, so the
    same human hashes identically in every organisation on the platform — it is already a cross-org identity key
@@ -646,7 +597,11 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 
 ## PATH-SCOPED RULES — .claude/rules/
 
-Domain-specific instructions were moved out of this file into `.claude/rules/*.md` (2026-07-10, CD — CLAUDE.md was 60k chars and always-loaded). Each rule file carries `paths:` frontmatter and loads automatically when you read or edit a matching file. <!-- @enforced check:check-rules-tracked --> They carry the SAME authority as this file — lazy loading is a performance measure, not a demotion. Never duplicate their content back here; add new domain guidance as a new rule file, not a CLAUDE.md section.
+Domain-specific instructions were moved out of this file into `.claude/rules/*.md` (2026-07-10, CD — CLAUDE.md was 60k chars and always-loaded). Each rule file carries `paths:` frontmatter <!-- @enforced check:check-rules-tracked --> and loads when you **READ** a matching file — **read-triggered ONLY, never on write** (E1b, measured 2026-08-18: Bash-editing a covered file summoned nothing; reading the same file summoned its rule instantly, and a `Write` creation summoned nothing either).
+
+⚠ **This sentence used to say "read or edit". That was false**, and the experiment record proving it false was sitting invisibly in this same file — visible prose contradicting hidden evidence, where only the visible half instructs.
+
+**The consequence is the architecture, not a footnote:** a session that edits without reading first receives NONE of these files. Since the `Edit` tool refuses to run without a prior `Read`, the uncovered paths are exactly Bash-mediated edits and `Write` creations — which is to say, coverage is proportional to the care already being taken. **Scoped files are guidance; they are never the sole holder of an incident-class rule.** Anything that must hold regardless needs a rung-1/2 twin (a hook or a check). They carry the SAME authority as this file *when loaded* — lazy loading is a performance measure, not a demotion, but "when loaded" is doing real work in that sentence. Never duplicate their content back here; add new domain guidance as a new rule file.
 **UNENFORCEABLE** — "never duplicate content" is a semantic overlap judgement between two prose files; `check-rules-tracked.mjs` verifies each rules file is git-tracked and carries `paths:` frontmatter (tagged above) but does not compare content against CLAUDE.md.
 
 Current set: migrations · schema-gotchas · supabase-queries · data-access · routing-auth · crons · ai-routing · comms-urls · billing-gates · inspections · finance-trust · fitscore · marketing-voice · legal-docs-jsx · domain-architecture · components.
@@ -681,27 +636,28 @@ Run INDEPENDENT work in parallel (multiple agents in one turn, `run_in_backgroun
 ## DO NOT DO
 
 - Do not deploy without running `npm run security:quick` first
-  **UNENFORCEABLE** — same gap as "Zero critical findings before any deployment" above: no gate blocks a Vercel deploy on this script having run or passed.
+  **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of "Zero critical findings before any deployment" above, same mechanism, not re-annotated there: no gate blocks a Vercel deploy on this script having run or passed.
 - Do not commit without running `npm run check` first
-  **UNENFORCEABLE** — there is NO pre-commit hook in this repo (no .husky, no core.hooksPath, empty .git/hooks). CI catches it on the PR, after the commit exists. `--no-verify` has nothing to bypass.
+  **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — twin of the identical rule under RUN CHECKS BEFORE EVERY COMMIT above, same mechanism, not re-annotated there. There is NO pre-commit hook in this repo (no .husky, no core.hooksPath, empty .git/hooks). CI catches it on the PR, after the commit exists. `--no-verify` has nothing to bypass.
 - Do not create new migration files — amend the existing domain file (see MIGRATIONS section)
-  **UNENFORCEABLE** — nothing counts migration files. `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; a thirteenth file would pass every gate.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — nothing counts migration files. `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; a thirteenth file would pass every gate. Full sketch → **M-006** in `brief/build/MECHANISABLE.md`.
 - Do not use raw `CREATE POLICY` without `DROP POLICY IF EXISTS` first — it aborts the migration
-  **UNENFORCEABLE** — zero scripts scan migration SQL for the pairing. Trivially mechanisable — a regex over `supabase/migrations/*.sql` — and worth doing, since the failure mode is a migration that aborts partway and silently leaves everything below it unapplied.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — zero scripts scan migration SQL for the pairing. Trivially mechanisable — a regex over `supabase/migrations/*.sql` asserting every `CREATE POLICY "name"` is preceded by a matching `DROP POLICY IF EXISTS "name"` — and worth doing, since the failure mode is a migration that aborts partway and silently leaves everything below it unapplied.
 - Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead
-  **UNENFORCEABLE** — `check-schema-drift.mjs` can detect the RESULTING drift reactively (and only when someone runs it, or via `check:check-drift-if-sql-changed` in `check:full` — itself not CI-wired, see Git rhythm above), but nothing prevents the ad-hoc execution itself: the Supabase MCP's SQL execution is not gated by `hook:bash-gate`, which only inspects the Bash tool.
+  **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: data-boundary) — `check-schema-drift.mjs` can detect the RESULTING drift reactively (and only when someone runs it, or via `check:check-drift-if-sql-changed` in `check:full` — itself not CI-wired, see Git rhythm above), but nothing prevents the ad-hoc execution itself: the Supabase MCP's SQL execution is not gated by `hook:bash-gate`, which only inspects the Bash tool. Full sketch → **M-001** in `brief/build/MECHANISABLE.md`.
 - Do not change existing RLS policies without flagging it
   **UNENFORCEABLE** — "flagging" is a chat act, not a repo state. The policy CHANGE is visible in the diff; the flagging is not checkable.
 - Do not add new npm packages without checking if an existing
   package already covers the use case
   **UNENFORCEABLE** — requires judgement about functional overlap between packages. Not statically decidable.
 - Do not use ANON_KEY — the correct env var is
-  **UNENFORCEABLE** — `pleks/no-raw-process-env` catches a raw read of ANY env var outside
+  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: other) — twin of the "Supabase key name" rule under KEY CONSTANTS above, same mechanism, not re-annotated there. `pleks/no-raw-process-env` catches a raw read of ANY env var outside
   `lib/env.ts`, which incidentally catches this one. It has no knowledge of the string "ANON_KEY"
   and would equally flag a raw read of the CORRECT name; if `lib/env.ts` itself aliased it, nothing
   would notice. A coincidental catch of a general pattern, not enforcement of this rule.
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
-- Do not build debit order or DebiCheck mandate features — Pleks reads bank statement matches only. Agencies hold mandates bank-side between themselves and their bank. Pleks is not in the payment flow.
-  **UNENFORCEABLE** — PARTIAL. `eslint.config.mjs`'s `no-restricted-imports` block forbids importing generic payment-initiation SDKs (`@stitch-money/*`, `ozow-sdk`, `snapscan*`, `@absa/banking-api`, `@standard-bank/payment-api`) repo-wide for the related D-TRUST-01 invariant, but names no DebiCheck/debit-order-specific package, and — being a built-in `no-restricted-imports` config rather than a `pleks/*` rule in `eslint-rules/`, like the `any`/`jsx-key` rules above — isn't expressible under the current `eslint:` (pleks-only) marker grammar. A hand-rolled debit-order flow using ordinary Supabase writes (no SDK import) would not be caught at all.
+- Do not import a payment-initiation SDK — Pleks reads bank statement matches only. Agencies hold mandates bank-side between themselves and their bank. Pleks is not in the payment flow. <!-- @enforced eslint:no-restricted-imports -->
+- Do not hand-roll a debit-order / DebiCheck mandate flow out of ordinary Supabase writes.
+  **UNENFORCEABLE** — MECHANISABLE → **M-010** (related: **M-012**, D-TRUST-01). The rule above forbids the named payment SDKs (`@stitch-money/*`, `ozow-sdk`, `snapscan*`, `@absa/banking-api`, `@standard-bank/payment-api`) repo-wide, but names no DebiCheck-specific package and cannot see a flow built from plain writes with no SDK import at all.
 - Do not split an extension migration across commits — when changing a file extension (.ts → .tsx, .js → .ts, etc.), delete the predecessor in the same commit that introduces the successor.
-  **UNENFORCEABLE** — MECHANISABLE AND NOT DONE — a check could fail on a `.tsx` whose stem matches a sibling `.ts`. The stated failure (TypeScript resolves to the stale `.ts`, masking the new file) is exactly the silent class that earns a check. A surviving .ts shadow alongside a new .tsx file causes TypeScript to resolve to the old interface (.ts takes priority over .tsx in module resolution), silently masking the extension and breaking builds downstream.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — a check could fail on a `.tsx` whose stem matches a sibling `.ts`. The stated failure (TypeScript resolves to the stale `.ts`, masking the new file) is exactly the silent class that earns a check. A surviving .ts shadow alongside a new .tsx file causes TypeScript to resolve to the old interface (.ts takes priority over .tsx in module resolution), silently masking the extension and breaking builds downstream. Full sketch → **M-041** in `brief/build/MECHANISABLE.md`.

@@ -14,7 +14,7 @@ These are real constraints that cause non-obvious bugs. Check before writing mig
 - `auth.users` has no unique constraint on email — `ON CONFLICT (email)` will fail. Use SELECT-first pattern to check existence before INSERT
 - `maintenance_delay_events.delay_type` CHECK does not include `parts_unavailable` — do not add it without a migration first
 
-**UNENFORCEABLE** — these are orientation ("known gotchas to check before writing migrations or queries") rather than a single checkable property; the closest mechanisable slice is the second bullet — a check could flag an `.upsert`/`ON CONFLICT` call targeting `auth.users` by `email` — but none exists today.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — these are orientation ("known gotchas to check before writing migrations or queries") rather than a single checkable property; the closest mechanisable slice is the second bullet — sketch: flag an `.upsert`/`ON CONFLICT` call targeting `auth.users` by `email` — but none exists today.
 
 ### Applicant ≡ Tenant (no separate applicant entity)
 
@@ -35,7 +35,7 @@ An applicant is a tenant in a pre-lease lifecycle state. There is **no `applican
 - A separate `applicants` table — does not exist. Applicants and tenants are one table.
 - Treating co-applicants as a row in `tenants` directly — co-applicants live in `application_co_applicants` (eventually linked to `contacts.id`). They become tenants only on lease activation.
 
-**UNENFORCEABLE** — PARTIAL, mechanically. The first two bullets name COLUMNS that don't exist, so a query referencing them fails at the database (PostgREST 42703) and — if the call site's `{ data, error }` is checked per `pleks/require-supabase-error-check` (tagged in CLAUDE.md's DB ACCESS section) — surfaces as a real, visible error rather than a silent `null`. That is real but REACTIVE (it fails at query time, not at write time), and `schema-contract-scan.mjs` (manifest-driven, in `npm run check`) could plausibly catch a `.select`/`.eq` referencing these non-existent columns STATICALLY — not independently verified in this pass. The third and fourth bullets (no separate `applicants` table; co-applicants never inserted directly into `tenants`) describe an absence, which nothing can positively check for.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — PARTIAL, mechanically. The first two bullets name COLUMNS that don't exist, so a query referencing them fails at the database (PostgREST 42703) and — if the call site's `{ data, error }` is checked per `pleks/require-supabase-error-check` (tagged in CLAUDE.md's DB ACCESS section) — surfaces as a real, visible error rather than a silent `null`. That is real but REACTIVE (it fails at query time, not at write time). The third and fourth bullets (no separate `applicants` table; co-applicants never inserted directly into `tenants`) describe an absence, which nothing can positively check for. Sketch: verify (or extend) `schema-contract-scan.mjs` (manifest-driven, already in `npm run check`) to statically flag a `.select`/`.eq` referencing `applications.applicant_id` or `applications.applicant_user_id` — not independently verified in this pass whether it already does.
 
 This convention is documented in the schema itself at `005_operations.sql:2379`: *"applicant = tenant without a lease; link is `applications.tenant_id` → `tenants.auth_user_id`."*
 

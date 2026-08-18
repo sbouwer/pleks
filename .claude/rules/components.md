@@ -17,7 +17,7 @@ that doc says *what style it must carry*. Most detail pages + the old `/apply` f
 Reusing whatever component is nearby inherits its style — that's how the app drifted into two tab
 systems, two header styles, and mixed radii. Before building UI, pick from this table. Reach for the
 **Use** column; never the **Not** column without a reason.
-**UNENFORCEABLE** — PARTIAL: one row of the table (`DetailTabs` vs shadcn `ui/tabs` under `/settings/**`) is enforced (see below); the other rows (`ResourcePageHeader`, `SettingsPageHeader`, form-field grammar, `ActionButton`, `DetailCard`, corner radius) have no equivalent check — any of them can be skipped for an ad-hoc alternative with nothing failing.
+**UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: other) — PARTIAL: one row of the table (`DetailTabs` vs shadcn `ui/tabs` under `/settings/**`) is enforced (see below); the other rows (`ResourcePageHeader`, `SettingsPageHeader`, form-field grammar, `ActionButton`, `DetailCard`, corner radius) have no equivalent check — any of them can be skipped for an ad-hoc alternative with nothing failing. Sketch (first slice, not full coverage): a `no-restricted-syntax`-style rule flagging `rounded-md`/`rounded-lg`/`rounded-full` (outside pill contexts) and a `no-restricted-imports` restriction on shadcn `Button` outside `components/ui/actions` — the two rows with a crisp, cheap syntactic signature. The free-text layout rows (ad-hoc `<h1>` headers, form-field grammar) need a harder JSX-shape heuristic and are not sketched here.
 
 | Building… | Use | Not |
 |---|---|---|
@@ -33,7 +33,7 @@ systems, two header styles, and mixed radii. Before building UI, pick from this 
 **Tabs:** URL-sync via `?tab=` so they deep-link; keep the tab set in a plain `tabs.ts` — **not** the
 `"use client"` strip (a server page importing data from a client module gets a client *reference*, not
 the value → `X.some is not a function`).
-**UNENFORCEABLE** — mechanisable and not done: a check could flag a server page importing an array/object value (not a component) from a file whose nearest ancestor module carries `"use client"`.
+**UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: other) — sketch: a check flagging a server page importing an array/object value (not a component) from a file whose nearest ancestor module carries `"use client"`.
 
 **Enforced:** `pleks/settings-use-detail-tabs` fails the build if a `/settings/**` file imports shadcn
 `ui/tabs`. The rest is code-review against this table. <!-- @enforced eslint:pleks/settings-use-detail-tabs -->

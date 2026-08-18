@@ -12,7 +12,6 @@ features amend an existing file — they do NOT create new migration files.**
 
 This is the single most important rule for schema work. Read this whole
 section before touching `supabase/migrations/`.
-**UNENFORCEABLE** — "read this whole section first" leaves no artefact.
 
 ### File structure
 
@@ -51,7 +50,7 @@ domain-scoped files above and have been removed.
 **Do NOT amend** `007_enhancements.sql` or `008_enhancements2.sql`. These are
 historical cross-cutting files preserved for replay fidelity. New work goes into
 the domain-scoped files above.
-**UNENFORCEABLE** — mechanisable and not done: `check-migration-forward-refs.mjs` reads every migration file's content but has no rule against 007/008 specifically gaining a new `§N` section; a check could diff each file's section count against a recorded baseline and fail if 007/008 grows.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — `check-migration-forward-refs.mjs` reads every migration file's content but has no rule against 007/008 specifically gaining a new `§N` section. Sketch: diff each file's section (`§N`) count against a recorded baseline and fail if 007/008 grows.
 
 When in doubt, pick the file whose purpose most closely matches what you're
 adding. It is better to stretch the definition of an existing domain than to
@@ -74,12 +73,12 @@ section at the bottom, labelled with the BUILD number:
 After adding a section, re-run the migration against the live DB and verify
 with the drift script (below). Fresh DB replays will pick up your new
 section automatically when it replays the whole file.
-**UNENFORCEABLE** — see the drift-detection workflow note below: `check-schema-drift.mjs` would catch the RESULTING mismatch if run, but nothing forces "re-run and verify" to have actually happened before a commit.
+**UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: schema) — twin of the drift-detection note below and of `CLAUDE.md`'s pre-push checklist step 1, same mechanism, not re-annotated in full here. `check-schema-drift.mjs` would catch the RESULTING mismatch if run, but nothing forces "re-run and verify" to have actually happened before a commit. Sketch: a local pre-commit/pre-push hook running `node scripts/check-schema-drift.mjs` when a migration file changed, blocking on drift.
 
 ### Idempotency is mandatory
 
 Every migration must be safely re-runnable. Use these patterns:
-**UNENFORCEABLE** — mechanisable and not done: a check could scan a migration's new `§N` section for `CREATE TABLE` without `IF NOT EXISTS`, `ADD COLUMN` without `IF NOT EXISTS`, or `CREATE INDEX` without `IF NOT EXISTS`, each a concrete syntactic pattern.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — sketch: scan a migration's new `§N` section for `CREATE TABLE` without `IF NOT EXISTS`, `ADD COLUMN` without `IF NOT EXISTS`, or `CREATE INDEX` without `IF NOT EXISTS`, each a concrete syntactic pattern.
 
 ```sql
 -- Tables
@@ -148,7 +147,7 @@ Exit clean: `✓ No drift — migrations match the live database.`
 
 If drift is reported, the report lists every difference with copy-paste
 SQL to fix it. Always drive drift back to zero before committing.
-**UNENFORCEABLE** — `check-schema-drift.mjs` genuinely detects drift when run, and its conditional wrapper (`check-drift-if-sql-changed.mjs`) is part of `check:full` — but `check:full` is not CI-wired (see CLAUDE.md Git rhythm), so nothing forces "drive drift to zero" to have happened before a commit lands.
+**UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: schema) — twin of the "re-run and verify" note above and of `CLAUDE.md`'s pre-push checklist step 1, same mechanism, not re-annotated in full here. `check-schema-drift.mjs` genuinely detects drift when run, and its conditional wrapper (`check-drift-if-sql-changed.mjs`) is part of `check:full` — but `check:full` is not CI-wired (see CLAUDE.md Git rhythm; CI's `db-tests` job now runs `test:db`/`security:db` post-push, but not this drift check), so nothing forces "drive drift to zero" to have happened before a commit lands. Sketch: same pre-commit/pre-push hook as above, running `check-schema-drift.mjs` when a migration file changed.
 
 `schema-drift-report.md` is generated in the project root — it's in
 `.gitignore` (don't commit).

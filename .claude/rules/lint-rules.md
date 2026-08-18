@@ -18,10 +18,9 @@ Baseline discipline:
 - Baselines only SHRINK. A new violation outside the baseline fails immediately; removing entries as they're fixed is part of the fix's acceptance.
 - Never widen a baseline to make CI green — that's deleting the finding, not resolving it.
 
-**UNENFORCEABLE** — PARTIAL. "Baselines only shrink" is exactly what `check-claude-md.mjs` itself enforces for the `**UNENFORCEABLE**` count (`N may only fall`) and what `check-file-headers.mjs`/`check-pii-classification.mts` enforce for their own baselines (a `fixed`/regressed baseline entry fails the build) — but that shrink-only property is per-script, not a general property every `*.baseline.json` in the repo is verified to hold; a NEW baseline file could be introduced that widens on every run and nothing would notice. "A baseline entry carries its classification" is unchecked content quality (an entry could be a bare filename with no reason).
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — PARTIAL. "Baselines only shrink" is exactly what `check-claude-md.mjs` itself enforces for the UNENFORCEABLE-marker count (N may only fall) and what `check-file-headers.mjs`/`check-pii-classification.mts` enforce for their own baselines (a `fixed`/regressed baseline entry fails the build) — but that shrink-only property is per-script, not a general property every `*.baseline.json` in the repo is verified to hold; a NEW baseline file could be introduced that widens on every run and nothing would notice. "A baseline entry carries its classification" is unchecked content quality (an entry could be a bare filename with no reason). Sketch: one generic script enumerates every `*.baseline.json` in the repo and, in CI, compares each file's entry count against the base-branch version, failing if any grows — generalising the per-script pattern that already exists three times over.
 
 When adding a new rule: ship it WITH its baseline in the same commit, state the count in the commit message, and note the spellings the pattern covers.
-**UNENFORCEABLE** — a commit-hygiene rule (what the commit message says); not derivable from the diff alone.
 
 ---
 
@@ -48,7 +47,7 @@ it("actually enumerated the surface", () => {
 ```
 
 Prefer a realistic floor over `> 0`. `> 0` still passes when a glob decays from 400 files to 1.
-**UNENFORCEABLE** — a property of how a NEW enumeration test is written; nothing scans `**/__tests__/**` for an `it(...)` whose body iterates a `readdirSync`/`git ls-files` result and asserts no non-emptiness floor on the list length.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — a property of how a NEW enumeration test is written; nothing scans `**/__tests__/**` for an `it(...)` whose body iterates a `readdirSync`/`git ls-files` result and asserts no non-emptiness floor on the list length. Sketch: an AST check over `**/__tests__/**` flagging a test that reads a directory/glob result but never calls `.toBeGreaterThan(...)` (or similar) on that result's `.length` within the same test body — the same "meta-check the checker" pattern `check-claude-md.mjs --selftest` already applies to itself.
 
 Live instances: `lib/portal/__tests__/no-session-credential-leak.test.ts` and
 `no-client-portal-token.test.ts`.
@@ -69,7 +68,7 @@ A string is a string.**
 So the test derives its member list from disk (`readdirSync`, `git ls-files`) rather than a
 hand-written array. A fourth sibling is then caught by the enumeration, not by a reviewer
 remembering the rule.
-**UNENFORCEABLE** — same class as above: whether a NEW parity test derives its member list from disk vs. a hand-written array is a property of the test's own source, unchecked by anything outside code review.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — same class as above: whether a NEW parity test derives its member list from disk vs. a hand-written array is a property of the test's own source, unchecked by anything outside code review. Sketch: an AST check over parity-test files (by naming convention) flagging a hand-written array literal used as the "members" list instead of a `readdirSync`/`git ls-files` call.
 
 ### Scope precisely, or the allowlist eats the test
 

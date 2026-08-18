@@ -11,7 +11,7 @@ paths:
 exception class, and — more importantly — the test that keeps it from becoming a general escape
 hatch. **A table is in this class only if it passes the membership test below. Not "it felt
 user-ish."**
-**UNENFORCEABLE** — same gap as CLAUDE.md SECURITY RULE 1 itself: nothing inspects migration SQL for a new table at all, so nothing can distinguish "correctly exempted by the membership test" from "the org_id rule was simply skipped." This file's whole purpose — a written test to stop the exception becoming a general escape hatch — has no code-side check that the test was actually applied.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — twin of `CLAUDE.md`'s SECURITY RULE 1, same mechanism, not re-annotated there. Nothing inspects migration SQL for a new table at all, so nothing can distinguish "correctly exempted by the membership test" from "the org_id rule was simply skipped." This file's whole purpose — a written test to stop the exception becoming a general escape hatch — has no code-side check that the test was actually applied. Sketch: parse each migration's new `§N` section for `CREATE TABLE`, and assert an `org_id` column is present unless the table name is in this file's "Current members" allowlist.
 
 Ratified 2026-08-15 (CD) off the ADDENDUM_62F grounding pass, where `user_passkeys` was nearly
 "corrected" by adding `org_id` to it.
@@ -47,7 +47,7 @@ Planned members from ADDENDUM_62F: `device_enrolment_tokens` and `account_recove
 recover **a person's access**, both consulted before org selection. Confirm against the test when
 their DDL is written; do not assume.
 
-**UNENFORCEABLE** — mechanisable and not done: no code anywhere enumerates this three-table allowlist to check against (the ESLint rules' own `SELF_SCOPED_TABLES` set is a DIFFERENT, unrelated exemption for `organisations`/`user_profiles`); a fourth table added to this list by prose alone, with no matching code-side allowlist, would not be caught adding `org_id` back OR skipping it incorrectly.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — no code anywhere enumerates this three-table allowlist to check against (the ESLint rules' own `SELF_SCOPED_TABLES` set is a DIFFERENT, unrelated exemption for `organisations`/`user_profiles`); a fourth table added to this list by prose alone, with no matching code-side allowlist, would not be caught adding `org_id` back OR skipping it incorrectly. Sketch: a code-side constant (e.g. `IDENTITY_SCOPED_TABLES` in `lib/`) mirroring this markdown table, read by the migration-scan sketched above, kept in sync by a doc/code parity test.
 
 ### Cascade policy — the companion rule
 
@@ -66,7 +66,7 @@ not generalise to everything hanging off `auth.users`.
 Getting this backwards in either direction is a real defect: cascading evidence silently destroys
 the audit trail on first erasure request; SET NULL-ing credentials leaves unusable rows that make
 "does this user have a factor?" answer wrongly.
-**UNENFORCEABLE** — mechanisable and not done: a check could grep migrations for `REFERENCES auth.users` and assert `ON DELETE CASCADE` only on the named credential tables and `ON DELETE SET NULL` everywhere else — but nothing does; classifying a NEW table as "credential" or "evidence" in the first place still requires the semantic judgement this section describes.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — sketch: grep migrations for `REFERENCES auth.users` and assert `ON DELETE CASCADE` only on the named credential tables and `ON DELETE SET NULL` everywhere else — but nothing does; classifying a NEW table as "credential" or "evidence" in the first place still requires the semantic judgement this section describes, so the check would need the same allowlist as the two entries above to know which tables are "named credential tables".
 
 ### Why this is written down at all
 
