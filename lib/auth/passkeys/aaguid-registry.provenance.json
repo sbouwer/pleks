@@ -1,0 +1,11 @@
+{
+  "source_repo": "https://github.com/passkeydeveloper/passkey-authenticator-aaguids",
+  "source_url": "https://raw.githubusercontent.com/passkeydeveloper/passkey-authenticator-aaguids/main/aaguid.json",
+  "fetched_at": "2026-08-18",
+  "upstream_bytes": 328455,
+  "upstream_sha256": "5768bdcfbef8dc3bd99e5f0da815bdf6ca63d625244c686db51e5f04490dd527",
+  "vendored_bytes": 3224,
+  "entries": 54,
+  "generated_by": "scripts/vendor-aaguid-registry.mjs",
+  "note": "Stripped to {aaguid: name}; upstream icon_light/icon_dark discarded (~99% of the payload). Do not hand-edit either file — re-run the script."
+}
