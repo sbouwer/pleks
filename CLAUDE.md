@@ -124,7 +124,7 @@ Common errors to watch for:
 
 ## ⚠ MANDATORY: DB ACCESS AND AGENT WRITE GATE
 
-Never use `createClient()` for database queries in server actions or server components.
+Never use `createClient()` for database queries in server actions or server components. <!-- @enforced eslint:pleks/no-cookie-client-from -->
 The cookie-based client does NOT propagate auth to Postgres RLS — `auth.uid()` returns null,
 causing silent empty results.
 
@@ -167,7 +167,7 @@ export default async function MyPage() {
 - Tenant/landlord/supplier portal actions: use `getTenantSession()` — not subject to agent lockdown
 - Every query MUST include `.eq("org_id", orgId)` — the service client bypasses RLS
 - The only valid use of `createClient()` is for `auth.getUser()` — never for data queries. **Enforced by `pleks/no-cookie-client-from`** (ESLint): `.from()` on the cookie client hard-fails CI. ~75 pre-existing sites are grandfathered in `eslint-rules/no-cookie-client-from.baseline.json` and burning down via the caller-supplied-ID census — remove a file from that JSON as you fix it (the baseline only shrinks); a NEW violation anywhere else fails immediately.
-- Always check `{ data, error }` from Supabase queries — never use `(data ?? [])` without logging `error` first
+- Always check `{ data, error }` from Supabase queries — never use `(data ?? [])` without logging `error` first <!-- @enforced eslint:pleks/require-supabase-error-check -->
 - `any` types leaking through (fix them, don't suppress)
 - Missing `key` props in .map() renders
 
@@ -178,7 +178,7 @@ export default async function MyPage() {
 Every commit to `main` drives semantic-release. Release notes and version bumps
 are generated from commit messages. Format matters.
 
-**PR titles** (which become the squash-merged commit on `main`) MUST follow:
+**PR titles** (which become the squash-merged commit on `main`) MUST follow: <!-- @enforced ci:pr-title (required by main-protection ruleset) -->
 
   <type>(<scope>)?: <subject>
 
@@ -548,7 +548,9 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
    `.claude/rules/identity-scoped-tables.md`. Do not invoke the exception without applying the test.
 2. RLS on every new table
 3. audit_log on every state change
+  **UNENFORCEABLE** — enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists.
 4. consent_log for any new POPIA-sensitive operation
+  **UNENFORCEABLE** — no rule or script references `consent_log` as a write requirement. Same shape as the audit rule above and equally mechanisable, scoped to a consent-required table set.
 5. Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. The SA **`id_number`** is
    encrypted at rest everywhere (AES-256-GCM `iv:ct:tag`, random IV) via `idNumberColumns(raw)` /
    `encryptIdNumber(raw)` — the write helper bundles the ciphertext + a RAW-derived `id_number_hash` (the
@@ -562,8 +564,10 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
    low-cardinality (~3 values → encryption is theatre). This carve-out is a deliberate deviation from "all PII" —
    do not "fix" it by encrypting DOB/gender.
 6. Mask before display — never show raw decrypted ID/account in UI (a lease *document* legitimately carries the
+  **UNENFORCEABLE** — no check inspects JSX for a raw decrypted identifier reaching render. Mechanisable, shaped like `no-id-number-hash-in-app`, with the lease-document path allowlisted.
    full ID; a UI surface masks via `maskIdNumber`)
 7. No PII in console.log, no PII in audit_log values
+  **UNENFORCEABLE** — the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check.
 8. **`id_number_hash` is dedup + analytics ONLY — service-role only, never cross-org in any org-facing query
    path, and never under `app/`.** `hashIdNumber` salts with a single GLOBAL env var, not a per-org one, so the
    same human hashes identically in every organisation on the platform — it is already a cross-org identity key
@@ -610,13 +614,19 @@ Run INDEPENDENT work in parallel (multiple agents in one turn, `run_in_backgroun
 
 - Do not deploy without running `npm run security:quick` first
 - Do not commit without running `npm run check` first
+  **UNENFORCEABLE** — there is NO pre-commit hook in this repo (no .husky, no core.hooksPath, empty .git/hooks). CI catches it on the PR, after the commit exists. `--no-verify` has nothing to bypass.
 - Do not create new migration files — amend the existing domain file (see MIGRATIONS section)
+  **UNENFORCEABLE** — nothing counts migration files. `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; a thirteenth file would pass every gate.
 - Do not use raw `CREATE POLICY` without `DROP POLICY IF EXISTS` first — it aborts the migration
+  **UNENFORCEABLE** — zero scripts scan migration SQL for the pairing. Trivially mechanisable — a regex over `supabase/migrations/*.sql` — and worth doing, since the failure mode is a migration that aborts partway and silently leaves everything below it unapplied.
 - Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead
 - Do not change existing RLS policies without flagging it
+  **UNENFORCEABLE** — "flagging" is a chat act, not a repo state. The policy CHANGE is visible in the diff; the flagging is not checkable.
 - Do not add new npm packages without checking if an existing
   package already covers the use case
+  **UNENFORCEABLE** — requires judgement about functional overlap between packages. Not statically decidable.
 - Do not use ANON_KEY — the correct env var is
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 - Do not build debit order or DebiCheck mandate features — Pleks reads bank statement matches only. Agencies hold mandates bank-side between themselves and their bank. Pleks is not in the payment flow.
-- Do not split an extension migration across commits — when changing a file extension (.ts → .tsx, .js → .ts, etc.), delete the predecessor in the same commit that introduces the successor. A surviving .ts shadow alongside a new .tsx file causes TypeScript to resolve to the old interface (.ts takes priority over .tsx in module resolution), silently masking the extension and breaking builds downstream.
+- Do not split an extension migration across commits — when changing a file extension (.ts → .tsx, .js → .ts, etc.), delete the predecessor in the same commit that introduces the successor.
+  **UNENFORCEABLE** — MECHANISABLE AND NOT DONE — a check could fail on a `.tsx` whose stem matches a sibling `.ts`. The stated failure (TypeScript resolves to the stale `.ts`, masking the new file) is exactly the silent class that earns a check. A surviving .ts shadow alongside a new .tsx file causes TypeScript to resolve to the old interface (.ts takes priority over .tsx in module resolution), silently masking the extension and breaking builds downstream.
