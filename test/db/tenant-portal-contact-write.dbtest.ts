@@ -190,7 +190,10 @@ describe("updatePortalContactDetails — B. a foreign org's row id is rejected (
     // the UPDATE match zero rows — and PostgREST reports "no rows affected" as { error: null }, not a
     // failure. So the boundary held while the caller was still told "saved". The row-unchanged
     // assertion above proves the IDOR is closed; THIS one proves the caller is no longer lied to.
+    // The message must say STALE, not "could not save": resubmitting the same stale id fails
+    // identically and forever, so telling the tenant to retry teaches the one action that cannot work.
     expect(result.error, "a write that matched nothing must not report success").toBeTruthy()
+    expect(result.error, "a zero-row match is a stale view, not a write failure").toMatch(/out of date/i)
     expect(result).not.toEqual({ success: true })
   })
 
@@ -213,7 +216,10 @@ describe("updatePortalContactDetails — B. a foreign org's row id is rejected (
 
     // Same as the phone case: zero rows matched is not a Supabase error, so before defect 4 was
     // closed the action reported success despite writing nothing.
+    // The message must say STALE, not "could not save": resubmitting the same stale id fails
+    // identically and forever, so telling the tenant to retry teaches the one action that cannot work.
     expect(result.error, "a write that matched nothing must not report success").toBeTruthy()
+    expect(result.error, "a zero-row match is a stale view, not a write failure").toMatch(/out of date/i)
     expect(result).not.toEqual({ success: true })
   })
 })
@@ -235,6 +241,11 @@ describe("updatePortalContactDetails — C. a real write failure surfaces (defec
     })
 
     expect(result, "a failed insert must not be reported as a success").toHaveProperty("error")
+    // A GENUINE write failure IS retryable, so it must NOT be reported as a stale view. Asserting the
+    // negative here is what keeps the two branches distinguishable — without it both could collapse
+    // to one generic string and every test would still pass.
+    expect((result as { error?: string }).error, "a real write failure is not a stale view")
+      .not.toMatch(/out of date/i)
     const rows = await phonesForContact(contactId)
     expect(rows, "the failed insert must not have landed a second row").toHaveLength(1)
     expect(rows[0].number).toBe("+27821110099")
@@ -251,6 +262,11 @@ describe("updatePortalContactDetails — C. a real write failure surfaces (defec
     })
 
     expect(result, "a failed insert must not be reported as a success").toHaveProperty("error")
+    // A GENUINE write failure IS retryable, so it must NOT be reported as a stale view. Asserting the
+    // negative here is what keeps the two branches distinguishable — without it both could collapse
+    // to one generic string and every test would still pass.
+    expect((result as { error?: string }).error, "a real write failure is not a stale view")
+      .not.toMatch(/out of date/i)
     const rows = await emailsForContact(contactId)
     expect(rows, "the failed insert must not have landed a second row").toHaveLength(1)
     expect(rows[0].email).toBe("existing@example.test")

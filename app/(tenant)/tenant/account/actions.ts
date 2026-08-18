@@ -22,6 +22,10 @@ interface UpdateContactPayload {
   primaryEmailId: string | null
 }
 
+/** Shown when a scoped write matches no row: the caller's view is out of date, so retrying the same
+ *  submission cannot succeed. Distinct from a write failure, which IS worth retrying. */
+const STALE_VIEW_MESSAGE = "This page is out of date — refresh and try again."
+
 export async function updatePortalContactDetails(payload: UpdateContactPayload) {
   const session = await getTenantSession()
   if (!session) return { error: "Not authenticated" }
@@ -83,10 +87,22 @@ export async function updatePortalContactDetails(payload: UpdateContactPayload) 
     //     NOTHING and the caller was still told "saved". The boundary held; the report lied. Same
     //     class as (3), one layer subtler: (3) was a failure reported as success, this is a no-op
     //     reported as success. .select("id") makes the affected-row count observable.
+    //     ⚠ A DISTINCT MESSAGE, DELIBERATELY. A zero-row match is a CONFLICT signal, not a write
+    //     failure, and the two need opposite things from the tenant: a failed write should be
+    //     retried, a stale view must NOT be — resubmitting the same stale id fails identically and
+    //     forever. Saying "could not save" to someone holding an out-of-date page teaches them to
+    //     retry the one action that cannot work.
+    //
+    //     ⚠ AND DO NOT "HELPFULLY" FALL THROUGH TO AN INSERT HERE. The row can be gone because
+    //     anonymisePlan ran (it deletes contact_phones rows on a POPIA s24 erasure), so inserting
+    //     on a miss would let a browser tab left open resurrect a value that erasure removed. The
+    //     other causes — the tenant edited elsewhere, an agent edited — are lost updates, the same
+    //     silent-failure class this whole function was fixed for. A detected conflict must not be
+    //     converted into a silent overwrite.
     if (payload.primaryPhoneId && (phoneRows?.length ?? 0) === 0) {
       console.error("[updatePortalContactDetails] phone update matched no row —",
         "id not owned by this contact/org:", payload.primaryPhoneId)
-      return { error: "Could not save your phone number." }
+      return { error: STALE_VIEW_MESSAGE }
     }
   }
 
@@ -109,11 +125,12 @@ export async function updatePortalContactDetails(payload: UpdateContactPayload) 
       console.error("[updatePortalContactDetails] email write failed:", error.message)
       return { error: "Could not save your email address." }
     }
-    // See the phone branch above — a scoped update matching zero rows is silent in PostgREST.
+    // See the phone branch above — a zero-row match is a stale view, not a write failure, and must
+    // not fall through to an insert.
     if (payload.primaryEmailId && (emailRows?.length ?? 0) === 0) {
       console.error("[updatePortalContactDetails] email update matched no row —",
         "id not owned by this contact/org:", payload.primaryEmailId)
-      return { error: "Could not save your email address." }
+      return { error: STALE_VIEW_MESSAGE }
     }
   }
 
