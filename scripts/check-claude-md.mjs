@@ -29,7 +29,9 @@
  *   node scripts/check-claude-md.mjs             # audit the real files
  *   node scripts/check-claude-md.mjs --selftest  # run the fixtures (both directions)
  */
-import { readFileSync, readdirSync, existsSync } from "node:fs"
+import { readFileSync, readdirSync, existsSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 // ── Rules sections. Listed explicitly, and the list ASSERTS ITS OWN PREMISE (§4.3): a heading that
 //    no longer exists FAILS rather than silently un-auditing its section. Renaming a heading to
@@ -123,29 +125,63 @@ const FIXTURES = [
 
 if (process.argv.includes("--selftest")) {
   let failed = 0
+  // ⚠ FIXTURES ON DISK, RUN THROUGH runAudit() — not strings handed to auditFile().
+  // v4.3: "probes cannot travel through the channel the control inspects." The first version of this
+  // selftest passed strings straight in, bypassing discovery entirely — so a renamed .claude/rules, a
+  // decayed glob, or a loop finding zero files would have left all eight fixtures green. Green and
+  // unfailable, in the tool written to prevent exactly that.
+  const tmp = mkdtempSync(join(tmpdir(), "claude-md-fixture-"))
+  mkdirSync(join(tmp, ".claude", "rules"), { recursive: true })
+
   for (const [name, body, shouldFire] of FIXTURES) {
     // Every fixture carries BOTH rules sections so the premise-assertion doesn't fire spuriously,
-    // except the one fixture that is specifically testing a vanished section.
+    // except the one fixture specifically testing a vanished section.
     const text = name === "renamed rules section" ? body : `${RULES_SECTIONS[0]}\n\n${body}`
-    const found = auditFile("fixture", text, new Map()).filter((f) =>
+    writeFileSync(join(tmp, "CLAUDE.md"), text)
+    writeFileSync(join(tmp, ".claude", "rules", "probe.md"),
+      '---\npaths:\n  - "x/**"\n---\n\nNo rules here.\n')
+    const found = runAudit(tmp).findings.filter((f) =>
       name === "renamed rules section" ? f.includes("vanished") : !f.includes("vanished"))
     const fired = found.length > 0
     const ok = fired === shouldFire
     if (!ok) failed++
     console.log(`  ${ok ? "✓" : "✗"} ${shouldFire ? "must fire " : "must pass "} — ${name}${ok ? "" : `\n      got: ${found.join(" | ") || "(nothing)"}`}`)
   }
-  console.log(failed === 0 ? "\n✅ fixtures green — the checker can both fire and stay quiet" : `\n❌ ${failed} fixture(s) wrong`)
+
+  // The discovery fixture — the one the old string-based design could not express at all.
+  for (const f of readdirSync(join(tmp, ".claude", "rules"))) rmSync(join(tmp, ".claude", "rules", f))
+  const globFired = runAudit(tmp).findings.some((f) => f.includes("glob decayed"))
+  if (!globFired) failed++
+  console.log(`  ${globFired ? "✓" : "✗"} must fire  — rule-file glob decays to zero`)
+
+  console.log(failed === 0
+    ? "\n✅ fixtures green — fires, stays quiet, AND notices its own subject going missing"
+    : `\n❌ ${failed} fixture(s) wrong`)
   process.exit(failed === 0 ? 0 : 1)
 }
 
-// ── The real audit ───────────────────────────────────────────────────────────────────────────────
-const claims = new Map()
-const findings = auditFile("CLAUDE.md", readFileSync("CLAUDE.md", "utf8"), claims)
-for (const f of readdirSync(".claude/rules").filter((x) => x.endsWith(".md"))) {
-  // Rule files have no RULES_SECTIONS headings; only directions 1-3 apply to them.
-  const text = readFileSync(`.claude/rules/${f}`, "utf8")
-  findings.push(...auditFile(`.claude/rules/${f}`, text, claims).filter((x) => !x.includes("rules section vanished")))
+// ── Discovery. ⚠ THE SELFTEST RUNS THROUGH THIS TOO, and that is the whole point.
+// v4.3: "probes cannot travel through the channel the control inspects — fixtures on disk."
+// The first version of this file passed fixture STRINGS straight to auditFile(), bypassing discovery
+// entirely — so a renamed .claude/rules, a decayed glob, or a loop finding zero files would have left
+// all eight fixtures green. Green and unfailable, in the tool written to prevent exactly that.
+function runAudit(root) {
+  const claims = new Map()
+  const findings = auditFile("CLAUDE.md", readFileSync(`${root}/CLAUDE.md`, "utf8"), claims)
+  const dir = `${root}/.claude/rules`
+  const files = readdirSync(dir).filter((x) => x.endsWith(".md"))
+  // Non-empty assertion on the enumeration itself — a glob that decays to nothing must FAIL, not pass.
+  if (files.length === 0) findings.push(`${dir}: no rule files found — glob decayed?`)
+  for (const f of files) {
+    // Rule files have no RULES_SECTIONS headings; only directions 1-3 apply to them.
+    findings.push(...auditFile(`.claude/rules/${f}`, readFileSync(`${dir}/${f}`, "utf8"), claims)
+      .filter((x) => !x.includes("rules section vanished")))
+  }
+  return { findings, claims }
 }
+
+// ── The real audit ───────────────────────────────────────────────────────────────────────────────
+const { findings, claims } = runAudit(".")
 
 const enforced = [...claims.keys()].length
 const unenf = (readFileSync("CLAUDE.md", "utf8").match(/\*\*UNENFORCEABLE\*\*/g) ?? []).length
