@@ -335,3 +335,21 @@ CREATE TRIGGER _test_fail_deptxn_trg BEFORE INSERT ON deposit_transactions FOR E
 DROP FUNCTION IF EXISTS _test_fail_deptxn();`)
   }
 }
+
+/**
+ * Toggle a temporary BEFORE UPDATE trigger on tenant_portal_tokens that always raises — same injector
+ * shape as forceTrustInsertFailure/forceDepositTxnInsertFailure, UPDATE instead of INSERT because the
+ * resend-bounce-revoke webhook's failure path is `.update({ revoked: true })...`. Lets a test prove the
+ * webhook's Sentry capture fires on a REAL DB failure, not just assert the 200 status code around it.
+ * Always toggle off in a finally/afterEach.
+ */
+export function forceTenantPortalTokenUpdateFailure(on: boolean): void {
+  if (on) {
+    psql(`CREATE OR REPLACE FUNCTION _test_fail_tpt_update() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN RAISE EXCEPTION 'test-forced-tenant-portal-token-update-failure' USING ERRCODE = 'check_violation'; END; $fn$;
+DROP TRIGGER IF EXISTS _test_fail_tpt_update_trg ON tenant_portal_tokens;
+CREATE TRIGGER _test_fail_tpt_update_trg BEFORE UPDATE ON tenant_portal_tokens FOR EACH ROW EXECUTE FUNCTION _test_fail_tpt_update();`)
+  } else {
+    psql(`DROP TRIGGER IF EXISTS _test_fail_tpt_update_trg ON tenant_portal_tokens;
+DROP FUNCTION IF EXISTS _test_fail_tpt_update();`)
+  }
+}

@@ -45,8 +45,16 @@ const OUT_OF_SCOPE: Record<string, string> = {
   property_info_requests:
     "EMAILED CREDENTIAL — can bounce. Needs its own communication_log_id + DDL. Logged, not chased.",
   delivery_notice_tokens:
-    "Pending its own communication_log_id column + DDL — logged, not chased (§5.1). Blocks nothing; " +
-    "listed here so the framework's hole is visible rather than silently absent.",
+    // ⚠ CORRECTED 2026-08-17: this reason previously said the communication_log_id column was pending.
+    // It is not — 011_documents_messaging.sql:905 has carried it NOT NULL since the table was created.
+    // The real blocker is the other half of the pattern: the handler revokes via
+    // .update({ revoked: true }).eq("revoked", false), and this table has no revoked column at all —
+    // only acknowledged_at, which is a different lifecycle (anonymous notice viewing, not credential
+    // revocation). A wrong reason is worse than a terse one: it sends the next person to add a column
+    // that already exists and to conclude the table is then wired, when it still would not be.
+    "EMAILED CREDENTIAL — can bounce. HAS communication_log_id (011:905, NOT NULL) but has NO revoked " +
+    "column; acknowledged_at is acknowledgement, not revocation. Needs its own revocation semantics " +
+    "before it can join CREDENTIAL_TOKEN_TABLES. Logged, not chased.",
   passkey_challenges:
     "Not a delivered credential — a WebAuthn ceremony nonce that never leaves the request/response " +
     "cycle. Nothing emails it, so it cannot bounce.",
