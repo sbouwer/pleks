@@ -36,15 +36,46 @@ describe("recordAudit sanitiser", () => {
     expect(out).toEqual({ iban_masked: "••••6819", card_number_masked: "••••1111" })
   })
 
-  it("drops never-log identifiers and secrets entirely (incl. _enc / _hash variants)", () => {
+  it("MARKS never-log identifiers and secrets — value gone, key recorded", () => {
+    // Contract changed 2026-08-18: these used to VANISH. The value still never lands; what changed is
+    // that the row records the field was in the change set. Dropping silently meant an author writing
+    // `after: { email: … }` believed they had recorded a change and had recorded nothing — and
+    // recordAudit returns void, so nothing could tell them.
     const out = sanitise({
       id_number: "9001015009087", id_number_hash: "abc123", id_number_enc: "enc:xyz",
       account_number_enc: "enc:123", account_number_hash: "h:456",
       password: "hunter2", token: "tok_live_x", cvv: "123", keep: "yes",
     })
-    expect(out).toEqual({ keep: "yes" })
+    expect(out).toEqual({
+      keep: "yes",
+      id_number_redacted: true, id_number_hash_redacted: true, id_number_enc_redacted: true,
+      account_number_enc_redacted: true, account_number_hash_redacted: true,
+      password_redacted: true, token_redacted: true, cvv_redacted: true,
+    })
+    // The values themselves must still be nowhere near the row.
     expect(JSON.stringify(out)).not.toContain("9001015009087")
     expect(JSON.stringify(out)).not.toContain("enc:")
+    expect(JSON.stringify(out)).not.toContain("hunter2")
+    expect(JSON.stringify(out)).not.toContain("tok_live_x")
+  })
+
+  it("marks a denied key with a SUFFIX, so the Category 13 raw-PII canary cannot trip on it", () => {
+    // scripts/security/audit.mjs scans audit values for /"(account_number|id_number|password|…)"s*:/
+    // as a canary for raw PII reaching audit_log. Re-emitting the ORIGINAL key — even with a redaction
+    // marker as its value — would fire that canary on every sanitised row. The suffix is load-bearing.
+    const canary = /"(account_number|id_number|password|password_hash|cvv|pin)"s*:/
+    const out = sanitise({ id_number: "9001015009087", account_number_enc: "enc:1", cvv: "123" })
+    expect(JSON.stringify(out)).not.toMatch(canary)
+    expect(out).toHaveProperty("id_number_redacted", true)
+  })
+
+  it("records WHICH contact channel changed — the case the drop made impossible", () => {
+    // The reason this contract changed. A contact-change audit whose whole point is "what changed"
+    // could not say so: every candidate key matched CONTACT_PII_KEY and vanished.
+    const out = sanitise({ action: "contact_update", email: "new@example.test", phone: "+27820001111" })
+    expect(out).toEqual({ action: "contact_update", email_redacted: true, phone_redacted: true })
+    expect(JSON.stringify(out)).not.toContain("new@example.test")
+    expect(JSON.stringify(out)).not.toContain("+27820001111")
   })
 
   it("masks short / non-string account numbers without leaking", () => {

@@ -8,17 +8,18 @@
  *         "Saved to Google Password Manager — this will sync to your other devices" is actionable;
  *         `ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4` is not, and neither is "Unknown authenticator".
  *
- *         PROVENANCE — this matters more than usual:
- *           source  https://github.com/passkeydeveloper/passkey-authenticator-aaguids
- *           file    https://raw.githubusercontent.com/passkeydeveloper/passkey-authenticator-aaguids/main/aaguid.json
- *           fetched 2026-08-16, HTTP 200, 328,455 bytes, 54 entries
- *           checked every key is a well-formed UUID, every entry has a non-empty `name`
+ *         PROVENANCE — see `aaguid-registry.provenance.json` beside the data, which records the
+ *         source repo and URL, the fetch date, the upstream sha256, and the byte counts either side
+ *         of the strip. It is REGENERATED WITH the registry by `scripts/vendor-aaguid-registry.mjs`,
+ *         so the two cannot drift. This comment deliberately restates none of those numbers: the
+ *         version it used to carry said "fetched 2026-08-16, 328,455 bytes" and would have been
+ *         quietly wrong the moment anyone re-vendored — a hand-maintained copy of a machine fact.
  *
- *         The file is vendored VERBATIM and must only ever be replaced by re-fetching that URL.
- *         Do not hand-edit it and do not add entries from memory: a wrong UUID silently labels a
+ *         ⚠ Re-vendor ONLY with that script — `node scripts/vendor-aaguid-registry.mjs`. Do not
+ *         hand-edit either file and do not add entries from memory: a wrong UUID silently labels a
  *         Windows Hello key "iCloud Keychain", which is worse than showing the raw hex — the user
  *         then makes a sync assumption that is false, which is exactly the §1 failure this is meant
- *         to prevent.
+ *         to prevent. `--check` diffs the vendored copy against upstream without writing.
  *
  *         RESOLVED AT READ TIME, NOT STORED. `user_passkeys` has no `authenticator_name` column and
  *         does not need one: storing the resolved string would go stale whenever the registry adds
