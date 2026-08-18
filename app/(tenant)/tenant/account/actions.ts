@@ -43,36 +43,59 @@ export async function updatePortalContactDetails(payload: UpdateContactPayload) 
     return { error: "Unauthorised" }
   }
 
-  // Update phone
+  // ⚠ THREE DEFECTS FIXED HERE 2026-08-18 — read before simplifying any of it back.
+  //
+  // 1. INSERTS OMITTED org_id, which is NOT NULL on both tables (002_contacts.sql:189, :164). Every
+  //    first-time entry therefore failed outright. Combined with (3) it failed SILENTLY, which is why
+  //    "tenant self-service email update has never stored a row" sat unexplained in OUTSTANDING.md —
+  //    not a propagation problem, the write never succeeded once.
+  //
+  // 2. UPDATES WERE SCOPED BY `.eq("id", …)` ALONE, on the SERVICE client, which bypasses RLS — and
+  //    primaryPhoneId / primaryEmailId arrive from the CLIENT and were never checked against this
+  //    contact. A tenant could post any contact_phones.id and rewrite another organisation's number.
+  //    The session check above proves the caller owns `contactId`; it proves nothing about the row id.
+  //    Both updates are now scoped by org_id AND contact_id, so a foreign id matches zero rows.
+  //
+  // 3. NO { error } CHECK on any of the four writes (CLAUDE.md supabase-queries rule). The action
+  //    returned success regardless. Each is now checked and surfaced.
   if (payload.phone !== null) {
-    if (payload.primaryPhoneId) {
-      await service.from("contact_phones")
-        .update({ number: payload.phone })
-        .eq("id", payload.primaryPhoneId)
-    } else {
-      await service.from("contact_phones").insert({
-        contact_id: payload.contactId,
-        number: payload.phone,
-        phone_type: "mobile",
-        is_primary: true,
-        can_whatsapp: true,
-      })
+    const { error } = payload.primaryPhoneId
+      ? await service.from("contact_phones")
+          .update({ number: payload.phone })
+          .eq("id", payload.primaryPhoneId)
+          .eq("org_id", session.orgId)
+          .eq("contact_id", payload.contactId)
+      : await service.from("contact_phones").insert({
+          org_id: session.orgId,
+          contact_id: payload.contactId,
+          number: payload.phone,
+          phone_type: "mobile",
+          is_primary: true,
+          can_whatsapp: true,
+        })
+    if (error) {
+      console.error("[updatePortalContactDetails] phone write failed:", error.message)
+      return { error: "Could not save your phone number." }
     }
   }
 
-  // Update email
   if (payload.email !== null) {
-    if (payload.primaryEmailId) {
-      await service.from("contact_emails")
-        .update({ email: payload.email })
-        .eq("id", payload.primaryEmailId)
-    } else {
-      await service.from("contact_emails").insert({
-        contact_id: payload.contactId,
-        email: payload.email,
-        email_type: "personal",
-        is_primary: true,
-      })
+    const { error } = payload.primaryEmailId
+      ? await service.from("contact_emails")
+          .update({ email: payload.email })
+          .eq("id", payload.primaryEmailId)
+          .eq("org_id", session.orgId)
+          .eq("contact_id", payload.contactId)
+      : await service.from("contact_emails").insert({
+          org_id: session.orgId,
+          contact_id: payload.contactId,
+          email: payload.email,
+          email_type: "personal",
+          is_primary: true,
+        })
+    if (error) {
+      console.error("[updatePortalContactDetails] email write failed:", error.message)
+      return { error: "Could not save your email address." }
     }
   }
 
