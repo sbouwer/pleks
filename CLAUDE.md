@@ -1,11 +1,35 @@
 # CLAUDE CODE INSTRUCTIONS
 # Pleks
 # Repository: github.com/sbouwer/pleks
-<!-- E2-CANARY-7Q4XZ: if a session can reproduce this token from context, HTML comments are NOT
-     stripped and the marker design in SPEC_CLAUDE_MD_STANDARD v3 costs visible budget in this
-     harness. Protocol: fresh session, ask it to reproduce the first 12 lines of CLAUDE.md VERBATIM
-     from context (not by reading the file). A positive ID on the surrounding lines is what makes a
-     negative on this token evidential rather than "didn't notice". Planted 2026-08-18. -->
+<!-- ═══ HARNESS EXPERIMENT REGISTER (SPEC_CLAUDE_MD_STANDARD v3 §8) ═══════════════════════════
+     Recorded in an HTML comment because E2 proved that costs nothing. Re-run on a harness upgrade;
+     these are OBSERVATIONS of one version, not documented mechanisms.
+
+     E2 · Are HTML comments stripped before injection?            ANSWERED 2026-08-18: YES
+       Canary token planted at this exact position (between "# Repository:" and the "---"), then a
+       session that demonstrably loaded the POST-canary file — it quoted the new tier POINTER text
+       and named commit 0bf57989 — was asked to reproduce the first 12 lines from context. It
+       reproduced line 3 and then "---", skipping precisely the canary's five lines, while
+       positively identifying both neighbours. That positive ID either side is what makes the
+       absence evidential rather than "didn't notice".
+       CONSEQUENCE: @enforced markers are free here. The tagging pass economy holds, and the
+       ceiling legitimately excludes comments.
+
+     E1b · Do scoped rules trigger on edit-WITHOUT-read?          PRELIMINARY 2026-08-18: NO
+       Edited lib/tier/canActivateLease.ts via Bash — covered by .claude/rules/billing-gates.md —
+       without reading it. The rule did not arrive across the next two tool calls, while scoped
+       rules HAVE arrived repeatedly when a matching file was Read. Note the Edit tool refuses to
+       run without a prior Read, so edit-without-read is reachable ONLY through Bash — the reckless
+       path. n=1 on the negative; Write untested; debounce not excluded.
+       CONSEQUENCE IF IT HOLDS: all 18 rule files here are scoped, so incident-class doctrine is
+       absent from exactly the sessions that skip reading. Audit before trusting rung 4.
+
+     E1 · Does paths: frontmatter defer loading?                  OBSERVED YES, not A/B tested
+       Scoped rule files arrive mid-session on relevance, not at launch. Not the controlled
+       cross-session A/B the spec specifies — treat as suggestive.
+
+     E3 · Does this file reach a subagent?                        OPEN
+════════════════════════════════════════════════════════════════════════════════════════════════ -->
 
 ---
 
