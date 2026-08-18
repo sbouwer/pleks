@@ -133,8 +133,24 @@ jobs:
       # grants service_role on the public schema, and tier.ts finds the container by the
       # `supabase_db` name prefix — which matches the CLI's `supabase_db_pleks` (project_id in
       # supabase/config.toml) exactly as it matches a laptop's stack.
+      # ⚠ EXCLUDE THE SERVICES THE TIER DOES NOT USE. A full `supabase start` boots the mail UI, the
+      # studio, imgproxy, the edge runtime, analytics and the pooler — none of which any *.dbtest.ts
+      # touches. On 2026-08-18 that cost a red CI run for a reason unrelated to any code in the PR:
+      #
+      #   failed to bind host port 0.0.0.0:54324 … address already in use   (supabase_inbucket_pleks)
+      #
+      # All twelve migrations had applied cleanly; the mail container simply could not get its port on
+      # that runner. Booting fewer containers removes a whole class of flake AND cuts the job's slowest
+      # phase — image pulls — rather than trading correctness for speed.
+      #
+      # KEPT deliberately: postgrest + kong (the tests talk REST through 54321), gotrue (the auth
+      # schema the migrations FK against) and storage-api (its own migrations create storage.buckets,
+      # which six migration files write to). Do not prune those to go faster.
+      #
+      # ⚠ Do NOT add --ignore-health-check to quiet a failure here. A stack that came up unhealthy is
+      # a result, not noise.
       - name: Start the local Supabase stack
-        run: supabase start
+        run: supabase start -x mailpit,studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta,realtime
 
       - name: Run the DB integration tier
         run: npm run test:db
