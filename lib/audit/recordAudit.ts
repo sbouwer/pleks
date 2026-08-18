@@ -78,7 +78,22 @@ function sanitise(values: Record<string, unknown> | null | undefined): Record<st
       if (typeof val === "string" && val.length >= 4) out[`${key}_masked`] = `••••${val.slice(-4)}`
       else if (val != null) out[`${key}_masked`] = "••••"
     } else if (NEVER_LOG.has(key) || CONTACT_PII_KEY.test(key)) {
-      // dropped — never written to audit_log
+      // ⚠ MARK, DO NOT SILENTLY OMIT (2026-08-18). This used to drop the key entirely — no marker, no
+      // warning, and recordAudit returns void, so THE CALLER COULD NOT TELL. Every author writing
+      // `after: { email: newValue }` believed they had recorded the change; they had recorded nothing.
+      // And the keys most likely to be denied are exactly the ones a CONTACT-CHANGE audit needs, so
+      // the audit trail for the one event where "what changed" is the whole point could not carry it.
+      //
+      // The value still never lands. What changes is that the ROW now records that the field was part
+      // of the change set — the same "key kept, value gone" contract this function already applies one
+      // branch up (`account_number` → `account_number_masked`) and one branch down (a misnamed email
+      // value → `[redacted-email]`). The asymmetry between those branches and this one was the bug.
+      //
+      // ⚠ SUFFIXED KEY, NOT THE ORIGINAL. Security audit Category 13 scans audit values for
+      // /"(account_number|id_number|password|password_hash|cvv|pin)"\s*:/ as a raw-PII canary, so
+      // re-emitting `"id_number": "…"` — even with a redaction marker as the value — would trip it.
+      // `id_number_redacted` does not match that pattern, and reads as what it is.
+      out[`${key}_redacted`] = true
     } else if (typeof val === "string" && looksLikeEmail(val.trim())) {
       out[key] = "[redacted-email]"   // value-level PII backstop (misnamed key)
     } else {
