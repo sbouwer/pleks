@@ -1314,3 +1314,133 @@ COMMENT ON CONSTRAINT contact_phones_primary_implies_active ON contact_phones IS
   'CD ruling 10.1 trap 4, phone edition. The unique primary index keys on is_primary alone while every
    reader requires is_primary AND is_active, so a deactivated-but-still-primary row would occupy the slot
    invisibly and strand the contact with no primary phone. Makes that state unrepresentable.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §24  ADDENDUM_62F §15.2(b) step 2: the channel-set mutation request table
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- §18.7 build order, step 2: "get the shape right before rows exist". Step 1 (the bounce subscriber)
+-- shipped in #238/#251; steps 3-5 (old-channel confirmation, owner fallback, 62A sequence detection)
+-- build ON this shape and are NOT in this section. There is deliberately NO TRIGGER here yet — §19.4
+-- rules that adding one to a live-write table needs the dbtest green INCLUDING the over-blocking
+-- cases first, so the gate lands in its own change with its own evidence.
+--
+-- ⚠ IT MODELS A SET MUTATION, NOT AN EMAIL EDIT (§18.1). "Change-email-then-reset" is the discovered
+-- instance, not the invariant. Building to that name leaves two live bypasses open:
+--   ADD    — tenant has email only, agent ADDS a mobile; nothing was changed, and reset now routes
+--            to the added channel.
+--   REMOVE — remove the email and issueTenantPortalLinkForHandover() unlocks (§17.2).
+-- So the protected thing is not the address. It is WHICH ADDRESSES CAN RECEIVE A CREDENTIAL. Model
+-- add/change/remove/reverify from the start or the add case gets retrofitted and remove stays a
+-- special case forever.
+CREATE TABLE IF NOT EXISTS contact_change_requests (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id               uuid NOT NULL REFERENCES organisations(id),
+
+  -- ⚠ BINDS THE SUBJECT, NOT ONLY THE VALUE (§20.3). §19.3's last case — "a confirmed request for
+  -- contact A used to mutate contact B" — is the one CD says gets missed, and it is closed ONLY by
+  -- carrying contact_id on the request and checking it at apply time.
+  contact_id           uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+
+  channel              text NOT NULL CHECK (channel IN ('email', 'phone')),
+  mutation             text NOT NULL CHECK (mutation IN ('add', 'change', 'remove', 'reverify')),
+
+  -- The values the request authorises. Deliberately NOT encrypted: these are the same addresses
+  -- already held in plaintext in contact_emails / contact_phones, and ciphertext here would make the
+  -- apply-time equality check impossible without decrypting on every write.
+  old_value            text,
+  new_value            text,
+
+  -- §19.3 shape constraint: "add with an old value / remove with a new one" must be UNREPRESENTABLE,
+  -- not merely rejected in application code — same reasoning as trap 4 in §22/§23.
+  CONSTRAINT contact_change_requests_shape CHECK (
+    (mutation = 'add'      AND old_value IS NULL     AND new_value IS NOT NULL) OR
+    (mutation = 'remove'   AND old_value IS NOT NULL AND new_value IS NULL)     OR
+    (mutation = 'change'   AND old_value IS NOT NULL AND new_value IS NOT NULL) OR
+    (mutation = 'reverify' AND old_value IS NOT NULL AND new_value IS NULL)
+  ),
+
+  -- The confirmation credential sent to the OLD channel (§18.3 rule 1).
+  token                text NOT NULL UNIQUE,
+  expires_at           timestamptz NOT NULL,
+  confirmed_at         timestamptz,
+  consumed_at          timestamptz,
+
+  -- ⚠ THIS IS A CREDENTIAL-TOKEN TABLE, and the framework already knows it by name:
+  -- app/api/webhooks/resend/route.ts reserves `contact_change_requests` in its comment, and
+  -- credential-token-coverage.test.ts scans migrations for token-shaped tables and FAILS unless each
+  -- is in CREDENTIAL_TOKEN_TABLES or an explicit OUT_OF_SCOPE entry. These two columns are what let
+  -- it JOIN that framework rather than become its next hole — §18.4: the confirmation OTP can itself
+  -- bounce, and a bounced confirmation must surface as "we could not reach your old address" and
+  -- route to the owner path rather than sit in limbo. Bounce handling is a PREREQUISITE for (b)
+  -- being correct, not a chore bundled beside it.
+  revoked              boolean NOT NULL DEFAULT false,
+  communication_log_id uuid REFERENCES communication_log(id),
+
+  requested_by         uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  requested_by_tenant  uuid REFERENCES tenants(id) ON DELETE SET NULL,
+  owner_approved_by    uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at           timestamptz NOT NULL DEFAULT now()
+);
+
+-- One LIVE request per (contact, channel). Two open confirmations for the same channel would let a
+-- caller hold both and use whichever lands first.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ccr_one_live_per_channel
+  ON contact_change_requests (contact_id, channel)
+  WHERE consumed_at IS NULL AND revoked = false;
+
+CREATE INDEX IF NOT EXISTS idx_ccr_org ON contact_change_requests(org_id);
+CREATE INDEX IF NOT EXISTS idx_ccr_comm_log ON contact_change_requests(communication_log_id)
+  WHERE communication_log_id IS NOT NULL;
+
+ALTER TABLE contact_change_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contact_change_requests" ON contact_change_requests;
+CREATE POLICY "org_contact_change_requests" ON contact_change_requests
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+  );
+
+COMMENT ON TABLE contact_change_requests IS
+  'ADDENDUM_62F 15.2(b). A pending mutation of the set of channels that can receive a credential for
+   one contact. Binds contact_id as well as the value (20.3) so a confirmed request cannot be used
+   against a different contact. Holds a deliverable token, so it is a member of the credential-token
+   framework in app/api/webhooks/resend/route.ts.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §24.1  tenants_without_reachable_channel — §18.2's population, as a first-class query
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- §18.2: the handover exception (§17.2), the no-old-channel confirmation case and the ungraded
+-- recovery floor (§13.4) all degrade for EXACTLY the same people. That is one surface, not three
+-- independently-argued exceptions, and for that population there is NO procedural protection
+-- available at all — no old channel to confirm on, nobody to notify. Audit and 62A detection are the
+-- entire defence, and the spec says to state that plainly rather than imply coverage.
+--
+-- Making it a view rather than an implicit residue is what lets an agency be SHOWN the number and
+-- asked to fix it — and it reframes the AT spend: provisioning does not buy a feature, it collapses
+-- a class of permanent exception towards zero.
+--
+-- ⚠ security_invoker = true, per ADDENDUM_00M. A view over tenant contact data running as DEFINER is
+-- a cross-org read waiting to happen, and §18.2 explicitly wants agencies querying this about their
+-- own tenants — exactly the case where invoker rights are the whole point.
+DROP VIEW IF EXISTS tenants_without_reachable_channel;
+CREATE VIEW tenants_without_reachable_channel
+WITH (security_invoker = true) AS
+  SELECT t.id AS tenant_id, t.org_id, t.contact_id,
+         c.first_name, c.last_name, c.company_name
+  FROM tenants t
+  JOIN contacts c ON c.id = t.contact_id
+  WHERE t.deleted_at IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM contact_emails e
+      WHERE e.contact_id = t.contact_id AND e.is_active AND e.email IS NOT NULL AND e.email <> ''
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM contact_phones p
+      WHERE p.contact_id = t.contact_id AND p.is_active AND p.number IS NOT NULL AND p.number <> ''
+    );
+
+COMMENT ON VIEW tenants_without_reachable_channel IS
+  'ADDENDUM_62F 18.2. Tenants with no active email AND no active phone — the single population for
+   whom the handover exception, the no-old-channel confirmation case and the ungraded recovery floor
+   all degrade together. security_invoker so an agency sees only its own (ADDENDUM_00M).';

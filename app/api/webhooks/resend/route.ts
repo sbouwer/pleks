@@ -93,11 +93,17 @@ type LogRecord = { id: string; sent_to_email: string | null; org_id: string }
  *
  * Enumerated by capability, not by table — the third time this arc has needed that rule (§18.5,
  * §20.1). A new credential-token table adds `communication_log_id` and one line here, and the
- * enumeration test in `__tests__` fails until it does. `contact_change_requests` joins when
- * §15.2(b) lands, which is what made this a PREREQUISITE for that build rather than an adjacent
- * chore — its confirmation OTP gets bounce handling for free (§18.4).
+ * enumeration test in `__tests__` fails until it does.
+ *
+ * ⚠ `contact_change_requests` JOINED 2026-08-18, exactly as this comment reserved it. Creating the
+ * table (002_contacts.sql §24) made the enumeration test fail on the next run — it scans migrations
+ * for token-shaped tables and demands each be wired or excused — and the fix was one line here. That
+ * is §18.4's argument working as designed: the bounce subscriber was a PREREQUISITE for §15.2(b),
+ * not an adjacent chore, because (b)'s own confirmation OTP can bounce, and a bounced confirmation
+ * must surface as "we could not reach your old address" and route to the owner path rather than sit
+ * in limbo. It gets that handling for free by having `communication_log_id` + `revoked`.
  */
-export const CREDENTIAL_TOKEN_TABLES = ["tenant_portal_tokens"] as const
+export const CREDENTIAL_TOKEN_TABLES = ["tenant_portal_tokens", "contact_change_requests"] as const
 
 /**
  * A hard bounce means the credential reached nobody, so the token must die.
