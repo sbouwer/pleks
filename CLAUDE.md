@@ -1,6 +1,11 @@
 # CLAUDE CODE INSTRUCTIONS
 # Pleks
 # Repository: github.com/sbouwer/pleks
+<!-- E2-CANARY-7Q4XZ: if a session can reproduce this token from context, HTML comments are NOT
+     stripped and the marker design in SPEC_CLAUDE_MD_STANDARD v3 costs visible budget in this
+     harness. Protocol: fresh session, ask it to reproduce the first 12 lines of CLAUDE.md VERBATIM
+     from context (not by reading the file). A positive ID on the surrounding lines is what makes a
+     negative on this token evidential rather than "didn't notice". Planted 2026-08-18. -->
 
 ---
 
@@ -420,17 +425,9 @@ If it says the code *does* X, anchor it.
 
 ## TIER MODEL (post-April 2026 — locked)
 
-| Tier | Price | Lease limit |
-|------|-------|-------------|
-| Owner | Free | 1 |
-| Steward | R699/mo | 15 |
-| Growth | R1,199/mo | 30 |
-| Portfolio | R2,599/mo | 75 |
-| Firm | R4,499/mo | 150 |
-| Bespoke | Custom | Custom |
+Names, prices, lease caps → `lib/marketing/tiers.ts` (canonical) · cents → `lib/constants.ts`.
 
-No per-user seat caps on any tier — lease count is the only gate.
-Annual pricing not yet live. Bespoke/white-label deferred until first enterprise customer.
+No per-user seat caps — **lease count is the only gate**. Annual pricing not live. Bespoke deferred.
 
 ---
 
@@ -480,11 +477,10 @@ Do not rely on this file for task status. It changes daily.
 
 ---
 
-## KEY CONSTANTS (change only with a recorded decision)
+## KEY CONSTANTS — WHERE THEY LIVE (never restated here)
 
-APPLICATION_FEE_CENTS = 25000         // R250 single   (was R399 — superseded Mar-2026 model)
-JOINT_APPLICATION_FEE_CENTS = 47000   // R470 joint    (was R749 — same)
-INCOME_AFFORDABILITY_THRESHOLD = 0.30
+`APPLICATION_FEE_CENTS` · `JOINT_APPLICATION_FEE_CENTS` · `INCOME_AFFORDABILITY_THRESHOLD`
+→ `lib/constants.ts`. Open it; never trust a restatement.
 
 Screening fee SSOT: `lib/constants.ts` (price) + `lib/screening/searchworxBundle.ts` (cost, margin —
 all DERIVED). Bundle cost is R202.80 incl VAT, so R250 carries R47.20 (19%). Never hardcode a fee
