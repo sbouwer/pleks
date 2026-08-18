@@ -54,8 +54,6 @@ export default async function PortalAccountPage() {
     <DetailPageLayout category="Home" backHref="/tenant" title="Account" facts={[]}>
       <DetailFullWidth>
         <PortalAccountClient
-          contactId={contact.id}
-          orgId={orgId}
           firstName={contact.first_name}
           lastName={contact.last_name}
           companyName={contact.company_name}

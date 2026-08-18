@@ -4,38 +4,90 @@
  * app/(tenant)/tenant/account/actions.ts — tenant portal: update the tenant's own contact details
  *
  * Route:  /tenant/account (server actions)
- * Auth:   getTenantSession() — portal session; writes scoped to session.tenantId + session.orgId (a
- *         caller-supplied orgId that mismatches the session is rejected).
- * Data:   tenants, contacts, contact_phones, contact_emails via the service client.
+ * Auth:   getTenantSession() — portal session. The contact is resolved from the SESSION's tenant row,
+ *         never from the request, so a caller cannot name a contact or a channel row at all.
+ * Data:   tenants, contact_phones, contact_emails (via syncPrimaryContact{Phone,Email}), audit_log.
+ * Notes:  Rewritten 2026-08-18 after an adversarial review of #252. The history is worth keeping,
+ *         because every defect below was invisible and several were only REACHABLE once the previous
+ *         one was fixed:
+ *
+ *           1 · CROSS-ORG IDOR — updates were scoped `.eq("id", …)` alone on the SERVICE client
+ *               (bypasses RLS), with the row id supplied by the CLIENT and never validated.
+ *           2 · INSERTS OMITTED org_id (NOT NULL) so every first-time entry failed. This is the
+ *               answer to "tenant self-service email update has NEVER stored a row" in OUTSTANDING.
+ *           3 · NO { error } CHECK on any write — which is what hid 1 and 2.
+ *           4 · A zero-row UPDATE is `{ error: null }` in PostgREST, so once 1 was fixed a foreign
+ *               id wrote nothing and STILL reported success.
+ *           5 · The audit write passed `actorId: session.tenantId` into `changed_by`, which is
+ *               `REFERENCES auth.users(id)` — every insert violated the FK, on every call.
+ *           6 · Accepting a client row id AT ALL. Fixing 1–5 left the action writing exactly once per
+ *               page load: nothing refreshed the client's ids, so a second save re-took the INSERT
+ *               branch and hit the unique primary index. And because the agent-side sync helpers
+ *               DELETE-then-INSERT, a legitimate id goes stale the moment an agent edits — the tenant
+ *               then saw a hard error until they reloaded.
+ *
+ *         6's fix removes the class rather than the symptom: THE ROW ID IS NO LONGER AN INPUT. The
+ *         primary channel row is replaced by `syncPrimaryContact{Phone,Email}`, which clear-then-insert
+ *         and are idempotent by construction — no resolve step, no branch, no unique-index collision
+ *         possible, and nothing for a caller to point at. Same doctrine the agent routes already
+ *         state: "never trust a client-sent contactId … deriving it server-side also stops a caller
+ *         targeting another landlord's contact."
  */
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
+import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
 
 interface UpdateContactPayload {
-  contactId: string
-  orgId: string
   phone: string | null
   email: string | null
-  primaryPhoneId: string | null
-  primaryEmailId: string | null
 }
 
-/** Shown when a scoped write matches no row: the caller's view is out of date, so retrying the same
- *  submission cannot succeed. Distinct from a write failure, which IS worth retrying. */
-const STALE_VIEW_MESSAGE = "This page is out of date — refresh and try again."
+/** Deliberately permissive — this rejects shapes that CANNOT be an address, not the ones RFC 5322
+ *  disallows. A stricter pattern becomes a support burden of valid addresses refused.
+ *
+ *  ⚠ LINEAR STRING OPS, NOT A REGEX. `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` puts two unbounded negated classes
+ *  either side of a literal — catastrophic-backtracking structure, on a validator any signed-in tenant
+ *  can invoke with a string of their choosing. `lib/audit/recordAudit.ts`'s `looksLikeEmail` already hit
+ *  this and solved it exactly this way, saying so in its own comment; this mirrors the in-repo precedent
+ *  rather than suppressing the rule that caught it. */
+function looksLikeEmail(s: string): boolean {
+  const at = s.indexOf("@")
+  if (at <= 0 || at !== s.lastIndexOf("@")) return false
+  if (s.includes(" ") || s.includes("\t")) return false
+  const domain = s.slice(at + 1)
+  const dot = domain.indexOf(".")
+  return dot > 0 && dot < domain.length - 1
+}
 
 export async function updatePortalContactDetails(payload: UpdateContactPayload) {
   const session = await getTenantSession()
   if (!session) return { error: "Not authenticated" }
 
-  // Verify the contactId belongs to this tenant's session
-  if (payload.orgId !== session.orgId) return { error: "Unauthorised" }
+  // ⚠ VALIDATE ON THE SERVER, NOT ONLY IN THE FORM. A server action is directly invokable, and the
+  // `.trim()` that used to be the only cleaning lived in PortalAccountClient. This value does not stop
+  // at a profile page: the derive trigger writes it to `contacts.primary_email`, and
+  // `resolveNoticeContext` unions every active contact_emails row into the STATUTORY NOTICE recipient
+  // set. So "  NotAnEmail  " would become a service address, the notice pack would render it, and
+  // `needsManualAttestation` would stay FALSE because the set is non-empty — the deemed-service model
+  // reporting that nothing needs attention while holding an address that can never be served.
+  // That is false evidence of serviceability, not a formatting nit.
+  const phone = payload.phone?.trim() || null
+  const email = payload.email?.trim() || null
+  if (email !== null && !looksLikeEmail(email)) {
+    return { error: "That does not look like an email address." }
+  }
+  if (phone !== null && phone.replace(/[\s()+-]/g, "").length < 9) {
+    return { error: "That does not look like a phone number." }
+  }
+  if (phone === null && email === null) return { success: true }
 
   const service = await createServiceClient()
 
-  // Verify the contact belongs to the tenant in this org
+  // The contact comes from the SESSION's tenant row. Nothing about it is caller-supplied, so there is
+  // no id to validate, none to get stale, and none to point at another organisation.
   const { data: tenant, error: tenantErr } = await service
     .from("tenants")
     .select("contact_id")
@@ -43,125 +95,58 @@ export async function updatePortalContactDetails(payload: UpdateContactPayload) 
     .eq("org_id", session.orgId)
     .single()
 
-  if (tenantErr || !tenant || tenant.contact_id !== payload.contactId) {
-    return { error: "Unauthorised" }
-  }
+  if (tenantErr || !tenant?.contact_id) return { error: "Unauthorised" }
+  const contactId = tenant.contact_id as string
 
-  // ⚠ THREE DEFECTS FIXED HERE 2026-08-18 — read before simplifying any of it back.
-  //
-  // 1. INSERTS OMITTED org_id, which is NOT NULL on both tables (002_contacts.sql:189, :164). Every
-  //    first-time entry therefore failed outright. Combined with (3) it failed SILENTLY, which is why
-  //    "tenant self-service email update has never stored a row" sat unexplained in OUTSTANDING.md —
-  //    not a propagation problem, the write never succeeded once.
-  //
-  // 2. UPDATES WERE SCOPED BY `.eq("id", …)` ALONE, on the SERVICE client, which bypasses RLS — and
-  //    primaryPhoneId / primaryEmailId arrive from the CLIENT and were never checked against this
-  //    contact. A tenant could post any contact_phones.id and rewrite another organisation's number.
-  //    The session check above proves the caller owns `contactId`; it proves nothing about the row id.
-  //    Both updates are now scoped by org_id AND contact_id, so a foreign id matches zero rows.
-  //
-  // 3. NO { error } CHECK on any of the four writes (CLAUDE.md supabase-queries rule). The action
-  //    returned success regardless. Each is now checked and surfaced.
-  if (payload.phone !== null) {
-    const { data: phoneRows, error } = payload.primaryPhoneId
-      ? await service.from("contact_phones")
-          .update({ number: payload.phone })
-          .eq("id", payload.primaryPhoneId)
-          .eq("org_id", session.orgId)
-          .eq("contact_id", payload.contactId)
-          .select("id")
-      : await service.from("contact_phones").insert({
-          org_id: session.orgId,
-          contact_id: payload.contactId,
-          number: payload.phone,
-          phone_type: "mobile",
-          is_primary: true,
-          can_whatsapp: true,
-        })
-    if (error) {
-      console.error("[updatePortalContactDetails] phone write failed:", error.message)
-      return { error: "Could not save your phone number." }
-    }
-    // 4 · A SCOPED UPDATE THAT MATCHES NOTHING IS NOT AN ERROR TO PostgREST — it returns
-    //     { error: null } and zero rows. So after fix (1), a foreign-org row id correctly writes
-    //     NOTHING and the caller was still told "saved". The boundary held; the report lied. Same
-    //     class as (3), one layer subtler: (3) was a failure reported as success, this is a no-op
-    //     reported as success. .select("id") makes the affected-row count observable.
-    //     ⚠ A DISTINCT MESSAGE, DELIBERATELY. A zero-row match is a CONFLICT signal, not a write
-    //     failure, and the two need opposite things from the tenant: a failed write should be
-    //     retried, a stale view must NOT be — resubmitting the same stale id fails identically and
-    //     forever. Saying "could not save" to someone holding an out-of-date page teaches them to
-    //     retry the one action that cannot work.
+  // Both helpers clear the existing primary row and insert a replacement, carrying `label` /
+  // `can_whatsapp` across, and return { error } so a failure is surfaced rather than logged and lost.
+  const phoneResult = phone !== null
+    ? await syncPrimaryContactPhone(service, session.orgId, contactId, phone, "mobile")
+    : { error: null }
+
+  // Do not attempt the second channel after the first failed — a second failure tells the tenant
+  // nothing new, and the audit block below still records whatever did land.
+  const emailResult = email !== null && !phoneResult.error
+    ? await syncPrimaryContactEmail(service, session.orgId, contactId, email, "personal")
+    : { error: null }
+
+  // ⚠ AUDIT BEFORE RETURNING, EVEN ON A PARTIAL FAILURE. The previous version returned early on the
+  // email error — so a phone write that had ALREADY landed (and already moved contacts.primary_phone
+  // through the derive trigger) produced no audit_log row at all, against the very rule cited below.
+  // Whatever landed is recorded first; the error is reported after.
+  const landed = [
+    phone !== null && !phoneResult.error ? "phone" : null,
+    email !== null && !emailResult.error ? "email" : null,
+  ].filter((c): c is string => c !== null)
+
+  if (landed.length > 0) {
+    // `actorId` becomes audit_log.changed_by → REFERENCES auth.users(id) (001_foundation.sql:151).
+    // A TenantPortalSession carries NO auth user id — an `authType: "token"` session has no auth user
+    // at all — so null is the only value that can satisfy the FK.
     //
-    //     ⚠ AND DO NOT "HELPFULLY" FALL THROUGH TO AN INSERT HERE. The row can be gone because
-    //     anonymisePlan ran (it deletes contact_phones rows on a POPIA s24 erasure), so inserting
-    //     on a miss would let a browser tab left open resurrect a value that erasure removed. The
-    //     other causes — the tenant edited elsewhere, an agent edited — are lost updates, the same
-    //     silent-failure class this whole function was fixed for. A detected conflict must not be
-    //     converted into a silent overwrite.
-    if (payload.primaryPhoneId && (phoneRows?.length ?? 0) === 0) {
-      console.error("[updatePortalContactDetails] phone update matched no row —",
-        "id not owned by this contact/org:", payload.primaryPhoneId)
-      return { error: STALE_VIEW_MESSAGE }
-    }
+    // ⚠ NULL IS NOT FREE, AND THIS COMMENT NO LONGER CLAIMS OTHERWISE: the admin audit surface renders
+    // `changed_by ?? "system"` and does not select `actor_name`, so this row READS as a system write
+    // today. `actorName` is passed for when that surface is fixed — it is not attribution yet.
+    // Tracked in OUTSTANDING; do not read its presence here as the problem being solved.
+    //
+    // ⚠ The values are marker-only ON PURPOSE. recordAudit's CONTACT_PII_KEY denylist silently DROPS
+    // any key matching /email|phone/, so `after: { email: newValue }` would vanish without warning.
+    // Recording THAT the channel changed, under keys that survive, beats recording nothing while
+    // believing otherwise. The denylist's silence is its own defect — logged separately.
+    await recordAudit(service, {
+      orgId: session.orgId, table: "contacts", recordId: contactId, action: "UPDATE",
+      actorId: null,
+      actorName: session.tenantName,
+      after: {
+        action: "tenant_portal_contact_update",
+        actor_tenant_id: session.tenantId,
+        auth_type: session.authType,
+        channels_changed: landed,
+      },
+    })
   }
 
-  if (payload.email !== null) {
-    const { data: emailRows, error } = payload.primaryEmailId
-      ? await service.from("contact_emails")
-          .update({ email: payload.email })
-          .eq("id", payload.primaryEmailId)
-          .eq("org_id", session.orgId)
-          .eq("contact_id", payload.contactId)
-          .select("id")
-      : await service.from("contact_emails").insert({
-          org_id: session.orgId,
-          contact_id: payload.contactId,
-          email: payload.email,
-          email_type: "personal",
-          is_primary: true,
-        })
-    if (error) {
-      console.error("[updatePortalContactDetails] email write failed:", error.message)
-      return { error: "Could not save your email address." }
-    }
-    // See the phone branch above — a zero-row match is a stale view, not a write failure, and must
-    // not fall through to an insert.
-    if (payload.primaryEmailId && (emailRows?.length ?? 0) === 0) {
-      console.error("[updatePortalContactDetails] email update matched no row —",
-        "id not owned by this contact/org:", payload.primaryEmailId)
-      return { error: STALE_VIEW_MESSAGE }
-    }
-  }
-
-  // 5 · THE AUDIT WRITE COULD NEVER SUCCEED. It passed `actorId: session.tenantId`, but `actorId`
-  //     becomes `audit_log.changed_by`, which is `uuid REFERENCES auth.users(id)`
-  //     (001_foundation.sql:151) — and `tenantId` is a `tenants.id`, not an auth user id. Every
-  //     insert violated the FK. It went unnoticed for the same reason as defects 2 and 3: nothing
-  //     checked, nothing surfaced, and the writes it was auditing never landed either.
-  //
-  //     ⚠ FIXING THE WRITES MADE THIS URGENT rather than academic — as of this commit tenant contact
-  //     changes actually happen, so an unaudited path is now a real gap against "audit_log on every
-  //     state change" (CLAUDE.md security rule 3), not a dead branch.
-  //
-  //     There is NO auth user id to pass: TenantPortalSession has no such field, and an
-  //     `authType: "token"` session has no auth user at all by construction. `null` is therefore the
-  //     correct actor id — recordAudit documents it for exactly this case — and `actorName` carries
-  //     the attribution instead, with the tenant id in the values so the row is still traceable.
-  //     `recordAudit` returns Promise<void> and logs its own failures ("[recordAudit] supabase query
-  //     failed: …"), so there is no { error } to check here — which is precisely how this stayed
-  //     invisible. The FK violation was being printed on every call and read by nobody.
-  await recordAudit(service, {
-    orgId: session.orgId, table: "contacts", recordId: payload.contactId, action: "UPDATE",
-    actorId: null,
-    actorName: session.tenantName,
-    after: {
-      action: "tenant_portal_contact_update",
-      actor_tenant_id: session.tenantId,
-      auth_type: session.authType,
-      fields_changed: [payload.phone !== null && "phone", payload.email !== null && "email"].filter(Boolean),
-    },
-  })
-
+  if (phoneResult.error) return { error: "Could not save your phone number." }
+  if (emailResult.error) return { error: "Could not save your email address." }
   return { success: true }
 }
