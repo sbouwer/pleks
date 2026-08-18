@@ -15,14 +15,26 @@
        CONSEQUENCE: @enforced markers are free here. The tagging pass economy holds, and the
        ceiling legitimately excludes comments.
 
-     E1b · Do scoped rules trigger on edit-WITHOUT-read?          PRELIMINARY 2026-08-18: NO
-       Edited lib/tier/canActivateLease.ts via Bash — covered by .claude/rules/billing-gates.md —
-       without reading it. The rule did not arrive across the next two tool calls, while scoped
-       rules HAVE arrived repeatedly when a matching file was Read. Note the Edit tool refuses to
-       run without a prior Read, so edit-without-read is reachable ONLY through Bash — the reckless
-       path. n=1 on the negative; Write untested; debounce not excluded.
-       CONSEQUENCE IF IT HOLDS: all 18 rule files here are scoped, so incident-class doctrine is
-       absent from exactly the sessions that skip reading. Audit before trusting rung 4.
+     E1b · Do scoped rules trigger on WRITE?                     ANSWERED 2026-08-18: NO
+       READ-TRIGGERED ONLY. Five probes, four rules, both directions, with a positive control:
+         Read lib/screening/… ............. fitscore.md      ARRIVED
+         Read lib/comms/delivery-notice-… . comms-urls.md    ARRIVED
+         Bash-edit that SAME comms file ... comms-urls.md    did not arrive   <- the A/B
+         Bash-edit lib/tier/… ............. billing-gates.md did not arrive
+         Write NEW lib/offline/_probe.ts .. inspections.md   did not arrive
+       The comms pair is the clean experiment: one file, one rule, one variable (read vs write).
+       Note the Edit tool REFUSES to run without a prior Read, so Edit can never be the uncovered
+       case — the exposed paths are exactly Bash-mediated edits and Write-tool creations.
+       Untested: Write OVERWRITING an existing file (probe created a new one).
+
+       ⚠ CONSEQUENCE FOR THIS REPO, AND IT IS NOT SMALL. All 18 rule files are scoped, so ALL
+       path-scoped doctrine — migrations.md (176 lines of amend-forward discipline),
+       identity-scoped-tables.md (the org_id exception + membership test), data-access.md (the
+       gateway rules) — is absent from any session that writes without reading first. Spec §8 says
+       do not move incident-class content to a scoped rule until E1b resolves; it has now resolved
+       AGAINST that, and this repo moved everything before the question was asked.
+       Rung 4 is a convenience layer for reading sessions, NOT a control. Anything in a scoped file
+       that must hold regardless needs a rung-1/2 twin (spec §0.1) — that audit is now open work.
 
      E1 · Does paths: frontmatter defer loading?                  OBSERVED YES, not A/B tested
        Scoped rule files arrive mid-session on relevance, not at launch. Not the controlled
