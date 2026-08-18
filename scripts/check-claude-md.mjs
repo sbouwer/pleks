@@ -183,9 +183,20 @@ function runAudit(root) {
 // ── The real audit ───────────────────────────────────────────────────────────────────────────────
 const { findings, claims } = runAudit(".")
 
-const enforced = [...claims.keys()].length
-const unenf = (readFileSync("CLAUDE.md", "utf8").match(/\*\*UNENFORCEABLE\*\*/g) ?? []).length
-console.log(`📑 CLAUDE.md markers — ${enforced} @enforced · ${unenf} UNENFORCEABLE (the binding metric; it may only fall)`)
+// ⚠ THE METRIC IS A RATIO, NOT A COUNT (v4.4 §1). N = rules whose only control is model attention;
+// D = all marker-carrying rules. The denominator is an integrity check on the numerator, because a
+// bare N falls for three different reasons and only one is progress:
+//   D rising, N flat    → the tagging pass working (untagged prose becoming counted rules)
+//   N falling, D stable → mechanisation, which is what the ratchet is for
+//   N and D falling     → DELETION — may be right, but a different act deserving different attention
+// A field migration went D 18 → 21 with N steady at 9; a bare count reads that as noise or regression.
+const countUnenf = (t) => (t.match(/\*\*UNENFORCEABLE\*\*/g) ?? []).length
+const N_unenf = countUnenf(readFileSync("CLAUDE.md", "utf8"))
+  + readdirSync(".claude/rules").filter((x) => x.endsWith(".md"))
+      .reduce((n, f) => n + countUnenf(readFileSync(`.claude/rules/${f}`, "utf8")), 0)
+const D_enforced = [...claims.keys()].length
+console.log(`📑 marker ratio — ${N_unenf} of ${N_unenf + D_enforced} rules UNENFORCEABLE ` +
+            `(${D_enforced} @enforced). N may only fall; report BOTH deltas each ratchet pass.`)
 
 if (findings.length) {
   console.error(`\n❌ ${findings.length} finding(s):\n`)
