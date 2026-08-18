@@ -59,12 +59,13 @@ export async function updatePortalContactDetails(payload: UpdateContactPayload) 
   // 3. NO { error } CHECK on any of the four writes (CLAUDE.md supabase-queries rule). The action
   //    returned success regardless. Each is now checked and surfaced.
   if (payload.phone !== null) {
-    const { error } = payload.primaryPhoneId
+    const { data: phoneRows, error } = payload.primaryPhoneId
       ? await service.from("contact_phones")
           .update({ number: payload.phone })
           .eq("id", payload.primaryPhoneId)
           .eq("org_id", session.orgId)
           .eq("contact_id", payload.contactId)
+          .select("id")
       : await service.from("contact_phones").insert({
           org_id: session.orgId,
           contact_id: payload.contactId,
@@ -77,15 +78,26 @@ export async function updatePortalContactDetails(payload: UpdateContactPayload) 
       console.error("[updatePortalContactDetails] phone write failed:", error.message)
       return { error: "Could not save your phone number." }
     }
+    // 4 · A SCOPED UPDATE THAT MATCHES NOTHING IS NOT AN ERROR TO PostgREST — it returns
+    //     { error: null } and zero rows. So after fix (1), a foreign-org row id correctly writes
+    //     NOTHING and the caller was still told "saved". The boundary held; the report lied. Same
+    //     class as (3), one layer subtler: (3) was a failure reported as success, this is a no-op
+    //     reported as success. .select("id") makes the affected-row count observable.
+    if (payload.primaryPhoneId && (phoneRows?.length ?? 0) === 0) {
+      console.error("[updatePortalContactDetails] phone update matched no row —",
+        "id not owned by this contact/org:", payload.primaryPhoneId)
+      return { error: "Could not save your phone number." }
+    }
   }
 
   if (payload.email !== null) {
-    const { error } = payload.primaryEmailId
+    const { data: emailRows, error } = payload.primaryEmailId
       ? await service.from("contact_emails")
           .update({ email: payload.email })
           .eq("id", payload.primaryEmailId)
           .eq("org_id", session.orgId)
           .eq("contact_id", payload.contactId)
+          .select("id")
       : await service.from("contact_emails").insert({
           org_id: session.orgId,
           contact_id: payload.contactId,
@@ -97,13 +109,42 @@ export async function updatePortalContactDetails(payload: UpdateContactPayload) 
       console.error("[updatePortalContactDetails] email write failed:", error.message)
       return { error: "Could not save your email address." }
     }
+    // See the phone branch above — a scoped update matching zero rows is silent in PostgREST.
+    if (payload.primaryEmailId && (emailRows?.length ?? 0) === 0) {
+      console.error("[updatePortalContactDetails] email update matched no row —",
+        "id not owned by this contact/org:", payload.primaryEmailId)
+      return { error: "Could not save your email address." }
+    }
   }
 
-  // Audit log
-  await recordAudit(service, { orgId: session.orgId, table: "contacts", recordId: payload.contactId, action: "UPDATE", actorId: session.tenantId, after: {
+  // 5 · THE AUDIT WRITE COULD NEVER SUCCEED. It passed `actorId: session.tenantId`, but `actorId`
+  //     becomes `audit_log.changed_by`, which is `uuid REFERENCES auth.users(id)`
+  //     (001_foundation.sql:151) — and `tenantId` is a `tenants.id`, not an auth user id. Every
+  //     insert violated the FK. It went unnoticed for the same reason as defects 2 and 3: nothing
+  //     checked, nothing surfaced, and the writes it was auditing never landed either.
+  //
+  //     ⚠ FIXING THE WRITES MADE THIS URGENT rather than academic — as of this commit tenant contact
+  //     changes actually happen, so an unaudited path is now a real gap against "audit_log on every
+  //     state change" (CLAUDE.md security rule 3), not a dead branch.
+  //
+  //     There is NO auth user id to pass: TenantPortalSession has no such field, and an
+  //     `authType: "token"` session has no auth user at all by construction. `null` is therefore the
+  //     correct actor id — recordAudit documents it for exactly this case — and `actorName` carries
+  //     the attribution instead, with the tenant id in the values so the row is still traceable.
+  //     `recordAudit` returns Promise<void> and logs its own failures ("[recordAudit] supabase query
+  //     failed: …"), so there is no { error } to check here — which is precisely how this stayed
+  //     invisible. The FK violation was being printed on every call and read by nobody.
+  await recordAudit(service, {
+    orgId: session.orgId, table: "contacts", recordId: payload.contactId, action: "UPDATE",
+    actorId: null,
+    actorName: session.tenantName,
+    after: {
       action: "tenant_portal_contact_update",
+      actor_tenant_id: session.tenantId,
+      auth_type: session.authType,
       fields_changed: [payload.phone !== null && "phone", payload.email !== null && "email"].filter(Boolean),
-    } })
+    },
+  })
 
   return { success: true }
 }
