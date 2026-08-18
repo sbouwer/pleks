@@ -70,6 +70,18 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+
+      // ⚠ RESTATED FOR LEGIBILITY, NOT FOR BEHAVIOUR. Both of these were ALREADY enforced, inherited
+      // from `next/core-web-vitals` + the TS preset — probe-verified 2026-08-18 by planting a
+      // violation of each and watching eslint reject it. Nothing changes at runtime.
+      //
+      // What changes is that they become VISIBLE to `scripts/check-claude-md.mjs`, whose `eslint:`
+      // resolver reads this file. Rules enforced only through a preset are real controls that the
+      // resolver cannot see, so the tagging pass was forced to mark them UNENFORCEABLE — inflating
+      // the binding metric with controls that exist. Legibility to the resolver is now part of what
+      // "enforced" means, and a preset-inherited rule that matters should be restated here.
+      "@typescript-eslint/no-explicit-any": "error",
+      "react/jsx-key": "error",
       // eslint-plugin-react-hooks@7 added set-state-in-effect which flags the standard
       // useEffect(() => { load() }, [deps]) data-fetch pattern. Disabled until the rule
       // matures — the pattern is documented and intentional across the codebase.

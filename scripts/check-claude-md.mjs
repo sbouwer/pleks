@@ -42,7 +42,9 @@ const RULES_SECTIONS = [
 ]
 
 /** ns:id[:qualifier] — qualifier is currently only `advisory` (reports, does not block). */
-const TAG = /@enforced\s+([a-z]+):([A-Za-z0-9/_.-]+)(?::(advisory))?/g
+// The id class MUST include "@" — scoped npm/plugin rule ids like
+// `@typescript-eslint/no-explicit-any` are real controls. It did not, until 2026-08-18.
+const TAG = /@enforced\s+([a-z]+):([A-Za-z0-9/_.@-]+)(?::(advisory))?/g
 const UNENF = /\*\*UNENFORCEABLE\*\*\s*—\s*(.*)/
 
 /** Does a control id resolve to something real? Lookup per namespace, never inference from prose. */
@@ -95,6 +97,25 @@ function auditFile(path, text, claims, root = ".") {
     else claims.set(key, path)
   }
 
+  // 2b — a tag the parser CANNOT READ is worse than a missing tag. It satisfies check 4's
+  // literal `.includes("@enforced")` string test, so the bullet looks tagged; but it registers
+  // no claim, so the rule is counted in NEITHER N nor D_enforced and is never resolution-checked.
+  // The rule silently exits the audit while reading as enforced to a human.
+  // Found 2026-08-18: the id class excluded "@", so `eslint:@typescript-eslint/no-explicit-any`
+  // parsed as nothing and a real, verified control vanished from the metric with no complaint.
+  // A tag must parse or fail LOUDLY — silence is the one outcome an instrument may not have.
+  // Scoped to HTML comments deliberately: a tag ATTEMPT is by definition inside the comment
+  // syntax the format uses. Prose may legitimately discuss `@enforced` — several UNENFORCEABLE
+  // reasons explain why they are NOT tagged — and flagging that is a false positive that would
+  // buy an allowlist, which is how a check stops meaning anything (see lint-rules.md).
+  lines.forEach((l, i) => {
+    for (const c of l.matchAll(/<!--([\s\S]*?)-->/g)) {
+      if (!c[1].includes("@enforced")) continue
+      if (!new RegExp(TAG.source).test(c[1]))
+        out.push(`${path}:${i + 1}: unparseable @enforced tag (registers no claim) — ${c[1].trim().slice(0, 70)}`)
+    }
+  })
+
   // 3 — every UNENFORCEABLE carries a reason
   lines.forEach((l, i) => {
     if (!l.includes("**UNENFORCEABLE**")) return
@@ -127,6 +148,11 @@ const FIXTURES = [
   ["unenforceable with no reason", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — \n`, true],
   ["untagged bullet in a rules section", `${SEC}\n- A rule nobody tagged.\n`, true],
   ["near-miss by normalisation", `${SEC}\n- A rule. <!-- @enforced hook:bash_gate -->\n`, true],
+  // The bug this pair locks down: the tag is PRESENT (so check 4 is satisfied and the bullet
+  // reads as enforced) but UNPARSEABLE (so it registers no claim and vanishes from the metric).
+  ["unparseable @enforced tag registers no claim", `${SEC}\n- A rule. <!-- @enforced eslint -->\n`, true],
+  ["KNOWN-GOOD: scoped plugin id containing @ parses", `${SEC}\n- A rule. <!-- @enforced eslint:@typescript-eslint/no-explicit-any -->\n`, false],
+  ["KNOWN-GOOD: prose discussing @enforced outside a comment", `${SEC}\n- A rule. <!-- @enforced hook:bash-gate -->\n- Loose one.\n  **UNENFORCEABLE** — tagging it \`@enforced\` here would overclaim, so it is not tagged.\n`, false],
   ["renamed rules section", `## SECURITY RULES (unchanged — still apply to any new code)\n- x <!-- @enforced hook:bash-gate -->\n`, true],
   // must PASS — the negative-space half, and the one that catches a never-matching pattern
   ["KNOWN-GOOD: tagged + unenforceable together", `${SEC}\n- Enforced one. <!-- @enforced hook:bash-gate -->\n- Loose one.\n  **UNENFORCEABLE** — nothing scans for this; it is a human judgement call.\n`, false],
@@ -205,7 +231,12 @@ const { findings, claims } = runAudit(".")
 //   N falling, D stable → mechanisation, which is what the ratchet is for
 //   N and D falling     → DELETION — may be right, but a different act deserving different attention
 // A field migration went D 18 → 21 with N steady at 9; a bare count reads that as noise or regression.
-const countUnenf = (t) => (t.match(/\*\*UNENFORCEABLE\*\*/g) ?? []).length
+// ⚠ COUNT BULLETS, NOT OCCURRENCES. The first version matched every `**UNENFORCEABLE**` in the text,
+// so a reason line that MENTIONS the marker — as lint-rules.md did, discussing the metric by name —
+// counted twice and inflated N by one. The binding metric was measuring its own vocabulary.
+// Found by the triage pass reconciling 116 reported against 115 real bullets. One line at a time
+// is the fix: a line either carries the marker or it does not.
+const countUnenf = (t) => t.split("\n").filter((l) => l.includes("**UNENFORCEABLE**")).length
 const N_unenf = countUnenf(readFileSync("CLAUDE.md", "utf8"))
   + readdirSync(".claude/rules").filter((x) => x.endsWith(".md"))
       .reduce((n, f) => n + countUnenf(readFileSync(`.claude/rules/${f}`, "utf8")), 0)
