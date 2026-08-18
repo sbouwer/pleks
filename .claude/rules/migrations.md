@@ -8,9 +8,11 @@ paths:
 
 **The migration structure is consolidated into 12 domain-scoped files. New
 features amend an existing file — they do NOT create new migration files.**
+(Same rule as CLAUDE.md's DO NOT DO entry, already marked there: `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve, not their count — a thirteenth file would pass every gate. Not re-tagged here to avoid restating a finding twice.)
 
 This is the single most important rule for schema work. Read this whole
 section before touching `supabase/migrations/`.
+**UNENFORCEABLE** — "read this whole section first" leaves no artefact.
 
 ### File structure
 
@@ -49,10 +51,12 @@ domain-scoped files above and have been removed.
 **Do NOT amend** `007_enhancements.sql` or `008_enhancements2.sql`. These are
 historical cross-cutting files preserved for replay fidelity. New work goes into
 the domain-scoped files above.
+**UNENFORCEABLE** — mechanisable and not done: `check-migration-forward-refs.mjs` reads every migration file's content but has no rule against 007/008 specifically gaining a new `§N` section; a check could diff each file's section count against a recorded baseline and fail if 007/008 grows.
 
 When in doubt, pick the file whose purpose most closely matches what you're
 adding. It is better to stretch the definition of an existing domain than to
 create a new file.
+**UNENFORCEABLE** — "which domain most closely matches" is a judgement call on the change's subject matter.
 
 ### Amend-forward pattern
 
@@ -70,10 +74,12 @@ section at the bottom, labelled with the BUILD number:
 After adding a section, re-run the migration against the live DB and verify
 with the drift script (below). Fresh DB replays will pick up your new
 section automatically when it replays the whole file.
+**UNENFORCEABLE** — see the drift-detection workflow note below: `check-schema-drift.mjs` would catch the RESULTING mismatch if run, but nothing forces "re-run and verify" to have actually happened before a commit.
 
 ### Idempotency is mandatory
 
 Every migration must be safely re-runnable. Use these patterns:
+**UNENFORCEABLE** — mechanisable and not done: a check could scan a migration's new `§N` section for `CREATE TABLE` without `IF NOT EXISTS`, `ADD COLUMN` without `IF NOT EXISTS`, or `CREATE INDEX` without `IF NOT EXISTS`, each a concrete syntactic pattern.
 
 ```sql
 -- Tables
@@ -127,6 +133,7 @@ to survive Markdown rendering in this doc.
 errors with `42710: policy already exists` on the second run and aborts
 the entire migration at that point, silently leaving everything below it
 unapplied. This has bitten us multiple times.
+(Same rule as CLAUDE.md's DO NOT DO entry for this — already marked UNENFORCEABLE there: zero scripts scan migration SQL for the drop-first pairing. Not re-tagged here to avoid restating the same finding twice.)
 
 ### Drift detection workflow
 
@@ -141,6 +148,7 @@ Exit clean: `✓ No drift — migrations match the live database.`
 
 If drift is reported, the report lists every difference with copy-paste
 SQL to fix it. Always drive drift back to zero before committing.
+**UNENFORCEABLE** — `check-schema-drift.mjs` genuinely detects drift when run, and its conditional wrapper (`check-drift-if-sql-changed.mjs`) is part of `check:full` — but `check:full` is not CI-wired (see CLAUDE.md Git rhythm), so nothing forces "drive drift to zero" to have happened before a commit lands.
 
 `schema-drift-report.md` is generated in the project root — it's in
 `.gitignore` (don't commit).
@@ -159,6 +167,7 @@ Because every file is idempotent, there are only two safe workflows:
 
 Never run partial/cherry-picked statements without re-running the drift
 check afterwards. Ad-hoc SQL in the editor is the #1 cause of drift.
+(Same enforceability gap as CLAUDE.md DO NOT DO's "Do not apply ad-hoc SQL to the live DB" — not re-tagged here.)
 
 ### When to create a new migration file
 
@@ -171,6 +180,7 @@ check afterwards. Ad-hoc SQL in the editor is the #1 cause of drift.
 
 Even in these cases, flag the decision before creating the file. Default
 is always amend-forward.
+**UNENFORCEABLE** — "genuine case" is a judgement call by definition (that's what makes it "almost never" rather than "never"); `check-migration-forward-refs.mjs` would not object to a 13th file being created, genuine reason or not — see the file count gap already noted above.
 
 ---
 

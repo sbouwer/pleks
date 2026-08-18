@@ -15,6 +15,7 @@ from `middleware` to `proxy`.
 
 **`proxy.ts` at the project root IS the Next.js middleware.** Do NOT create a new
 `middleware.ts` file — it is deprecated in Next.js 16 and will not be picked up.
+**UNENFORCEABLE** — mechanisable and not done: a check could simply assert no `middleware.ts` exists at the project root (a one-line `existsSync` check), the same shape as `check-rules-tracked.mjs`'s ghost-file check.
 
 `proxy.ts` handles (in order):
 1. Webhook/cron bypass — `WEBHOOK_PREFIXES` skip all gates; handlers validate their own secrets
@@ -35,12 +36,14 @@ middleware layer. Never split this into a separate `middleware.ts`.
 ## Single-Pass Auth Doctrine (ADDENDUM_AUTH_RESOLVER_SELF_REFERENCE_FIX_2026-05-27)
 
 **Rule:** `/auth/resolver` produces exactly ONE routing decision per call. Every URL it returns redirects to the user's actual final destination (or a transient auth state with the final destination preserved in `?redirect=`). The resolver MUST NOT appear in any `?redirect=` value it forwards. The transient auth states (`/login/mfa`, `/settings/security/enrol-totp`, `/onboarding`) MUST navigate directly to the final destination on success — never back through the resolver.
+**UNENFORCEABLE** — mechanisable and not done: a check could grep the resolver route and the three named transient-auth-state routes for a literal `/auth/resolver` substring inside a `redirect=`/`searchParams.set("redirect", ...)` value and fail on a match — the exact self-reference class this rule forbids — but nothing does today; it is a runtime routing property, not something `architecture-audit.mjs`'s current checks (cross-origin links, manifest completeness, safe-redirect denylist) happen to cover.
 
 **Rationale:** Resolver self-references create infinite loops when AAL2 cookies don't propagate on post-MFA navigation, or when the user is in a cross-host MFA state (factor enrolled on host A, currently at host B).
 
 Membership and consent are NOT the resolver's job after the first call. They are handled by `ensureOrgCookies` in proxy.ts and `ConsentGateModal` in destination layouts.
 
 **Factor scoping:** Any code path that ROUTES based on "does the user have an MFA factor?" MUST use the host-scoped check (`filterFactorsByHost` from `lib/auth/mfa-host`). Global factor presence is meaningless for routing — only host-scoped presence determines whether the user can MFA-verify on the current host.
+**UNENFORCEABLE** — mechanisable and not done: a check could flag a routing decision (`NextResponse.redirect` inside an `if`) guarded by `factors.some(...)`/raw factor-array truthiness instead of a `filterFactorsByHost(...)` call — the exact anti-pattern shown below — but nothing greps for it today.
 
 **Anti-pattern (creates loops):**
 

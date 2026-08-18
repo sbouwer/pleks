@@ -15,6 +15,7 @@ header) are what work, so EVERY cron is now triggered from cPanel on the Yoros h
 account (`yoroscoz` user). `vercel.json` is just `{ "buildCommand": "next build" }` — do
 NOT re-add a `crons` array, and do NOT put `npm run check` in `buildCommand` (it broke
 deploys; check belongs in CI + pre-push).
+**UNENFORCEABLE** — mechanisable and not done: a check could parse `vercel.json` and fail if it gains a `crons` key or a `buildCommand` containing `npm run check`.
 
 ### The daily orchestrator (cPanel, 05:00 UTC)
 `/api/cron/daily` — orchestrates all truly-daily jobs sequentially (~11s, mostly I/O
@@ -57,11 +58,14 @@ All use the same `x-cron-secret` header auth.
 - Needs higher frequency → add a cPanel curl entry AND document it in this table
 - Monthly → add to the `dayOfMonth === N` gate in `daily/route.ts`
 
+**UNENFORCEABLE** — mechanisable and not done: nothing enumerates `app/api/cron/**/route.ts` on disk and asserts each one appears either in the daily orchestrator or in this table's cPanel-entry list — an undocumented cron currently goes unnoticed the same way an undocumented public route used to (Category 8's disk-derived census, before it existed).
+
 **Health-check tracking:** `lib/observability/health.ts` `checkCrons` tracks only
 top-level scheduled `job_name`s that ACTUALLY write a `cron_runs` row (currently just
 `["daily"]`). Adding a name that no handler writes makes it read permanently stale and
 falsely degrades deep-health — this was the chronic "crons: degraded" cause. A completed
 "daily" row implies its in-orchestrator child + monthly jobs ran.
+**UNENFORCEABLE** — mechanisable and not done: a check could assert every name in `TRACKED_CRONS` is written by at least one route calling `withCronRun` with that exact `job_name` — the precise mismatch that caused the chronic "crons: degraded" false positive this paragraph describes.
 
 **Post-launch (Pro) plan:** split the daily orchestrator into grouped endpoints
 (daily-financial / daily-comms / daily-engine, etc.) once on Pro — unnecessary on Hobby

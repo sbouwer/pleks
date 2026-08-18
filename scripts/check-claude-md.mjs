@@ -51,8 +51,18 @@ function controlExists(ns, id, root = ".") {
   try {
     switch (ns) {
       case "eslint": {
-        const name = id.replace(/^pleks\//, "")
-        return existsSync(`${root}/eslint-rules/${name}.mjs`) && rd("eslint.config.mjs").includes(`"${id}"`)
+        // ⚠ TWO KINDS OF ESLINT CONTROL, AND THE FIRST VERSION SAW ONLY ONE.
+        // Custom `pleks/*` rules live in eslint-rules/. But BUILT-IN and plugin rules configured in
+        // eslint.config.mjs — `no-restricted-imports`, `react/jsx-key`, `@typescript-eslint/*` — are
+        // equally real controls with no file of their own. The resolver required a file, so a rule
+        // genuinely enforced by config could not be truthfully tagged, and the tagging pass correctly
+        // refused to stretch the grammar and marked those rules UNENFORCEABLE instead.
+        // That inflated N — the binding metric — with controls that exist. THE TOOL WAS CONSTRAINING
+        // THE TRUTH, which is the one thing a measurement instrument must not do.
+        const cfg = rd("eslint.config.mjs")
+        const custom = id.startsWith("pleks/")
+        if (custom) return existsSync(`${root}/eslint-rules/${id.slice(6)}.mjs`) && cfg.includes(`"${id}"`)
+        return cfg.includes(`"${id}"`)   // configured built-in / plugin rule
       }
       case "check":
         return existsSync(`${root}/scripts/${id}.mjs`) || existsSync(`${root}/scripts/${id}.mts`)
@@ -121,6 +131,11 @@ const FIXTURES = [
   // must PASS — the negative-space half, and the one that catches a never-matching pattern
   ["KNOWN-GOOD: tagged + unenforceable together", `${SEC}\n- Enforced one. <!-- @enforced hook:bash-gate -->\n- Loose one.\n  **UNENFORCEABLE** — nothing scans for this; it is a human judgement call.\n`, false],
   ["KNOWN-GOOD: prose that merely mentions a control id", `${SEC}\n- A rule. <!-- @enforced hook:bash-gate -->\n\nSome prose about eslint:pleks/no-cookie-client-from that is not a tag.\n`, false],
+  // A CONFIGURED BUILT-IN is a real control. The first resolver could not see one, so rules genuinely
+  // enforced by eslint.config.mjs were forced into the UNENFORCEABLE count — the instrument inflating
+  // its own metric. Both directions fixtured, because "resolves anything" is the opposite failure.
+  ["KNOWN-GOOD: configured built-in eslint rule resolves", `${SEC}\n- A rule. <!-- @enforced eslint:no-restricted-imports -->\n`, false],
+  ["built-in that is NOT configured must still fail", `${SEC}\n- A rule. <!-- @enforced eslint:no-invented-rule-xyz -->\n`, true],
 ]
 
 if (process.argv.includes("--selftest")) {

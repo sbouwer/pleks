@@ -11,6 +11,7 @@ paths:
 exception class, and — more importantly — the test that keeps it from becoming a general escape
 hatch. **A table is in this class only if it passes the membership test below. Not "it felt
 user-ish."**
+**UNENFORCEABLE** — same gap as CLAUDE.md SECURITY RULE 1 itself: nothing inspects migration SQL for a new table at all, so nothing can distinguish "correctly exempted by the membership test" from "the org_id rule was simply skipped." This file's whole purpose — a written test to stop the exception becoming a general escape hatch — has no code-side check that the test was actually applied.
 
 Ratified 2026-08-15 (CD) off the ADDENDUM_62F grounding pass, where `user_passkeys` was nearly
 "corrected" by adding `org_id` to it.
@@ -32,6 +33,8 @@ Two supporting checks, both of which must also hold:
    consulted **before** that selection cannot be org-scoped without a chicken-and-egg failure —
    pinning it to whatever org the user occupied at registration breaks on their first switch.
 
+**UNENFORCEABLE** — both are semantic judgements about a table's meaning ("does a person have two of these", "is this consulted before org selection") that no static check performs.
+
 ### Current members (exhaustive — extend only via a CD ruling)
 
 | Table | Why |
@@ -43,6 +46,8 @@ Two supporting checks, both of which must also hold:
 Planned members from ADDENDUM_62F: `device_enrolment_tokens` and `account_recovery_codes` — both
 recover **a person's access**, both consulted before org selection. Confirm against the test when
 their DDL is written; do not assume.
+
+**UNENFORCEABLE** — mechanisable and not done: no code anywhere enumerates this three-table allowlist to check against (the ESLint rules' own `SELF_SCOPED_TABLES` set is a DIFFERENT, unrelated exemption for `organisations`/`user_profiles`); a fourth table added to this list by prose alone, with no matching code-side allowlist, would not be caught adding `org_id` back OR skipping it incorrectly.
 
 ### Cascade policy — the companion rule
 
@@ -61,6 +66,7 @@ not generalise to everything hanging off `auth.users`.
 Getting this backwards in either direction is a real defect: cascading evidence silently destroys
 the audit trail on first erasure request; SET NULL-ing credentials leaves unusable rows that make
 "does this user have a factor?" answer wrongly.
+**UNENFORCEABLE** — mechanisable and not done: a check could grep migrations for `REFERENCES auth.users` and assert `ON DELETE CASCADE` only on the named credential tables and `ON DELETE SET NULL` everywhere else — but nothing does; classifying a NEW table as "credential" or "evidence" in the first place still requires the semantic judgement this section describes.
 
 ### Why this is written down at all
 
