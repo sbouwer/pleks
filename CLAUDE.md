@@ -542,7 +542,12 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 
 ## SECURITY RULES (unchanged — still apply to any new code)
 
-1. org_id on every new table — **one bounded exception: identity-scoped tables** (a row describing a
+1. org_id on every new table — **one bounded exception: identity-scoped tables**
+   **UNENFORCEABLE** — nothing inspects migration SQL for the column. The org-scope ESLint rules
+   govern app-code USAGE (`require-org-scope-on-service-write`, `require-scope-on-delete`); a new
+   table with no `org_id` at all is invisible to them and to Category 7. This is also the missing
+   twin for `.claude/rules/identity-scoped-tables.md` (E1b twin audit) — mechanisable, and one of
+   the three ratchet targets. (a row describing a
    HUMAN, read before `/switch-role` selects an org: `user_passkeys`, `passkey_challenges`,
    `passkey_aal_grants`). Membership test + cascade companion rule in
    `.claude/rules/identity-scoped-tables.md`. Do not invoke the exception without applying the test.
@@ -551,7 +556,7 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
   **UNENFORCEABLE** — enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists.
 4. consent_log for any new POPIA-sensitive operation
   **UNENFORCEABLE** — no rule or script references `consent_log` as a write requirement. Same shape as the audit rule above and equally mechanisable, scoped to a consent-required table set.
-5. Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. The SA **`id_number`** is
+5. Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. <!-- @enforced eslint:pleks/require-id-number-encryption --> The SA **`id_number`** is
    encrypted at rest everywhere (AES-256-GCM `iv:ct:tag`, random IV) via `idNumberColumns(raw)` /
    `encryptIdNumber(raw)` — the write helper bundles the ciphertext + a RAW-derived `id_number_hash` (the
    deterministic dedup/lookup key; match on the hash, NEVER on ciphertext). Decrypt with the TOLERANT
@@ -568,7 +573,7 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
    full ID; a UI surface masks via `maskIdNumber`)
 7. No PII in console.log, no PII in audit_log values
   **UNENFORCEABLE** — the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check.
-8. **`id_number_hash` is dedup + analytics ONLY — service-role only, never cross-org in any org-facing query
+8. **`id_number_hash` is dedup + analytics ONLY — service-role only, never cross-org in any org-facing query <!-- @enforced eslint:pleks/no-id-number-hash-in-app -->
    path, and never under `app/`.** `hashIdNumber` salts with a single GLOBAL env var, not a per-org one, so the
    same human hashes identically in every organisation on the platform — it is already a cross-org identity key
    by construction. Today no caller resolves across orgs, but that is the *absence of a caller*, not a control.
@@ -626,6 +631,10 @@ Run INDEPENDENT work in parallel (multiple agents in one turn, `run_in_backgroun
   package already covers the use case
   **UNENFORCEABLE** — requires judgement about functional overlap between packages. Not statically decidable.
 - Do not use ANON_KEY — the correct env var is
+  **UNENFORCEABLE** — `pleks/no-raw-process-env` catches a raw read of ANY env var outside
+  `lib/env.ts`, which incidentally catches this one. It has no knowledge of the string "ANON_KEY"
+  and would equally flag a raw read of the CORRECT name; if `lib/env.ts` itself aliased it, nothing
+  would notice. A coincidental catch of a general pattern, not enforcement of this rule.
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 - Do not build debit order or DebiCheck mandate features — Pleks reads bank statement matches only. Agencies hold mandates bank-side between themselves and their bank. Pleks is not in the payment flow.
 - Do not split an extension migration across commits — when changing a file extension (.ts → .tsx, .js → .ts, etc.), delete the predecessor in the same commit that introduces the successor.
