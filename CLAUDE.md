@@ -297,6 +297,15 @@ A pushed commit with a problem is fixed forward with a new commit.
 
 ### Announce push intentions
 
+**Push policy: announce intent, then push.** `hook:bash-gate` makes every push an
+approval gate — the announcement is the *content* of that approval: what's in the
+batch, what was verified, what to walk before it lands. Trivial commits (typo/docs)
+skip the announcement, never the gate. Never push red; never force-push (hook-denied).
+
+(The hook is tagged once, under UNATTENDED SESSIONS — not re-tagged here, or it would
+register as a control claimed twice. This slot binds an existing practice to an existing
+mechanism; it does not add a new one.)
+
 For non-trivial work — anything spanning multiple commits, or any change
 touching auth/routing/data — state the push intention in chat before
 pushing:
@@ -384,7 +393,7 @@ This runs across 15 security categories:
   **UNENFORCEABLE** — "add a policy" vs "delete the finding" are both edits to files the audit doesn't distinguish by intent; nothing stops the latter.
 - Never disable or skip categories to pass the audit.
   **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: data-boundary) — sketch: a self-check asserting all 15 `catN_*` functions are invoked unconditionally in `main()`/`runCiMode()`, the same self-referential pattern this file's own `--selftest` uses.
-- When adding new tables: add RLS + org_id policy immediately. The Category 7 audit will catch you if you forget. <!-- @enforced audit:cat7_rlsPolicyAudit -->
+- When adding new tables: add RLS + org_id policy immediately. The Category 7 audit will catch you if you forget. (Same control as `audit:cat7_rlsPolicyAudit`, tagged on SECURITY RULE 2 — not re-tagged here to avoid a double claim.)
 - When adding new API routes: Category 8 auto-discovers them from disk — no list to update. Just gate the route with a recognized auth helper; a route with no gate that isn't a conscious public route FAILS the census until you add it to `PUBLIC_ALLOWLIST` (with a reason) in `route-census.mjs`. <!-- @enforced audit:cat8_serverActionAbuse -->
 - When adding new server actions (`"use server"`): Category 15 auto-discovers them — gate each with the helper appropriate to its location (`app/(admin)` → `requireAdminAuth`; agent → `requireAgentWriteAccess`/`gateway`; portal → `getTenantSession`), or add the file to `ACTION_ALLOWLIST` (with a reason) in `server-action-census.mjs`. A bare `gateway()` on an `app/(admin)` action FAILS — admin surfaces need the admin gate. <!-- @enforced audit:cat15_serverActionAuth -->
 - When adding new webhook handlers: add signature verification from day one. Category 10 sends forged payloads. <!-- @enforced audit:cat10_webhookSignatures -->
@@ -550,16 +559,12 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 
 ## SECURITY RULES (unchanged — still apply to any new code)
 
-1. org_id on every new table — **one bounded exception: identity-scoped tables**
-   **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — twin of `.claude/rules/identity-scoped-tables.md:14`, same mechanism, not re-annotated there. Nothing inspects migration SQL for the column. The org-scope ESLint rules
-   govern app-code USAGE (`require-org-scope-on-service-write`, `require-scope-on-delete`); a new
-   table with no `org_id` at all is invisible to them and to Category 7. This is also the missing
-   twin for `.claude/rules/identity-scoped-tables.md` (E1b twin audit) — one of
-   the three ratchet targets. Sketch: parse each migration's new `§N` section for `CREATE TABLE`, and assert an `org_id` column is present unless the table name is in the identity-scoped allowlist (`.claude/rules/identity-scoped-tables.md`'s "Current members" table). (a row describing a
+1. org_id on every new table — **one bounded exception: identity-scoped tables** (a row describing a
    HUMAN, read before `/switch-role` selects an org: `user_passkeys`, `passkey_challenges`,
    `passkey_aal_grants`). Membership test + cascade companion rule in
    `.claude/rules/identity-scoped-tables.md`. Do not invoke the exception without applying the test.
-2. RLS on every new table
+   **UNENFORCEABLE** — MECHANISABLE → **M-005**. Nothing inspects migration SQL for the column, so a new table with no `org_id` at all is invisible to Category 7 and to the org-scope ESLint rules (which govern app-code USAGE, not schema). The statement stays here because the rule is incident-class and a write-blind session must still see it; the membership test's detail lives in the rule file.
+2. RLS on every new table <!-- @enforced audit:cat7_rlsPolicyAudit -->
 3. audit_log on every state change
   **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists. Full sketch → **M-004** in `brief/build/MECHANISABLE.md`.
 4. consent_log for any new POPIA-sensitive operation

@@ -131,7 +131,16 @@ function auditFile(path, text, claims, root = ".") {
       const l = lines[i]
       if (l.startsWith("## ")) break
       if (!/^\s*(-|\d+\.)\s+\S/.test(l)) continue
-      const block = l + "\n" + (lines[i + 1] ?? "") + "\n" + (lines[i + 2] ?? "")
+      // Extend to the END of the bullet, not a fixed 3-line window. The fixed window silently
+      // required a marker within 2 lines of the bullet's first line, which pressured annotators to
+      // jam markers INTO the middle of multi-line rule statements. That is exactly how SECURITY
+      // RULE 1's exception clause ("a row describing a HUMAN…") got orphaned mid-sentence — the
+      // tool's arbitrary limit deformed the document it was measuring. Found and fixed 2026-08-18.
+      let block = l
+      for (let j = i + 1; j < lines.length; j++) {
+        if (/^\s*(-|\d+\.)\s+\S/.test(lines[j]) || lines[j].startsWith("## ") || lines[j].startsWith("---")) break
+        block += "\n" + lines[j]
+      }
       if (!block.includes("@enforced") && !block.includes("**UNENFORCEABLE**"))
         out.push(`${path}:${i + 1}: rule bullet carries no marker — ${l.trim().slice(0, 62)}`)
     }
@@ -153,6 +162,9 @@ const FIXTURES = [
   ["unparseable @enforced tag registers no claim", `${SEC}\n- A rule. <!-- @enforced eslint -->\n`, true],
   ["KNOWN-GOOD: scoped plugin id containing @ parses", `${SEC}\n- A rule. <!-- @enforced eslint:@typescript-eslint/no-explicit-any -->\n`, false],
   ["KNOWN-GOOD: prose discussing @enforced outside a comment", `${SEC}\n- A rule. <!-- @enforced hook:bash-gate -->\n- Loose one.\n  **UNENFORCEABLE** — tagging it \`@enforced\` here would overclaim, so it is not tagged.\n`, false],
+  // Regression: a marker BELOW the old 3-line window must still count, so a multi-line rule
+  // statement never has to be broken apart to satisfy the checker.
+  ["KNOWN-GOOD: marker below the old 3-line window", `${SEC}\n- A rule that runs on\n  several continuation\n  lines before its\n  marker appears.\n  **UNENFORCEABLE** — nothing scans for this; it is a human judgement call.\n`, false],
   ["renamed rules section", `## SECURITY RULES (unchanged — still apply to any new code)\n- x <!-- @enforced hook:bash-gate -->\n`, true],
   // must PASS — the negative-space half, and the one that catches a never-matching pattern
   ["KNOWN-GOOD: tagged + unenforceable together", `${SEC}\n- Enforced one. <!-- @enforced hook:bash-gate -->\n- Loose one.\n  **UNENFORCEABLE** — nothing scans for this; it is a human judgement call.\n`, false],

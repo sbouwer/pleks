@@ -11,7 +11,12 @@ paths:
 exception class, and — more importantly — the test that keeps it from becoming a general escape
 hatch. **A table is in this class only if it passes the membership test below. Not "it felt
 user-ish."**
-**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — twin of `CLAUDE.md`'s SECURITY RULE 1, same mechanism, not re-annotated there. Nothing inspects migration SQL for a new table at all, so nothing can distinguish "correctly exempted by the membership test" from "the org_id rule was simply skipped." This file's whole purpose — a written test to stop the exception becoming a general escape hatch — has no code-side check that the test was actually applied. Sketch: parse each migration's new `§N` section for `CREATE TABLE`, and assert an `org_id` column is present unless the table name is in this file's "Current members" allowlist.
+⚠ **Enforcement: none yet — the migration-parse twin is M-005.** Stated here deliberately: this
+file's doctrine is currently held by convention alone, and a rule file that does not admit that
+reads as though something is checking. That is the `data-access.md` overclaim, applied preemptively
+rather than after it bites.
+
+**UNENFORCEABLE** — MECHANISABLE → **M-005** (the same single control as `CLAUDE.md`'s SECURITY RULE 1 — one build, not two). Nothing inspects migration SQL for a new table at all, so nothing can distinguish "correctly exempted by the membership test" from "the org_id rule was simply skipped." This file's whole purpose — a written test to stop the exception becoming a general escape hatch — has no code-side check that the test was actually applied.
 
 Ratified 2026-08-15 (CD) off the ADDENDUM_62F grounding pass, where `user_passkeys` was nearly
 "corrected" by adding `org_id` to it.
