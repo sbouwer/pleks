@@ -16,8 +16,6 @@ import { toast } from "sonner"
 import { updatePortalContactDetails } from "./actions"
 
 interface Props {
-  readonly contactId: string
-  readonly orgId: string
   readonly firstName: string | null
   readonly lastName: string | null
   readonly companyName: string | null
@@ -32,8 +30,6 @@ function maskId(idNumber: string | null) {
 }
 
 export function PortalAccountClient({
-  contactId,
-  orgId,
   firstName,
   lastName,
   companyName,
@@ -50,13 +46,14 @@ export function PortalAccountClient({
 
   async function handleSave() {
     setSaving(true)
+    // ⚠ SENDS VALUES ONLY — no contactId, no orgId, no row ids. The action resolves the contact from
+    // the session's tenant row (2026-08-18). Do not "helpfully" pass them back: a client-supplied row
+    // id was the cross-org IDOR, and it also went stale the moment an agent edited the same contact,
+    // because the sync helpers replace the row rather than update it. The trims stay for the UX, but
+    // the server no longer trusts them — it revalidates.
     const result = await updatePortalContactDetails({
-      contactId,
-      orgId,
       phone: phone.trim() || null,
       email: email.trim() || null,
-      primaryPhoneId: primaryPhone?.id ?? null,
-      primaryEmailId: primaryEmail?.id ?? null,
     })
     setSaving(false)
 

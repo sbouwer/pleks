@@ -15,6 +15,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+/** `error` is null on success, and on the deliberate no-op for a blank value. */
+export interface SyncResult { error: string | null }
+
 export type ContactEmailType = "personal" | "work" | "billing"
 
 /** Mirror a `contacts.primary_email` write into `contact_emails` (is_primary + is_active = true). */
@@ -24,9 +27,26 @@ export async function syncPrimaryContactEmail(
   contactId: string,
   email: string | null | undefined,
   emailType: ContactEmailType = "personal",
-): Promise<void> {
+): Promise<SyncResult> {
   const trimmed = email?.trim()
-  if (!trimmed) return
+  if (!trimmed) return { error: null }
+
+  // ⚠ CARRY THE ROW'S METADATA ACROSS THE DELETE — see the twin note in syncPrimaryPhone.ts. The
+  // replacement row used to be built from scratch, so `label` (set by the agent via
+  // contactSubRecords.ts and rendered in the dashboard) was DESTROYED on every write.
+  const { data: existing, error: readError } = await db
+    .from("contact_emails")
+    .select("label")
+    .eq("contact_id", contactId).eq("org_id", orgId).eq("is_primary", true)
+    .maybeSingle()
+  // ⚠ BAIL RATHER THAN PROCEED. An unchecked failure here would leave `existing` undefined, so the
+  // carry-forward below would write nulls — silently destroying the very metadata this lookup exists to
+  // preserve. That is the original defect reached through a different door, which is precisely how the
+  // first version of this fix was incomplete. A read failure must not license a destructive write.
+  if (readError) {
+    console.error("[syncPrimaryContactEmail] read existing primary failed:", readError.message)
+    return { error: readError.message }
+  }
 
   const { error: clearError } = await db
     .from("contact_emails")
@@ -36,7 +56,7 @@ export async function syncPrimaryContactEmail(
     .eq("is_primary", true)
   if (clearError) {
     console.error("[syncPrimaryContactEmail] clear existing primary failed:", clearError.message)
-    return
+    return { error: clearError.message }
   }
 
   const { error } = await db.from("contact_emails").insert({
@@ -46,6 +66,12 @@ export async function syncPrimaryContactEmail(
     email_type: emailType,
     is_primary: true,
     is_active: true,
+    // Preserved, not defaulted. `email_type` stays caller-authoritative — call sites derive it from
+    // whether the contact is a company, so it is a deliberate input rather than row metadata.
+    label: existing?.label ?? null,
   })
   if (error) console.error("[syncPrimaryContactEmail] insert failed:", error.message)
+  // Returned so a caller that NEEDS to know can check — the tenant portal must surface a failed save
+  // rather than report success. Existing callers ignore it, so this is additive.
+  return { error: error?.message ?? null }
 }
