@@ -183,8 +183,18 @@ function auditFile(path, text, claims, root = ".") {
     if (!existsSync(regPath)) {
       out.push(`${path}: ${pointers.length} M-pointer(s) but docs/MECHANISABLE.md does not exist`)
     } else {
-      const have = new Set([...readFileSync(regPath, "utf8").matchAll(/^### (M-\d{3})/gm)].map((m) => m[1]))
-      for (const p of pointers) if (!have.has(p)) out.push(`${path}: ${p} resolves to no entry in docs/MECHANISABLE.md`)
+      // A pointer must resolve to EXACTLY ONE entry. Resolving to two is not a milder version of
+      // resolving to none — it is worse: the reader follows the first heading, which is whichever
+      // was written last, and both look authoritative. Eight ids were duplicated this way, because
+      // marking an item BUILT added a second `### M-0NN` above the original instead of folding the
+      // original into the `<details>` block the new entry already carried for it. The count is
+      // therefore the test, not membership.
+      const count = {}
+      for (const m of readFileSync(regPath, "utf8").matchAll(/^### (M-\d{3})/gm)) count[m[1]] = (count[m[1]] ?? 0) + 1
+      for (const p of pointers) {
+        if (!count[p]) out.push(`${path}: ${p} resolves to no entry in docs/MECHANISABLE.md`)
+        else if (count[p] > 1) out.push(`${path}: ${p} resolves to ${count[p]} entries in docs/MECHANISABLE.md — an ambiguous pointer sends the reader to whichever heading came first`)
+      }
     }
   }
 
@@ -281,6 +291,10 @@ const FIXTURES = [
   ["KNOWN-GOOD: marker below the old 3-line window", `${SEC}\n- A rule that runs on\n  several continuation\n  lines before its\n  marker appears.\n  **UNENFORCEABLE** — nothing scans for this; it is a human judgement call.\n`, false],
   ["M-pointer resolving to no register entry", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — MECHANISABLE → **M-999**, which does not exist.\n`, true],
   ["KNOWN-GOOD: M-pointer that resolves", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — MECHANISABLE → **M-001**, which exists in the register.\n`, false],
+  // AMBIGUOUS is a distinct failure from ABSENT, and the one the register actually had: marking an
+  // item BUILT added a second `### M-0NN` heading instead of folding the original into the
+  // `<details>` block the new entry already carried for it. Eight ids resolved to two entries each.
+  ["M-pointer resolving to TWO register entries", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — MECHANISABLE → **M-002**, which appears twice.\n`, true],
   // The inverse of "marker-less bullet": a BULLET-LESS MARKER. The plant is the exact shape that
   // survived the v4.5 restructure sixteen times in a file this audit reported green — a prose
   // paragraph, a blank line, then a marker belonging to nothing.
@@ -311,7 +325,25 @@ if (process.argv.includes("--selftest")) {
   // A register with exactly ONE entry, so pointer resolution can be probed in both directions:
   // M-001 must resolve, M-999 must not.
   mkdirSync(join(tmp, "docs"), { recursive: true })
-  writeFileSync(join(tmp, "docs", "MECHANISABLE.md"), "# register\n\n### M-001 — probe entry\n")
+  // M-002 appears TWICE on purpose: the ambiguous-pointer fixture below needs a register that
+  // actually holds a duplicate, the way the real one held eight.
+  writeFileSync(join(tmp, "docs", "MECHANISABLE.md"),
+    "# register\n\n### M-001 — probe entry\n\n### M-002 — ✅ BUILT\n\n### M-002 — the original, never folded in\n")
+
+  // The CONTROLS the fixtures tag, built in the fixture root rather than borrowed from the real one.
+  // Until `root` reached auditFile these resolved against the live repo, so the fixture root did not
+  // need them — and the fixtures were measuring the real tree while claiming to measure themselves.
+  mkdirSync(join(tmp, ".claude", "hooks"), { recursive: true })
+  mkdirSync(join(tmp, "eslint-rules"), { recursive: true })
+  mkdirSync(join(tmp, "scripts"), { recursive: true })
+  writeFileSync(join(tmp, ".claude", "hooks", "bash-gate.js"), "// fixture hook\n")
+  writeFileSync(join(tmp, ".claude", "settings.json"), JSON.stringify({
+    hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: 'node "$D/.claude/hooks/bash-gate.js"' }] }] },
+  }))
+  writeFileSync(join(tmp, "eslint-rules", "no-cookie-client-from.mjs"), "export default {}\n")
+  writeFileSync(join(tmp, "eslint.config.mjs"),
+    'export default [{ rules: { "no-restricted-imports": "error", "@typescript-eslint/no-explicit-any": "error", "pleks/no-cookie-client-from": "error" } }]\n')
+  writeFileSync(join(tmp, "package.json"), JSON.stringify({ scripts: { check: "node scripts/check-nothing.mjs" } }))
 
   for (const [name, body, shouldFire] of FIXTURES) {
     // Every fixture carries BOTH rules sections so the premise-assertion doesn't fire spuriously,
@@ -412,16 +444,23 @@ if (process.argv.includes("--selftest")) {
 // The first version of this file passed fixture STRINGS straight to auditFile(), bypassing discovery
 // entirely — so a renamed .claude/rules, a decayed glob, or a loop finding zero files would have left
 // all eight fixtures green. Green and unfailable, in the tool written to prevent exactly that.
+// ⚠ AND `root` MUST REACH auditFile(). It did not: both calls below took the default `"."`, so
+// every fixture's control resolution and M-pointer lookup ran against the REAL repo instead of the
+// fixture root. The fixtures passed for the wrong reason — "M-001 resolves, M-999 does not" was
+// true of the live register whatever the fixture wrote — and the first fixture that needed the
+// fixture register to DIFFER from the real one (an id appearing twice) silently reported nothing.
+// Fixtures on disk, travelling the real discovery path, and STILL blind, because the path was
+// travelled against the wrong tree.
 function runAudit(root) {
   const claims = new Map()
-  const findings = auditFile("CLAUDE.md", readFileSync(`${root}/CLAUDE.md`, "utf8"), claims)
+  const findings = auditFile("CLAUDE.md", readFileSync(`${root}/CLAUDE.md`, "utf8"), claims, root)
   const dir = `${root}/.claude/rules`
   const files = readdirSync(dir).filter((x) => x.endsWith(".md"))
   // Non-empty assertion on the enumeration itself — a glob that decays to nothing must FAIL, not pass.
   if (files.length === 0) findings.push(`${dir}: no rule files found — glob decayed?`)
   for (const f of files) {
     // Rule files have no RULES_SECTIONS headings; only directions 1-3 apply to them.
-    findings.push(...auditFile(`.claude/rules/${f}`, readFileSync(`${dir}/${f}`, "utf8"), claims)
+    findings.push(...auditFile(`.claude/rules/${f}`, readFileSync(`${dir}/${f}`, "utf8"), claims, root)
       .filter((x) => !x.includes("rules section vanished")))
   }
   return { findings, claims }

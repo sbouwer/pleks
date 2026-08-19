@@ -73,15 +73,14 @@ forever, and looks exactly like a rule that is working.
 
 <details><summary>Original entry</summary>
 
-
-</details>
-
-### M-001 — Gate Supabase MCP `execute_sql`/`apply_migration`
+**M-001 — Gate Supabase MCP `execute_sql`/`apply_migration`**
 - **Rule:** "Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead" (`CLAUDE.md`, DO NOT DO)
 - **Where it lives:** `CLAUDE.md:682-683`
 - **Rung:** hook · **Blast:** data-boundary
 - **Sketch:** `check-schema-drift.mjs` can detect the RESULTING drift reactively (and only when someone runs it, or via `check:check-drift-if-sql-changed` in `check:full` — itself not CI-wired, see Git rhythm above), but nothing prevents the ad-hoc execution itself: the Supabase MCP's SQL execution is not gated by `hook:bash-gate`, which only inspects the Bash tool. Sketch: a PreToolUse hook entry gating the Supabase MCP's SQL-execution tool(s) the same way `bash-gate` gates `git push` — require approval (or block outright) on `execute_sql`/`apply_migration` calls against the live project.
 - **Covering spec:** NEW
+
+</details>
 
 ### M-002 — ✅ BUILT 2026-08-19 (slice 3)
 
@@ -110,15 +109,14 @@ via an inline disable naming the reason.
 
 <details><summary>Original entry</summary>
 
-
-</details>
-
-### M-002 — org-scope on service-client `.select()` reads
+**M-002 — org-scope on service-client `.select()` reads**
 - **Rule:** "Every write/update/delete MUST include `.eq(\"org_id\", orgId)`" — reads half (`CLAUDE.md`, DB ACCESS)
 - **Where it lives:** `CLAUDE.md:175-176` (twin: `.claude/rules/data-access.md:13`, see M-014)
 - **Rung:** eslint · **Blast:** data-boundary
 - **Sketch:** PARTIAL: `pleks/require-org-scope-on-service-write` covers `.update()`/`.upsert()` and `pleks/require-scope-on-delete` covers `.delete()`, both baseline-limited (pre-existing sites grandfathered). Plain `.select()` reads have no scoping check of any kind — an unscoped read is invisible to both rules and to Category 7. Sketch: a `require-org-scope-on-service-read` rule, same AST shape as the existing write/delete rules, flagging a service-client `.from(...).select(...)` chain with no `.eq("org_id", ...)`.
 - **Covering spec:** NEW
+
+</details>
 
 ### M-004 — ⚠ PARTIALLY BUILT 2026-08-19 (slice 3) — and the entry was WRONG
 
@@ -153,15 +151,14 @@ mostly noise, and a noisy rule earns an allowlist and then stops being read.
 
 <details><summary>Original entry</summary>
 
-
-</details>
-
-### M-004 — extend `require-audit-on-sensitive-mutation` beyond its two tables
+**M-004 — extend `require-audit-on-sensitive-mutation` beyond its two tables**
 - **Rule:** "audit_log on every state change" (`CLAUDE.md`, SECURITY RULES #3)
 - **Where it lives:** `CLAUDE.md:599-600`
 - **Rung:** eslint · **Blast:** data-boundary
 - **Sketch:** enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists. Sketch: extend `require-audit-on-sensitive-mutation`'s tracked-table set to leases, applications, properties, tenants, and `user_orgs` role-change writes.
 - **Covering spec:** NEW
+
+</details>
 
 ### M-013 — self-check that all 15 security-audit categories run unconditionally
 - **Rule:** "Never disable or skip categories to pass the audit." (`CLAUDE.md`, SECURITY AUDIT)
@@ -227,15 +224,14 @@ missing or zero-row 'Current members' section FAILS rather than silently exempti
 
 <details><summary>Original entry</summary>
 
-
-</details>
-
-### M-005 — `org_id`-on-new-table migration parse + identity-scoped allowlist
+**M-005 — `org_id`-on-new-table migration parse + identity-scoped allowlist**
 - **Rule:** "org_id on every new table — one bounded exception: identity-scoped tables" (`CLAUDE.md`, SECURITY RULES #1)
 - **Where it lives:** `CLAUDE.md:589-594` (twin: `.claude/rules/identity-scoped-tables.md:14`, see M-023)
 - **Rung:** check · **Blast:** schema
 - **Sketch:** Nothing inspects migration SQL for the column. The org-scope ESLint rules govern app-code USAGE (`require-org-scope-on-service-write`, `require-scope-on-delete`); a new table with no `org_id` at all is invisible to them and to Category 7. Sketch: parse each migration's new `§N` section for `CREATE TABLE`, and assert an `org_id` column is present unless the table name is in the identity-scoped allowlist (`.claude/rules/identity-scoped-tables.md`'s "Current members" table).
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_62F_MULTI_DEVICE_PASSKEY.md` (the grounding pass that ratified the membership test and named the planned `device_enrolment_tokens`/`account_recovery_codes` allowlist additions)
+
+</details>
 
 ### M-006 — ✅ BUILT 2026-08-19 (slice 2)
 
@@ -246,15 +242,14 @@ fires, and a deleted expected file fires too.
 
 <details><summary>Original entry</summary>
 
-
-</details>
-
-### M-006 — migration file count is exactly the twelve named files
+**M-006 — migration file count is exactly the twelve named files**
 - **Rule:** "Do not create new migration files — amend the existing domain file" (`CLAUDE.md`, DO NOT DO)
 - **Where it lives:** `CLAUDE.md:678-679` (closely related: `CLAUDE.md:680-681` CREATE POLICY/DROP pairing, see M-020 — could ship as one combined migration-integrity script)
 - **Rung:** check · **Blast:** schema
 - **Sketch:** nothing counts migration files. `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; a thirteenth file would pass every gate. Sketch: assert the migration file set is exactly the twelve named files (`001_foundation.sql` … `012_property_extensions.sql`) and fail on any additional file matching the migration glob.
 - **Covering spec:** NEW
+
+</details>
 
 ### M-020 — ✅ BUILT 2026-08-19 (slice 2)
 
@@ -280,15 +275,14 @@ available would have been forbidden.
 
 <details><summary>Original entry</summary>
 
-
-</details>
-
-### M-020 — `CREATE POLICY`/`DROP POLICY IF EXISTS` pairing scan
+**M-020 — `CREATE POLICY`/`DROP POLICY IF EXISTS` pairing scan**
 - **Rule:** "Do not use raw `CREATE POLICY` without `DROP POLICY IF EXISTS` first" (`CLAUDE.md`, DO NOT DO)
 - **Where it lives:** `CLAUDE.md:680-681` (closely related to M-006)
 - **Rung:** check · **Blast:** schema
 - **Sketch:** zero scripts scan migration SQL for the pairing. Trivially mechanisable — a regex over `supabase/migrations/*.sql` asserting every `CREATE POLICY "name"` is preceded by a matching `DROP POLICY IF EXISTS "name"` — and worth doing, since the failure mode is a migration that aborts partway and silently leaves everything below it unapplied.
 - **Covering spec:** NEW
+
+</details>
 
 ### M-021 — idempotency (`IF NOT EXISTS`) syntactic scan on new migration sections
 - **Rule:** "Idempotency is mandatory" (`.claude/rules/migrations.md`)
@@ -318,7 +312,7 @@ Different audiences, same missing control.
 
 <details><summary>Original M-023 entry (retained for provenance)</summary>
 
-### M-023 — identity-scoped membership test (migration-parse twin)
+**M-023 — identity-scoped membership test (migration-parse twin)**
 - **Rule:** "A table is in this class only if it passes the membership test below" (`.claude/rules/identity-scoped-tables.md`)
 - **Where it lives:** `.claude/rules/identity-scoped-tables.md:14` (twin of M-005, `CLAUDE.md:590`)
 - **Rung:** check · **Blast:** schema
@@ -615,15 +609,14 @@ rather than quietly weakening the hook.
 
 <details><summary>Original entry</summary>
 
-
-</details>
-
-### M-007 — scan for tier-price/name/lease-cap literals outside the two SSOT files
+**M-007 — scan for tier-price/name/lease-cap literals outside the two SSOT files**
 - **Rule:** "Names, prices, lease caps → `lib/marketing/tiers.ts` (canonical) · cents → `lib/constants.ts`." (`CLAUDE.md`, TIER MODEL)
 - **Where it lives:** `CLAUDE.md:498-499`
 - **Rung:** check · **Blast:** money
 - **Sketch:** sketch: scan `app/**`/`lib/**` for tier-price/name/lease-cap-shaped literals (e.g. "R699", "R1,199", "R2,599", "R4,499", the lease-cap numbers 15/30/75/150) outside the two SSOT files, the way `no-rerolled-money-format`/`no-adhoc-dates` guard their own SSOTs.
 - **Covering spec:** NEW
+
+</details>
 
 ### M-008 — scan for `25000`/`47000`/`0.30`-shaped literals outside `lib/constants.ts`
 - **Rule:** "`APPLICATION_FEE_CENTS` · `JOINT_APPLICATION_FEE_CENTS` · `INCOME_AFFORDABILITY_THRESHOLD` → `lib/constants.ts`" (`CLAUDE.md`, KEY CONSTANTS)
