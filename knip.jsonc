@@ -38,7 +38,13 @@
 
     // Tests and their harness. A helper used only by tests is not dead code.
     "**/*.{test,dbtest,spec}.{ts,tsx}",
-    "test/**/*.ts"
+    "test/**/*.ts",
+
+    // The service worker. Built by serwist via next.config.ts, never imported — so without this
+    // entry `serwist` reported as an unused dependency. Fixed HERE rather than in
+    // ignoreDependencies: a missing entry point is a config gap, and suppressing its symptom would
+    // have hidden anything else app/sw.ts alone depends on.
+    "app/sw.ts"
   ],
 
   "project": [
@@ -56,10 +62,37 @@
   // Scoped to types and interfaces DELIBERATELY: a FUNCTION used only inside its own module still
   // gets reported, because that one really should lose its `export`. LT records that conflating the
   // two broke their build three times in one pass.
-  "ignoreExportsUsedInFile": { "interface": true, "type": true }
+  "ignoreExportsUsedInFile": { "interface": true, "type": true },
 
-  // NO `ignore` / `ignoreDependencies` ENTRIES YET, on purpose. Every one of those is a claim that
-  // a finding was read and judged, and none has been read yet — pre-populating them from LT's file
-  // would import their judgements about their tree. Entries arrive here as the burn-down classifies
-  // real findings, each with the reason it was kept.
+  // Each entry below was read, classified, and VERIFIED BY REMOVAL — taken out, knip re-run, the
+  // finding reappeared. An ignore verified by reading is a guess; LT records the same rule after
+  // finding five of theirs suppressed nothing at all.
+  //
+  // What is NOT here is as deliberate: eight packages knip called unused really were unused and
+  // were UNINSTALLED rather than ignored — @hookform/resolvers, react-hook-form (a pair, nothing
+  // imported either), @tiptap/extension-link (the editor imports extension-UNDERLINE, which was
+  // not declared at all), heic2any, pdf-lib, zustand, react-email (the preview CLI; the app uses
+  // @react-email/components, a different package) and @types/pdf-parse (v1 types against
+  // pdf-parse v2, which ships its own).
+  "ignoreDependencies": [
+    // Reached through CSS, which knip does not follow — its own configuration hint says so
+    // (".css — Compiled extension excluded by project (imports not followed)"). Both are imported
+    // by app/globals.css; deleting either breaks every page's styling with no import to show it.
+    "tw-animate-css",
+    "tailwindcss",
+
+    // Named as strings in .releaserc.json and loaded by semantic-release at release time. No
+    // source file imports them, and the release job is the only thing that resolves them.
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/github",
+    // One level further out: .releaserc.json says `"preset": "conventionalcommits"`, which
+    // semantic-release resolves BY NAME to this package. Nothing anywhere spells the package name.
+    "conventional-changelog-conventionalcommits",
+
+    // CLI tools invoked by hand, never imported. `shadcn` is configured by components.json;
+    // `supabase` is the local-stack CLI the DB test tier drives.
+    "shadcn",
+    "supabase"
+  ]
 }
