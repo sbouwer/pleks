@@ -122,17 +122,41 @@ function controlExists(ns, id, root = ".") {
 }
 
 /** The ratchet, as a pure function so it can be probed in every direction. */
-function ratchetFindings(n, ceiling, path) {
+function ratchetFindings(n, ceiling, path, d) {
   if (!ceiling || typeof ceiling.maxN !== "number") {
     return [`${path} is missing or has no numeric maxN — the ratchet has no stored ceiling, so "N may only fall" is unenforced`]
   }
+  const out = []
   if (n > ceiling.maxN) {
-    return [`RATCHET: N rose to ${n}, ceiling is ${ceiling.maxN}. Mechanise the new rule, or raise maxN in ${path} in the SAME commit and argue it in the message.`]
+    out.push(`RATCHET: N rose to ${n}, ceiling is ${ceiling.maxN}. Mechanise the new rule, or raise maxN in ${path} in the SAME commit and argue it in the message.`)
   }
   if (n < ceiling.maxN) {
-    return [`RATCHET: N fell to ${n} but the ceiling is still ${ceiling.maxN}. Lower maxN to ${n} — tightening the ratchet is part of the mechanisation's acceptance, not a follow-up.`]
+    out.push(`RATCHET: N fell to ${n} but the ceiling is still ${ceiling.maxN}. Lower maxN to ${n} — tightening the ratchet is part of the mechanisation's acceptance, not a follow-up.`)
   }
-  return []
+
+  // ── THE DENOMINATOR'S FLOOR, and why a ceiling on N alone is gameable ────────────────────────
+  // N and D are counted from marker-carrying lines, which check 4 requires only INSIDE `### Enforced`
+  // and §5. Everywhere else in CLAUDE.md a bullet needs no marker — correctly, because §1-§3 and
+  // §6-§9 are prose, not the rules index.
+  //
+  // But that makes "N may only fall" satisfiable by MOVING a rule instead of mechanising it: cut an
+  // UNENFORCEABLE bullet out of §5, paste it into §8 as ordinary prose, and N falls by one with the
+  // rule still in the file, still unenforced, and now invisible to the metric that exists to count
+  // it. The ratchet would report the mechanisation it did not get.
+  //
+  // Pinning D's FLOOR closes it: relocating a rule out of the tagged sections drops D and fails.
+  // D may rise freely — a new ENFORCED rule is exactly what should be easy. Deliberately deleting an
+  // obsolete rule lowers minD in the same commit, which is the visible, argued act a ratchet is for.
+  if (typeof d === "number") {
+    if (typeof ceiling.minD !== "number") {
+      out.push(`${path} has no numeric minD — without it, N can be lowered by MOVING a rule out of the tagged sections instead of mechanising it`)
+    } else if (d < ceiling.minD) {
+      out.push(`RATCHET: D fell to ${d}, floor is ${ceiling.minD}. A rule left the tagged sections — mechanised rules RAISE D. If a rule was genuinely deleted, lower minD in ${path} in the SAME commit and say which rule and why.`)
+    } else if (d > ceiling.minD) {
+      out.push(`RATCHET: D rose to ${d} but the floor is still ${ceiling.minD}. Raise minD to ${d} — the new floor is part of the change, not a follow-up.`)
+    }
+  }
+  return out
 }
 
 /** Audit one markdown file. Returns findings. */
@@ -433,6 +457,24 @@ if (process.argv.includes("--selftest")) {
     console.log(`  ${ok ? "✓" : "✗"} RATCHET    — ${name}`)
   }
 
+  // The DENOMINATOR floor. The case that matters is the last one: N falling while D falls with it
+  // is a rule being MOVED out of the tagged sections, not mechanised, and the N ceiling alone reads
+  // that as progress.
+  const DCASES = [
+    ["KNOWN-GOOD: N at its ceiling and D at its floor", 91, 120, { maxN: 91, minD: 120 }, false],
+    ["D below its floor fires — a rule left the tagged sections", 91, 119, { maxN: 91, minD: 120 }, true],
+    ["D above its floor fires — the floor was not raised with the rule", 91, 121, { maxN: 91, minD: 120 }, true],
+    ["a ceiling with no minD fires — D is unpinned and N is gameable by relocation", 91, 120, { maxN: 91 }, true],
+    // The full defeat, spelled out: cut an UNENFORCEABLE bullet from §5, paste it into §8.
+    ["MOVING a rule out (N-1 AND D-1) fires, where the N ceiling alone would have applauded", 90, 119, { maxN: 90, minD: 120 }, true],
+  ]
+  for (const [name, n, d, c, shouldFire] of DCASES) {
+    const fired = ratchetFindings(n, c, "x.json", d).length > 0
+    const ok = fired === shouldFire
+    if (!ok) failed++
+    console.log(`  ${ok ? "✓" : "✗"} RATCHET-D  — ${name}`)
+  }
+
   console.log(failed === 0
     ? "\n✅ fixtures green — fires, stays quiet, AND notices its own subject going missing"
     : `\n❌ ${failed} fixture(s) wrong`)
@@ -526,9 +568,9 @@ console.log(`📑 marker ratio — ${N_unenf} of ${N_unenf + D_enforced} rules U
  */
 const CEILING_PATH = "scripts/claude-md-ratio.ceiling.json"
 const ceiling = existsSync(CEILING_PATH) ? JSON.parse(readFileSync(CEILING_PATH, "utf8")) : null
-const ratchet = ratchetFindings(N_unenf, ceiling, CEILING_PATH)
+const ratchet = ratchetFindings(N_unenf, ceiling, CEILING_PATH, N_unenf + D_enforced)
 findings.push(...ratchet)
-if (!ratchet.length) console.log(`🔒 ratchet — N is at its ceiling (${ceiling.maxN}). It may only fall.`)
+if (!ratchet.length) console.log(`🔒 ratchet — N at its ceiling (${ceiling.maxN}, may only fall) · D at its floor (${ceiling.minD}, may only rise).`)
 
 if (findings.length) {
   console.error(`\n❌ ${findings.length} finding(s):\n`)

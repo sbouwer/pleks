@@ -3,7 +3,10 @@
 <!--
   Built from SPEC_CLAUDE_MD_STANDARD v4.5 (C:\dev\dev-standards).
   BINDING METRIC: the UNENFORCEABLE RATIO — N of D. N = rules whose only control is model
-  attention; D = all marker-carrying rules, here AND in .claude/rules/*.md. N may only fall.
+  attention; D = all marker-carrying rules, here AND in .claude/rules/*.md.
+  N may only FALL and D may only RISE — both pinned in scripts/claude-md-ratio.ceiling.json.
+  D is pinned because markers are required only in the tagged sections, so without a floor a rule
+  could be MOVED into untagged prose and N would fall with the rule still unenforced.
   ADVISORY: ~250 visible lines. A tripwire for a ratchet pass, never a reason to relocate prose —
   aperture decides location, the count decides urgency. This file being over it is a signal that N
   is still high, not an instruction to hide prose in a scoped file. (The number itself is not
