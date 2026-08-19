@@ -99,7 +99,7 @@ export function policyFindings(sql, file) {
   events.sort((a, b) => a.at - b.at)
   for (const e of events) {
     if (e.kind === "drop") dropped.add(e.key)
-    else if (!dropped.has(e.key) && !dropped.has(norm("*", e.table)) && !hasExistenceGuard(sql, e.name, e.table) && !hasDuplicateObjectGuard(sql, e.at))
+    else if (!dropped.has(e.key) && !dropped.has(norm("*", e.table)) && !hasExistenceGuard(sql, e.name, e.table, e.at) && !hasDuplicateObjectGuard(sql, e.at))
       out.push(`${file}: CREATE POLICY ${e.name} ON ${e.table} has no preceding DROP POLICY IF EXISTS — this migration ABORTS on re-run and leaves everything below it unapplied`)
   }
   return out
@@ -153,21 +153,37 @@ export function hasDuplicateObjectGuard(sql, createIndex) {
   return /EXCEPTION\s+WHEN\s+duplicate_object/i.test(sql.slice(open, end))
 }
 
-export function hasExistenceGuard(sql, policyName, table) {
+export function hasExistenceGuard(sql, policyName, table, createIndex) {
   // Must name BOTH the policy and its table. Matching on policyname alone meant a guard for a
   // same-named policy on a DIFFERENT table protected an unguarded CREATE — reproduced against
   // 007, where planting `CREATE POLICY "org members can upload org assets" ON some_other_table`
   // reported clean because 007 guards that name on storage.objects. Policy names ARE reused
   // across tables here (org_isolation, landlord_portal_*), so this was the likely case, not a
   // contrived one. Every real guard in the tree names both, so requiring it costs nothing.
+  // …and it must ENCLOSE this CREATE. The name+table match was file-global on POSITION, so a bare
+  // duplicate `CREATE POLICY "p" ON t` anywhere in the file — including at EOF, below every guard —
+  // was protected by the guard written for the REAL, guarded CREATE of the same policy. Reproduced
+  // against 005: appending an unguarded duplicate of `screening_reports_org_read` left the file
+  // reporting 0 findings. Same position-blindness `hasDuplicateObjectGuard` was fixed for one pass
+  // earlier, in the sibling function twenty lines up — fixed there, missed here.
   const esc = (s) => s.replace(/"/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
   const bareTable = esc(String(table).split(".").pop())
-  const clauses = sql.match(/IF\s+NOT\s+EXISTS[\s\S]{0,400}?THEN/gi) ?? []
-  return clauses.some(
-    (c) =>
-      new RegExp(`policyname\\s*=\\s*'?${esc(policyName)}`, "i").test(c) &&
-      new RegExp(`tablename\\s*=\\s*'?${bareTable}\\b`, "i").test(c),
-  )
+  const nameRe = new RegExp(`policyname\\s*=\\s*'?${esc(policyName)}`, "i")
+  const tableRe = new RegExp(`tablename\\s*=\\s*'?${bareTable}\\b`, "i")
+
+  for (const m of sql.matchAll(/IF\s+NOT\s+EXISTS[\s\S]{0,400}?THEN/gi)) {
+    if (!nameRe.test(m[0]) || !tableRe.test(m[0])) continue
+    // A guard with no caller index is trusted as before — the exported function is used directly by
+    // probes. Production callers pass the index and get the positional test.
+    if (createIndex === undefined) return true
+    const thenEnd = m.index + m[0].length
+    const rest = sql.slice(thenEnd).search(/\bEND\s+IF\b/i)
+    // No closing END IF: the guard's extent cannot be established, so it protects nothing. Fails
+    // toward reporting, which is noisy rather than silent.
+    if (rest === -1) continue
+    if (createIndex > thenEnd && createIndex < thenEnd + rest) return true
+  }
+  return false
 }
 
 /**
@@ -276,9 +292,11 @@ if (process.argv.includes("--selftest")) {
 
   // The two ALTERNATIVE idempotency patterns. Both were discovered by classifying real findings
   // per site; neither was imagined. Without these the check has a 78% false-positive rate.
-  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='t' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);`, "f").length === 0,
+  // The guard fixtures carry their `END IF;` because the real ones do — a truncated fixture stops
+  // exercising the extent test below and would pass for the wrong reason (L-06).
+  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='t' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);\nEND IF;`, "f").length === 0,
     "a CREATE guarded by IF NOT EXISTS(pg_policies) is idempotent — quiet")
-  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname='other') THEN\nCREATE POLICY "p" ON t USING (true);`, "f").length === 1,
+  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname='other') THEN\nCREATE POLICY "p" ON t USING (true);\nEND IF;`, "f").length === 1,
     "…but a guard naming a DIFFERENT policy does not protect this one")
   ok(policyFindings(`EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', pol.name);\nCREATE POLICY "p" ON storage.objects USING (true);`, "f").length === 0,
     "a dynamic DROP loop over the table protects CREATEs below it — quiet")
@@ -291,12 +309,25 @@ if (process.argv.includes("--selftest")) {
     "…but a DO block catching something else does not protect it")
   // Both guards were FILE-GLOBAL until adversarial review: a guard anywhere in the file protected
   // any same-named CREATE, and a CREATE inherited the handler of a DO block it was not inside.
-  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='other' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);`, "f").length === 1,
+  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='other' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);\nEND IF;`, "f").length === 1,
     "a guard naming the policy on a DIFFERENT table does not protect it")
-  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='t' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);`, "f").length === 0,
+  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='t' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);\nEND IF;`, "f").length === 0,
     "…and one naming the same policy AND table does")
   ok(policyFindings(`CREATE POLICY "p" ON t USING (true);\nDO $$ BEGIN\n  CREATE POLICY "q" ON t USING (true);\nEXCEPTION WHEN duplicate_object THEN NULL;\nEND $$;`, "f").some((x) => x.includes('"p"')),
     "a CREATE ABOVE an unrelated DO block does not inherit its handler")
+
+  // POSITION, the half `hasExistenceGuard` was still missing after the DO-block twin was fixed.
+  // A guard protects the CREATE it ENCLOSES and no other. Reproduced against 005: appending a bare
+  // duplicate of a guarded policy left the file reporting 0 findings.
+  const guarded = `IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='t' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);\nEND IF;`
+  ok(policyFindings(`${guarded}\nCREATE POLICY "p" ON t USING (true);`, "f").length === 1,
+    "a BARE duplicate BELOW a real guard fires — the guard does not extend past its END IF")
+  ok(policyFindings(`CREATE POLICY "p" ON t USING (true);\n${guarded}`, "f").length === 1,
+    "…and one ABOVE it fires too — a guard cannot protect what precedes it")
+  ok(policyFindings(guarded, "f").length === 0,
+    "KNOWN-GOOD: the enclosed CREATE itself is still quiet")
+  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='t' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);`, "f").length === 1,
+    "a guard with no END IF has no establishable extent, so it protects nothing")
 
   // org_id, both directions
   const A = ["user_passkeys"]
