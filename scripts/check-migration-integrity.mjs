@@ -53,6 +53,17 @@ const POLICY_NAME = /("(?:[^"]|"")*"|[A-Za-z_][\w$]*)/.source
 /** Balanced extraction of a CREATE TABLE body — the naive "up to the next )" is wrong. */
 export function createTables(sql) {
   const out = []
+  // `CREATE TABLE x AS SELECT …` has no parenthesised body, so the paren-walk below never sees it
+  // and M-005's claim ("every CREATE TABLE carries org_id") silently excluded the form entirely.
+  // Captured to the statement terminator instead; if org_id is not in the projection it fails like
+  // any other table.
+  for (const m of sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w."]+)\s+AS\b/gi)) {
+    const end = sql.indexOf(";", m.index)
+    out.push({
+      table: m[1].replace(/"/g, "").split(".").pop(),
+      body: sql.slice(m.index, end === -1 ? sql.length : end),
+    })
+  }
   for (const m of sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w."]+)\s*\(/gi)) {
     let depth = 0
     let i = m.index + m[0].length - 1
@@ -189,7 +200,17 @@ export function audit(root = ".") {
   const dir = join(root, MIG)
   if (!existsSync(dir)) return [`${MIG} does not exist — the enumeration is empty, which is not a pass`]
 
-  const found = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()
+  // Recursive: a thirteenth migration dropped in a SUBDIRECTORY passed M-006, because the check
+  // that asserts "exactly these twelve files" only ever listed the top level. The set is the set.
+  const listSql = (d, prefix = "") => {
+    const out = []
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) out.push(...listSql(join(d, e.name), `${prefix}${e.name}/`))
+      else if (e.name.endsWith(".sql")) out.push(`${prefix}${e.name}`)
+    }
+    return out
+  }
+  const found = listSql(dir).sort()
 
   // 1 — the file set
   for (const f of found) if (!EXPECTED_FILES.includes(f))
@@ -290,6 +311,11 @@ if (process.argv.includes("--selftest")) {
   // Balanced extraction: a nested paren must not truncate the body before org_id.
   ok(orgIdFindings(`CREATE TABLE t (id uuid DEFAULT gen_random_uuid(), org_id uuid);`, "f", A, []).length === 0,
     "a nested () in a column default does not truncate the body")
+  // The AS-SELECT form has no parenthesised body and was invisible to the paren-walk entirely.
+  ok(orgIdFindings(`CREATE TABLE summary AS SELECT id, name FROM leases;`, "f", A, []).length === 1,
+    "CREATE TABLE … AS SELECT with no org_id fires")
+  ok(orgIdFindings(`CREATE TABLE summary AS SELECT id, org_id FROM leases;`, "f", A, []).length === 0,
+    "…and passes when the projection carries org_id")
 
   // allowlist parsing, both directions
   const good = identityScopedTables("### Current members (exhaustive)\n\n| Table | Why |\n|---|---|\n| `user_passkeys` | x |\n| `passkey_challenges` | y |\n")

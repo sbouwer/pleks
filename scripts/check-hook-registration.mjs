@@ -52,6 +52,39 @@ export function registeredCommands(settings) {
   return out
 }
 
+/**
+ * The other two directions, from CD's independent close of the same gap. Three distinct failures,
+ * not one — each looks complete from a different angle:
+ *
+ *   hook file not registered   → the control never runs, and every artefact says it exists
+ *   registration → missing file → L-16's shape: a non-blocking error nobody reads
+ *   registration with no matcher → a scope nobody chose
+ *
+ * The middle one is why a renamed hook file is dangerous: a gate was disabled during a canary
+ * experiment by renaming its file, and nothing would have caught a failure to restore it.
+ */
+export function registrationFindings(settings, root, existsFn) {
+  const out = []
+  for (const [event, entries] of Object.entries(settings.hooks ?? {})) {
+    for (const entry of entries ?? []) {
+      if (!entry.matcher || String(entry.matcher).trim() === "") {
+        out.push(`${SETTINGS}: a ${event} entry has no matcher — it declares a scope nobody chose`)
+      }
+      for (const h of entry.hooks ?? []) {
+        const cmd = typeof h.command === "string" ? h.command : ""
+        // Pull the .js path out of the command, however it is quoted or variable-prefixed.
+        const m = cmd.match(/([\w./\\$-]*\.claude[/\\]hooks[/\\][\w.-]+\.js)/)
+        if (!m) continue
+        const file = m[1].replace(/.*[/\\]hooks[/\\]/, "")
+        if (!existsFn(join(root, HOOK_DIR, file))) {
+          out.push(`${SETTINGS}: ${event} registers ${file}, which does not exist in ${HOOK_DIR} — the registration resolves to nothing`)
+        }
+      }
+    }
+  }
+  return out
+}
+
 export function audit(root = ".") {
   const out = []
   const hookDir = join(root, HOOK_DIR)
@@ -63,6 +96,8 @@ export function audit(root = ".") {
   const settings = JSON.parse(readFileSync(settingsPath, "utf8"))
   const commands = registeredCommands(settings)
   const gated = new Set([...(settings.permissions?.deny ?? []), ...(settings.permissions?.ask ?? [])])
+
+  out.push(...registrationFindings(settings, root, existsSync))
 
   const hooks = readdirSync(hookDir).filter((f) => f.endsWith(".js"))
   // The enumeration asserts itself: zero hooks with tags claiming otherwise is not a pass (L-10).
@@ -132,6 +167,20 @@ if (process.argv.includes("--selftest")) {
   write({ permissions: {}, hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "g.js" }] }] } },
     "/**\n * That does not break the @twin design below; it explains it.\n */\n// @no-twin content-shaped question\n")
   ok(audit(tmp).length === 0, "prose mentioning @twin is not parsed as a twin declaration")
+
+  // CD's other two directions.
+  const yes = () => true, no = () => false
+  ok(registrationFindings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: 'node ".claude/hooks/g.js"' }] }] } }, ".", yes).length === 0,
+    "KNOWN-GOOD: a matcher and a file that exists")
+  ok(registrationFindings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: 'node ".claude/hooks/gone.js"' }] }] } }, ".", no)
+    .some((x) => x.includes("does not exist")),
+    "a registration pointing at a MISSING file fires — the renamed-hook case")
+  ok(registrationFindings({ hooks: { PreToolUse: [{ hooks: [{ command: 'node ".claude/hooks/g.js"' }] }] } }, ".", yes)
+    .some((x) => x.includes("no matcher")),
+    "a registration with NO MATCHER fires — a scope nobody chose")
+  ok(registrationFindings({ hooks: { PreToolUse: [{ matcher: "", hooks: [] }] } }, ".", yes)
+    .some((x) => x.includes("no matcher")),
+    "…and an empty-string matcher counts as none")
 
   rmSync(tmp, { recursive: true, force: true })
   console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — registration, declaration and reconciliation all fire")
