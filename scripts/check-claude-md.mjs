@@ -41,9 +41,14 @@ import { join } from "node:path"
 // ── Rules sections. Listed explicitly, and the list ASSERTS ITS OWN PREMISE (§4.3): a heading that
 //    no longer exists FAILS rather than silently un-auditing its section. Renaming a heading to
 //    escape the audit is the obvious defeat, so it is the one made loud.
+// Moved 2026-08-19 with the v4.5 restructure, in the SAME commit as the headings — a scope change
+// is a window change, and the two must never be separated: the vanished-section assertion below is
+// the only thing standing between "renamed a heading" and "silently un-audited its bullets".
+// Probed on the new scope before being trusted: a marker-less bullet planted under `### Enforced`
+// must fail. Passing on the new scope is not evidence the new scope is audited.
 const RULES_SECTIONS = [
-  "## SECURITY RULES (unchanged — still apply to any new code)",
-  "## DO NOT DO",
+  "### Enforced",
+  "## 5 · DOCTRINE THE MACHINE CANNOT HOLD",
 ]
 
 /**
