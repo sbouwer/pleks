@@ -8,7 +8,7 @@ paths:
 
 **The migration structure is consolidated into 12 domain-scoped files. New
 features amend an existing file — they do NOT create new migration files.**
-(Same rule as CLAUDE.md's DO NOT DO entry, already marked there: `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve, not their count — a thirteenth file would pass every gate. Not re-tagged here to avoid restating a finding twice.)
+(Same rule as CLAUDE.md's DO NOT DO entry, already marked there: `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; `check-migration-integrity.mjs` asserts the file SET is exactly those twelve, in both directions — a thirteenth file fails, and so does a deleted one. Tagged in CLAUDE.md; not re-tagged here to avoid a double claim.)
 
 This is the single most important rule for schema work. Read this whole
 section before touching `supabase/migrations/`.
@@ -132,7 +132,7 @@ to survive Markdown rendering in this doc.
 errors with `42710: policy already exists` on the second run and aborts
 the entire migration at that point, silently leaving everything below it
 unapplied. This has bitten us multiple times.
-(Same rule as CLAUDE.md's DO NOT DO entry for this — already marked UNENFORCEABLE there: zero scripts scan migration SQL for the drop-first pairing. Not re-tagged here to avoid restating the same finding twice.)
+(Same rule as CLAUDE.md's DO NOT DO entry for this — `check-migration-integrity.mjs` scans every migration for the pairing and recognises the four idempotency patterns this repo actually uses (a preceding DROP, an `IF NOT EXISTS (pg_policies …)` guard naming the policy AND its table, a dynamic `%I` drop loop over the table, and `EXCEPTION WHEN duplicate_object`). Tagged in CLAUDE.md; not re-tagged here to avoid a double claim.)
 
 ### Drift detection workflow
 

@@ -11,12 +11,15 @@ paths:
 exception class, and — more importantly — the test that keeps it from becoming a general escape
 hatch. **A table is in this class only if it passes the membership test below. Not "it felt
 user-ish."**
-⚠ **Enforcement: none yet — the migration-parse twin is M-005.** Stated here deliberately: this
-file's doctrine is currently held by convention alone, and a rule file that does not admit that
-reads as though something is checking. That is the `data-access.md` overclaim, applied preemptively
-rather than after it bites.
+✅ **Enforcement: `check-migration-integrity.mjs` (M-005, shipped 2026-08-19).** It parses every
+`CREATE TABLE` for `org_id` and reads THIS FILE's "Current members" table below as the allowlist —
+the doc is the single source, so there is no mirrored constant to drift out of step. A missing or
+zero-row "Current members" section fails loudly rather than silently exempting nothing.
 
-**UNENFORCEABLE** — MECHANISABLE → **M-005** (the same single control as `CLAUDE.md`'s SECURITY RULE 1 — one build, not two). Nothing inspects migration SQL for a new table at all, so nothing can distinguish "correctly exempted by the membership test" from "the org_id rule was simply skipped." This file's whole purpose — a written test to stop the exception becoming a general escape hatch — has no code-side check that the test was actually applied.
+This paragraph previously read "**Enforcement: none yet**", written when it was true and left in
+place after it stopped being. The check now distinguishes "correctly exempted by the membership
+test" from "the `org_id` rule was simply skipped" — which is the thing this file exists to keep
+apart. <!-- @enforced check:check-migration-integrity:shared -->
 
 Ratified 2026-08-15 (CD) off the ADDENDUM_62F grounding pass, where `user_passkeys` was nearly
 "corrected" by adding `org_id` to it.
@@ -52,7 +55,11 @@ Planned members from ADDENDUM_62F: `device_enrolment_tokens` and `account_recove
 recover **a person's access**, both consulted before org selection. Confirm against the test when
 their DDL is written; do not assume.
 
-**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — no code anywhere enumerates this three-table allowlist to check against (the ESLint rules' own `SELF_SCOPED_TABLES` set is a DIFFERENT, unrelated exemption for `organisations`/`user_profiles`); a fourth table added to this list by prose alone, with no matching code-side allowlist, would not be caught adding `org_id` back OR skipping it incorrectly. Sketch: a code-side constant (e.g. `IDENTITY_SCOPED_TABLES` in `lib/`) mirroring this markdown table, read by the migration-scan sketched above, kept in sync by a doc/code parity test.
+**This table IS the allowlist — `check-migration-integrity.mjs` parses it out of this file.** A row
+added here takes effect on the next run with no code change, and a row removed stops exempting its
+table immediately. The sketch this line used to carry proposed mirroring it into a `lib/` constant
+kept in sync by a parity test; reading the doc directly is strictly better, because there is no
+second copy that can disagree. (Same control as above — not re-tagged, it is one mechanism.)
 
 ### Cascade policy — the companion rule
 

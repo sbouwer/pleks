@@ -34,6 +34,10 @@ git pull
 
 **Session state:** `brief/build/CURRENT.md` — what step is active, what was just done, the next
 action, mid-build decisions. Read it before asking; it survives compaction because it is on disk.
+**And WRITE it — after every meaningful step, before committing:** move finished items to "just
+completed", set the next action to the exact thing to do, record mid-build decisions the spec does
+not carry, files not to touch, and bugs found along the way. A file that is only ever read goes
+stale in one session and then misleads the next.
 `brief/build/INDEX.md` is the build-status source of truth and its "Known open work" is confirmed
 gaps, not ideas. **`brief/` is a symlink to OneDrive and is NOT version-controlled** — anything the
 tooling depends on belongs in the tracked tree instead.
@@ -69,6 +73,12 @@ Default to using these instead of asking the user to copy-paste data. For exampl
 | Before every commit | `npm run check` — enforced by `.githooks/pre-commit` |
 | Before every push | `npm run check:full`, scoped by `scripts/prepush-scope.mjs` (the DB tier runs only when the diff touches it; CI runs it on every PR regardless) |
 | Before every deploy | `npm run security` (`security:quick` for a routine check) |
+
+**The deploy gate has two prerequisites, and without them it reports success while checking less
+than it appears to.** `npm run dev` must be running — Categories 3, 4, 6 and 8–12 probe localhost,
+so eight of the fifteen silently cannot fire without it. And `get_rls_audit()` must exist in
+Supabase (`scripts/security/setup-rls-audit.sql`); Category 7 is the RLS policy audit and has
+nothing to query without it.
 
 **Push policy: announce intent, then push.** `hook:bash-gate` makes every push an approval gate —
 the announcement is the *content* of that approval: what is in the batch, what was verified, what
@@ -471,6 +481,7 @@ to a file with an editor.
 | What | File |
 |---|---|
 | Tier names, prices, lease caps | `lib/marketing/tiers.ts` (cents in `lib/constants.ts`) |
+| Screening bundle cost + margin | `lib/screening/searchworxBundle.ts` — all DERIVED, never a literal |
 | Application/joint fees, affordability threshold | `lib/constants.ts` |
 | Screening cost + margin (all derived) | `lib/screening/searchworxBundle.ts` |
 | Dates, business days, SA public holidays | `lib/dates/*` |
@@ -496,6 +507,10 @@ never leave the parenthetical hints in a real header.
 **What does not live in code:** the Supabase publishable key is
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` — **not** `ANON_KEY`; the old name is a
 misdocumented trap that reads as correct. `brief/` is a OneDrive symlink outside version control.
+
+**Tier gating: NO per-user seat caps on any tier — lease count is the only gate.** A product rule,
+not a value, so the SSOT table above cannot carry it. Annual pricing is not live; bespoke and
+white-label are deferred.
 
 **Pricing precedence (Stéan ruling 2026-08-15):** when `brief/legal/SEARCHWORX_RATE_CARD.md` and
 `brief/build/INDEX.md`/ADDENDUMs disagree about a DECISION, **INDEX/ADDENDUM wins** — the rate card
