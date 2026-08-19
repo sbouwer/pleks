@@ -2,13 +2,28 @@
 /**
  * scripts/check-drift-if-sql-changed.mjs
  *
- * Conditional schema drift gate for check:full.
- * Runs check-schema-drift.mjs only when supabase/migrations/ files have changed
- * since the last commit (staged or unstaged). Exits 0 immediately otherwise.
+ * Conditional schema drift gate for check:full. Runs check-schema-drift.mjs only when
+ * supabase/migrations/*.sql has changed. Exits 0 immediately otherwise.
  *
- * Why conditional: drift check hits the live DB and requires network +
- * SUPABASE_SERVICE_ROLE_KEY. Running it on every push regardless of whether
- * SQL changed is expensive and offline-hostile.
+ * Why conditional: the drift check hits the live DB and needs network + SUPABASE_SERVICE_ROLE_KEY.
+ * Running it on every push regardless of whether SQL changed is expensive and offline-hostile.
+ *
+ * ── THE BUG THIS FILE SHIPPED WITH, FOUND 2026-08-19 ──────────────────────────────────────────
+ * It compared ONLY the working tree — `git diff --cached` plus `git diff`. That is right for a
+ * pre-COMMIT context and wrong for the one it is actually wired into: `check:full` runs at
+ * PRE-PUSH, where the change is already committed, so both diffs are empty and the condition was
+ * always false. **The drift check had never once run in the gate that invokes it.**
+ *
+ * It was found because a commit that added four lines to 009_security.sql printed
+ * "[drift] No migration SQL changed" while `prepush-scope.mjs`, reading the committed range,
+ * had correctly routed the same diff to the full tier. Two checks disagreeing about one diff.
+ *
+ * The message was the tell, and it is the recurring shape: it reported a claim about the WORLD
+ * ("no migration SQL changed") when what it had measured was "the working tree is clean" — which
+ * at pre-push is unconditionally true. An instrument that reports something other than what it
+ * measured cannot be caught by reading its output, because its output is always plausible.
+ *
+ * Now considers the committed range against the upstream as well, and says which window it used.
  */
 
 import { execSync } from "node:child_process"
@@ -17,37 +32,74 @@ import { fileURLToPath } from "node:url"
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
-function gitChangedFiles() {
+/** Pure: does this file list contain migration SQL? Exported so both directions are probeable. */
+export function hasMigrationSql(files) {
+  return files.some((f) => f.startsWith("supabase/migrations/") && f.endsWith(".sql"))
+}
+
+const sh = (cmd) => execSync(cmd, { cwd: ROOT, encoding: "utf-8" }).trim()
+
+/**
+ * Every window a change could be hiding in: the working tree AND the commits this push would
+ * send. Returns { files, window } — `window` is reported so a skip states what it looked at
+ * rather than asserting a fact about the repository.
+ */
+export function changedFiles() {
+  const files = []
+  const windows = []
   try {
-    // Staged changes
-    const staged = execSync("git diff --name-only --cached", { cwd: ROOT, encoding: "utf-8" })
-    // Unstaged changes
-    const unstaged = execSync("git diff --name-only", { cwd: ROOT, encoding: "utf-8" })
-    return staged + unstaged
+    const staged = sh("git diff --name-only --cached")
+    const unstaged = sh("git diff --name-only")
+    if (staged || unstaged) windows.push("working tree")
+    files.push(...`${staged}\n${unstaged}`.split(/\r?\n/).filter(Boolean))
   } catch {
-    // Not a git repo or git unavailable — skip
-    return ""
+    return { files: [], window: "none (not a git repo)", degraded: true }
   }
+  try {
+    const base = sh("git rev-parse --abbrev-ref --symbolic-full-name @{u}")
+    const range = sh(`git diff --name-only ${base}...HEAD`)
+    windows.push(`commits vs ${base}`)
+    files.push(...range.split(/\r?\n/).filter(Boolean))
+  } catch {
+    // No upstream — a first push. Cannot bound the committed range, so do NOT claim it is clean.
+    return { files, window: windows.join(" + ") || "working tree", degraded: true }
+  }
+  return { files, window: windows.join(" + ") || "working tree", degraded: false }
 }
 
-const changed = gitChangedFiles()
-const sqlChanged = changed.split("\n").some(
-  f => f.startsWith("supabase/migrations/") && f.endsWith(".sql")
-)
+if (process.argv.includes("--selftest")) {
+  let failed = 0
+  const ok = (c, l) => { if (!c) failed++; console.log(`  ${c ? "✓" : "✗"} ${l}`) }
 
-if (!sqlChanged) {
-  console.log("[drift] No migration SQL changed — skipping schema drift check.")
+  ok(hasMigrationSql(["supabase/migrations/009_security.sql"]), "a migration .sql fires")
+  ok(!hasMigrationSql(["supabase/migrations/README.md"]), "a non-.sql in the migrations dir does not")
+  ok(!hasMigrationSql(["lib/db/query.sql"]), "a .sql outside the migrations dir does not")
+  ok(!hasMigrationSql([]), "an empty file list does not")
+  ok(hasMigrationSql(["CLAUDE.md", "supabase/migrations/001_foundation.sql"]), "a mixed list fires")
+
+  // The regression that matters: the real window must include committed work, not just the tree.
+  const { window } = changedFiles()
+  ok(/commits vs /.test(window) || /not a git repo/.test(window),
+    `the window includes the committed range (got "${window}") — working-tree-only is the bug this file shipped with`)
+
+  console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — detects migration SQL in tree AND commits")
+  process.exit(failed ? 1 : 0)
+}
+
+const { files, window, degraded } = changedFiles()
+
+// Fail toward RUNNING the check: an indeterminate window must not be reported as "nothing changed".
+if (degraded && !hasMigrationSql(files)) {
+  console.log(`[drift] Could not bound the change window (${window}) — running the drift check rather than assuming clean.`)
+} else if (!hasMigrationSql(files)) {
+  console.log(`[drift] No migration SQL in ${window} — skipping schema drift check.`)
   process.exit(0)
+} else {
+  console.log(`[drift] Migration SQL changed in ${window} — running schema drift check...`)
 }
-
-console.log("[drift] Migration SQL changed — running schema drift check...")
 
 try {
-  execSync("node scripts/check-schema-drift.mjs", {
-    cwd: ROOT,
-    stdio: "inherit",
-  })
+  execSync("node scripts/check-schema-drift.mjs", { cwd: ROOT, stdio: "inherit" })
 } catch {
-  // check-schema-drift.mjs exits non-zero on drift — propagate
   process.exit(1)
 }
