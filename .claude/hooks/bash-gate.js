@@ -18,14 +18,28 @@ process.stdin.on("end", () => {
     const input = JSON.parse(Buffer.concat(chunks).toString("utf8").replace(/^﻿/, ""));
     const cmd = (input.tool_input && input.tool_input.command) || "";
 
+    // Each rule names its settings twin — the coarse layer that answers if this hook is ever
+    // dead. Pattern adopted from life-therapy. The twin is DORMANT while the hook lives and is
+    // deliberately NOT equal-or-stronger: settings speaks in prefix-globs, the hook in
+    // separator-aware regex, so ask is the floor and ABSENT is the violation.
     const DENY = [
+      // @twin Bash(git push --force*)
+      // @twin Bash(git push -f*)
       [/git\s+push\s+[^\n]*(--force|-f\s)/, "force push is denied"],
+      // @twin Bash(git reset --hard*)
       [/git\s+reset\s+--hard/, "hard reset is denied"],
+      // @no-twin no settings pattern was ever written for this. LT measured the same gap on the
+      // same rule; recorded here rather than invented, so the hole is visible instead of implied.
       [/rm\s+-rf?\s+["']?[\/~]["']?(\s|$)/, "rm -rf on root/home is denied"],
     ];
     const ASK = [
+      // @twin Bash(git push*)
       [/git\s+push\b/, "pushing to origin requires approval"],
+      // @twin Read(.env)
+      // @twin Read(.env.*)
       [/\.env(\.|["'\s]|$)/, "touching .env files requires approval"],
+      // @no-twin ad-hoc prod SQL through the CLI has no settings pattern — the other gap LT
+      // measured. The MCP path is covered by mcp-ddl-gate; the `supabase db` CLI path is not.
       [/supabase\s+db\s+(push|reset)/, "prod database operations require approval"],
     ];
 

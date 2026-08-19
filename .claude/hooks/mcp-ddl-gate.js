@@ -33,6 +33,23 @@ process.stdin.on("end", () => {
 
   // Inherent destructiveness — no argument inspection can make these safe, so they never
   // depend on one. merge/reset/rebase/delete_branch were MISSING from settings.ask entirely.
+  // @twin mcp__claude_ai_Supabase__apply_migration
+  // @twin mcp__claude_ai_Supabase__merge_branch
+  // @twin mcp__claude_ai_Supabase__reset_branch
+  // @twin mcp__claude_ai_Supabase__rebase_branch
+  // @twin mcp__claude_ai_Supabase__delete_branch
+  // @twin mcp__claude_ai_Supabase__create_branch
+  // @twin mcp__claude_ai_Supabase__create_project
+  // @twin mcp__claude_ai_Supabase__deploy_edge_function
+  // @twin mcp__claude_ai_Supabase__pause_project
+  // @twin mcp__claude_ai_Supabase__restore_project
+  // @twin mcp__claude_ai_Supabase__execute_sql
+  //
+  // Every tool this hook asks on also sits in settings' `ask` list, so the coarse layer answers
+  // if this hook is dead. What it CANNOT answer is the part that made this gate worth writing:
+  // settings matches a tool NAME, so it cannot tell `SELECT 1` from `DROP TABLE leases`, and it
+  // cannot put the statement in front of the human approving it. The twin degrades to "ask on
+  // every execute_sql", which is the floor, not the equivalent.
   const ALWAYS_ASK = {
     apply_migration: "applies DDL to the database",
     merge_branch: "MERGES MIGRATIONS TO PRODUCTION",
