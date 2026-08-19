@@ -83,7 +83,18 @@
     // deliberate: components/ui/ is vendored, near-never hand-edited, and its contents are
     // traceable to `npx shadcn add`. Currently covering avatar, dropdown-menu, scroll-area,
     // separator and table.
-    "components/ui/**"
+    "components/ui/**",
+
+    // VERSIONED PROMPTS ARE AN AUDIT RECORD, NOT DEAD CODE — and this is the entry that would have
+    // done real damage. Only the CURRENT version is imported, so knip reports every superseded one
+    // as unused. But `fitscore_narrative_prompt_version` is STORED on the decision row
+    // (`narr.v1.0` appears in fitScoreReplay.test.ts's fixtures), and replay's whole purpose is
+    // answering "what was in force on the decision date?" for a tribunal. Deleting a superseded
+    // prompt deletes the answer.
+    //
+    // The exit condition is unusual for this file: these leave when the DECISIONS naming them fall
+    // out of retention, never when the code stops importing them.
+    "lib/screening/prompts/**"
   ],
 
   // Each entry below was read, classified, and VERIFIED BY REMOVAL — taken out, knip re-run, the
