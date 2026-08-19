@@ -76,6 +76,26 @@ async function readLatestPolicy(db: SupabaseClient, orgId: string): Promise<Reso
 }
 
 /**
+ * The org's affordability ceiling, READ-ONLY — never seeds.
+ *
+ * `resolveActiveScreeningPolicy` below seeds a v0 row when an org has none, which is right at DECISION
+ * time (the decision must name the policy it applied) and wrong on every earlier surface: a pre-screen
+ * or a free assessment must not create a policy row as a side effect of showing someone a label.
+ *
+ * Exists because the same ceiling was being answered three different ways — the org's authored value at
+ * decision time, the platform constant in the pre-screen flag, and a bare `0.30` literal in the
+ * household helper and in the applicant-facing label. An agency authoring 0.35 got a decision record
+ * certifying 0.35 while its own screens flagged at 0.30. Everything that needs the ceiling now asks
+ * here or takes it as a parameter.
+ */
+export async function resolveAffordabilityThreshold(db: SupabaseClient, orgId: string): Promise<number> {
+  const latest = await readLatestPolicy(db, orgId)
+  // "error" and "no policy yet" both mean "no authored value to apply" — the platform default is the
+  // honest answer, and it is what a decision would stamp in the same situation.
+  return latest && latest !== "error" ? latest.affordabilityThreshold : INCOME_AFFORDABILITY_THRESHOLD
+}
+
+/**
  * Resolve the org's active screening-policy version, seeding a platform-default v0 if the org has none.
  * Returns null only on an unrecoverable DB error (the caller then leaves screening_policy_id null rather
  * than block the decision — the linkage is defence-strengthening, not a hard gate, per the model fork). A

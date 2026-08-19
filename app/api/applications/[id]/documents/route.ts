@@ -17,6 +17,7 @@ import { checkAiRateLimit } from "@/lib/ai/rateLimit"
 import { createMessage } from "@/lib/ai/client"
 import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
+import { resolveAffordabilityThreshold } from "@/lib/screening/screeningPolicy"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -125,15 +126,21 @@ export async function POST(
   const incomeCents = extractedIncome ?? application.gross_monthly_income_cents ?? 0
   const rentCents = listing?.asking_rent_cents ?? 0
 
+  // The ORG'S affordability ceiling, not the platform constant. The flag and the applicant-facing
+  // label both key on it, so an agency authoring 0.35 no longer sees its own screens flag at 0.30
+  // while its decision records certify 0.35. Read-only — a pre-screen must not seed a policy row.
+  const affordabilityThreshold = await resolveAffordabilityThreshold(supabase, application.org_id as string)
+
   const preScreen = calculatePreScreenScore(
     incomeCents,
     rentCents,
     application.employment_type,
-    0 // no references at this stage
+    0, // no references at this stage
+    affordabilityThreshold
   )
 
   const ratio = incomeCents > 0 ? rentCents / incomeCents : null
-  const indicator = getPreScreenIndicator(ratio)
+  const indicator = getPreScreenIndicator(ratio, affordabilityThreshold)
 
   await supabase.from("applications").update({
     stage1_status: "pre_screen_complete",
