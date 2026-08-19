@@ -401,6 +401,12 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 - **2026-08-19 · the same class on READS.** Writes and deletes were guarded; reads were not, and a
   cross-org read *leaks rather than corrupts*, so nothing broke and nothing drew attention.
   → `eslint:pleks/require-org-scope-on-service-read`
+- **2026-08-19 · the rule written to close that hole did not run on the surface that mattered.**
+  Its service-client test omitted `requireAgentWriteAccess`, which returns the same RLS-bypassing
+  client, so it silently skipped 63 files — 40 with reads — on the canonical agent-write surface.
+  **Every probe passed**, because each exercised a file the discriminator already recognised.
+  A probe suite confirms the cases you thought of; it cannot report the class you did not. Caught
+  by adversarial review, and the reason a new control gets one before it is believed.
 - **2026-07-02 · the site-content hole.** A write gated with bare `gateway()` was
   indistinguishable from a write whose gate was forgotten. Narrative in `.claude/rules/data-access.md`.
 - **Payout-banking fraud vector (F1).** Swapping a bank account left no who/when.

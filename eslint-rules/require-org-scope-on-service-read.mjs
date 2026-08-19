@@ -29,10 +29,27 @@
  * `createServiceClient`, `gateway(` or `gatewaySSR`. A file using both is still safe to treat as
  * service, precisely because cookie-client `.from()` is already forbidden there.
  *
+ * ── THE FIRST VERSION OF THIS RULE HAD A SILENT FALSE NEGATIVE ────────────────────────────────
+ * Shipped 2026-08-19 with `SERVICE_CLIENT` missing `requireAgentWriteAccess`, so it returned `{}`
+ * and NEVER RAN on 63 files holding a service client, 40 of them containing a `.select(` — the
+ * canonical agent-write surface. Found by adversarial review, not by the probes: every probe
+ * passed, because they all exercised files the discriminator already recognised. **A probe suite
+ * confirms the cases you thought of; it cannot report the class you did not.**
+ *
+ * Two more holes in the same review, both of which would have survived the discriminator fix:
+ *   • `ORG_AWARE` matched an INSERT payload (`org_id: orgId`), so any function that wrote a row
+ *     into its own org was exempted for EVERY read in it.
+ *   • `chainHasOrgScope` accepted any method whose first argument was `"org_id"` — including
+ *     `.neq("org_id", orgId)`, which reads every OTHER org's rows, and `.order("org_id")`.
+ *
+ * The measurement in the block above was produced BY the broken discriminator and is therefore
+ * not trustworthy as a split: the "69 cookie-client, not our business" bucket was contaminated by
+ * `requireAgentWriteAccess`-only files. The corrected total is **149 findings across 72 files**.
+ *
  * ── WHAT THE BASELINE CONTAINS, AND HOW FAR IT WAS VERIFIED ───────────────────────────────────
- * 52 files ship baselined. Coverage of the classification is stated rather than implied: the
- * families were enumerated and a SAMPLE was read at each — not all 106 sites. What the sample
- * showed:
+ * 72 files ship baselined — up from 52, and the growth is the rule seeing MORE, not a widening to
+ * silence findings. Coverage of the classification is stated rather than implied: the families
+ * were enumerated and a SAMPLE was read at each, not all 149 sites. What the sample showed:
  *
  *   • REAL, the majority — a caller-supplied id with no org filter on the service client:
  *     `.from("tenant_view").eq("id", tenantId)`, `.from("property_brokers").eq("property_id", …)`.
@@ -52,6 +69,10 @@ import { dirname, join, relative } from "node:path"
 
 const READS = new Set(["select"])
 
+// Filters that actually BOUND a read to an org. `.neq`/`.order`/`.gt` name the column without
+// bounding anything — `.neq("org_id", orgId)` reads every other org.
+const SCOPING_METHODS = new Set(["eq", "match", "in"])
+
 // Tables with NO org_id column, keyed by session identity — same set the write rule uses.
 const SELF_SCOPED_TABLES = new Set(["organisations", "user_profiles"])
 
@@ -59,7 +80,16 @@ const SELF_SCOPED_TABLES = new Set(["organisations", "user_profiles"])
 // is impossible by design. Kept in step with .claude/rules/identity-scoped-tables.md.
 const IDENTITY_SCOPED = new Set(["user_passkeys", "passkey_challenges", "passkey_aal_grants"])
 
-const ORG_AWARE = /\.eq\(\s*["'`]org_id["'`]|org_id\s*[!=]==?\s*|orgId\s*[!=]==?\s*|\borg_id:\s*orgId\b/
+/**
+ * Validate-then-act signals ONLY: an org-scoped filter elsewhere in the function, or a JS ownership
+ * compare on a fetched row.
+ *
+ * `\borg_id: orgId\b` — an INSERT payload — was here (inherited from the write rule) and is removed:
+ * writing a row into your own org proves nothing about a READ in the same function, and it exempted
+ * every read in any function that also inserted. That is how `duplicateTemplateToOrg` would still
+ * have passed even after the discriminator was fixed.
+ */
+const ORG_AWARE = /\.eq\(\s*["'`]org_id["'`]|org_id\s*[!=]==?\s*|orgId\s*[!=]==?\s*/
 
 // Same non-agent surfaces the write rule skips: a different isolation model, where org-scoping is
 // not the boundary and the heuristic would only false-positive.
@@ -73,9 +103,22 @@ const SKIP_PATH = /[/\\](cron|webhooks?)[/\\]|[/\\]api[/\\]auth[/\\]|[/\\]lib[/\
 // entry means "real debt", and calling a fixture debt makes the baseline lie about its own size.
 const TEST_PATH = /(^|[/\\])test[/\\]|\.(test|dbtest|spec)\.[cm]?[jt]sx?$/
 
-// A service-client surface. See the header: file-level by design, and safe because cookie-client
-// `.from()` is separately forbidden.
-const SERVICE_CLIENT = /createServiceClient|gatewaySSR|gateway\(/
+/**
+ * A service-client surface. File-level by design (see the header), and safe because cookie-client
+ * `.from()` is separately forbidden.
+ *
+ * `requireAgentWriteAccess` is in this list because it RETURNS `gateway()`'s context — the same
+ * RLS-bypassing `db`. Its absence was a silent false negative across the canonical agent-write
+ * surface: measured 2026-08-19, 120 files call it, 63 matched none of the other markers, and 40 of
+ * those contain a `.select(`. On every one of them this rule returned `{}` and never ran, while
+ * CLAUDE.md claimed a read outside the baseline "fails immediately".
+ *
+ * The lesson generalises past this list: a discriminator keyed on HOW the client is obtained has to
+ * enumerate every helper that hands one out, and a new helper is invisible by construction. Any
+ * future wrapper around `gateway()` must be added here, which is why the rule names the property it
+ * is really testing rather than pretending the list is complete.
+ */
+const SERVICE_CLIENT = /createServiceClient|gatewaySSR|gateway\(|requireAgentWriteAccess/
 
 const BASELINE = new Set(
   JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "require-org-scope-on-service-read.baseline.json"), "utf8")),
@@ -116,7 +159,10 @@ function chainHasOrgScope(readCall) {
     if (!call || call.type !== "CallExpression" || call.callee !== member) break
     if (member.property.type === "Identifier") {
       const a0 = call.arguments[0]
-      if (a0?.type === "Literal" && a0.value === "org_id") return true
+      // The METHOD matters, not just the column. Accepting any method whose first argument is
+      // "org_id" treated `.neq("org_id", orgId)` — a read of every OTHER org's rows — and
+      // `.order("org_id")` as org-scoped. Only equality-shaped filters bound a read to an org.
+      if (a0?.type === "Literal" && a0.value === "org_id" && SCOPING_METHODS.has(member.property.name)) return true
       if (a0?.type === "ObjectExpression" && a0.properties.some((p) => p.type === "Property" && ((p.key.type === "Identifier" && p.key.name === "org_id") || (p.key.type === "Literal" && p.key.value === "org_id")))) return true
     }
     current = call
