@@ -62,6 +62,33 @@
  * So an entry leaves the baseline one of two ways: the read gains `.eq("org_id", orgId)`, or it
  * gains an `// eslint-disable-next-line … -- <why this id is org-bound>` at the site. The baseline
  * only shrinks. Any file not listed fails immediately.
+ *
+ * ── THE DISCRIMINATOR WAS INCOMPLETE A SECOND TIME (2026-08-19, second walker pass) ────────────
+ * `SERVICE_CLIENT` named `createServiceClient` but not `getCachedServiceClient` — the React.cache
+ * sibling exported from the same module, four lines below it — and knew nothing of a file that
+ * builds its own client from `SUPABASE_SERVICE_ROLE_KEY`. 23 findings across 8 files were invisible.
+ * This is the SAME defect as the `requireAgentWriteAccess` omission recorded above, found by the
+ * same means (adversarial review, not probes) one pass later, which is the point the header already
+ * makes: **a discriminator keyed on HOW the client is obtained cannot enumerate its way to
+ * completeness.** The env-var alternative is now in the list as the backstop that does not depend on
+ * a helper being named — a file holding the service-role key holds a service client, however it
+ * builds one.
+ *
+ * Classifying those 23 split them 2 / 21:
+ *   • 2 were a RULE DEFECT, not debt: `.insert({…}).select("id")` is a RETURNING clause. See
+ *     `isReturningClause` — the mutation is the sibling rules' business and flagging it here points
+ *     the fix at the wrong place. Fixed rather than baselined.
+ *   • 21 across 8 files are the token/public-slug credential family this header already names, on
+ *     the UNAUTHENTICATED applicant API (`app/api/applications/**`, `lib/actions/delivery-notice`).
+ *     There is no caller org to scope to: the org is DISCOVERED by resolving the token or the
+ *     public slug, and every subsequent read in the handler is keyed off the row that resolution
+ *     returned. Five files on that same surface were already baselined for the same reason.
+ *     Baselined, not path-skipped, so the surface stays countable — a `SKIP_PATH` entry would have
+ *     made 21 real reads invisible instead of listed.
+ *
+ * That takes the baseline 72 → 80. A baseline is allowed to grow ONLY when the rule's scope widens
+ * to see files it was previously blind to, which is what happened here; it may never grow to
+ * silence a finding the rule could already see.
  */
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
@@ -118,7 +145,7 @@ const TEST_PATH = /(^|[/\\])test[/\\]|\.(test|dbtest|spec)\.[cm]?[jt]sx?$/
  * future wrapper around `gateway()` must be added here, which is why the rule names the property it
  * is really testing rather than pretending the list is complete.
  */
-const SERVICE_CLIENT = /createServiceClient|gatewaySSR|gateway\(|requireAgentWriteAccess/
+const SERVICE_CLIENT = /createServiceClient|getCachedServiceClient|gatewaySSR|gateway\(|requireAgentWriteAccess|SUPABASE_SERVICE_ROLE_KEY/
 
 const BASELINE = new Set(
   JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "require-org-scope-on-service-read.baseline.json"), "utf8")),
@@ -141,6 +168,39 @@ function fromCallOf(readCall) {
     }
   }
   return null
+}
+
+/**
+ * Is this `.select()` a RETURNING clause on a mutation rather than a read?
+ *
+ * `.from("applications").insert({…}).select("id").single()` returns the row just written. It reads
+ * nothing the caller did not just create, and demanding `.eq("org_id")` on it is incoherent — you
+ * cannot filter an INSERT's returning set. The MUTATION is what needs org-scoping, and that is the
+ * sibling rules' job (`require-org-scope-on-service-write`, `require-scope-on-delete`); flagging it
+ * here double-counts one site as two different defects and points the fix at the wrong place.
+ *
+ * Found by classifying the 23 findings the widened discriminator surfaced: 2 of them were this.
+ */
+const MUTATIONS = new Set(["insert", "update", "upsert", "delete"])
+function isReturningClause(readCall) {
+  let node = readCall.callee.object
+  let depth = 0
+  while (node && depth < 60) {
+    depth++
+    if (node.type === "CallExpression") {
+      const callee = node.callee
+      if (callee.type === "MemberExpression" && callee.property.type === "Identifier") {
+        if (callee.property.name === "from") return false     // reached the table: it was a read
+        if (MUTATIONS.has(callee.property.name)) return true
+      }
+      node = callee
+    } else if (node.type === "MemberExpression") {
+      node = node.object
+    } else {
+      return false
+    }
+  }
+  return false
 }
 
 function functionHasParam(fn, name) {
@@ -212,6 +272,7 @@ const rule = {
         }
         const fromCall = fromCallOf(node)
         if (!fromCall) return
+        if (isReturningClause(node)) return
         if (chainHasOrgScope(node)) return
 
         const tableArg = fromCall.arguments[0]
