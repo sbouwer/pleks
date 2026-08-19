@@ -1,7 +1,7 @@
 # CLAUDE CODE INSTRUCTIONS
 # Pleks
 # Repository: github.com/sbouwer/pleks
-<!-- Harness experiments: full results, protocols + re-run instructions in brief/build/EXPERIMENTS.md
+<!-- Harness experiments: full results, protocols + re-run instructions in docs/EXPERIMENTS.md
      (E1 yes-observed · E1b NO, read-triggered · E2 yes, placement-dependent · E3 open).
      Re-run E1b/E2 on a Claude Code major upgrade before trusting rule scoping or marker invisibility. -->
 
@@ -30,7 +30,7 @@ Default to using these instead of asking the user to copy-paste data. For exampl
 Every `.ts`, `.tsx`, and `.yml` file must have a filled-in header. Rules:
 
 - **Touch a file with a stub header (contains `FILL:`)** → fill it in before committing. Replace every `FILL:` line with real content; delete unused placeholder lines.
-  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `check-file-headers.mjs` only fails on a `FILL:` stub NOT already in `file-headers.baseline.json`; touching a baselined file's body without filling its header leaves the file still baselined and still passing. Full sketch → **M-048** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `check-file-headers.mjs` only fails on a `FILL:` stub NOT already in `file-headers.baseline.json`; touching a baselined file's body without filling its header leaves the file still baselined and still passing. Full sketch → **M-048** in `docs/MECHANISABLE.md`.
 - **Update a file that already has a filled header** → update the header if the purpose, route, auth, or data source has changed.
   **UNENFORCEABLE** — requires judging whether the file's purpose/route/auth/data actually changed; no check reads header prose against code semantics.
 - **Create a new file** → write the header filled in from the start. Never commit a `FILL:` stub. <!-- @enforced check:check-file-headers -->
@@ -72,7 +72,7 @@ npm run check
 This runs `tsc --noEmit` (type check) + `eslint . --max-warnings 0` (lint).
 
 **If it fails, fix the errors before committing.** Do not push code that fails `npm run check`. Do not skip this step. Do not use `--no-verify`.
-**UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — same gap as the identical rule under DO NOT DO (twin, same mechanism, not re-annotated there). There is no pre-commit hook in this repo (no `.husky`, no `core.hooksPath`), so nothing stops a commit that fails `npm run check`. CI's `quick-check` job (`ci:quick-check`) runs `npm run check` but only after the commit exists, on the PR. Full sketch → **M-049** in `brief/build/MECHANISABLE.md`.
+**UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — same gap as the identical rule under DO NOT DO (twin, same mechanism, not re-annotated there). There is no pre-commit hook in this repo (no `.husky`, no `core.hooksPath`), so nothing stops a commit that fails `npm run check`. CI's `quick-check` job (`ci:quick-check`) runs `npm run check` but only after the commit exists, on the PR. Full sketch → **M-049** in `docs/MECHANISABLE.md`.
 
 If you've changed multiple files, run the check after each logical change — don't batch 10 changes and discover 8 errors at the end.
 
@@ -127,13 +127,13 @@ export default async function MyPage() {
 
 **Rules:**
 - `requireAgentWriteAccess(action)` for ALL agent-side mutations — never bare `gateway()` on a write path
-  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: money) — twin of `.claude/rules/data-access.md:28`, same mechanism, not re-annotated there. The server-action census (Cat-15, `scripts/security/server-action-census.mjs`) only requires SOME recognized gate to be present (`requireAgentWriteAccess`, `gateway`, `gatewaySSR`, etc. are all interchangeable to it outside `app/(admin)`); it does not distinguish `gateway()` from `requireAgentWriteAccess`, nor a read path from a write path. A write silently gated with bare `gateway()` and no allowlist entry does NOT fail Cat-15, contrary to the "provably intentional" claim in `.claude/rules/data-access.md`. Full sketch → **M-011** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: money) — twin of `.claude/rules/data-access.md:28`, same mechanism, not re-annotated there. The server-action census (Cat-15, `scripts/security/server-action-census.mjs`) only requires SOME recognized gate to be present (`requireAgentWriteAccess`, `gateway`, `gatewaySSR`, etc. are all interchangeable to it outside `app/(admin)`); it does not distinguish `gateway()` from `requireAgentWriteAccess`, nor a read path from a write path. A write silently gated with bare `gateway()` and no allowlist entry does NOT fail Cat-15, contrary to the "provably intentional" claim in `.claude/rules/data-access.md`. Full sketch → **M-011** in `docs/MECHANISABLE.md`.
 - `gateway()` for server action reads (not cached — one-shot)
 - `gatewaySSR()` for server component reads (React.cache — deduplicates per render)
 - Cron and webhook handlers: do NOT use `requireAgentWriteAccess` — they fire regardless of subscription state
-  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `route-census.mjs` classifies a route as `cron`/`webhook` by path prefix or secret header, but nothing greps those same files for a `requireAgentWriteAccess(` call and fails if found. Full sketch → **M-037** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `route-census.mjs` classifies a route as `cron`/`webhook` by path prefix or secret header, but nothing greps those same files for a `requireAgentWriteAccess(` call and fails if found. Full sketch → **M-037** in `docs/MECHANISABLE.md`.
 - Tenant/landlord/supplier portal actions: use `getTenantSession()` — not subject to agent lockdown
-  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: auth) — `server-action-census.mjs`'s `expectedGateFamily()` only special-cases `app/(admin)/`; every other location (including portal routes) accepts ANY recognized gate, so a portal action gated with `gateway()` instead of `getTenantSession()` passes Cat-15 undetected. Full sketch → **M-031** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: auth) — `server-action-census.mjs`'s `expectedGateFamily()` only special-cases `app/(admin)/`; every other location (including portal routes) accepts ANY recognized gate, so a portal action gated with `gateway()` instead of `getTenantSession()` passes Cat-15 undetected. Full sketch → **M-031** in `docs/MECHANISABLE.md`.
 - Every service-client `.update()` / `.upsert()` MUST include `.eq("org_id", orgId)` — the service client bypasses RLS <!-- @enforced eslint:pleks/require-org-scope-on-service-write -->
 - Every service-client `.delete()` MUST include `.eq("org_id", orgId)` <!-- @enforced eslint:pleks/require-scope-on-delete -->
 - Every service-client `.select()` MUST include `.eq("org_id", orgId)`
@@ -172,7 +172,7 @@ Allowed types and their release effect:
 
 Breaking changes: add `!` after type (e.g. `feat!: rename /portal to /tenant`)
 AND a `BREAKING CHANGE:` footer in the commit body explaining the migration.
-**UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: other) — the `pr-title` job validates only the title's `type(scope): subject` grammar (`amannn/action-semantic-pull-request`, no `subjectPattern` configured); it does not check the PR/commit body for a `BREAKING CHANGE:` footer. `semantic-release` (the `release` job) parses the footer at RELEASE time to size the version bump, but that runs after merge — nothing blocks a `!` with no matching footer from merging. Full sketch → **M-052** in `brief/build/MECHANISABLE.md`.
+**UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: other) — the `pr-title` job validates only the title's `type(scope): subject` grammar (`amannn/action-semantic-pull-request`, no `subjectPattern` configured); it does not check the PR/commit body for a `BREAKING CHANGE:` footer. `semantic-release` (the `release` job) parses the footer at RELEASE time to size the version bump, but that runs after merge — nothing blocks a `!` with no matching footer from merging. Full sketch → **M-052** in `docs/MECHANISABLE.md`.
 
 Subject line: lowercase, imperative, under 72 chars, no trailing period.
 
@@ -267,7 +267,7 @@ Commit and push are different gates with different bars.
 Before every `git push`, in order:
 
 1. `npm run check:full` (typecheck + lint + tests + architecture audit + security:db) — **must be green**
-   **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — `check:full` exists and is genuinely strict when run (it chains `check`, `test:db`, `security:db`, `check-drift-if-sql-changed`), but nothing forces it to run before a push: it is not in `ci.yml` (CI's `db-tests` job, added 2026-08-17, now runs `test:db` and `security:db` as separate steps on the PR — a real, newer mitigation, but still POST-push/pre-merge, not the local pre-push gate this rule states, and it skips `check-drift-if-sql-changed`) and `hook:bash-gate` gates the push action on approval, not on this command's exit code. Full sketch → **M-051** in `brief/build/MECHANISABLE.md`.
+   **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — `check:full` exists and is genuinely strict when run (it chains `check`, `test:db`, `security:db`, `check-drift-if-sql-changed`), but nothing forces it to run before a push: it is not in `ci.yml` (CI's `db-tests` job, added 2026-08-17, now runs `test:db` and `security:db` as separate steps on the PR — a real, newer mitigation, but still POST-push/pre-merge, not the local pre-push gate this rule states, and it skips `check-drift-if-sql-changed`) and `hook:bash-gate` gates the push action on approval, not on this command's exit code. Full sketch → **M-051** in `docs/MECHANISABLE.md`.
 2. For behavioural changes (routing, auth, UI, data): manually walk the
    affected flow in dev. Console errors count as failures.
    **UNENFORCEABLE** — a manual walkthrough leaves no artefact; "I walked it, no console errors" is asserted in chat, not verifiable after the fact.
@@ -388,7 +388,7 @@ This runs across 15 security categories:
 
 **Rules:**
 - Zero critical findings before any deployment. No exceptions.
-  **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of the identical rule under DO NOT DO (`Do not deploy without running npm run security:quick first`), same mechanism, not re-annotated there. No gate blocks the actual deployment on this script's exit code; Vercel deploys on push independently of `npm run security`. Running it is a manual pre-deploy step, not a CI/deploy gate. Full sketch → **M-018** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of the identical rule under DO NOT DO (`Do not deploy without running npm run security:quick first`), same mechanism, not re-annotated there. No gate blocks the actual deployment on this script's exit code; Vercel deploys on push independently of `npm run security`. Running it is a manual pre-deploy step, not a CI/deploy gate. Full sketch → **M-018** in `docs/MECHANISABLE.md`.
 - If a finding is a false positive (e.g. `prime_rates` intentionally has no RLS because it's read-only public data), the correct fix is to add a read-only RLS policy (`USING (true)` for SELECT, block INSERT/UPDATE/DELETE) — not to remove the test.
   **UNENFORCEABLE** — "add a policy" vs "delete the finding" are both edits to files the audit doesn't distinguish by intent; nothing stops the latter.
 - Never disable or skip categories to pass the audit.
@@ -398,7 +398,7 @@ This runs across 15 security categories:
 - When adding new server actions (`"use server"`): Category 15 auto-discovers them — gate each with the helper appropriate to its location (`app/(admin)` → `requireAdminAuth`; agent → `requireAgentWriteAccess`/`gateway`; portal → `getTenantSession`), or add the file to `ACTION_ALLOWLIST` (with a reason) in `server-action-census.mjs`. A bare `gateway()` on an `app/(admin)` action FAILS — admin surfaces need the admin gate. <!-- @enforced audit:cat15_serverActionAuth -->
 - When adding new webhook handlers: add signature verification from day one. Category 10 sends forged payloads. <!-- @enforced audit:cat10_webhookSignatures -->
 - When adding new public routes: add them to the Category 9 rate limit test list.
-  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `PUBLIC_API_ROUTES` is hand-maintained (unlike Category 8's disk-derived census) and `cat9_rateLimiting` only floods `.slice(0, 2)` of it regardless of length, so nothing fails if a new public route is never added. Full sketch → **M-042** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `PUBLIC_API_ROUTES` is hand-maintained (unlike Category 8's disk-derived census) and `cat9_rateLimiting` only floods `.slice(0, 2)` of it regardless of length, so nothing fails if a new public route is never added. Full sketch → **M-042** in `docs/MECHANISABLE.md`.
 
 **Prerequisites:**
 - `npm run dev` must be running (Categories 3, 4, 6, 8–12 test localhost)
@@ -553,7 +553,7 @@ section that never mentioned joint applications).
 
 Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 (not ANON_KEY — match this exactly)
-**UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: other) — twin of the "Do not use ANON_KEY" rule under DO NOT DO, same mechanism, not re-annotated there. `pleks/no-raw-process-env` blocks a raw read of ANY env var name outside `lib/env.ts`, so it happens to touch this one without knowing the string "ANON_KEY" — it would equally flag the correct name, and would miss a wrong alias declared inside `lib/env.ts` itself. Full sketch → **M-035** in `brief/build/MECHANISABLE.md`.
+**UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: other) — twin of the "Do not use ANON_KEY" rule under DO NOT DO, same mechanism, not re-annotated there. `pleks/no-raw-process-env` blocks a raw read of ANY env var name outside `lib/env.ts`, so it happens to touch this one without knowing the string "ANON_KEY" — it would equally flag the correct name, and would miss a wrong alias declared inside `lib/env.ts` itself. Full sketch → **M-035** in `docs/MECHANISABLE.md`.
 
 ---
 
@@ -566,9 +566,9 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
    **UNENFORCEABLE** — MECHANISABLE → **M-005**. Nothing inspects migration SQL for the column, so a new table with no `org_id` at all is invisible to Category 7 and to the org-scope ESLint rules (which govern app-code USAGE, not schema). The statement stays here because the rule is incident-class and a write-blind session must still see it; the membership test's detail lives in the rule file.
 2. RLS on every new table <!-- @enforced audit:cat7_rlsPolicyAudit -->
 3. audit_log on every state change
-  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists. Full sketch → **M-004** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists. Full sketch → **M-004** in `docs/MECHANISABLE.md`.
 4. consent_log for any new POPIA-sensitive operation
-  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — no rule or script references `consent_log` as a write requirement. Full sketch → **M-015** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — no rule or script references `consent_log` as a write requirement. Full sketch → **M-015** in `docs/MECHANISABLE.md`.
 5. Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. <!-- @enforced eslint:pleks/require-id-number-encryption --> The SA **`id_number`** is
    encrypted at rest everywhere (AES-256-GCM `iv:ct:tag`, random IV) via `idNumberColumns(raw)` /
    `encryptIdNumber(raw)` — the write helper bundles the ciphertext + a RAW-derived `id_number_hash` (the
@@ -582,10 +582,10 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
    low-cardinality (~3 values → encryption is theatre). This carve-out is a deliberate deviation from "all PII" —
    do not "fix" it by encrypting DOB/gender.
 6. Mask before display — never show raw decrypted ID/account in UI (a lease *document* legitimately carries the
-  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — no check inspects JSX for a raw decrypted identifier reaching render. Full sketch → **M-016** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — no check inspects JSX for a raw decrypted identifier reaching render. Full sketch → **M-016** in `docs/MECHANISABLE.md`.
    full ID; a UI surface masks via `maskIdNumber`)
 7. No PII in console.log, no PII in audit_log values
-  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check. Full sketch → **M-017** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check. Full sketch → **M-017** in `docs/MECHANISABLE.md`.
 8. **`id_number_hash` is dedup + analytics ONLY — service-role only, never cross-org in any org-facing query <!-- @enforced eslint:pleks/no-id-number-hash-in-app -->
    path, and never under `app/`.** `hashIdNumber` salts with a single GLOBAL env var, not a per-org one, so the
    same human hashes identically in every organisation on the platform — it is already a cross-org identity key
@@ -645,11 +645,11 @@ Run INDEPENDENT work in parallel (multiple agents in one turn, `run_in_backgroun
 - Do not commit without running `npm run check` first
   **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — twin of the identical rule under RUN CHECKS BEFORE EVERY COMMIT above, same mechanism, not re-annotated there. There is NO pre-commit hook in this repo (no .husky, no core.hooksPath, empty .git/hooks). CI catches it on the PR, after the commit exists. `--no-verify` has nothing to bypass.
 - Do not create new migration files — amend the existing domain file (see MIGRATIONS section)
-  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — nothing counts migration files. `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; a thirteenth file would pass every gate. Full sketch → **M-006** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — nothing counts migration files. `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; a thirteenth file would pass every gate. Full sketch → **M-006** in `docs/MECHANISABLE.md`.
 - Do not use raw `CREATE POLICY` without `DROP POLICY IF EXISTS` first — it aborts the migration
   **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — zero scripts scan migration SQL for the pairing. Trivially mechanisable — a regex over `supabase/migrations/*.sql` asserting every `CREATE POLICY "name"` is preceded by a matching `DROP POLICY IF EXISTS "name"` — and worth doing, since the failure mode is a migration that aborts partway and silently leaves everything below it unapplied.
 - Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead
-  **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: data-boundary) — `check-schema-drift.mjs` can detect the RESULTING drift reactively (and only when someone runs it, or via `check:check-drift-if-sql-changed` in `check:full` — itself not CI-wired, see Git rhythm above), but nothing prevents the ad-hoc execution itself: the Supabase MCP's SQL execution is not gated by `hook:bash-gate`, which only inspects the Bash tool. Full sketch → **M-001** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: data-boundary) — `check-schema-drift.mjs` can detect the RESULTING drift reactively (and only when someone runs it, or via `check:check-drift-if-sql-changed` in `check:full` — itself not CI-wired, see Git rhythm above), but nothing prevents the ad-hoc execution itself: the Supabase MCP's SQL execution is not gated by `hook:bash-gate`, which only inspects the Bash tool. Full sketch → **M-001** in `docs/MECHANISABLE.md`.
 - Do not change existing RLS policies without flagging it
   **UNENFORCEABLE** — "flagging" is a chat act, not a repo state. The policy CHANGE is visible in the diff; the flagging is not checkable.
 - Do not add new npm packages without checking if an existing
@@ -665,4 +665,4 @@ Run INDEPENDENT work in parallel (multiple agents in one turn, `run_in_backgroun
 - Do not hand-roll a debit-order / DebiCheck mandate flow out of ordinary Supabase writes.
   **UNENFORCEABLE** — MECHANISABLE → **M-010** (related: **M-012**, D-TRUST-01). The rule above forbids the named payment SDKs (`@stitch-money/*`, `ozow-sdk`, `snapscan*`, `@absa/banking-api`, `@standard-bank/payment-api`) repo-wide, but names no DebiCheck-specific package and cannot see a flow built from plain writes with no SDK import at all.
 - Do not split an extension migration across commits — when changing a file extension (.ts → .tsx, .js → .ts, etc.), delete the predecessor in the same commit that introduces the successor.
-  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — a check could fail on a `.tsx` whose stem matches a sibling `.ts`. The stated failure (TypeScript resolves to the stale `.ts`, masking the new file) is exactly the silent class that earns a check. A surviving .ts shadow alongside a new .tsx file causes TypeScript to resolve to the old interface (.ts takes priority over .tsx in module resolution), silently masking the extension and breaking builds downstream. Full sketch → **M-041** in `brief/build/MECHANISABLE.md`.
+  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — a check could fail on a `.tsx` whose stem matches a sibling `.ts`. The stated failure (TypeScript resolves to the stale `.ts`, masking the new file) is exactly the silent class that earns a check. A surviving .ts shadow alongside a new .tsx file causes TypeScript to resolve to the old interface (.ts takes priority over .tsx in module resolution), silently masking the extension and breaking builds downstream. Full sketch → **M-041** in `docs/MECHANISABLE.md`.

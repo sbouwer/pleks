@@ -116,6 +116,24 @@ function auditFile(path, text, claims, root = ".") {
     }
   })
 
+  // 2c — every M-0NN pointer resolves to a real register entry.
+  // These pointers REPLACED the inline sketches, so they now carry the content's only address —
+  // and nothing verified them until 2026-08-19. Seventeen were introduced into the always-loaded
+  // file in a single pass, unchecked, pointing at a file that was not even in the repo (brief/ is
+  // a symlink to OneDrive). A citation that reads as rigorous and resolves to nothing is the exact
+  // failure this script exists to catch; the extraction was reintroducing it while removing it
+  // elsewhere. Silent when a file has no pointers, so this cannot fire spuriously.
+  const pointers = [...new Set([...text.matchAll(/\bM-\d{3}\b/g)].map((m) => m[0]))]
+  if (pointers.length) {
+    const regPath = `${root}/docs/MECHANISABLE.md`
+    if (!existsSync(regPath)) {
+      out.push(`${path}: ${pointers.length} M-pointer(s) but docs/MECHANISABLE.md does not exist`)
+    } else {
+      const have = new Set([...readFileSync(regPath, "utf8").matchAll(/^### (M-\d{3})/gm)].map((m) => m[1]))
+      for (const p of pointers) if (!have.has(p)) out.push(`${path}: ${p} resolves to no entry in docs/MECHANISABLE.md`)
+    }
+  }
+
   // 3 — every UNENFORCEABLE carries a reason
   lines.forEach((l, i) => {
     if (!l.includes("**UNENFORCEABLE**")) return
@@ -165,6 +183,8 @@ const FIXTURES = [
   // Regression: a marker BELOW the old 3-line window must still count, so a multi-line rule
   // statement never has to be broken apart to satisfy the checker.
   ["KNOWN-GOOD: marker below the old 3-line window", `${SEC}\n- A rule that runs on\n  several continuation\n  lines before its\n  marker appears.\n  **UNENFORCEABLE** — nothing scans for this; it is a human judgement call.\n`, false],
+  ["M-pointer resolving to no register entry", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — MECHANISABLE → **M-999**, which does not exist.\n`, true],
+  ["KNOWN-GOOD: M-pointer that resolves", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — MECHANISABLE → **M-001**, which exists in the register.\n`, false],
   ["renamed rules section", `## SECURITY RULES (unchanged — still apply to any new code)\n- x <!-- @enforced hook:bash-gate -->\n`, true],
   // must PASS — the negative-space half, and the one that catches a never-matching pattern
   ["KNOWN-GOOD: tagged + unenforceable together", `${SEC}\n- Enforced one. <!-- @enforced hook:bash-gate -->\n- Loose one.\n  **UNENFORCEABLE** — nothing scans for this; it is a human judgement call.\n`, false],
@@ -185,6 +205,10 @@ if (process.argv.includes("--selftest")) {
   // unfailable, in the tool written to prevent exactly that.
   const tmp = mkdtempSync(join(tmpdir(), "claude-md-fixture-"))
   mkdirSync(join(tmp, ".claude", "rules"), { recursive: true })
+  // A register with exactly ONE entry, so pointer resolution can be probed in both directions:
+  // M-001 must resolve, M-999 must not.
+  mkdirSync(join(tmp, "docs"), { recursive: true })
+  writeFileSync(join(tmp, "docs", "MECHANISABLE.md"), "# register\n\n### M-001 — probe entry\n")
 
   for (const [name, body, shouldFire] of FIXTURES) {
     // Every fixture carries BOTH rules sections so the premise-assertion doesn't fire spuriously,
