@@ -4,6 +4,13 @@ description: Read-only live-database inspector. Use to verify a live-data claim 
 tools: Read, Grep, Bash, mcp__claude_ai_Supabase__execute_sql, mcp__claude_ai_Supabase__list_tables, mcp__claude_ai_Supabase__list_migrations, mcp__claude_ai_Supabase__list_extensions, mcp__claude_ai_Supabase__get_advisors, mcp__claude_ai_Supabase__query_logs, mcp__claude_ai_Supabase__generate_typescript_types, mcp__claude_ai_Supabase__search_docs
 model: sonnet
 memory: project
+# @probed 2026-08-19: mcp__claude_ai_Supabase__ resolves — the namespace was ENUMERATED from the
+# tool registry, not sampled, and all eight grants above appear in that enumeration verbatim.
+# Absence probed too: mcp__supabase__ returns NO matching tools, and eight grants in that dead
+# namespace were removed from this file the same day. Nothing errors on a dead grant.
+# The near-miss worth naming: the tool is query_logs, NOT get_logs — get_logs was also granted
+# here and also does not exist, which is why the namespace-level record above is backed by a
+# per-tool enumeration rather than a prefix check.
 ---
 
 <!-- SPINE:db-inspector v1 -->

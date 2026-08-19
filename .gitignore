@@ -75,3 +75,7 @@ scripts/codemod-supabase-error.report.json
 supabase/.branches/
 supabase/.temp/linked-project.json
 supabase/.temp/pgdelta/
+
+# ESLint cache — local only, rebuilt by scripts/eslint-cache-guard.mjs (never committed)
+.eslintcache
+.eslintcache.key
