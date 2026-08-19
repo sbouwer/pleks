@@ -1,0 +1,65 @@
+{
+  // Tier-0 dead-code detection (SPEC_CODEBASE_CRAWLERS D1). `npm run crawl:tier0`.
+  //
+  // Config shape ported from life-therapy's knip.jsonc rather than derived from scratch — their
+  // entry list, the `ignoreExportsUsedInFile` split and the reasons-are-mandatory rule below were
+  // paid for in three cleanup passes and two broken builds. What is NOT ported is their ignore
+  // list: theirs is about shadcn and Prisma, neither of which exists here.
+  //
+  // DELIBERATELY NOT IN `npm run check` YET. knip reports whole categories nobody in this repo has
+  // agreed to act on, and wiring a red tool into the gate makes every commit fail for reasons that
+  // have not been triaged. LT kept it out for exactly this reason and gated it once the tree was at
+  // zero; that is the intended path here too. `check-tier0.mjs` in dev-standards will keep saying
+  // "available but NOT gated", which is the correct and honest reading until the burn-down is done.
+  //
+  // JSONC, not JSON, because every ignore needs its REASON. An ignore list without reasons is a
+  // silencer; with them it is a decision log, and the next reader can tell a deliberate retention
+  // from an oversight. Same rule this repo's eslint baselines follow.
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+
+  "entry": [
+    // Next.js resolves these by CONVENTION, never by import. Without them listed, every page reads
+    // as an unused file and the first run is ~100% noise — which is how a tool gets run once and
+    // never again.
+    "app/**/{page,layout,loading,error,not-found,route,template,default,global-error}.{ts,tsx}",
+    // REMOVED on the first run, all reported by knip's own configuration hints:
+    //   app/**/sitemap.ts, app/**/robots.ts, middleware.ts — no such file exists here
+    //   instrumentation.ts, vitest.config.ts, vitest.db.config.ts — knip resolves these by
+    //     convention, so listing them is redundant
+    // An entry pattern matching nothing is the same disease as a stale allowlist entry: it reads
+    // as a considered decision and silently covers whatever is written at that path next. Ported
+    // from LT's file, where the same six-line cleanup is recorded for the same reason.
+
+    // Scripts are not part of the build, so anything only THEY import reads as dead. LT deleted a
+    // helper on that report and broke a script silently; both extensions are listed here from the
+    // start rather than after the same lesson.
+    "scripts/**/*.{mjs,mts,ts}",
+    "eslint-rules/**/*.mjs",
+
+    // Tests and their harness. A helper used only by tests is not dead code.
+    "**/*.{test,dbtest,spec}.{ts,tsx}",
+    "test/**/*.ts"
+  ],
+
+  "project": [
+    "app/**/*.{ts,tsx}",
+    "lib/**/*.{ts,tsx}",
+    "components/**/*.{ts,tsx}",
+    "scripts/**/*.{ts,mts,mjs}",
+    "eslint-rules/**/*.mjs",
+    "test/**/*.ts"
+  ],
+
+  // A TYPE used inside its own module is not dead code — it is the module's own vocabulary, and it
+  // is usually named in an exported signature where a reader needs to be able to say the name.
+  //
+  // Scoped to types and interfaces DELIBERATELY: a FUNCTION used only inside its own module still
+  // gets reported, because that one really should lose its `export`. LT records that conflating the
+  // two broke their build three times in one pass.
+  "ignoreExportsUsedInFile": { "interface": true, "type": true }
+
+  // NO `ignore` / `ignoreDependencies` ENTRIES YET, on purpose. Every one of those is a claim that
+  // a finding was read and judged, and none has been read yet — pre-populating them from LT's file
+  // would import their judgements about their tree. Entries arrive here as the burn-down classifies
+  // real findings, each with the reason it was kept.
+}
