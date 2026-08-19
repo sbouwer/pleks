@@ -88,7 +88,7 @@ export function policyFindings(sql, file) {
   events.sort((a, b) => a.at - b.at)
   for (const e of events) {
     if (e.kind === "drop") dropped.add(e.key)
-    else if (!dropped.has(e.key) && !dropped.has(norm("*", e.table)) && !hasExistenceGuard(sql, e.name))
+    else if (!dropped.has(e.key) && !dropped.has(norm("*", e.table)) && !hasExistenceGuard(sql, e.name) && !hasDuplicateObjectGuard(sql, e.at))
       out.push(`${file}: CREATE POLICY ${e.name} ON ${e.table} has no preceding DROP POLICY IF EXISTS — this migration ABORTS on re-run and leaves everything below it unapplied`)
   }
   return out
@@ -110,6 +110,27 @@ export function policyFindings(sql, file) {
  * The guard must name the specific policy: a bare `IF NOT EXISTS` elsewhere in the file proves
  * nothing about THIS policy.
  */
+/**
+ * The FOURTH idempotency pattern, found by reading the SQL rather than trusting the check:
+ *
+ *   DO $$ BEGIN
+ *     CREATE POLICY "p" ON t ...;
+ *   EXCEPTION WHEN duplicate_object THEN NULL;
+ *   END $$;
+ *
+ * Postgres raises `42710 duplicate_object` when the policy exists; the handler swallows it. Fully
+ * idempotent, and it needs no DROP at all.
+ *
+ * This one matters for the count: it was the reason 2 of the "6 real defects" were not defects.
+ * Four separate legitimate patterns exist in this codebase, and every one of them was found by
+ * opening the file a finding pointed at. A check's first number is a hypothesis.
+ */
+export function hasDuplicateObjectGuard(sql, createIndex) {
+  const end = sql.indexOf("END $$", createIndex)
+  if (end === -1) return false
+  return /EXCEPTION\s+WHEN\s+duplicate_object/i.test(sql.slice(createIndex, end))
+}
+
 export function hasExistenceGuard(sql, policyName) {
   const bare = policyName.replace(/"/g, "")
   const escaped = bare.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -220,6 +241,11 @@ if (process.argv.includes("--selftest")) {
     "a dynamic DROP loop over the table protects CREATEs below it — quiet")
   ok(policyFindings(`EXECUTE format('DROP POLICY IF EXISTS %I ON other_table', pol.name);\nCREATE POLICY "p" ON storage.objects USING (true);`, "f").length === 1,
     "…but a dynamic loop over a DIFFERENT table does not")
+  // FOURTH pattern — the one that turned 2 of the "6 real defects" into non-defects.
+  ok(policyFindings(`DO $$ BEGIN\n  CREATE POLICY "p" ON t FOR ALL USING (true);\nEXCEPTION WHEN duplicate_object THEN NULL;\nEND $$;`, "f").length === 0,
+    "a CREATE wrapped in EXCEPTION WHEN duplicate_object is idempotent — quiet")
+  ok(policyFindings(`DO $$ BEGIN\n  CREATE POLICY "p" ON t FOR ALL USING (true);\nEXCEPTION WHEN others THEN NULL;\nEND $$;`, "f").length === 1,
+    "…but a DO block catching something else does not protect it")
 
   // org_id, both directions
   const A = ["user_passkeys"]

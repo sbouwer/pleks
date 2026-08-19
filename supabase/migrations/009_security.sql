@@ -251,6 +251,7 @@ GRANT EXECUTE ON FUNCTION count_distinct_orgs(text) TO service_role;
 DROP POLICY IF EXISTS comm_log_org_select ON communication_log;
 DROP POLICY IF EXISTS org_comms_read      ON communication_log;
 DROP POLICY IF EXISTS tenant_comms_read   ON communication_log;
+DROP POLICY IF EXISTS comm_log_read       ON communication_log;
 CREATE POLICY comm_log_read ON communication_log FOR SELECT USING (
   org_id IN (SELECT org_id FROM user_orgs
              WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
@@ -263,6 +264,7 @@ CREATE POLICY comm_log_read ON communication_log FOR SELECT USING (
 DROP POLICY IF EXISTS contractor_assigned_jobs    ON maintenance_requests;
 DROP POLICY IF EXISTS landlord_portal_maintenance ON maintenance_requests;
 DROP POLICY IF EXISTS tenant_own_requests         ON maintenance_requests;
+DROP POLICY IF EXISTS maintenance_portal_read     ON maintenance_requests;
 CREATE POLICY maintenance_portal_read ON maintenance_requests FOR SELECT USING (
   contractor_id IN (SELECT id FROM contractors WHERE auth_user_id = (SELECT auth.uid()))
   OR property_id IN (SELECT id FROM properties
@@ -274,6 +276,7 @@ CREATE POLICY maintenance_portal_read ON maintenance_requests FOR SELECT USING (
 --     stays; SELECT 3 → 2. Tenant read keeps its status gate verbatim.
 DROP POLICY IF EXISTS landlord_portal_leases ON leases;
 DROP POLICY IF EXISTS tenant_own_lease       ON leases;
+DROP POLICY IF EXISTS leases_portal_read  ON leases;
 CREATE POLICY leases_portal_read ON leases FOR SELECT USING (
   property_id IN (SELECT id FROM properties
        WHERE landlord_id IN (SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())))
@@ -286,6 +289,7 @@ CREATE POLICY leases_portal_read ON leases FOR SELECT USING (
 --     verbatim, to preserve write semantics exactly. 2 → 1.
 DROP POLICY IF EXISTS contractor_own_quotes ON maintenance_quotes;
 DROP POLICY IF EXISTS org_quotes            ON maintenance_quotes;
+DROP POLICY IF EXISTS maintenance_quotes_access ON maintenance_quotes;
 CREATE POLICY maintenance_quotes_access ON maintenance_quotes FOR ALL
 USING (
   contractor_id IN (SELECT id FROM contractors WHERE auth_user_id = (SELECT auth.uid()))

@@ -196,12 +196,21 @@ fires, and a deleted expected file fires too.
 `check:check-migration-integrity:shared`. **Probe:** 24 cases, both directions.
 The 328→29→21 history is why this was built probe-first with a known-good seeded FROM A REAL
 MIGRATION. It paid off immediately: the first run reported 27 findings, and classifying them per
-site rather than baselining showed **21 were legitimate** — two other idempotency patterns the
+site rather than baselining showed **23 were legitimate** — two other idempotency patterns the
 check now recognises (`IF NOT EXISTS (SELECT 1 FROM pg_policies …)` naming the policy, and a
-dynamic `EXECUTE format('DROP POLICY IF EXISTS %I ON t', …)` loop). Baselining those 21 would
-have buried valid patterns as debt and left a 78% false-positive rate. **6 real defects remain**,
-baselined with reasons: each DROPs old policy names and CREATEs a new one never dropped, so a
-re-run aborts. Fix is one `DROP POLICY IF EXISTS` line each — not applied, since it edits RLS DDL.
+dynamic `EXECUTE format('DROP POLICY IF EXISTS %I ON t', …)` loop, and a
+`DO $ … EXCEPTION WHEN duplicate_object THEN NULL; END $` block). Baselining those 23 would have
+buried valid patterns as debt and left an 85% false-positive rate.
+
+**4 real defects — FIXED 2026-08-19, none baselined.** All four were in `009_security.sql`,
+consolidations that DROP the old policy names and CREATE a new one never dropped, so a re-run
+aborted at the CREATE. One `DROP POLICY IF EXISTS` line each; proven load-bearing by removing one
+and watching the check re-fire. The policy baseline is EMPTY.
+
+Two candidates in `007_enhancements.sql` turned out NOT to be defects — they use the
+`EXCEPTION WHEN duplicate_object` pattern — which matters twice over, because 007 is a protected
+file that may not be amended. Had the classification not been done per site, the only "fix"
+available would have been forbidden.
 
 <details><summary>Original entry</summary>
 
