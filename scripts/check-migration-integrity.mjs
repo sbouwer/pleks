@@ -27,7 +27,7 @@
  * authored fixture confirmed a broken check twice in one day (LESSONS L-01, and the paren
  * truncation in eslint-cache-guard).
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 
@@ -218,15 +218,36 @@ export function audit(root = ".") {
 
   // Recursive: a thirteenth migration dropped in a SUBDIRECTORY passed M-006, because the check
   // that asserts "exactly these twelve files" only ever listed the top level. The set is the set.
-  const listSql = (d, prefix = "") => {
+  //
+  // EVERY file, not every `.sql`. The extension filter was a third way past the same assertion —
+  // `.pgsql`, `.SQL`, `.sql.txt` were all invisible — and enumerating extensions is the same losing
+  // game as enumerating client helpers two rules over. The directory holds exactly the twelve files
+  // and nothing else, so "anything not on the list is a finding" is both simpler and stricter. A
+  // legitimate addition (a README) is then a one-line, visible, argued edit to EXPECTED_FILES.
+  //
+  // Symlinked directories are FOLLOWED. `readdirSync(withFileTypes)` does not resolve them, so
+  // `isDirectory()` is false for a symlink and the whole subtree was skipped — and this repo already
+  // keeps a symlinked directory (`brief/` → OneDrive), so it is a live pattern, not a hypothetical.
+  // Cycles are bounded by realpath, because a symlink loop is a hang, not a finding.
+  const seen = new Set()
+  const listFiles = (d, prefix = "") => {
     const out = []
+    let real
+    try { real = realpathSync(d) } catch { return out }
+    if (seen.has(real)) return out
+    seen.add(real)
     for (const e of readdirSync(d, { withFileTypes: true })) {
-      if (e.isDirectory()) out.push(...listSql(join(d, e.name), `${prefix}${e.name}/`))
-      else if (e.name.endsWith(".sql")) out.push(`${prefix}${e.name}`)
+      const p = join(d, e.name)
+      let isDir = e.isDirectory()
+      if (!isDir && e.isSymbolicLink()) {
+        try { isDir = statSync(p).isDirectory() } catch { isDir = false }
+      }
+      if (isDir) out.push(...listFiles(p, `${prefix}${e.name}/`))
+      else out.push(`${prefix}${e.name}`)
     }
     return out
   }
-  const found = listSql(dir).sort()
+  const found = listFiles(dir).sort()
 
   // 1 — the file set
   for (const f of found) if (!EXPECTED_FILES.includes(f))
@@ -374,6 +395,39 @@ if (process.argv.includes("--selftest")) {
       "a THIRTEENTH migration file fires — the gap M-006 names")
 
     rmSync(join(tmp, MIG, "013_new_domain.sql"))
+
+    // ── The three ways past the set assertion that the top-level `.sql` plant above cannot see ──
+    // That plant fires on the PRE-recursion code too, so it never distinguished fixed from unfixed
+    // and the recursion fix shipped with no fixture of its own.
+    mkdirSync(join(tmp, MIG, "archive"), { recursive: true })
+    writeFileSync(join(tmp, MIG, "archive", "013_hidden.sql"), "-- in a subdirectory\n")
+    ok(audit(tmp).some((x) => x.includes("archive/013_hidden.sql")),
+      "a thirteenth file in a SUBDIRECTORY fires — the plant the top-level one cannot make")
+    rmSync(join(tmp, MIG, "archive"), { recursive: true, force: true })
+
+    writeFileSync(join(tmp, MIG, "013_hidden.pgsql"), "-- a different extension\n")
+    ok(audit(tmp).some((x) => x.includes("013_hidden.pgsql")),
+      "a non-.sql extension fires — enumerating extensions is the losing game")
+    rmSync(join(tmp, MIG, "013_hidden.pgsql"))
+
+    // Symlinked directories: readdirSync(withFileTypes) reports isDirectory() FALSE for one, so the
+    // whole subtree was skipped. Skipped where the platform refuses the link rather than silently
+    // passing — an unprobed case must not read as a probed one.
+    {
+      const outside = join(tmp, "outside")
+      mkdirSync(outside, { recursive: true })
+      writeFileSync(join(outside, "013_via_symlink.sql"), "-- reached only through a symlink\n")
+      let linked = false
+      try { symlinkSync(outside, join(tmp, MIG, "linked"), "junction"); linked = true } catch { /* no privilege */ }
+      if (linked) {
+        ok(audit(tmp).some((x) => x.includes("013_via_symlink.sql")),
+          "a thirteenth file behind a SYMLINKED directory fires — this repo already keeps one (brief/)")
+        rmSync(join(tmp, MIG, "linked"), { recursive: true, force: true })
+      } else {
+        console.log("  – SKIPPED (no symlink privilege) — a thirteenth file behind a symlinked directory")
+      }
+    }
+
     rmSync(join(tmp, MIG, "006_seed.sql"))
     ok(audit(tmp).some((x) => x.includes("006_seed.sql") && x.includes("MISSING")),
       "a DELETED expected file fires too — the set is exact in both directions")
