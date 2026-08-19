@@ -32,17 +32,46 @@ const HOOK = ".githooks/pre-push"
 const ZERO = "0".repeat(40)
 
 const git = (c) => execSync(c, { encoding: "utf8" }).trim()
+// stderr is swallowed deliberately: on a shallow checkout these calls are EXPECTED to fail, and
+// a wall of git fatals above a clean SKIPPED line reads like a crash.
+const gitOrNull = (c) => {
+  try { return execSync(c, { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim() } catch { return null }
+}
+
+let failed = 0
+const ok = (cond, label) => { if (!cond) failed++; console.log(`  ${cond ? "✓" : "✗"} ${label}`) }
 
 // A commit that touched supabase/ and one that did not, resolved from history rather than pinned:
 // a pinned sha rots out of the repo the first time someone rewrites it, and a probe whose fixture
 // has vanished reports whatever the empty case reports.
-const dbCommit = git("git log --format=%H -1 -- supabase/")
-const dbParent = git(`git rev-parse ${dbCommit}~1`)
-const head = git("git rev-parse HEAD")
-const headParent = git("git rev-parse HEAD~1")
+//
+// ⚠ THIS PROBE NEEDS REAL HISTORY, and CI does not have it. `actions/checkout` clones with
+// `--depth=1`, so `<sha>~1` is not a revision there and the first version of this file crashed the
+// Lint & Typecheck job. The property under test is a LOCAL pre-push behaviour — the hook only ever
+// runs on a developer's full clone — so a shallow checkout is a case this probe cannot speak to
+// rather than one it should fail on.
+//
+// The skip is LOUD and CONDITIONAL: shallow → announce which fixtures could not be built and why;
+// NOT shallow but the fixtures still will not resolve → a real failure, because that means the
+// repository changed under the probe. A silent `exit 0` here would be the "reports safety while
+// checking nothing" shape this whole suite exists to prevent.
+const shallow = gitOrNull("git rev-parse --is-shallow-repository") === "true"
+const dbCommit = gitOrNull("git log --format=%H -1 -- supabase/")
+const dbParent = dbCommit ? gitOrNull(`git rev-parse ${dbCommit}~1`) : null
+const head = gitOrNull("git rev-parse HEAD")
+const headParent = gitOrNull("git rev-parse HEAD~1")
 
-let failed = 0
-const ok = (cond, label) => { if (!cond) failed++; console.log(`  ${cond ? "✓" : "✗"} ${label}`) }
+if (!dbCommit || !dbParent || !head || !headParent) {
+  const why = shallow
+    ? "the checkout is SHALLOW (actions/checkout --depth=1), so a commit's parent is not a revision here"
+    : "history is FULL, so this is a real problem: the fixtures this probe derives from history no longer resolve"
+  console.log(`  – ${shallow ? "SKIPPED" : "FAILED"} — ${why}`)
+  console.log(`    (dbCommit=${dbCommit?.slice(0, 8) ?? "none"} dbParent=${dbParent?.slice(0, 8) ?? "none"} head=${head?.slice(0, 8) ?? "none"} headParent=${headParent?.slice(0, 8) ?? "none"})`)
+  console.log(shallow
+    ? "\n⏭  prepush composition NOT probed on this checkout — it is a local pre-push property and runs on every developer clone"
+    : "\n❌ prepush composition could not build its fixtures on a full clone")
+  process.exit(shallow ? 0 : 1)
+}
 
 ok(!!dbCommit, `history still contains a supabase/ commit to use as a fixture (${dbCommit.slice(0, 8)})`)
 ok(git(`git diff --name-only ${dbParent} ${dbCommit}`).split("\n").some((f) => f.startsWith("supabase/")),
