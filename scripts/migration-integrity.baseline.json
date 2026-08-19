@@ -1,0 +1,68 @@
+{
+  "_comment": [
+    "Baseline for scripts/check-migration-integrity.mjs. An entry means READ AND CLASSIFIED,",
+    "never 'exempt'. It only shrinks. Every entry carries the reason it is here and, where it is",
+    "debt rather than design, the fix that removes it.",
+    "",
+    "Generated 2026-08-19 from ground truth, after classifying per site rather than sweeping:",
+    "the raw run reported 27 policy findings and 33 org_id findings. Three legitimate idempotency",
+    "patterns accounted for 21 of the policy findings and are now recognised by the check itself,",
+    "not baselined — burying a valid pattern in a baseline is how a check earns a 60%",
+    "false-positive rate and then stops meaning anything."
+  ],
+
+  "_policies_comment": [
+    "REAL DEBT, not design. Each is a consolidation: the migration DROPs the OLD policy names and",
+    "CREATEs a NEW name that was never dropped. First run succeeds; a RE-RUN aborts at the CREATE",
+    "and silently leaves everything below it unapplied. Fix for every one is identical and safe —",
+    "add `DROP POLICY IF EXISTS <new name> ON <table>;` immediately before the CREATE. Not applied",
+    "here because it edits RLS DDL, which CLAUDE.md requires be flagged rather than done silently."
+  ],
+  "policies": {
+    "007_enhancements.sql: comm_log_org_select@communication_log": "consolidation, new name never dropped — re-run aborts",
+    "007_enhancements.sql: comm_prefs_org@communication_preferences": "consolidation, new name never dropped — re-run aborts",
+    "009_security.sql: comm_log_read@communication_log": "§A merges 3 policies into 1; drops the 3 old names, creates a 4th — re-run aborts",
+    "009_security.sql: maintenance_portal_read@maintenance_requests": "same consolidation shape as §A",
+    "009_security.sql: leases_portal_read@leases": "same consolidation shape as §A",
+    "009_security.sql: maintenance_quotes_access@maintenance_quotes": "same consolidation shape as §A"
+  },
+
+  "_orgIdTables_comment": [
+    "Tables with no org_id that are NOT identity-scoped. The identity-scoped three",
+    "(user_passkeys, passkey_challenges, passkey_aal_grants) are NOT here — they resolve through",
+    ".claude/rules/identity-scoped-tables.md, which is the single source for that exception.",
+    "Most below are design, not debt: platform-global reference data, pre-signup capture, or",
+    "self-scoped rows where the table IS the org boundary."
+  ],
+  "orgIdTables": {
+    "organisations": "the org itself — it IS the boundary, an org_id would be its own id",
+    "user_profiles": "self-scoped to a user, read before org selection",
+    "waitlist": "pre-signup capture, no org exists yet",
+    "contact_leads": "pre-signup marketing capture, no org exists yet",
+    "audit_exports": "platform-level export records",
+    "honeytoken_emails": "security canaries, platform-global by design",
+    "lease_clause_library": "platform-provided clause catalogue, shared across orgs",
+    "prime_rates": "public SA reference data, read-only, deliberately global",
+    "application_tokens": "token row keyed by its own secret; scoped via the application it points at",
+    "property_info_request_events": "public-form telemetry, no authenticated org context",
+    "consent_verification_rate_limits": "rate-limit bucket keyed by identifier, pre-auth",
+    "rule_templates": "platform-provided template catalogue",
+    "cron_runs": "platform scheduler bookkeeping",
+    "site_content": "marketing site content, platform-global",
+    "device_fingerprints": "bound to a user/session, read before org selection",
+    "login_notifications_sent": "bound to a user, pre-org",
+    "step_up_challenges": "transient auth ceremony for a user, pre-org",
+    "feedback_replies": "child of feedback; scoped through its parent",
+    "login_rate_limits": "rate-limit bucket keyed by identifier, pre-auth",
+    "whatsapp_template_variants": "platform-provided template catalogue",
+    "external_links": "platform-global link registry",
+    "privacy_policy_versions": "platform-global legal document versions",
+    "bug_context": "platform diagnostics",
+    "ai_rate_limits": "rate-limit bucket, platform-level quota",
+    "user_template_favourites": "self-scoped to a user across orgs by design",
+    "whatsapp_cs_windows": "keyed by phone number, spans orgs by nature of the channel",
+    "document_template_versions": "child of document_templates; scoped through its parent",
+    "insurance_checklist_items": "platform-provided checklist catalogue",
+    "property_insurance_checklist_events": "child of a property-scoped row; scoped through its parent"
+  }
+}

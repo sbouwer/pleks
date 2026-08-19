@@ -150,6 +150,20 @@ forever, and looks exactly like a rule that is working.
 
 ## SCHEMA
 
+### M-005 — ✅ BUILT 2026-08-19 (slice 2)
+
+**Control:** `scripts/check-migration-integrity.mjs`, tagged
+`check:check-migration-integrity:shared`. **Probe:** 24 cases, both directions.
+Reads the identity-scoped allowlist FROM `.claude/rules/identity-scoped-tables.md` rather than
+mirroring it into code, so the doc is the single source and there is no parity test to rot. A
+missing or zero-row 'Current members' section FAILS rather than silently exempting nothing.
+29 pre-existing tables baselined, each with its reason; 3 identity-scoped resolve via the rule file.
+
+<details><summary>Original entry</summary>
+
+
+</details>
+
 ### M-005 — `org_id`-on-new-table migration parse + identity-scoped allowlist
 - **Rule:** "org_id on every new table — one bounded exception: identity-scoped tables" (`CLAUDE.md`, SECURITY RULES #1)
 - **Where it lives:** `CLAUDE.md:589-594` (twin: `.claude/rules/identity-scoped-tables.md:14`, see M-023)
@@ -157,12 +171,42 @@ forever, and looks exactly like a rule that is working.
 - **Sketch:** Nothing inspects migration SQL for the column. The org-scope ESLint rules govern app-code USAGE (`require-org-scope-on-service-write`, `require-scope-on-delete`); a new table with no `org_id` at all is invisible to them and to Category 7. Sketch: parse each migration's new `§N` section for `CREATE TABLE`, and assert an `org_id` column is present unless the table name is in the identity-scoped allowlist (`.claude/rules/identity-scoped-tables.md`'s "Current members" table).
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_62F_MULTI_DEVICE_PASSKEY.md` (the grounding pass that ratified the membership test and named the planned `device_enrolment_tokens`/`account_recovery_codes` allowlist additions)
 
+### M-006 — ✅ BUILT 2026-08-19 (slice 2)
+
+**Control:** `scripts/check-migration-integrity.mjs`, tagged
+`check:check-migration-integrity:shared`. **Probe:** 24 cases, both directions.
+Asserts the file set is exactly the twelve named files, in BOTH directions — a thirteenth file
+fires, and a deleted expected file fires too.
+
+<details><summary>Original entry</summary>
+
+
+</details>
+
 ### M-006 — migration file count is exactly the twelve named files
 - **Rule:** "Do not create new migration files — amend the existing domain file" (`CLAUDE.md`, DO NOT DO)
 - **Where it lives:** `CLAUDE.md:678-679` (closely related: `CLAUDE.md:680-681` CREATE POLICY/DROP pairing, see M-020 — could ship as one combined migration-integrity script)
 - **Rung:** check · **Blast:** schema
 - **Sketch:** nothing counts migration files. `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; a thirteenth file would pass every gate. Sketch: assert the migration file set is exactly the twelve named files (`001_foundation.sql` … `012_property_extensions.sql`) and fail on any additional file matching the migration glob.
 - **Covering spec:** NEW
+
+### M-020 — ✅ BUILT 2026-08-19 (slice 2)
+
+**Control:** `scripts/check-migration-integrity.mjs`, tagged
+`check:check-migration-integrity:shared`. **Probe:** 24 cases, both directions.
+The 328→29→21 history is why this was built probe-first with a known-good seeded FROM A REAL
+MIGRATION. It paid off immediately: the first run reported 27 findings, and classifying them per
+site rather than baselining showed **21 were legitimate** — two other idempotency patterns the
+check now recognises (`IF NOT EXISTS (SELECT 1 FROM pg_policies …)` naming the policy, and a
+dynamic `EXECUTE format('DROP POLICY IF EXISTS %I ON t', …)` loop). Baselining those 21 would
+have buried valid patterns as debt and left a 78% false-positive rate. **6 real defects remain**,
+baselined with reasons: each DROPs old policy names and CREATEs a new one never dropped, so a
+re-run aborts. Fix is one `DROP POLICY IF EXISTS` line each — not applied, since it edits RLS DDL.
+
+<details><summary>Original entry</summary>
+
+
+</details>
 
 ### M-020 — `CREATE POLICY`/`DROP POLICY IF EXISTS` pairing scan
 - **Rule:** "Do not use raw `CREATE POLICY` without `DROP POLICY IF EXISTS` first" (`CLAUDE.md`, DO NOT DO)

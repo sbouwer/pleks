@@ -46,10 +46,23 @@ const RULES_SECTIONS = [
   "## DO NOT DO",
 ]
 
-/** ns:id[:qualifier] — qualifier is currently only `advisory` (reports, does not block). */
+/**
+ * ns:id[:qualifier] — `advisory` (reports, does not block) or `shared`.
+ *
+ * `shared` exists because the no-double-claim rule was too strict for one real case. It was
+ * written to catch TWINS — the same rule restated in two files, both tagging one control, which
+ * would inflate the enforced count with a single mechanism counted twice. But one script can also
+ * enforce several genuinely DIFFERENT rules: check-migration-integrity asserts the migration file
+ * set, policy pairing, and org_id-on-new-table, which are three separate doctrine lines that each
+ * became mechanised. Counting all three is honest; refusing to is not.
+ *
+ * So `shared` is an explicit author assertion — "this control legitimately enforces more than one
+ * distinct rule" — and it stays visible in the diff. A twin still uses the prose convention
+ * ("same control as X, not re-tagged here"), because a twin is one rule, not several.
+ */
 // The id class MUST include "@" — scoped npm/plugin rule ids like
 // `@typescript-eslint/no-explicit-any` are real controls. It did not, until 2026-08-18.
-const TAG = /@enforced\s+([a-z]+):([A-Za-z0-9/_.@-]+)(?::(advisory))?/g
+const TAG = /@enforced\s+([a-z]+):([A-Za-z0-9/_.@-]+)(?::(advisory|shared))?/g
 const UNENF = /\*\*UNENFORCEABLE\*\*\s*—\s*(.*)/
 
 /** Does a control id resolve to something real? Lookup per namespace, never inference from prose. */
@@ -95,11 +108,13 @@ function auditFile(path, text, claims, root = ".") {
 
   // 1 + 2 — every @enforced resolves, and no control is claimed twice
   for (const m of text.matchAll(TAG)) {
-    const [, ns, id] = m
+    const [, ns, id, qualifier] = m
     const key = `${ns}:${id}`
     if (!controlExists(ns, id, root)) out.push(`${path}: @enforced ${key} — no such control`)
-    if (claims.has(key)) out.push(`${path}: ${key} claimed twice (also ${claims.get(key)})`)
-    else claims.set(key, path)
+    // `shared` opts out of the single-claim rule deliberately and visibly; everything else
+    // still fails, because the common case for a repeated control is a twin.
+    if (qualifier !== "shared" && claims.has(key)) out.push(`${path}: ${key} claimed twice (also ${claims.get(key)})`)
+    else if (!claims.has(key)) claims.set(key, path)
   }
 
   // 2b — a tag the parser CANNOT READ is worse than a missing tag. It satisfies check 4's
@@ -177,6 +192,11 @@ const FIXTURES = [
   // must FAIL
   ["nonexistent control", `${SEC}\n- A rule. <!-- @enforced eslint:pleks/does-not-exist -->\n`, true],
   ["control claimed twice", `${SEC}\n- One. <!-- @enforced hook:bash-gate -->\n- Two. <!-- @enforced hook:bash-gate -->\n`, true],
+  // `shared` is the deliberate opt-out — one script enforcing several genuinely different rules.
+  ["KNOWN-GOOD: a shared control claimed by two distinct rules", `${SEC}\n- One. <!-- @enforced hook:bash-gate:shared -->\n- Two. <!-- @enforced hook:bash-gate:shared -->\n`, false],
+  // …but shared must not become a way to name a control that does not exist.
+  ["shared does not excuse a nonexistent control", `${SEC}\n- One. <!-- @enforced check:does-not-exist:shared -->\n`, true],
+  ["KNOWN-GOOD: two shared tags on distinct rules", `${SEC}\n- One. <!-- @enforced hook:bash-gate:shared -->\n- Two. <!-- @enforced hook:bash-gate:shared -->\n`, false],
   ["unenforceable with no reason", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — \n`, true],
   ["untagged bullet in a rules section", `${SEC}\n- A rule nobody tagged.\n`, true],
   ["near-miss by normalisation", `${SEC}\n- A rule. <!-- @enforced hook:bash_gate -->\n`, true],
@@ -236,6 +256,22 @@ if (process.argv.includes("--selftest")) {
   if (!globFired) failed++
   console.log(`  ${globFired ? "✓" : "✗"} must fire  — rule-file glob decays to zero`)
 
+  // ── the RATIO's own arithmetic ────────────────────────────────────────────
+  // D_enforced counted DISTINCT CONTROLS until 2026-08-19 — correct while one control meant one
+  // rule, wrong the moment `shared` existed. Tagging three mechanised rules moved 3 OUT of N and
+  // added only 1 to D, so two rules vanished from BOTH sides and the binding metric silently
+  // under-reported work that had been done. Counting is where this file has now been wrong twice
+  // (occurrences-not-bullets, then controls-not-rules), so it is fixtured rather than trusted.
+  const countEnfProbe = (t) => t.split("\n").filter((l) => new RegExp(TAG.source).test(l)).length
+  const twoShared = `- One. <!-- @enforced hook:bash-gate:shared -->\n- Two. <!-- @enforced hook:bash-gate:shared -->\n`
+  const okCount = countEnfProbe(twoShared) === 2
+  if (!okCount) failed++
+  console.log(`  ${okCount ? "✓" : "✗"} METRIC     — two rules sharing one control count as TWO enforced (got ${countEnfProbe(twoShared)})`)
+
+  const okProse = countEnfProbe("Prose that merely mentions the @enforced convention.\n") === 0
+  if (!okProse) failed++
+  console.log(`  ${okProse ? "✓" : "✗"} METRIC     — prose mentioning @enforced does not inflate the count`)
+
   console.log(failed === 0
     ? "\n✅ fixtures green — fires, stays quiet, AND notices its own subject going missing"
     : `\n❌ ${failed} fixture(s) wrong`)
@@ -281,7 +317,21 @@ const countUnenf = (t) => t.split("\n").filter((l) => l.includes("**UNENFORCEABL
 const N_unenf = countUnenf(readFileSync("CLAUDE.md", "utf8"))
   + readdirSync(".claude/rules").filter((x) => x.endsWith(".md"))
       .reduce((n, f) => n + countUnenf(readFileSync(`.claude/rules/${f}`, "utf8")), 0)
-const D_enforced = [...claims.keys()].length
+/**
+ * Count enforced RULES, not distinct controls.
+ *
+ * This was `claims.size` — correct while one control meant one rule, and WRONG the moment
+ * `shared` allowed one script to enforce several. Tagging three genuinely mechanised rules moved
+ * three out of N and added one to D_enforced: two rules disappeared from BOTH sides of the ratio,
+ * so the binding metric silently stopped counting work that had actually been done.
+ *
+ * Same class as the earlier bug where this file counted marker OCCURRENCES and a rules file
+ * discussing the marker inflated N — count the entity you claim to count (LESSONS L-05).
+ */
+const countEnf = (t) => t.split("\n").filter((l) => new RegExp(TAG.source).test(l)).length
+const D_enforced = countEnf(readFileSync("CLAUDE.md", "utf8"))
+  + readdirSync(".claude/rules").filter((x) => x.endsWith(".md"))
+      .reduce((n, f) => n + countEnf(readFileSync(`.claude/rules/${f}`, "utf8")), 0)
 console.log(`📑 marker ratio — ${N_unenf} of ${N_unenf + D_enforced} rules UNENFORCEABLE ` +
             `(${D_enforced} @enforced). N may only fall; report BOTH deltas each ratchet pass.`)
 

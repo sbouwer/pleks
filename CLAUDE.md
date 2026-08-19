@@ -566,7 +566,9 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
    HUMAN, read before `/switch-role` selects an org: `user_passkeys`, `passkey_challenges`,
    `passkey_aal_grants`). Membership test + cascade companion rule in
    `.claude/rules/identity-scoped-tables.md`. Do not invoke the exception without applying the test.
-   **UNENFORCEABLE** — MECHANISABLE → **M-005**. Nothing inspects migration SQL for the column, so a new table with no `org_id` at all is invisible to Category 7 and to the org-scope ESLint rules (which govern app-code USAGE, not schema). The statement stays here because the rule is incident-class and a write-blind session must still see it; the membership test's detail lives in the rule file.
+   <!-- @enforced check:check-migration-integrity:shared -->
+   The allowlist is read FROM that rule file, so the doc is the single source — no mirrored constant
+   to drift. 29 pre-existing tables are baselined with a stated reason each; the baseline only shrinks.
 2. RLS on every new table <!-- @enforced audit:cat7_rlsPolicyAudit -->
 3. audit_log on every state change
   **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists. Full sketch → **M-004** in `docs/MECHANISABLE.md`.
@@ -646,10 +648,15 @@ Run INDEPENDENT work in parallel (multiple agents in one turn, `run_in_backgroun
 - Do not deploy without running `npm run security:quick` first
   **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of "Zero critical findings before any deployment" above, same mechanism, not re-annotated there: no gate blocks a Vercel deploy on this script having run or passed.
 - Do not commit without running `npm run check` first <!-- @enforced check:check-git-hooks -->
-- Do not create new migration files — amend the existing domain file (see MIGRATIONS section)
-  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — nothing counts migration files. `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; a thirteenth file would pass every gate. Full sketch → **M-006** in `docs/MECHANISABLE.md`.
-- Do not use raw `CREATE POLICY` without `DROP POLICY IF EXISTS` first — it aborts the migration
-  **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — zero scripts scan migration SQL for the pairing. Trivially mechanisable — a regex over `supabase/migrations/*.sql` asserting every `CREATE POLICY "name"` is preceded by a matching `DROP POLICY IF EXISTS "name"` — and worth doing, since the failure mode is a migration that aborts partway and silently leaves everything below it unapplied.
+- Do not create new migration files — amend the existing domain file (see MIGRATIONS section) <!-- @enforced check:check-migration-integrity:shared -->
+  The file SET is asserted to be exactly the twelve named files — a thirteenth passed every other
+  gate in this repo, since `check-migration-forward-refs` validates order WITHIN the twelve.
+- Do not use raw `CREATE POLICY` without `DROP POLICY IF EXISTS` first — it aborts the migration <!-- @enforced check:check-migration-integrity:shared -->
+  Two other idempotency patterns are accepted, because both are genuinely safe and classifying them
+  per site is what kept this check honest: an `IF NOT EXISTS (SELECT 1 FROM pg_policies …)` guard
+  naming the policy, and a dynamic `EXECUTE format('DROP POLICY IF EXISTS %I ON t', …)` loop over the
+  table. 6 real consolidation defects are baselined — each DROPs old names and CREATEs a new one that
+  is never dropped, so a re-run aborts. Fix is one `DROP POLICY IF EXISTS` line each.
 - Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead <!-- @enforced hook:mcp-ddl-gate -->
 - Do not change existing RLS policies without flagging it
   **UNENFORCEABLE** — "flagging" is a chat act, not a repo state. The policy CHANGE is visible in the diff; the flagging is not checkable.
