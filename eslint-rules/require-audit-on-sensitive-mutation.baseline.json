@@ -1,0 +1,6 @@
+[
+  "app/api/cron/tenant-comms/lease-lifecycle/route.ts",
+  "app/api/webhooks/docuseal/route.ts",
+  "lib/actions/notices.ts",
+  "lib/leases/revertSigning.ts"
+]

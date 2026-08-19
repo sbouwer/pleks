@@ -14,14 +14,39 @@
  *     the record). A second audit_log row for writing them is redundant.
  *   • `user_orgs` — mutated in ~50 files for routine session / last-seen touches; auditing "role
  *     changes" specifically needs finer-than-table-level detection (tracked: coverage test, Category 13).
+ *   • `applications`, `properties`, `tenants` — M-004 proposed all three plus user_orgs. MEASURED
+ *     2026-08-19 before adding: 40 findings across 27 files, and classifying every one showed the
+ *     same shape as user_orgs above. `applications` is dominated by applicant draft autosave,
+ *     consent and document-upload touches (21 of the 40); `properties` includes a UI widget
+ *     dismissal; `tenants` includes getTenantSession's last-seen write. Auditing the SENSITIVE
+ *     subset of those — a screening decision, a submission, a fee — needs finer-than-table-level
+ *     detection, exactly as user_orgs does. Adding them at table level would have produced a rule
+ *     whose findings are mostly noise, and a noisy rule earns an allowlist and then stops being
+ *     read. `leases` was added because its mutations are all tenancy-state changes.
+ *     The register entry (M-004) proposed the wider set; the measurement refused it.
  *
  * A legitimate exception (e.g. a creation-rollback that deletes a just-written row) uses an explicit
  * `// eslint-disable-next-line pleks/require-audit-on-sensitive-mutation -- <reason>` on the mutation.
  */
 
+import { readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
+import { dirname, join, relative } from "node:path"
+
+/** Known-unaudited production sites, read and classified. Only shrinks. */
+const BASELINE = new Set(
+  JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "require-audit-on-sensitive-mutation.baseline.json"), "utf8")),
+)
+
+// Test files seed and tear down rows as FIXTURES; they are not production mutations and have no
+// who/when to record. Scoped out rather than baselined — a baseline entry means "real debt", and
+// calling a test fixture debt would make the baseline lie about its own size.
+const TEST_PATH = /(^|[/\\])test[/\\]|\.(test|dbtest|spec)\.[cm]?[jt]sx?$/
+
 const T1_TABLES = new Set([
   "contact_bank_accounts", // payout banking — mutable config, the original F1 fraud vector
   "tenant_bank_accounts",  // parallel tenant banking table (D-5) — same fraud surface, same rule
+  "leases",                // the tenancy object itself (M-004) — see the note below on what was NOT added
 ])
 const MUTATORS = new Set(["insert", "update", "delete", "upsert"])
 
@@ -90,6 +115,11 @@ const rule = {
       },
       "Program:exit"() {
         if (hasAudit) return
+        // relPath derivation is a known silent-disable trap (.claude/rules/lint-rules.md): derived
+        // the same way as require-org-scope-on-service-write, and probed in both directions.
+        const rel = relative(process.cwd(), context.filename).replaceAll("\\", "/")
+        if (TEST_PATH.test(rel)) return
+        if (BASELINE.has(rel)) return
         for (const m of mutations) {
           context.report({ node: m.node, messageId: "missingAudit", data: { table: m.table } })
         }

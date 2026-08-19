@@ -90,6 +90,42 @@ forever, and looks exactly like a rule that is working.
 - **Sketch:** PARTIAL: `pleks/require-org-scope-on-service-write` covers `.update()`/`.upsert()` and `pleks/require-scope-on-delete` covers `.delete()`, both baseline-limited (pre-existing sites grandfathered). Plain `.select()` reads have no scoping check of any kind — an unscoped read is invisible to both rules and to Category 7. Sketch: a `require-org-scope-on-service-read` rule, same AST shape as the existing write/delete rules, flagging a service-client `.from(...).select(...)` chain with no `.eq("org_id", ...)`.
 - **Covering spec:** NEW
 
+### M-004 — ⚠ PARTIALLY BUILT 2026-08-19 (slice 3) — and the entry was WRONG
+
+**Built:** `leases` added to `pleks/require-audit-on-sensitive-mutation`; test files scoped out;
+4 known-unaudited production sites baselined with classifications; probed both directions (a
+planted lease mutation fires, the same file with `recordAudit` does not). `CLAUDE.md` SECURITY
+RULE 3 split at its coverage boundary — covered half tagged, uncovered half still pointing here.
+
+**REFUSED, and this is the substance of the entry.** M-004 proposed extending the rule to
+`leases`, `applications`, `properties`, `tenants` **and `user_orgs` role changes**. Measured
+before building: **40 findings across 27 files** — applications 21, leases 11, properties 5,
+tenants 3. Classifying every one showed the wider set is mostly routine traffic: applicant draft
+autosave, consent and document-upload touches, a UI widget dismissal, and `getTenantSession`'s
+last-seen write.
+
+That is precisely the reason the rule's author excluded `user_orgs` **on day one**, in a comment
+at the top of the rule:
+
+> `user_orgs` — mutated in ~50 files for routine session / last-seen touches; auditing "role
+> changes" specifically needs finer-than-table-level detection.
+
+**This register entry proposed overriding a considered decision that carried its own reason.** It
+was written during a triage pass that read the doctrine line but not the rule implementing it. The
+only thing that prevented it was grounding before building, and the only reason grounding worked
+is that the original author wrote the reason where the work happens (LESSONS L-23).
+
+**What remains is NOT a longer table list.** Auditing the sensitive subset of applications /
+properties / tenants / user_orgs — a screening decision, a submission, a fee, a role change —
+needs finer-than-table-level detection. That is a different mechanism and should be scoped as its
+own entry when someone builds it; adding the tables here would produce a rule whose findings are
+mostly noise, and a noisy rule earns an allowlist and then stops being read.
+
+<details><summary>Original entry</summary>
+
+
+</details>
+
 ### M-004 — extend `require-audit-on-sensitive-mutation` beyond its two tables
 - **Rule:** "audit_log on every state change" (`CLAUDE.md`, SECURITY RULES #3)
 - **Where it lives:** `CLAUDE.md:599-600`

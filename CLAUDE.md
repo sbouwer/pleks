@@ -570,8 +570,9 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
    The allowlist is read FROM that rule file, so the doc is the single source — no mirrored constant
    to drift. 29 pre-existing tables are baselined with a stated reason each; the baseline only shrinks.
 2. RLS on every new table <!-- @enforced audit:cat7_rlsPolicyAudit -->
-3. audit_log on every state change
-  **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists. Full sketch → **M-004** in `docs/MECHANISABLE.md`.
+3. audit_log on every state change — **for the tables the rule covers** (`contact_bank_accounts`, `tenant_bank_accounts`, `leases`): a module that mutates one must write an audit row in the same module. <!-- @enforced eslint:pleks/require-audit-on-sensitive-mutation -->
+   - The REST of "every state change" — `applications`, `properties`, `tenants`, `user_orgs` role changes — still has no mechanism.
+     **UNENFORCEABLE** — MECHANISABLE → **M-004**. Measured 2026-08-19 rather than assumed: adding those tables at TABLE level yields 40 findings of which the large majority are routine (applicant draft autosave, consent and document touches, a UI widget dismissal, `getTenantSession`'s last-seen write). That is the same reason `user_orgs` was excluded from this rule on day one. Auditing the *sensitive subset* needs finer-than-table-level detection — a different mechanism, not a longer table list. The register entry proposed the wider set; the measurement refused it.
 4. consent_log for any new POPIA-sensitive operation
   **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — no rule or script references `consent_log` as a write requirement. Full sketch → **M-015** in `docs/MECHANISABLE.md`.
 5. Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. <!-- @enforced eslint:pleks/require-id-number-encryption --> The SA **`id_number`** is
