@@ -37,7 +37,10 @@ export function hasMigrationSql(files) {
   return files.some((f) => f.startsWith("supabase/migrations/") && f.endsWith(".sql"))
 }
 
-const sh = (cmd) => execSync(cmd, { cwd: ROOT, encoding: "utf-8" }).trim()
+// stderr piped, not inherited: `@{u}` legitimately fails on a detached HEAD, and letting git print
+// `fatal: HEAD does not point to a branch` into an otherwise-green run trains readers to scroll past
+// the word "fatal". A handled condition must not look like an incident.
+const sh = (cmd) => execSync(cmd, { cwd: ROOT, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim()
 
 /**
  * Every window a change could be hiding in: the working tree AND the commits this push would
@@ -77,10 +80,28 @@ if (process.argv.includes("--selftest")) {
   ok(!hasMigrationSql([]), "an empty file list does not")
   ok(hasMigrationSql(["CLAUDE.md", "supabase/migrations/001_foundation.sql"]), "a mixed list fires")
 
-  // The regression that matters: the real window must include committed work, not just the tree.
-  const { window } = changedFiles()
-  ok(/commits vs /.test(window) || /not a git repo/.test(window),
-    `the window includes the committed range (got "${window}") — working-tree-only is the bug this file shipped with`)
+  // The regression that matters — asserted as a CODE property, not an environment one.
+  //
+  // The first version of this probe demanded the window always contain "commits vs …". That passed
+  // locally and FAILED IN CI, where the checkout is a detached HEAD with no upstream, so `@{u}`
+  // cannot resolve and the window is legitimately just the working tree. The code was right and
+  // the probe was wrong: it asserted a property of the environment it happened to run in. Same
+  // shape as the bug this file exists to fix (L-28), one level up.
+  //
+  // The invariant that actually holds everywhere: WHEN an upstream exists the window must include
+  // the committed range; when it does NOT, the result must be `degraded` so the caller runs the
+  // check instead of reporting "nothing changed". Never a silent skip either way.
+  const res = changedFiles()
+  let hasUpstream = true
+  try { sh("git rev-parse --abbrev-ref --symbolic-full-name @{u}") } catch { hasUpstream = false }
+
+  if (hasUpstream) {
+    ok(/commits vs /.test(res.window) && !res.degraded,
+      `with an upstream, the window includes the committed range (got "${res.window}")`)
+  } else {
+    ok(res.degraded === true,
+      `with NO upstream (detached HEAD / CI), the result is degraded so the check RUNS rather than skipping (window "${res.window}")`)
+  }
 
   console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — detects migration SQL in tree AND commits")
   process.exit(failed ? 1 : 0)
