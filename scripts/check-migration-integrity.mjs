@@ -79,7 +79,12 @@ export function createTables(sql) {
 export function policyFindings(sql, file) {
   const out = []
   const dropped = new Set()
-  const norm = (n, t) => `${n.replace(/"/g, "").toLowerCase()}@${t.replace(/"/g, "").toLowerCase()}`
+  // `public.` is the default schema, so `DROP POLICY … ON public.leases` and `CREATE POLICY … ON
+  // leases` name the SAME table and must pair. They did not, and the failure direction is a false
+  // POSITIVE — noise, which is the direction that gets a check an allowlist. Only `public.` is
+  // stripped: `storage.objects` is genuinely a different table from any bare `objects`.
+  const norm = (n, t) =>
+    `${n.replace(/"/g, "").toLowerCase()}@${t.replace(/"/g, "").toLowerCase().replace(/^public\./, "")}`
 
   // Single ordered pass: a DROP only covers a CREATE that comes AFTER it.
   const events = []

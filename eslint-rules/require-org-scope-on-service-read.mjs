@@ -115,6 +115,15 @@ const IDENTITY_SCOPED = new Set(["user_passkeys", "passkey_challenges", "passkey
  * writing a row into your own org proves nothing about a READ in the same function, and it exempted
  * every read in any function that also inserted. That is how `duplicateTemplateToOrg` would still
  * have passed even after the discriminator was fixed.
+ *
+ * ⚠ STILL LOOSE, KNOWINGLY, AND MEASURED — this is tested against the WHOLE enclosing function, so
+ * an org signal that appears AFTER the read exempts it, and one org-scoped fetch at the bottom of a
+ * 200-line page component exempts every read above it. Requiring the signal to precede the read
+ * gives 57 findings across 35 files; additionally exempting functions that TAKE `orgId` as a
+ * parameter (org-bound by contract) gives 52 across 33 — measured 2026-08-19 before proposing
+ * anything, since a check's first number is a hypothesis. Not shipped here: 52 sites is a
+ * classification job, and shipping it would have meant baselining 33 files unread, which is the one
+ * thing a baseline may never be used for. Tracked as **M-061** in `docs/MECHANISABLE.md`.
  */
 const ORG_AWARE = /\.eq\(\s*["'`]org_id["'`]|org_id\s*[!=]==?\s*|orgId\s*[!=]==?\s*/
 
@@ -223,7 +232,11 @@ function chainHasOrgScope(readCall) {
       // "org_id" treated `.neq("org_id", orgId)` — a read of every OTHER org's rows — and
       // `.order("org_id")` as org-scoped. Only equality-shaped filters bound a read to an org.
       if (a0?.type === "Literal" && a0.value === "org_id" && SCOPING_METHODS.has(member.property.name)) return true
-      if (a0?.type === "ObjectExpression" && a0.properties.some((p) => p.type === "Property" && ((p.key.type === "Identifier" && p.key.name === "org_id") || (p.key.type === "Literal" && p.key.value === "org_id")))) return true
+      // The object form takes the SAME method gate as the literal form. It did not, so
+      // `.order({ org_id: true })`-shaped calls — anything whose first argument merely mentions the
+      // column — counted as org-scoping. `.match({...})` is the only scoping method that takes an
+      // object, so the gate costs nothing and closes the asymmetry.
+      if (SCOPING_METHODS.has(member.property.name) && a0?.type === "ObjectExpression" && a0.properties.some((p) => p.type === "Property" && ((p.key.type === "Identifier" && p.key.name === "org_id") || (p.key.type === "Literal" && p.key.value === "org_id")))) return true
     }
     current = call
   }

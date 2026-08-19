@@ -27,6 +27,21 @@
  *
  * A legitimate exception (e.g. a creation-rollback that deletes a just-written row) uses an explicit
  * `// eslint-disable-next-line pleks/require-audit-on-sensitive-mutation -- <reason>` on the mutation.
+ *
+ * ── CORRECTION to commit 4e666ff4, which is pushed and therefore fixed forward here ────────────
+ * That message ended "Note what LEFT the list: contactBankAccounts, which the old rule passed for
+ * the wrong reason and the new one passes for the right one." Nothing left the list.
+ * `lib/contacts/contactBankAccounts.ts` was never in the baseline — not before that commit
+ * (4 entries: the cron, the docuseal webhook, notices, revertSigning) and not after (8). The half
+ * that is true is the half about REASONS: it passed the module-scoped rule because one audit
+ * anywhere exempted the whole file, and it passes the function-scoped rule because the local
+ * `bankAudit` wrapper is now followed one hop. Both pass; neither is a baseline entry.
+ *
+ * Worth keeping as more than a correction. The claim was plausible, flattering, and checkable in
+ * one `git show` — the exact profile CLAUDE.md's "citations must be verified, not plausible" names,
+ * applied to a commit message rather than a spec. A commit message is an artefact future readers
+ * trust precisely because it is immutable, which makes an unverified claim in one more durable than
+ * the same claim in a doc that can be edited.
  */
 
 import { readFileSync } from "node:fs"

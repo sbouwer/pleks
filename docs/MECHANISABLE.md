@@ -652,3 +652,15 @@ rather than quietly weakening the hook.
 - **Rung:** eslint · **Blast:** money
 - **Sketch:** PARTIAL. The ESLint layer is real: `no-restricted-imports` forbids named payment-SDK packages repo-wide, citing D-TRUST-01 by name. The "schema" and "code" enforcement layers this sentence also claims were not independently verified in this pass — flagged rather than tagged, per "do not invent controls." Sketch: independently verify (or build) the schema- and code-layer controls the sentence claims, then tag each verified layer separately rather than the compound claim as one.
 - **Covering spec:** `brief/legal/TRUST_ACCOUNT_POSITIONING.md`
+
+### M-061 — order-sensitive org-awareness in `require-org-scope-on-service-read`
+- **Rule:** "Every service-client `.select()` MUST include `.eq(\"org_id\", orgId)`" (`CLAUDE.md`, §4 Enforced) — the ESCAPE HATCH, not the rule
+- **Where it lives:** `eslint-rules/require-org-scope-on-service-read.mjs`, the `ORG_AWARE` test
+- **Rung:** eslint · **Blast:** data-boundary
+- **Sketch:** the rule exempts an unscoped read when the ENCLOSING FUNCTION is "org-aware" anywhere in its text — an `.eq("org_id", …)`, an `org_id !==` compare, an `orgId ===` compare. That is deliberately loose, to allow validate-then-act (prove ownership, then read by id). But "anywhere in the function" includes AFTER the read, so a function that reads unscoped and org-checks something else later is exempt, and a 200-line page component is exempted by one org-scoped fetch at the bottom.
+- **MEASURED 2026-08-19, before proposing a fix** (a check's first number is a hypothesis):
+  - require the org signal to appear BEFORE the read in source order → **57 findings across 35 files**
+  - …and additionally exempt any function TAKING `orgId`/`org_id` as a parameter, which is org-bound by contract → **52 findings across 33 files**
+  - the second variant is the better rule and barely moves the number, because the bulk sits in top-level page components rather than in parameterised helpers (`app/(dashboard)/leases/[leaseId]/page.tsx` alone accounts for 15)
+- **Why it is not shipped here:** 52 sites is a classification job, not a flag flip. Shipping the tightening would have meant baselining 33 files unread, which is widening a baseline to make CI green — the one thing a baseline may never do. The measurement is the deliverable; the classification is the build.
+- **Covering spec:** NEW
