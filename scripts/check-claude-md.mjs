@@ -173,6 +173,43 @@ function auditFile(path, text, claims, root = ".") {
     }
   }
 
+  // 2d — every marker BINDS to a bullet. The inverse of check 4, and the direction this audit
+  // lacked until 2026-08-19: it validated marker-less bullets and never bullet-less markers, so a
+  // marker floating after a prose paragraph counted toward N while belonging to no rule. Sixteen
+  // of them survived the v4.5 restructure in a file this audit reported GREEN.
+  //
+  // It counts, it does not bind — the instrument's shape did not match the document's, and the
+  // mismatch manufactured a pass.
+  //
+  // SCOPED TO THE RULES SECTIONS, not file-wide. A first pass ran file-wide and reported 61,
+  // which was the check being wrong rather than 61 defects: `.claude/rules/*.md` are prose
+  // documents where a marker legitimately annotates a PARAGRAPH — there the paragraph IS the
+  // rule. The bullets-only grammar belongs to `### Enforced` and `§5`, and this is the exact
+  // inverse of check 4, so it takes exactly check 4's scope. Imposing one file's grammar on
+  // another's is how a check earns an allowlist.
+  const sectionBounds = []
+  for (const heading of RULES_SECTIONS) {
+    const s = lines.indexOf(heading)
+    if (s === -1) continue
+    let e = s + 1
+    while (e < lines.length && !lines[e].startsWith("## ")) e++
+    sectionBounds.push([s, e])
+  }
+  const inRulesSection = (i) => sectionBounds.some(([s, e]) => i > s && i < e)
+
+  lines.forEach((l, i) => {
+    if (!l.includes("**UNENFORCEABLE**")) return
+    if (!inRulesSection(i)) return
+    if (/^\s*(-|\d+\.)\s+\S/.test(l)) return // the marker is itself on the bullet line
+    // Walk back over the bullet's own continuation lines; a blank, heading, fence or rule ends it.
+    for (let j = i - 1; j >= 0; j--) {
+      const p = lines[j]
+      if (p.trim() === "" || /^#{1,6}\s/.test(p) || p.startsWith("```") || p.startsWith("---")) break
+      if (/^\s*(-|\d+\.)\s+\S/.test(p)) return
+    }
+    out.push(`${path}:${i + 1}: UNENFORCEABLE marker binds to no bullet — it is counted in N but belongs to no rule. Make the rule a bullet, or attach the marker to the bullet it describes.`)
+  })
+
   // 3 — every UNENFORCEABLE carries a reason
   lines.forEach((l, i) => {
     if (!l.includes("**UNENFORCEABLE**")) return
@@ -229,6 +266,13 @@ const FIXTURES = [
   ["KNOWN-GOOD: marker below the old 3-line window", `${SEC}\n- A rule that runs on\n  several continuation\n  lines before its\n  marker appears.\n  **UNENFORCEABLE** — nothing scans for this; it is a human judgement call.\n`, false],
   ["M-pointer resolving to no register entry", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — MECHANISABLE → **M-999**, which does not exist.\n`, true],
   ["KNOWN-GOOD: M-pointer that resolves", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — MECHANISABLE → **M-001**, which exists in the register.\n`, false],
+  // The inverse of "marker-less bullet": a BULLET-LESS MARKER. The plant is the exact shape that
+  // survived the v4.5 restructure sixteen times in a file this audit reported green — a prose
+  // paragraph, a blank line, then a marker belonging to nothing.
+  ["marker floating after a prose paragraph", `${SEC}\n\nA prose paragraph stating a rule.\n\n**UNENFORCEABLE** — nothing binds this to a bullet.\n`, true],
+  ["marker separated from its bullet by a blank line", `${SEC}\n- A rule.\n\n**UNENFORCEABLE** — separated from the bullet above.\n`, true],
+  ["KNOWN-GOOD: marker directly under its bullet", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — bound to the bullet above it.\n`, false],
+  ["KNOWN-GOOD: marker on the bullet line itself", `${SEC}\n- A rule. **UNENFORCEABLE** — stated inline on the bullet.\n`, false],
   ["renamed rules section", `## SECURITY RULES (unchanged — still apply to any new code)\n- x <!-- @enforced hook:bash-gate -->\n`, true],
   // must PASS — the negative-space half, and the one that catches a never-matching pattern
   ["KNOWN-GOOD: tagged + unenforceable together", `${SEC}\n- Enforced one. <!-- @enforced hook:bash-gate -->\n- Loose one.\n  **UNENFORCEABLE** — nothing scans for this; it is a human judgement call.\n`, false],

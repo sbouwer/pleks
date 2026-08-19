@@ -215,28 +215,23 @@ TS/TSX format:
   **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — `route-census.mjs` classifies a route as `cron`/`webhook` by path prefix or secret header, but nothing greps those same files for a `requireAgentWriteAccess(` call and fails if found. Full sketch → **M-037** in `docs/MECHANISABLE.md`.
 - Tenant/landlord/supplier portal actions: use `getTenantSession()` — not subject to agent lockdown
   **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: auth) — `server-action-census.mjs`'s `expectedGateFamily()` only special-cases `app/(admin)/`; every other location (including portal routes) accepts ANY recognized gate, so a portal action gated with `gateway()` instead of `getTenantSession()` passes Cat-15 undetected. Full sketch → **M-031** in `docs/MECHANISABLE.md`.
-- Does the message describe a real behavioural delta, or just "wip" / "more
-  changes"?
 
 **Interdependent files belong in ONE commit.** A type change in `decisions.ts`
 that requires updates to `facts.ts` and `decisions.test.ts` is one commit, not
 three. Splitting interdependent changes produces commits that don't typecheck
 individually — useless for `git bisect` and noisy in review.
 
-**Unrelated concerns in one file = multiple commits.** If a single file change
+- **Unrelated concerns in one file = multiple commits.** If a single file change
 contains an auth fix AND a JSDoc tidy AND a style nit, stage them separately
 with `git add -p` and commit them as three.
-
 **UNENFORCEABLE** — commit-boundary judgement (what is "one coherent change", whether a diff is genuinely interdependent) has no test derivable from a diff's shape alone; two unrelated one-line changes in the same file are textually indistinguishable from two interdependent ones.
 
 - Same logical change as the previous commit, with a tweak. **AMEND**
   (`git commit --amend`) — do not pile on `fix: oops` and `fix: oops again`.
-
 **UNENFORCEABLE** — "tested", "verified", "same logical change" are judgement calls about intent and completeness; git has no concept of "this commit represents a completed thought."
 
 - Multiple commits pushed together is normal and good. Related work arrives
   on the remote as a coherent unit.
-
 **UNENFORCEABLE** — "complete and tested locally" before a push is a judgement the pusher makes; `hook:bash-gate` requires human approval on the `git push` invocation itself (a real, load-bearing gate — see UNATTENDED SESSIONS below) but does not verify any test suite ran first.
 
 - `npm run check:full` (typecheck + lint + tests + architecture audit + security:db) — **must be green**
@@ -244,9 +239,8 @@ with `git add -p` and commit them as three.
 - For behavioural changes (routing, auth, UI, data): manually walk the
    affected flow in dev. Console errors count as failures.
    **UNENFORCEABLE** — a manual walkthrough leaves no artefact; "I walked it, no console errors" is asserted in chat, not verifiable after the fact.
-- Each commit message describes the actual change in imperative mood
 
-If any step fails, fix it locally and **AMEND** the relevant commit before
+- If any step fails, fix it locally and **AMEND** the relevant commit before
 pushing. Don't pile fix commits on top of broken commits — squash them in.
 **UNENFORCEABLE** — amend-vs-new-commit discipline is a judgement call with no diff-shape signature.
 
@@ -257,7 +251,6 @@ was catching.
 
 - **New commit** when the change is a different concern, even if it touches
   the same file.
-
 **UNENFORCEABLE** — "same logical change" vs "different concern" is the same judgement call as commit granularity above; not derivable from a diff.
 
 Once a commit is pushed, treat it as immutable. Do not force-push to `main`. (Same control as `hook:bash-gate`, tagged under UNATTENDED SESSIONS below — not re-tagged here to avoid a double claim; that hook's DENY list blocks force-push to any branch, a superset of "to main.")
@@ -265,7 +258,6 @@ A pushed commit with a problem is fixed forward with a new commit.
 
 - Never use "can't test locally" as a general escape hatch — 95%+ of changes
   can and should be tested before push
-
 **UNENFORCEABLE** — whether a given change genuinely couldn't be tested locally (vs. testing being skipped) is a judgement call; nothing distinguishes a legitimate "Vercel-preview-only" commit body from a rationalised one.
 
 - Zero critical findings before any deployment. No exceptions.
@@ -279,7 +271,6 @@ A pushed commit with a problem is fixed forward with a new commit.
 
 **Prerequisites:**
 - Update the "Known open work" paragraph if the build changes what's pending
-
 **UNENFORCEABLE** — no check compares shipped code against INDEX.md's claimed status; a stale INDEX entry is only found by a human (or grounder) re-reading it against the code.
 
 **⚠ WHOLE-FILE RECONCILIATION — when you correct a status line, reconcile the WHOLE file in that same edit.**
@@ -288,7 +279,7 @@ acceptance checklist, its open-decisions list, its sequencing notes and its inli
 instructions — and they rot independently. Fixing one and leaving the rest is worse than fixing none,
 because the file now *looks* reviewed.
 
-This is not hypothetical: `ADDENDUM_62E`'s header said "Slice B awaiting build" for two months after
+- This is not hypothetical: `ADDENDUM_62E`'s header said "Slice B awaiting build" for two months after
 Slice B shipped. The header was corrected on 2026-08-15 — and the body still listed D-70-12 as a fix
 to make, still had nine unticked acceptance boxes for shipped work, and still asked to "confirm Slice
 A lands first". That stale file came within one grounding pass of sending ADDENDUM_62F off to rebuild
@@ -296,7 +287,7 @@ working code. When you touch a status claim: grep the file for `awaiting`, `not 
 `- [ ]`, `TODO`, and every decision marked open, and settle all of them or say explicitly why not.
 **UNENFORCEABLE** — "reconcile the WHOLE file" requires reading and judging every section of a spec against current code; no check greps a touched spec file for stale phrases and fails.
 
-**Verify before you tick.** A checkbox is a claim that something was confirmed. Confirm it against the
+- **Verify before you tick.** A checkbox is a claim that something was confirmed. Confirm it against the
 code — a commit message is evidence that work was attempted, not that it landed.
 **UNENFORCEABLE** — confirming a checkbox against code is exactly the grounding work no automated check performs; this is the discipline the `grounder` subagent exists to apply, not something CI can verify after the fact.
 
@@ -312,20 +303,18 @@ trusting it. And prefer dated/past-tense phrasing for observations ("as at `abc1
 over present tense ("X is true"), because present tense about another file's contents is false the
 moment either file moves.
 
-The distinction that makes this workable: **authored** sections assert intent and cannot be anchored;
+- The distinction that makes this workable: **authored** sections assert intent and cannot be anchored;
 **grounding** sections assert observation and must be. If it says the code *should* do X, no anchor.
 If it says the code *does* X, anchor it.
 **UNENFORCEABLE** — distinguishing an "authored" (intent) sentence from a "grounding" (observation) one, and checking the latter carries a SHA/mtime, both require reading prose for meaning — exactly what `check-claude-md.mjs`'s own header explains this file's approach refuses to do ("validates MARKERS ONLY — never prose").
 
-**Read the actual source files before writing code.** Do not guess at the current state of a file — read it. This is non-negotiable.
+- **Read the actual source files before writing code.** Do not guess at the current state of a file — read it. This is non-negotiable.
 **UNENFORCEABLE** — whether a file was actually read (vs. guessed at) before code was written leaves no trace once the code is correct.
 
 - CD resolves architecture questions; CC implements confirmed decisions
-
 **UNENFORCEABLE** — recognising ambiguity (vs. a confident, wrong reading) is exactly the judgement no static check performs; there is no artefact distinguishing "resolved a genuine ambiguity correctly" from "guessed and got lucky."
 
 - Record any bugs or issues discovered
-
 **UNENFORCEABLE** — nothing checks `CURRENT.md` was updated in step with the commits that landed alongside it; a stale `CURRENT.md` is caught only by the next session finding it wrong.
 
 **On compaction or new session:** read CURRENT.md first. It tells you where you are. Do not ask Stéan to re-explain — the answer is in the file.
@@ -333,7 +322,7 @@ If it says the code *does* X, anchor it.
 - Never hardcode a fee literal at a CALL SITE — import `APPLICATION_FEE_CENTS` instead.
   **UNENFORCEABLE** — MECHANISABLE → **M-009**. The test above asserts price > cost WITHIN the SSOT module; it does not scan call sites. A call site writing `25000` rather than importing the constant would not fail it.
 
-**PRICING PRECEDENCE (Stéan ruling 2026-08-15).** When `brief/legal/SEARCHWORX_RATE_CARD.md` and
+- **PRICING PRECEDENCE (Stéan ruling 2026-08-15).** When `brief/legal/SEARCHWORX_RATE_CARD.md` and
 `brief/build/INDEX.md`/ADDENDUMs disagree about a DECISION — a bundle cancelled, a fee changed, a
 product dropped — **INDEX/ADDENDUM wins.** The rate card is a supplier-pricing reference, not a
 decision log, and its `updated:` date is the last EDIT, not the last ruling: it was edited 2026-07-10
@@ -342,13 +331,13 @@ date does not make a stale document authoritative. Supplier per-call prices rema
 Estate + Huru + criminal screening are CANCELLED — Pleks sells one bundle.
 **UNENFORCEABLE** — resolving a conflict between two documents requires reading both and judging which one is the ruling; no check parses `SEARCHWORX_RATE_CARD.md` against `INDEX.md` for disagreement.
 
-**Citations must be verified, not plausible.** A fabricated SSOT reference is worse than none: it
+- **Citations must be verified, not plausible.** A fabricated SSOT reference is worse than none: it
 survives review by looking rigorous. `grep` the cited file for the claim before citing it — a
 zero-hit grep is the check (this is how `JOINT_APPLICATION_FEE_CENTS` was found citing a rate-card
 section that never mentioned joint applications).
 **UNENFORCEABLE** — the rule names its own check ("a zero-hit grep is the check") but that grep is a manual step the author performs per-citation while writing; there is no CI gate that re-runs every citation's grep against the cited file and fails on a miss.
 
-Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
+- Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 (not ANON_KEY — match this exactly)
 **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: other) — twin of the "Do not use ANON_KEY" rule under DO NOT DO, same mechanism, not re-annotated there. `pleks/no-raw-process-env` blocks a raw read of ANY env var name outside `lib/env.ts`, so it happens to touch this one without knowing the string "ANON_KEY" — it would equally flag the correct name, and would miss a wrong alias declared inside `lib/env.ts` itself. Full sketch → **M-035** in `docs/MECHANISABLE.md`.
 
@@ -463,6 +452,9 @@ citing it.
 **Commit ≠ push.** One coherent revertable change; interdependent files together; amend un-pushed
 fixes; pushed commits are immutable — fix forward. Reasoning about *the change* → commit message.
 Reasoning about *the code's shape*, false leads included → a comment at the site.
+
+Each message describes a real behavioural delta in imperative mood — never "wip" or "more changes".
+The test for one commit: could I revert exactly this and leave the repo working?
 
 **Never author a pattern through a shell string.** Backslashes do not survive `node -e`, heredocs
 or template literals; a corrupted regex produces a plausible-but-wrong artefact. Write the script
