@@ -5,8 +5,9 @@
   BINDING METRIC: the UNENFORCEABLE RATIO — N of D. N = rules whose only control is model
   attention; D = all marker-carrying rules, here AND in .claude/rules/*.md. N may only fall.
   ADVISORY: ~250 visible lines. A tripwire for a ratchet pass, never a reason to relocate prose —
-  aperture decides location, the count decides urgency. This file is over it: that is the signal
-  that N is still 91, not an instruction to hide prose in a scoped file.
+  aperture decides location, the count decides urgency. This file being over it is a signal that N
+  is still high, not an instruction to hide prose in a scoped file. (The number itself is not
+  restated here — it rots. `node scripts/check-claude-md.mjs` prints the current one.)
   MARKERS — the "### Enforced" heading (§4) and §5 hold ONLY marker-carrying bullets:
     @enforced <ns:id>          → inline comment at the END of the rule line (E2: inline SURVIVES,
                                  blocks like this one are stripped). Same-line placement is what
@@ -86,14 +87,18 @@ to walk before it lands. Trivial commits (typo/docs) skip the announcement, neve
 push red; never force-push.
 
 **Hook-denied** (`.claude/hooks/bash-gate.js`): force-push · `git reset --hard` · `rm -rf` on
-root or home. **Hook-ask:** `git push` · `.env` files · prod database operations.
+root or home · `--no-verify`. **Hook-ask:** `git push` · `.env` files · prod database operations.
 **Settings-ask twins** (`.claude/settings.json`, coarse, consulted when the hook is dead): the
 Supabase MCP mutation tools. The MCP surface has its own gate, `.claude/hooks/mcp-ddl-gate.js`,
 which shows the statement before asking.
 
 Approval-gated actions sequence to the **END** of a task, so an unattended session parks at the
 gate with everything finished. Run the check after each logical change, not after ten.
-`--no-verify` bypasses the commit gate, which is why it is forbidden.
+`--no-verify` bypasses the commit gate, which is why it is forbidden — and now denied outright,
+because no gate downstream can see a hook that did not run. <!-- @enforced hook:bash-gate:shared -->
+`git cherry-pick` and `git revert` run NEITHER `pre-commit` NOR `pre-merge-commit`; they are gated
+by `.githooks/prepare-commit-msg`, which runs the chain unless a prior hook already approved this
+exact tree. <!-- @enforced check:check-git-hooks:shared -->
 
 ---
 
@@ -146,7 +151,7 @@ pointer.
 - Never use `createClient()` for database queries in server actions or server components. <!-- @enforced eslint:pleks/no-cookie-client-from -->
 - **PR titles** (which become the squash-merged commit on `main`) MUST be `<type>(<scope>)?: <subject>` — subject lowercase, imperative, under 72 chars, no trailing period. `feat` minor · `fix`/`perf`/`revert` patch · `refactor`/`chore`/`docs`/`test`/`build`/`ci`/`style` no release. `!` plus a `BREAKING CHANGE:` footer for a break. **The type is a versioning decision:** semantic-release cuts a GitHub Release from it, so never label tooling work `feat`. <!-- @enforced ci:pr-title (required by main-protection ruleset) -->
 - Domain-specific instructions were moved out of this file into `.claude/rules/*.md` (2026-07-10, CD — CLAUDE.md was 60k chars and always-loaded). Each rule file carries `paths:` frontmatter <!-- @enforced check:check-rules-tracked --> and loads when you **READ** a matching file — **read-triggered ONLY, never on write** (E1b, measured 2026-08-18: Bash-editing a covered file summoned nothing; reading the same file summoned its rule instantly, and a `Write` creation summoned nothing either).
-- The PreToolUse hook (`.claude/hooks/bash-gate.js`) allows routine bash without prompting; `git push` and prod DB operations deliberately require approval — those gates are load-bearing, do not engineer around them. <!-- @enforced hook:bash-gate -->
+- The PreToolUse hook (`.claude/hooks/bash-gate.js`) allows routine bash without prompting; `git push` and prod DB operations deliberately require approval — those gates are load-bearing, do not engineer around them. <!-- @enforced hook:bash-gate:shared -->
 - **Create a new file** → write the header filled in from the start. Never commit a `FILL:` stub. <!-- @enforced check:check-file-headers -->
 
 TS/TSX format:
@@ -195,7 +200,7 @@ TS/TSX format:
    rotation breaks every historical join; if forced, version the column and dual-write through a transition.
    See `brief/build/SPEC_ANALYTICS_CAPTURE.md` §2.3.
 
-- Do not commit without running `npm run check` first <!-- @enforced check:check-git-hooks -->
+- Do not commit without running `npm run check` first <!-- @enforced check:check-git-hooks:shared -->
 - Do not create new migration files — amend the existing domain file (see MIGRATIONS section) <!-- @enforced check:check-migration-integrity:shared -->
   The file SET is asserted to be exactly the twelve named files — a thirteenth passed every other
   gate in this repo, since `check-migration-forward-refs` validates order WITHIN the twelve.

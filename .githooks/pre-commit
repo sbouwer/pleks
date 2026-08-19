@@ -15,3 +15,8 @@ else
 fi
 echo "pre-commit → $CMD"
 $CMD
+
+# Record that THIS tree passed, so prepare-commit-msg (which runs on every commit-creating path,
+# including the cherry-pick/revert ones git skips this hook for) does not run the chain twice.
+# Written only on success: `set -e` means a failing $CMD never reaches this line.
+git write-tree > "$(git rev-parse --git-path pleks-gate-ok)"

@@ -12,8 +12,10 @@
  * two-minute chain — the property under test is "does a failure propagate", not "does the suite
  * pass", and conflating them would make this probe too slow to run and therefore not run.
  */
-import { existsSync, readFileSync, statSync } from "node:fs"
+import { existsSync, statSync, writeFileSync, rmSync, mkdtempSync } from "node:fs"
 import { spawnSync } from "node:child_process"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 const HOOKS = [
   { file: ".githooks/pre-commit", env: "PLEKS_PRECOMMIT_CMD", wraps: "npm run check" },
@@ -21,10 +23,22 @@ const HOOKS = [
   // Git does NOT run pre-commit for a merge. Without this hook the commit gate had a hole the
   // size of every merge commit — including the one that brought main into this branch.
   { file: ".githooks/pre-merge-commit", env: "PLEKS_PRECOMMIT_CMD", wraps: "npm run check" },
+  // Measured 2026-08-19: `git cherry-pick` and `git revert` run NEITHER pre-commit NOR
+  // pre-merge-commit. They do run prepare-commit-msg, which is therefore the gate for every
+  // commit-creating path git does not otherwise cover — including whichever one is added next.
+  { file: ".githooks/prepare-commit-msg", env: "PLEKS_PRECOMMIT_CMD", wraps: "npm run check" },
 ]
 
 let failed = 0
 const ok = (cond, label) => { if (!cond) failed++; console.log(`  ${cond ? "✓" : "✗"} ${label}`) }
+
+// pre-commit/pre-merge-commit record the tree they approved so prepare-commit-msg can tell "the
+// gate already ran for this commit" from "no gate ran". Every probe that drives pre-commit
+// successfully therefore WRITES that marker — and the next probe of prepare-commit-msg would
+// consume it and skip, reporting the gate inert as if by design. Found by this suite going red the
+// first time it ran. Each direction clears it first, so no probe inherits another's state.
+const markerPath = () => spawnSync("git", ["rev-parse", "--git-path", "pleks-gate-ok"], { encoding: "utf8" }).stdout.trim()
+const clearMarker = () => { try { rmSync(markerPath(), { force: true }) } catch { /* nothing to clear */ } }
 
 // 2 — the wiring. Checked once, first: if this is wrong every hook below is inert.
 const configured = spawnSync("git", ["config", "core.hooksPath"], { encoding: "utf8" }).stdout.trim()
@@ -46,28 +60,100 @@ for (const { file, env, wraps } of HOOKS) {
   // seam entirely and run the real chain — which is the point: `PLEKS_PRECOMMIT_CMD=true git
   // commit` was a silent, complete bypass, functionally --no-verify. The probe is the only caller
   // that legitimately sets both, so the seam now costs a deliberate act rather than one variable.
-  const run = (cmd) =>
-    spawnSync("sh", [file], { encoding: "utf8", env: { ...process.env, PLEKS_HOOK_PROBE: "1", [env]: cmd } }).status
+  const run = (cmd) => {
+    clearMarker()
+    return spawnSync("sh", [file], { encoding: "utf8", env: { ...process.env, PLEKS_HOOK_PROBE: "1", [env]: cmd } }).status
+  }
   ok(run("false") !== 0, `${file} BLOCKS when "${wraps}" fails`)
   ok(run("true") === 0, `${file} passes when "${wraps}" succeeds`)
 }
 
-// The seam must be INERT without the probe flag, or it is just --no-verify with extra steps.
-// Probed against pre-push, whose fallback is the scope branch rather than a fixed command: with
-// the flag it honours "false" and blocks; without it, it ignores the seam entirely.
+// The marker's own contract, both directions — it is what makes prepare-commit-msg the gate for
+// cherry-pick and revert without double-running the chain on an ordinary commit.
 {
-  const withFlag = spawnSync("sh", [".githooks/pre-commit"], {
-    encoding: "utf8",
-    env: { ...process.env, PLEKS_HOOK_PROBE: "1", PLEKS_PRECOMMIT_CMD: "true" },
-  }).status
-  const seamHonoured = withFlag === 0
-  if (!seamHonoured) failed++
-  console.log(`  ${seamHonoured ? "✓" : "✗"} the command seam is honoured WITH PLEKS_HOOK_PROBE=1`)
+  const HOOK = ".githooks/prepare-commit-msg"
+  let lastOut = ""
+  const drive = (cmd) => {
+    const r = spawnSync("sh", [HOOK], { encoding: "utf8", env: { ...process.env, PLEKS_HOOK_PROBE: "1", PLEKS_PRECOMMIT_CMD: cmd } })
+    lastOut = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim()
+    return r.status
+  }
 
-  const src = readFileSync(".githooks/pre-commit", "utf8")
-  const gated = /PLEKS_HOOK_PROBE.*=.*"?1"?/.test(src) && /-n "\$PLEKS_PRECOMMIT_CMD"/.test(src)
-  if (!gated) failed++
-  console.log(`  ${gated ? "✓" : "✗"} …and IGNORED without it — the seam is not a one-variable bypass`)
+  clearMarker()
+  ok(drive("false") !== 0, `${HOOK}: with NO marker it runs the gate — the cherry-pick/revert path`)
+
+  // A marker naming THIS tree means pre-commit already approved it: skip, even though the gate fails.
+  const tree = spawnSync("git", ["write-tree"], { encoding: "utf8" }).stdout.trim()
+  writeFileSync(markerPath(), tree)
+  const skipped = drive("false") === 0
+  ok(skipped, `${HOOK}: a marker for THIS tree skips the gate — no double run on a plain commit${skipped ? "" : `\n      marker=${tree} at ${markerPath()}; hook said: ${lastOut}`}`)
+
+  // …and it is consumed, so a second commit off the same marker cannot ride it.
+  ok(drive("false") !== 0, `${HOOK}: the marker is consumed — a second commit does not inherit it`)
+
+  // A marker for a DIFFERENT tree is the aborted-commit case: it must not be honoured.
+  writeFileSync(markerPath(), "0000000000000000000000000000000000000000")
+  ok(drive("false") !== 0, `${HOOK}: a marker for a DIFFERENT tree is ignored — an aborted commit cannot donate its pass`)
+  clearMarker()
+}
+
+// The seam must be INERT without the probe flag, or it is just --no-verify with extra steps.
+//
+// The first version tested this by GREPPING the hook's source for the `PLEKS_HOOK_PROBE` string and
+// the `-n "$PLEKS_PRECOMMIT_CMD"` string, on pre-commit only. That is not a probe of behaviour: it
+// passes on a hook whose two conditions are ORed rather than ANDed, on one that reads the flag and
+// ignores the result, and on any rewrite that keeps the words and loses the logic — the exact
+// "matches the text, proves nothing" shape this repo has now been bitten by repeatedly. And it left
+// pre-merge-commit and prepare-commit-msg, both carrying the same seam, entirely unprobed.
+//
+// Behavioural instead, and cheap: every hook ECHOES the command it resolved before running it. Run
+// it with the seam set and the flag ABSENT, and read the command it named. If it names the seam's
+// command, the seam leaked; if it names the real chain, the seam is inert.
+//
+// ⚠ AND THE HOOK MUST NOT ACTUALLY RUN THAT CHAIN. The first attempt let it start `npm run check`
+// and killed the shell after four seconds. On Windows the kill does not reach the descendants, and
+// `npm run check` runs THIS SCRIPT — which spawned four more real chains, each spawning four more.
+// It fork-bombed the machine: 58 orphaned node processes, a ten-minute hang, and a commit that
+// never completed. A probe that costs more than the thing it probes does not get run, and one that
+// re-enters the suite it lives in is not a probe at all.
+//
+// So `npm` is shimmed on PATH: the hook resolves and invokes `npm run check` for real, and the npm
+// it reaches prints and exits 0. Nothing recurses, nothing is killed, and the property under test —
+// which command did the hook RESOLVE — is exactly what is observed.
+{
+  const shimDir = mkdtempSync(join(tmpdir(), "hookshim-"))
+  writeFileSync(join(shimDir, "npm"), '#!/bin/sh\necho "SHIM npm $*"\nexit 0\n', { mode: 0o755 })
+
+  for (const { file, env } of HOOKS) {
+    clearMarker()
+    const withFlag = spawnSync("sh", [file], {
+      encoding: "utf8",
+      env: { ...process.env, PLEKS_HOOK_PROBE: "1", [env]: "true" },
+    }).status
+    ok(withFlag === 0, `${file}: the command seam is honoured WITH PLEKS_HOOK_PROBE=1`)
+
+    clearMarker()
+    const noFlag = spawnSync("sh", [file], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${shimDir}:${process.env.PATH}`,
+        PLEKS_HOOK_PROBE: "",
+        [env]: "echo SEAM-LEAKED",
+      },
+    })
+    const out = String(noFlag.stdout ?? "")
+    // pre-push prints an explanatory line before its `→ $CMD` line, so take the LAST arrow line —
+    // every hook's final echo before running is the command it resolved.
+    const arrows = out.split(/\r?\n/).filter((l) => l.includes("→"))
+    const resolved = (arrows.at(-1) ?? "").replace(/^.*→\s*/, "").trim()
+    ok(/^npm run check(:full)?$/.test(resolved) && !out.includes("SEAM-LEAKED"),
+      `${file}: …and IGNORED without it — resolved "${resolved || "(no output)"}"`)
+    // The shim must actually have been the thing that ran, or the assertion above is about an echo
+    // and nothing else — the hook could resolve the right string and invoke something else.
+    ok(out.includes("SHIM npm run check"), `${file}: …and INVOKED it — the shimmed npm was reached`)
+  }
+  rmSync(shimDir, { recursive: true, force: true })
 }
 
 console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — hooks exist, are wired, and block on failure")

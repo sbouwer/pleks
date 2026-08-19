@@ -1,0 +1,44 @@
+#!/bin/sh
+# .githooks/prepare-commit-msg — the commit gate for the paths git does NOT run pre-commit on.
+#
+# MEASURED, not assumed (2026-08-19, throwaway repo, hooks logging their own invocation):
+#
+#   git commit         → pre-commit, prepare-commit-msg, commit-msg, post-commit
+#   git merge          → pre-merge-commit, prepare-commit-msg, post-commit
+#   git cherry-pick    →              prepare-commit-msg, post-commit     ← NO pre-commit
+#   git revert         →              prepare-commit-msg, post-commit     ← NO pre-commit
+#
+# So `git cherry-pick` and `git revert` create commits that never see `npm run check`. Both are
+# ordinary operations — cherry-picking a fix onto a release branch, reverting a bad commit — and
+# neither is exotic enough to rely on nobody using it.
+#
+# WHY NOT ENUMERATE THEM: the fix is not "also gate cherry-pick and revert". `prepare-commit-msg`
+# runs on EVERY path that creates a commit, so the honest question is "did the gate already run for
+# THIS commit?" — which covers whatever path git adds next without anyone noticing it was added.
+# pre-commit/pre-merge-commit write a marker naming the tree they approved; this hook consumes it.
+# No marker, or a marker for a different tree, means the gate has not run and it runs here.
+#
+# The tree hash matters: an ABORTED commit (message editor closed empty) leaves a marker behind, and
+# without the tree check a cherry-pick minutes later would consume it and skip the gate. A different
+# tree cannot be the tree that was approved.
+set -e
+
+MARKER="$(git rev-parse --git-path pleks-gate-ok)"
+TREE="$(git write-tree)"
+
+if [ -f "$MARKER" ] && [ "$(cat "$MARKER")" = "$TREE" ]; then
+  rm -f "$MARKER"
+  exit 0
+fi
+rm -f "$MARKER"
+
+if [ -n "$PLEKS_PRECOMMIT_CMD" ] && [ "$PLEKS_HOOK_PROBE" = "1" ]; then
+  CMD="$PLEKS_PRECOMMIT_CMD"
+else
+  CMD="npm run check"
+fi
+# The reason first, the command last: the probe reads the FINAL `→` line as the resolved command,
+# so nothing may follow $CMD on that line.
+echo "prepare-commit-msg: no pre-commit ran for this commit (cherry-pick / revert / other)"
+echo "prepare-commit-msg → $CMD"
+$CMD

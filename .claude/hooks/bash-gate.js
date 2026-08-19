@@ -33,6 +33,20 @@ process.stdin.on("end", () => {
       // @no-twin no settings pattern was ever written for this. LT measured the same gap on the
       // same rule; recorded here rather than invented, so the hole is visible instead of implied.
       [/rm\s+-rf?\s+["']?[\/~]["']?(\s|$)/, "rm -rf on root/home is denied"],
+      // CLAUDE.md forbids --no-verify BY NAME ("which is why it is forbidden") and, until now,
+      // nothing anywhere refused it: the .githooks gates cannot see the flag that skips them, and
+      // no check can observe a hook that did not run. `-n` is the short spelling and skips the same
+      // hooks; `--no-verify` on push skips pre-push. Denied rather than asked, because the whole
+      // point of the flag is to skip the gate the ask would be protecting.
+      // @no-twin a settings pattern matches a command PREFIX, and the flag can sit anywhere in the
+      // command line (`git commit -m x --no-verify`), so `Bash(git commit --no-verify*)` would miss
+      // the ordinary spelling. The hole is recorded rather than papered over with a rule that reads
+      // like cover and matches almost nothing.
+      [/git\s+(commit|push|merge|revert|cherry-pick)\b[^\n]*--no-verify/, "--no-verify skips the commit/push gate and is forbidden"],
+      // `-n` is --no-verify ONLY for commit and push. On revert and cherry-pick it is --no-commit
+      // and on merge it is --no-stat, all legitimate — denying those would be a false positive in a
+      // DENY list, which is the expensive direction to be wrong in.
+      [/git\s+(commit|push)\b[^\n]*\s-n(\s|$)/, "-n is --no-verify on commit/push and is forbidden"],
     ];
     const ASK = [
       // @twin Bash(git push*)
