@@ -15,7 +15,7 @@ whether the entire marker vocabulary costs context budget.
 
 ---
 
-## E2 · Are HTML comments stripped before injection? — **ANSWERED: YES**
+## E2 · Are HTML comments stripped before injection? — **ANSWERED: BLOCKS YES, INLINE NO**
 
 A canary token was planted in `CLAUDE.md` at one exact position — **between the `# Repository:` line
 and the `---` that follows it** (record this; a re-run must plant in the same slot for the result to
@@ -29,11 +29,22 @@ positively identifying both neighbours.
 That positive ID either side is what makes the absence **evidential** rather than "didn't notice" —
 a session that simply failed to recall the region would have been vague about the neighbours too.
 
-**CONSEQUENCE:** `@enforced` / `UNENFORCEABLE` markers in HTML comments are **free**. The tagging
-pass economy holds, and the always-loaded context ceiling legitimately excludes comments.
+⚠ **REFINED 2026-08-19 against the canonical register — the earlier reading here was too broad.**
+The result is **placement-dependent, and the two placements have opposite outcomes**:
 
-**Caveat:** placement-dependent. This tested a comment block between top-level sections. It does
-**not** license the assumption that a comment in any position is stripped.
+| Placement | Fate | Cost |
+|---|---|---|
+| Comment **block alone on its lines** (what this canary tested) | **stripped** | free |
+| **Inline** `<!-- @enforced ns:id -->` at the end of a rule line | **SURVIVES** | visible, not free |
+
+This file previously said markers "are **free**" without qualification. That is true only of blocks.
+The `@enforced` tag format is deliberately the *surviving* placement — same-line position is what
+binds a tag to its rule for the resolver — so **every `@enforced` tag costs visible budget**.
+Measured in this repo 2026-08-19: 16 tag-bearing lines, ~3.0k chars, previously counted as zero.
+
+**CONSEQUENCE:** the tagging economy is real but not free. A budget measurement that strips all
+comments UNDERCOUNTS the always-loaded file, which is exactly how this repo reported a saving on a
+change that cost. Strip blocks only when measuring.
 
 ---
 
@@ -84,16 +95,22 @@ E1b, which *is* controlled.
 
 ---
 
-## E3 · Does this file reach a subagent? — **OPEN**
+## E3 · Does this file reach a subagent? — **ANSWERED: YES**
 
-Whether `CLAUDE.md` is injected into a spawned subagent's context. Unresolved. Bears on whether
-delegated work inherits doctrine or must be handed it explicitly in the prompt.
+Resolved in the canonical register (`C:\dev\dev-standards\SPEC_CLAUDE_MD_STANDARD.md` §9), not by a
+probe in this repo: subagents **do** receive this file.
+
+**But presence is not enforcement, and the qualifier is load-bearing:** a narrow-task agent *skims*
+it. Combined with E1b, the delegation picture is that a subagent gets `CLAUDE.md` and gets **none**
+of the scoped rule files unless it reads a matching path. So incident-class content must sit at
+rungs 1–2 to reach delegated work reliably — handing an agent the doctrine is not the same as the
+doctrine binding it.
 
 ---
 
 ## Why this file exists separately from CLAUDE.md
 
-By E2's own finding, a register recorded in an HTML comment inside `CLAUDE.md` is **stripped before
+By E2's block-placement finding, a register recorded as a comment BLOCK inside `CLAUDE.md` is **stripped before
 any session sees it** — it instructs nobody. The findings are already load-bearing in the artefacts
 themselves (E2 justified the marker format; E1b produced the twin audit, the SECURITY RULES
 annotations, and the M-register), so the lab notebook does not need to travel with them.

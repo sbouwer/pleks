@@ -2,7 +2,7 @@
 # Pleks
 # Repository: github.com/sbouwer/pleks
 <!-- Harness experiments: full results, protocols + re-run instructions in docs/EXPERIMENTS.md
-     (E1 yes-observed · E1b NO, read-triggered · E2 yes, placement-dependent · E3 open).
+     (E1 yes-observed · E1b NO, read-triggered · E2 blocks stripped BUT inline tags survive · E3 YES, they skim).
      Re-run E1b/E2 on a Claude Code major upgrade before trusting rule scoping or marker invisibility. -->
 
 ---

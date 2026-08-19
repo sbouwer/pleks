@@ -2,7 +2,12 @@
 /**
  * scripts/check-claude-md.mjs — the marker audit for CLAUDE.md and .claude/rules/*.md
  *
- * SPEC_CLAUDE_MD_STANDARD v4.1 §4.1. Validates MARKERS ONLY — never prose. The first prose-parsing
+ * SPEC_CLAUDE_MD_STANDARD §4.1 — canonical copy at `C:\dev\dev-standards\SPEC_CLAUDE_MD_STANDARD.md`
+ * (v4.4 as at 2026-08-18; this header cited "v4.1" with no path, which resolved to nothing on disk
+ * until 2026-08-19 — a fabricated SSOT reference in the very script written to catch them).
+ * The spec lives OUTSIDE this repo deliberately: it is cross-project, and the template it carries
+ * is the source for several codebases. That makes the path, not the name, the citation.
+ * Validates MARKERS ONLY — never prose. The first prose-parsing
  * attempt in the source project scored six findings, six false positives; parsing prose for
  * identifiers inherits every ambiguity of prose.
  *
