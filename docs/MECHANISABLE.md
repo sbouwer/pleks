@@ -83,6 +83,36 @@ forever, and looks exactly like a rule that is working.
 - **Sketch:** `check-schema-drift.mjs` can detect the RESULTING drift reactively (and only when someone runs it, or via `check:check-drift-if-sql-changed` in `check:full` — itself not CI-wired, see Git rhythm above), but nothing prevents the ad-hoc execution itself: the Supabase MCP's SQL execution is not gated by `hook:bash-gate`, which only inspects the Bash tool. Sketch: a PreToolUse hook entry gating the Supabase MCP's SQL-execution tool(s) the same way `bash-gate` gates `git push` — require approval (or block outright) on `execute_sql`/`apply_migration` calls against the live project.
 - **Covering spec:** NEW
 
+### M-002 — ✅ BUILT 2026-08-19 (slice 3)
+
+**Control:** `eslint-rules/require-org-scope-on-service-read.mjs`, tagged
+`eslint:pleks/require-org-scope-on-service-read`. **Probed three directions:** an unscoped
+service read fires, the same read with `.eq("org_id")` does not, and a cookie-client read does not.
+
+**The sketch said "same AST shape as the existing write/delete rules". Half right.** The AST shape
+transfers; the SCOPE does not. Measured before building: retargeting the write rule at `.select()`
+gave **253 findings across 104 files**, splitting into 139 service-client reads (the real surface),
+69 cookie/browser-client reads where **RLS applies and the filter would be wrong, not merely
+noisy**, and 45 test fixtures. The write rule needs no client discriminator because
+`no-cookie-client-from` already bans cookie-client `.from()`; a cookie-client `.select()` in a
+client component is legitimate. Shipping the sketch as written would have been ~45% false positives.
+
+A further 12 findings across 7 `components/admin` files were platform-admin dashboard reads —
+cross-org **by design**, the same reason `(admin)`/`api/admin`/`lib/admin` were already skipped.
+They went to SKIP_PATH on evidence, not to the baseline: recording the admin surface's whole
+purpose as debt would have been a lie about the baseline's size.
+
+**52 files baselined, 106 sites.** Classification coverage is stated in the rule header rather than
+implied — families enumerated, a sample read at each, not all 106. The sample was mostly REAL
+(caller-supplied id, no org filter, on a client that bypasses RLS — it leaks rather than corrupts,
+which is why it survived review) with a minority of token-keyed false positives that should leave
+via an inline disable naming the reason.
+
+<details><summary>Original entry</summary>
+
+
+</details>
+
 ### M-002 — org-scope on service-client `.select()` reads
 - **Rule:** "Every write/update/delete MUST include `.eq(\"org_id\", orgId)`" — reads half (`CLAUDE.md`, DB ACCESS)
 - **Where it lives:** `CLAUDE.md:175-176` (twin: `.claude/rules/data-access.md:13`, see M-014)
