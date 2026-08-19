@@ -13,7 +13,7 @@ All of the following are connected and available in every session. Use them dire
 
 | Server | Capability |
 |--------|-----------|
-| **GitHub** (`sbouwer/pleks`) | PRs, issues, CI runs, code search, branch management — **via the `gh` CLI, NOT an MCP server.** Probed 2026-08-19: no `mcp__github__*` tool exists in this session. This row previously implied an MCP server; `gh` is authenticated and is the working path. |
+| **GitHub** (`sbouwer/pleks`) | PRs, issues, CI runs, code search, branch management — **via the `gh` CLI, which is authenticated. There is no GitHub MCP server; do not look for `mcp__github__*` tools.** |
 | **Supabase** | Execute SQL, apply migrations, get logs, list tables, check advisors |
 | **Vercel** | List/check deployments, build logs, runtime logs, project info |
 | **Figma** | Read designs, get screenshots, convert designs to code |
@@ -73,9 +73,9 @@ This runs `tsc --noEmit` (type check) + `eslint . --max-warnings 0` (lint).
 
 **If it fails, fix the errors before committing.** Do not push code that fails `npm run check`. Do not skip this step. Do not use `--no-verify`.
 
-As of 2026-08-19 this is mechanised: `.githooks/pre-commit` blocks the commit and `.githooks/pre-push`
-runs `check:full`. (Same control as `check:check-git-hooks`, tagged under DO NOT DO — not re-tagged
-here to avoid a double claim.) `--no-verify` now has something to bypass, which is why it is forbidden.
+`.githooks/pre-commit` blocks a commit that fails this, and `.githooks/pre-push` runs the fuller chain.
+(Same control as `check:check-git-hooks`, tagged under DO NOT DO — not re-tagged here to avoid a double
+claim.) `--no-verify` bypasses both, which is why it is forbidden.
 
 If you've changed multiple files, run the check after each logical change — don't batch 10 changes and discover 8 errors at the end.
 
@@ -140,8 +140,8 @@ export default async function MyPage() {
 - Every service-client `.update()` / `.upsert()` MUST include `.eq("org_id", orgId)` — the service client bypasses RLS <!-- @enforced eslint:pleks/require-org-scope-on-service-write -->
 - Every service-client `.delete()` MUST include `.eq("org_id", orgId)` <!-- @enforced eslint:pleks/require-scope-on-delete -->
 - Every service-client `.select()` MUST include `.eq("org_id", orgId)`
-  **UNENFORCEABLE** — MECHANISABLE → **M-002** (twin: **M-014**, `.claude/rules/data-access.md:13`). The two rules above are baseline-limited (pre-existing sites grandfathered) and cover writes/deletes ONLY. Plain `.select()` reads have NO scoping check of any kind — an unscoped read is invisible to both rules and to Category 7. **This is the half that leaks.**
-- The only valid use of `createClient()` is for `auth.getUser()` — never for data queries. **Enforced by `pleks/no-cookie-client-from`** (ESLint): `.from()` on the cookie client hard-fails CI. **The burndown is COMPLETE — `eslint-rules/no-cookie-client-from.baseline.json` is `[]` as at 2026-08-19.** This line previously said "~75 pre-existing sites are grandfathered… and burning down", which stopped being true at some point without anyone noticing: a session reading it believed 75 known violations were sitting in the tree. The baseline only ever shrinks, so an empty one means every site is fixed and **any** violation now fails immediately, anywhere, with nothing grandfathered. (Same control as `eslint:pleks/no-cookie-client-from`, tagged above — not re-tagged here to avoid a double claim.)
+  **UNENFORCEABLE** — MECHANISABLE → **M-002** (twin: **M-014**, `.claude/rules/data-access.md:13`). The two rules above cover writes and deletes ONLY. Plain `.select()` reads have NO scoping check of any kind — an unscoped read is invisible to both rules and to Category 7. **This is the half that leaks.** Whatever either rule currently exempts lives in its own `*.baseline.json`; read the file rather than a count restated here.
+- The only valid use of `createClient()` is for `auth.getUser()` — never for data queries. **Enforced by `pleks/no-cookie-client-from`** (ESLint): `.from()` on the cookie client hard-fails CI. Any grandfathered sites live in `eslint-rules/no-cookie-client-from.baseline.json` — the baseline only ever shrinks, and a violation outside it fails immediately. (Same control as `eslint:pleks/no-cookie-client-from`, tagged above — not re-tagged here to avoid a double claim.)
 - Always check `{ data, error }` from Supabase queries — never use `(data ?? [])` without logging `error` first <!-- @enforced eslint:pleks/require-supabase-error-check -->
 - `any` types leaking through (fix them, don't suppress) <!-- @enforced eslint:@typescript-eslint/no-explicit-any -->
 - Missing `key` props in .map() renders <!-- @enforced eslint:react/jsx-key -->
@@ -572,7 +572,7 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 2. RLS on every new table <!-- @enforced audit:cat7_rlsPolicyAudit -->
 3. audit_log on every state change — **for the tables the rule covers** (`contact_bank_accounts`, `tenant_bank_accounts`, `leases`): a module that mutates one must write an audit row in the same module. <!-- @enforced eslint:pleks/require-audit-on-sensitive-mutation -->
    - The REST of "every state change" — `applications`, `properties`, `tenants`, `user_orgs` role changes — still has no mechanism.
-     **UNENFORCEABLE** — MECHANISABLE → **M-004**. Measured 2026-08-19 rather than assumed: adding those tables at TABLE level yields 40 findings of which the large majority are routine (applicant draft autosave, consent and document touches, a UI widget dismissal, `getTenantSession`'s last-seen write). That is the same reason `user_orgs` was excluded from this rule on day one. Auditing the *sensitive subset* needs finer-than-table-level detection — a different mechanism, not a longer table list. The register entry proposed the wider set; the measurement refused it.
+     **UNENFORCEABLE** — MECHANISABLE → **M-004**. Those tables are dominated by ROUTINE traffic — draft autosave, consent and document touches, a widget dismissal, a last-seen write — so a table-level rule over them reports mostly noise, which is why `user_orgs` was excluded from this rule on day one. Auditing the *sensitive subset* needs finer-than-table-level detection: a different mechanism, not a longer table list. The measurement behind that, and the classification of every site, live in the register entry.
 4. consent_log for any new POPIA-sensitive operation
   **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — no rule or script references `consent_log` as a write requirement. Full sketch → **M-015** in `docs/MECHANISABLE.md`.
 5. Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. <!-- @enforced eslint:pleks/require-id-number-encryption --> The SA **`id_number`** is
