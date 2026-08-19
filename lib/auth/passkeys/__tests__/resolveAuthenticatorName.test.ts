@@ -8,6 +8,8 @@
  *         data, not the lookup.
  */
 import { describe, expect, it } from "vitest"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import {
   resolveAuthenticatorName,
   authenticatorDisplayName,
@@ -65,5 +67,27 @@ describe("resolveAuthenticatorName — unknown input returns null, never a guess
   it("authenticatorDisplayName falls back to a neutral label", () => {
     expect(authenticatorDisplayName(null)).toBe("Passkey")
     expect(authenticatorDisplayName("ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4")).toBe("Google Password Manager")
+  })
+})
+
+describe("the vendored registry and its provenance cannot drift apart", () => {
+  // The provenance file exists so the resolver's header does not have to restate machine facts that
+  // rot (it used to say "fetched 2026-08-16, 328,455 bytes"). But a provenance file that nobody
+  // checks is the same rot one file over — so this asserts the two agree. Hand-edit either and this
+  // fails, which is the only thing that makes "do not hand-edit, re-run the script" enforceable.
+  it("provenance describes the registry actually on disk", () => {
+    const registryBytes = readFileSync(
+      join(process.cwd(), "lib/auth/passkeys/aaguid-registry.json"), "utf8")
+    const provenance = JSON.parse(readFileSync(
+      join(process.cwd(), "lib/auth/passkeys/aaguid-registry.provenance.json"), "utf8"))
+
+    expect(provenance.entries, "provenance entry count must match the registry")
+      .toBe(REGISTRY_ENTRY_COUNT)
+    expect(provenance.vendored_bytes, "provenance byte count must match the registry on disk")
+      .toBe(Buffer.byteLength(registryBytes, "utf8"))
+    expect(provenance.source_url, "provenance must name where the data came from").toContain("aaguid.json")
+    expect(provenance.upstream_sha256, "provenance must pin the upstream payload it was built from")
+      .toMatch(/^[0-9a-f]{64}$/)
+    expect(provenance.generated_by).toBe("scripts/vendor-aaguid-registry.mjs")
   })
 })
