@@ -106,6 +106,20 @@ function controlExists(ns, id, root = ".") {
   } catch { return false }
 }
 
+/** The ratchet, as a pure function so it can be probed in every direction. */
+function ratchetFindings(n, ceiling, path) {
+  if (!ceiling || typeof ceiling.maxN !== "number") {
+    return [`${path} is missing or has no numeric maxN — the ratchet has no stored ceiling, so "N may only fall" is unenforced`]
+  }
+  if (n > ceiling.maxN) {
+    return [`RATCHET: N rose to ${n}, ceiling is ${ceiling.maxN}. Mechanise the new rule, or raise maxN in ${path} in the SAME commit and argue it in the message.`]
+  }
+  if (n < ceiling.maxN) {
+    return [`RATCHET: N fell to ${n} but the ceiling is still ${ceiling.maxN}. Lower maxN to ${n} — tightening the ratchet is part of the mechanisation's acceptance, not a follow-up.`]
+  }
+  return []
+}
+
 /** Audit one markdown file. Returns findings. */
 function auditFile(path, text, claims, root = ".") {
   const out = []
@@ -277,6 +291,24 @@ if (process.argv.includes("--selftest")) {
   if (!okProse) failed++
   console.log(`  ${okProse ? "✓" : "✗"} METRIC     — prose mentioning @enforced does not inflate the count`)
 
+  // ── the RATCHET, in every direction ───────────────────────────────────────
+  // It did not exist until 2026-08-19: "N may only fall" was printed, asserted in CLAUDE.md as
+  // BINDING, and cited in lint-rules.md as the working example — while nothing keyed on it.
+  // A ratchet that cannot fail is the thing this fixture set exists to make impossible.
+  const RCASES = [
+    ["N above the ceiling is a REGRESSION", 92, { maxN: 91 }, true],
+    ["N below the ceiling means the ratchet was not tightened", 90, { maxN: 91 }, true],
+    ["KNOWN-GOOD: N exactly at the ceiling", 91, { maxN: 91 }, false],
+    ["a missing ceiling file fails rather than passing silently", 91, null, true],
+    ["a ceiling with no numeric maxN fails", 91, { maxN: "91" }, true],
+  ]
+  for (const [name, n, c, shouldFire] of RCASES) {
+    const fired = ratchetFindings(n, c, "x.json").length > 0
+    const ok = fired === shouldFire
+    if (!ok) failed++
+    console.log(`  ${ok ? "✓" : "✗"} RATCHET    — ${name}`)
+  }
+
   console.log(failed === 0
     ? "\n✅ fixtures green — fires, stays quiet, AND notices its own subject going missing"
     : `\n❌ ${failed} fixture(s) wrong`)
@@ -338,7 +370,34 @@ const D_enforced = countEnf(readFileSync("CLAUDE.md", "utf8"))
   + readdirSync(".claude/rules").filter((x) => x.endsWith(".md"))
       .reduce((n, f) => n + countEnf(readFileSync(`.claude/rules/${f}`, "utf8")), 0)
 console.log(`📑 marker ratio — ${N_unenf} of ${N_unenf + D_enforced} rules UNENFORCEABLE ` +
-            `(${D_enforced} @enforced). N may only fall; report BOTH deltas each ratchet pass.`)
+            `(${D_enforced} @enforced).`)
+
+/**
+ * THE RATCHET — which until 2026-08-19 did not exist.
+ *
+ * "N may only fall" was printed on this line and asserted in CLAUDE.md's header as the BINDING
+ * metric, and `.claude/rules/lint-rules.md` cited this script as the working example of a
+ * shrink-only ratchet. Nothing keyed on it: N was computed, logged, and discarded. Ten new
+ * UNENFORCEABLE bullets took N from 91 to 101 with a green build — the enforcement-overclaim
+ * class, inside the audit written to make that class unwritable, and cited elsewhere as proof it
+ * worked. Found by adversarial review of PR #257.
+ *
+ * A ceiling in a tracked file is the mechanism. It cannot rot the way a count in a doctrine file
+ * does (L-29) because this check compares it against reality on every run — a stale ceiling is a
+ * failure, not a silent falsehood.
+ *
+ * BOTH directions fail, deliberately:
+ *   N above the ceiling → a regression. Mechanise it, or raise the ceiling in the SAME commit
+ *     with the new rule, which is what "except when a new genuinely-un-mechanisable rule is added,
+ *     VISIBLY" means — visible in the diff, argued in the message.
+ *   N below the ceiling → the ratchet has not been tightened. Lowering it is part of the
+ *     mechanisation's acceptance, exactly as removing a baseline entry is part of a fix's.
+ */
+const CEILING_PATH = "scripts/claude-md-ratio.ceiling.json"
+const ceiling = existsSync(CEILING_PATH) ? JSON.parse(readFileSync(CEILING_PATH, "utf8")) : null
+const ratchet = ratchetFindings(N_unenf, ceiling, CEILING_PATH)
+findings.push(...ratchet)
+if (!ratchet.length) console.log(`🔒 ratchet — N is at its ceiling (${ceiling.maxN}). It may only fall.`)
 
 if (findings.length) {
   console.error(`\n❌ ${findings.length} finding(s):\n`)

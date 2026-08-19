@@ -1,0 +1,14 @@
+{
+  "_comment": [
+    "The ratchet ceiling for scripts/check-claude-md.mjs. N = rules whose only control is model",
+    "attention, counted across CLAUDE.md and .claude/rules/*.md.",
+    "",
+    "N ABOVE this fails: mechanise the rule, or raise maxN in the same commit as the new rule and",
+    "argue it in the message. N BELOW this also fails: lower maxN to the new figure, because",
+    "tightening the ratchet is part of the mechanisation's acceptance, not a follow-up.",
+    "",
+    "Exists because 'N may only fall' was printed and asserted as BINDING for a day while nothing",
+    "keyed on it — found by adversarial review, not by any check."
+  ],
+  "maxN": 91
+}
