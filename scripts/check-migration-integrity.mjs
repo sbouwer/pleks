@@ -88,7 +88,7 @@ export function policyFindings(sql, file) {
   events.sort((a, b) => a.at - b.at)
   for (const e of events) {
     if (e.kind === "drop") dropped.add(e.key)
-    else if (!dropped.has(e.key) && !dropped.has(norm("*", e.table)) && !hasExistenceGuard(sql, e.name) && !hasDuplicateObjectGuard(sql, e.at))
+    else if (!dropped.has(e.key) && !dropped.has(norm("*", e.table)) && !hasExistenceGuard(sql, e.name, e.table) && !hasDuplicateObjectGuard(sql, e.at))
       out.push(`${file}: CREATE POLICY ${e.name} ON ${e.table} has no preceding DROP POLICY IF EXISTS — this migration ABORTS on re-run and leaves everything below it unapplied`)
   }
   return out
@@ -126,15 +126,37 @@ export function policyFindings(sql, file) {
  * opening the file a finding pointed at. A check's first number is a hypothesis.
  */
 export function hasDuplicateObjectGuard(sql, createIndex) {
+  // The ENCLOSING block, not "the next END $$ anywhere below". The first version sliced from the
+  // CREATE to the next END $$ in the FILE, so a CREATE sitting above an unrelated DO block
+  // inherited that block's handler — reproduced by adversarial review against 007, where an
+  // unguarded `CREATE POLICY "walker_probe" ON leases` planted above a real DO block reported
+  // clean, and the same statement at EOF correctly fired. Position-dependent blindness in the one
+  // file whose pattern motivated the feature.
   const end = sql.indexOf("END $$", createIndex)
   if (end === -1) return false
-  return /EXCEPTION\s+WHEN\s+duplicate_object/i.test(sql.slice(createIndex, end))
+  const open = sql.lastIndexOf("DO $$", createIndex)
+  if (open === -1) return false
+  // A DO block already closed before the CREATE does not enclose it.
+  const closedBefore = sql.lastIndexOf("END $$", createIndex)
+  if (closedBefore > open) return false
+  return /EXCEPTION\s+WHEN\s+duplicate_object/i.test(sql.slice(open, end))
 }
 
-export function hasExistenceGuard(sql, policyName) {
-  const bare = policyName.replace(/"/g, "")
-  const escaped = bare.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  return new RegExp(`IF\\s+NOT\\s+EXISTS[^;]{0,300}policyname\\s*=\\s*'?${escaped}`, "i").test(sql)
+export function hasExistenceGuard(sql, policyName, table) {
+  // Must name BOTH the policy and its table. Matching on policyname alone meant a guard for a
+  // same-named policy on a DIFFERENT table protected an unguarded CREATE — reproduced against
+  // 007, where planting `CREATE POLICY "org members can upload org assets" ON some_other_table`
+  // reported clean because 007 guards that name on storage.objects. Policy names ARE reused
+  // across tables here (org_isolation, landlord_portal_*), so this was the likely case, not a
+  // contrived one. Every real guard in the tree names both, so requiring it costs nothing.
+  const esc = (s) => s.replace(/"/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const bareTable = esc(String(table).split(".").pop())
+  const clauses = sql.match(/IF\s+NOT\s+EXISTS[\s\S]{0,400}?THEN/gi) ?? []
+  return clauses.some(
+    (c) =>
+      new RegExp(`policyname\\s*=\\s*'?${esc(policyName)}`, "i").test(c) &&
+      new RegExp(`tablename\\s*=\\s*'?${bareTable}\\b`, "i").test(c),
+  )
 }
 
 /**
@@ -246,6 +268,14 @@ if (process.argv.includes("--selftest")) {
     "a CREATE wrapped in EXCEPTION WHEN duplicate_object is idempotent — quiet")
   ok(policyFindings(`DO $$ BEGIN\n  CREATE POLICY "p" ON t FOR ALL USING (true);\nEXCEPTION WHEN others THEN NULL;\nEND $$;`, "f").length === 1,
     "…but a DO block catching something else does not protect it")
+  // Both guards were FILE-GLOBAL until adversarial review: a guard anywhere in the file protected
+  // any same-named CREATE, and a CREATE inherited the handler of a DO block it was not inside.
+  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='other' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);`, "f").length === 1,
+    "a guard naming the policy on a DIFFERENT table does not protect it")
+  ok(policyFindings(`IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='t' AND policyname='p') THEN\nCREATE POLICY "p" ON t USING (true);`, "f").length === 0,
+    "…and one naming the same policy AND table does")
+  ok(policyFindings(`CREATE POLICY "p" ON t USING (true);\nDO $$ BEGIN\n  CREATE POLICY "q" ON t USING (true);\nEXCEPTION WHEN duplicate_object THEN NULL;\nEND $$;`, "f").some((x) => x.includes('"p"')),
+    "a CREATE ABOVE an unrelated DO block does not inherit its handler")
 
   // org_id, both directions
   const A = ["user_passkeys"]
