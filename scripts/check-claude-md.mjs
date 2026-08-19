@@ -37,6 +37,7 @@
 import { readFileSync, readdirSync, existsSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { registrations as hookRegistrations } from "./check-hook-registration.mjs"
 
 // ── Rules sections. Listed explicitly, and the list ASSERTS ITS OWN PREMISE (§4.3): a heading that
 //    no longer exists FAILS rather than silently un-auditing its section. Renaming a heading to
@@ -89,10 +90,24 @@ function controlExists(ns, id, root = ".") {
         if (custom) return existsSync(`${root}/eslint-rules/${id.slice(6)}.mjs`) && cfg.includes(`"${id}"`)
         return cfg.includes(`"${id}"`)   // configured built-in / plugin rule
       }
-      case "check":
-        return existsSync(`${root}/scripts/${id}.mjs`) || existsSync(`${root}/scripts/${id}.mts`)
-      case "hook":
-        return existsSync(`${root}/.claude/hooks/${id}.js`)
+      // ⚠ EXISTENCE IS NOT ENFORCEMENT — the defect this file was written to expose, one layer in.
+      // Both of these resolved on `existsSync` alone. A check script nobody runs and a hook file
+      // nothing invokes are FILES; the tag claiming them is exactly the overclaim the marker
+      // grammar exists to prevent. So each now resolves through the thing that INVOKES it.
+      case "check": {
+        if (!existsSync(`${root}/scripts/${id}.mjs`) && !existsSync(`${root}/scripts/${id}.mts`)) return false
+        const pkg = JSON.parse(rd("package.json"))
+        // `check:full` counts — it is the pre-push tier and chains `check`. A script reachable from
+        // neither is unwired, however green it is when run by hand.
+        return [pkg.scripts?.check, pkg.scripts?.["check:full"]].some((s) => (s ?? "").includes(id))
+      }
+      case "hook": {
+        if (!existsSync(`${root}/.claude/hooks/${id}.js`)) return false
+        // Registration, not presence. Deleting settings' `hooks` block left both gates inert while
+        // every tag still resolved (walker, PR #257). Reuses the registration parser rather than
+        // re-deriving it, so the two checks cannot drift apart.
+        return hookRegistrations(JSON.parse(rd(".claude/settings.json"))).some((r) => r.file === `${id}.js`)
+      }
       case "ci":
         return readdirSync(`${root}/.github/workflows`).some((f) =>
           rd(`.github/workflows/${f}`).includes(`${id}:`))
@@ -334,6 +349,39 @@ if (process.argv.includes("--selftest")) {
   const okProse = countEnfProbe("Prose that merely mentions the @enforced convention.\n") === 0
   if (!okProse) failed++
   console.log(`  ${okProse ? "✓" : "✗"} METRIC     — prose mentioning @enforced does not inflate the count`)
+
+  // ── the RESOLVER: existence is not enforcement ────────────────────────────
+  // `check:` and `hook:` both resolved on existsSync alone, so a script nobody runs and a hook file
+  // nothing invokes each resolved as a real control. Fixtures on disk, in a temp root, so the
+  // resolver travels its real lookup path rather than being handed a mock.
+  {
+    const r = mkdtempSync(join(tmpdir(), "resolver-"))
+    mkdirSync(join(r, "scripts"), { recursive: true })
+    mkdirSync(join(r, ".claude", "hooks"), { recursive: true })
+    writeFileSync(join(r, "scripts", "check-wired.mjs"), "")
+    writeFileSync(join(r, "scripts", "check-orphan.mjs"), "")
+    writeFileSync(join(r, ".claude", "hooks", "wired.js"), "")
+    writeFileSync(join(r, ".claude", "hooks", "orphan.js"), "")
+    writeFileSync(join(r, "package.json"), JSON.stringify({ scripts: { check: "node scripts/check-wired.mjs" } }))
+    writeFileSync(join(r, ".claude", "settings.json"), JSON.stringify({
+      hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: 'node "$D/.claude/hooks/wired.js"' }] }] },
+    }))
+    const RES = [
+      ["KNOWN-GOOD: a check script reachable from `npm run check` resolves", "check", "check-wired", true],
+      ["a check script that EXISTS but nothing runs does NOT resolve", "check", "check-orphan", false],
+      ["a check script that does not exist at all does not resolve", "check", "check-absent", false],
+      ["KNOWN-GOOD: a hook registered in settings resolves", "hook", "wired", true],
+      ["a hook file that EXISTS but settings never invokes does NOT resolve", "hook", "orphan", false],
+      ["a hook id with no file does not resolve", "hook", "absent", false],
+    ]
+    for (const [name, ns, id, want] of RES) {
+      const got = controlExists(ns, id, r)
+      const ok = got === want
+      if (!ok) failed++
+      console.log(`  ${ok ? "✓" : "✗"} RESOLVER   — ${name}${ok ? "" : `\n      got: ${got}`}`)
+    }
+    rmSync(r, { recursive: true, force: true })
+  }
 
   // ── the RATCHET, in every direction ───────────────────────────────────────
   // It did not exist until 2026-08-19: "N may only fall" was printed, asserted in CLAUDE.md as

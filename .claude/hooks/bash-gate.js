@@ -9,6 +9,8 @@
  * Posture: allow everything EXCEPT the named gates below. deny/ask rules in settings.json
  * still take precedence over a hook "allow", so this is belt-and-braces with the rule list.
  */
+// @event PreToolUse
+// @matcher Bash
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));
 process.stdin.on("end", () => {

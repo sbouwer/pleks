@@ -31,8 +31,9 @@
  * `matcher` anywhere in their audit — is the REGISTRATION half below. That gap is open in both
  * projects; this is the half worth sending back.
  */
-import { existsSync, readFileSync, readdirSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs"
 import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 
 const HOOK_DIR = ".claude/hooks"
 const SETTINGS = ".claude/settings.json"
@@ -41,15 +42,48 @@ const SETTINGS = ".claude/settings.json"
 const TWIN = /^\s*\/\/\s*@twin\s+(\S.*?)\s*$/gm
 const NO_TWIN = /^\s*\/\/\s*@no-twin\s+(\S.*?)\s*$/m
 
-/** Every command string in every PreToolUse (and PostToolUse) entry. */
-export function registeredCommands(settings) {
+/**
+ * Claude Code's hook events. Anything else is a typo or an invention, and either way the block is
+ * inert — settings does not validate event names, so `PreToolUsee` is silently ignored.
+ */
+const KNOWN_EVENTS = new Set([
+  "PreToolUse", "PostToolUse", "UserPromptSubmit", "Notification",
+  "Stop", "SubagentStop", "PreCompact", "SessionStart", "SessionEnd",
+])
+/** Only PreToolUse can refuse a call. A gate registered anywhere else cannot block. */
+const BLOCKING_EVENTS = new Set(["PreToolUse"])
+/** The events whose entries are scoped by a `matcher`. The rest have no tool to match. */
+const MATCHED_EVENTS = new Set(["PreToolUse", "PostToolUse"])
+
+/**
+ * Registrations that actually invoke a hook FILE, with the event and matcher they carry.
+ *
+ * The first version returned bare command strings and matched them with `c.includes(filename)`.
+ * Adversarial review found that green on SEVEN distinct ways a hook can be unwired: a misspelled
+ * event, an invented event, registration under PostToolUse (runs after the call — cannot block),
+ * a matcher that never sees the tool, the filename appearing inside an `echo` string, a command
+ * pointing at a COPY of the file outside `.claude/hooks`, and an entry missing `type: "command"`.
+ * A substring test on a filename is not a registration check.
+ */
+export function registrations(settings) {
   const out = []
-  for (const event of Object.values(settings.hooks ?? {})) {
-    for (const entry of event ?? []) {
-      for (const h of entry.hooks ?? []) if (typeof h.command === "string") out.push(h.command)
+  for (const [event, entries] of Object.entries(settings.hooks ?? {})) {
+    for (const entry of entries ?? []) {
+      for (const h of entry.hooks ?? []) {
+        if (h.type !== "command" || typeof h.command !== "string") continue
+        // The command must EXECUTE a file under .claude/hooks — not merely mention one.
+        const m = h.command.match(/(?:^|\s)(?:node|npx|sh|bash)\s+["']?([^"'\s]*[/\\]\.claude[/\\]hooks[/\\][\w.-]+\.js)["']?/)
+        if (!m) continue
+        out.push({ event, matcher: entry.matcher, file: m[1].replace(/.*[/\\]hooks[/\\]/, ""), command: h.command })
+      }
     }
   }
   return out
+}
+
+/** Kept for the probes: the raw command strings, unfiltered. */
+export function registeredCommands(settings) {
+  return registrations(settings).map((r) => r.command)
 }
 
 /**
@@ -67,7 +101,10 @@ export function registrationFindings(settings, root, existsFn) {
   const out = []
   for (const [event, entries] of Object.entries(settings.hooks ?? {})) {
     for (const entry of entries ?? []) {
-      if (!entry.matcher || String(entry.matcher).trim() === "") {
+      // Only the tool-scoped events take a matcher. Demanding one on SessionStart/Stop would be a
+      // false positive on a correct config, and a check that cries wolf on the good case is how a
+      // real finding gets waved through.
+      if (MATCHED_EVENTS.has(event) && (!entry.matcher || String(entry.matcher).trim() === "")) {
         out.push(`${SETTINGS}: a ${event} entry has no matcher — it declares a scope nobody chose`)
       }
       for (const h of entry.hooks ?? []) {
@@ -94,8 +131,15 @@ export function audit(root = ".") {
   if (!existsSync(hookDir)) return [`${HOOK_DIR} is missing — nothing to reconcile`]
 
   const settings = JSON.parse(readFileSync(settingsPath, "utf8"))
-  const commands = registeredCommands(settings)
+  const regs = registrations(settings)
   const gated = new Set([...(settings.permissions?.deny ?? []), ...(settings.permissions?.ask ?? [])])
+
+  // Unknown event names are inert, and settings will not tell you.
+  for (const event of Object.keys(settings.hooks ?? {})) {
+    if (!KNOWN_EVENTS.has(event)) {
+      out.push(`${SETTINGS}: hooks.${event} is not a Claude Code event — the whole block is inert and nothing reports it`)
+    }
+  }
 
   out.push(...registrationFindings(settings, root, existsSync))
 
@@ -106,9 +150,30 @@ export function audit(root = ".") {
   for (const f of hooks) {
     const src = readFileSync(join(hookDir, f), "utf8")
 
-    // 1 — REGISTRATION. The half neither project had.
-    if (!commands.some((c) => c.includes(f))) {
-      out.push(`${HOOK_DIR}/${f}: not referenced by any hooks entry in ${SETTINGS} — the file exists and nothing invokes it`)
+    // 1 — REGISTRATION, and what it is registered AS. A gate that runs after the call, or under a
+    //     matcher that never sees its tool, is registered and still cannot stop anything.
+    const mine = regs.filter((r) => r.file === f)
+    if (mine.length === 0) {
+      out.push(`${HOOK_DIR}/${f}: no ${SETTINGS} entry EXECUTES it — the file exists and nothing invokes it`)
+    } else {
+      // Each hook declares the event and matcher it needs, beside the rules it implements.
+      const wantEvent = (/^\s*\/\/\s*@event\s+(\S+)/m.exec(src) ?? [])[1]
+      const wantMatcher = (/^\s*\/\/\s*@matcher\s+(\S.*?)\s*$/m.exec(src) ?? [])[1]
+      if (!wantEvent || !wantMatcher) {
+        out.push(`${HOOK_DIR}/${f}: declares no "// @event <Event>" and "// @matcher <pattern>" — without them nothing can check it is registered for the calls it gates`)
+      } else {
+        if (!mine.some((r) => r.event === wantEvent)) {
+          out.push(`${HOOK_DIR}/${f}: declares @event ${wantEvent} but is registered under ${[...new Set(mine.map((r) => r.event))].join(", ")}`)
+        }
+        if (!mine.some((r) => r.matcher === wantMatcher)) {
+          out.push(`${HOOK_DIR}/${f}: declares @matcher ${wantMatcher} but is registered with ${mine.map((r) => JSON.stringify(r.matcher)).join(", ")} — a matcher that never sees its tool is a gate that cannot fire`)
+        }
+        for (const r of mine) {
+          if (!BLOCKING_EVENTS.has(r.event)) {
+            out.push(`${HOOK_DIR}/${f}: registered under ${r.event}, which cannot refuse a call — only PreToolUse blocks`)
+          }
+        }
+      }
     }
 
     // 2 — TWIN DECLARATION (LT's pattern).
@@ -128,45 +193,102 @@ export function audit(root = ".") {
   return out
 }
 
-if (process.argv.includes("--selftest")) {
+/** True only when THIS file is the process entrypoint — not when another script imports it. */
+const isEntry = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+
+// ⚠ `process.argv.includes("--selftest")` alone was wrong, and wrong in the silent direction:
+// `check-claude-md.mjs --selftest` imports `registrations` from here, so THIS selftest ran on
+// import, printed its own green banner and `process.exit(0)`d — check-claude-md's 40-odd fixtures
+// never ran, and the output looked like a pass. A probe suite that pre-empts another probe suite
+// is worse than no probe suite.
+if (isEntry && process.argv.includes("--selftest")) {
   let failed = 0
   const ok = (c, l) => { if (!c) failed++; console.log(`  ${c ? "✓" : "✗"} ${l}`) }
 
   const S = (o) => o
-  ok(registeredCommands(S({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: 'node "x/bash-gate.js"' }] }] } })).length === 1,
-    "registeredCommands finds a PreToolUse command")
+  ok(registeredCommands(S({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: 'node "$D/.claude/hooks/g.js"' }] }] } })).length === 1,
+    "registeredCommands finds a PreToolUse command that EXECUTES a hook file")
   ok(registeredCommands(S({})).length === 0, "…and returns nothing when there are no hooks at all")
   ok(registeredCommands(S({ hooks: { PreToolUse: [] } })).length === 0, "…or when the event list is empty")
 
-  // The exact deletion the walker described: the hooks block goes, the files stay.
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs")
   const { tmpdir } = await import("node:os")
   const tmp = mkdtempSync(join(tmpdir(), "hookreg-"))
   mkdirSync(join(tmp, ".claude", "hooks"), { recursive: true })
-  const write = (settings, hookSrc = "// @twin Bash(git push*)\n") => {
+
+  // The fixture hook is a CORRECT hook: it declares the event and matcher it needs and names its
+  // settings twin. Every case below unwires exactly one thing, so a finding is attributable.
+  const GOOD_HOOK = "// @event PreToolUse\n// @matcher Bash\n// @twin Bash(git push*)\n"
+  const ASK = { ask: ["Bash(git push*)"] }
+  const RUNS = 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/g.js"'
+  const entry = (matcher, command = RUNS, type = "command") => ({ matcher, hooks: [{ type, command }] })
+  const write = (settings, hookSrc = GOOD_HOOK) => {
     writeFileSync(join(tmp, ".claude", "hooks", "g.js"), hookSrc)
     writeFileSync(join(tmp, ".claude", "settings.json"), JSON.stringify(settings))
   }
+  const fires = (settings, needle, label, hookSrc) => {
+    write(settings, hookSrc)
+    const f = audit(tmp)
+    ok(f.some((x) => x.includes(needle)), `${label}${f.some((x) => x.includes(needle)) ? "" : `\n      got: ${JSON.stringify(f)}`}`)
+  }
+  const clean = (settings, label, hookSrc) => {
+    write(settings, hookSrc)
+    const f = audit(tmp)
+    ok(f.length === 0, `${label}${f.length ? `\n      got: ${JSON.stringify(f)}` : ""}`)
+  }
 
-  write({ permissions: { ask: ["Bash(git push*)"] }, hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: 'node "$DIR/.claude/hooks/g.js"' }] }] } })
-  ok(audit(tmp).length === 0, "KNOWN-GOOD: registered hook with a declared twin present in settings")
+  clean({ permissions: ASK, hooks: { PreToolUse: [entry("Bash")] } },
+    "KNOWN-GOOD: registered under the declared event and matcher, twin present in settings")
 
-  write({ permissions: { ask: ["Bash(git push*)"] } })
-  ok(audit(tmp).some((x) => x.includes("nothing invokes it")), "deleting the hooks block FIRES — the walker's exact scenario")
+  // ── The seven ways a hook can be unwired while every artefact still says it exists ────────────
+  // The first version of this check — `commands.some(c => c.includes(filename))` over
+  // `Object.values(settings.hooks)` — was GREEN on all seven.
+  fires({ permissions: ASK }, "nothing invokes it",
+    "1/7 the hooks block is deleted outright — the walker's exact scenario")
 
-  write({ permissions: {}, hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "g.js" }] }] } })
-  ok(audit(tmp).some((x) => x.includes("neither permissions.deny nor permissions.ask")), "a declared twin missing from settings fires")
+  fires({ permissions: ASK, hooks: { PreToolUsee: [entry("Bash")] } }, "is not a Claude Code event",
+    "2/7 a MISSPELLED event name — settings does not validate these, so the block is silently inert")
 
-  write({ permissions: { ask: ["Bash(git push*)"] }, hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "g.js" }] }] } }, "// no markers here\n")
-  ok(audit(tmp).some((x) => x.includes("neither a settings twin nor @no-twin")), "a hook declaring no twin and no @no-twin fires")
+  fires({ permissions: ASK, hooks: { OnBashCommand: [entry("Bash")] } }, "is not a Claude Code event",
+    "3/7 an INVENTED event name — same silence, different origin")
 
-  write({ permissions: {}, hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "g.js" }] }] } }, "// @no-twin settings match tool+path; this gate asks about content\n")
-  ok(audit(tmp).length === 0, "KNOWN-GOOD: @no-twin with a reason satisfies the declaration")
+  fires({ permissions: ASK, hooks: { PostToolUse: [entry("Bash")] } }, "cannot refuse a call",
+    "4/7 registered under PostToolUse — it runs AFTER the call it was written to block")
+
+  fires({ permissions: ASK, hooks: { PreToolUse: [entry("Read")] } }, "a matcher that never sees its tool",
+    "5/7 a matcher scoped to the wrong tool — registered, and it never fires")
+
+  fires({ permissions: ASK, hooks: { PreToolUse: [entry("Bash", 'echo "see .claude/hooks/g.js"')] } },
+    "nothing invokes it",
+    "6/7 the filename appears inside an echo STRING — mentioned, not executed")
+
+  fires({ permissions: ASK, hooks: { PreToolUse: [entry("Bash", 'node "$D/scripts/copies/g.js"')] } },
+    "nothing invokes it",
+    "7/7 the command runs a COPY outside .claude/hooks — the tracked file is inert")
+
+  fires({ permissions: ASK, hooks: { PreToolUse: [entry("Bash", RUNS, "prompt")] } }, "nothing invokes it",
+    "…and an entry whose type is not \"command\" never runs anything")
+
+  // ── The declarations themselves ───────────────────────────────────────────────────────────────
+  fires({ permissions: ASK, hooks: { PreToolUse: [entry("Bash")] } }, "declares no",
+    "a hook with no @event/@matcher cannot be checked against its registration — that is a finding",
+    "// @twin Bash(git push*)\n")
+
+  fires({ permissions: {}, hooks: { PreToolUse: [entry("Bash")] } }, "neither permissions.deny nor permissions.ask",
+    "a declared twin missing from settings fires")
+
+  fires({ permissions: ASK, hooks: { PreToolUse: [entry("Bash")] } }, "neither a settings twin nor @no-twin",
+    "a hook declaring no twin and no @no-twin fires",
+    "// @event PreToolUse\n// @matcher Bash\n")
+
+  clean({ permissions: {}, hooks: { PreToolUse: [entry("Bash")] } },
+    "KNOWN-GOOD: @no-twin with a reason satisfies the declaration",
+    "// @event PreToolUse\n// @matcher Bash\n// @no-twin settings match tool+path; this gate asks about content\n")
 
   // Prose ABOUT the markers must not be read as a marker — LT recorded this exact false positive.
-  write({ permissions: {}, hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "g.js" }] }] } },
-    "/**\n * That does not break the @twin design below; it explains it.\n */\n// @no-twin content-shaped question\n")
-  ok(audit(tmp).length === 0, "prose mentioning @twin is not parsed as a twin declaration")
+  clean({ permissions: {}, hooks: { PreToolUse: [entry("Bash")] } },
+    "prose mentioning @twin is not parsed as a twin declaration",
+    "/**\n * That does not break the @twin design below; it explains it.\n */\n// @event PreToolUse\n// @matcher Bash\n// @no-twin content-shaped question\n")
 
   // CD's other two directions.
   const yes = () => true, no = () => false
@@ -181,12 +303,19 @@ if (process.argv.includes("--selftest")) {
   ok(registrationFindings({ hooks: { PreToolUse: [{ matcher: "", hooks: [] }] } }, ".", yes)
     .some((x) => x.includes("no matcher")),
     "…and an empty-string matcher counts as none")
+  // …but only where a matcher is the scoping mechanism. SessionStart has no tool to match, and a
+  // check that fires on a correct config is how a real finding gets waved through.
+  ok(registrationFindings({ hooks: { SessionStart: [{ hooks: [{ command: 'node ".claude/hooks/g.js"' }] }] } }, ".", yes).length === 0,
+    "KNOWN-GOOD: a matcher-less SessionStart entry is not a finding — that event takes no matcher")
 
   rmSync(tmp, { recursive: true, force: true })
   console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — registration, declaration and reconciliation all fire")
   process.exit(failed ? 1 : 0)
 }
 
+// Only when RUN. This module exports `registrations`/`registrationFindings` for other probes, and
+// a top-level audit meant importing it audited the repo and could `process.exit` the importer.
+if (isEntry) {
 const findings = audit(".")
 if (findings.length) {
   console.log(`\n❌ ${findings.length} hook-registration finding(s):\n`)
@@ -194,3 +323,4 @@ if (findings.length) {
   process.exit(1)
 }
 console.log("🪝 hooks — every hook is registered in settings, declares its twin, and its twins are present")
+}

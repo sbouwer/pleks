@@ -25,6 +25,8 @@
  * A hook "allow" does NOT override a settings "ask"/"deny" — the layers are serial, and settings
  * wins. So this hook can only ever ADD friction, never remove it.
  */
+// @event PreToolUse
+// @matcher mcp__claude_ai_Supabase__.*
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));
 process.stdin.on("end", () => {
