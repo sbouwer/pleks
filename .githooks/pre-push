@@ -1,11 +1,28 @@
 #!/bin/sh
-# .githooks/pre-push — M-007. Blocks a push that fails the full chain (adds the DB + security tier).
+# .githooks/pre-push — M-007. Blocks a push that fails the check chain.
 #
-# NOTE the operational cost, deliberately not softened: check:full runs test:db and security:db,
-# which need a reachable database. On a machine without one this hook BLOCKS EVERY PUSH. That is
-# the honest reading of "never push red" — if it proves wrong for this team, change the rule
-# visibly rather than quietly weakening the hook.
+# The DB tier (test:db + security:db, ~8 of the ~10 minutes) runs only when the diff can actually
+# affect it — see scripts/prepush-scope.mjs for the rule and its probes. Ruling 2026-08-19: paying
+# ten minutes on a docs-only push trains people toward --no-verify, and a gate people route around
+# still reads as protection while providing none. CI's db-tests job runs the DB tier on every PR
+# regardless, so it is moved off the local hot path, never skipped.
+#
+# Fails toward MORE checking: no upstream, or any error deciding, runs the full chain.
+#
+# PLEKS_PREPUSH_CMD is a test seam for scripts/check-git-hooks.mjs, not a bypass. The bypass would
+# be --no-verify, which CLAUDE.md forbids.
 set -e
-CMD="${PLEKS_PREPUSH_CMD:-npm run check:full}"
+if [ -n "$PLEKS_PREPUSH_CMD" ]; then
+  CMD="$PLEKS_PREPUSH_CMD"
+else
+  SCOPE=$(node scripts/prepush-scope.mjs 2>/dev/null || echo full)
+  if [ "$SCOPE" = "quick" ]; then
+    CMD="npm run check"
+    echo "pre-push → diff touches no DB surface; running check (DB tier runs in CI on the PR)"
+  else
+    CMD="npm run check:full"
+    echo "pre-push → diff touches DB surface; running the full chain"
+  fi
+fi
 echo "pre-push → $CMD"
 $CMD
