@@ -47,10 +47,19 @@
     "app/sw.ts"
   ],
 
+  // ⚠ hooks/, types/ and content/ WERE MISSING, and the cost was not "knip says nothing about
+  // them" — it was WORSE. A file outside `project` is invisible, so every symbol it imports reads
+  // as an unused export: `hooks/useMyTeams.ts` is imported by two dashboard clients, and
+  // `getMyTeams` was reported dead because the only file using it was not being analysed. Acting on
+  // that report would have deleted live code. Found by a codemod over the export findings failing
+  // typecheck — the report was contaminated, not the transform.
   "project": [
     "app/**/*.{ts,tsx}",
     "lib/**/*.{ts,tsx}",
     "components/**/*.{ts,tsx}",
+    "hooks/**/*.{ts,tsx}",
+    "types/**/*.ts",
+    "content/**/*.{ts,tsx}",
     "scripts/**/*.{ts,mts,mjs}",
     "eslint-rules/**/*.mjs",
     "test/**/*.ts"
@@ -63,6 +72,19 @@
   // gets reported, because that one really should lose its `export`. LT records that conflating the
   // two broke their build three times in one pass.
   "ignoreExportsUsedInFile": { "interface": true, "type": true },
+
+  "ignore": [
+    // shadcn/ui primitives. They arrive as a SET — you install a component and its Radix dependency
+    // together — and several are staged ahead of the screens that will use them. Reporting them
+    // every run trains people to skim the whole report, which costs more than the few unused files.
+    // Same call life-therapy made, for the same reason.
+    //
+    // This is the entry most likely to rot into cover for real dead code, and the trade is
+    // deliberate: components/ui/ is vendored, near-never hand-edited, and its contents are
+    // traceable to `npx shadcn add`. Currently covering avatar, dropdown-menu, scroll-area,
+    // separator and table.
+    "components/ui/**"
+  ],
 
   // Each entry below was read, classified, and VERIFIED BY REMOVAL — taken out, knip re-run, the
   // finding reappeared. An ignore verified by reading is a guess; LT records the same rule after
