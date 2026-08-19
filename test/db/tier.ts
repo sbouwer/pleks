@@ -12,20 +12,39 @@ import { randomUUID } from "node:crypto"
 import { execSync } from "node:child_process"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { addCalendarDays, saDateISO } from "@/lib/dates"
+import { dockerCandidates, resolveDockerFrom } from "./resolve-docker"
+
+// Resolved once. `docker` is not reliably on PATH on Windows even when the daemon is running —
+// see resolve-docker.ts for why. global-setup.ts was fixed first and this file was NOT, so the
+// tier still died one frame later with the raw shell error: fixing one call site and leaving its
+// siblings is the sampling failure, and the sibling was two lines away.
+let _docker: string | null = null
+function dockerBin(): string {
+  if (_docker) return _docker
+  const found = resolveDockerFrom(dockerCandidates(), (c) => {
+    try {
+      execSync(`"${c}" --version`, { stdio: "pipe" })
+      return true
+    } catch {
+      return false
+    }
+  })
+  if (!found) throw new Error("DB tier: no `docker` CLI on PATH or at the known Docker Desktop locations")
+  _docker = found
+  return found
+}
 
 let _container: string | null = null
 function dbContainer(): string {
   if (_container) return _container
-  // Local test tier: `docker` is a required dev tool. Fixed literal command, no user input.
-  // eslint-disable-next-line sonarjs/no-os-command-from-path
-  const name = execSync('docker ps --filter name=supabase_db --format "{{.Names}}"', { encoding: "utf8" })
+  const name = execSync(`"${dockerBin()}" ps --filter name=supabase_db --format "{{.Names}}"`, { encoding: "utf8" })
     .trim().split(/\r?\n/)[0]
   if (!name) throw new Error("teardown: no running `supabase_db` container — run `npx supabase start`")
   _container = name
   return name
 }
 function psql(sql: string): void {
-  execSync(`docker exec -i ${dbContainer()} psql -U postgres -d postgres -v ON_ERROR_STOP=1`, {
+  execSync(`"${dockerBin()}" exec -i ${dbContainer()} psql -U postgres -d postgres -v ON_ERROR_STOP=1`, {
     input: sql, stdio: ["pipe", "pipe", "pipe"],
   })
 }
