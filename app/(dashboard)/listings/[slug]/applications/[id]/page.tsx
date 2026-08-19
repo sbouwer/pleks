@@ -48,7 +48,7 @@ function applicationStatus(stage1: string | null, stage2: string | null): Detail
 function ForeignNationalBanner({ permitType, permitExpiry, tpnLimited, depositRec, visaCheck, immigrationConfirmed }: Readonly<{
   permitType: string | null; permitExpiry: string | null; tpnLimited: boolean
   depositRec: { recommendedMonths: number; reason: string } | null
-  visaCheck: { compatible: boolean; warning: string | null } | null
+  visaCheck: { assessed: boolean; compatible: boolean; warning: string | null } | null
   immigrationConfirmed: boolean
 }>) {
   return (
@@ -58,7 +58,17 @@ function ForeignNationalBanner({ permitType, permitExpiry, tpnLimited, depositRe
         <p>Permit: {permitType || "Not specified"} · Expires: {permitExpiry || "—"}</p>
         {tpnLimited && <p className="text-warning">TPN listing limited — cannot be negatively listed on default.</p>}
         {depositRec && <p>Deposit recommendation: {depositRec.recommendedMonths} months — {depositRec.reason}</p>}
-        {visaCheck && !visaCheck.compatible && <p className="text-danger">{visaCheck.warning}</p>}
+        {visaCheck?.assessed && !visaCheck.compatible && <p className="text-danger">{visaCheck.warning}</p>}
+        {/* A missing input is reported as MISSING, not as an all-clear. This check ran vacuously for
+            every foreign-national applicant — its caller passes no proposed lease end, so it could
+            only ever return "compatible", and the banner said nothing either way. A blank space
+            where a permit/lease warning would go reads as "checked, fine". */}
+        {visaCheck && !visaCheck.assessed && (
+          <p className="text-warning">
+            Permit vs lease-end alignment NOT checked — no proposed lease end on this application.
+            Confirm the term ends before {permitExpiry || "the permit expiry"} before signing.
+          </p>
+        )}
         {!immigrationConfirmed && <p className="text-danger font-medium">Immigration compliance not yet confirmed by agent.</p>}
       </div>
     </DetailFullWidth>
