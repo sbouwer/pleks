@@ -1,0 +1,11 @@
+#!/bin/sh
+# .githooks/pre-push — M-007. Blocks a push that fails the full chain (adds the DB + security tier).
+#
+# NOTE the operational cost, deliberately not softened: check:full runs test:db and security:db,
+# which need a reachable database. On a machine without one this hook BLOCKS EVERY PUSH. That is
+# the honest reading of "never push red" — if it proves wrong for this team, change the rule
+# visibly rather than quietly weakening the hook.
+set -e
+CMD="${PLEKS_PREPUSH_CMD:-npm run check:full}"
+echo "pre-push → $CMD"
+$CMD

@@ -48,6 +48,34 @@ not silently substituted.
 
 ## DATA-BOUNDARY
 
+### M-001 — ✅ BUILT 2026-08-19 — Supabase MCP DDL gate
+
+**Control:** `.claude/hooks/mcp-ddl-gate.js` (PreToolUse) + the `permissions.ask` twin in
+`.claude/settings.json`. **Probe:** `scripts/check-mcp-ddl-gate.mjs` — 15 cases, both directions,
+each a real subprocess with a real payload. **Tagged:** `hook:mcp-ddl-gate` on the DO NOT DO rule.
+
+**Two corrections to this entry's original premise, both found by slice 0's enumerate-before-matching:**
+
+1. The entry said the MCP path was ungated. **Partly false** — `permissions.ask` already covered
+   `execute_sql`, `apply_migration`, `deploy_edge_function`, `pause_project`, `restore_project`.
+   The real gap was narrower and worse: **`merge_branch` — which merges migrations to PRODUCTION —
+   was gated by nothing**, along with `reset_branch`, `delete_branch` and `rebase_branch`.
+2. The planned "DDL keyword AND tool" condition **cannot work**. `merge_branch` takes only a
+   `branch_id`; there is no SQL to keyword-match, so an AND-gate would never fire on the
+   highest-blast tool in the set. The keyword is now a labelling device for `execute_sql` alone.
+
+**Also fixed while here:** 19 dead entries in `settings.json` — 14 in the `mcp__supabase__`
+namespace, **which does not exist** (probed both directions; the live prefix is
+`mcp__claude_ai_Supabase__`), plus `get_logs` (the tool is `query_logs`) and
+`mcp__github__pull_request_read` (there is no GitHub MCP server; `gh` is the path).
+A permission rule naming a non-existent tool is L-01 at the config layer: it matches nothing,
+forever, and looks exactly like a rule that is working.
+
+<details><summary>Original entry</summary>
+
+
+</details>
+
 ### M-001 — Gate Supabase MCP `execute_sql`/`apply_migration`
 - **Rule:** "Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead" (`CLAUDE.md`, DO NOT DO)
 - **Where it lives:** `CLAUDE.md:682-683`
@@ -450,6 +478,26 @@ Different audiences, same missing control.
 ---
 
 ## MONEY (continued — remaining band entries, ranked after M-003)
+
+### M-007 — ✅ BUILT 2026-08-19 — pre-commit and pre-push gates
+
+**Control:** `.githooks/pre-commit` (`npm run check`) and `.githooks/pre-push`
+(`npm run check:full`), wired via `core.hooksPath`, self-configuring on install through a
+`prepare` script. **Probe:** `scripts/check-git-hooks.mjs` — asserts existence, the executable
+bit as git records it, that `core.hooksPath` actually points at the directory (a hook in an
+unreferenced directory is a file, not a gate, and nothing about the file reveals that), and
+**that each hook blocks on failure and passes on success**, driven through a command seam so the
+probe does not need a two-minute run. **Tagged:** `check:check-git-hooks`.
+
+**Operational cost, stated rather than softened:** `check:full` includes `test:db` and
+`security:db`, so on a machine with no reachable database **pre-push blocks every push**. That is
+the honest reading of "never push red". If it proves wrong for this team, change the rule visibly
+rather than quietly weakening the hook.
+
+<details><summary>Original entry</summary>
+
+
+</details>
 
 ### M-007 — scan for tier-price/name/lease-cap literals outside the two SSOT files
 - **Rule:** "Names, prices, lease caps → `lib/marketing/tiers.ts` (canonical) · cents → `lib/constants.ts`." (`CLAUDE.md`, TIER MODEL)

@@ -13,7 +13,7 @@ All of the following are connected and available in every session. Use them dire
 
 | Server | Capability |
 |--------|-----------|
-| **GitHub** (`sbouwer/pleks`) | PRs, issues, CI runs, code search, branch management |
+| **GitHub** (`sbouwer/pleks`) | PRs, issues, CI runs, code search, branch management — **via the `gh` CLI, NOT an MCP server.** Probed 2026-08-19: no `mcp__github__*` tool exists in this session. This row previously implied an MCP server; `gh` is authenticated and is the working path. |
 | **Supabase** | Execute SQL, apply migrations, get logs, list tables, check advisors |
 | **Vercel** | List/check deployments, build logs, runtime logs, project info |
 | **Figma** | Read designs, get screenshots, convert designs to code |
@@ -72,7 +72,10 @@ npm run check
 This runs `tsc --noEmit` (type check) + `eslint . --max-warnings 0` (lint).
 
 **If it fails, fix the errors before committing.** Do not push code that fails `npm run check`. Do not skip this step. Do not use `--no-verify`.
-**UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — same gap as the identical rule under DO NOT DO (twin, same mechanism, not re-annotated there). There is no pre-commit hook in this repo (no `.husky`, no `core.hooksPath`), so nothing stops a commit that fails `npm run check`. CI's `quick-check` job (`ci:quick-check`) runs `npm run check` but only after the commit exists, on the PR. Full sketch → **M-049** in `docs/MECHANISABLE.md`.
+
+As of 2026-08-19 this is mechanised: `.githooks/pre-commit` blocks the commit and `.githooks/pre-push`
+runs `check:full`. (Same control as `check:check-git-hooks`, tagged under DO NOT DO — not re-tagged
+here to avoid a double claim.) `--no-verify` now has something to bypass, which is why it is forbidden.
 
 If you've changed multiple files, run the check after each logical change — don't batch 10 changes and discover 8 errors at the end.
 
@@ -642,14 +645,12 @@ Run INDEPENDENT work in parallel (multiple agents in one turn, `run_in_backgroun
 
 - Do not deploy without running `npm run security:quick` first
   **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of "Zero critical findings before any deployment" above, same mechanism, not re-annotated there: no gate blocks a Vercel deploy on this script having run or passed.
-- Do not commit without running `npm run check` first
-  **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — twin of the identical rule under RUN CHECKS BEFORE EVERY COMMIT above, same mechanism, not re-annotated there. There is NO pre-commit hook in this repo (no .husky, no core.hooksPath, empty .git/hooks). CI catches it on the PR, after the commit exists. `--no-verify` has nothing to bypass.
+- Do not commit without running `npm run check` first <!-- @enforced check:check-git-hooks -->
 - Do not create new migration files — amend the existing domain file (see MIGRATIONS section)
   **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — nothing counts migration files. `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; a thirteenth file would pass every gate. Full sketch → **M-006** in `docs/MECHANISABLE.md`.
 - Do not use raw `CREATE POLICY` without `DROP POLICY IF EXISTS` first — it aborts the migration
   **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — zero scripts scan migration SQL for the pairing. Trivially mechanisable — a regex over `supabase/migrations/*.sql` asserting every `CREATE POLICY "name"` is preceded by a matching `DROP POLICY IF EXISTS "name"` — and worth doing, since the failure mode is a migration that aborts partway and silently leaves everything below it unapplied.
-- Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead
-  **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: data-boundary) — `check-schema-drift.mjs` can detect the RESULTING drift reactively (and only when someone runs it, or via `check:check-drift-if-sql-changed` in `check:full` — itself not CI-wired, see Git rhythm above), but nothing prevents the ad-hoc execution itself: the Supabase MCP's SQL execution is not gated by `hook:bash-gate`, which only inspects the Bash tool. Full sketch → **M-001** in `docs/MECHANISABLE.md`.
+- Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead <!-- @enforced hook:mcp-ddl-gate -->
 - Do not change existing RLS policies without flagging it
   **UNENFORCEABLE** — "flagging" is a chat act, not a repo state. The policy CHANGE is visible in the diff; the flagging is not checkable.
 - Do not add new npm packages without checking if an existing

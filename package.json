@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "check": "tsc --noEmit && eslint . --max-warnings 0 && node scripts/check-legal-localhost.mjs && node scripts/check-marketing-consistency.mjs && tsx scripts/check-retention-claims.mts && node scripts/architecture-audit.mjs && node scripts/schema-contract-scan.mjs && node scripts/check-audit-columns.mjs && node scripts/check-import-fields.mjs && node scripts/check-server-action-exports.mjs && node scripts/check-csv-escaping.mjs && node scripts/check-file-headers.mjs && node scripts/check-rules-tracked.mjs && node scripts/check-migration-forward-refs.mjs && node scripts/check-workflow-secrets.mjs && node scripts/check-claude-md.mjs && tsx scripts/security/check-pii-classification.mts && vitest run",
+    "check": "tsc --noEmit && eslint . --max-warnings 0 && node scripts/check-legal-localhost.mjs && node scripts/check-marketing-consistency.mjs && tsx scripts/check-retention-claims.mts && node scripts/architecture-audit.mjs && node scripts/schema-contract-scan.mjs && node scripts/check-audit-columns.mjs && node scripts/check-import-fields.mjs && node scripts/check-server-action-exports.mjs && node scripts/check-csv-escaping.mjs && node scripts/check-file-headers.mjs && node scripts/check-rules-tracked.mjs && node scripts/check-migration-forward-refs.mjs && node scripts/check-workflow-secrets.mjs && node scripts/check-claude-md.mjs && tsx scripts/security/check-pii-classification.mts && node scripts/check-mcp-ddl-gate.mjs && node scripts/check-git-hooks.mjs && vitest run",
     "check:full": "npm run check && npm run test:db && npm run security:db && node scripts/check-drift-if-sql-changed.mjs",
     "fuzz": "tsx scripts/fuzz-import.mts",
     "schema:drift": "node scripts/check-schema-drift.mjs",
@@ -30,7 +30,8 @@
     "render:fitscore-samples": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-fitscore-samples.ts",
     "fitscore:render-smoke": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-fitscore-smoke.ts",
     "render:density-pass": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-density-pass.ts",
-    "audit:holidays": "tsx scripts/audit-holiday-table.mts"
+    "audit:holidays": "tsx scripts/audit-holiday-table.mts",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

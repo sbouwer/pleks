@@ -1,0 +1,13 @@
+#!/bin/sh
+# .githooks/pre-commit — M-007. Blocks a commit that fails the local check chain.
+#
+# CLAUDE.md has mandated "run npm run check before every commit" for a long time with NOTHING
+# enforcing it: no .husky, no core.hooksPath, an empty .git/hooks. CI caught failures on the PR,
+# i.e. after the commit already existed. This is the missing rung-1 twin.
+#
+# PLEKS_PRECOMMIT_CMD exists so the probe can drive both directions without a two-minute run.
+# It is a test seam, not a bypass — a bypass would be --no-verify, which CLAUDE.md forbids.
+set -e
+CMD="${PLEKS_PRECOMMIT_CMD:-npm run check}"
+echo "pre-commit → $CMD"
+$CMD
