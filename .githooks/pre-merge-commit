@@ -1,0 +1,14 @@
+#!/bin/sh
+# .githooks/pre-merge-commit — the gate pre-commit does not cover.
+#
+# Git does NOT run pre-commit for a merge; it runs pre-merge-commit. Without this file, "blocks a
+# commit that fails the local check chain" was narrower than it read, and this repo has a live
+# example: the merge that brought main into the standard branch was created without any gate.
+set -e
+if [ -n "$PLEKS_PRECOMMIT_CMD" ] && [ "$PLEKS_HOOK_PROBE" = "1" ]; then
+  CMD="$PLEKS_PRECOMMIT_CMD"
+else
+  CMD="npm run check"
+fi
+echo "pre-merge-commit → $CMD"
+$CMD

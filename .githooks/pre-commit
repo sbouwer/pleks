@@ -8,6 +8,10 @@
 # PLEKS_PRECOMMIT_CMD exists so the probe can drive both directions without a two-minute run.
 # It is a test seam, not a bypass — a bypass would be --no-verify, which CLAUDE.md forbids.
 set -e
-CMD="${PLEKS_PRECOMMIT_CMD:-npm run check}"
+if [ -n "$PLEKS_PRECOMMIT_CMD" ] && [ "$PLEKS_HOOK_PROBE" = "1" ]; then
+  CMD="$PLEKS_PRECOMMIT_CMD"
+else
+  CMD="npm run check"
+fi
 echo "pre-commit → $CMD"
 $CMD
