@@ -88,12 +88,51 @@ const rule = {
     schema: [],
   },
   create(context) {
-    /** @type {{node: import("estree").Node, table: string}[]} */
+    /** @type {{node: import("estree").Node, table: string, fns: Set<object>}[]} */
     const mutations = []
-    let hasAudit = false
+    /** Functions that contain an audit write. A mutation passes if ANY of its enclosing
+     *  functions audits — nearest or an ancestor, so a nested callback inside an auditing
+     *  function still counts. */
+    const auditingFns = new Set()
+    let moduleLevelAudit = false
+    /** name -> function node, for locally-declared functions. */
+    const fnByName = new Map()
+    /** function node -> Set of local names it calls. */
+    const callsByFn = new Map()
+
+    /** Every enclosing function of a node, innermost first. */
+    const enclosingFns = (node) => {
+      const out = new Set()
+      let n = node.parent
+      while (n) {
+        if (n.type === "FunctionDeclaration" || n.type === "FunctionExpression" || n.type === "ArrowFunctionExpression") out.add(n)
+        n = n.parent
+      }
+      return out
+    }
+    const markAudit = (node) => {
+      const fns = enclosingFns(node)
+      if (fns.size === 0) moduleLevelAudit = true
+      for (const f of fns) auditingFns.add(f)
+    }
+
+    const noteName = (name, fn) => { if (name && fn) fnByName.set(name, fn) }
 
     return {
+      FunctionDeclaration(node) { noteName(node.id?.name, node) },
+      VariableDeclarator(node) {
+        if (node.init && (node.init.type === "ArrowFunctionExpression" || node.init.type === "FunctionExpression")) {
+          noteName(node.id?.name, node.init)
+        }
+      },
       CallExpression(node) {
+        // Any call to a bare local name, recorded against every enclosing function.
+        if (node.callee.type === "Identifier") {
+          for (const f of enclosingFns(node)) {
+            if (!callsByFn.has(f)) callsByFn.set(f, new Set())
+            callsByFn.get(f).add(node.callee.name)
+          }
+        }
         if (node.callee.type !== "MemberExpression" || node.callee.property.type !== "Identifier") return
         const method = node.callee.property.name
 
@@ -101,26 +140,48 @@ const rule = {
         if (node.callee.object.type === "Identifier" && node.callee.object.name === "recordAudit") {
           // (handled by the Identifier-callee form below; kept for clarity)
         }
-        if (method === "insert" && fromTableOfMutation(node) === "audit_log") hasAudit = true
+        if (method === "insert" && fromTableOfMutation(node) === "audit_log") markAudit(node)
 
         // A T1 mutation?
         if (MUTATORS.has(method)) {
           const table = fromTableOfMutation(node)
-          if (typeof table === "string" && T1_TABLES.has(table)) mutations.push({ node, table })
+          if (typeof table === "string" && T1_TABLES.has(table)) mutations.push({ node, table, fns: enclosingFns(node) })
         }
       },
       // recordAudit(...) / recordAuditReturningId(...) / recordAuditMany(...) as a bare call.
       "CallExpression > Identifier.callee"(node) {
-        if (node.name.startsWith("recordAudit")) hasAudit = true
+        if (node.name.startsWith("recordAudit")) markAudit(node)
       },
       "Program:exit"() {
-        if (hasAudit) return
+        if (moduleLevelAudit) return
+
+        // A function also audits if it CALLS a local function that audits. Without this the rule
+        // false-positived on lib/contacts/contactBankAccounts.ts — the payout-banking file this
+        // rule was originally written for — because its three mutators audit through a local
+        // `bankAudit` wrapper. Module scope was too loose (one audit exempted the whole file);
+        // bare function scope is too tight (it cannot see one hop). Propagated to a fixpoint so a
+        // chain of helpers resolves, not just the first link.
+        let grew = true
+        while (grew) {
+          grew = false
+          for (const [fn, names] of callsByFn) {
+            if (auditingFns.has(fn)) continue
+            for (const n of names) {
+              const target = fnByName.get(n)
+              if (target && auditingFns.has(target)) { auditingFns.add(fn); grew = true; break }
+            }
+          }
+        }
         // relPath derivation is a known silent-disable trap (.claude/rules/lint-rules.md): derived
         // the same way as require-org-scope-on-service-write, and probed in both directions.
         const rel = relative(process.cwd(), context.filename).replaceAll("\\", "/")
         if (TEST_PATH.test(rel)) return
         if (BASELINE.has(rel)) return
         for (const m of mutations) {
+          // FUNCTION-scoped, not module-scoped. A single recordAudit anywhere in the file used to
+          // exempt every T1 mutation in it, so app/api/cron/lease-expiry-check/route.ts could set a
+          // lease to "expired" with no audit and pass because two OTHER functions audited.
+          if ([...m.fns].some((f) => auditingFns.has(f))) continue
           context.report({ node: m.node, messageId: "missingAudit", data: { table: m.table } })
         }
       },
