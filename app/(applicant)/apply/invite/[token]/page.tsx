@@ -1,11 +1,32 @@
 /**
- * app/(applicant)/apply/invite/[token]/page.tsx — screening-invite landing (shortlisted + fee + reuse offer)
+ * app/(applicant)/apply/invite/[token]/page.tsx — screening-invite landing (shortlisted + fee)
  *
  * Route:  /apply/invite/[token]
  * Auth:   Public — access by application-invite token (application_tokens); no session
- * Data:   application_tokens (+ applications, listings), getRecentCompletedCheck (service client)
- * Notes:  Server component. Shows an expiry screen once the token's expires_at passes; offers
- *         free 30-day report reuse when a recent completed check exists for the applicant email.
+ * Data:   application_tokens (+ applications, listings); service client
+ * Notes:  Server component. Shows an expiry screen once the token's expires_at passes.
+ *
+ *         ⚠ THE 30-DAY "REUSE YOUR RECENT REPORT — FREE" CARD WAS REMOVED 2026-08-19, along with
+ *         lib/screening/checkRecentReport.ts. It was half-built in two independent ways and both
+ *         reached the applicant:
+ *
+ *         1. It matched on `applicant_email` with NO org filter, so it surfaced an application at
+ *            ANOTHER agency — naming that agency's property — and offered to share that report.
+ *            Two people behind one address (a couple applying separately, a family address, an
+ *            agent who typed their own) meant applicant B was offered applicant A's FitScore and
+ *            bureau-derived components. Matching on `id_number_hash` instead would have made it
+ *            WORSE, not better: a reliable cross-org identity resolver on the applicant surface is
+ *            the shared-tenant-blacklist product CLAUDE.md forbids by name — "a different product,
+ *            with a different consent basis and a different regulatory profile, built by accident".
+ *
+ *         2. Nothing downstream read the `?reuse=` parameter it set. The consent page never
+ *            forwarded it and the payment page charged the full fee, described on that same screen
+ *            as non-refundable. The applicant was told "Free" and then billed R250/R470.
+ *
+ *         IF IT IS WANTED, the defensible version is SAME-ORG only: an agency reusing a report it
+ *         already paid for, matched on id_number_hash within its own org_id, with the billing path
+ *         actually honouring the reuse. That is a product decision with its own consent basis and a
+ *         billing change — not a repair of this one.
  */
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -13,9 +34,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
-import { Badge } from "@/components/ui/badge"
-import { MapPin, Clock, CheckCircle2, RefreshCw } from "lucide-react"
-import { getRecentCompletedCheck } from "@/lib/screening/checkRecentReport"
+import { MapPin, Clock, CheckCircle2 } from "lucide-react"
 import { fmtDateLongZA } from "@/lib/dates"
 
 export default async function InvitePage({
@@ -69,13 +88,6 @@ export default async function InvitePage({
   const currentTime = new Date()
   const msRemaining = expiresAt.getTime() - currentTime.getTime()
   const daysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)))
-
-  // Check for recent completed screening (30-day reuse)
-  const recentCheck = application?.applicant_email
-    ? await getRecentCompletedCheck(application.applicant_email)
-    : null
-  // Don't offer reuse of the same application
-  const canReuse = recentCheck && recentCheck.application_id !== application?.id
 
   return (
     <div className="space-y-6">
@@ -136,35 +148,10 @@ export default async function InvitePage({
         </CardContent>
       </Card>
 
-      {/* Recent check reuse option */}
-      {canReuse && (
-        <Card className="border-brand/30 bg-brand-dim/20">
-          <CardContent className="pt-5 space-y-3">
-            <div className="flex items-center gap-2">
-              <RefreshCw className="size-4 text-brand" />
-              <Badge className="bg-brand/20 text-brand border-brand/30 text-xs">Recent check available</Badge>
-            </div>
-            <p className="text-sm">
-              You had a credit check done on{" "}
-              {fmtDateLongZA(recentCheck.checked_at)}
-              {recentCheck.property_address && <> for <strong>{recentCheck.property_address}</strong></>}.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Instead of running a new check, you can share those results with this landlord — at no additional cost.
-            </p>
-            <ActionButton asChild tone="secondary" className="w-full">
-              <Link href={`/apply/invite/${token}/consent?reuse=${recentCheck.application_id}`}>
-                Share my existing report — Free
-              </Link>
-            </ActionButton>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Actions */}
       <ActionButton asChild tone="primary" className="w-full h-12 text-base font-semibold">
         <Link href={`/apply/invite/${token}/consent`}>
-          {canReuse ? "Run a new check instead" : "Proceed to consent and payment"}
+          Proceed to consent and payment
         </Link>
       </ActionButton>
 
