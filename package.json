@@ -33,7 +33,8 @@
     "audit:holidays": "tsx scripts/audit-holiday-table.mts",
     "prepare": "git config core.hooksPath .githooks || true",
     "crawl:tier0": "knip --no-progress --include files,dependencies,unlisted,unresolved,duplicates,exports,types",
-    "crawl:all": "knip --no-progress"
+    "crawl:all": "knip --no-progress",
+    "crawl": "node scripts/crawl.mjs crawler-doctrine"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
