@@ -97,3 +97,6 @@ supabase/.temp/pgdelta/
 # ESLint cache — local only, rebuilt by scripts/eslint-cache-guard.mjs (never committed)
 .eslintcache
 .eslintcache.key
+
+# agent handoff artefacts — task-scoped, cleared by /wrap (4-AGENT-PIPELINES.md §9)
+.claude/handoff/

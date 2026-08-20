@@ -4,16 +4,20 @@
 not documented mechanisms. Anthropic documents none of this; all of it is behaviour probed from
 inside a session and may change without notice on any upgrade.
 
-**Anchor:** all results below measured **2026-08-18**, Opus 5 via the Claude Code VSCode extension.
-Exact CLI version string NOT captured (`claude --version` unavailable in the sandbox) — a re-run
-should record it, because "which version was this true of" is the whole value of an anchor.
+**Anchor:** E1–E6 measured **2026-08-18**, Opus 5 via the Claude Code VSCode extension; the exact CLI
+version string was NOT captured then (`claude --version` was unavailable in that sandbox) and the
+2.1.235 attributed to E5 is inferred from the same session, not read off the binary. **E7 and E8**
+were measured **2026-08-20** with the version read directly: **2.1.235**. Record it on every future
+run — "which version was this true of" is the whole value of an anchor.
 
-**RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E1b**, **E2** and **E5**
-*before* trusting rule scoping, marker invisibility, or the assumption that MCP tool schemas are
-deferred. Tracked as an OUTSTANDING item. All three are load-bearing: E1b decides whether scoped
-rules are a control or a convenience, E2 decides whether the entire marker vocabulary costs context
-budget, and E5 decides whether connected MCP servers impose a flat per-turn floor (on 2.1.235 they
-do not — a revert to eager tool loading would change the economics of every session).
+**RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E1b**, **E2**, **E5**, **E7**
+and **E8** *before* trusting rule scoping, marker invisibility, the assumption that MCP tool schemas
+are deferred, or the handoff write control. Tracked as an OUTSTANDING item. All five are
+load-bearing: E1b decides whether scoped rules are a control or a convenience, E2 decides whether the
+entire marker vocabulary costs context budget, E5 decides whether connected MCP servers impose a flat
+per-turn floor (on 2.1.235 they do not — a revert to eager tool loading would change the economics of
+every session), and **E7/E8 together decide whether the agent write scope is enforced or merely
+asserted** — E8 removed the frontmatter control this repo thought it had, and E7 is what replaced it.
 
 ---
 
@@ -257,6 +261,64 @@ use a separate machine or an idle window, not the session being measured.
 **Consequence:** per-session server enablement is worth *less* than hypothesised on this CLI version
 — the floor is already low. It becomes worth doing again if a future version reverts to eager tool
 loading, which makes this an E-register re-run trigger alongside E1b and E2.
+
+---
+
+## E7 · Does `PreToolUse` hook input carry subagent identity? — **ANSWERED: YES**
+
+**Anchor:** measured 2026-08-20 against **CLI 2.1.235** (captured this time — see the header caveat),
+Opus 5, VSCode extension, repo at `1d127015`. Asked because it decides whether the handoff write
+scope (`4-AGENT-PIPELINES.md` §8) can be a rung-1 deny or must stay a post-run check.
+
+Method: `bash-gate.js` temporarily appended its raw stdin to a scratch file — the hook is spawned per
+invocation, so editing it takes effect with no settings reload. Then one main-session `Bash`, one
+`grounder` subagent running a single `echo`, one main-session `Bash` again. The dump was reverted and
+the revert verified with `git diff` before anything else was written.
+
+| Invocation | Keys present |
+|---|---|
+| main session (before) | `session_id, transcript_path, cwd, prompt_id, permission_mode, effort, hook_event_name, tool_name, tool_input, tool_use_id` |
+| **grounder subagent** | the same **plus `agent_id`, `agent_type`** |
+| main session (after) | as the first — the two fields are gone again |
+
+`agent_type` is the spine name verbatim (`"grounder"`); `agent_id` matched the id the `Agent` tool
+returned to the caller (`ae9550e7a3a1d8b58`), so it is a usable join key onto the transcript tree.
+
+**Both directions fired.** The control ran before *and* after the treatment, so this is not a field
+that is simply always absent from a hook that never sees it — the fields appear and then disappear.
+
+**`session_id` and `transcript_path` are the MAIN session's inside the subagent**, identical to the
+control. They cannot discriminate; only `agent_id`/`agent_type` can. A hook that tried to detect a
+subagent by transcript path would silently never fire.
+
+**Consequence:** the handoff write scope becomes an enforced deny, not an attention-held instruction.
+E8 is why that upgrade is *required* rather than merely available.
+
+---
+
+## E8 · Can `tools:` frontmatter withhold `Write` from a custom subagent? — **ANSWERED: NO**
+
+**Anchor:** same session, CLI 2.1.235, repo at `1d127015`. Fell out of E7's probe and was not the
+question being asked.
+
+`grounder.md` declares `tools: Read, Grep, Glob, Bash` — no `Write`, no `Edit`. Asked to name its own
+tools and to attempt a write, the running agent reported its list as **`Read, Grep, Glob, Bash,
+Write, Edit`** and the write **succeeded**. The same two names are appended to every custom spine in
+the agent registry, including `crawler-doctrine` (declares `Read, Grep, Glob`) and `walker` (declares
+`Read, Grep, Glob, Bash`). Built-in agent types are *not* treated this way — `Explore` and `Plan` are
+listed as "all tools except … `Edit`, `Write`", so exclusion is expressible; it is custom-spine
+frontmatter that does not achieve it on this version.
+
+**Consequence, and it is the uncomfortable one:** "read-only agent" was a property this repo believed
+it had by declaration, and it does not have. Four spines describe themselves as read-only in prose
+and are not read-only in fact. Nothing bad has come of it — no agent has written outside its remit —
+but that is the absence of an occurrence, not a control. E7's `agent_type` is what turns it back into
+one, which is why the two experiments are recorded as a pair and why the deny hook shipped in the
+same commit rather than being queued.
+
+**Re-run trigger:** on any CLI major-version upgrade, alongside E1b/E2/E5. If a later version honours
+the frontmatter, the deny hook becomes belt-and-braces rather than the only control — worth knowing,
+not worth removing it for.
 
 ---
 
