@@ -159,10 +159,20 @@ function ratchetFindings(n, ceiling, path, d) {
   return out
 }
 
+/**
+ * Split on either line ending. This checker compares headings against exact literals, so on a CRLF
+ * working tree every heading carried a trailing `\r`, matched nothing, and the checker reported
+ * `rules section vanished: "### Enforced"` — a content check with an undeclared dependency on how
+ * the tree was MATERIALISED. `.gitattributes` (`* text=auto eol=lf`) means no checkout can produce
+ * that state here, so it was latent rather than live; it is still a bug in the check, and a latent
+ * one is worth exactly one line. Found in the sibling project, reproduced here before fixing.
+ */
+const splitLines = (t) => t.split(/\r?\n/)
+
 /** Audit one markdown file. Returns findings. */
 function auditFile(path, text, claims, root = ".") {
   const out = []
-  const lines = text.split("\n")
+  const lines = splitLines(text)
 
   // 1 + 2 — every @enforced resolves, and no control is claimed twice
   for (const m of text.matchAll(TAG)) {
@@ -384,6 +394,27 @@ if (process.argv.includes("--selftest")) {
     console.log(`  ${ok ? "✓" : "✗"} ${shouldFire ? "must fire " : "must pass "} — ${name}${ok ? "" : `\n      got: ${found.join(" | ") || "(nothing)"}`}`)
   }
 
+  // ── LINE ENDINGS: the same bytes, materialised differently ────────────────
+  // A CRLF working tree left a trailing `\r` on every heading, so `### Enforced` matched no literal
+  // and the checker reported `rules section vanished` twice — a CONTENT check with an undeclared
+  // dependency on CHECKOUT. `.gitattributes` (`* text=auto eol=lf`) means no checkout here can
+  // produce that state, which made it latent rather than live; latent is still wrong, and the sibling
+  // project hit the identical class. The property is equality, not absence: identical content must
+  // produce identical findings whichever way the lines end.
+  const crlfBody = `${RULES_SECTIONS[0]}\n\n- A rule. <!-- @enforced eslint:pleks/no-cookie-client-from -->\n`
+  writeFileSync(join(tmp, "CLAUDE.md"), crlfBody)
+  const lfFindings = runAudit(tmp).findings.join("\n")
+  writeFileSync(join(tmp, "CLAUDE.md"), crlfBody.replace(/\n/g, "\r\n"))
+  const crlfFindings = runAudit(tmp).findings.join("\n")
+  const eolOk = lfFindings === crlfFindings
+  if (!eolOk) failed++
+  console.log(`  ${eolOk ? "✓" : "✗"} EOL        — a CRLF file yields the SAME findings as the LF original`)
+  // Assert the fixture is load-bearing: if this body stopped exercising a heading match, the probe
+  // above would pass on two empty strings and prove nothing.
+  const eolMeaningful = crlfBody.includes(RULES_SECTIONS[0]) && RULES_SECTIONS[0].startsWith("#")
+  if (!eolMeaningful) failed++
+  console.log(`  ${eolMeaningful ? "✓" : "✗"} EOL        — …and that fixture actually contains a heading to match`)
+
   // The discovery fixture — the one the old string-based design could not express at all.
   for (const f of readdirSync(join(tmp, ".claude", "rules"))) rmSync(join(tmp, ".claude", "rules", f))
   const globFired = runAudit(tmp).findings.some((f) => f.includes("glob decayed"))
@@ -396,7 +427,7 @@ if (process.argv.includes("--selftest")) {
   // added only 1 to D, so two rules vanished from BOTH sides and the binding metric silently
   // under-reported work that had been done. Counting is where this file has now been wrong twice
   // (occurrences-not-bullets, then controls-not-rules), so it is fixtured rather than trusted.
-  const countEnfProbe = (t) => t.split("\n").filter((l) => new RegExp(TAG.source).test(l)).length
+  const countEnfProbe = (t) => splitLines(t).filter((l) => new RegExp(TAG.source).test(l)).length
   const twoShared = `- One. <!-- @enforced hook:bash-gate:shared -->\n- Two. <!-- @enforced hook:bash-gate:shared -->\n`
   const okCount = countEnfProbe(twoShared) === 2
   if (!okCount) failed++
@@ -523,7 +554,7 @@ const { findings, claims } = runAudit(".")
 // counted twice and inflated N by one. The binding metric was measuring its own vocabulary.
 // Found by the triage pass reconciling 116 reported against 115 real bullets. One line at a time
 // is the fix: a line either carries the marker or it does not.
-const countUnenf = (t) => t.split("\n").filter((l) => l.includes("**UNENFORCEABLE**")).length
+const countUnenf = (t) => splitLines(t).filter((l) => l.includes("**UNENFORCEABLE**")).length
 const N_unenf = countUnenf(readFileSync("CLAUDE.md", "utf8"))
   + readdirSync(".claude/rules").filter((x) => x.endsWith(".md"))
       .reduce((n, f) => n + countUnenf(readFileSync(`.claude/rules/${f}`, "utf8")), 0)
@@ -538,7 +569,7 @@ const N_unenf = countUnenf(readFileSync("CLAUDE.md", "utf8"))
  * Same class as the earlier bug where this file counted marker OCCURRENCES and a rules file
  * discussing the marker inflated N — count the entity you claim to count (LESSONS L-05).
  */
-const countEnf = (t) => t.split("\n").filter((l) => new RegExp(TAG.source).test(l)).length
+const countEnf = (t) => splitLines(t).filter((l) => new RegExp(TAG.source).test(l)).length
 const D_enforced = countEnf(readFileSync("CLAUDE.md", "utf8"))
   + readdirSync(".claude/rules").filter((x) => x.endsWith(".md"))
       .reduce((n, f) => n + countEnf(readFileSync(`.claude/rules/${f}`, "utf8")), 0)
