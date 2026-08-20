@@ -177,6 +177,13 @@ rediscovery: `node scripts/agent-distribution.mjs` prints the table above, budge
 spines. The turn budget itself is UNENFORCEABLE (an agent has no reliable turn counter; it
 estimates), so its mechanical half is visibility.
 
+**The trigger counts TOP-LEVEL invocations only** (2026-08-20, when `census` gained the `Agent`
+tool with a width cap of 4). One ask that fans out to six children is one ask: counting the fan-out
+would let a single delegation decision fire a trigger meant to observe twenty. Nested runs are still
+measured — depth comes from each run's `spawnDepth` sidecar field and the parent edge is recovered
+by tool-use-id containment — they are reported as their own subset rather than folded into a
+per-type median that would then describe two populations at once.
+
 **The 27 runs above are all PRE-generation, and the trigger counts none of them.** The script's first
 live run said "TRIGGER MET (27 ≥ 20)" — against runs that every one of them predated the budgets,
 which would have meant tightening against exactly the behaviour the budgets were meant to change. It

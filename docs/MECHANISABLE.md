@@ -687,6 +687,13 @@ so the trigger never fires on evidence it cannot date. The table still spans bot
 the only data there is — but now says so, above the trigger line. As at this commit the honest reading
 is **0/20**, not 27/20.
 
+**Extended 2026-08-20 with depth + parent, BEFORE `census` was granted the `Agent` tool.** Order
+mattered: a nested fan-out arrives in the transcript tree as "more runs of a type", indistinguishable
+from the main session invoking it more often, so granting the tool first would have blinded the
+instrument exactly where cost grows fastest. Depth is read from each sidecar's `spawnDepth`; the
+parent edge is recovered by containment — whichever transcript holds a run's `toolUseId` made the
+call, which is the only place that edge is recorded. The trigger now counts depth-1 runs only.
+
 **First distribution, all pre-generation** (27 runs): implementer 196/336 turns · walker 118/129 ·
 grounder 100/117 · census 62/139 · db-inspector 18/18 (n=1). Reports 1.9k–5.3k median. Zero subagent
 compactions at a peak context of 249k — which is *not* evidence of "never", since the peak never
