@@ -32,7 +32,7 @@ const NATIONALITY_LABELS: Record<string, string> = {
   permanent_resident:      'Permanent Resident',
 }
 
-export function natLabel(t: string | null | undefined): string {
+function natLabel(t: string | null | undefined): string {
   if (!t) return 'Unknown'
   return NATIONALITY_LABELS[t] ?? t.replaceAll('_', ' ')
 }
@@ -41,7 +41,7 @@ const APPLICANT_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const
 
 // ─── Verification pass count ──────────────────────────────────────────────────
 
-export function countPasses(statuses: (string | null | undefined)[]): number {
+function countPasses(statuses: (string | null | undefined)[]): number {
   return statuses.filter(s => s === 'pass' || s === 'verified').length
 }
 
@@ -50,13 +50,13 @@ export function countPasses(statuses: (string | null | undefined)[]): number {
 type BureauProcessing = { responding: string[]; outliers: string[] }
 type AppSnap = { bureauProcessing: BureauProcessing; verifiedIncomeCents: number; incomeSharePct: number }
 
-export function filterBureaus(snap: AppSnap | undefined): string[] {
+function filterBureaus(snap: AppSnap | undefined): string[] {
   if (!snap) return []
   return snap.bureauProcessing.responding.filter(b => !snap.bureauProcessing.outliers.includes(b))
 }
 
 type NetworkStatus = 'trusted' | 'adverse' | 'none'
-export function toNetworkStatus(raw: string | null | undefined): NetworkStatus {
+function toNetworkStatus(raw: string | null | undefined): NetworkStatus {
   if (raw === 'trusted' || raw === 'adverse') return raw
   return 'none'
 }

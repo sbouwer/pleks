@@ -60,7 +60,7 @@ export interface IdentityMatch {
 /** Above this we link without asking. At exactly this line the evidence is an exact identifier or an exact email. */
 export const AUTO_LINK = 0.95
 /** Below this it is a different person and we say nothing. Between the two, we ASK. */
-export const ASK_THRESHOLD = 0.60
+const ASK_THRESHOLD = 0.60
 
 export interface IdentityCandidate {
   email: string | null

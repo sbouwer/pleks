@@ -9,7 +9,7 @@
  * mapped when proper legal clause text is available.
  */
 
-export const FEATURE_CLAUSE_MAP: Record<string, string[]> = {
+const FEATURE_CLAUSE_MAP: Record<string, string[]> = {
   "Alarm":                 ["security"],
   "Pool":                  ["common_property"],
   "Garden":                ["common_property"],

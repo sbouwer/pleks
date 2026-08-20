@@ -95,7 +95,7 @@ export function phoneToWhatsApp(raw: string | null | undefined): string | null {
 const CIPC_RX = /^\d{4}\/\d{6}\/\d{2}$/
 
 /** The last two digits of a CIPC number classify the entity type. (Common codes — not exhaustive.) */
-export const CIPC_ENTITY_CODES: Record<string, string> = {
+const CIPC_ENTITY_CODES: Record<string, string> = {
   "06": "Public company (Ltd)",
   "07": "Private company (Pty Ltd)",
   "08": "Non-profit company (NPC)",

@@ -28,7 +28,7 @@ function resolveName(p: PersonInput): string {
   return `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || "Unknown"
 }
 
-export function getInitials(p: PersonInput): string {
+function getInitials(p: PersonInput): string {
   if (p.entityType === "organisation" && p.companyName) {
     return p.companyName.slice(0, 2).toUpperCase()
   }

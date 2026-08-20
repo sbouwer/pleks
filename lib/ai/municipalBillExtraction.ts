@@ -7,7 +7,7 @@
  */
 import { createMessage } from "@/lib/ai/client"
 
-export const MUNICIPAL_BILL_SYSTEM_PROMPT = `You are extracting data from a South African municipal bill (rates/utilities account).
+const MUNICIPAL_BILL_SYSTEM_PROMPT = `You are extracting data from a South African municipal bill (rates/utilities account).
 
 SA municipalities include: City of Cape Town, City of Johannesburg, Ekurhuleni,
 eThekwini (Durban), Tshwane (Pretoria), Mangaung, Buffalo City, Nelson Mandela Bay,

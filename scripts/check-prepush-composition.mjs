@@ -58,8 +58,28 @@ const ok = (cond, label) => { if (!cond) failed++; console.log(`  ${cond ? "✓"
 const shallow = gitOrNull("git rev-parse --is-shallow-repository") === "true"
 const dbCommit = gitOrNull("git log --format=%H -1 -- supabase/")
 const dbParent = dbCommit ? gitOrNull(`git rev-parse ${dbCommit}~1`) : null
-const head = gitOrNull("git rev-parse HEAD")
-const headParent = gitOrNull("git rev-parse HEAD~1")
+
+/**
+ * A commit whose diff touches NO DB surface — SEARCHED, not assumed to be HEAD.
+ *
+ * The first version used HEAD..HEAD~1 and asserted it was DB-free. That held until a commit touched
+ * `scripts/security/`, which `needsDbTier` counts (correctly — editing the security scripts and not
+ * running them is the same hole as editing a migration and not running it). Then the "quick" case
+ * had no quick fixture and two probes went red on a working hook. A fixture derived from "whatever
+ * is on top" is a fixture that changes under you; derive it from the PROPERTY instead.
+ */
+const DB_SURFACE = /^(supabase\/|test\/db\/|scripts\/security\/|vitest\.db\.config\.)/
+function findQuickCommit() {
+  const shas = (gitOrNull("git log --format=%H -40") ?? "").split(/\r?\n/).filter(Boolean)
+  for (const sha of shas) {
+    const parent = gitOrNull(`git rev-parse ${sha}~1`)
+    if (!parent) continue
+    const files = (gitOrNull(`git diff --name-only ${parent} ${sha}`) ?? "").split(/\r?\n/).filter(Boolean)
+    if (files.length && !files.some((f) => DB_SURFACE.test(f))) return { sha, parent }
+  }
+  return { sha: null, parent: null }
+}
+const { sha: head, parent: headParent } = findQuickCommit()
 
 if (!dbCommit || !dbParent || !head || !headParent) {
   const why = shallow
@@ -76,8 +96,8 @@ if (!dbCommit || !dbParent || !head || !headParent) {
 ok(!!dbCommit, `history still contains a supabase/ commit to use as a fixture (${dbCommit.slice(0, 8)})`)
 ok(git(`git diff --name-only ${dbParent} ${dbCommit}`).split("\n").some((f) => f.startsWith("supabase/")),
   "…and its diff really does touch supabase/ — the fixture is what it claims to be")
-ok(!git(`git diff --name-only ${headParent} ${head}`).split("\n").some((f) => f.startsWith("supabase/")),
-  "…and HEAD's diff really does not")
+ok(!git(`git diff --name-only ${headParent} ${head}`).split("\n").some((f) => DB_SURFACE.test(f)),
+  `…and the quick fixture (${head.slice(0, 8)}) really touches no DB surface`)
 
 const shimDir = mkdtempSync(join(tmpdir(), "prepush-shim-"))
 writeFileSync(join(shimDir, "npm"), '#!/bin/sh\necho "SHIM npm $*"\nexit 0\n', { mode: 0o755 })

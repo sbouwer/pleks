@@ -70,7 +70,7 @@ function getCredentials(): { username: string; password: string } {
   return { username, password }
 }
 
-export function getSearchworxBaseUrl(): string {
+function getSearchworxBaseUrl(): string {
   const url = optionalEnv("SEARCHWORX_BASE_URL")
   if (!url) {
     if (isProductionNode()) {
@@ -83,7 +83,7 @@ export function getSearchworxBaseUrl(): string {
 
 // ─── Token management (exported for testability) ──────────────────────────────
 
-export async function _mintToken(): Promise<string> {
+async function _mintToken(): Promise<string> {
   const { username, password } = getCredentials()
   const response = await fetch(`${getSearchworxBaseUrl()}/auth/login/`, {
     method:  "POST",
@@ -100,7 +100,7 @@ export async function _mintToken(): Promise<string> {
   return token
 }
 
-export async function _validateToken(token: string): Promise<boolean> {
+async function _validateToken(token: string): Promise<boolean> {
   try {
     const response = await fetch(`${getSearchworxBaseUrl()}/auth/validatetoken/`, {
       method:  "POST",
@@ -115,7 +115,7 @@ export async function _validateToken(token: string): Promise<boolean> {
   }
 }
 
-export function _resetCache(): void {
+function _resetCache(): void {
   cache = null
 }
 

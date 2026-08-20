@@ -17,7 +17,7 @@ export interface MaintenanceCategory {
   code: string
 }
 
-export const MAINTENANCE_CATEGORIES: readonly MaintenanceCategory[] = [
+const MAINTENANCE_CATEGORIES: readonly MaintenanceCategory[] = [
   { value: "electrical",     label: "Electrical",      code: "ELE" },
   { value: "plumbing",       label: "Plumbing",        code: "PLU" },
   { value: "hvac",           label: "HVAC / Air-con",  code: "HVA" },

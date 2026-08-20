@@ -105,7 +105,7 @@ const HOA_FEATURES_PREMIUM = [
   "property_intelligence",   // Deeds/Lightstone/CIPC PAYG pulls (per-pull cost; Steward+ in residential)
 ] as const
 
-export const HOA_TIER_FEATURES: Record<HoaTier, readonly string[]> = {
+const HOA_TIER_FEATURES: Record<HoaTier, readonly string[]> = {
   hoa_studio:   HOA_FEATURES_BASE,
   hoa_practice: HOA_FEATURES_BASE,
   hoa_firm:     [...HOA_FEATURES_BASE, ...HOA_FEATURES_PREMIUM],
@@ -154,7 +154,7 @@ export function hasAccess(orgTier: AnyTier, requiredTier: AnyTier): boolean {
 // it is product-line-gated, and no residential tier reaches it at all. Do not re-add a "/hoa" floor here:
 // a tier floor would GRANT Firm orgs access, which is exactly what the ruling removes. The authoritative
 // gate is app/(dashboard)/hoa/layout.tsx (redirects /403 unless productLineForTier(tier) === "hoa").
-export const ROUTE_TIER_FLOORS = {
+const ROUTE_TIER_FLOORS = {
   "/calendar":             "portfolio",
   "/finance/trust-ledger": "steward",
   "/settings/templates":      "steward",

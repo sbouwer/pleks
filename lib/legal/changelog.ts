@@ -18,7 +18,7 @@ export interface ChangelogEntry {
 }
 
 /** Terms of Service changelog. Keys are "fromVersion:toVersion". */
-export const TOS_CHANGELOG: Record<string, ChangelogEntry> = {
+const TOS_CHANGELOG: Record<string, ChangelogEntry> = {
   "v3.3.0:v3.4.0": {
     highlights: [
       { section: "§04", summary: "Cancellation and data retention terms" },
@@ -29,7 +29,7 @@ export const TOS_CHANGELOG: Record<string, ChangelogEntry> = {
 }
 
 /** Privacy Policy changelog. Keys are "fromVersion:toVersion". */
-export const PRIVACY_CHANGELOG: Record<string, ChangelogEntry> = {}
+const PRIVACY_CHANGELOG: Record<string, ChangelogEntry> = {}
 
 /** Returns change highlights between two ToS versions, or null if not catalogued. */
 export function getTosHighlights(

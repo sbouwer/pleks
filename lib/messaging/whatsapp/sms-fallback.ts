@@ -18,7 +18,7 @@ const MAX_SMS_LENGTH = 160
  * Strips WhatsApp-style *bold* and _italic_ markers, then truncates to 160 chars
  * with a "... pleks.co.za" suffix if needed.
  */
-export function deriveSmsFromWhatsApp(body: string): string {
+function deriveSmsFromWhatsApp(body: string): string {
   const stripped = body
     .replaceAll(/\*([^*\n]+)\*/g, "$1")
     .replaceAll(/_([^_\n]+)_/g, "$1")

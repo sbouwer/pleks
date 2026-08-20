@@ -39,7 +39,7 @@ export const JOURNEY_MOMENTS: { moment: JourneyMoment; trigger: string; unlocks:
   { moment: "ingoing",    trigger: "post-activation",                 unlocks: "ingoing inspection = the deposit evidence chain" },
 ]
 
-export const JOURNEY_FIELDS: JourneyField[] = [
+const JOURNEY_FIELDS: JourneyField[] = [
   // ── Moment 1: creation ──────────────────────────────────────────────────────
   { key: "address",        label: "Property address",        fieldClass: "durable",   moment: "creation",   required: true,  source: "property",    ref: "address_line1",              backing: "column" },
   { key: "unit_identity",  label: "Unit identity",           fieldClass: "durable",   moment: "creation",   required: true,  source: "unit",        ref: "unit_number",                backing: "column" },

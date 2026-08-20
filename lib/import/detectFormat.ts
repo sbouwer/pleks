@@ -22,7 +22,7 @@ const TPN_CONTACTS_SIGNATURE = [
   "surname", "identifier", "numbers"
 ]
 
-export function detectTpnFormat(headers: string[]): "contacts" | "lease" | false {
+function detectTpnFormat(headers: string[]): "contacts" | "lease" | false {
   const normalised = headers.map((h) => h.toLowerCase().trim())
   const contactMatches = TPN_CONTACTS_SIGNATURE.filter((s) => normalised.includes(s)).length
   if (contactMatches >= 4) return "contacts"

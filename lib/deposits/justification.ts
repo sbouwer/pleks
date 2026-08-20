@@ -7,10 +7,10 @@
  * Used by the confirm gate (app) + mirrored by the DB trigger (durable). Keep the placeholder set in sync if any
  * legacy placeholder strings resurface.
  */
-export const MIN_JUSTIFICATION_LENGTH = 20
+const MIN_JUSTIFICATION_LENGTH = 20
 
 /** Legacy auto-placeholders that must NOT satisfy the gate (generateJustification no longer writes these). */
-export const JUSTIFICATION_PLACEHOLDERS: readonly string[] = [
+const JUSTIFICATION_PLACEHOLDERS: readonly string[] = [
   "AI justification available on Steward tier and above.",
   "AI justification unavailable — Anthropic API key not configured.",
   "AI justification temporarily unavailable — please add manually.",

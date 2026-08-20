@@ -29,7 +29,7 @@ export interface PropertyRule {
 }
 
 // Maps unit feature keys → rule_keys that should be suggested
-export const FEATURE_RULE_MAP: Record<string, string[]> = {
+const FEATURE_RULE_MAP: Record<string, string[]> = {
   "Pool":        ["pool_hours", "pool_no_glass"],
   "Garden":      ["garden_maintenance", "garden_no_alterations"],
   "Pet friendly":["pet_restrictions", "pet_waste"],

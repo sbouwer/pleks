@@ -20,7 +20,7 @@ export interface SupplierArchetypeConfig {
 }
 
 /** Map the raw supplier_type to one of the three display archetypes. */
-export function supplierArchetype(supplierType: string | null | undefined): SupplierArchetype {
+function supplierArchetype(supplierType: string | null | undefined): SupplierArchetype {
   if (supplierType === "managing_scheme") return "scheme"
   if (supplierType === "utility") return "utility"
   // contractor | recurring | both | other | null all present as the Contractor archetype.

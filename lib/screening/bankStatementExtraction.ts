@@ -24,7 +24,7 @@ export type ClassificationType =
   | 'other'
   | 'unclassified_skipped'
 
-export const COMMITMENT_CLASSIFICATIONS = new Set<ClassificationType>([
+const COMMITMENT_CLASSIFICATIONS = new Set<ClassificationType>([
   'rent_or_housing',
   'debt_repayment',
   'subscription',

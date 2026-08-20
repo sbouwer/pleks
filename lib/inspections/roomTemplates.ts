@@ -3,7 +3,7 @@
  *
  * Notes:  Legacy flat fallback template set (used when a unit has no profile/unit_type); the richer path is templateEngine.
  */
-export const RESIDENTIAL_ROOMS = [
+const RESIDENTIAL_ROOMS = [
   { type: "entrance", label: "Entrance / Hallway" },
   { type: "lounge", label: "Lounge" },
   { type: "dining", label: "Dining Room" },
@@ -22,7 +22,7 @@ export const RESIDENTIAL_ROOMS = [
   { type: "other", label: "Other" },
 ] as const
 
-export const COMMERCIAL_ROOMS = [
+const COMMERCIAL_ROOMS = [
   { type: "reception", label: "Reception / Entrance lobby" },
   { type: "open_plan", label: "Open plan office" },
   { type: "boardroom", label: "Boardroom / Meeting room" },

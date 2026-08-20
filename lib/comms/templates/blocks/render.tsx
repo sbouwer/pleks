@@ -19,7 +19,7 @@ import type { TemplateBlock, RenderContext } from "./types"
 const TOKEN_RE = /\{\{[^{}]{1,120}\}\}/g
 
 /** Replace {{token}} with ctx.merge[token]; unknown tokens collapse to "". */
-export function fillTokens(text: string, ctx: RenderContext): string {
+function fillTokens(text: string, ctx: RenderContext): string {
   return text.replaceAll(TOKEN_RE, (m) => {
     const key = m.slice(2, -2).trim()
     return ctx.merge[key] ?? ""

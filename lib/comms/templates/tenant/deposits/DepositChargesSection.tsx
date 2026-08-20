@@ -11,7 +11,7 @@ import { Section, Text } from "@react-email/components"
 import type { DepositChargeItem } from "./deposit-return-schedule"
 import { formatZAR } from "@/lib/constants"
 
-export const CHARGE_TYPE_LABELS: Record<string, string> = {
+const CHARGE_TYPE_LABELS: Record<string, string> = {
   rent_arrears:         "Deductions — Rent Arrears",
   unpaid_utilities:     "Deductions — Unpaid Utilities",
   cleaning:             "Deductions — Cleaning",

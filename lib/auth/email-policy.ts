@@ -14,7 +14,7 @@ import type { PortalClass } from "./membership"
 // Hand-maintained; reviewed quarterly. Global majors + SA legacy/ISP webmail +
 // common disposable providers. See §1.3 doctrine: admission is not a trust signal.
 
-export const PERSONAL_EMAIL_DOMAINS = new Set([
+const PERSONAL_EMAIL_DOMAINS = new Set([
   // Global majors
   "gmail.com", "googlemail.com",
   "yahoo.com", "yahoo.co.uk", "yahoo.co.za", "ymail.com", "rocketmail.com",

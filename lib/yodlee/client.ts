@@ -50,7 +50,7 @@ interface YodleeTransactionsResponse {
   transaction?: YodleeTransaction[]
 }
 
-export class YodleeClient {
+class YodleeClient {
   private baseUrl: string
   private clientId: string
   private secret: string

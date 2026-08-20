@@ -43,7 +43,7 @@ export function annualRandsToMonthlyCents(v: unknown): number | null {
 }
 
 /** A monthly rands figure (e.g. the company's existing commitments) → cents. Null when blank/non-positive. */
-export function monthlyRandsToCents(v: unknown): number | null {
+function monthlyRandsToCents(v: unknown): number | null {
   if (v == null) return null
   const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d.]/g, ""))
   if (!Number.isFinite(n) || n <= 0) return null
@@ -58,7 +58,7 @@ function ledgerLineMonthlyCents(r: unknown): number {
   if (!Number.isFinite(n) || n <= 0) return 0
   return Math.round((n * 100) / (LEDGER_DIVISOR[String(row.period ?? "month")] ?? 1))
 }
-export function ledgerMonthlyCents(rows: unknown): number {
+function ledgerMonthlyCents(rows: unknown): number {
   return Array.isArray(rows) ? rows.reduce((s: number, r) => s + ledgerLineMonthlyCents(r), 0) : 0
 }
 function ledgerKeyMonthlyCents(rows: unknown, key: string): number {

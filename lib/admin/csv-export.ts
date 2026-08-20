@@ -9,7 +9,7 @@
 import { escapeCsvCell } from "@/lib/security/csvInjection"
 import { createServiceClient } from "@/lib/supabase/server"
 
-export function redactIp(ip: string | null): string {
+function redactIp(ip: string | null): string {
   if (!ip) return ""
   const v4 = ip.match(/^(\d+\.\d+\.\d+)\.\d+$/)
   if (v4) return `${v4[1]}.0/24`
@@ -21,7 +21,7 @@ export function redactIp(ip: string | null): string {
   return ip
 }
 
-export function redactUserAgent(ua: string | null): string {
+function redactUserAgent(ua: string | null): string {
   if (!ua) return ""
   if (/Chrome\//.test(ua) && !/Edge\/|Edg\/|OPR\//.test(ua)) return "Chrome"
   if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) return "Safari"

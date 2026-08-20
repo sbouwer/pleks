@@ -30,7 +30,7 @@ function normalise(s: string): string {
 }
 
 // Tier 1: Exact reference match against invoice_number
-export async function matchExact(
+async function matchExact(
   referenceClean: string | null,
   ctx: MatchContext,
 ): Promise<MatchResult | null> {
@@ -67,7 +67,7 @@ export async function matchExact(
 }
 
 // Tier 2: Fuzzy match — amount within R50 tolerance, date within 14 days
-export async function matchFuzzy(
+async function matchFuzzy(
   line: {
     amount_cents: number
     transaction_date: string
@@ -128,7 +128,7 @@ export async function matchFuzzy(
 }
 
 // Tier 3: Claude Haiku AI match
-export async function matchAI(
+async function matchAI(
   line: {
     reference_clean: string | null
     description_clean: string | null

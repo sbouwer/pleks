@@ -12,7 +12,7 @@ import { ROUTE_MANIFEST } from "@/lib/routing/manifest"
 
 /** Prefixes that bypass ALL middleware gates — the handlers validate their own secrets. A wrong entry here
  *  makes an authenticated route publicly reachable, so this is the highest-stakes list in the gate. */
-export const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/health", "/api/status", "/api/legal"]
+const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/health", "/api/status", "/api/legal"]
 
 /** True when the path bypasses all gates (webhook/cron/etc.). Behaviour-identical to the original proxy.ts
  *  check — a plain prefix `startsWith`. (A stricter segment match would be a separate, deliberate change;
@@ -22,7 +22,7 @@ export function isWebhookPath(pathname: string): boolean {
 }
 
 /** Apex/marketing paths served on the marketing host (everything else 308s to the app host). */
-export const APEX_PREFIXES = [
+const APEX_PREFIXES = [
   "/pricing",
   "/privacy", "/terms", "/credit-check-policy", "/cookie-policy", "/paia-manual",
   "/popia-register", "/definitions", "/contact", "/demo", "/marketing",
