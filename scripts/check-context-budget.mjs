@@ -22,7 +22,7 @@
  * why the memory probe measures the process rather than the message.
  */
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, openSync, writeSync, closeSync } from "node:fs"
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, openSync, writeSync, closeSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -303,6 +303,22 @@ const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  $
   // No cwd at all — state is impossible, the snapshot must still work.
   const r2 = run(JSON.stringify({ hook_event_name: "UserPromptSubmit", transcript_path: transcript("nocwd", 600_000), prompt: "x" }))
   ok(/600k/.test(r2.sys ?? ""), "with no cwd the snapshot still measures — cumulative is the only casualty", JSON.stringify(r2))
+}
+
+// ── the threshold and the autocompact window must stay coherent ──────────────────────────────
+// The hook warns, and the CLI compacts. If the warn line sits AT or ABOVE the compaction window,
+// compaction pre-empts its own warning and the tier is unreachable text — the hook would look
+// installed and say nothing, forever. This is the one relationship between the two that nothing
+// else can check, because it spans a JS constant and a JSON setting.
+{
+  const settings = JSON.parse(readFileSync(".claude/settings.json", "utf8"))
+  const window = settings.autoCompactWindow
+  const { WARN, STOP } = await import("../.claude/hooks/context-budget.js").then((m) => m.default ?? m)
+
+  ok(typeof window === "number", "settings.json sets autoCompactWindow — compaction is configured, not left at the ~1M default", JSON.stringify(window))
+  ok(window >= 100_000 && window <= 1_000_000, `…and it is inside the CLI's accepted 100k-1M range (${window})`, String(window))
+  ok(WARN < window, `WARN (${WARN}) is BELOW autoCompactWindow (${window}) — otherwise compaction fires first and the warning is unreachable`, `WARN=${WARN} window=${window}`)
+  ok(STOP > window, `STOP (${STOP}) is ABOVE autoCompactWindow (${window}) — reaching it means autocompact did not fire, which is itself the finding`, `STOP=${STOP} window=${window}`)
 }
 
 rmSync(tmp, { recursive: true, force: true })
