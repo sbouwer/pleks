@@ -41,8 +41,14 @@ const DIRS = [
   { dir: ".claude/hooks", ext: ".js", needsPaths: false },
 ]
 
-/** Single files that are shared but sit at the top of `.claude/`. */
-const FILES = [".claude/settings.json"]
+/**
+ * Single files that are shared but sit at the top of `.claude/`.
+ *
+ * These need naming individually because `.gitignore` ignores `.claude/*` and re-includes only the
+ * listed subtrees — a new top-level file is invisible to `git add -A` unless someone remembers a
+ * negation. That is exactly how two crawler files were "committed" in a message and not on disk.
+ */
+const FILES = [".claude/settings.json", ".claude/statusline.js"]
 
 const walk = (dir, ext) => {
   const out = []

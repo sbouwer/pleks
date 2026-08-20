@@ -71,8 +71,12 @@ lib/reports/screening/_pdf/__samples__/
 !.claude/rules/
 !.claude/skills/
 !.claude/settings.json
+!.claude/statusline.js
 # Machine-local, never shared: personal permission overrides and session scratch.
 .claude/settings.local.json
+# Per-machine token accounting written by the context-budget hook. Byte offsets and running totals
+# for THIS clone's transcript — meaningless in another checkout, and it changes on every prompt.
+.claude/.context-budget.state.json
 
 # Build specs, legal docs, and design references — local only
 brief/

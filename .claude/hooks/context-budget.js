@@ -199,6 +199,19 @@ function readMain(path, prevOffset) {
 }
 
 /**
+ * The snapshot alone, with no state read, no state write and no subagent scan.
+ *
+ * For callers that run FAR more often than once per prompt — the statusline re-renders on a timer,
+ * so it must not scan 54 subagent files or rewrite the state file each time. Passing an offset
+ * beyond any real file size forces `start` to `size - WINDOW`: one stat and one positioned read.
+ * The statusline reads cumulative figures from the state file the hook already maintains, so there
+ * is exactly one writer.
+ */
+function contextNow(transcriptPath) {
+  return readMain(transcriptPath, Number.MAX_SAFE_INTEGER).context;
+}
+
+/**
  * Sum every subagent transcript, reading only what has grown since last time.
  *
  * Finished agents never grow, so on a steady-state prompt this stats N files and reads none of
@@ -344,29 +357,36 @@ function adviseAgent(m) {
     + `Do not suggest /compact — you cannot run it and the user has already been told separately.`;
 }
 
-let raw = "";
-process.stdin.on("data", (c) => (raw += c));
-process.stdin.on("end", () => {
-  let additionalContext = "";
-  let systemMessage = null;
-  try {
-    const input = JSON.parse(raw.replace(/^﻿/, ""));
-    if (input.transcript_path) {
-      const m = measure(input.transcript_path, input.cwd);
-      additionalContext = adviseAgent(m) ?? "";
-      systemMessage = adviseUser(m);
+// Only consume stdin when this file IS the process. `.claude/statusline.js` requires it as a
+// library, and without this guard that require would register a stdin handler which then prints the
+// hook's JSON onto the statusline's stdout — corrupting the status bar with a hook payload. The
+// same collision made this hook's own RSS probe pass vacuously before it was caught, so the
+// failure mode is demonstrated rather than hypothetical.
+if (require.main === module) {
+  let raw = "";
+  process.stdin.on("data", (c) => (raw += c));
+  process.stdin.on("end", () => {
+    let additionalContext = "";
+    let systemMessage = null;
+    try {
+      const input = JSON.parse(raw.replace(/^﻿/, ""));
+      if (input.transcript_path) {
+        const m = measure(input.transcript_path, input.cwd);
+        additionalContext = adviseAgent(m) ?? "";
+        systemMessage = adviseUser(m);
+      }
+    } catch {
+      // A hook that cannot measure must not guess, and must not block: this one only ever ADDS a
+      // line, so failing silent costs a missed reminder rather than a stalled session.
     }
-  } catch {
-    // A hook that cannot measure must not guess, and must not block: this one only ever ADDS a
-    // line, so failing silent costs a missed reminder rather than a stalled session.
-  }
 
-  const out = { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext } };
-  if (systemMessage) out.systemMessage = systemMessage;
-  process.stdout.write(JSON.stringify(out));
-});
+    const out = { hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext } };
+    if (systemMessage) out.systemMessage = systemMessage;
+    process.stdout.write(JSON.stringify(out));
+  });
+}
 
 module.exports = {
-  adviseUser, adviseAgent, measure, readMain, readAgents, readRange,
+  adviseUser, adviseAgent, measure, readMain, readAgents, readRange, contextNow, loadState,
   WARN, STOP, CACHE_READ_MULTIPLIER, CACHE_WRITE_MULTIPLIER, STATE_FILE,
 };
