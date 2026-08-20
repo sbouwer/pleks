@@ -1,7 +1,7 @@
 # CLAUDE.md — Pleks
 
 <!--
-  Built from SPEC_CLAUDE_MD_STANDARD v4.5 (C:\dev\dev-standards).
+  Built from standards/CLAUDE-MD-STANDARD v4.5 (C:\dev\dev-standards).
   BINDING METRIC: the UNENFORCEABLE RATIO — N of D. N = rules whose only control is model
   attention; D = all marker-carrying rules, here AND in .claude/rules/*.md.
   N may only FALL and D may only RISE — both pinned in scripts/claude-md-ratio.ceiling.json.
@@ -46,7 +46,7 @@ stale in one session and then misleads the next.
 gaps, not ideas. **`brief/` is a symlink to OneDrive and is NOT version-controlled** — anything the
 tooling depends on belongs in the tracked tree instead.
 
-**Check `c:\dev\dev-standards\LESSONS.md` for open items naming this project.**
+**Check `c:\dev\dev-standards\ledgers\LESSONS.md` for open items naming this project.**
 
 ---
 
@@ -549,7 +549,7 @@ CANCELLED; Pleks sells one bundle.
     name the bug CLASS → hook? (+twin +probes) → check? (+probes) → either way, the reasoning
     (false leads included) to a comment at the site → single-file? that file only → cross-cutting?
     a scoped rule file → global or unenforceable? here, visibly (MECHANISABLE → M-register if
-    buildable) → portable? dev-standards/LESSONS.md with Applied: lines (a date or n/a: — never
+    buildable) → portable? dev-standards/ledgers/LESSONS.md with Applied: lines (a date or n/a: — never
     "pending").
   Probe-first, both directions, before version one. A never-matching pattern reports 100% clean;
   tool failure and catastrophic finding are the same output, and partial fixes make the number MORE
@@ -559,6 +559,6 @@ CANCELLED; Pleks sells one bundle.
   the deformation. A conditional gate can be structurally always-false in the stage it runs in.
   Deletion is never justified on budget grounds alone: stripped content was never in the budget.
   Ratchet each release: report N of D + both deltas, and the M-register depth + delta.
-  Full contract: C:\dev\dev-standards\SPEC_CLAUDE_MD_STANDARD.md
+  Full contract: C:\dev\dev-standards\standards\CLAUDE-MD-STANDARD.md
 -->
 

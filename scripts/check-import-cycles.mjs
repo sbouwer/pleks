@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * scripts/check-import-cycles.mjs — tier 0 of SPEC_CODEBASE_CRAWLERS: circular imports.
+ * scripts/check-import-cycles.mjs — tier 0 of standards/CODEBASE-CRAWLERS: circular imports.
  *
  * PORTED FROM life-therapy (`scripts/check-import-cycles.mjs`), not reinvented. Their reasoning
  * transfers whole: the spec names `madge`, madge peer-depends on an older TypeScript than these

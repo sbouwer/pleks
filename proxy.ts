@@ -17,7 +17,7 @@
  *         at the project root — it is deprecated in Next.js 16 and will not be picked up.
  *         When any spec references "middleware" or "the proxy layer", the implementation
  *         lives here. Moved from `.claude/rules/routing-auth.md` (single-file doctrine,
- *         SPEC_CLAUDE_MD_STANDARD v3 §4 rung 4) — this file is where the rule is checkable.
+ *         standards/CLAUDE-MD-STANDARD v3 §4 rung 4) — this file is where the rule is checkable.
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"

@@ -99,7 +99,7 @@ E1b, which *is* controlled.
 
 ## E3 · Does this file reach a subagent? — **ANSWERED: YES**
 
-Resolved in the canonical register (`C:\dev\dev-standards\SPEC_CLAUDE_MD_STANDARD.md` §9), not by a
+Resolved in the canonical register (`C:\dev\dev-standards\standards\CLAUDE-MD-STANDARD.md` §9), not by a
 probe in this repo: subagents **do** receive this file.
 
 **But presence is not enforcement, and the qualifier is load-bearing:** a narrow-task agent *skims*

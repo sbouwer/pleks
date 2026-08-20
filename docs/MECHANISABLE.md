@@ -30,7 +30,7 @@ directly rather than derived from the sort; M-007 onward is the derived ranking,
 one AND the file was confirmed present on disk in this pass; `NEW` means no such doc exists — do not
 infer one. Two rules in the source material cited spec filenames that do **not** exist on disk
 (`ADDENDUM_AUTH_RESOLVER_SELF_REFERENCE_FIX_2026-05-27`, `ADDENDUM_DATA_ACCESS_DOCTRINE_2026-05-27`,
-and the `SPEC_CLAUDE_MD_STANDARD` cited in `check-claude-md.mjs`'s own header) — flagged in the report,
+and the `standards/CLAUDE-MD-STANDARD` cited in `check-claude-md.mjs`'s own header) — flagged in the report,
 not silently substituted.
 
 ---

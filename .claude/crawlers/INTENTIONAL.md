@@ -1,7 +1,7 @@
 # INTENTIONAL — deliberate design that looks like residue
 
 **Every crawler reads this before reporting anything.** A finding matching an entry is
-**suppressed, not downgraded**. `SPEC_CODEBASE_CRAWLERS` §6, and D6 makes it a build blocker:
+**suppressed, not downgraded**. `standards/CODEBASE-CRAWLERS` §6, and D6 makes it a build blocker:
 without it a first run confidently flags considered decisions as defects, and first impressions
 decide whether the tool is ever run again.
 

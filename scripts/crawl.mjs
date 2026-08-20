@@ -7,7 +7,7 @@
  * the inherited stderr and the timeout each exist because someone hit the failure it
  * describes. Reproducing that by writing a fresh wrapper would mean rediscovering all four.
  *
- * SPEC_CODEBASE_CRAWLERS §5, at the size the spec's D5 asks for TODAY. v1 of that spec
+ * standards/CODEBASE-CRAWLERS §5, at the size the spec's D5 asks for TODAY. v1 of that spec
  * mandated stable IDs, fingerprint dedup and a six-state ledger before the first crawler
  * ran. That was right facing a 300-finding first run, and it is over-engineering for a
  * first run whose volume nobody has measured yet.

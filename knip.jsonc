@@ -1,5 +1,5 @@
 {
-  // Tier-0 dead-code detection (SPEC_CODEBASE_CRAWLERS D1). `npm run crawl:tier0`.
+  // Tier-0 dead-code detection (standards/CODEBASE-CRAWLERS D1). `npm run crawl:tier0`.
   //
   // Config shape ported from life-therapy's knip.jsonc rather than derived from scratch — their
   // entry list, the `ignoreExportsUsedInFile` split and the reasons-are-mandatory rule below were
