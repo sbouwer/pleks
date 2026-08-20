@@ -2,25 +2,27 @@
 /**
  * scripts/check-context-budget.mjs — probes for the context-budget hook.
  *
- * A reminder hook has four ways to be useless, and this repo has now shipped two of them:
+ * A reminder hook has several ways to be useless, and this repo has now shipped three of them:
  *   quiet when it should be     — a warning on every prompt is wallpaper and gets ignored
  *   silent when it should warn  — the failure that costs money, and the invisible one
  *   noisy on a broken payload   — this hook only ever ADDS a line, so a parse failure must degrade
  *                                 to "no advice", never to a stalled prompt
- *   SHIPPED, twice:
+ *   SHIPPED:
  *     · it read the last usage line and so reported the PRE-compaction size to a session that had
  *       just compacted — nagging at the one moment the problem was already solved
  *     · it addressed "/compact" to the model, which cannot run a slash command, while the human
  *       who can saw nothing at all
+ *     · it called readFileSync() on a 41.5MB transcript EVERY PROMPT — the WINDOW constant bounded
+ *       the parsing and not the reading, so the hook policing I/O cost was the most I/O-expensive
+ *       thing in the session
  *
- * Both of those passed the original probe suite, because every probe exercised a case the author
- * had already thought of. The two fixtures at the bottom exist so that class cannot come back.
- *
- * Driven as a real subprocess with a real stdin payload and a real transcript file on disk, because
- * the thing most likely to break is reading the transcript — not the arithmetic.
+ * All three passed the suite that existed at the time, because every probe exercised a case the
+ * author had already thought of. The REGRESSION fixtures below exist so those classes cannot come
+ * back — in particular the I/O one, which no assertion about OUTPUT could ever have caught. That is
+ * why the memory probe measures the process rather than the message.
  */
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, writeFileSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, openSync, writeSync, closeSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -39,18 +41,10 @@ const usageLine = (cacheRead, extra = {}) => JSON.stringify({
   message: { usage: { cache_read_input_tokens: cacheRead, cache_creation_input_tokens: 0, input_tokens: 0, output_tokens: 100 } },
 })
 
-/** A transcript whose LAST usage-bearing line reports the given context size. */
-function transcript(name, cacheRead, extraTail = []) {
-  const p = join(tmp, `${name}.jsonl`)
-  const lines = [
-    JSON.stringify({ type: "user", message: { content: "hello" } }),
-    usageLine(10),
-    usageLine(cacheRead),
-    ...extraTail,
-  ]
-  writeFileSync(p, lines.join("\n") + "\n")
-  return p
-}
+const boundary = (postTokens, trigger = "manual") => JSON.stringify({
+  type: "system", subtype: "compact_boundary",
+  compactMetadata: { trigger, preTokens: 687_984, ...(postTokens === null ? {} : { postTokens }) },
+})
 
 function write(name, lines) {
   const p = join(tmp, `${name}.jsonl`)
@@ -58,19 +52,37 @@ function write(name, lines) {
   return p
 }
 
+/** A transcript whose LAST usage-bearing line reports the given context size. */
+function transcript(name, cacheRead, extraTail = []) {
+  return write(name, [
+    JSON.stringify({ type: "user", message: { content: "hello" } }),
+    usageLine(10),
+    usageLine(cacheRead),
+    ...extraTail,
+  ])
+}
+
+/** A fresh cwd per case, so one probe's state file cannot leak into the next. */
+let cwdSeq = 0
+function freshCwd() {
+  const d = join(tmp, `cwd${cwdSeq++}`)
+  mkdirSync(d, { recursive: true })
+  return d
+}
+
 function run(payload) {
   const r = spawnSync("node", [HOOK], { input: payload, encoding: "utf8" })
-  if (r.status !== 0) return { error: `hook exited ${r.status}: ${r.stderr.slice(0, 160)}` }
+  if (r.status !== 0) return { error: `hook exited ${r.status}: ${r.stderr.slice(0, 200)}` }
   try {
     const j = JSON.parse(r.stdout)
     return { ctx: j.hookSpecificOutput.additionalContext, sys: j.systemMessage ?? null }
   } catch {
-    return { error: `unparseable stdout: ${r.stdout.slice(0, 160)}` }
+    return { error: `unparseable stdout: ${r.stdout.slice(0, 200)}` }
   }
 }
 
-const payload = (transcript_path, prompt = "do a thing") =>
-  JSON.stringify({ hook_event_name: "UserPromptSubmit", transcript_path, prompt, cwd: process.cwd() })
+const payload = (transcript_path, cwd = freshCwd(), prompt = "do a thing") =>
+  JSON.stringify({ hook_event_name: "UserPromptSubmit", transcript_path, prompt, cwd })
 
 let failed = 0
 const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  ${cond ? "✓" : "✗"} ${label}${cond ? "" : `\n      ${detail}`}`) }
@@ -81,10 +93,11 @@ const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  $
   ok(r.ctx === "" && r.sys === null, "KNOWN-GOOD: 50k says nothing to EITHER audience — a reminder that always fires is wallpaper", JSON.stringify(r))
 }
 
-// ── warns in the middle band, to both audiences, with different text ─────────────────────────
+// ── WARN must sit below the recommended autocompact threshold, or the tier is unreachable ────
 {
-  const r = run(payload(transcript("mid", 300_000)))
-  ok(/Context 300k/.test(r.ctx ?? "") && /Context 300k/.test(r.sys ?? ""), "300k warns BOTH audiences, and names the actual number", JSON.stringify(r))
+  const r = run(payload(transcript("warnband", 200_000)))
+  ok(/Context 200k/.test(r.sys ?? ""), "200k warns — WARN(180k) is BELOW the 300k autocompact this hook recommends, so the tier can actually fire", JSON.stringify(r))
+  ok(/300000/.test(r.sys ?? ""), "…and the recommended threshold is stated, not implied", JSON.stringify(r))
 }
 
 // ── escalates above the stop line ────────────────────────────────────────────────────────────
@@ -92,11 +105,11 @@ const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  $
   const r = run(payload(transcript("big", 600_000)))
   ok(/⚠ CONTEXT 600k/.test(r.sys ?? ""), "600k escalates to the user", JSON.stringify(r))
   ok(/60k billable/.test(r.sys ?? ""), "…and states the PER-TURN cost, which is the number that decides", JSON.stringify(r))
-  ok((r.sys ?? "").length > (run(payload(transcript("mid2", 300_000))).sys ?? "").length,
-    "…and says more than the mid-band message, so the escalation is visible")
+  ok((r.sys ?? "").length > (run(payload(transcript("mid2", 200_000))).sys ?? "").length,
+    "…and says more than the warn-band message, so the escalation is visible")
 }
 
-// ── THE AUDIENCE SPLIT (shipped defect #1) ───────────────────────────────────────────────────
+// ── THE AUDIENCE SPLIT (shipped defect) ──────────────────────────────────────────────────────
 // "/compact" is a slash command. Only the human can run one. Putting that instruction in
 // additionalContext delivers it to the model and to nobody who can act on it.
 {
@@ -107,63 +120,161 @@ const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  $
   ok(/autocompact/.test(r.sys ?? ""), "…and the user is told the permanent fix, not just the manual one", JSON.stringify(r))
 }
 
-// ── THE POST-COMPACTION READ (shipped defect #2) ─────────────────────────────────────────────
-// At prompt-submit time right after a compaction there is no post-compaction turn yet, so the
-// newest usage line is the PRE-compaction one. Reading it reports ~700k to a 15k session.
+// ── THE POST-COMPACTION READ (shipped defect) ────────────────────────────────────────────────
 {
-  const p = write("compacted", [
-    usageLine(687_984),                                                    // the turn before compaction
-    JSON.stringify({ type: "system", subtype: "compact_boundary", compactMetadata: { trigger: "manual", preTokens: 687_984, postTokens: 15_444 } }),
-    JSON.stringify({ type: "user", isCompactSummary: true, message: { content: "This session is being continued…" } }),
-  ])
+  const p = write("compacted", [usageLine(687_984), boundary(15_444), JSON.stringify({ type: "user", isCompactSummary: true, message: { content: "continued…" } })])
   const r = run(payload(p))
   ok(r.sys === null && r.ctx === "", "REGRESSION: straight after a compaction the hook is SILENT — it reads postTokens (15k), not the stale pre-compaction usage (688k)", JSON.stringify(r))
 }
 {
-  // …and the boundary must not silence it forever: once context regrows past WARN, it warns again.
-  const p = write("regrown", [
-    usageLine(687_984),
-    JSON.stringify({ type: "system", subtype: "compact_boundary", compactMetadata: { trigger: "manual", preTokens: 687_984, postTokens: 15_444 } }),
-    usageLine(300_000),                                                    // context grew back
-  ])
+  const p = write("regrown", [usageLine(687_984), boundary(15_444), usageLine(200_000)])
   const r = run(payload(p))
-  ok(/Context 300k/.test(r.sys ?? ""), "KNOWN-GOOD: a post-compaction turn that regrew to 300k warns again — the boundary is not a permanent mute", JSON.stringify(r))
+  ok(/Context 200k/.test(r.sys ?? ""), "KNOWN-GOOD: a post-compaction turn that regrew past WARN warns again — the boundary is not a permanent mute", JSON.stringify(r))
 }
 {
-  // A boundary with no postTokens must not be trusted as a measurement.
-  const p = write("boundary-malformed", [
-    usageLine(600_000),
-    JSON.stringify({ type: "system", subtype: "compact_boundary", compactMetadata: { trigger: "auto" } }),
-  ])
+  const p = write("boundary-malformed", [usageLine(600_000), boundary(null)])
   const r = run(payload(p))
   ok(/600k/.test(r.sys ?? ""), "a boundary missing postTokens is skipped, not read as zero", JSON.stringify(r))
 }
 
-// ── a subagent's window is not this session's ────────────────────────────────────────────────
+// ── THE UNBOUNDED READ (shipped defect) ──────────────────────────────────────────────────────
+// This is the one no output assertion could have caught: the hook printed exactly the right
+// message while reading 41.5MB to do it. So measure the PROCESS, not the message.
 {
-  const p = write("sidechain", [
-    usageLine(600_000),
-    usageLine(40_000, { isSidechain: true }),                              // a subagent turn
-  ])
-  const r = run(payload(p))
-  ok(/600k/.test(r.sys ?? ""), "sidechain (subagent) usage is skipped — it is its own context window, not ours", JSON.stringify(r))
+  // The driver's line is MARKED, because requiring the hook also registers its stdin handler and
+  // that handler prints the hook's own JSON on stdin close. Taking "the last line" picked up the
+  // hook's output instead, every field came back undefined, and `(undefined ?? 0) - (undefined ?? 0)`
+  // is 0 — which is less than any threshold. The probe passed while asserting nothing. Hence the
+  // marker, and hence the explicit "rss is a positive number" assertion below it.
+  const driver = join(tmp, "rss-driver.mjs")
+  writeFileSync(driver, [
+    `import { createRequire } from "node:module"`,
+    `const require = createRequire(${JSON.stringify(`file:///${process.cwd().replace(/\\/g, "/")}/`)})`,
+    `const h = require(${JSON.stringify(`./${HOOK}`)})`,
+    `const t0 = Date.now()`,
+    `h.measure(process.argv[2], process.argv[3])`,
+    `console.log("RSSPROBE:" + JSON.stringify({ rss: process.memoryUsage().rss, ms: Date.now() - t0 }))`,
+  ].join("\n"))
+
+  /** Build a transcript of roughly `mb` megabytes whose LAST line is a real usage line. */
+  function bigTranscript(name, mb) {
+    const p = join(tmp, `${name}.jsonl`)
+    const filler = JSON.stringify({ type: "user", message: { content: "x".repeat(4000) } }) + "\n"
+    const chunk = Buffer.from(filler.repeat(256), "utf8")          // ~1MB per chunk
+    const fd = openSync(p, "w")
+    try {
+      for (let written = 0; written < mb * 1024 * 1024; written += chunk.length) writeSync(fd, chunk)
+      writeSync(fd, Buffer.from(usageLine(600_000) + "\n", "utf8"))
+    } finally { closeSync(fd) }
+    return p
+  }
+
+  const measureRss = (p) => {
+    const r = spawnSync("node", [driver, p, freshCwd()], { encoding: "utf8" })
+    const line = r.stdout.split("\n").find((l) => l.startsWith("RSSPROBE:"))
+    if (!line) return { error: `no RSSPROBE line. stderr: ${r.stderr.slice(0, 200)}` }
+    try { return JSON.parse(line.slice("RSSPROBE:".length)) } catch { return { error: `bad RSSPROBE payload: ${line.slice(0, 120)}` } }
+  }
+
+  const small = measureRss(bigTranscript("io-small", 1))
+  const huge = measureRss(bigTranscript("io-huge", 200))
+
+  ok(!small.error && !huge.error, "the RSS driver ran against both a 1MB and a 200MB transcript", JSON.stringify({ small, huge }))
+  ok(Number.isFinite(small.rss) && small.rss > 0 && Number.isFinite(huge.rss) && huge.rss > 0,
+    "…and both reported a REAL rss — an undefined here would make the comparison below vacuously true",
+    JSON.stringify({ small, huge }))
+
+  const growth = huge.rss - small.rss
+  ok(growth < 60 * 1024 * 1024,
+    `REGRESSION: memory is FLAT in transcript size — a 200MB file costs ${Math.round(growth / 1e6)}MB more RSS than a 1MB one (a whole-file read would cost ~200MB)`,
+    JSON.stringify({ small, huge, growthMB: Math.round(growth / 1e6) }))
+  ok(Number.isFinite(huge.ms) && huge.ms < 2000,
+    `…and wall-time is flat too: ${huge.ms}ms on a 200MB transcript`, JSON.stringify(huge))
+}
+
+// ── AGENT ACCOUNTING ─────────────────────────────────────────────────────────────────────────
+// Agent spend lives in <transcript-dir>/<sessionId>/subagents/, NOT in the main transcript:
+// measured 6,750 main turns in this repo's session carrying ZERO isSidechain, despite 32 Agent
+// calls. A guard against isSidechain in the main file was correct in principle and dead in fact.
+{
+  /** A session directory laid out the way Claude Code actually writes one. */
+  function sessionWithAgents(name, agents) {
+    const p = write(name, [usageLine(600_000)])
+    const dir = join(tmp, name, "subagents")
+    mkdirSync(dir, { recursive: true })
+    for (const [id, { type, turns }] of Object.entries(agents)) {
+      writeFileSync(join(dir, `agent-${id}.meta.json`), JSON.stringify({ agentType: type, description: "d", spawnDepth: 1 }))
+      writeFileSync(join(dir, `agent-${id}.jsonl`),
+        turns.map((t) => JSON.stringify({ isSidechain: true, agentId: id, type: "assistant", message: { usage: { cache_read_input_tokens: t, cache_creation_input_tokens: 0, input_tokens: 0, output_tokens: 50 } } })).join("\n") + "\n")
+    }
+    return p
+  }
+
+  const withAgents = sessionWithAgents("hasagents", {
+    aaa: { type: "census", turns: [100_000, 120_000] },
+    bbb: { type: "grounder", turns: [90_000] },
+  })
+  const r = run(payload(withAgents))
+  ok(/3 agents|3 invocations|2 agents/.test(r.sys ?? "") || /2 invocations/.test(r.ctx ?? ""),
+    "a session WITH subagents reports a non-zero invocation count", JSON.stringify(r))
+  ok(/Agents so far: 2 invocations/.test(r.ctx ?? ""), "…the model is told how many delegations have happened", JSON.stringify(r))
+  ok(!/~0k billable/.test(r.ctx ?? "") && /Agents so far/.test(r.ctx ?? ""), "…and their cost is non-zero", JSON.stringify(r))
+  ok(/READS a lot and RETURNS a little/.test(r.ctx ?? ""), "…and is given the rule for when delegation actually pays", JSON.stringify(r))
+
+  // Millions must read as millions. The first live run printed "~55687k billable-equivalent" for
+  // real agent spend — correct, and unreadable at the glance this figure exists to inform.
+  const heavy = sessionWithAgents("heavyagents", {
+    ccc: { type: "implementer", turns: Array.from({ length: 40 }, () => 900_000) },
+  })
+  const rh = run(payload(heavy))
+  ok(/\d+\.\d M?|\d+\.\dM/.test(rh.ctx ?? "") && /M billable/.test(rh.ctx ?? ""),
+    "spend in the millions renders as M, not as five digits of k", JSON.stringify(rh.ctx))
+  ok(!/\d{4,}k/.test(rh.ctx ?? ""), "…and no four-plus-digit k value survives anywhere in the message", JSON.stringify(rh.ctx))
+
+  // The other direction, which is the one that rots silently: no agents must mean EXACTLY zero,
+  // reported as an absence, never as a null rendered into a number.
+  const noAgents = write("noagents", [usageLine(600_000)])
+  const r2 = run(payload(noAgents))
+  ok(!/Agents so far/.test(r2.ctx ?? ""), "KNOWN-GOOD: a session with NO subagents omits the agent clause entirely — no null-as-zero", JSON.stringify(r2))
+  ok(!/NaN|undefined|null/.test(r2.ctx ?? "") && !/NaN|undefined|null/.test(r2.sys ?? ""),
+    "…and neither message contains NaN/undefined/null", JSON.stringify(r2))
+}
+
+// ── cumulative accounting across invocations ─────────────────────────────────────────────────
+{
+  const cwd = freshCwd()
+  const p = write("cumulative", [usageLine(600_000)])
+  const first = run(payload(p, cwd))
+  ok(/over \d+ turns/.test(first.sys ?? ""), "the user is given a cumulative session spend, not only the snapshot", JSON.stringify(first))
+  ok(!/since tracking began/.test(first.sys ?? ""),
+    "KNOWN-GOOD: a transcript SMALLER than the window is tracked from byte 0, so the total is complete and is NOT hedged", JSON.stringify(first))
+  ok(existsSync(join(cwd, ".claude/.context-budget.state.json")), "…and the state file is written where the next invocation will find it")
+
+  // …but a transcript larger than the window cannot be tracked from byte 0 without the unbounded
+  // read this hook exists to avoid, so its total MUST say so rather than quietly under-report.
+  const bigP = join(tmp, "cumulative-big.jsonl")
+  writeFileSync(bigP, JSON.stringify({ type: "user", message: { content: "x".repeat(700_000) } }) + "\n" + usageLine(600_000) + "\n")
+  const bigFirst = run(payload(bigP, freshCwd()))
+  ok(/since tracking began/.test(bigFirst.sys ?? ""),
+    "a transcript LARGER than the window is labelled 'since tracking began' — the total is partial and says so", JSON.stringify(bigFirst))
+
+  writeFileSync(p, [usageLine(600_000), usageLine(610_000)].join("\n") + "\n")
+  const second = run(payload(p, cwd))
+  const turnsOf = (s) => Number((/over (\d+) turns/.exec(s ?? "") || [])[1] ?? -1)
+  ok(turnsOf(second.sys) > turnsOf(first.sys), `the second invocation counts MORE turns (${turnsOf(first.sys)} → ${turnsOf(second.sys)}) — the delta accumulated`, JSON.stringify(second))
 }
 
 // ── the sum, not just cache_read ─────────────────────────────────────────────────────────────
 {
-  const p = write("sum", [JSON.stringify({
-    type: "assistant",
-    message: { usage: { cache_read_input_tokens: 200_000, cache_creation_input_tokens: 100_000, input_tokens: 20_000, output_tokens: 9 } },
-  })])
+  const p = write("sum", [JSON.stringify({ type: "assistant", message: { usage: { cache_read_input_tokens: 400_000, cache_creation_input_tokens: 100_000, input_tokens: 20_000, output_tokens: 9 } } })])
   const r = run(payload(p))
-  ok(/320k/.test(r.sys ?? ""), "counts cache_read + cache_creation + input — all of it was sent", JSON.stringify(r))
+  ok(/520k/.test(r.sys ?? ""), "counts cache_read + cache_creation + input — all of it was sent", JSON.stringify(r))
 }
 
 // ── the LAST usage line wins, not the first ──────────────────────────────────────────────────
 {
   const r = run(payload(transcript("grew", 500_000)))
-  ok(/500k/.test(r.sys ?? "") && !/10k/.test(r.sys ?? ""),
-    "reads the LATEST turn — an early small turn must not mask a grown context", JSON.stringify(r))
+  ok(/500k/.test(r.sys ?? "") && !/10k billable/.test(r.sys ?? ""), "reads the LATEST turn — an early small turn must not mask a grown context", JSON.stringify(r))
 }
 
 // ── trailing non-usage lines must not hide the measurement ───────────────────────────────────
@@ -177,13 +288,23 @@ const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  $
 {
   ok(run("{not json").ctx === "", "an unparseable payload yields no advice rather than an error")
   ok(run(payload(join(tmp, "does-not-exist.jsonl"))).ctx === "", "a missing transcript yields no advice")
-  ok(run(JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "x" })).ctx === "",
-    "a payload with no transcript_path yields no advice")
+  ok(run(JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "x" })).ctx === "", "a payload with no transcript_path yields no advice")
   writeFileSync(join(tmp, "empty.jsonl"), "")
   ok(run(payload(join(tmp, "empty.jsonl"))).ctx === "", "an empty transcript yields no advice")
   ok(run(payload(join(tmp, "empty.jsonl"))).sys === null, "…and no systemMessage key either, so the user sees nothing rather than an empty banner")
+
+  // A corrupt state file must not take the hook down with it.
+  const cwd = freshCwd()
+  mkdirSync(join(cwd, ".claude"), { recursive: true })
+  writeFileSync(join(cwd, ".claude/.context-budget.state.json"), "{ this is not json")
+  const r = run(payload(transcript("corruptstate", 600_000), cwd))
+  ok(/600k/.test(r.sys ?? ""), "a corrupt state file is discarded and measurement continues", JSON.stringify(r))
+
+  // No cwd at all — state is impossible, the snapshot must still work.
+  const r2 = run(JSON.stringify({ hook_event_name: "UserPromptSubmit", transcript_path: transcript("nocwd", 600_000), prompt: "x" }))
+  ok(/600k/.test(r2.sys ?? ""), "with no cwd the snapshot still measures — cumulative is the only casualty", JSON.stringify(r2))
 }
 
 rmSync(tmp, { recursive: true, force: true })
-console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — right number, right audience, silent when it cannot measure")
+console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — right number, right audience, flat memory, agents counted")
 process.exit(failed ? 1 : 0)

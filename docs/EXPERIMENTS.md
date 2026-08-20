@@ -8,10 +8,12 @@ inside a session and may change without notice on any upgrade.
 Exact CLI version string NOT captured (`claude --version` unavailable in the sandbox) — a re-run
 should record it, because "which version was this true of" is the whole value of an anchor.
 
-**RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E1b** and **E2** *before*
-trusting rule scoping or marker invisibility. Tracked as an OUTSTANDING item. Both findings are
-load-bearing: E1b decides whether scoped rules are a control or a convenience, and E2 decides
-whether the entire marker vocabulary costs context budget.
+**RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E1b**, **E2** and **E5**
+*before* trusting rule scoping, marker invisibility, or the assumption that MCP tool schemas are
+deferred. Tracked as an OUTSTANDING item. All three are load-bearing: E1b decides whether scoped
+rules are a control or a convenience, E2 decides whether the entire marker vocabulary costs context
+budget, and E5 decides whether connected MCP servers impose a flat per-turn floor (on 2.1.235 they
+do not — a revert to eager tool loading would change the economics of every session).
 
 ---
 
@@ -105,6 +107,77 @@ it. Combined with E1b, the delegation picture is that a subagent gets `CLAUDE.md
 of the scoped rule files unless it reads a matching path. So incident-class content must sit at
 rungs 1–2 to reach delegated work reliably — handing an agent the doctrine is not the same as the
 doctrine binding it.
+
+---
+
+## E4 · What does delegation actually cost? — **MEASURED**
+
+**Anchor:** session `2678b6e4`, transcript at 41.5MB, measured 2026-08-20, CLI **2.1.235**, Opus 5
+via the VSCode extension. Method: walk the main transcript and every
+`<transcript-dir>/<sessionId>/subagents/agent-*.jsonl`, scoring each turn at
+`input + cache_write×1.25 + cache_read×0.1 + output`.
+
+| | turns | billable-equivalent | |
+|---|---|---|---|
+| main session | 6,826 | 351.8M | |
+| subagents | 3,292 | 55.7M | 27 invocations — **13.7% of total spend** |
+
+Derived, and these are the numbers that matter:
+
+- **2.1M billable-equivalent per invocation**
+- **122 turns per agent** — an agent is not a lookup, it is a second full session
+- **45k tokens returned per invocation**, which then sit in the main window and are re-sent on
+  every subsequent turn for the rest of the session
+
+**The doctrine said delegation wins when an agent reads a lot and returns a little. At 122 turns and
+45k returned, this repo has been doing neither half.** A rough inline comparison: an agent replacing
+50 file-reads saves ~250k of permanent main-context weight (≈2.5M billable over 100 later turns) and
+costs 2.1M to run plus ~450k to carry its own output — **approximately break-even**, not the clear
+win the spines assume. The saving is real only when the agent's turn count stays low and its report
+stays short; neither is bounded today.
+
+Composition by type, for scoping the fix: `implementer` 10, `walker` 6, `census` 5, `grounder` 5,
+`db-inspector` 1.
+
+**Consequence:** an output budget on agent reports, and a turn budget on the agents themselves, are
+canon changes worth making — but they are CD's call, not a mechanism this repo can add unilaterally.
+Recorded here rather than acted on.
+
+---
+
+## E5 · Do MCP tool definitions tax every turn? — **ANSWERED: NO, THEY ARE DEFERRED — but they accumulate**
+
+**Anchor:** same session and CLI version as E4.
+
+The hypothesis was that seven connected MCP servers (~150 tool definitions, plausibly 15–40k tokens)
+sit in static context and are re-sent every turn, making server enablement the largest cheap win
+available. **On CLI 2.1.235 that is not what happens.** Tools arrive *deferred*: the session receives
+tool NAMES only, with schemas fetched on demand via `ToolSearch`. The session is told so explicitly —
+"Their schemas are NOT loaded — calling them directly will fail with InputValidationError."
+
+**But deferral is not a permanent exemption, and this is the part worth knowing.** Each compaction
+boundary records `preCompactDiscoveredTools` — the schemas that had been fetched and were therefore
+resident. Across this session's three boundaries:
+
+| boundary | trigger | discovered tools resident |
+|---|---|---|
+| 1 | auto | **5** |
+| 2 | auto | **34** |
+| 3 | manual | **34** |
+
+So a fetched schema is **sticky**: it stays resident, and the resident set only grows within a
+window. The tax is not a flat 15–40k floor; it is an incremental cost that accrues as a session
+touches more servers, and compaction is what resets it.
+
+**Not measured, and the method is recorded so a re-run can close it:** the token cost of the NAME
+list itself, and the per-schema cost of a discovered tool. The clean A/B is a fresh session's first
+usage line with all servers enabled versus a subset — **not run, because spawning a nested `claude`
+process to measure it consumed the user's session limit on the first attempt.** Any re-run should
+use a separate machine or an idle window, not the session being measured.
+
+**Consequence:** per-session server enablement is worth *less* than hypothesised on this CLI version
+— the floor is already low. It becomes worth doing again if a future version reverts to eager tool
+loading, which makes this an E-register re-run trigger alongside E1b and E2.
 
 ---
 
