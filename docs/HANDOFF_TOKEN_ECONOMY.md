@@ -66,14 +66,25 @@ re-doing it costs far more than 13k.
 
 ### **RULED 2026-08-20 (CD): DO NOT CHANGE. Recorded so it is not re-derived.**
 
-The arithmetic that settles it — 27 invocations × ~13k of CLAUDE.md is ~351k input tokens, which
-bills mostly as cache read (×0.1) to **~35k billable-equivalent**. Total agent spend over the same
-27 runs was **55.7M**. CLAUDE.md is therefore **~0.06% of agent cost**.
+> **ARITHMETIC CORRECTED 2026-08-20.** This section first computed `27 × 13k → ~35k billable →
+> 0.06%`, treating CLAUDE.md as loaded **once per agent**. It is re-sent on **every turn of the
+> agent's run** — which is the entire premise of this document. Getting that wrong here, of all
+> places, is the thesis failing on its own author.
 
-It is not a lever. A single re-done implementer run (2.1M) costs sixty times the entire CLAUDE.md
-budget across every agent in the session. **Turn count is the cost; the preamble is a rounding
-error.** The earlier framing — "never costed either way" — is now closed: it has been costed, and
-the answer is that it does not matter.
+The correct arithmetic: **13k × 122 turns × 27 invocations at cache-read pricing ≈ 4.3M**, against
+**55.7M** of total agent spend — **~7.7%**, not 0.06%. Two orders of magnitude out.
+
+**The ruling still stands, but for a different reason than the first version gave.** 7.7% is
+material, not a rounding error. What makes it not-a-lever is that it is a **product of turns**: the
+preamble is re-sent once per turn, so cutting turn count cuts this line item in exactly the same
+proportion. Fix the turns and it dissolves; remove the preamble and you keep the turns *and* get an
+agent ignorant of conventions, whose re-done work costs 2.1M a time. The downside is unbounded and
+the upside is capped at something the turn budget already reaches.
+
+Two consequences worth carrying: **`db-inspector` is the one clean candidate** (18 turns, one
+question, least need of house style), and **the CLAUDE.md ratchet has an uncounted token dividend** —
+halving the always-loaded file halves this 4.3M line item across every agent in every session.
+Revisit only if the budgets land and it remains material.
 
 ### D2 · An output budget on agent reports
 

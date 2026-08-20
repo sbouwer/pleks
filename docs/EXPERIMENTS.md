@@ -160,9 +160,21 @@ stays short; neither is bounded today.
 Composition by type, for scoping the fix: `implementer` 10, `walker` 6, `census` 5, `grounder` 5,
 `db-inspector` 1.
 
-**Consequence:** an output budget on agent reports, and a turn budget on the agents themselves, are
-canon changes worth making — but they are CD's call, not a mechanism this repo can add unilaterally.
-Recorded here rather than acted on.
+**RULED AND LANDED 2026-08-20 (CD).** Turn and output budgets are now clauses in all six spines
+(walker v4, others v2) — see `dev-standards/standards/AGENT-SPINES.md`. They are **backstops, not
+targets**: budgets sized from the 122-turn aggregate would have truncated every role's *median* run,
+and a truncated run is re-invoked, paying the agent's startup context twice. One 196-turn run becomes
+two runs plus a second startup. Landed values: implementer 250/3k · census 150/4k · walker 150/6k ·
+grounder 150/6k · db-inspector 40/2k (**n=1**) · crawler-doctrine 150/4k (**n=0**).
+
+**⏱ RE-MEASURE TRIGGER — after ~20 agent invocations under the new spines**, re-run the per-type
+distribution and record the second table directly beneath the first above. The batching guidance is
+the actual forcing function; the budget is only the net. Tighten then, against the new distribution,
+not before. This is a count, not a "later".
+
+The instrument that trigger depends on is **M-062** — the per-type turn/output distribution promoted
+out of a throwaway script. The turn budget itself is UNENFORCEABLE (an agent has no reliable turn
+counter; it estimates), so its mechanical half is visibility.
 
 ---
 
