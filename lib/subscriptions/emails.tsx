@@ -502,7 +502,7 @@ export async function sendCancelledConfirm(
     subject: "Your Pleks subscription has been cancelled",
     emailElement: (
       <EmailLayout
-        preview="Pleks subscription cancelled — your data remains accessible for up to 12 months"
+        preview="Pleks subscription cancelled — your data remains accessible for at least 12 months"
         branding={PLEKS_BRANDING}
         footerVariant="cancelled_purge_warning"
         subscriptionAlert={{
@@ -520,13 +520,13 @@ export async function sendCancelledConfirm(
         <p style={S.body}>
           Your data — all properties, leases, tenants, inspections, and financial records —
           remains fully accessible and exportable for{" "}
-          <strong style={S.strong}>up to 12 months</strong> from the date of cancellation.
-          The exact deletion date depends on whether active leases remain at the time
-          of the scheduled cleanup. You will receive a 30-day warning email before any
-          data is removed.
+          <strong style={S.strong}>at least 12 months</strong> from the date of cancellation.
+          If active leases are still running on your account at that point, the retention
+          period continues until they end. You will receive a 30-day warning email before any
+          data is removed, and that warning will carry the exact date.
         </p>
         <p style={S.body}>
-          You can reactivate your subscription at any time within those 12 months and
+          You can reactivate your subscription at any time during the retention period and
           everything will be exactly where you left it.
         </p>
         <EmailButton href={data.exportUrl} accentColor={PLEKS_BRANDING.accentColor}>
@@ -534,7 +534,7 @@ export async function sendCancelledConfirm(
         </EmailButton>
       </EmailLayout>
     ),
-    bodyPreview: `Subscription cancelled on ${data.cancelledDate}. Data accessible for up to 12 months.`,
+    bodyPreview: `Subscription cancelled on ${data.cancelledDate}. Data accessible for at least 12 months.`,
   })
 }
 
