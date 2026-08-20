@@ -2,19 +2,26 @@
 /**
  * scripts/check-handoff-contract.mjs — every handoff artefact carries a well-formed contract block.
  *
- * WHY THIS EXISTS: the return contract (4-AGENT-PIPELINES §3) is four labelled lines an agent emits
+ * WHY THIS EXISTS: the return contract (4-AGENT-PIPELINES §3) is the labelled block an agent emits
  * to its caller. That channel is a transcript — nothing can inspect it after the fact, so an agent
- * that returns four bullets of its own devising instead is a silent failure. It happened on the
- * first real P1: the spine was demonstrably loaded (the artefact carried all six prescribed
- * sections) and the return format still did not stick, with no PROMOTE line at all.
+ * that returns bullets of its own devising instead is a silent failure. The spine therefore also
+ * requires the block as the artefact's FINAL section, on disk, where a check can reach it. ~70
+ * tokens for an after-the-fact record of whether the contract held.
  *
- * So the spine also requires the block as the artefact's FINAL section, on disk, where a check can
- * reach it. ~60 tokens for an after-the-fact record of whether the contract held.
+ * (The incident originally cited here — "the spine was loaded and the return format still did not
+ * stick" — was WITHDRAWN as misattributed: that run was executing a spine version with no return
+ * contract in it, because agent definitions are snapshotted at the turn boundary. See E9 in
+ * docs/EXPERIMENTS.md. The check is kept, because the failure it detects is real whether or not
+ * that particular run was an instance of it, and because it is what proved the v5 block held.)
  *
- * THE MISSING-vs-NONE DISTINCTION IS THE POINT. `PROMOTE: none` is a considered result and the
- * normal one for an entry agent; an ABSENT PROMOTE line is a contract failure. Collapsing them
+ * THE MISSING-vs-NONE DISTINCTION IS THE POINT. `Promote    none` is a considered result and the
+ * normal one for an entry agent; an ABSENT Promote line is a contract failure. Collapsing them
  * would delete the only signal this file exists to carry, so a missing line is a finding and
  * `none` is not.
+ *
+ * THE GLYPH IS DELIBERATE REDUNDANCY. v5's verdict line carries both a glyph and a word, and this
+ * check asserts they agree. A verdict whose gloss contradicts its own state ("⛔ proceed") is a real
+ * failure and is invisible in a bare word — the second encoding is what makes it detectable.
  *
  * SCOPE AND ITS HONEST LIMIT: `.claude/handoff/` is gitignored and `/wrap` clears it, so on a clean
  * tree this check validates ZERO files and passes. That is a check that cannot fire, which is
@@ -33,9 +40,15 @@ import { tmpdir } from "node:os"
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..").replace(/\\/g, "/")
 const HANDOFF = "/.claude/handoff"
 
-/** The four labels, in order. Order is part of the contract — a reader scans for VERDICT first. */
-const LABELS = ["VERDICT", "ARTEFACT", "SUMMARY", "PROMOTE"]
-const VERDICTS = new Set(["proceed", "stop", "decision-needed"])
+/**
+ * The five labels, in the order the block prints them. Order is part of the contract — a human scans
+ * the column, and `Agent`/`Verdict` are what they scan for first.
+ */
+const LABELS = ["Agent", "Verdict", "Summary", "Artefact", "Promote"]
+
+/** Glyph → the verdict word it must accompany. There is no fourth pair. */
+const GLYPHS = { "✅": "proceed", "⚠": "decision-needed", "⛔": "stop" }
+const VERDICTS = new Set(Object.values(GLYPHS))
 
 /** Every `NN-<agent>.md` under a handoff root. Non-recursive past the task-slug level, by design. */
 export function artefacts(root) {
@@ -53,23 +66,29 @@ export function artefacts(root) {
 }
 
 /**
+ * Read one label's value. The block is column-aligned, so the separator is RUN OF SPACES, not a
+ * colon — `\s{2,}` rather than `:`. Captured to end of line: matching `(\S+)` would read an unfilled
+ * placeholder's first token as a valid value and wave the whole template through.
+ */
+const valueOf = (text, l) => (text.match(new RegExp(`^\\s*${l}\\s{2,}(.+?)\\s*$`, "m")) ?? [])[1]
+
+/**
  * Validate one artefact's trailing contract block. Returns findings, empty when well-formed.
  *
  * Deliberately tolerant about WHERE the block sits (last section, not last byte) and strict about
  * WHAT it contains. An agent that adds a trailing newline or a closing fence has not broken the
- * contract; an agent that drops PROMOTE has.
+ * contract; an agent that drops Promote has.
  */
 export function checkArtefact(path, text) {
   const out = []
-  const label = (l) => new RegExp(`^\\s*${l}:`, "m")
 
-  const missing = LABELS.filter((l) => !label(l).test(text))
+  const missing = LABELS.filter((l) => valueOf(text, l) === undefined)
   if (missing.length === LABELS.length) {
-    out.push(`${path}: no contract block at all — the four labelled lines are the agent's return, and this artefact carries none`)
+    out.push(`${path}: no contract block at all — the labelled lines are the agent's return, and this artefact carries none`)
     return out
   }
   for (const l of missing) {
-    out.push(`${path}: contract block is missing its ${l} line${l === "PROMOTE" ? ' — "PROMOTE: none" is a line, and its ABSENCE is the failure this check exists to separate from it' : ""}`)
+    out.push(`${path}: contract block is missing its ${l} line${l === "Promote" ? ' — "Promote    none" is a line, and its ABSENCE is the failure this check exists to separate from it' : ""}`)
   }
 
   // Anchor: a machinery map is a grounding claim, so an artefact with no anchor is itself a finding.
@@ -77,18 +96,31 @@ export function checkArtefact(path, text) {
     out.push(`${path}: no anchor line carrying a commit — an unanchored observation is a finding, not a fact`)
   }
 
-  // Capture the WHOLE line, not the first token. Matching `(\S+)` reads the spine's placeholder
-  // `proceed | stop | decision-needed` as a valid `proceed` and waves an unfilled template through
-  // — which is exactly the case below, and it is why this is captured greedily.
-  const verdict = text.match(/^\s*VERDICT:\s*(.+?)\s*$/m)
-  if (verdict) {
-    const v = verdict[1]
-    if (v.includes("|")) {
-      // The template shipped in the spine has `|`-separated placeholders. An artefact echoing them
-      // back copied the block without filling it in, which passes every label test above.
-      out.push(`${path}: VERDICT still holds the spine's placeholder ("${v}") — the block was copied, not filled in`)
-    } else if (!VERDICTS.has(v)) {
-      out.push(`${path}: VERDICT is "${v}" — must be one of ${[...VERDICTS].join(", ")}`)
+  // An UNFILLED template passes every label test above — every line is present, it just says
+  // `<pipeline id from the brief>`. Angle-bracket placeholders are the tell, and they are checked on
+  // every line rather than only the verdict, because v5's placeholders are not all pipe-separated.
+  // A bare `—` is NOT a placeholder: it is the specified value for "the brief named no pipeline".
+  for (const l of LABELS) {
+    const v = valueOf(text, l)
+    if (v !== undefined && /<[^>]+>/.test(v)) {
+      out.push(`${path}: ${l} still holds the spine's placeholder ("${v}") — the block was copied, not filled in`)
+    }
+  }
+
+  const verdict = valueOf(text, "Verdict")
+  if (verdict !== undefined && !/<[^>]+>/.test(verdict)) {
+    // Strip the variation selector: ⚠️ is ⚠ + U+FE0F, and only one of those spellings is typed.
+    const v = verdict.replace(/️/g, "")
+    const glyph = Object.keys(GLYPHS).find((g) => v.startsWith(g))
+    const word = [...VERDICTS].find((w) => new RegExp(`\\b${w}\\b`).test(v))
+    if (!glyph) {
+      out.push(`${path}: Verdict "${verdict}" carries no state glyph — must open with ${Object.keys(GLYPHS).join(" ")}`)
+    }
+    if (!word) {
+      out.push(`${path}: Verdict "${verdict}" names no state — must be one of ${[...VERDICTS].join(", ")}`)
+    }
+    if (glyph && word && GLYPHS[glyph] !== word) {
+      out.push(`${path}: Verdict glyph and word disagree — "${glyph}" means ${GLYPHS[glyph]}, the line says ${word}`)
     }
   }
   return out
@@ -107,31 +139,50 @@ if (isEntry && process.argv.includes("--selftest")) {
     "…",
     "## Contract",
     "",
-    "VERDICT:   proceed",
-    "ARTEFACT:  .claude/handoff/m-041/01-grounder.md",
-    "SUMMARY:   Mapped. Buildable as specified. 12 sites, 2 need a naming call.",
-    "PROMOTE:   none",
+    "```",
+    "Agent      grounder · P1 · step 1 of 3",
+    "Verdict    ✅ proceed — nothing to decide",
+    "",
+    "Summary    Mapped. Buildable as specified. 12 sites, 2 need a naming call.",
+    "",
+    "Artefact   .claude/handoff/m-041/01-grounder.md",
+    "Promote    none",
+    "```",
     "",
   ].join("\n")
 
   ok(checkArtefact("a.md", GOOD).length === 0,
-    "KNOWN-GOOD: a well-formed artefact with PROMOTE: none is clean")
+    "KNOWN-GOOD: a well-formed v5 block with Promote none is clean")
 
   // THE distinction. Both of these have "no promotion" as the outcome; only one is a defect.
-  ok(checkArtefact("a.md", GOOD.replace(/^PROMOTE:.*$/m, "")).some((f) => f.includes("PROMOTE")),
-    "a MISSING PROMOTE line fires — it is a contract failure")
-  ok(!checkArtefact("a.md", GOOD).some((f) => f.includes("PROMOTE")),
-    "…and a PRESENT `PROMOTE: none` does NOT fire — the considered answer is the normal one")
+  ok(checkArtefact("a.md", GOOD.replace(/^Promote.*$/m, "")).some((f) => f.includes("Promote")),
+    "a MISSING Promote line fires — it is a contract failure")
+  ok(!checkArtefact("a.md", GOOD).some((f) => f.includes("Promote")),
+    "…and a PRESENT `Promote    none` does NOT fire — the considered answer is the normal one")
 
-  ok(checkArtefact("a.md", GOOD.replace(/^SUMMARY:.*$/m, "")).some((f) => f.includes("SUMMARY")),
-    "a missing SUMMARY line fires")
+  ok(checkArtefact("a.md", GOOD.replace(/^Summary.*$/m, "")).some((f) => f.includes("Summary")),
+    "a missing Summary line fires")
+  ok(checkArtefact("a.md", GOOD.replace(/^Agent.*$/m, "")).some((f) => f.includes("Agent")),
+    "a missing Agent routing line fires")
+  ok(checkArtefact("a.md", GOOD.replace("grounder · P1 · step 1 of 3", "grounder · — · —")).length === 0,
+    "KNOWN-GOOD: `—` in the routing slots is the SPECIFIED value when the brief named none, not a placeholder")
+
   ok(checkArtefact("a.md", "# Just a map\n\n## 1. Machinery map\nstuff\n").some((f) => f.includes("no contract block at all")),
-    "an artefact with NO block at all fires once, not four times")
+    "an artefact with NO block at all fires once, not five times")
   ok(checkArtefact("a.md", GOOD.replace(/^anchor:.*$/m, "")).some((f) => f.includes("anchor")),
     "a missing anchor fires — an unanchored observation is a finding")
-  ok(checkArtefact("a.md", GOOD.replace("VERDICT:   proceed", "VERDICT:   looks-fine")).some((f) => f.includes("must be one of")),
-    "an invented VERDICT value fires")
-  ok(checkArtefact("a.md", GOOD.replace("VERDICT:   proceed", "VERDICT:   proceed | stop | decision-needed")).some((f) => f.includes("placeholder")),
+
+  // The glyph pair, both directions.
+  ok(checkArtefact("a.md", GOOD.replace("✅ proceed — nothing to decide", "⛔ proceed — nothing to decide")).some((f) => f.includes("disagree")),
+    "a glyph contradicting its own word fires — the whole reason the state is encoded twice")
+  ok(checkArtefact("a.md", GOOD.replace("✅ proceed — nothing to decide", "⚠️ decision-needed — one call for Main")).length === 0,
+    "KNOWN-GOOD: ⚠️ with its variation selector pairs with decision-needed and is clean")
+  ok(checkArtefact("a.md", GOOD.replace("✅ proceed — nothing to decide", "proceed")).some((f) => f.includes("no state glyph")),
+    "a bare word with no glyph fires")
+  ok(checkArtefact("a.md", GOOD.replace("✅ proceed — nothing to decide", "✅ looks-fine")).some((f) => f.includes("names no state")),
+    "an invented verdict word fires")
+
+  ok(checkArtefact("a.md", GOOD.replace("grounder · P1 · step 1 of 3", "grounder · <pipeline id from the brief> · step <N> of <M>")).some((f) => f.includes("placeholder")),
     "an UNFILLED template echoed back fires — it passes every label test and is still not a report")
 
   // Discovery, walked for real: a block-shaped file that is not an artefact must not be scanned,
@@ -144,7 +195,7 @@ if (isEntry && process.argv.includes("--selftest")) {
   ok(artefacts(join(tmp, "nope")).length === 0, "a tree with no handoff directory yields nothing rather than throwing")
   rmSync(tmp, { recursive: true, force: true })
 
-  console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — fires on a missing or unfilled block, quiet on a well-formed one")
+  console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — fires on a missing, unfilled or self-contradicting block, quiet on a well-formed one")
   process.exit(failed ? 1 : 0)
 }
 
