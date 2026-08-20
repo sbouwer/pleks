@@ -798,6 +798,21 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Exposed, not created, by the E10 ruling (2026-08-20):** worktree isolation never enforced this either. It made a subagent's commit land on a throwaway branch instead of yours, which hid the behaviour rather than preventing it — and it hid it *while making the agent's work invisible to your tree*, which is the E10 defect. Dropping isolation removes the accidental concealment and leaves the real gap in view. Do not read "isolation used to protect us here" into it.
 - **Covering spec:** NEW
 
+### M-069 — two competing Information-Regulator SSOTs, and the declared one has zero importers
+
+- **Rule:** `lib/comms/templates/ApplicantLegalFooter.tsx:25` — its own JSDoc: `INFORMATION_REGULATOR_URL` is the "single source for every IR reference in comms", deliberately the WEBSITE only, because the postal/email/phone details "have changed repeatedly, and a stale address on an immutable evidence record is a defect", and it "normalises the older justice.gov.za/inforeg references onto the current site".
+- **Where it lives:** that JSDoc. No CLAUDE.md bullet, no rule file, no check.
+- **Rung:** eslint · **Blast:** data-boundary
+- **Measured at `b2587295`, 2026-08-20** (`rg 'inforegulator|justice.gov.za|023 5207'` over `app/` + `lib/`): **34 lines across 14 files**, and **zero importers of `INFORMATION_REGULATOR_URL`**. Every one of the three things its header forbids is present in the tree:
+  - **A second, competing SSOT that is the one actually used** — `lib/external-links.ts:13` `informationRegulator: "https://inforegulator.org.za"`, consumed via `ExtLink` in `app/(public)/privacy`, `paia-manual`, `popia-register`. Two constants for one fact, and the documented one lost.
+  - **The volatile details pinned anyway** — `complaints.IR@justice.gov.za` and `+27 10 023 5207` inline in ~10 sites, including two `locked: true` counsel-reviewed seed templates (`lib/comms/templates/seed/info-requests.ts:404,445`, `legalReviewRef: ADDENDUM_70C §10.1/§10.3`) and a postal address in `privacy/page.tsx:555` / `paia-manual/page.tsx:119`.
+  - **The old domain it exists to normalise away from, still live** — `https://www.justice.gov.za/inforeg/` at `my-data/page.tsx:95`, `landlord/privacy:134`, `supplier/privacy:118`, `tenant/privacy:126`.
+- **Sketch:** an ESLint `no-restricted-syntax` over string literals matching `/inforegulator|justice\.gov\.za|023 ?5207/` outside the two constants files, in the shape of `no-rerolled-money-format`. Ship it **baseline-first**: the population is 34 and at least the two `locked: true` seed sites are counsel-signed copy that may not be edited without a Part-F sign-off, so a rule with no baseline turns a documentation defect into a red gate on legal text. Classify per site before recording a number.
+- **The decision that must precede the rule, and it is CD's:** which constant wins, and whether a data-subject response may cite only a website. `ApplicantLegalFooter`'s argument (an immutable evidence record must not pin a mutable address) is strong and is the reason the URL-only form exists; but a POPIA §74 escalation notice that omits the Regulator's email may be legally thinner. That is a counsel question, not a lint question, and building the rule first would encode whichever answer the regex happened to prefer.
+- **Second instance of M-067's class, same sweep:** a stated SSOT/MUST with zero call sites is not dead code — it is an unenforced invariant, and the constant's *existence* has been standing in for the enforcement. Two in one tranche makes it a class worth naming, not a coincidence.
+- **Provenance:** surfaced by the knip tranche-2 census as a two-site note (`info-requests.ts:404,445`); the real population is 34/14, found on filing. The artefact's version was under-measured — a count that was never taken reads identically to one that was. Artefacts archived at `brief/build/_AGENT_ARCHIVE/knip-tranche-2/` (untracked — `brief/` is a OneDrive symlink).
+- **Covering spec:** NEW
+
 ### M-067 — `excludePlatformOrg` is a stated MUST with zero call sites
 
 - **Rule:** `lib/comms/platform-org.ts` — its own JSDoc: every "for each org" query MUST exclude the platform org
