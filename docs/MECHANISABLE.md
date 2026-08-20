@@ -812,6 +812,43 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Exposed, not created, by the E10 ruling (2026-08-20):** worktree isolation never enforced this either. It made a subagent's commit land on a throwaway branch instead of yours, which hid the behaviour rather than preventing it — and it hid it *while making the agent's work invisible to your tree*, which is the E10 defect. Dropping isolation removes the accidental concealment and leaves the real gap in view. Do not read "isolation used to protect us here" into it.
 - **Covering spec:** NEW
 
+### M-071 — attachments are supported, unimplemented, and silently dropped on retry
+
+- **Rule:** ADDENDUM_57G §11.3 — the T-30 purge warning goes *"with full export bundle attached"*. Not implemented, and not implementable as a one-line parameter.
+- **Where it lives:** §11.3 only. No code, no check.
+- **Rung:** check (+ migration) · **Blast:** data-boundary
+- **Measured at `f7c51d89`, 2026-08-20 — three states, and the first two readings each got it wrong in opposite directions:**
+  - **SUPPORTED.** `SendEmailParams.attachments?: Array<{ filename; content: string | Buffer; contentType? }>` (`lib/comms/send-email.ts:86`), forwarded to Resend (`:341`). `sendPlatformEmail(params: SendEmailParams)` spreads the whole object into `sendEmail` (`lib/subscriptions/sendWithRetry.ts:28,37`). A first send would carry an attachment today.
+  - **UNIMPLEMENTED.** Nothing passes one on this template. The warning templates render `<EmailButton href={appUrl}/reports>`.
+  - **SILENTLY DROPPED ON RETRY.** `drainPlatformEmailRetries` rebuilds a fresh `{ orgId, templateKey, to, subject, rawHtml }` from `platform_email_retries` (010 §1248 — columns `subject` + `body_html`, **no attachments column**). The retry re-sends from stored HTML.
+- **The defect this would ship if built naively:** an email that arrives **with** the bundle on the first attempt and **without** it on every retry — on the path that exists precisely because these sends matter, for the recipient whose delivery already failed once, with nothing reporting the difference. The customer receives a POPIA-adjacent statutory notice that promises an attachment it does not carry.
+- **Sketch:** one change across both halves or it is not started. (1) An `attachments` column on `platform_email_retries` plus persistence and replay in the drain; (2) the send site passing the bundle; (3) a check asserting the drain's field set is a superset of what the sender accepts — the general form, so the next field added to `SendEmailParams` cannot silently fail to survive a retry. Probe both directions: a retried send WITH an attachment must arrive with it, and a field added to the sender but not the retry table must FAIL.
+- **Do not build without a ruling.** Emailing a full PII bundle unprompted has its own POPIA posture, and CD ruled 2026-08-20 that **the spec moves — a link satisfies §11.3**. This entry is the build if that ruling is ever reversed, and the reason reversing it is not cheap.
+- **Provenance:** the claim "the code cannot attach" was asserted from a single-file grep, propagated to four documents, and falsified by a cleared session that resolved the type instead. See L-42/L-43 in `dev-standards/ledgers/LESSONS.md`.
+- **Covering spec:** ADDENDUM_57G §11.3
+
+### M-072 — `bash-gate` matches a flag token without checking which command owns it
+
+- **Rule:** `--no-verify` is forbidden on commit/push (`CLAUDE.md` §3, hook-denied).
+- **Where it lives:** `.claude/hooks/bash-gate.js`.
+- **Rung:** hook · **Blast:** other
+- **Measured at `f7c51d89`, 2026-08-20:** `git push > "$LOG" 2>&1; ...; grep -n "vitest" "$LOG"` was DENIED with *"-n is --no-verify on commit/push and is forbidden"*. The `-n` belongs to `grep`, not to `git push`. The hook found a git verb and a denied flag token in the same command string and joined them.
+- **Token-anchoring's fourth costume, in the hook family M-068 just corrected.** The first three: `\b` after `merge` matching inside `git merge-base`; `git -C /repo commit` defeating a flags-then-subcommand pattern; a grep for a parameter name where the parameter arrives through a type. Same root — **the token found is not the token meant.**
+- **Sketch:** same fix as M-068's. Find the command, then check only the flags belonging to *that* command — split on `;`/`&&`/`||`/`|` into segments, identify the segment whose leading verb is `git`, and match denied flags within that segment alone. Probe both directions: `git push --no-verify` must DENY, and `git push && grep -n x f` must ALLOW. **The known-good half is the half that finds these** — it is how both M-068 bugs surfaced.
+- **Direction of the failure:** fail-safe (a false deny, not a false allow), which is why it is a register entry and not an incident. But it blocks legitimate reads, and a gate that cries wolf is a gate people learn to route around.
+- **Sharper instance, found while filing this entry:** the commit message documenting M-072 and M-073 was itself DENIED, because its prose contained the words for a hard reset while describing why that operation is hook-denied. No command was being run — the string was heredoc text destined for a commit message. **The hook cannot distinguish a command from prose about a command**, which means the class it guards is also the class it prevents you from writing down. M-068's entry already accepted this direction of error (`rg "git commit" docs/` is denied); what is new is that it obstructs the register entry describing it. Segment-aware matching fixes both.
+- **Covering spec:** NEW
+
+### M-073 — nothing local stops a commit landing on the default branch
+
+- **Rule:** "If on the default branch, branch first" — and `main` is ruleset-protected on the remote.
+- **Where it lives:** prose only. `CLAUDE.md` §3 covers push policy; `.githooks/pre-commit` runs `npm run check` and says nothing about which branch it is on.
+- **Rung:** hook · **Blast:** other
+- **Measured at `f7c51d89`, 2026-08-20:** five commits were made directly on local `main` and every local gate passed — `npm run check` green on each. The violation was caught only by the GitHub ruleset at push time (`GH013`, "Changes must be made through a pull request"), after which the commits had to be moved to a branch and local `main` reset. **M-007's shape exactly:** a rule stated in `CLAUDE.md` with no local gate, where the remote is the first thing that notices.
+- **Sketch:** a `.githooks/pre-commit` guard failing when `git branch --show-current` is the default branch, resolved from `origin/HEAD` rather than hardcoded. Cheap, and it catches the error at the point where fixing it is one `git switch -c` instead of a reset. Probe both directions: a commit on `main` must FAIL, and the same commit on any other branch must PASS.
+- **Why the remote catching it is not good enough:** by then the work is committed, and the remedy (`git reset --keep`) sits one keystroke from `git reset --hard`, which is hook-denied for good reason. A local gate keeps the recovery trivial rather than adjacent to a destructive operation.
+- **Covering spec:** NEW
+
 ### M-070 — a generated seed artefact with no regeneration check
 
 - **Rule:** `lib/comms/templates/seed/generated/document_templates.seed.generated.sql` is generated from `lib/comms/templates/seed/*.ts` by `scripts/gen-template-seed.mts`. The committed artefact is expected to match its source.
