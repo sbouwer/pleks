@@ -448,12 +448,54 @@ Different audiences, same missing control.
 - **Sketch:** twin of the generalised bullet, same mechanism. Nothing scans these specific legal pages for a bare-space `</strong> text` pattern and fails.
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_LEGAL_DOCS_SPACING_2026-05-27.md`
 
-### M-041 — flag a `.tsx` whose stem matches a sibling `.ts`
+### M-041 — ✅ BUILT 2026-08-20
+
+**Control:** `scripts/check-extension-stem-pairs.mjs`, chained into `npm run check` beside
+`check-import-cycles`. Walks the tree, groups `.ts`/`.tsx` by directory+stem, and fails on any group
+holding both. Case-only collisions (`Card.ts` beside `card.tsx`, which shadow on win32/macOS and
+agree with Linux CI for the wrong reason) are reported as a **separate class** — the remedy is a
+rename, not a delete, so merging the two lists would have merged two different repairs.
+Ships with **no baseline**: a full scan found zero pairs of any extension combination, so there was
+nothing to grandfather. Pure regression guard.
+
+**Built through the P1 pipeline, and the walk is why the entry is worth reading.** The first
+implementation passed its own thirteen probes and was refuted by MUTATION — the walker deleted lines
+and watched the suite stay green:
+
+- The `.d.ts` KNOWN-GOOD probe **passed for a reason other than the one it claimed.** Grouping is by
+  stem, and `basename("foo.d.ts", ".ts")` is `"foo.d"`, which can never key-collide with `"foo"` — so
+  the probe was green with the exclusion line deleted. It was indistinguishable from a broken
+  detector. The exclusion stayed (it keeps the file census honest) and the probe was rewritten to
+  assert what the line actually does.
+- **`SKIP_DIRS` was an unprobed silencer**, and broader than any sibling's: `generated` and `build`
+  are legal directory names in this tree (`lib/comms/templates/seed/generated/` is real source), so
+  the set could hide live source and the fixtures — all under `lib/` — could never detect it. Adding
+  `"app"` to the set left the suite green.
+- The **failing exit path was never driven at all.** Setting both floors to `0` left the suite green.
+
+Fixes: the skip set narrowed to six unambiguous names; the 700/700 floor **replaced by a
+reconciliation against `git ls-files`** (they agreed exactly at 1972 files, so it lands green and any
+future over-reach fails immediately instead of shrinking a count a floor is too loose to catch); the
+real entry point now spawned as a subprocess against fixture roots so exit 1 and its stderr are
+demonstrated rather than asserted.
+
+**And the reconciliation had the same bug one level up** — found by the implementer while probing it,
+not by anyone reviewing it. Both sides originally read the same mutable `SKIP_DIRS`, so a skip-list
+over-reach would narrow the walk and the git-side filter *identically* and never disagree: a control
+that moves with the thing it is controlling. A planted `"scripts"` addition stayed green at 993/700.
+The git side now has its own independent constant, and the same plant fails naming the 13 hidden
+files. **A reconciliation is only a control while its two sides can disagree.**
+
+<details><summary>Original entry</summary>
+
+**M-041 — flag a `.tsx` whose stem matches a sibling `.ts`**
 - **Rule:** "Do not split an extension migration across commits" (`CLAUDE.md`, DO NOT DO)
 - **Where it lives:** `CLAUDE.md:697-698`
 - **Rung:** check · **Blast:** other
 - **Sketch:** a check could fail on a `.tsx` whose stem matches a sibling `.ts`. The stated failure (TypeScript resolves to the stale `.ts`, masking the new file) is exactly the silent class that earns a check. Sketch: a check globs `**/*.tsx` and fails if a sibling `.ts` file with the identical stem exists in the same directory.
 - **Covering spec:** NEW
+
+</details>
 
 ### M-042 — derive the Category 9 rate-limit flood list from `route-census.mjs`
 - **Rule:** "When adding new public routes: add them to the Category 9 rate limit test list." (`CLAUDE.md`, SECURITY AUDIT)
@@ -709,3 +751,10 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Covering spec:** `dev-standards/playbooks/3-TOKEN-ECONOMY.md` §3
 
 </details>
+
+### M-063 — extend the stem-pair check to the js-family and multi-extension spellings
+- **Rule:** "Do not split an extension migration across commits" — the half `check-extension-stem-pairs` does NOT cover (`CLAUDE.md`, DO NOT DO)
+- **Where it lives:** `CLAUDE.md:389-390` — the second of the two bullets the rule was split into
+- **Rung:** check · **Blast:** other
+- **Sketch:** M-041 shipped covering `.ts` ↔ `.tsx` only, which is what its sketch specified. The walk on that build measured the boundary: `/\.tsx?$/` also misses `.mts`, `.cts`, `.jsx`, `.mjs`, `.cjs` — 9 tracked `.mts` and 78 tracked js-family files today. **The uncovered half is the more dangerous one.** `tsconfig.json` has `allowJs: true` and Next's webpack resolve order puts `.js`/`.mjs` AHEAD of `.ts`/`.tsx`, so a surviving `foo.js` beside a new `foo.ts` shadows it at BUNDLE time while `tsc` typechecks the new file happily: typecheck green, runtime stale, and no gate in this repo looks at bundle-time resolution. The covered `.ts`-over-`.tsx` direction is at least visible to `tsc`. Sketch: widen `sourceFiles`'s extension test and give `findStemPairs` a resolution-ORDER model rather than a symmetric pair test — the finding is "the file that wins is not the file you added", which is directional, unlike the `.ts`/`.tsx` case where either survivor is a defect. Zero live violations of any extension combination as at `7f7ba3d0`, so this too would land green and needs no baseline.
+- **Covering spec:** NEW — split out of M-041 per CLAUDE.md §4, "coverage boundaries split the rule, never qualify the tag"
