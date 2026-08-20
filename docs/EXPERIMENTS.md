@@ -172,9 +172,17 @@ distribution and record the second table directly beneath the first above. The b
 the actual forcing function; the budget is only the net. Tighten then, against the new distribution,
 not before. This is a count, not a "later".
 
-The instrument that trigger depends on is **M-062** — the per-type turn/output distribution promoted
-out of a throwaway script. The turn budget itself is UNENFORCEABLE (an agent has no reliable turn
-counter; it estimates), so its mechanical half is visibility.
+The instrument that trigger depends on is **M-062**, and it is now a command rather than a
+rediscovery: `node scripts/agent-distribution.mjs` prints the table above, budgets read from the
+spines. The turn budget itself is UNENFORCEABLE (an agent has no reliable turn counter; it
+estimates), so its mechanical half is visibility.
+
+**The 27 runs above are all PRE-generation, and the trigger counts none of them.** The script's first
+live run said "TRIGGER MET (27 ≥ 20)" — against runs that every one of them predated the budgets,
+which would have meant tightening against exactly the behaviour the budgets were meant to change. It
+now takes the newest spine mtime as the generation boundary and reports **0/20 as at 2026-08-20**.
+The count restarts here; the table above is the *previous* generation's baseline, kept for comparison,
+not evidence about the budgets.
 
 ---
 

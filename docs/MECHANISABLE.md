@@ -665,9 +665,40 @@ rather than quietly weakening the hook.
 - **Why it is not shipped here:** 52 sites is a classification job, not a flag flip. Shipping the tightening would have meant baselining 33 files unread, which is widening a baseline to make CI green — the one thing a baseline may never do. The measurement is the deliverable; the classification is the build.
 - **Covering spec:** NEW
 
-### M-062 — per-type agent turn/output distribution emitted per session
+### M-062 — ✅ BUILT 2026-08-20
+
+**Control:** `scripts/agent-distribution.mjs`. Walks `~/.claude/projects/<slug>/*/subagents/agent-*.jsonl`,
+joins each to its `.meta.json` for `agentType`, and prints per-type median/max turns and returned-report
+size against the budget. **The budgets are READ FROM THE SPINES** (`.claude/agents/*.md`), never
+hardcoded — a budget changed in canon and propagated here moves this report, and there is no second
+copy to go stale.
+
+**On the gate: `--selftest` only** (24 probes, wired into `npm run check` beside the other harness
+self-tests). The LIVE run is deliberately ungated — it reads the transcript tree, which no CI runner
+has. "Runs nowhere" and "is checked nowhere" are different failures and only the second was avoidable.
+
+**The first live run was wrong in the dangerous direction, and that is the finding.** It printed
+"RE-MEASURE TRIGGER MET (27 ≥ 20)" against 27 runs that ALL predated the budgets — which would have
+meant tightening budgets against exactly the behaviour the budgets were introduced to change. Counting
+every run in the tree answers a different question than "how many invocations under the NEW spines".
+Fixed by taking the newest spine file's mtime as the generation boundary (`spineGeneration()`) and
+counting only runs that postdate it (`runsSince()`); a run whose mtime cannot be read counts as OLD,
+so the trigger never fires on evidence it cannot date. The table still spans both generations — it is
+the only data there is — but now says so, above the trigger line. As at this commit the honest reading
+is **0/20**, not 27/20.
+
+**First distribution, all pre-generation** (27 runs): implementer 196/336 turns · walker 118/129 ·
+grounder 100/117 · census 62/139 · db-inspector 18/18 (n=1). Reports 1.9k–5.3k median. Zero subagent
+compactions at a peak context of 249k — which is *not* evidence of "never", since the peak never
+approached the window; E6 stays INCONCLUSIVE rather than answered.
+
+<details><summary>Original entry</summary>
+
+**M-062 — per-type agent turn/output distribution emitted per session**
 - **Rule:** "**Turn budget: {N} — a backstop, not a target.** ... If you reach it, STOP and report what you have with the gap named" + "**Output budget: {M} tokens.**" (all six spines, `.claude/agents/*.md`, walker v4 / others v2)
 - **Where it lives:** `.claude/agents/{census,walker,grounder,implementer,db-inspector,crawler-doctrine}.md` — the "what reaches you" preamble of each
 - **Rung:** check · **Blast:** other
 - **Sketch:** the budget itself is **structurally unenforceable and stated as such in canon**: an agent has no reliable turn counter, it estimates, so the clause is attention-held prose by the standard's own grammar. What IS mechanisable is *visibility* — the overrun should surface as a report rather than a log (L-22). The measurement already exists as a throwaway: walk `<transcript-dir>/<sessionId>/subagents/agent-*.jsonl`, join each to its `.meta.json` for `agentType`, and emit turns and returned-report size per type. Sketch: promote that script into `scripts/`, run it on demand (not on the gate — it reads the live transcript tree, which no CI runner has), and have it print each type's median/max against its budgeted N/M so an overrun is visible without anyone opening a transcript. **This is also the instrument the canon's re-measure trigger depends on** — `standards/AGENT-SPINES.md` schedules a second distribution after ~20 invocations under the new spines, and without this script that trigger has nothing to fire.
 - **Covering spec:** `dev-standards/playbooks/3-TOKEN-ECONOMY.md` §3
+
+</details>
