@@ -50,6 +50,22 @@ const LABELS = ["Agent", "Verdict", "Summary", "Artefact", "Promote"]
 const GLYPHS = { "✅": "proceed", "⚠": "decision-needed", "⛔": "stop" }
 const VERDICTS = new Set(Object.values(GLYPHS))
 
+/**
+ * Agents whose SPINE emits the contract block. The check enforces the block only for these, because
+ * a rule cannot be enforced on an agent that was never told it — a census artefact with no block is
+ * the spine's state, not the agent's failure.
+ *
+ * This list is a rollout boundary, not an exemption: it WIDENS as
+ * `dev-standards/playbooks/4-AGENT-PIPELINES.md` §11 step 5 splices the block into the remaining
+ * spines, and every agent added here must be added in the same commit that ships its spine. Skipped
+ * artefacts are NAMED on every run — a silent skip is how a rollout boundary becomes a hole.
+ *
+ * Discovered the hard way: the first non-grounder pipeline (P2 SWEEP, knip-tranche-2) turned the
+ * commit gate red on `01-census.md` / `02-main.md`, because the check's aperture had been written
+ * for the end state while only one spine had shipped.
+ */
+export const CONTRACT_AGENTS = new Set(["grounder"])
+
 /** Every `NN-<agent>.md` under a handoff root. Non-recursive past the task-slug level, by design. */
 export function artefacts(root) {
   const base = `${root}${HANDOFF}`
@@ -63,6 +79,19 @@ export function artefacts(root) {
     }
   }
   return out.sort()
+}
+
+/** The agent name a `NN-<agent>.md` filename encodes, or null if the name does not parse. */
+export function agentOf(path) {
+  const m = /\/\d{2}-([a-z-]+)\.md$/.exec(path.replace(/\\/g, "/"))
+  return m ? m[1] : null
+}
+
+/** Split discovered artefacts into the ones the contract applies to and the ones it does not. */
+export function partition(paths) {
+  const enforced = [], skipped = []
+  for (const p of paths) (CONTRACT_AGENTS.has(agentOf(p)) ? enforced : skipped).push(p)
+  return { enforced, skipped }
 }
 
 /**
@@ -195,21 +224,47 @@ if (isEntry && process.argv.includes("--selftest")) {
   ok(artefacts(join(tmp, "nope")).length === 0, "a tree with no handoff directory yields nothing rather than throwing")
   rmSync(tmp, { recursive: true, force: true })
 
-  console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — fires on a missing, unfilled or self-contradicting block, quiet on a well-formed one")
+  // The rollout boundary, probed in BOTH directions. A boundary that only ever lets things through
+  // is indistinguishable from a disabled check.
+  ok(agentOf(".claude/handoff/t/01-grounder.md") === "grounder", "agentOf reads the agent out of the filename")
+  ok(agentOf(".claude/handoff/t/03-db-inspector.md") === "db-inspector", "…including a hyphenated agent name")
+  ok(agentOf("notes.md") === null, "…and returns null rather than guessing when the name does not parse")
+
+  const P = (n) => `.claude/handoff/t/${n}`
+  const split = partition([P("01-grounder.md"), P("02-census.md"), P("03-walker.md")])
+  ok(split.enforced.length === 1 && split.enforced[0] === P("01-grounder.md"),
+    "MUST ENFORCE — grounder is the one spine carrying the block today")
+  ok(split.skipped.length === 2,
+    "MUST SKIP — census and walker artefacts are outside the boundary until step 5 splices their spines")
+
+  // The honest cost of the boundary, asserted rather than left implicit: a skipped artefact is not
+  // checked AT ALL, so a malformed block in one is invisible. This probe exists so that the day a
+  // spine is added to CONTRACT_AGENTS, the person doing it sees what they are switching on.
+  ok(partition([P("02-census.md")]).enforced.length === 0,
+    "a census artefact is skipped even when it DOES carry a block — the boundary is by agent, not by content")
+
+  console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — fires on a missing, unfilled or self-contradicting block, quiet on a well-formed one, and enforces only the spines that carry it")
   process.exit(failed ? 1 : 0)
 }
 
 if (isEntry && !process.argv.includes("--selftest")) {
-  const files = artefacts(ROOT)
-  const findings = files.flatMap((f) => checkArtefact(f.replace(ROOT + "/", ""), readFileSync(f, "utf8")))
+  const { enforced, skipped } = partition(artefacts(ROOT))
+  const findings = enforced.flatMap((f) => checkArtefact(f.replace(ROOT + "/", ""), readFileSync(f, "utf8")))
+
+  // Named before the verdict, pass or fail. An artefact outside the rollout boundary is a thing the
+  // check DID NOT LOOK AT, and a reader has to see that without reading the source.
+  if (skipped.length) {
+    console.log(`   not checked — spine carries no contract block yet (§11 step 5 widens this):`)
+    for (const f of skipped) console.log(`     · ${f.replace(ROOT + "/", "")}`)
+  }
 
   if (findings.length) {
-    console.error(`\n❌ handoff-contract: ${findings.length} finding(s) across ${files.length} artefact(s)\n`)
+    console.error(`\n❌ handoff-contract: ${findings.length} finding(s) across ${enforced.length} artefact(s)\n`)
     for (const f of findings) console.error(`   ${f}`)
     console.error("")
     process.exit(1)
   }
   // The denominator is printed deliberately: this directory is task-scoped scratch and is empty on
   // a clean tree, so "0 artefacts" has to be VISIBLE rather than read as "all artefacts passed".
-  console.log(`🤝 handoff-contract: ${files.length} artefact(s) carry a well-formed contract block`)
+  console.log(`🤝 handoff-contract: ${enforced.length} artefact(s) carry a well-formed contract block`)
 }
