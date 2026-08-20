@@ -168,9 +168,16 @@ export function audit(root = ".") {
         if (!mine.some((r) => r.matcher === wantMatcher)) {
           out.push(`${HOOK_DIR}/${f}: declares @matcher ${wantMatcher} but is registered with ${mine.map((r) => JSON.stringify(r.matcher)).join(", ")} — a matcher that never sees its tool is a gate that cannot fire`)
         }
+        // A hook on a non-blocking event cannot refuse anything. That is a defect for a GATE and
+        // correct for an ANNOTATOR — `context-budget.js` sits on UserPromptSubmit and only ever
+        // adds a line of context, which no blocking event could do. So the file declares which it
+        // is, the same way it declares its twin: `// @non-blocking <why>`. Without the marker this
+        // still fires, so the PostToolUse-instead-of-PreToolUse case stays caught; with it, the
+        // reason is in the file rather than in someone's memory.
+        const nonBlocking = /^\s*\/\/\s*@non-blocking\s+(\S.*?)\s*$/m.exec(src)
         for (const r of mine) {
-          if (!BLOCKING_EVENTS.has(r.event)) {
-            out.push(`${HOOK_DIR}/${f}: registered under ${r.event}, which cannot refuse a call — only PreToolUse blocks`)
+          if (!BLOCKING_EVENTS.has(r.event) && !nonBlocking) {
+            out.push(`${HOOK_DIR}/${f}: registered under ${r.event}, which cannot refuse a call — only PreToolUse blocks. If that is deliberate, declare "// @non-blocking <why>".`)
           }
         }
       }
@@ -254,6 +261,16 @@ if (isEntry && process.argv.includes("--selftest")) {
 
   fires({ permissions: ASK, hooks: { PostToolUse: [entry("Bash")] } }, "cannot refuse a call",
     "4/7 registered under PostToolUse — it runs AFTER the call it was written to block")
+
+  // …and the legitimate case it must not swallow. An ANNOTATOR belongs on a non-blocking event —
+  // no blocking event can add context to a prompt — so the file says so and the reason is in the
+  // file rather than in someone's memory. Without the marker the case above still fires.
+  clean({ permissions: ASK, hooks: { UserPromptSubmit: [entry("Bash")] } },
+    "KNOWN-GOOD: a declared @non-blocking annotator on a non-blocking event",
+    "// @event UserPromptSubmit\n// @matcher Bash\n// @non-blocking it annotates, it does not gate\n// @twin Bash(git push*)\n")
+  fires({ permissions: ASK, hooks: { UserPromptSubmit: [entry("Bash")] } }, "cannot refuse a call",
+    "…and the SAME registration with no @non-blocking still fires",
+    "// @event UserPromptSubmit\n// @matcher Bash\n// @twin Bash(git push*)\n")
 
   fires({ permissions: ASK, hooks: { PreToolUse: [entry("Read")] } }, "a matcher that never sees its tool",
     "5/7 a matcher scoped to the wrong tool — registered, and it never fires")

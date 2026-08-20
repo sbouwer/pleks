@@ -480,6 +480,21 @@ to a file with an editor.
 
 **Ambiguous spec, or spec-vs-code conflict:** flag it and stop. Do not implement around it.
 
+**TOKEN COST IS TURN COUNT × CONTEXT SIZE. Output is noise.** Measured over one 6,653-turn session:
+6M output, 31M cache-write, **3.0 BILLION cache-read** — every turn re-sends the whole conversation,
+so at 600k of context a one-line `grep` costs the same ~60k as a large edit. Three consequences, in
+order of how much they save:
+- **`/compact` when a NEW TASK starts**, not when the window fills. One compaction took per-turn
+  context 941k → 324k, cutting every later turn ~3×. Nothing else comes close, and no hook can do
+  it for you — `PreCompact` fires when a compaction is already happening.
+- **Batch independent tool calls into ONE message.** Reads, greps and writes that do not depend on
+  each other are one turn, not five. 351 Bash turns in one working window were the single largest
+  line item.
+- **Pipe long command output** (`| tail`, `| grep`) — a commit's full check chain is ~15k chars and,
+  unpiped, is re-sent on every subsequent turn until compaction.
+`.claude/hooks/context-budget.js` re-injects the live figure on every prompt, from outside the
+conversation, so this cannot fall out of context or go stale. <!-- @enforced hook:context-budget -->
+
 ---
 
 ## 9 · PROJECT SLOTS
