@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, ClipboardList, ChevronDown, UserRound, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { LEASE_TYPES } from "@/lib/constants"
 import { createInspection } from "@/lib/actions/inspections"
 import { contactDisplayName } from "@/lib/contacts/displayName"
 import { TenantPicker } from "@/components/shared/TenantPicker"
@@ -498,7 +499,7 @@ export function NewInspectionForm({
       <section className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lease type</h2>
         <div className="flex gap-2">
-          {(["residential", "commercial"] as const).map((lt) => (
+          {LEASE_TYPES.map((lt) => (
             <button
               key={lt}
               type="button"

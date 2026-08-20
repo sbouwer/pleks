@@ -6,7 +6,6 @@
  *         pricing, enterprise, year 2+). No seat caps. No overage charges; activation is
  *         blocked at the lease cap and the user is prompted to upgrade.
  */
-export const APP_NAME = "Pleks"
 /** Re-exported from the env SSOT so existing `@/lib/constants` importers keep working (centralisation item 3). */
 export { APP_URL } from "@/lib/env"
 
@@ -163,14 +162,8 @@ export function startedWithinProbation(startDate: string | null | undefined, now
 export const ORG_TYPES = ["agency", "landlord", "sole_prop", "hoa_manager"] as const
 export type OrgType = (typeof ORG_TYPES)[number]
 
-export const USER_ROLES = [
-  "owner",
-  "property_manager",
-  "agent",
-  "accountant",
-  "maintenance_manager",
-] as const
-export type UserRole = (typeof USER_ROLES)[number]
+// The agent-role vocabulary lives in lib/auth: `OrgRole` (membership.ts) and `AgentRole` (roles.ts),
+// which are what every gate and query actually read. A third copy here had no importers.
 
 export const LEASE_TYPES = ["residential", "commercial"] as const
 export type LeaseType = (typeof LEASE_TYPES)[number]
@@ -214,19 +207,6 @@ export const UNIT_FEATURES = [
   "Pet-friendly",
   "Wheelchair-accessible",
   "Air-conditioning",        // maps to `aircon` clause
-] as const
-
-export const DOCUMENT_TYPES = [
-  { value: "title_deed", label: "Title Deed" },
-  { value: "compliance_certificate", label: "Compliance Certificate" },
-  { value: "insurance", label: "Insurance" },
-  { value: "rates_clearance", label: "Rates Clearance" },
-  { value: "levy_schedule", label: "Levy Schedule" },
-  { value: "plans", label: "Plans" },
-  { value: "electrical_coc", label: "Electrical COC" },
-  { value: "gas_coc", label: "Gas COC" },
-  { value: "beetle_coc", label: "Beetle COC" },
-  { value: "other", label: "Other" },
 ] as const
 
 // Currency formatting (South African Rand)
