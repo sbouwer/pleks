@@ -62,8 +62,18 @@ conventions (they write, or judge writes). `db-inspector` and `census` plausibly
 return facts, not code shaped by house style.
 
 **Argument against changing it:** an agent ignorant of conventions produces work you re-do, and
-re-doing it costs far more than 13k. **This has never been costed either way** — that is the actual
-finding. Recorded rather than acted on.
+re-doing it costs far more than 13k.
+
+### **RULED 2026-08-20 (CD): DO NOT CHANGE. Recorded so it is not re-derived.**
+
+The arithmetic that settles it — 27 invocations × ~13k of CLAUDE.md is ~351k input tokens, which
+bills mostly as cache read (×0.1) to **~35k billable-equivalent**. Total agent spend over the same
+27 runs was **55.7M**. CLAUDE.md is therefore **~0.06% of agent cost**.
+
+It is not a lever. A single re-done implementer run (2.1M) costs sixty times the entire CLAUDE.md
+budget across every agent in the session. **Turn count is the cost; the preamble is a rounding
+error.** The earlier framing — "never costed either way" — is now closed: it has been costed, and
+the answer is that it does not matter.
 
 ### D2 · An output budget on agent reports
 
@@ -72,8 +82,29 @@ finding. Recorded rather than acted on.
 | metric | value |
 |---|---|
 | billable-equivalent per invocation | **2.1M** |
-| turns per agent | **122** |
-| tokens returned per invocation | **45k** |
+| turns per agent | **122 average, 336 peak** |
+| tokens returned per invocation | **1.9k–6k** (see correction below) |
+
+> **CORRECTION 2026-08-20.** An earlier version of this document and of E4 claimed **45k returned
+> per invocation**. That was the agent's TOTAL output across all its turns, not the report handed
+> back — two quantities an order of magnitude apart. The returned report is **1.9k–6k**. The
+> uncorrected figure overstated delegation's carrying cost ~10x, and with it fixed, delegation comes
+> out slightly AHEAD of inline rather than behind. **The 2.1M run cost remains the dominant term, and
+> turn count — not report size — is what drives it.** Do not cite the 45k.
+
+**Measured per-type distribution** — what any budget must be set against:
+
+| type | runs | turns med/max | returned med/max | CD's proposed N/M | fits? |
+|---|---|---|---|---|---|
+| implementer | 10 | 196 / **336** | 1,910 / 2,188 | 60 / 3k | **N 5.6x low** · M ok |
+| census | 5 | 62 / **139** | 3,271 / 9,433 | 25 / 4k | **N 5.6x low** · M ok at median |
+| walker | 6 | 118 / **129** | 4,444 / 4,973 | 40 / 6k | **N 3.2x low** · M ok |
+| grounder | 5 | 100 / **117** | 5,274 / 6,035 | 25 / 4k | **N 4.7x low** · **M low** |
+| db-inspector | 1 | 18 / 18 | 1,354 / 1,354 | 10 / 1k | **N 1.8x low** · **M low** |
+
+**Every type's MEDIAN exceeds its proposed N**, not merely its max. As written the budgets would
+truncate essentially every run. The **M values are close to right**; the **N values are the ones
+needing revision**. This is the "revisit against measured turn counts" CD asked for.
 
 The spines say agents "return classified results". **Nothing bounds the size, and nothing bounds the
 turn count.** An agent running 122 turns and returning 45k is not "reads a lot, returns a little" —
@@ -169,6 +200,17 @@ All observations of CLI **2.1.235**. Anthropic documents none of it.
 | MCP tool schemas are **deferred**; `ToolSearch` fetches on demand (**E5**) | a revert to eager loading reinstates a 15–40k per-turn floor |
 | discovered MCP schemas are **sticky** — resident count went 5 → 34 → 34 across boundaries | per-session server enablement becomes worth doing again |
 | no hook can TRIGGER compaction; `PreCompact` fires when one is already underway | — |
+| **does `autoCompactWindow` reach SUBAGENT windows? — UNKNOWN (E6)** | if it does not, a turn budget is the ONLY control in that window |
+
+**On that last row.** 27 subagent runs contained **zero** `compact_boundary` lines — but the highest
+peak context was **249,142**, so no run came within 50k of any threshold, and all of them predate
+the setting. The null result proves "no compaction below ~250k", not "never". Recorded as
+inconclusive in E6 rather than allowed to read as proof.
+
+The incidental finding lowers this question's priority rather than raising it: **subagent context
+plateaus around 250k even at 336 turns**, so agents are not approaching a boundary in normal use.
+To settle it, run one deliberately long agent (repo-wide census, no early exit) against
+`autoCompactWindow: 300000` and check its transcript — but nothing in normal use gets there.
 
 **RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E5** before trusting the "MCP
 is free" conclusion, and re-verify the transcript field names above. Recorded in
