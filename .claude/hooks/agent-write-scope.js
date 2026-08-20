@@ -11,11 +11,23 @@
  * The pipeline protocol (dev-standards/playbooks/4-AGENT-PIPELINES.md §8) says agent artefacts go
  * to `.claude/handoff/<task-slug>/` and nowhere else. This is that sentence, enforced.
  *
+ * SECOND REMIT, added 2026-08-20 (M-068): a subagent may not CREATE COMMITS. The protocol says an
+ * agent "ends at a report; the caller commits" — that was prose with nothing behind it, because
+ * this hook matched only the edit tools and never saw `Bash`. Worktree isolation did not enforce it
+ * either; it made a subagent's commit land on a throwaway branch instead of yours, which HID the
+ * behaviour rather than preventing it — and hid it while making the agent's work invisible to your
+ * tree, which is the E10 defect. Dropping isolation (E10 ruling) removed the concealment and left
+ * the real gap in view. This closes it at rung 1, where the E10 replacement assumed it already was.
+ *
+ * Scope of the git denial is deliberately the COMMIT-CREATING family plus `push`, not "git writes":
+ * an agent legitimately runs `git log`, `git diff`, `git show`, `git grep`, `git status` — that is
+ * most of how a read-only spine works, and denying those would break every pipeline.
+ *
  * FAIL-CLOSED DIRECTION: an unparseable payload asks rather than allows — same posture as
  * bash-gate.js. A broken gate that stalls is recoverable; one that waves writes through is not.
  */
 // @event PreToolUse
-// @matcher Write|Edit|MultiEdit|NotebookEdit
+// @matcher Write|Edit|MultiEdit|NotebookEdit|Bash
 // @no-twin settings.json permissions have no agent dimension — a `Write(...)` rule cannot say
 // "only when the caller is a subagent", so any twin would either be dormant-and-useless or would
 // gate the main session's every edit. The probe suite in scripts/check-agent-write-scope.mjs is the
@@ -43,6 +55,47 @@ const SCOPES = {
   implementer: null,
 };
 
+/**
+ * Commit-creating git subcommands, plus `push`. Every one of these either writes a commit object or
+ * publishes one; none is recoverable by the caller simply re-running the step.
+ *
+ * `cherry-pick`, `revert` and `am` are here for the reason CLAUDE.md §3 already gives about them:
+ * they create commits while skipping `pre-commit`, so they are the cheapest way for this rule to be
+ * defeated by accident rather than intent.
+ */
+const GIT_COMMIT_FAMILY = "commit|merge|rebase|cherry-pick|revert|am|push";
+
+const GIT_WORD = /\bgit\b/;
+const DENIED_SUBCOMMAND = new RegExp(String.raw`(?:^|\s)(${GIT_COMMIT_FAMILY})(?![\w-])`);
+
+/**
+ * Returns the denied subcommand in `command`, or null.
+ *
+ * DELIBERATELY NOT A GIT GRAMMAR PARSER. The first version matched `git <flags>* <subcommand>` and
+ * was defeated by `git -C /repo commit` on its first probe run, because `-C` takes a value and the
+ * value is not a flag. Chasing that leads to enumerating every global option that takes an argument
+ * (`-C -c --git-dir --work-tree --namespace --exec-path --config-env`) and being wrong again on the
+ * next one. So: find `git`, then look for a denied subcommand as a standalone token ANYWHERE after
+ * it. An unusual invocation cannot slip past a test that does not depend on the invocation's shape.
+ *
+ * The trailing guard is `(?![\w-])`, NOT `\b` — a hyphen is a word boundary, so `\b` after `merge`
+ * matches inside `git merge-base`, which every grounder runs to test ancestry and which writes
+ * nothing. Both bugs were caught by the known-good half of the probe suite on the first two runs,
+ * which is the entire argument for writing that half.
+ *
+ * KNOWN FALSE-DENY, accepted: a command that merely mentions both (`rg "git commit" docs/`, or
+ * `git log --grep="I am"`) is denied. That is the correct direction to be wrong in — the agent is
+ * told exactly what to do instead and can rephrase, whereas a false-allow writes a commit nobody
+ * asked for onto the caller's branch, where `--no-verify`-style damage is not the risk so much as
+ * a commit the caller never reviewed and now has to find.
+ */
+function deniedGitSubcommand(command) {
+  const g = GIT_WORD.exec(command);
+  if (!g) return null;
+  const sub = DENIED_SUBCOMMAND.exec(command.slice(g.index + g[0].length));
+  return sub ? sub[1] : null;
+}
+
 /** Resolve a tool's target path, whatever the tool calls the field. */
 function targetPath(toolInput) {
   if (!toolInput) return null;
@@ -69,7 +122,22 @@ process.stdin.on("end", () => {
     // No `agent_type` means the main session. E7 confirmed the field is absent there, and confirmed
     // it in BOTH directions (a control ran before and after the treatment) — so absence is a real
     // signal, not a field this hook simply never sees.
-    if (agentType) {
+    if (agentType && input.tool_name === "Bash") {
+      // Bash is gated on WHAT IT RUNS, never on a path — it has none. This branch must come before
+      // the path logic below, which would otherwise see a Bash call with no `file_path` and ask on
+      // every single command a subagent runs.
+      const command = (input.tool_input && input.tool_input.command) || "";
+      const hit = deniedGitSubcommand(command);
+      if (hit) {
+        decision = "deny";
+        reason =
+          `agent-write-scope: a subagent may not run \`git ${hit}\` — it creates or publishes a ` +
+          `commit on the caller's branch. Agents end at a REPORT; the caller commits and pushes. ` +
+          `Leave the tree dirty and say what you changed.`;
+      } else {
+        reason = `agent-write-scope: ${agentType} running a non-committing bash command`;
+      }
+    } else if (agentType) {
       const cwd = input.cwd || process.cwd();
       const raw = targetPath(input.tool_input);
       if (!raw) {

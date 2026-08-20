@@ -789,6 +789,20 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **The limitation, stated up front:** `brief/` is a OneDrive symlink and is **not version-controlled**, so this check can never run in CI — CI has no `brief/`. It can only run locally, and must SKIP-and-say-so when the directory is absent rather than pass silently. That makes it a weaker rung than a normal check (CLAUDE.md §1: "anything the tooling depends on belongs in the tracked tree instead"). Two honest options, and the choice is CD's: accept a local-only ratchet, or move the reference documents that matter into the tracked tree first and check those. Do not build it as a normal check and let a CI green be read as coverage.
 - **Covering spec:** NEW
 
+### M-068 — ✅ BUILT 2026-08-20
+
+**Was:** nothing stops a subagent committing.
+
+**Built as:** `.claude/hooks/agent-write-scope.js` now matches `Bash` as well as the edit tools, and denies `git commit|merge|rebase|cherry-pick|revert|am|push` from any subagent — including `implementer`, whose unrestricted *write* grant was never a commit grant. Read-only git (`log`, `diff`, `show`, `status`, `grep`, `merge-base`) and the main session are untouched. 42 probes in `scripts/check-agent-write-scope.mjs`, both directions.
+
+**Two bugs the known-good half caught, in the first two runs — the argument for writing it:**
+1. `\b` after `merge` matched inside `git merge-base`, which every grounder runs to test ancestry and which writes nothing. Fixed with `(?![\w-])`.
+2. `git -C /repo commit` defeated the flag-parsing, because `-C` takes a value and the value is not a flag. Rather than enumerate every global option that takes an argument and be wrong on the next one, the test stopped parsing git's grammar: find `git`, then look for a denied subcommand as a standalone token anywhere after it. **An unusual invocation cannot slip past a test that does not depend on the invocation's shape.**
+
+**Accepted false-deny, stated rather than discovered later:** a command merely mentioning both (`rg "git commit" docs/`) is denied. Correct direction to be wrong in — the agent is told what to do instead; a false-allow leaves an unreviewed commit on the caller's branch.
+
+**Superseded text below, kept for the reasoning.**
+
 ### M-068 — nothing stops a subagent committing
 
 - **Rule:** "the implementer ends at a report; YOU commit and push (it never does)" — `CLAUDE.md` §5 and §7
