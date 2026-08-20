@@ -476,6 +476,21 @@ export async function sendResumed(org: OrgContact) {
   })
 }
 
+/**
+ * Day-0 cancellation confirmation (Template 1).
+ *
+ * ⛔ STILL INLINE, DELIBERATELY. `CancelledConfirmEmail` in cancellation.tsx is the counsel-adjacent
+ * implementation of this same template key and carries legal content this copy lacks (ToS §04
+ * incorporation, the Compliance Records carve-out, the legal-hold deferral, POPIA Responsible-Party
+ * obligations, the export-integrity disclaimer). It is NOT wired here because its period-based
+ * rewrite is itself pending counsel clearance — see the LEGAL-REVIEW-PENDING marker in that file.
+ * When counsel clears it, swap this body for `<CancelledConfirmEmail …/>` and delete the JSX below;
+ * do not merge the two copies by hand.
+ *
+ * The subscriptionAlert below is load-bearing, not decoration: `footerVariant` alone leaves the
+ * footer's export and reactivate links resolving to "#" (layout.tsx EmailSubscriptionFooter).
+ * `purgeEligibleAt`/`daysUntilPurge` are correctly absent — undefined at Day 0 per §11.3.
+ */
 export async function sendCancelledConfirm(
   org: OrgContact,
   data: { cancelledDate: string; exportUrl: string },
@@ -490,6 +505,11 @@ export async function sendCancelledConfirm(
         preview="Pleks subscription cancelled — your data remains accessible for up to 12 months"
         branding={PLEKS_BRANDING}
         footerVariant="cancelled_purge_warning"
+        subscriptionAlert={{
+          cancelledDate: data.cancelledDate,
+          exportUrl:     data.exportUrl,
+          settingsUrl:   absoluteUrl("/settings/subscription"),
+        }}
       >
         <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
         <p style={S.body}>
