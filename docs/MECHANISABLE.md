@@ -812,6 +812,18 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Exposed, not created, by the E10 ruling (2026-08-20):** worktree isolation never enforced this either. It made a subagent's commit land on a throwaway branch instead of yours, which hid the behaviour rather than preventing it — and it hid it *while making the agent's work invisible to your tree*, which is the E10 defect. Dropping isolation removes the accidental concealment and leaves the real gap in view. Do not read "isolation used to protect us here" into it.
 - **Covering spec:** NEW
 
+### M-070 — a generated seed artefact with no regeneration check
+
+- **Rule:** `lib/comms/templates/seed/generated/document_templates.seed.generated.sql` is generated from `lib/comms/templates/seed/*.ts` by `scripts/gen-template-seed.mts`. The committed artefact is expected to match its source.
+- **Where it lives:** nowhere. Not a CLAUDE.md bullet, not a rule file, not a check.
+- **Rung:** check · **Blast:** data-boundary
+- **Measured at `e5e7abf9`, 2026-08-20:** `scripts/gen-template-seed.mts` is **referenced by nothing** — not `package.json`, not CI, not any `check-*.mjs`. A repo-wide grep for `gen-template-seed` returns only the file itself. `check-drift-if-sql-changed.mjs` and `check-schema-drift.mjs` cover Supabase *schema* drift, not this generator. Source and artefact were in sync at the time of measurement (mtimes 4 ms apart, same regeneration run) — **which is a property of whoever last ran it by hand, not a maintained invariant.**
+- **Sketch:** regenerate to a temp file, diff against the committed artefact, fail on mismatch. Standard generated-artefact guard; the generator already exists, so this is wiring plus a probe, not new machinery. Probe both directions: an edited source with a stale artefact must FAIL, and a freshly regenerated tree must PASS.
+- **Why it matters more than a normal codegen drift:** the rows carry `legal_review_ref` values (`ADDENDUM_70C §8.8`, `§10.1`, `§10.3`) and some are `locked: true` counsel-signed copy. A silent divergence between source and artefact means the text counsel signed and the text that reaches the database are two different strings, with nothing reporting it. The failure is invisible by construction — a stale artefact is a valid SQL file that applies cleanly.
+- **Live instance of exactly that:** `subscription.cancellation_confirm` (generated:890) still promises a deletion date — "your data is available until `{{purgeEligibleAt}}`" — after `e5e7abf9` moved the code path to a period-based promise. Not a drift defect *yet*, because both source and artefact are equally stale, which is the point: they agree with each other and disagree with the product. Settling that is counsel's call (see the item-3 fork), but when it is settled, three surfaces must move together and only two of them are in TypeScript.
+- **Provenance:** found 2026-08-20 while checking whether a third copy of the Day-0 cancellation text was a live implementation or an inert seed. It was inert — and the *reason* the check was cheap to run is that generated and source happened to agree. Filed because the next person will not be that lucky.
+- **Covering spec:** NEW
+
 ### M-069 — two competing Information-Regulator SSOTs, and the declared one has zero importers
 
 - **Rule:** `lib/comms/templates/ApplicantLegalFooter.tsx:25` — its own JSDoc: `INFORMATION_REGULATOR_URL` is the "single source for every IR reference in comms", deliberately the WEBSITE only, because the postal/email/phone details "have changed repeatedly, and a stale address on an immutable evidence record is a defect", and it "normalises the older justice.gov.za/inforeg references onto the current site".
