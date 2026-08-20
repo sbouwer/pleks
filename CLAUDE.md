@@ -368,8 +368,9 @@ section that never mentioned joint applications).
    full ID; a UI surface masks via `maskIdNumber`)
 - No PII in console.log, no PII in audit_log values
   **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check. Full sketch → **M-017** in `docs/MECHANISABLE.md`.
-- **implementer** (WRITE, Sonnet) — a PRE-SCOPED mechanical transform: a codemod, a migrate-these-N-sites sweep, a rename, a header/baseline fill. **Spawn it with `isolation: "worktree"`** so it edits an isolated copy and can run in parallel with you (or with a second implementer on a disjoint file set). It ends at `npm run check` green + a report; YOU commit and push (it never does). Give it the exact transform + scope — it returns the misfit "judgment sites" for you to decide, never guesses a mapping. This is the multitasking lever: hand off the mechanical bulk (this is what the 100-site item-5/6 migrations were), keep your context for the rule design and the judgment calls.
-  **UNENFORCEABLE** — "spawn with worktree isolation", "never guesses a mapping", "YOU commit, it never does" are behavioural constraints on how a subagent is invoked and how it reports; nothing outside the harness inspects a subagent invocation's parameters or its self-reported judgment-sites list for compliance.
+- **implementer** (WRITE, Sonnet) — a PRE-SCOPED mechanical transform: a codemod, a migrate-these-N-sites sweep, a rename, a header/baseline fill. **Spawn it in the MAIN CHECKOUT — do NOT use `isolation: "worktree"`** (E10: a worktree is created from `origin/main`, not your HEAD, so on any feature branch the agent transforms a different tree from yours and its green gate proves nothing about yours). What isolation was standing in for is better served by a rung-1 control: **an implementer may only write inside its declared scope**, checked per tool call on `agent_type`. <!-- @enforced hook:agent-write-scope --> It ends at `npm run check` green + a report; YOU commit and push. Give it the exact transform + scope — it returns the misfit "judgment sites" for you to decide, never guesses a mapping. This is the multitasking lever: hand off the mechanical bulk (this is what the 100-site item-5/6 migrations were), keep your context for the rule design and the judgment calls.
+  **Worktree isolation remains available for exactly one case** — two implementers running in parallel on DISJOINT file sets, on `main`, with artefact paths passed absolute — chosen explicitly each time, never inherited from a recommendation.
+  **UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: other) — **the never-commits half is NOT covered by the tag above.** `agent-write-scope.js` declares `// @matcher Write|Edit|MultiEdit|NotebookEdit`; it never sees `Bash`, so nothing stops a subagent running `git commit`. Isolation did not enforce it either — it only made a commit land somewhere else — so this is a gap the E10 ruling exposes rather than one it creates. Full sketch → **M-068**. "Never guesses a mapping" and the judgment-sites report stay unenforceable in any case: nothing inspects a subagent's self-reported list for compliance.
 - Do not deploy without running `npm run security:quick` first
   **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of "Zero critical findings before any deployment" above, same mechanism, not re-annotated there: no gate blocks a Vercel deploy on this script having run or passed.
 - Do not change existing RLS policies without flagging it
@@ -439,11 +440,13 @@ section that never mentioned joint applications).
 | `grounder` | Before writing code: map the machinery a task touches | read-only |
 | `census` | Repo-wide counts / find-all-usages, returned **classified** | read-only |
 | `db-inspector` | Live-data claims; every answer carries its query | read-only, SELECT |
-| `implementer` | Pre-scoped mechanical transform; returns misfit judgment sites | write, `isolation: worktree`, never commits |
+| `implementer` | Pre-scoped mechanical transform; returns misfit judgment sites | write (scope-gated per `agent_type`), **main checkout — NOT `isolation: worktree`** (E10), never commits |
 | `walker` | Adversarial pre-PR review — tries to **refute** | read-only |
 
-Mechanical reading → the read-only three. Mechanical writing → the isolated implementer. Judgment
-stays in the main session. Subagents DO receive this file (E3) but a narrow-task agent skims it,
+Mechanical reading → the read-only three. Mechanical writing → the implementer, **in your own
+checkout**. Judgment stays in the main session. **Every agent claim about the tree carries the SHA
+it observed** — the anchor rule of §8, applied to agents, and the thing that would have caught E10
+in any isolation mode. Subagents DO receive this file (E3) but a narrow-task agent skims it,
 and rung-4 rule files never reach an edit-blind session (E1b) — presence is not enforcement.
 
 **Classify per site, never sweep.** Two sites identical to twenty-five others were correct for a

@@ -789,6 +789,15 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **The limitation, stated up front:** `brief/` is a OneDrive symlink and is **not version-controlled**, so this check can never run in CI — CI has no `brief/`. It can only run locally, and must SKIP-and-say-so when the directory is absent rather than pass silently. That makes it a weaker rung than a normal check (CLAUDE.md §1: "anything the tooling depends on belongs in the tracked tree instead"). Two honest options, and the choice is CD's: accept a local-only ratchet, or move the reference documents that matter into the tracked tree first and check those. Do not build it as a normal check and let a CI green be read as coverage.
 - **Covering spec:** NEW
 
+### M-068 — nothing stops a subagent committing
+
+- **Rule:** "the implementer ends at a report; YOU commit and push (it never does)" — `CLAUDE.md` §5 and §7
+- **Where it lives:** `CLAUDE.md` §5, the implementer bullet
+- **Rung:** hook · **Blast:** other
+- **Sketch:** `.claude/hooks/agent-write-scope.js` declares `// @matcher Write|Edit|MultiEdit|NotebookEdit` — it gates *where* an agent writes and never sees `Bash`, so `git commit` from inside a subagent is ungated. `bash-gate.js` denies `--no-verify` and force-push and asks on `git push`, none of which is "a subagent must not commit". Sketch: extend the write-scope hook's matcher to `Bash` and deny `git commit` / `git merge` / `git rebase` when `agent_type` is set, reusing the E7 `agent_type` field the hook already reads. Probe both directions — a commit attempted from an agent must be denied, and the same command from the main session must pass untouched.
+- **Exposed, not created, by the E10 ruling (2026-08-20):** worktree isolation never enforced this either. It made a subagent's commit land on a throwaway branch instead of yours, which hid the behaviour rather than preventing it — and it hid it *while making the agent's work invisible to your tree*, which is the E10 defect. Dropping isolation removes the accidental concealment and leaves the real gap in view. Do not read "isolation used to protect us here" into it.
+- **Covering spec:** NEW
+
 ### M-067 — `excludePlatformOrg` is a stated MUST with zero call sites
 
 - **Rule:** `lib/comms/platform-org.ts` — its own JSDoc: every "for each org" query MUST exclude the platform org
