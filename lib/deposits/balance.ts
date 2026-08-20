@@ -7,21 +7,6 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
-export async function getDepositBalance(leaseId: string): Promise<number> {
-  const supabase = await createServiceClient()
-  const { data, error: queryError } = await supabase
-    .from("deposit_transactions")
-    .select("direction, amount_cents")
-    .eq("lease_id", leaseId)
-    logQueryError("getDepositBalance deposit_transactions", queryError)
-
-  return (data ?? []).reduce((sum, txn) => {
-    return txn.direction === "credit"
-      ? sum + txn.amount_cents
-      : sum - txn.amount_cents
-  }, 0)
-}
-
 export async function getDepositPaid(leaseId: string): Promise<number> {
   const supabase = await createServiceClient()
   const { data, error: queryError } = await supabase

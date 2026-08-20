@@ -10,8 +10,6 @@
 import type {
   DeclineReasonCode,
   AdverseFactorCode,
-  NotShortlistedReasonCode,
-  WithdrawnReasonCode,
 } from "./decisionReasons"
 
 /** One label per decline code — the standard reasons shown in the picker. */
@@ -92,18 +90,4 @@ export const ADVERSE_FACTOR_LABELS: Record<AdverseFactorCode, string> = {
   adverse_director_disqualified_cipc: "Director disqualified (CIPC)",
   adverse_entity_credit_low: "Entity credit low",
   adverse_director_individual_fitscore_low: "Director individual FitScore low",
-}
-
-export const NOT_SHORTLISTED_REASON_LABELS: Record<NotShortlistedReasonCode, string> = {
-  not_shortlisted_other_applicant_selected: "Another applicant was selected",
-  not_shortlisted_no_decision_provided: "No decision recorded",
-  not_shortlisted_property_withdrawn: "Property withdrawn",
-  not_shortlisted_property_changed: "Property details changed",
-  not_shortlisted_expired_unactioned: "Expired without action",
-}
-
-export const WITHDRAWN_REASON_LABELS: Record<WithdrawnReasonCode, string> = {
-  withdrawn_applicant_initiated: "Applicant withdrew",
-  withdrawn_applicant_unreachable: "Applicant unreachable",
-  withdrawn_alternate_property: "Applicant took an alternate property",
 }

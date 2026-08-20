@@ -170,17 +170,6 @@ export async function listTeamOptions(): Promise<{ id: string; name: string }[]>
   return data ?? []
 }
 
-/** The team ids the current user belongs to — feeds "my work" (team-assigned items) + the team filter. */
-export async function getMyTeamIds(): Promise<string[]> {
-  const gw = await gateway()
-  if (!gw) return []
-  const { db, orgId, userId } = gw
-  const { data, error } = await db
-    .from("team_members").select("team_id").eq("org_id", orgId).eq("user_id", userId)
-  if (error) { console.error("getMyTeamIds:", error.message); return [] }
-  return (data ?? []).map((r) => r.team_id as string)
-}
-
 /** The current user's active teams (id + name) — for the per-team "View" filter on the queues. */
 export async function getMyTeams(): Promise<{ id: string; name: string }[]> {
   const gw = await gateway()

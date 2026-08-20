@@ -219,27 +219,6 @@ export async function createDepositCharge(
   return { id: data.id as string }
 }
 
-export async function updateDepositCharge(
-  chargeId: string,
-  leaseId: string,
-  input: Partial<CreateDepositChargeInput>
-): Promise<{ success?: boolean; error?: string }> {
-  const gw = await requireAgentWriteAccess("edit_lease")
-  const denied = await denyNonFinance(gw); if (denied) return denied
-  const { db, orgId } = gw
-
-  const { error } = await db
-    .from("deposit_charges")
-    .update(input)
-    .eq("id", chargeId)
-    .eq("org_id", orgId)
-    .eq("agent_confirmed", false)
-
-  if (error) return { error: error.message }
-  revalidatePath(`/leases/${leaseId}/deposit`)
-  return { success: true }
-}
-
 export async function confirmDepositCharge(
   chargeId: string,
   leaseId: string

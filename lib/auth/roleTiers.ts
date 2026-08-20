@@ -33,10 +33,3 @@ export function allowedRoleSlugs(tier: Tier): "all" | Set<string> {
 export function canAddCustomRoles(tier: Tier): boolean {
   return (TIER_ROLE_ACCESS[tier] ?? TIER_ROLE_ACCESS.owner).canAddCustom
 }
-
-/** Should this role show on the tier? Built-ins are gated; custom roles always show where they exist. */
-export function isRoleVisibleForTier(tier: Tier, slug: string, isSystem: boolean): boolean {
-  if (!isSystem) return true
-  const allowed = allowedRoleSlugs(tier)
-  return allowed === "all" || allowed.has(slug)
-}

@@ -25,5 +25,3 @@ export const EXTERNAL_LINKS = {
   // Pleks infrastructure
   statusPage: "https://status.pleks.co.za",
 } as const
-
-export type ExternalLinkKey = keyof typeof EXTERNAL_LINKS

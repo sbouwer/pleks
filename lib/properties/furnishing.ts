@@ -20,11 +20,6 @@ export const FURNISHING_OPTIONS: ReadonlyArray<{ value: FurnishingStatus; label:
     label: FURNISHING_LABELS[value],
   }))
 
-/** Display label for a furnishing value, with a safe fallback. */
-export function furnishingLabel(value: string | null | undefined): string {
-  return FURNISHING_LABELS[(value ?? "") as FurnishingStatus] ?? "Unfurnished"
-}
-
 /**
  * Default deposit MULTIPLE (× monthly rent) by furnishing (O-22). Seeds the LOW end of the practical range
  * (matches the point-estimates in buildProfile's DEPOSIT_MONTHS_BY_FURNISHING) — tenant-conservative, and the

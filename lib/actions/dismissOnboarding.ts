@@ -38,7 +38,3 @@ export async function dismissOnboarding(): Promise<OnboardingResult> {
   return setDismissedAt("dismiss_onboarding", new Date().toISOString())
 }
 
-/** Re-open the guided onboarding (a "set up again" affordance). */
-export async function resumeOnboarding(): Promise<OnboardingResult> {
-  return setDismissedAt("resume_onboarding", null)
-}

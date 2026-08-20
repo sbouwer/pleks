@@ -39,15 +39,8 @@ const MAINTENANCE_CATEGORIES: readonly MaintenanceCategory[] = [
 export const MAINTENANCE_CATEGORY_VALUES: readonly string[] = MAINTENANCE_CATEGORIES.map((c) => c.value)
 
 const CODE_BY_VALUE = new Map(MAINTENANCE_CATEGORIES.map((c) => [c.value, c.code]))
-const LABEL_BY_VALUE = new Map(MAINTENANCE_CATEGORIES.map((c) => [c.value, c.label]))
 
 /** 3-letter work-order code for a category; falls back to OTHER for unknown values. */
 export function workOrderCategoryCode(category: string | null | undefined): string {
   return (category && CODE_BY_VALUE.get(category)) || "OTH"
-}
-
-/** Human label for a category; falls back to the raw value. */
-export function maintenanceCategoryLabel(category: string | null | undefined): string {
-  if (!category) return "Other"
-  return LABEL_BY_VALUE.get(category) ?? category
 }

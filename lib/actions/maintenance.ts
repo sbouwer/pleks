@@ -955,52 +955,6 @@ export async function changeContractor(
   return { success: true }
 }
 
-export async function revertStatus(
-  requestId: string,
-  targetStatus: string,
-): Promise<{ success: true } | { error: string }> {
-  const gw = await requireAgentWriteAccess("assign_maintenance")
-  const { db, userId, orgId } = gw
-
-  if (targetStatus !== "pending_review") {
-    return { error: "Revert target must be pending_review" }
-  }
-
-  const { data: req, error: fetchErr } = await db
-    .from("maintenance_requests")
-    .select("status, reviewed_at, work_order_sent_at, org_id")
-    .eq("id", requestId)
-    .eq("org_id", orgId) // org-scope guard (caller-ID census)
-    .single()
-
-  if (fetchErr || !req) return { error: "Request not found" }
-
-  const allowedSources = ["approved", "rejected"]
-  if (!allowedSources.includes(req.status)) {
-    return { error: `Can only revert from 'approved' or 'rejected', not '${req.status}'` }
-  }
-  if (req.work_order_sent_at) {
-    return { error: "Cannot revert — work order has already been sent" }
-  }
-  // Must be within 60 minutes of the transition
-  const transitionAt = req.reviewed_at as string | null
-  if (!transitionAt || Date.now() - new Date(transitionAt).getTime() > 60 * 60 * 1000) {
-    return { error: "Revert window has expired (60 minutes after approval/rejection)" }
-  }
-
-  const { error } = await db.from("maintenance_requests")
-    .update({ status: "pending_review", reviewed_at: null, reviewed_by: null })
-    .eq("id", requestId)
-    .eq("org_id", orgId)
-
-  if (error) return { error: error.message }
-
-  await recordAudit(db, { orgId: orgId, table: "maintenance_requests", recordId: requestId, action: "UPDATE", actorId: userId, before: { status: req.status }, after: { status: "pending_review" } })
-
-  revalidatePath(`/maintenance/${requestId}`)
-  return { success: true }
-}
-
 export async function togglePhotoVisibilityToTenant(
   photoId: string,
   visible: boolean,

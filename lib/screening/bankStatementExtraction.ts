@@ -24,16 +24,6 @@ export type ClassificationType =
   | 'other'
   | 'unclassified_skipped'
 
-const COMMITMENT_CLASSIFICATIONS = new Set<ClassificationType>([
-  'rent_or_housing',
-  'debt_repayment',
-  'subscription',
-  'utility',
-  'insurance',
-  'medical_aid',
-  'school_fees',
-])
-
 export interface RecurringDebit {
   payee_signature: string
   payee_description_example: string
@@ -199,60 +189,4 @@ Return ONLY valid JSON matching this schema:
     }
   ]
 }`
-}
-
-/**
- * Returns true if the item's final_classification should count toward Ratio 2 commitments.
- * Conservative: ambiguous items default to NOT counted.
- */
-export function isCountedInCommitments(
-  classification: ClassificationType,
-  isSuppressed: boolean = false
-): boolean {
-  if (isSuppressed) return false
-  return COMMITMENT_CLASSIFICATIONS.has(classification)
-}
-
-/**
- * Classifies the identity match between the extracted name and the declared name.
- * Variant: middle name, initials, maiden/married name, capitalisation differences.
- */
-export function classifyNameMatch(
-  extracted: string | null,
-  declaredFirst: string,
-  declaredLast: string
-): { match: 'exact' | 'variant' | 'mismatch' | 'unable_to_extract'; confidence: number } {
-  if (!extracted || extracted.trim() === '') {
-    return { match: 'unable_to_extract', confidence: 0 }
-  }
-
-  const normalise = (s: string) =>
-    s.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim()
-
-  const e = normalise(extracted)
-  const d = normalise(`${declaredFirst} ${declaredLast}`)
-  const dRev = normalise(`${declaredLast} ${declaredFirst}`)
-
-  if (e === d || e === dRev) return { match: 'exact', confidence: 1 }
-
-  const eParts = e.split(' ')
-  const dParts = d.split(' ')
-
-  // Initials match (e.g. "S Mthembu" vs "Sarah Mthembu")
-  const firstInitialMatch = eParts[0]?.length === 1 && dParts[0]?.startsWith(eParts[0])
-  const lastNameMatch = eParts.at(-1) === dParts.at(-1)
-
-  // Substring containment (handles middle names, suffixes)
-  const eContainsFirst = e.includes(normalise(declaredFirst))
-  const eContainsLast  = e.includes(normalise(declaredLast))
-
-  if ((firstInitialMatch && lastNameMatch) || (eContainsFirst && eContainsLast)) {
-    return { match: 'variant', confidence: 0.8 }
-  }
-
-  if (eContainsLast || lastNameMatch) {
-    return { match: 'variant', confidence: 0.6 }
-  }
-
-  return { match: 'mismatch', confidence: 0.9 }
 }

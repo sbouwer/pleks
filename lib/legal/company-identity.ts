@@ -49,8 +49,3 @@ export const COMPANY_IDENTITY: CompanyIdentity = {
   informationOfficer: "Stéan Bouwer",
   region:             "Western Cape, South Africa",
 }
-
-/** True once every ECT s43(1) / PAIA s51(1)(a) identity field is publishable. Guards the pilot gate. */
-export function isSupplierDisclosureComplete(id: CompanyIdentity = COMPANY_IDENTITY): boolean {
-  return Boolean(id.registrationNumber && id.streetAddress && id.postalAddress && id.telephone)
-}

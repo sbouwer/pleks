@@ -293,38 +293,6 @@ export async function createBankImport(formData: FormData): Promise<{
   return { success: true, importId, matched, total: insertedCount, source }
 }
 
-export async function resolveStatementLine(
-  lineId: string,
-  action: "match_manual" | "ignore",
-  matchData?: { invoiceId?: string; supplierInvoiceId?: string; reason?: string }
-) {
-  const gw = await requireAgentWriteAccess("sign_off_recon")
-  const { db, userId, orgId } = gw
-
-  const updates: Record<string, unknown> = {
-    resolved_by: userId,
-    resolved_at: new Date().toISOString(),
-  }
-
-  if (action === "ignore") {
-    updates.match_status = "ignored"
-    updates.ignore_reason = matchData?.reason || "bank_fee"
-  } else {
-    updates.match_status = "matched_manual"
-    updates.match_confidence = 1
-    if (matchData?.invoiceId) updates.matched_invoice_id = matchData.invoiceId
-    if (matchData?.supplierInvoiceId) updates.matched_supplier_inv_id = matchData.supplierInvoiceId
-  }
-
-  // Org-scope the line update (caller-ID census) — a foreign lineId matches nothing.
-  const { data: updated, error } = await db.from("bank_statement_lines").update(updates).eq("id", lineId).eq("org_id", orgId).select("import_id").single()
-  if (error) return { error: error.message }
-
-  if (updated?.import_id) await recomputeDiscrepancy(db, orgId, updated.import_id as string)
-  revalidatePath("/billing/reconciliation")
-  return { success: true }
-}
-
 /**
  * F-5: confirm or reject a fuzzy (±R50) suggested match. Confirm promotes it to a verified manual match
  * (keeping the suggested invoice); reject clears the suggestion back to unmatched for re-resolution. Either

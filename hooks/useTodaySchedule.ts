@@ -23,7 +23,7 @@ export interface ScheduleStop {
   href: string
 }
 
-export const INSPECTION_LABEL: Record<string, string> = {
+const INSPECTION_LABEL: Record<string, string> = {
   move_in: "Move-in inspection",
   periodic: "Periodic inspection",
   move_out: "Move-out inspection",

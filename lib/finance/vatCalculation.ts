@@ -31,12 +31,3 @@ export function calculateVAT(
     inclVat: amountExclVatCents + vatAmount,
   }
 }
-
-export function generateEFTReference(
-  propertyAddress: string,
-  workOrderNumber: string | null
-): string {
-  const propertyCode = propertyAddress.slice(0, 6).toUpperCase().replace(/\s/g, "")
-  const jobRef = workOrderNumber ? `WO${workOrderNumber.slice(-4)}` : "SUPP"
-  return `PLEKS-${propertyCode}-${jobRef}`.slice(0, 30)
-}

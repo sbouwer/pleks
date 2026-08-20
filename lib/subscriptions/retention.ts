@@ -31,5 +31,3 @@ export const RETENTION_PROTECTED_TABLES = [
   "auth_events",
   "tos_acceptances",
 ] as const
-
-export type RetentionProtectedTable = (typeof RETENTION_PROTECTED_TABLES)[number]

@@ -14,7 +14,6 @@
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { hasCapability } from "@/lib/auth/can"
 import { revalidatePath } from "next/cache"
-import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function createDocumentTemplate(
   formData: FormData
@@ -188,58 +187,6 @@ export async function duplicateTemplateToOrg(
   return { id: data.id }
 }
 
-export async function toggleFavourite(
-  templateId: string
-): Promise<{ error?: string; favourited: boolean }> {
-  const gw = await requireAgentWriteAccess("send_manual_comm")
-  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
-  const { db, userId } = gw
-
-  const { data: existing, error: existingError } = await db
-    .from("user_template_favourites")
-    .select("user_id")
-    .eq("user_id", userId)
-    .eq("template_id", templateId)
-    .maybeSingle()
-    logQueryError("toggleFavourite user_template_favourites", existingError)
-
-  if (existing) {
-    await db
-      .from("user_template_favourites")
-      .delete()
-      .eq("user_id", userId)
-      .eq("template_id", templateId)
-    return { favourited: false }
-  }
-
-  await db.from("user_template_favourites").insert({
-    user_id: userId,
-    template_id: templateId,
-  })
-
-  return { favourited: true }
-}
-
-export async function setWhatsAppOptIn(
-  templateId: string,
-  optedIn: boolean
-): Promise<{ error?: string }> {
-  const gw = await requireAgentWriteAccess("send_manual_comm")
-  if (!(await hasCapability(gw, "documents"))) throw new Error("Documents access is required")
-  const { db, orgId } = gw
-
-  const { error } = await db
-    .from("org_whatsapp_template_preferences")
-    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- upsert keyed on onConflict (org_id,template_id) with org_id: orgId from requireAgentWriteAccess — cannot merge into another org's row
-    .upsert(
-      { org_id: orgId, template_id: templateId, opted_in: optedIn },
-      { onConflict: "org_id,template_id" }
-    )
-
-  if (error) return { error: error.message }
-  return {}
-}
-
 export async function setWhatsAppTone(
   templateId: string,
   tone: string
@@ -260,52 +207,3 @@ export async function setWhatsAppTone(
   return {}
 }
 
-export async function uploadCustomLease(
-  formData: FormData
-): Promise<{ error?: string }> {
-  const gw = await requireAgentWriteAccess("create_lease")
-  const { db, orgId } = gw
-
-  const file = formData.get("file") as File | null
-  if (!file) return { error: "No file provided" }
-
-  if (file.size > 10 * 1024 * 1024) return { error: "File must be under 10MB" }
-
-  const allowedTypes = [
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ]
-  if (!allowedTypes.includes(file.type)) {
-    return { error: "Only PDF or DOCX files are accepted" }
-  }
-
-  const ext = file.name.split(".").pop() ?? "pdf"
-  const storagePath = `${orgId}/custom-lease/${Date.now()}.${ext}`
-
-  const arrayBuffer = await file.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
-
-  const { error: uploadError } = await db.storage
-    .from("lease-templates")
-    .upload(storagePath, buffer, {
-      contentType: file.type,
-      upsert: true,
-    })
-
-  if (uploadError) return { error: uploadError.message }
-
-  const { error: updateError } = await db
-    .from("organisations")
-    .update({
-      custom_template_path: storagePath,
-      custom_template_filename: file.name,
-      custom_template_uploaded_at: new Date().toISOString(),
-      custom_template_active: true,
-    })
-    .eq("id", orgId)
-
-  if (updateError) return { error: updateError.message }
-
-  revalidatePath("/settings/templates")
-  return {}
-}

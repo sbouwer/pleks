@@ -12,13 +12,6 @@
 /** Work-list scope. Phase 2 will add `team:${teamId}`. */
 export type WorkScope = "mine" | "all"
 
-export const DEFAULT_WORK_SCOPE: WorkScope = "mine"
-
-/** Narrow a string to a valid WorkScope (e.g. from a search param), defaulting to "mine". */
-export function parseWorkScope(value: string | null | undefined): WorkScope {
-  return value === "all" ? "all" : "mine"
-}
-
 /** Minimal shape of a Supabase filter builder — just the chainable `.eq` we need. */
 interface EqFilterable<Q> {
   eq: (column: string, value: unknown) => Q

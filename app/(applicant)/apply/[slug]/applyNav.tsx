@@ -16,7 +16,7 @@ export type PaneMeta = ReadonlyArray<{ group: string; sub: string; key: string }
 export interface NavModel { stepGroups: readonly string[]; paneMeta: PaneMeta; groupPanes: Record<string, number[]>; stepDesc: Record<string, string> }
 
 /** Build a NavModel — derives the group→pane-indices map from the pane list. "Apply as" is the landing (no pane). */
-export function buildNav(stepGroups: readonly string[], paneMeta: PaneMeta, stepDesc: Record<string, string>): NavModel {
+function buildNav(stepGroups: readonly string[], paneMeta: PaneMeta, stepDesc: Record<string, string>): NavModel {
   const groupPanes: Record<string, number[]> = {}
   paneMeta.forEach((m, i) => {
     groupPanes[m.group] ??= []
@@ -153,7 +153,7 @@ export function computeStepStates(model: NavModel, opts: Readonly<{ activeGroup:
 
 /** Desktop vertical step rail — the "listing space, transformed into navigation". The ACTIVE step auto-expands
  *  its sub-tabs as indented nav items (others stay collapsed). */
-export function StepRail({ model, states, step, maxReached, onNav, onJumpStep }: Readonly<{
+function StepRail({ model, states, step, maxReached, onNav, onJumpStep }: Readonly<{
   model: NavModel; states: StepState[]; step: number; maxReached: number; onNav: (t: number | "apply-as") => void; onJumpStep: (s: number) => void
 }>) {
   return (

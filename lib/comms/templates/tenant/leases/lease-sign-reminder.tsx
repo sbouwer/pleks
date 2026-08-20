@@ -57,14 +57,6 @@ export function LeaseSignReminderEmail({
   )
 }
 
-export function buildLeaseSignReminderSms(
-  firstName: string,
-  propertyLabel: string,
-  senderName: string,
-): string {
-  return `${senderName}: Reminder - your lease for ${propertyLabel} is still waiting for your signature. Please check your email to sign.`
-}
-
 const greet: React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0 0 8px" }
 const h1:    React.CSSProperties = { fontSize: 20, fontWeight: 700, color: "#18181b", margin: "0 0 16px" }
 const para:  React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineHeight: "1.6", margin: "0 0 16px" }

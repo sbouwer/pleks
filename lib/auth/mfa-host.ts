@@ -13,27 +13,6 @@ export const ALLOWED_HOSTS = ["app.pleks.co.za", "localhost", "127.0.0.1"] as co
 export type AllowedHost = typeof ALLOWED_HOSTS[number]
 
 /**
- * Resolves the current host from a request.
- * Reads the Host header first — authoritative on Vercel where request.url carries
- * an internal routing address, not the public hostname. Falls back to URL hostname
- * for client-side constructed requests (new Request(globalThis.location.href)).
- * Returns null for unknown hosts (including *.vercel.app preview deploys).
- */
-export function resolveCurrentHost(req: Request): AllowedHost | null {
-  try {
-    const fromHeader = req.headers.get("host")?.split(":")[0]?.toLowerCase()
-    if (fromHeader && (ALLOWED_HOSTS as readonly string[]).includes(fromHeader)) {
-      return fromHeader as AllowedHost
-    }
-    const fromUrl = new URL(req.url).hostname.toLowerCase()
-    if ((ALLOWED_HOSTS as readonly string[]).includes(fromUrl)) return fromUrl as AllowedHost
-  } catch {
-    // malformed URL
-  }
-  return null
-}
-
-/**
  * Returns true when the host is a Vercel preview deploy.
  * Enrolment is refused on preview hosts (D-AUTH-02).
  */

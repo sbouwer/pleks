@@ -45,12 +45,6 @@ export interface AiCallOptions {
   harnessMode?: boolean               // harness use only — also suppresses ai_usage write
 }
 
-export interface AiCallUsage {
-  input_tokens: number
-  output_tokens: number
-  cost_cents: number
-}
-
 /**
  * The `content` field of a message param (string | ContentBlockParam[]), re-exported from the SDK type so callers
  * (e.g. the extractors, which are ESLint-barred from importing @anthropic-ai/sdk directly) can precisely type a

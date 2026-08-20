@@ -20,7 +20,6 @@ export type RuleDomain =
   | "platform"
 
 export type RuleFrequency = "daily" | "weekly" | "monthly"
-export type RuleScope     = "org"   | "platform"
 
 export type SubscriptionTier = "owner" | "steward" | "growth" | "portfolio" | "firm" | "bespoke"
 

@@ -6,7 +6,7 @@
  *        Verified challenges have an additional 5-min window after verification.
  */
 import crypto from "crypto"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 
 export type StepUpAction =
   | "trust_account_write"
@@ -82,10 +82,4 @@ export async function requireStepUp(params: RequireStepUpParams): Promise<StepUp
     .eq("id", challenge.id)
 
   return { verified: true }
-}
-
-export async function getCurrentUserId(): Promise<string | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user?.id ?? null
 }

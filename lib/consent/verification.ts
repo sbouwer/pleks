@@ -21,8 +21,6 @@ export type ConsentType =
   | "director_standard"
   | "director_estate_criminal"
 
-export type VerificationMethod = "sms_code" | "email_link"
-
 export interface RateLimitResult {
   allowed: boolean
   reason?: string
@@ -34,13 +32,6 @@ export interface SendResult {
   verificationId?: string
   error?: string
   rateLimited?: boolean
-}
-
-export interface VerifyResult {
-  ok: boolean
-  status?: "verified" | "invalid" | "locked" | "expired" | "already_verified"
-  attemptsRemaining?: number
-  error?: string
 }
 
 function getHmacSecret(): string {

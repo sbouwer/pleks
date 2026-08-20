@@ -627,46 +627,6 @@ export async function ensureTenantForContact(contactId: string): Promise<{ ok: b
   return { ok: true, tenantId: created.id }
 }
 
-export async function addLeaseCoTenant(leaseId: string, tenantId: string): Promise<{ error: string } | { success: true }> {
-  const gw = await requireAgentWriteAccess("edit_lease")
-  const { db, orgId } = gw
-
-  const { data: lease, error: leaseError } = await db.from("leases").select("org_id").eq("id", leaseId).single()
-    logQueryError("addLeaseCoTenant leases", leaseError)
-  if (lease?.org_id !== orgId) return { error: "Lease not found" }
-
-  const { error } = await db.from("lease_co_tenants").insert({ org_id: orgId, lease_id: leaseId, tenant_id: tenantId })
-  if (error) return { error: error.message }
-
-  await recordAudit(db, {
-    orgId, actorId: gw.userId, action: "UPDATE", table: "lease_co_tenants", recordId: leaseId,
-    after: { action: "co_tenant_added", tenant_id: tenantId },
-  })
-
-  revalidatePath(`/leases/${leaseId}`)
-  return { success: true }
-}
-
-export async function removeLeaseCoTenant(leaseId: string, tenantId: string): Promise<{ error: string } | { success: true }> {
-  const gw = await requireAgentWriteAccess("edit_lease")
-  const { db, orgId } = gw
-
-  const { data: lease, error: leaseError } = await db.from("leases").select("org_id").eq("id", leaseId).single()
-    logQueryError("removeLeaseCoTenant leases", leaseError)
-  if (lease?.org_id !== orgId) return { error: "Lease not found" }
-
-  const { error } = await db.from("lease_co_tenants").delete().eq("lease_id", leaseId).eq("tenant_id", tenantId)
-  if (error) return { error: error.message }
-
-  await recordAudit(db, {
-    orgId, actorId: gw.userId, action: "DELETE", table: "lease_co_tenants", recordId: leaseId,
-    after: { action: "co_tenant_removed", tenant_id: tenantId },
-  })
-
-  revalidatePath(`/leases/${leaseId}`)
-  return { success: true }
-}
-
 /**
  * Delete a DRAFT lease (only). Drafts have no payments/reconciliations yet, so this clears the child
  * rows (co-tenants, charges, clause selections), undoes the unit's draft-tenant reflection if it still

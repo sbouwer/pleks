@@ -27,28 +27,6 @@ export function onConnectivityChange(callback: (online: boolean) => void): () =>
   }
 }
 
-/**
- * Request a background sync for pending photo uploads.
- * Falls back to immediate upload attempt if Background Sync API unavailable.
- */
-export async function requestPhotoSync(): Promise<void> {
-  if (typeof navigator === "undefined") return
-
-  const sw = navigator.serviceWorker?.controller
-  if (!sw) return
-
-  try {
-    const reg = await navigator.serviceWorker.ready
-    // Background Sync API is not universally supported; check before calling
-    if ("sync" in reg) {
-      await (reg as ServiceWorkerRegistration & { sync: { register(tag: string): Promise<void> } })
-        .sync.register("photo-upload")
-    }
-  } catch {
-    // Silently ignore — photos will retry on next page load
-  }
-}
-
 /** Upload pending photos directly (used when Background Sync API unavailable). */
 export async function flushPhotoQueue(inspectionId: string): Promise<{ uploaded: number; failed: number }> {
   const { getPendingPhotos, removePendingPhoto } = await import("./inspectionStore")

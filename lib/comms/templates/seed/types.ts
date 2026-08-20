@@ -47,5 +47,3 @@ export interface TemplateSeed {
   /** Flavour-keyed bodies — service/correspondence (70E D4). */
   variants?: TemplateBodyVariants
 }
-
-export type TemplateSeedList = readonly TemplateSeed[]

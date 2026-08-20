@@ -34,13 +34,6 @@ export interface OrgDetails {
   addr2_postal_code: string | null
 }
 
-/** Read-only banking summary for the Banking card (org bank_accounts — governed by Trust account settings). */
-export interface OrgBankSummary {
-  bankName: string | null
-  accountNumberMasked: string | null
-  accountType: string | null
-}
-
 /** The editable org-detail fields (everything except identity keys). */
 export type OrgFormState = Omit<OrgDetails, "id" | "type">
 

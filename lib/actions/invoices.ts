@@ -9,56 +9,8 @@
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
-import { calculateVAT } from "@/lib/finance/vatCalculation"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { monthStart, saTodayISO } from "@/lib/dates"
 import { recordAudit } from "@/lib/audit/recordAudit"
-
-export async function createSupplierInvoice(formData: FormData) {
-  const gw = await requireAgentWriteAccess("accept_quote")
-  const { db, userId, orgId } = gw
-
-  const contractorId = formData.get("contractor_id") as string || null
-  const amountExcl = Math.round(parseFloat(formData.get("amount_excl_vat") as string) * 100)
-  const vatRegistered = formData.get("vat_registered") === "true"
-  const vat = calculateVAT(amountExcl, vatRegistered)
-
-  // `new Date()` + local setDate(1), sliced in UTC — the month label depended on the server timezone.
-  const statementMonth = monthStart(saTodayISO())
-
-  const { data: invoice, error } = await db
-    .from("supplier_invoices")
-    .insert({
-      org_id: orgId,
-      contractor_id: contractorId,
-      maintenance_request_id: formData.get("maintenance_request_id") as string || null,
-      schedule_id: formData.get("schedule_id") as string || null,
-      property_id: formData.get("property_id") as string || null,
-      unit_id: formData.get("unit_id") as string || null,
-      invoice_number: formData.get("invoice_number") as string || null,
-      invoice_date: formData.get("invoice_date") as string,
-      due_date: formData.get("due_date") as string || null,
-      description: formData.get("description") as string,
-      amount_excl_vat_cents: vat.exclVat,
-      vat_amount_cents: vat.vatAmount,
-      amount_incl_vat_cents: vat.inclVat,
-      payment_source: formData.get("payment_source") as string || "trust",
-      statement_month: statementMonth,
-      statement_line_description: formData.get("description") as string,
-      status: "submitted",
-    })
-    .select("id")
-    .single()
-
-  if (error || !invoice) {
-    return { error: error?.message || "Failed to create invoice" }
-  }
-
-  await recordAudit(db, { orgId: orgId, table: "supplier_invoices", recordId: invoice.id, action: "INSERT", actorId: userId, after: { amount: vat.inclVat, contractor_id: contractorId } })
-
-  revalidatePath("/billing")
-  return { success: true, id: invoice.id }
-}
 
 export async function approveInvoice(invoiceId: string) {
   const gw = await requireAgentWriteAccess("accept_quote")

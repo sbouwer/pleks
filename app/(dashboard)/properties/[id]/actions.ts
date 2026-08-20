@@ -30,21 +30,6 @@ export async function assignLandlord(propertyId: string, landlordId: string | nu
   revalidatePath(`/properties/${propertyId}`)
 }
 
-export async function assignManagingAgent(propertyId: string, agentUserId: string | null) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
-  const { db, orgId } = gw
-
-  const { error } = await db
-    .from("properties")
-    .update({ managing_agent_id: agentUserId })
-    .eq("id", propertyId)
-    .eq("org_id", orgId)
-
-  if (error) throw new Error("Failed to assign managing agent")
-  revalidatePath(`/properties/${propertyId}`)
-}
-
 export async function assignUnitAgent(unitId: string, agentUserId: string | null) {
   const gw = await gateway()
   if (!gw) redirect("/login")
