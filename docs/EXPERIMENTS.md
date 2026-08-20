@@ -6,18 +6,21 @@ inside a session and may change without notice on any upgrade.
 
 **Anchor:** E1–E6 measured **2026-08-18**, Opus 5 via the Claude Code VSCode extension; the exact CLI
 version string was NOT captured then (`claude --version` was unavailable in that sandbox) and the
-2.1.235 attributed to E5 is inferred from the same session, not read off the binary. **E7 and E8**
-were measured **2026-08-20** with the version read directly: **2.1.235**. Record it on every future
-run — "which version was this true of" is the whole value of an anchor.
+2.1.235 attributed to E5 is inferred from the same session, not read off the binary. **E7, E8 and
+E9** were measured **2026-08-20** with the version read directly: **2.1.235**. Record it on every
+future run — "which version was this true of" is the whole value of an anchor.
 
-**RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E1b**, **E2**, **E5**, **E7**
-and **E8** *before* trusting rule scoping, marker invisibility, the assumption that MCP tool schemas
-are deferred, or the handoff write control. Tracked as an OUTSTANDING item. All five are
-load-bearing: E1b decides whether scoped rules are a control or a convenience, E2 decides whether the
-entire marker vocabulary costs context budget, E5 decides whether connected MCP servers impose a flat
-per-turn floor (on 2.1.235 they do not — a revert to eager tool loading would change the economics of
-every session), and **E7/E8 together decide whether the agent write scope is enforced or merely
-asserted** — E8 removed the frontmatter control this repo thought it had, and E7 is what replaced it.
+**RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E1b**, **E2**, **E5**, **E7**,
+**E8** and **E9** *before* trusting rule scoping, marker invisibility, the assumption that MCP tool
+schemas are deferred, the handoff write control, or any conclusion drawn from a subagent's behaviour
+after a spine edit. Tracked as an OUTSTANDING item. All six are load-bearing: E1b decides whether
+scoped rules are a control or a convenience, E2 decides whether the entire marker vocabulary costs
+context budget, E5 decides whether connected MCP servers impose a flat per-turn floor (on 2.1.235
+they do not — a revert to eager tool loading would change the economics of every session),
+**E7/E8 together decide whether the agent write scope is enforced or merely asserted** — E8 removed
+the frontmatter control this repo thought it had, and E7 is what replaced it — and **E9 decides
+whether a spine edit can be evaluated at all by the session that made it** (on 2.1.235 it cannot,
+which is how a false finding about agent disobedience got as far as canon).
 
 ---
 
@@ -319,6 +322,59 @@ same commit rather than being queued.
 **Re-run trigger:** on any CLI major-version upgrade, alongside E1b/E2/E5. If a later version honours
 the frontmatter, the deny hook becomes belt-and-braces rather than the only control — worth knowing,
 not worth removing it for.
+
+---
+
+## E9 · When does an edited agent definition reach a spawned subagent? — **ANSWERED: AT THE NEXT TURN BOUNDARY, NOT AT SPAWN**
+
+**Anchor:** same session, CLI 2.1.235, repo at `d18e344e`, 2026-08-20 17:03–17:31 SAST. Not the
+question being asked — it surfaced as a false finding about agent disobedience and was chased down
+because the finding was about to be written into canon.
+
+The agent registry is **snapshotted at `UserPromptSubmit`**. Writing `.claude/agents/<name>.md` does
+not refresh it, and a subagent spawned later in the same assistant turn runs the definition that was
+on disk when the turn began — however many minutes and edits ago that was.
+
+**The controlled pair** (everything else held constant: same agent, same task shape, same
+instruction, spawns 30 s and ~4 min after the edit respectively):
+
+| | Edit → spawn, SAME turn | Edit → turn boundary → spawn |
+|---|---|---|
+| Marker `## Probe` / `B2`, added to the definition mid-turn | **ABSENT** | **PRESENT** |
+
+Corroborating, in the order it was measured:
+
+1. grounder v4 spliced 17:03:43. Three spawns at 17:09, 17:17 and ~17:22 — all inside one long
+   assistant turn that began before 17:03 — each produced **v3's** anchor template verbatim
+   (`task: … · UTC: …`, not v4's `anchor: task=… · utc=…`) and v3's six-section artefact.
+2. `touch .claude/settings.json` at 17:21, spawn in the same turn: still v3. **An mtime-only touch of
+   the settings file is not a trigger** — worth stating because hooks *do* hot-reload from that file,
+   so the two reload paths are not the same path.
+3. First spawn of the next turn, 17:26: **v4** — the literal anchor with a genuinely read clock
+   (`utc=2026-08-20T15:26:34Z`, matching the run), and section 7 `## Contract` written verbatim.
+4. Then the controlled pair above.
+
+**Two things this retroactively killed.** A finding already written into
+`dev-standards/playbooks/4-AGENT-PIPELINES.md` §11 said "grounder followed the artefact contract and
+not the return contract" — it was executing **v2**, which contains no return contract at all
+(`git show bd3817a3:.claude/agents/grounder.md`: six artefact sections, no anchor template, no
+`VERDICT/ARTEFACT/SUMMARY/PROMOTE`). Nothing was ignored; the instruction was not there. And the
+whole v3→v4 bump was motivated by that non-event. v4 is a better spine on its own merits — the
+literal anchor closed a real defect, visible in a v3 run that wrote `UTC: 2026-08-20T00:00:00Z`, a
+recalled placeholder rather than a read clock — but it was not the fix to the bug it was written for,
+because there was no bug.
+
+**The operational rule, which is the whole value of this entry:** after editing any spine, **prove
+which version is in effect before believing anything an agent does.** Put a nonce in the file and
+require the agent to echo it into its artefact. One caveat measured the hard way — the first nonce
+attempt was a section headed "TEMPORARY PROBE" saying "this is not part of your role", and the agent
+reasonably skipped it, producing a false negative. **Make the nonce an artefact-structure
+instruction** (a required extra section), which is a class of instruction the agent demonstrably
+obeys, not an aside.
+
+**Re-run trigger:** on any CLI major-version upgrade, alongside E1b/E2/E5/E7/E8. Also re-run if
+subagent behaviour ever contradicts a spine that was edited in the same session — that is the
+symptom, and it looks exactly like disobedience.
 
 ---
 
