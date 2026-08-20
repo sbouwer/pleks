@@ -90,7 +90,19 @@ const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  $
 // ── quiet below the threshold ────────────────────────────────────────────────────────────────
 {
   const r = run(payload(transcript("small", 50_000)))
-  ok(r.ctx === "" && r.sys === null, "KNOWN-GOOD: 50k says nothing to EITHER audience — a reminder that always fires is wallpaper", JSON.stringify(r))
+  ok(r.sys === null, "KNOWN-GOOD: 50k says nothing to the USER — a reminder that always fires is wallpaper", JSON.stringify(r))
+  ok(r.ctx === "ctx 50k", "…but the MODEL gets the bare figure, so a working hook is distinguishable from an absent one", JSON.stringify(r))
+  ok(!/batch|compact|billable/i.test(r.ctx), "…with NO advice attached — the bare tier is a fact, not a nag", JSON.stringify(r.ctx))
+  ok(r.ctx.length < 20, `…and it stays ~10 tokens (${r.ctx.length} chars), or the always-on tier becomes the wallpaper it replaced`, r.ctx)
+}
+
+// The ambiguity the bare tier exists to kill: below-threshold vs. never-measured must not look alike.
+{
+  const measured = run(payload(transcript("tiny", 12_000)))
+  const unmeasurable = run("{not json")
+  ok(measured.ctx === "ctx 12k" && unmeasurable.ctx === "",
+    "a MEASURED small context and an UNMEASURABLE one produce different output — the three-way silence is resolved",
+    JSON.stringify({ measured: measured.ctx, unmeasurable: unmeasurable.ctx }))
 }
 
 // ── WARN must sit below the recommended autocompact threshold, or the tier is unreachable ────
@@ -124,7 +136,7 @@ const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  $
 {
   const p = write("compacted", [usageLine(687_984), boundary(15_444), JSON.stringify({ type: "user", isCompactSummary: true, message: { content: "continued…" } })])
   const r = run(payload(p))
-  ok(r.sys === null && r.ctx === "", "REGRESSION: straight after a compaction the hook is SILENT — it reads postTokens (15k), not the stale pre-compaction usage (688k)", JSON.stringify(r))
+  ok(r.sys === null && r.ctx === "ctx 15k", "REGRESSION: straight after a compaction the hook reads postTokens (15k), not the stale pre-compaction usage (688k) — and now SHOWS the 15k rather than leaving it inferred from silence", JSON.stringify(r))
 }
 {
   const p = write("regrown", [usageLine(687_984), boundary(15_444), usageLine(200_000)])

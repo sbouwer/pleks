@@ -318,7 +318,9 @@ const k = (n) => (n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n 
 
 /**
  * For the HUMAN. Only they can run /compact, so only they are told to.
- * Silent below WARN — a message that always fires is wallpaper.
+ * Silent below WARN — a message that always fires is wallpaper. The MODEL channel does emit a bare
+ * figure down there (see adviseAgent); the user has the statusline for the same number, so the
+ * observability that tier buys is already theirs.
  */
 function adviseUser(m) {
   if (!m || m.context === null || m.context < WARN) return null;
@@ -341,9 +343,21 @@ function adviseUser(m) {
  * For the MODEL. It cannot run /compact, so telling it to is noise that costs tokens to deliver.
  * Batching and delegation are the levers it can actually pull — and delegation needs its running
  * cost visible, or "spawn an agent" looks free at the point of decision.
+ *
+ * Three tiers, not two: a bare `ctx 47k` below WARN, the batching advice at WARN, the urgency line
+ * at STOP. The bare tier exists so a working hook is DISTINGUISHABLE from an absent one.
  */
 function adviseAgent(m) {
-  if (!m || m.context === null || m.context < WARN) return null;
+  if (!m || m.context === null) return null;
+
+  // BELOW WARN: the bare figure, no advice. Silence was ambiguous in the direction that matters —
+  // below-threshold, hook-not-registered and crashed-and-failed-silent all produced byte-identical
+  // output, so "the hook is working" was not observable from inside the conversation at all. The
+  // fail-silent path a few lines down is what makes that ambiguity reachable, and it is worth
+  // keeping; ~10 tokens a turn is the whole price of telling the three cases apart. `null` still
+  // means UNMEASURABLE, which is now a distinct signal rather than the same silence.
+  if (m.context < WARN) return `ctx ${k(m.context)}`;
+
   const perTurn = k(m.context * CACHE_READ_MULTIPLIER);
   const urgency = m.context >= STOP ? "A plain grep now costs the same as a large edit. " : "";
   const delegation = m.agentInvocations
