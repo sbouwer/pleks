@@ -11,9 +11,10 @@ E9** were measured **2026-08-20** with the version read directly: **2.1.235**. R
 future run — "which version was this true of" is the whole value of an anchor.
 
 **RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E1b**, **E2**, **E5**, **E7**,
-**E8** and **E9** *before* trusting rule scoping, marker invisibility, the assumption that MCP tool
-schemas are deferred, the handoff write control, or any conclusion drawn from a subagent's behaviour
-after a spine edit. Tracked as an OUTSTANDING item. All six are load-bearing: E1b decides whether
+**E8**, **E9** and **E10** *before* trusting rule scoping, marker invisibility, the assumption that MCP
+tool schemas are deferred, the handoff write control, any conclusion drawn from a subagent's behaviour
+after a spine edit, or any output from a worktree-isolated write agent. Tracked as an OUTSTANDING
+item. All seven are load-bearing: E1b decides whether
 scoped rules are a control or a convenience, E2 decides whether the entire marker vocabulary costs
 context budget, E5 decides whether connected MCP servers impose a flat per-turn floor (on 2.1.235
 they do not — a revert to eager tool loading would change the economics of every session),
@@ -388,3 +389,58 @@ annotations, and the M-register), so the lab notebook does not need to travel wi
 What stays in `CLAUDE.md` is a two-line citation. What lives here is the narrative and the **re-run
 protocol** — including the canary's exact plant position, which is re-run instructions and belongs
 with the protocol rather than at the site being probed.
+
+---
+
+## E10 · What commit does `isolation: "worktree"` base a subagent's tree on? — **ANSWERED: `origin/main`, NOT THE SESSION'S HEAD**
+
+**Anchor:** same session, CLI 2.1.235, session HEAD `fcec5044` on branch
+`docs/claude-md-standard-v3-pass1`, 2026-08-20 ~19:15 SAST. Surfaced as four "misfit" findings from
+an implementer run and was chased because the misfits were about to be recorded as census defects.
+
+A subagent spawned with `isolation: "worktree"` gets a fresh branch created from **`origin/main`**.
+Not the session's HEAD, not the session's branch, and not local `main` either — local `main` was at
+`72e7004f` while `origin/main` and the worktree were both at `4fa29e51`.
+
+**Controlled probe** (a second agent, spawned solely to report, no transform, no edits):
+
+| | value |
+|---|---|
+| session HEAD | `fcec5044` (branch `docs/claude-md-standard-v3-pass1`) |
+| worktree agent `git rev-parse HEAD` | `4fa29e51` |
+| `origin/main` | `4fa29e51` |
+| local `main` | `72e7004f` |
+| distance | **79 commits behind the session** |
+
+`git branch --contains HEAD` inside the worktree lists `docs/claude-md-standard-v3-pass1`, confirming
+the base is an ancestor of the session branch rather than an unrelated line — which is exactly why
+the failure is quiet: everything builds, everything typechecks, nothing looks wrong.
+
+### ⚠ CONSEQUENCE, AND IT IS NOT SMALL
+
+`CLAUDE.md` §7 tells you to spawn the implementer with `isolation: "worktree"`, and that is the
+documented default for the mechanical-transform lever. **On any feature branch, that agent is
+working on a different tree from the one you are.** Three ways it goes wrong, all of them silent:
+
+1. **Its `npm run check` green is worthless to you.** It was measured on a tree that does not exist
+   in your session. The gate ran, passed, and proved nothing about your HEAD.
+2. **Its findings are ghosts.** This run returned four "misfits" — sites the census called
+   caller-free that the implementer found callers for. All four callers were files deleted on the
+   session branch by *tranche 1 of the same burn-down*. Real at `origin/main`, gone at HEAD. Had
+   they been believed, the census would have been recorded as ~7% unreliable and a working method
+   would have been thrown away on the strength of a stale checkout.
+3. **Its diff may not apply.** 79 commits of drift, and the diff was produced against the wrong side
+   of them.
+
+The direction of the error is the dangerous one: a stale base makes an agent report **more** work to
+do and **more** callers than exist, so it fails toward false caution — which reads as diligence.
+
+**Mitigation until this is fixed upstream:** either (a) spawn write agents **without** worktree
+isolation when the session is not on `origin/main`, accepting the loss of parallelism, or (b) instruct
+the agent to `git rev-parse HEAD` first and **stop and report** if it does not match the SHA you name
+in the brief. (b) is cheap, is one line in the brief, and turns a silent class into a loud one — and
+a brief that names its expected base is the same discipline as anchoring a grounding claim.
+
+**Untested and worth knowing:** whether the base is `origin/main` specifically, the remote's default
+branch, or the repo's configured default. One repo, one observation of each — do not generalise the
+`origin/main` spelling to a repo whose default branch is named otherwise.
