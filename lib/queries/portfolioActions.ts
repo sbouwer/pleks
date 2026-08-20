@@ -17,6 +17,7 @@ import {
   fetchLeases,
   fetchInspections,
   fetchMaintenance,
+  fetchApplications,
   fetchPayments,
 } from "./portfolio"
 
@@ -54,6 +55,12 @@ export async function fetchMaintenanceAction(_orgId?: string) {
   const gw = await gateway()
   if (!gw) return []
   return fetchMaintenance(gw.db, gw.orgId)
+}
+
+export async function fetchApplicationsAction(_orgId?: string) {
+  const gw = await gateway()
+  if (!gw) return []
+  return fetchApplications(gw.db, gw.orgId)
 }
 
 export async function fetchPaymentsAction(_orgId?: string) {

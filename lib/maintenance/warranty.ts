@@ -2,10 +2,11 @@
  * lib/maintenance/warranty.ts — Warranty subject derivation + Haiku match call
  *
  * Auth:   Server-only
- * Data:   Anthropic API via lib/ai/client.ts (logged to ai_usage)
- * Notes:  findWarrantyMatch returns null when there are no active warranties to compare,
- *         or when the AI call fails (callers degrade gracefully — no banner shown).
- *         Match prompt is conservative by design (D-60B-12): bias toward false negatives.
+ * Data:   pure — derives a warranty subject string. No AI call remains in this module.
+ * Notes:  findWarrantyMatch (the Haiku match call) was removed 2026-08-20 as a dead export.
+ *         WarrantyMatchInput/WarrantyMatchResult survive it and are now unreferenced; they are
+ *         kept because reviving the match call needs its contract, not because anything uses them.
+ *         The match prompt was conservative by design (D-60B-12): bias toward false negatives.
  */
 export interface WarrantyMatchInput {
   id: string

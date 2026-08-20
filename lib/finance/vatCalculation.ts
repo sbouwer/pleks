@@ -5,7 +5,7 @@
  * Notes: THE one place VAT is rounded — every caller (management fee, supplier invoices) must route through
  *        calculateVAT so fee+VAT can't diverge by a cent on a recalc path (F-6). Money convention across the
  *        finance lib: integer cents, rounded round-half-away-from-zero (JS Math.round); interest day-count is
- *        a fixed /365 divisor (see depositInterest.ts / arrears). Also exposes generateEFTReference.
+ *        a fixed /365 divisor (see depositInterest.ts / arrears).
  */
 export const SA_VAT_RATE = 0.15
 

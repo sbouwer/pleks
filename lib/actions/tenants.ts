@@ -8,8 +8,8 @@
  *         syncPrimaryContactEmail/syncPrimaryContactPhone — contacts.primary_email and contacts.primary_phone
  *         are derived caches (trigger-maintained, 002_contacts.sql §22/§23) and are no longer written directly here.
  * Notes:  Tenant CREATE now goes through the shared add-party flow (addTenantParty); this file holds the
- *         post-create edit/communication actions. updateTenant edits the contact + tenant rows;
- *         logCommunication records a communication_log entry.
+ *         post-create edit actions. updateTenant edits the contact + tenant rows. (logCommunication
+ *         was removed 2026-08-20 as a dead export; nothing here writes communication_log.)
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"

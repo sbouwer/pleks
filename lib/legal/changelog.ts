@@ -1,10 +1,14 @@
 /**
  * lib/legal/changelog.ts — versioned changelog for ToS and Privacy Policy
  *
- * Notes:  Sourced by ConsentGateModal to show section-level change highlights between
- *         the user's last-accepted version and the current version.
- *         If no entry exists for a given (from → to) pair, ConsentGateModal falls back
- *         to a generic "We've updated our Terms" message.
+ * Notes:  INTENDED to be sourced by ConsentGateModal for section-level change highlights between
+ *         the user's last-accepted version and the current version. As at 2026-08-20 nothing calls
+ *         getTosHighlights or getPrivacyHighlights — ConsentGateModal imports the ChangeHighlight
+ *         TYPE and renders a changeHighlights prop nobody supplies. The wiring is unbuilt, not
+ *         broken, and this header previously asserted it as fact.
+ *         PRIVACY_CHANGELOG is empty, so getPrivacyHighlights can only return null today;
+ *         TOS_CHANGELOG carries drafted v3.4.0 copy and is the reason this module survived a
+ *         dead-code sweep.
  *         Maintained manually per release — keyed as `from:to` version pairs.
  */
 

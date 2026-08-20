@@ -8,7 +8,8 @@
  * Notes:  createProperty auto-inserts a default building so single-building properties
  *         are transparent; archiveProperty soft-deletes (deleted_at) + cascades the same timestamp
  *         to its buildings/units (guarded by in-force leases), reactivateProperty reverses that exact
- *         cascade; deleteProperty is a hard delete guarded by a zero-unit check.
+ *         cascade. (deleteProperty, a hard delete guarded by a zero-unit check, was removed
+ *         2026-08-20 as a dead export — archive/reactivate is the only lifecycle path now.)
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"

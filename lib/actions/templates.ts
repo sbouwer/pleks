@@ -1,12 +1,15 @@
 "use server"
 
 /**
- * lib/actions/templates.ts — document-template CRUD, system-template customisation, favourites, WhatsApp prefs, custom-lease upload
+ * lib/actions/templates.ts — document-template CRUD, system-template customisation, WhatsApp tone
  *
- * Auth:   requireAgentWriteAccess("send_manual_comm") (uploadCustomLease uses "create_lease");
- *         mutating template ops additionally require the "documents" capability (hasCapability)
- * Data:   document_templates, user_template_favourites, org_whatsapp_template_preferences, organisations;
- *         custom leases upload to the "lease-templates" storage bucket
+ * Auth:   requireAgentWriteAccess("send_manual_comm"); mutating template ops additionally require
+ *         the "documents" capability (hasCapability)
+ * Data:   document_templates, org_whatsapp_template_preferences, organisations
+ * Notes:  toggleFavourite, setWhatsAppOptIn and uploadCustomLease were removed 2026-08-20 as dead
+ *         exports (knip tranche 2). `user_template_favourites` and the "lease-templates" storage
+ *         bucket therefore have NO remaining writer — a consequence recorded rather than a
+ *         decision taken here; reviving either feature means reviving its action.
  * Notes:  customiseSystemTemplate forks a system master into an org-owned editable copy; statutory
  *         masters are not customisable yet (BUILD_70)
  */
