@@ -40,7 +40,8 @@
  *   SMS: {{firstName}} + {{senderName}} (normalised — {{name}}/{{sender}}/{{tenantFirstName}} retired).
  *   WhatsApp: dotted Meta/send.ts tokens ({{tenant.primary_contact_name}}, {{lease.rent_amount}},
  *     {{unit.number}}, {{property.name}}, {{lease.end_date}}, {{agent.name}}) — these are the PROVEN
- *     wired context (lib/messaging/whatsapp/send.ts + Meta templates); intentionally NOT unified onto
+ *     wired context (lib/messaging/whatsapp/provider.ts + Meta templates; send.ts was deleted
+ *     2026-08-19 as an orphan); intentionally NOT unified onto
  *     {{recipient.*}}. Each channel's vocabulary must be proven against its merge context before seeding.
  */
 

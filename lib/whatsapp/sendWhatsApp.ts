@@ -5,8 +5,10 @@
  * Data:   Africa's Talking WhatsApp API (Steward+ only), communication_log (service client)
  * Notes:  Mirrors sendSMS.ts structure and return shape exactly so the router can treat
  *         WhatsApp as a drop-in third channel. Complex cases (consent gates, CS windows,
- *         quota tracking) are handled by lib/messaging/whatsapp/send.ts — this module is
- *         the thin send-path used by the router for cron-driven template sends.
+ *         quota tracking) were handled by lib/messaging/whatsapp/send.ts, DELETED 2026-08-19:
+ *         nothing imported it, the router calls THIS module, and its census allowlist entry
+ *         ("called by gated senders + crons") described a file with no callers. This module is
+ *         the send path; lib/messaging/whatsapp/provider.ts is the transport under both.
  *         Tier gate: whatsapp_notifications feature requires Steward+.
  */
 import { hasFeature } from "@/lib/tier/gates"

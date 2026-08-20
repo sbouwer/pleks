@@ -94,7 +94,15 @@
     //
     // The exit condition is unusual for this file: these leave when the DECISIONS naming them fall
     // out of retention, never when the code stops importing them.
-    "lib/screening/prompts/**"
+    "lib/screening/prompts/**",
+
+    // CONSUMED BY PATH, NOT BY IMPORT — the class an import graph cannot see, and neither knip nor
+    // a hand-rolled resolver would have caught it. `scripts/check-marketing-consistency.mjs` (in
+    // `npm run check`) does `readFile(join(ROOT, "lib", "marketing", "canonical-phrases.ts"))` and
+    // parses the string literals out of it as its SSOT. Nothing imports the module, so every
+    // import-based analysis calls it dead; deleting it turns the marketing gate red with no import
+    // anywhere to explain why.
+    "lib/marketing/canonical-phrases.ts"
   ],
 
   // Each entry below was read, classified, and VERIFIED BY REMOVAL — taken out, knip re-run, the

@@ -55,7 +55,6 @@ export const ACTION_ALLOWLIST = {
   "lib/actions/maintenance/notifyBroker.ts::*": "internal: notification builder, gated caller",
   "lib/actions/maintenance/notifyOwner.ts::*": "internal: notification builder, gated caller",
   "lib/actions/maintenance/notifyScheme.ts::*": "internal: notification builder, gated caller",
-  "lib/messaging/whatsapp/send.ts::*": "internal: transport, called by gated senders + crons",
   "lib/statements/generateOwnerStatement.ts::*": "internal: called by gated statement action + cron",
   // Deposit pure computation — no DB mutation; called by gated deposit actions.
   "lib/deposits/calculateReturn.ts::*": "intentional gateway()-on-write: calculateDepositReturn self-gates with gateway() (auth + orgId), org-scopes the lease read + every query, and upserts the deposit_reconciliation draft under the caller's orgId. Lockdown-free BY DESIGN like disburse — computing a deposit return is a statutory RHA obligation, must work when paused (caller-ID census 2026-07-06; the old 'pure calculation, no mutation' reason was wrong — it upserts, and was previously ungated + cross-org).",
