@@ -13,6 +13,11 @@
  *         smaller subject than intended — and the negative-space fixture applied to the runner:
  *         the known-good case must pass AT FULL SIZE, not merely pass.
  *
+ *         This is NOT a guard against one intermittent. An undiagnosed worker-import fault was the
+ *         occasion; the uncovered variant was the finding. Partial collection can no longer pass
+ *         green from ANY cause — a bad glob, a config change, an exclude pattern that grows a
+ *         directory, a refactor that quietly moves tests out of the matched tree.
+ *
  *         The floor only RISES. That is the mirror of the allowlist rule (baselines only shrink):
  *         both mean an entry is a decision someone recorded, never a knob to turn until green.
  *         Lowering it to make a run pass deletes the finding. Raise with --ratchet, deliberately.
