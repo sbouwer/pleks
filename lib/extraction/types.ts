@@ -85,13 +85,6 @@ export interface ApplicationInput {
   }
 }
 
-export interface ExtractedField<T> {
-  value: T
-  confidence: number
-  sourceDocumentPath: string
-  rawText?: string
-}
-
 // ─── Phase 3: reconciliation + fraud signals ─────────────────────────────────
 // Deterministic (NOT an AI call — ADDENDUM_14L §4.7 Sonnet reconciler superseded). The shape is defined by
 // its downstream consumer, the affordability prescreen ruling (ADDENDUM_14M): each field maps to a 14M flag.

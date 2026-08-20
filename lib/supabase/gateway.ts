@@ -36,7 +36,7 @@ const GATEWAY_DB_TIMEOUT_MS = 8000
  *  throttle) — as opposed to the user genuinely having no org. Callers/error boundaries can
  *  treat this as "service unavailable, retry", NOT "logged out". Distinguishing the two is
  *  what stops a slow DB from bouncing an authenticated user to /login. */
-export class GatewayUnavailableError extends Error {
+class GatewayUnavailableError extends Error {
   constructor(message: string) {
     super(message)
     this.name = "GatewayUnavailableError"

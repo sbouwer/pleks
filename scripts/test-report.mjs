@@ -37,10 +37,37 @@ function runSuite(extraArgs, outFile) {
   return { code, json: existsSync(outFile) ? JSON.parse(readFileSync(outFile, "utf8")) : null }
 }
 
-/** Is the local Supabase (Docker) stack up? The DB-integration suite (test/db) needs it. */
+/**
+ * Is the local Supabase (Docker) stack up? The DB-integration suite (test/db) needs it.
+ *
+ * Resolution duplicated from `test/db/resolve-docker.ts` — that module is TypeScript and this is a
+ * plain .mjs run by node, so importing it would mean dragging in a transpiler for three lines.
+ * Duplicated deliberately and named here so the pair is findable; keep them in step.
+ *
+ * This variant was the quietest of the three call sites: it swallows the error and returns false,
+ * so a CLI that is merely off PATH reported the whole stack as DOWN, with no message at all.
+ */
+function dockerBin() {
+  const local = process.env.LOCALAPPDATA
+  const candidates = [
+    "docker",
+    local ? `${local}\\Programs\\DockerDesktop\\resources\\bin\\docker.exe` : "",
+    "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe",
+  ].filter(Boolean)
+  for (const c of candidates) {
+    try {
+      execSync(`"${c}" --version`, { stdio: "pipe" })
+      return c
+    } catch { /* next candidate */ }
+  }
+  return null
+}
+
 function dockerUp() {
+  const bin = dockerBin()
+  if (!bin) return false
   try {
-    return execSync('docker ps --filter name=supabase_db --format "{{.Names}}"', { cwd: ROOT }).toString().trim().length > 0
+    return execSync(`"${bin}" ps --filter name=supabase_db --format "{{.Names}}"`, { cwd: ROOT }).toString().trim().length > 0
   } catch {
     return false
   }

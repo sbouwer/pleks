@@ -59,7 +59,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { assertScreeningConsent } from "@/lib/screening/consentGuard"
 import { gitCommitSha, optionalEnv } from "@/lib/env"
 
-export const CURRENT_INTERPRETATION_VERSION = 'interpretation.v1.0'
+const CURRENT_INTERPRETATION_VERSION = 'interpretation.v1.0'
 const RUNTIME_CODE_HASH = gitCommitSha()
 
 const APPLICANT_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const

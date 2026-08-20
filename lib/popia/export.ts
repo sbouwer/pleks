@@ -206,7 +206,7 @@ export async function recordDownload(exportId: string): Promise<void> {
  * Calls lib/ai/client.ts with purpose='popia_export_narrative'.
  * Non-fatal — caller must catch and proceed with structured export on failure.
  */
-export async function generateAccessNarrative(bundle: SubjectDataBundle): Promise<string> {
+async function generateAccessNarrative(bundle: SubjectDataBundle): Promise<string> {
   const { createMessage } = await import("@/lib/ai/client")
 
   const prompt = `You are generating a clear, professional privacy disclosure narrative for a data subject access request under POPIA (South Africa's Protection of Personal Information Act).

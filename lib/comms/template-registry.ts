@@ -21,7 +21,7 @@ export interface TemplateEntry {
   allowed_channels?: Array<"whatsapp" | "sms" | "email">
 }
 
-export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
+const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Applications ────────────────────────────────────────────────
   "application.received": {
     key: "application.received", channel: "email", category: "applications", is_mandatory: false,

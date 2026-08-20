@@ -39,14 +39,10 @@ export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 export const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || ""
 /** Sentry environment label for the browser SDK. */
 export const SENTRY_ENVIRONMENT_PUBLIC = process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "unknown"
-/** Sentry DSN for the browser SDK (public by design). */
-export const SENTRY_DSN_PUBLIC = process.env.NEXT_PUBLIC_SENTRY_DSN ?? ""
 /** Human-readable app version, shown in the UI / status page. */
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "unknown"
 /** Build id, if injected. */
 export const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? "dev"
-/** Vercel environment as seen client-side. Prefer `isProductionRuntime()` server-side. */
-export const VERCEL_ENV_PUBLIC = process.env.NEXT_PUBLIC_VERCEL_ENV ?? ""
 /** PayFast sandbox flag, exposed to the client checkout form. */
 export const PAYFAST_SANDBOX_PUBLIC = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === "true"
 /** Google Maps JS key (public, referrer-restricted). */
@@ -67,11 +63,6 @@ export function isProductionNode(): boolean {
 /** True in local `next dev`. */
 export function isDevelopment(): boolean {
   return process.env.NODE_ENV === "development"
-}
-
-/** "production" | "preview" | "development" | "" — the resolved deploy environment, Vercel first. */
-export function deployEnv(): string {
-  return process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? ""
 }
 
 /** The deployed git SHA, or "local". */

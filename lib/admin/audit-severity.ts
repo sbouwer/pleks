@@ -71,8 +71,3 @@ export const SEVERITY_COLORS: Record<AuditSeverity, string> = {
   low:    "var(--slate)",
 }
 
-export const SEVERITY_BG: Record<AuditSeverity, string> = {
-  high:   "var(--critical-wash)",
-  medium: "var(--caution-wash)",
-  low:    "var(--slate-wash)",
-}

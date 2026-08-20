@@ -21,9 +21,6 @@ import { isProductionRuntime } from "@/lib/env"
 /** The AT account username that selects the sandbox host. Not a placeholder — a real AT account name. */
 export const AT_SANDBOX_USERNAME = "sandbox"
 
-/** True only on Vercel production. The gate now lives in lib/env; re-exported here for existing callers. */
-export { isProductionRuntime }
-
 export type AtEnvironmentCheck = { ok: true } | { ok: false; reason: string }
 
 /**

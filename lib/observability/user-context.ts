@@ -20,7 +20,3 @@ export function setSentryUser({ id, org_id, role, scope_id }: SentryUserContext)
   if (role) Sentry.setTag("role", role)
   if (scope_id) Sentry.setTag("scope_id", scope_id)
 }
-
-export function clearSentryUser() {
-  Sentry.setUser(null)
-}

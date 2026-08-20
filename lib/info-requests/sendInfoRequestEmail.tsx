@@ -83,7 +83,7 @@ export interface SendResult {
 
 // ── Topic labels (used in log preview + completion_notify / self_track) ──────
 
-export const TOPIC_LABELS: Record<InfoRequestTopic, string> = {
+const TOPIC_LABELS: Record<InfoRequestTopic, string> = {
   landlord:   "Owner details",
   insurance:  "Insurance details",
   broker:     "Broker details",

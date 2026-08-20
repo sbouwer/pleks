@@ -361,7 +361,7 @@ export function assertHolidayCoverage(dateStr: string, fn: string): void {
 }
 
 /** Weekends and public holidays are not business days. UTC-anchored. */
-export function isBusinessDayISO(dateStr: string): boolean {
+function isBusinessDayISO(dateStr: string): boolean {
   const dow = utcDayOfWeek(dateStr)
   if (dow === 0 || dow === 6) return false
   return !isPublicHoliday(dateStr)

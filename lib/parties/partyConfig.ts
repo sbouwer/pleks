@@ -89,8 +89,6 @@ export const COMPANY_FUNCTION_OPTIONS = [
   { value: "other", label: "Other" },
 ] as const
 
-export const PARTY_ROLE_ORDER: PartyRole[] = ["landlord", "tenant", "supplier"]
-
 /** contacts.entity_type stores "organisation" (not "company"); individual stays "individual". */
 export function toContactEntityType(entity: PartyEntity): "organisation" | "individual" {
   return entity === "company" ? "organisation" : "individual"

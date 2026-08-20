@@ -8,7 +8,8 @@
  * Notes:  createProperty auto-inserts a default building so single-building properties
  *         are transparent; archiveProperty soft-deletes (deleted_at) + cascades the same timestamp
  *         to its buildings/units (guarded by in-force leases), reactivateProperty reverses that exact
- *         cascade; deleteProperty is a hard delete guarded by a zero-unit check.
+ *         cascade. (deleteProperty, a hard delete guarded by a zero-unit check, was removed
+ *         2026-08-20 as a dead export — archive/reactivate is the only lifecycle path now.)
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
@@ -237,21 +238,3 @@ export async function reactivateProperty(propertyId: string): Promise<{ error?: 
   return {}
 }
 
-export async function deleteProperty(propertyId: string) {
-  const gw = await requireAgentWriteAccess("edit_property")
-  const { db, orgId, isAdmin } = gw
-  if (!isAdmin) return { error: "Admin access required" }
-
-  // Org-scope guard (caller-ID census): service client bypasses RLS, so a foreign propertyId must
-  // match no row — never trust the caller-supplied id without the org filter.
-  const { error } = await db
-    .from("properties")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", propertyId)
-    .eq("org_id", orgId)
-
-  if (error) return { error: error.message }
-
-  revalidatePath("/properties")
-  redirect("/properties")
-}

@@ -259,59 +259,6 @@ export function CancelledConfirmEmail({
   )
 }
 
-// ── Template 2 — 90-Day Warning ──────────────────────────────────────────────
-
-export const PURGE_WARNING_90D_SUBJECT = "90 days until your Pleks data is scheduled for deletion"
-
-export interface PurgeWarning90dEmailProps {
-  branding: OrgBranding
-  orgName: string
-  recipientName: string
-  appUrl: string
-  purgeEligibleAt: string
-  cancelledDate: string
-  daysUntilPurge: number
-}
-
-export function PurgeWarning90dEmail({
-  branding, orgName, recipientName, appUrl, purgeEligibleAt, cancelledDate, daysUntilPurge,
-}: Readonly<PurgeWarning90dEmailProps>) {
-  return (
-    <WarningEmailBase
-      branding={branding} recipientName={recipientName} appUrl={appUrl}
-      cancelledDate={cancelledDate} purgeEligibleAt={purgeEligibleAt} daysUntilPurge={daysUntilPurge}
-      preview={`Reminder: your ${orgName} Operational data is scheduled for deletion on ${purgeEligibleAt} — 90 days from now.`}
-      headline="90 days until production deletion"
-      introText={<>This is a reminder that the <strong>{orgName}</strong> account was cancelled on <strong>{cancelledDate}</strong>.</>}
-      boxVariant="neutral"
-      boxMainText={<>Your Operational data — properties, leases, communications, tenant profiles, and historical records — is scheduled for deletion from production systems on <strong>{purgeEligibleAt}</strong>, 90 days from today. After that date, Operational data will be excluded from backup retention.</>}
-      sectionLabel="What you should do"
-      preCtaBlock={
-        <Text style={para}>
-          If you want to keep any Operational records, export them now. You are responsible for
-          verifying that exported records are complete before the deletion date.
-        </Text>
-      }
-      postCtaBlock={
-        <>
-          <Text style={para}>
-            If you&apos;d like to continue using Pleks, you can reactivate before{" "}
-            <strong>{purgeEligibleAt}</strong> — the Terms of Service and pricing in force at the
-            time of reactivation will apply.
-          </Text>
-          <Text style={para}>
-            As the Responsible Party for your tenants&apos; personal information under POPIA, your
-            obligations to those tenants continue after the deletion. If you require historical
-            lease, payment, or trust records to meet those obligations, export them before{" "}
-            {purgeEligibleAt}.
-          </Text>
-        </>
-      }
-      sastNote={<>Deletion dates are calculated in South Africa Standard Time (SAST). Cancellation lifecycle: see{" "}<Link href={TERMS_CANCEL_URL} style={smallLink}>Section 04 of our Terms of Service</Link>.</>}
-    />
-  )
-}
-
 // ── Template 3 — 30-Day Warning ──────────────────────────────────────────────
 
 export const PURGE_WARNING_30D_SUBJECT = "30 days until your Pleks data is scheduled for deletion"
@@ -357,54 +304,6 @@ export function PurgeWarning30dEmail({
         </>
       }
       sastNote={<>All deletion lifecycle dates are calculated in South Africa Standard Time (SAST). Cancellation lifecycle: see{" "}<Link href={TERMS_CANCEL_URL} style={smallLink}>Section 04 of our Terms of Service</Link>.</>}
-    />
-  )
-}
-
-// ── Template 4 — 7-Day Warning ───────────────────────────────────────────────
-
-export const PURGE_WARNING_7D_SUBJECT = "7 days until your Pleks data is deleted"
-
-export interface PurgeWarning7dEmailProps {
-  branding: OrgBranding
-  orgName: string
-  recipientName: string
-  appUrl: string
-  purgeEligibleAt: string
-  cancelledDate: string
-  daysUntilPurge: number
-}
-
-export function PurgeWarning7dEmail({
-  branding, orgName, recipientName, appUrl, purgeEligibleAt, cancelledDate, daysUntilPurge,
-}: Readonly<PurgeWarning7dEmailProps>) {
-  return (
-    <WarningEmailBase
-      branding={branding} recipientName={recipientName} appUrl={appUrl}
-      cancelledDate={cancelledDate} purgeEligibleAt={purgeEligibleAt} daysUntilPurge={daysUntilPurge}
-      preview={`Final week: ${orgName} Operational data deletes on ${purgeEligibleAt}.`}
-      headline="⚠ One week to data deletion"
-      introText={<>This is a final-week reminder. The <strong>{orgName}</strong> account is scheduled for Operational data deletion on <strong>{purgeEligibleAt}</strong> — 7 days from today.</>}
-      boxVariant="danger"
-      boxMainText="All properties, leases, communications, tenant profiles, and historical records will be deleted from production systems and excluded from backup retention."
-      sectionLabel="Last chance to export or reactivate"
-      postCtaBlock={
-        <>
-          <Text style={para}>
-            You are responsible for verifying that exported records are complete before the
-            deletion date. If anything is missing or unreadable, contact{" "}
-            <Link href="mailto:support@pleks.co.za" style={link}>support@pleks.co.za</Link> this
-            week — after {purgeEligibleAt}, Operational records will no longer be recoverable
-            through Pleks production systems once the backup-retention window expires.
-          </Text>
-          <Text style={para}>
-            If you&apos;d like to continue using Pleks, reactivate before{" "}
-            <strong>{purgeEligibleAt}</strong> — the Terms of Service and pricing in force at the
-            time of reactivation will apply.
-          </Text>
-        </>
-      }
-      sastNote="Deletion lifecycle calculated in South Africa Standard Time (SAST)."
     />
   )
 }

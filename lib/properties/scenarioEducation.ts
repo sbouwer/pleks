@@ -9,7 +9,7 @@
 
 import type { ScenarioType } from "./scenarios"
 
-export const SCENARIO_EDUCATION: Record<Exclude<ScenarioType, "other">, string[]> = {
+const SCENARIO_EDUCATION: Record<Exclude<ScenarioType, "other">, string[]> = {
 
   r1: [
     "You're both landlord and neighbour — the RHA applies to the flatlet lease.",

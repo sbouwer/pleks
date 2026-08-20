@@ -31,7 +31,7 @@ import type { XdsParsed }                          from "./_subparsers/xds"
 export const COMBINED_PRODUCT_KEY  = "combined_consumer_credit_report"
 export const COMBINED_COST_CENTS   = 17000  // R170.00 ex-VAT — ADDENDUM_14H v3 rate card
 export const COMBINED_SEARCH_TYPE  = 126    // CSICombinedCreditReport
-export const COMBINED_PRODUCT_PATH = "credit/combinedreport/consumer"
+const COMBINED_PRODUCT_PATH = "credit/combinedreport/consumer"
 
 export const COMBINED_DISPLAY_NAME = "Credit profile & identity verification — Multi-bureau"
 export const COMBINED_DESCRIPTION  =
@@ -153,7 +153,7 @@ function parseBureauNode<T>(
 
 // ─── Result summary ───────────────────────────────────────────────────────────
 
-export function computeCombinedResultSummary(
+function computeCombinedResultSummary(
   parsed: CombinedParsed,
 ): keyof typeof COMBINED_RESULT_SUMMARIES {
   const coreBureaus = [

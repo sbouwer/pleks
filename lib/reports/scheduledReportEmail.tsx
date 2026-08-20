@@ -16,7 +16,7 @@ const REPORT_LABELS: Record<string, string> = {
   income_collection: "Income & collection",
 }
 
-export function reportLabel(reportType: string): string {
+function reportLabel(reportType: string): string {
   return REPORT_LABELS[reportType] ?? "Report"
 }
 

@@ -85,7 +85,7 @@ export interface IssueTenantNoticeResult {
   dispatched: Array<{ channel: string; address: string; success: boolean }>
 }
 
-export class NoticeGateError extends Error {
+class NoticeGateError extends Error {
   constructor(templateKey: string, status: string | null) {
     super(`Demand-to-Vacate '${templateKey}' is '${status ?? "unregistered"}', not counsel-approved — refused in production (LEG-NOTICES-01 R-1)`)
     this.name = "NoticeGateError"

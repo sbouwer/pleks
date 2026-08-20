@@ -256,33 +256,3 @@ export async function sendInfoRequestReminder(requestId: string): Promise<InfoRe
   return { ok: sendResult.ok, requestId: req.id as string, error: sendResult.error }
 }
 
-// ── Dismiss a request (mark as not-needed) ────────────────────────────────────
-
-export async function dismissInfoRequest(requestId: string): Promise<InfoRequestResult> {
-  const gw = await requireAgentWriteAccess("edit_property")
-  const { userId, orgId } = gw
-
-  const service = await createServiceClient()
-  const { data: req, error: reqError } = await service
-    .from("property_info_requests")
-    .select("id, property_id, org_id")
-    .eq("id", requestId)
-    .single()
-    logQueryError("dismissInfoRequest property_info_requests", reqError)
-
-  if (!req || (req.org_id as string) !== orgId) return { ok: false, error: "Not authorized" }
-
-  await service.from("property_info_requests")
-    .update({ status: "dismissed" })
-    .eq("id", requestId)
-    .eq("org_id", orgId) // org-scope guard (caller-ID census)
-
-  await service.from("property_info_request_events").insert({
-    request_id:    requestId,
-    event_type:    "dismissed",
-    actor_user_id: userId,
-  })
-
-  revalidatePath(`/properties/${req.property_id}`)
-  return { ok: true, requestId }
-}

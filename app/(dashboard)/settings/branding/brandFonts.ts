@@ -9,10 +9,10 @@
  */
 import { Inter, Lato, Merriweather, Playfair_Display } from "next/font/google"
 
-export const brandInter = Inter({ subsets: ["latin"], weight: ["400", "600"], variable: "--font-brand-inter", display: "swap" })
-export const brandLato = Lato({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-brand-lato", display: "swap" })
-export const brandMerriweather = Merriweather({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-brand-merriweather", display: "swap" })
-export const brandPlayfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-brand-playfair", display: "swap" })
+const brandInter = Inter({ subsets: ["latin"], weight: ["400", "600"], variable: "--font-brand-inter", display: "swap" })
+const brandLato = Lato({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-brand-lato", display: "swap" })
+const brandMerriweather = Merriweather({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-brand-merriweather", display: "swap" })
+const brandPlayfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-brand-playfair", display: "swap" })
 
 /** Combined variable classNames — apply to a wrapper so `var(--font-brand-*)` resolves on the tiles. */
 export const brandFontVars = `${brandInter.variable} ${brandLato.variable} ${brandMerriweather.variable} ${brandPlayfair.variable}`

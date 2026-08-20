@@ -34,7 +34,7 @@ function pdfEditorSoftware(bytes: Uint8Array): string | null {
 /** Zero-AI, format/metadata-only fraud signals (PSD source · embedded ID in filename · editor-software producer).
  *  Needs only the document bytes/filename — no extraction — so it's usable at Step 1 (free readiness) AND composed
  *  into the full Step-2 signal set below. (ADDENDUM_14M three-step funnel, P1c) */
-export function metadataFraudSignals(documents: Document[]): FraudSignal[] {
+function metadataFraudSignals(documents: Document[]): FraudSignal[] {
   const signals: FraudSignal[] = []
   for (const doc of documents) {
     const format = doc.format ?? detectFormat(doc.filename, doc.bytes)

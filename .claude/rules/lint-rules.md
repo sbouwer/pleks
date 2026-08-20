@@ -11,10 +11,14 @@ The lint rule is the deliverable — a grep counts what you point it at; a lint 
 1. **A mis-derived `relPath` silently DISABLES the rule.** If the rule computes a file's repo-relative path wrongly (drive-letter casing, backslashes, cwd assumptions), baseline lookups miss and the rule either flags everything or nothing. After touching path derivation, RE-PROBE: confirm the rule fires on a known violation AND stays quiet on a baselined file.
 2. **A single-spelling pattern measures a false zero.** `.slice(0,10)` and `.split("T")[0]` are the same operation; a pattern that knows one spelling reports the other as "clean". Before claiming a zero baseline, enumerate synonyms of the operation and extend the pattern to all of them — then prove the pattern fires on a planted positive.
 
+**UNENFORCEABLE** — both are properties OF a rule's implementation quality; nothing checks a checker. "Re-probe after touching path derivation" and "enumerate synonyms before claiming zero" are review discipline for the rule author, with no meta-rule enforcing them (the closest analogue, `check-claude-md.mjs`'s own `--selftest`, is this repo's one instance of the pattern — not a generalised requirement).
+
 Baseline discipline:
 - A baseline entry means "read and classified", never "exempt". Every entry carries (or points to) its classification.
 - Baselines only SHRINK. A new violation outside the baseline fails immediately; removing entries as they're fixed is part of the fix's acceptance.
 - Never widen a baseline to make CI green — that's deleting the finding, not resolving it.
+
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — PARTIAL. "Baselines only shrink" is exactly what `check-claude-md.mjs` itself enforces for the UNENFORCEABLE-marker count (N may only fall) and what `check-file-headers.mjs`/`check-pii-classification.mts` enforce for their own baselines (a `fixed`/regressed baseline entry fails the build) — but that shrink-only property is per-script, not a general property every `*.baseline.json` in the repo is verified to hold; a NEW baseline file could be introduced that widens on every run and nothing would notice. "A baseline entry carries its classification" is unchecked content quality (an entry could be a bare filename with no reason). Sketch: one generic script enumerates every `*.baseline.json` in the repo and, in CI, compares each file's entry count against the base-branch version, failing if any grows — generalising the per-script pattern that already exists three times over.
 
 When adding a new rule: ship it WITH its baseline in the same commit, state the count in the commit message, and note the spellings the pattern covers.
 
@@ -43,6 +47,7 @@ it("actually enumerated the surface", () => {
 ```
 
 Prefer a realistic floor over `> 0`. `> 0` still passes when a glob decays from 400 files to 1.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — a property of how a NEW enumeration test is written; nothing scans `**/__tests__/**` for an `it(...)` whose body iterates a `readdirSync`/`git ls-files` result and asserts no non-emptiness floor on the list length. Sketch: an AST check over `**/__tests__/**` flagging a test that reads a directory/glob result but never calls `.toBeGreaterThan(...)` (or similar) on that result's `.length` within the same test body — the same "meta-check the checker" pattern `check-claude-md.mjs --selftest` already applies to itself.
 
 Live instances: `lib/portal/__tests__/no-session-credential-leak.test.ts` and
 `no-client-portal-token.test.ts`.
@@ -63,6 +68,7 @@ A string is a string.**
 So the test derives its member list from disk (`readdirSync`, `git ls-files`) rather than a
 hand-written array. A fourth sibling is then caught by the enumeration, not by a reviewer
 remembering the rule.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — same class as above: whether a NEW parity test derives its member list from disk vs. a hand-written array is a property of the test's own source, unchecked by anything outside code review. Sketch: an AST check over parity-test files (by naming convention) flagging a hand-written array literal used as the "members" list instead of a `readdirSync`/`git ls-files` call.
 
 ### Scope precisely, or the allowlist eats the test
 
@@ -72,8 +78,10 @@ token-gated routes, WhatsApp contact links, the tenant's own portal handling its
 with 20 false positives gets an allowlist with 20 entries and then means nothing.** Narrow the
 pattern to the actual defect (here: a tenant portal credential reaching *agent-facing* code) until
 the true-positive rate is high enough that every allowlist entry is worth arguing about.
+**UNENFORCEABLE** — "narrow until every entry is worth arguing about" is a design-time judgement about a pattern's precision; no check measures a NEW test's false-positive rate against a threshold.
 
 **And state coverage when reporting.** "Checked `inviteLandlord`, `sendPortalInvite` — did not read
 `inviteTenant`" is a different claim from "checked the invite paths", and only one of them is what
 happened. A stated coverage gap is visible to the author while writing it; an unstated one needs a
 reader to catch.
+**UNENFORCEABLE** — a reporting-honesty norm about prose written in chat/PR descriptions; not a property of any file a check could inspect.

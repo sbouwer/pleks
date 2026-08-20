@@ -56,7 +56,7 @@ export const PORTAL_DEFAULTS: Record<RoleClass, string> = {
   supplier: "/supplier/dashboard",
 }
 
-export const PORTAL_PREFIXES: Record<RoleClass, readonly string[]> = {
+const PORTAL_PREFIXES: Record<RoleClass, readonly string[]> = {
   agent: [
     "/dashboard", "/settings", "/properties", "/tenants", "/landlords",
     "/leases", "/listings", "/applications", "/billing", "/finance", "/suppliers",

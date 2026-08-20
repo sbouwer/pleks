@@ -8,7 +8,7 @@
  */
 export type FurnishingStatus = "unfurnished" | "semi_furnished" | "furnished"
 
-export const FURNISHING_LABELS: Record<FurnishingStatus, string> = {
+const FURNISHING_LABELS: Record<FurnishingStatus, string> = {
   unfurnished:    "Unfurnished",
   semi_furnished: "Partly furnished",
   furnished:      "Fully furnished",
@@ -20,17 +20,12 @@ export const FURNISHING_OPTIONS: ReadonlyArray<{ value: FurnishingStatus; label:
     label: FURNISHING_LABELS[value],
   }))
 
-/** Display label for a furnishing value, with a safe fallback. */
-export function furnishingLabel(value: string | null | undefined): string {
-  return FURNISHING_LABELS[(value ?? "") as FurnishingStatus] ?? "Unfurnished"
-}
-
 /**
  * Default deposit MULTIPLE (× monthly rent) by furnishing (O-22). Seeds the LOW end of the practical range
  * (matches the point-estimates in buildProfile's DEPOSIT_MONTHS_BY_FURNISHING) — tenant-conservative, and the
  * agent can raise it within the range shown as guidance. numeric so the half-month (1.5) stays exact.
  */
-export const DEPOSIT_MULTIPLE_BY_FURNISHING: Record<FurnishingStatus, number> = {
+const DEPOSIT_MULTIPLE_BY_FURNISHING: Record<FurnishingStatus, number> = {
   unfurnished:    1,
   semi_furnished: 1.5,
   furnished:      2,

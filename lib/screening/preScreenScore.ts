@@ -28,9 +28,14 @@ export function calculatePreScreenScore(
   incomeCents: number | null,
   rentCents: number,
   employmentType: string | null,
-  referenceCount: number
+  referenceCount: number,
+  threshold: number = INCOME_AFFORDABILITY_THRESHOLD
 ): PreScreenResult {
   // Income-to-rent ratio (25% weight)
+  // The 0.25/0.30/0.35/0.40 ladder is the FitScore INCOME SUB-SCORE CURVE, not the affordability
+  // ceiling, and it is deliberately left fixed: threading the org threshold into one rung only would
+  // let the rungs cross (a 0.28 policy would order them 0.25 / 0.28 / 0.35). The ceiling decides the
+  // FLAG and the LABEL; this decides how much of 25 points the ratio earns.
   const ratio = incomeCents && incomeCents > 0 ? rentCents / incomeCents : null
   let incomeScore = 0
   if (ratio !== null) {
@@ -54,16 +59,29 @@ export function calculatePreScreenScore(
     incomeScore * 0.25 + employmentScore * 0.15 + refsScore * 0.05
   )
 
-  const affordabilityFlag = ratio !== null && ratio > INCOME_AFFORDABILITY_THRESHOLD
+  const affordabilityFlag = ratio !== null && ratio > threshold
 
   return { prescreenScore, incomeScore, employmentScore, refsScore, affordabilityFlag, ratio }
 }
 
 export type PreScreenIndicator = "strong" | "borderline" | "insufficient" | "pending"
 
-export function getPreScreenIndicator(ratio: number | null): PreScreenIndicator {
+/**
+ * The applicant-facing label. `threshold` is the same org ceiling the flag above uses.
+ *
+ * It was a bare `0.30` while the flag five lines up used the constant — so within ONE file the flag
+ * followed the SSOT and the label the applicant reads did not. An org authoring 0.35 showed
+ * "insufficient" to an applicant its own policy considers affordable.
+ *
+ * The 0.40 "borderline" edge is deliberately NOT threaded: it is the far edge of a fixed label ladder,
+ * not the affordability ceiling, and moving only the near edge would let the two cross.
+ */
+export function getPreScreenIndicator(
+  ratio: number | null,
+  threshold: number = INCOME_AFFORDABILITY_THRESHOLD,
+): PreScreenIndicator {
   if (ratio === null) return "pending"
-  if (ratio <= 0.30) return "strong"
+  if (ratio <= threshold) return "strong"
   if (ratio <= 0.40) return "borderline"
   return "insufficient"
 }

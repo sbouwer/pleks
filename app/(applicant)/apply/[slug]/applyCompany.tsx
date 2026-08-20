@@ -55,8 +55,8 @@ export interface CompanyInfo {
 
 // The ledger catalogs (mirror the personal INCOME/COMMITMENT catalogs). "premises_rent" is a fixed key so the
 // engine can find the current-rent line for the relocate demonstrated-payment read.
-export const COMPANY_IN_CATALOG = [{ group: "Money in", sources: [{ key: "trading_income", label: "Trading income" }, { key: "other_income", label: "Other income" }, { key: "other", label: "Other…" }] }]
-export const COMPANY_OUT_CATALOG = [{ group: "Money out", sources: [
+const COMPANY_IN_CATALOG = [{ group: "Money in", sources: [{ key: "trading_income", label: "Trading income" }, { key: "other_income", label: "Other income" }, { key: "other", label: "Other…" }] }]
+const COMPANY_OUT_CATALOG = [{ group: "Money out", sources: [
   { key: "owner_remuneration", label: "Director / owner remuneration" }, { key: "salaries", label: "Staff salaries & wages" },
   { key: "premises_rent", label: "Premises rent" }, { key: "vehicle_asset", label: "Vehicle / asset finance" },
   { key: "loan_repayments", label: "Loan repayments" }, { key: "operating_costs", label: "Operating costs" },
@@ -101,31 +101,6 @@ export const COMPANY_TYPE_OPTIONS = [
 // applicant). The classifier is the lib SSOT (shared with the assessment engine so the branching can't drift).
 import { isJuristicCompanyType } from "@/lib/applications/companyTypes"
 export { isJuristicCompanyType }
-
-/** The company phase's sub-tabs depend on the type — unincorporated has no AFS/Finances tab (personal income). */
-export function companySubtabsFor(companyType: string): readonly string[] {
-  return isJuristicCompanyType(companyType)
-    ? ["Company information", "Business address", "Finances"]
-    : ["Business information", "Business address"]
-}
-
-/** Company-phase sub-tabs (type-dependent — see companySubtabsFor); mirrors the main wizard's SubTabs. */
-export function CompanySubTabs({ subtabs, step, onJump }: Readonly<{ subtabs: readonly string[]; step: number; onJump: (s: number) => void }>) {
-  return (
-    <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 border-b border-[var(--rule)]">
-      {subtabs.map((label, s) => {
-        const cur = s === step
-        return (
-          <button key={label} type="button" disabled={cur} onClick={() => onJump(s)}
-            className={`relative pb-1.5 text-[12px] ${cur ? "font-medium text-[var(--ink)]" : "cursor-pointer text-[var(--ink-mute)] hover:text-[var(--ink)]"}`}>
-            {label}
-            {cur && <span aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 bg-[var(--amber)]" />}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
 
 export function StepCompanyDetails({ company, setCompany, imDirector, companyStep }: Readonly<{ company: CompanyInfo; setCompany: (v: CompanyInfo) => void; imDirector: boolean; companyStep: number }>) {
   const set = (patch: Partial<CompanyInfo>) => setCompany({ ...company, ...patch })

@@ -790,7 +790,7 @@ function computeConfidence(
 
 // ─── Input hash (SHA-256 over canonical input) ────────────────────────────────
 
-export function computeInputsHash(input: EngineInput): string {
+function computeInputsHash(input: EngineInput): string {
   const canonical = {
     applicationId: input.applicationId,
     proposedRentCents: input.proposedRentCents,

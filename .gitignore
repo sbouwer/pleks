@@ -57,8 +57,26 @@ test/reports/
 # generated PDF samples (render script outputs)
 lib/reports/screening/_pdf/__samples__/
 
-# Claude Code internal state
-.claude/
+# Claude Code state. `.claude/*` rather than `.claude/`: a trailing-slash ignore stops git
+# descending at all, so no negation inside it can re-include anything. Everything here was
+# tracked only because someone remembered `git add -f`, and on 2026-08-19 two new files —
+# .claude/crawlers/INTENTIONAL.md (a BUILD BLOCKER: scripts/crawl.mjs refuses to run without it)
+# and .claude/agents/crawler-doctrine.md — were silently not committed by `git add -A`, while the
+# commit message said they were. The tracked subtrees are now explicit.
+.claude/*
+!.claude/agents/
+!.claude/commands/
+!.claude/crawlers/
+!.claude/hooks/
+!.claude/rules/
+!.claude/skills/
+!.claude/settings.json
+!.claude/statusline.js
+# Machine-local, never shared: personal permission overrides and session scratch.
+.claude/settings.local.json
+# Per-machine token accounting written by the context-budget hook. Byte offsets and running totals
+# for THIS clone's transcript — meaningless in another checkout, and it changes on every prompt.
+.claude/.context-budget.state.json
 
 # Build specs, legal docs, and design references — local only
 brief/
@@ -75,3 +93,10 @@ scripts/codemod-supabase-error.report.json
 supabase/.branches/
 supabase/.temp/linked-project.json
 supabase/.temp/pgdelta/
+
+# ESLint cache — local only, rebuilt by scripts/eslint-cache-guard.mjs (never committed)
+.eslintcache
+.eslintcache.key
+
+# agent handoff artefacts — task-scoped, cleared by /wrap (4-AGENT-PIPELINES.md §9)
+.claude/handoff/

@@ -7,7 +7,7 @@ paths:
 
 ## SUPABASE QUERY ERROR HANDLING — MANDATORY
 
-**Never use `(data ?? [])` without checking `error` first.**
+**Never use `(data ?? [])` without checking `error` first.** (Same control as `eslint:pleks/require-supabase-error-check`, already tagged in CLAUDE.md's DB ACCESS section — not re-tagged here to avoid a double claim.)
 
 The Supabase JS client returns `{ data: null, error: { code, message } }` on any query failure — including a missing column (Postgres error 42703). The `?? []` fallback silently converts this to an empty array, making it look like the table is empty when the query is actually crashing.
 

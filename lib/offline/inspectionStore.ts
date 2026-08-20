@@ -88,15 +88,6 @@ export async function saveItemRating(
   })
 }
 
-export async function getItemRating(
-  inspectionId: string,
-  itemId: string,
-): Promise<OfflineRating | undefined> {
-  const db = await openDB()
-  const tx = db.transaction("inspectionRatings", "readonly")
-  return idbGet<OfflineRating>(tx.objectStore("inspectionRatings"), `${inspectionId}:${itemId}`)
-}
-
 export async function getAllRatings(inspectionId: string): Promise<OfflineRating[]> {
   const db = await openDB()
   const tx = db.transaction("inspectionRatings", "readonly")

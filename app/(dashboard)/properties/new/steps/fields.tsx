@@ -19,7 +19,7 @@ export function WSection({ n, children }: Readonly<{ n?: string; children: React
   )
 }
 
-export const wInputCls = (err?: boolean) =>
+const wInputCls = (err?: boolean) =>
   cn(
     "w-full border-0 border-b bg-transparent px-0 py-2 text-sm text-foreground placeholder:text-muted-foreground/60",
     "focus:outline-none focus:ring-0 transition-colors",

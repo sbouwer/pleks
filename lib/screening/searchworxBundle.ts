@@ -76,7 +76,7 @@ export const SEARCHWORX_BUNDLE_FOREIGN: readonly SearchworxCheck[] =
  * rate card §2.1, so the derived company margin is provisional until that is resolved.
  * See brief/build/OUTSTANDING.md § Commercial application flow.
  */
-export const SEARCHWORX_BUNDLE_COMPANY: readonly SearchworxCheck[] = [
+const SEARCHWORX_BUNDLE_COMPANY: readonly SearchworxCheck[] = [
   {
     check_code: "compuscan_company_profile",
     cost_excl_vat_cents: SEARCHWORX_COSTS.compuscan_company_profile,
@@ -136,7 +136,7 @@ export { getApplicationFee }
  * applicant, and BUILD_14 Phase 1 has agents running checks on their own Searchworx accounts. So the
  * margin figures here are the intended steady state, not what Pleks pays today.
  */
-export function bundlesPerApplication(isJoint: boolean): number {
+function bundlesPerApplication(isJoint: boolean): number {
   return isJoint ? 2 : 1
 }
 

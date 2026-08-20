@@ -28,13 +28,13 @@
 export const RENT_CENTS_MAX = 500_000_00        // R500 000 pm — a large commercial letting, comfortably.
 
 /** A deposit is normally 1–2 months' rent; 3 is common commercially. Beyond this multiple, someone slipped. */
-export const DEPOSIT_RENT_MULTIPLE_MAX = 12
+const DEPOSIT_RENT_MULTIPLE_MAX = 12
 
 /** Annual escalation. SA leases run 5–10%; 20% is aggressive; beyond 50% is a typo or a units error. */
 export const ESCALATION_PERCENT_MAX = 50
 
 /** Arrears interest margin over prime. The NCA caps what may be charged; 30 is far past any real margin. */
-export const ARREARS_MARGIN_PERCENT_MAX = 30
+const ARREARS_MARGIN_PERCENT_MAX = 30
 
 /** Notice period, in days. A year is already extraordinary. */
 export const NOTICE_PERIOD_DAYS_MAX = 365
@@ -43,7 +43,7 @@ export const NOTICE_PERIOD_DAYS_MAX = 365
 export const DEPOSIT_RETURN_DAYS_MAX = 90
 
 /** How far back a lease may plausibly have started. Beyond this it is a date-format error, not history. */
-export const LEASE_START_MAX_YEARS_AGO = 50
+const LEASE_START_MAX_YEARS_AGO = 50
 
 export type Severity = "error" | "warning"
 

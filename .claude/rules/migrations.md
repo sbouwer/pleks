@@ -8,6 +8,7 @@ paths:
 
 **The migration structure is consolidated into 12 domain-scoped files. New
 features amend an existing file — they do NOT create new migration files.**
+(Same rule as CLAUDE.md's DO NOT DO entry, already marked there: `check-migration-forward-refs.mjs` checks reference ORDER inside the existing twelve; `check-migration-integrity.mjs` asserts the file SET is exactly those twelve, in both directions — a thirteenth file fails, and so does a deleted one. Tagged in CLAUDE.md; not re-tagged here to avoid a double claim.)
 
 This is the single most important rule for schema work. Read this whole
 section before touching `supabase/migrations/`.
@@ -49,10 +50,12 @@ domain-scoped files above and have been removed.
 **Do NOT amend** `007_enhancements.sql` or `008_enhancements2.sql`. These are
 historical cross-cutting files preserved for replay fidelity. New work goes into
 the domain-scoped files above.
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — `check-migration-forward-refs.mjs` reads every migration file's content but has no rule against 007/008 specifically gaining a new `§N` section. Sketch: diff each file's section (`§N`) count against a recorded baseline and fail if 007/008 grows.
 
 When in doubt, pick the file whose purpose most closely matches what you're
 adding. It is better to stretch the definition of an existing domain than to
 create a new file.
+**UNENFORCEABLE** — "which domain most closely matches" is a judgement call on the change's subject matter.
 
 ### Amend-forward pattern
 
@@ -70,10 +73,12 @@ section at the bottom, labelled with the BUILD number:
 After adding a section, re-run the migration against the live DB and verify
 with the drift script (below). Fresh DB replays will pick up your new
 section automatically when it replays the whole file.
+**UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: schema) — twin of the drift-detection note below and of `CLAUDE.md`'s pre-push checklist step 1, same mechanism, not re-annotated in full here. `check-schema-drift.mjs` would catch the RESULTING mismatch if run, but nothing forces "re-run and verify" to have actually happened before a commit. Sketch: a local pre-commit/pre-push hook running `node scripts/check-schema-drift.mjs` when a migration file changed, blocking on drift.
 
 ### Idempotency is mandatory
 
 Every migration must be safely re-runnable. Use these patterns:
+**UNENFORCEABLE** — MECHANISABLE (rung: check · blast: schema) — sketch: scan a migration's new `§N` section for `CREATE TABLE` without `IF NOT EXISTS`, `ADD COLUMN` without `IF NOT EXISTS`, or `CREATE INDEX` without `IF NOT EXISTS`, each a concrete syntactic pattern.
 
 ```sql
 -- Tables
@@ -127,6 +132,7 @@ to survive Markdown rendering in this doc.
 errors with `42710: policy already exists` on the second run and aborts
 the entire migration at that point, silently leaving everything below it
 unapplied. This has bitten us multiple times.
+(Same rule as CLAUDE.md's DO NOT DO entry for this — `check-migration-integrity.mjs` scans every migration for the pairing and recognises the four idempotency patterns this repo actually uses (a preceding DROP, an `IF NOT EXISTS (pg_policies …)` guard naming the policy AND its table, a dynamic `%I` drop loop over the table, and `EXCEPTION WHEN duplicate_object`). Tagged in CLAUDE.md; not re-tagged here to avoid a double claim.)
 
 ### Drift detection workflow
 
@@ -141,6 +147,7 @@ Exit clean: `✓ No drift — migrations match the live database.`
 
 If drift is reported, the report lists every difference with copy-paste
 SQL to fix it. Always drive drift back to zero before committing.
+**UNENFORCEABLE** — MECHANISABLE (rung: hook · blast: schema) — twin of the "re-run and verify" note above and of `CLAUDE.md`'s pre-push checklist step 1, same mechanism, not re-annotated in full here. `check-schema-drift.mjs` genuinely detects drift when run, and its conditional wrapper (`check-drift-if-sql-changed.mjs`) is part of `check:full` — but `check:full` is not CI-wired (see CLAUDE.md Git rhythm; CI's `db-tests` job now runs `test:db`/`security:db` post-push, but not this drift check), so nothing forces "drive drift to zero" to have happened before a commit lands. Sketch: same pre-commit/pre-push hook as above, running `check-schema-drift.mjs` when a migration file changed.
 
 `schema-drift-report.md` is generated in the project root — it's in
 `.gitignore` (don't commit).
@@ -159,6 +166,7 @@ Because every file is idempotent, there are only two safe workflows:
 
 Never run partial/cherry-picked statements without re-running the drift
 check afterwards. Ad-hoc SQL in the editor is the #1 cause of drift.
+(Same enforceability gap as CLAUDE.md DO NOT DO's "Do not apply ad-hoc SQL to the live DB" — not re-tagged here.)
 
 ### When to create a new migration file
 
@@ -171,6 +179,7 @@ check afterwards. Ad-hoc SQL in the editor is the #1 cause of drift.
 
 Even in these cases, flag the decision before creating the file. Default
 is always amend-forward.
+**UNENFORCEABLE** — "genuine case" is a judgement call by definition (that's what makes it "almost never" rather than "never"); `check-migration-forward-refs.mjs` would not object to a 13th file being created, genuine reason or not — see the file count gap already noted above.
 
 ---
 

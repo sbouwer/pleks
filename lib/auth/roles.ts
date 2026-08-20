@@ -108,13 +108,3 @@ export async function resolveUserRoles(userId: string): Promise<RoleMembership[]
 
   return memberships
 }
-
-export function defaultRoleForMemberships(memberships: RoleMembership[]): RoleMembership | null {
-  if (memberships.length === 0) return null
-  if (memberships.length === 1) return memberships[0]
-  // Prefer agent role when exactly one agent role exists
-  const agentRoles = memberships.filter(m => m.scope === "org")
-  if (agentRoles.length === 1) return agentRoles[0]
-  // No clear default — require explicit selection
-  return null
-}

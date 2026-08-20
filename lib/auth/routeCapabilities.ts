@@ -9,7 +9,7 @@
  *         Unlisted routes (dashboard, settings overview, own profile/security/notifications/feedback) are
  *         ungated. The route LAYOUT guards remain the enforcement boundary; this drives nav affordance.
  */
-export const ROUTE_CAPABILITY: Record<string, string> = {
+const ROUTE_CAPABILITY: Record<string, string> = {
   // main workspace
   "/properties":   "properties",
   "/hoa":          "properties",

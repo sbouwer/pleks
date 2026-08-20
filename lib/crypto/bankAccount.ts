@@ -46,7 +46,7 @@ export function hashBankAccount(raw: string): string {
 }
 
 /** Encrypt for storage. null/empty → null; already-ciphertext → unchanged (idempotent). */
-export function encryptBankAccount(raw: string | null | undefined): string | null {
+function encryptBankAccount(raw: string | null | undefined): string | null {
   const v = (raw ?? "").trim()
   if (!v) return null
   return isEncrypted(v) ? v : encrypt(v)

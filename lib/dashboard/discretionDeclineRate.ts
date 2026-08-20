@@ -16,7 +16,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { DECLINE_AGENT_DISCRETION_CODE } from "@/lib/screening/decisionReasons"
 
 /** A discretionary decline becomes "overuse" at this share of an agent's declines… */
-export const DISCRETION_RATE_FLAG_THRESHOLD = 0.15
+const DISCRETION_RATE_FLAG_THRESHOLD = 0.15
 /** …but only once the agent has enough declines for the rate to be meaningful (avoids 1/1 = 100% noise). */
 export const DISCRETION_MIN_DECLINES_TO_FLAG = 5
 

@@ -39,7 +39,7 @@ export const JOURNEY_MOMENTS: { moment: JourneyMoment; trigger: string; unlocks:
   { moment: "ingoing",    trigger: "post-activation",                 unlocks: "ingoing inspection = the deposit evidence chain" },
 ]
 
-export const JOURNEY_FIELDS: JourneyField[] = [
+const JOURNEY_FIELDS: JourneyField[] = [
   // ── Moment 1: creation ──────────────────────────────────────────────────────
   { key: "address",        label: "Property address",        fieldClass: "durable",   moment: "creation",   required: true,  source: "property",    ref: "address_line1",              backing: "column" },
   { key: "unit_identity",  label: "Unit identity",           fieldClass: "durable",   moment: "creation",   required: true,  source: "unit",        ref: "unit_number",                backing: "column" },
@@ -63,21 +63,7 @@ export const JOURNEY_FIELDS: JourneyField[] = [
   { key: "inspection_profile", label: "Inspection room layout", fieldClass: "durable", moment: "ingoing",   required: true,  source: "unit",        ref: "unit_inspection_profile_rooms", backing: "table"  },
 ]
 
-export function fieldsForMoment(moment: JourneyMoment): JourneyField[] {
-  return JOURNEY_FIELDS.filter((f) => f.moment === moment)
-}
-
 /** The minimum set that gates a moment's value (skippable enrichment excluded). */
 export function requiredFloor(moment: JourneyMoment): JourneyField[] {
   return JOURNEY_FIELDS.filter((f) => f.moment === moment && f.required)
-}
-
-/** Fields that carry over to the next lease (durable + the durable side of straddle) — the compounding set. */
-export function durableFields(): JourneyField[] {
-  return JOURNEY_FIELDS.filter((f) => f.fieldClass === "durable" || f.fieldClass === "straddle")
-}
-
-/** Fields re-confirmed on every lease (never inherited). */
-export function perLeaseFields(): JourneyField[] {
-  return JOURNEY_FIELDS.filter((f) => f.fieldClass === "per_lease")
 }

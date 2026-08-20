@@ -12,7 +12,7 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/env"
  * Only use for tables with USING(true) SELECT policies — e.g. site_content.
  * Never use for org-scoped or authenticated data.
  */
-export function publicDb() {
+function publicDb() {
   return createClient(
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY,

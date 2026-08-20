@@ -53,8 +53,6 @@ export function parseSearchworxDate(s: string | undefined | null): Date | null {
   return null
 }
 
-export const parseSearchworxDateTime = parseSearchworxDate
-
 // ─── Numeric coercion ─────────────────────────────────────────────────────────
 
 export function parseIntOrZero(s: string | undefined | null): number {

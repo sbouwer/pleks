@@ -1,0 +1,19 @@
+#!/bin/sh
+# .githooks/pre-merge-commit — the gate pre-commit does not cover.
+#
+# Git does NOT run pre-commit for a merge; it runs pre-merge-commit. Without this file, "blocks a
+# commit that fails the local check chain" was narrower than it read, and this repo has a live
+# example: the merge that brought main into the standard branch was created without any gate.
+set -e
+if [ -n "$PLEKS_PRECOMMIT_CMD" ] && [ "$PLEKS_HOOK_PROBE" = "1" ]; then
+  CMD="$PLEKS_PRECOMMIT_CMD"
+else
+  CMD="npm run check"
+fi
+echo "pre-merge-commit → $CMD"
+$CMD
+
+# Record that THIS tree passed, so prepare-commit-msg (which runs on every commit-creating path,
+# including the cherry-pick/revert ones git skips this hook for) does not run the chain twice.
+# Written only on success: `set -e` means a failing $CMD never reaches this line.
+git write-tree > "$(git rev-parse --git-path pleks-gate-ok)"

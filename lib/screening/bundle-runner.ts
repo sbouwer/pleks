@@ -13,10 +13,11 @@
 import { randomUUID }                             from "node:crypto"
 import { createServiceClient }                    from "@/lib/supabase/server"
 import { decrypt }                                from "@/lib/crypto/encryption"
-import { runCombinedConsumerCreditReport, COMBINED_PRODUCT_KEY, COMBINED_COST_CENTS } from "@/lib/searchworx/products/combinedConsumerCreditReport"
-import { runVccbIncomeEstimator, VCCB_PRODUCT_KEY, VCCB_COST_CENTS, VCCB_RESULT_SUMMARIES } from "@/lib/searchworx/products/vccbIncomeEstimator"
+import { runCombinedConsumerCreditReport, COMBINED_PRODUCT_KEY } from "@/lib/searchworx/products/combinedConsumerCreditReport"
+import { runVccbIncomeEstimator, VCCB_PRODUCT_KEY, VCCB_RESULT_SUMMARIES } from "@/lib/searchworx/products/vccbIncomeEstimator"
 import { extractBureauScores } from "@/lib/screening/searchworxBureauAdapter"
 import { assertScreeningConsent, screeningSubjectFor } from "@/lib/screening/consentGuard"
+import { getSearchworxBundle } from "@/lib/screening/searchworxBundle"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,9 +57,43 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
   }
 
   const reference  = `${applicationId}-${screeningRunId.slice(0, 8)}`
-  const isSaCitizen = idType === "sa_id"
   const subjectTable = subjectType === "company" ? "applications" : "application_co_applicants"
   const subjectRowId = subjectType === "company" ? applicationId : subjectId
+
+  // ── WHICH PRODUCTS RUN, AND WHAT THEY COST — asked of the SSOT, not re-derived here ──────────
+  //
+  // This file used to answer both questions itself: `isSaCitizen = idType === "sa_id"` decided the
+  // VCCB line, and COMBINED_COST_CENTS / VCCB_COST_CENTS were charged straight into
+  // application_screening_lines. searchworxBundle.ts answered the SAME two questions from
+  // SEARCHWORX_BUNDLE_SA / _FOREIGN, and `bundle-economics.test.ts` asserts price > cost against
+  // THAT answer. The two agreed only by coincidence of both having exactly two products: add a third
+  // line to the SSOT and the margin guard would re-assert against a bundle this runner never runs,
+  // staying green while describing a product that does not exist. Its own header records that
+  // happening once already — "Nothing imported this file, so the drift was invisible."
+  //
+  // The costs are identical today by construction (the SSOT imports the same two constants), so
+  // nothing charged changes; what changes is that there is now ONE derivation instead of two.
+  const isForeignNational = idType !== "sa_id"
+  const bundle = getSearchworxBundle(isForeignNational)
+  const costOf = (checkCode: string) =>
+    bundle.find((c) => c.check_code === checkCode)?.cost_excl_vat_cents ?? 0
+
+  // A product in the SSOT that this runner cannot run must FAIL, not be silently skipped. Without
+  // this, adding a line item to SEARCHWORX_BUNDLE_SA changes the asserted margin and the applicant's
+  // report says nothing about it — the failure is invisible in exactly the direction that costs money.
+  const RUNNABLE = new Set([COMBINED_PRODUCT_KEY, VCCB_PRODUCT_KEY])
+  const unrunnable = bundle.filter((c) => !RUNNABLE.has(c.check_code)).map((c) => c.check_code)
+  if (unrunnable.length) {
+    throw new Error(
+      `Bundle contains product(s) this runner cannot execute: ${unrunnable.join(", ")}. ` +
+      `Add a product module and wire it here, or the margin assertion in bundle-economics will ` +
+      `describe a bundle that never runs.`,
+    )
+  }
+
+  // The VCCB gate now follows bundle MEMBERSHIP rather than a second reading of id_type, so the
+  // rate-card rule ("VCCB is SA-citizens only") is stated once, in the file that owns it.
+  const runsVccb = bundle.some((c) => c.check_code === VCCB_PRODUCT_KEY)
 
   // ── Run Combined Consumer Credit Report (always) ────────────────────────────
   const combinedResult = await runCombinedConsumerCreditReport({
@@ -78,7 +113,7 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     screeningRunId,
     productKey:     COMBINED_PRODUCT_KEY,
     status:         combinedResult.ok ? "completed" : "failed",
-    costCents:      COMBINED_COST_CENTS,
+    costCents:      costOf(COMBINED_PRODUCT_KEY),
     pdfStoragePath: combinedResult.ok ? combinedResult.pdfStoragePath : null,
     resultSummary:  combinedSummary,
     searchToken:    combinedResult.ok ? combinedResult.parsed.searchToken : null,
@@ -92,7 +127,8 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
   // ── VCCB Income Estimator (SA citizens only) ────────────────────────────────
   const { vccbOk, vccbSummary } = await runVccbStep({
     service, orgId, applicationId, subjectType, subjectId,
-    subjectTable, subjectRowId, screeningRunId, reference, idNumber, isSaCitizen,
+    subjectTable, subjectRowId, screeningRunId, reference, idNumber,
+    runsVccb, vccbCostCents: costOf(VCCB_PRODUCT_KEY),
   })
 
   // ── Update applications.current_screening_run_id (primary applicant only) ──
@@ -121,11 +157,12 @@ interface VccbStepArgs {
   screeningRunId: string
   reference:      string
   idNumber:       string
-  isSaCitizen:    boolean
+  runsVccb:       boolean
+  vccbCostCents:  number
 }
 
 async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skipped"; vccbSummary: string }> {
-  if (!a.isSaCitizen) {
+  if (!a.runsVccb) {
     await upsertScreeningLine(a.service, {
       orgId:          a.orgId,
       applicationId:  a.applicationId,
@@ -159,7 +196,7 @@ async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skippe
     screeningRunId: a.screeningRunId,
     productKey:     VCCB_PRODUCT_KEY,
     status:         vccbResult.ok ? "completed" : "failed",
-    costCents:      VCCB_COST_CENTS,
+    costCents:      a.vccbCostCents,
     pdfStoragePath: vccbResult.ok ? vccbResult.pdfStoragePath : null,
     resultSummary:  vccbSummary,
     searchToken:    vccbResult.ok ? vccbResult.parsed.searchToken : null,

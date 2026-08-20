@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "The ratchet ceiling for scripts/check-claude-md.mjs. N = rules whose only control is model",
+    "attention, counted across CLAUDE.md and .claude/rules/*.md.",
+    "",
+    "N ABOVE this fails: mechanise the rule, or raise maxN in the same commit as the new rule and",
+    "argue it in the message. N BELOW this also fails: lower maxN to the new figure, because",
+    "tightening the ratchet is part of the mechanisation's acceptance, not a follow-up.",
+    "",
+    "Exists because 'N may only fall' was printed and asserted as BINDING for a day while nothing",
+    "keyed on it — found by adversarial review, not by any check.",
+    "",
+    "minD is the DENOMINATOR FLOOR, and it is what stops the N ceiling being gamed: markers",
+    "are required only inside `### Enforced` and §5, so cutting an UNENFORCEABLE bullet out of",
+    "§5 and pasting it into §8 as prose lowers N with the rule still in the file, still",
+    "unenforced, and now invisible. D falls with it, so that move fails here instead.",
+    "D may only RISE: a new enforced rule should be easy. Deleting a rule lowers minD in the",
+    "same commit, naming which rule and why."
+  ],
+  "maxN": 89,
+  "minD": 126
+}

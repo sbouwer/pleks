@@ -15,7 +15,7 @@ const GROWTH_ROLES = [
   "maintenance_manager", "inspection_manager", "admin_assistant", "receptionist", "compliance_officer",
 ]
 
-export const TIER_ROLE_ACCESS: Record<Tier, { roles: string[] | "all"; canAddCustom: boolean }> = {
+const TIER_ROLE_ACCESS: Record<Tier, { roles: string[] | "all"; canAddCustom: boolean }> = {
   owner:     { roles: OWNER_ROLES,   canAddCustom: false },
   steward:   { roles: STEWARD_ROLES, canAddCustom: false },
   growth:    { roles: GROWTH_ROLES,  canAddCustom: false },
@@ -32,11 +32,4 @@ export function allowedRoleSlugs(tier: Tier): "all" | Set<string> {
 
 export function canAddCustomRoles(tier: Tier): boolean {
   return (TIER_ROLE_ACCESS[tier] ?? TIER_ROLE_ACCESS.owner).canAddCustom
-}
-
-/** Should this role show on the tier? Built-ins are gated; custom roles always show where they exist. */
-export function isRoleVisibleForTier(tier: Tier, slug: string, isSystem: boolean): boolean {
-  if (!isSystem) return true
-  const allowed = allowedRoleSlugs(tier)
-  return allowed === "all" || allowed.has(slug)
 }

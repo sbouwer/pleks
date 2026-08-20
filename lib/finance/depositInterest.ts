@@ -19,7 +19,7 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 /**
  * Pure calculation — used by both the server action and the cron route.
  */
-export function calculateDepositInterest(
+function calculateDepositInterest(
   depositCents: number,
   annualRatePercent: number,
   fromDate: Date,

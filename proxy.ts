@@ -9,6 +9,15 @@
  *         ensureOrgCookies() now calls resolveUserMembership() for all portal classes
  *         (not just user_orgs). ToS/Privacy consent is now handled via ConsentGateModal
  *         mounted in destination layouts — no redirect to /accept-terms.
+ *
+ *         ⚠ THIS FILE IS THE Next.js 16 MIDDLEWARE. In Next.js 16, `middleware.ts` was
+ *         deprecated and renamed to `proxy.ts` (network-boundary framing: rewriting,
+ *         redirecting, header manipulation — not general server-side logic); the default
+ *         export changed from `middleware` to `proxy`. Do NOT create a new `middleware.ts`
+ *         at the project root — it is deprecated in Next.js 16 and will not be picked up.
+ *         When any spec references "middleware" or "the proxy layer", the implementation
+ *         lives here. Moved from `.claude/rules/routing-auth.md` (single-file doctrine,
+ *         standards/CLAUDE-MD-STANDARD v3 §4 rung 4) — this file is where the rule is checkable.
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"

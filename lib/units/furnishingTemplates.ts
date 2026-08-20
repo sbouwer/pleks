@@ -98,7 +98,7 @@ export const FURNISHING_TEMPLATES: Record<string, string[]> = {
 }
 
 // Per-item placeholder examples shown in the description input.
-export const FURNISHING_PLACEHOLDERS: Record<string, string> = {
+const FURNISHING_PLACEHOLDERS: Record<string, string> = {
   // Kitchen
   "Fridge":             "e.g. Hisense 130L silver, no ice dispenser",
   "Stove / Oven":       "e.g. Defy 4-plate electric stove with oven",

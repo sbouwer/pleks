@@ -43,7 +43,7 @@ function yearsInWindow(): number[] {
 }
 
 /** Nager.Date — primary witness, no key needed. Returns null on any failure (unreachable ≠ empty). */
-export async function fetchNagerZA(): Promise<ApiHoliday[] | null> {
+async function fetchNagerZA(): Promise<ApiHoliday[] | null> {
   const out: ApiHoliday[] = []
   for (const year of yearsInWindow()) {
     const { status, body } = await getJson(`https://date.nager.at/api/v3/PublicHolidays/${year}/ZA`)
@@ -58,7 +58,7 @@ export async function fetchNagerZA(): Promise<ApiHoliday[] | null> {
 }
 
 /** Calendarific — second witness, key optional. Absent key ⇒ null (skipped, not a failure). */
-export async function fetchCalendarificZA(): Promise<ApiHoliday[] | null> {
+async function fetchCalendarificZA(): Promise<ApiHoliday[] | null> {
   const key = optionalEnv("CALENDARIFIC_API_KEY")
   if (!key) return null
   const out: ApiHoliday[] = []

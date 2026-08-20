@@ -1,0 +1,10 @@
+[
+  "app/api/cron/lease-expiry-check/route.ts",
+  "app/api/cron/tenant-comms/lease-lifecycle/route.ts",
+  "app/api/webhooks/docuseal/route.ts",
+  "lib/actions/leases.ts",
+  "lib/actions/notices.ts",
+  "lib/actions/parties.ts",
+  "lib/import/importRunner.ts",
+  "lib/leases/revertSigning.ts"
+]

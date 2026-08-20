@@ -17,7 +17,15 @@ import path from "node:path"
 
 import { AgentSingleReport } from "@/lib/reports/screening/agent_single"
 import { AgentMultiReport } from "@/lib/reports/screening/agent_multi"
-import { AgentLimitedDataReport } from "@/lib/reports/screening/agent_limited_data"
+// `agent_limited_data.tsx` was DELETED in 798b6f89 ("retire LDP template — LDP handled via state
+// branches within agent_single/agent_multi, band=limited_data_profile"). This script kept importing
+// it, so it could not load at all: every variant was broken, not just `ldp`. The template was
+// retired and its only renderer was not updated — the two halves of one change, and the half nobody
+// ran is the half that broke.
+//
+// The `ldp` variant now renders through AgentSingleReport, which is where that state branch lives;
+// the scenario's `band: 'limited_data_profile'` + `isLdp: true` are what select it. The variant name
+// is kept so the sample keeps its filename and the LDP case stays documented in SCENARIOS.
 import type {
   FitScoreReportData,
   FitScoreApplicantEntry,
@@ -436,7 +444,6 @@ async function main(): Promise<void> {
 
   for (const { name, data, variant } of SCENARIOS) {
     const Template =
-      variant === 'ldp'   ? AgentLimitedDataReport :
       variant === 'multi' ? AgentMultiReport :
                             AgentSingleReport
 

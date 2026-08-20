@@ -75,7 +75,7 @@ export function calculateAiCostCents(args: {
 }
 
 // ── Per-unit direct costs (ZAR cents) ─────────────────────────────────────────
-export const UNIT_COST_CENTS = {
+const UNIT_COST_CENTS = {
   email_marginal: 1,    // ~R0.01 per email (Resend marginal above free tier)
   wa_message:   120,    // ~R1.20 per WhatsApp conversation (Africa's Talking)
   sms:           35,    // ~R0.35 per SMS
@@ -83,7 +83,7 @@ export const UNIT_COST_CENTS = {
 
 // ── Shared-infrastructure proration weights ───────────────────────────────────
 // Reflect approximate compute intensity per event. See D-COST-02.
-export const PRORATION_WEIGHTS = {
+const PRORATION_WEIGHTS = {
   email:            1,
   whatsapp:        10,
   sms:              5,
@@ -94,7 +94,7 @@ export const PRORATION_WEIGHTS = {
 // ── Monthly infrastructure aggregates (manually entered from bills) ───────────
 // Format: 'YYYY-MM': { vercel_cents, supabase_cents, fixed_overhead_cents }
 // Add a new entry at the start of each month. See RUNBOOK_COST_OBSERVABILITY.md.
-export const MONTHLY_AGGREGATES: Record<string, {
+const MONTHLY_AGGREGATES: Record<string, {
   vercel_cents: number
   supabase_cents: number
   fixed_overhead_cents: number
@@ -111,7 +111,7 @@ export const MONTHLY_AGGREGATES: Record<string, {
   },
 }
 
-export function getMonthlyAggregate(period: Date): {
+function getMonthlyAggregate(period: Date): {
   vercel_cents: number
   supabase_cents: number
   fixed_overhead_cents: number

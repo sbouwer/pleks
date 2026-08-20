@@ -42,7 +42,7 @@ export interface CalendarEvent {
 }
 
 // FullCalendar event colours (mapped to CSS vars in the theme)
-export const EVENT_COLOURS: Record<EventType, string> = {
+const EVENT_COLOURS: Record<EventType, string> = {
   inspection: "#3b82f6",         // blue
   inspection_overdue: "#ef4444", // red
   maintenance: "#f59e0b",        // amber

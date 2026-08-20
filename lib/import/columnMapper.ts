@@ -23,7 +23,7 @@ interface FieldAlias {
  * Map of normalised column header aliases to Pleks field definitions.
  * Keys are lowercase, trimmed versions of common column names.
  */
-export const FIELD_ALIASES: Record<string, FieldAlias> = {
+const FIELD_ALIASES: Record<string, FieldAlias> = {
   // Tenant fields
   first_name: { field: "first_name", entity: "tenant" },
   firstname: { field: "first_name", entity: "tenant" },

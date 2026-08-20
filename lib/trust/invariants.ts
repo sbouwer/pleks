@@ -30,7 +30,7 @@ export interface TrustOperation {
   description: string
 }
 
-export class SovereignTrustViolation extends Error {
+class SovereignTrustViolation extends Error {
   constructor(rule: string, operation: TrustOperation) {
     super(
       `SOVEREIGN_TRUST_VIOLATION: ${rule}. ` +
