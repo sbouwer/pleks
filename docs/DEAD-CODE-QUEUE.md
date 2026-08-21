@@ -202,6 +202,16 @@ No item in any slice was attributed to knip's own config gaps.
 
 ## Promote — verified against the tree, not taken on the children's word
 
+**✅ BOTH FILED, 2026-08-21, at `b2eda39d` — `M-077` and `M-078` in `docs/MECHANISABLE.md`.** The
+register entries are now authoritative; what follows is the fan-out's own reasoning, kept because it
+is the provenance. **One claim below was corrected on filing:** item 2 says the gate copy matches
+`DISCLAIMER_GATE_TEXT` "word-for-word (intro paragraph, all six numbered clauses, the closer)". That
+is true of those three things and loose about the rest — the constant's lead sentence has no
+counterpart in the modal, and the clause headings are UPPERCASE in the constant and title-case in the
+component. The difference is not cosmetic: it is why the PDF site can import the constant today and
+the gate site cannot, which is the whole shape of M-078's fix. Left as written rather than edited,
+because a promoted artefact records what the run said.
+
 1. **`HELP_CONTENT_DRAFT` (`lib/help/help-data.ts`) → new `docs/MECHANISABLE.md` entry, third
    instance of the M-067 class.** Verified independently: the file's own header states "DRAFT —
    `HELP_CONTENT_DRAFT` is true until Stéan's §7 content-compliance pass signs off every answer,"
