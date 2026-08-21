@@ -20,6 +20,95 @@
  */
 // @event PreToolUse
 // @matcher Bash
+
+/**
+ * Is this an `rm` aimed at a filesystem root or a bare home directory?
+ *
+ * NOT A REGEX, on purpose, and the reason is measured rather than stylistic. The regex this
+ * replaced — `\brm\b.*?(?:\s)["']?[\/~][/*]*["']?(?=\s|$)` — was QUADRATIC: the lazy `.*?` rescans
+ * the whole tail from every `rm` token in the string, so cost grows with (rm-count × length).
+ * Doubling the input quadrupled the time (measured 4.02×), and this gate runs in front of EVERY
+ * Bash call:
+ *      10KB command   6.6ms      (the linear predecessor: 0.003ms)
+ *      60KB commit    61ms       — this repo writes register entries that long
+ *      100KB          679ms
+ *      500KB          17,057ms
+ * This function is one pass over the tokens: 500KB in ~27ms, and flat per character.
+ *
+ * That is the ReDoS lesson, learnt for the FOURTH time in this repo — the email check, the money
+ * formatter, and `supabase/reconcile/apply-prod.mjs:40`, which says in a comment "a gate is not the
+ * place for it" and chose a plain line scan for exactly this reason. It had never been promoted to
+ * the cross-repo ledger, so it was available to be re-learnt. It is filed now.
+ *
+ * The matching doctrine is `deniedGitSubcommand`'s, twenty lines from here: DO NOT PARSE THE FLAG
+ * GRAMMAR. Find the command, then look for a lethal target as a STANDALONE TOKEN anywhere after it.
+ * Flag order, flag spelling, and the target's position all stop mattering, which is what defeated
+ * every earlier attempt: `-fr`, `-f`, `-r -f`, `--recursive --force`, `--no-preserve-root -rf`, and
+ * `rm -rf foo /` (target not adjacent to the flags).
+ *
+ * Normalisations, each closing shapes an earlier cut let through — every one found by adversarial
+ * review rather than by the author, which is the reason this rule now has a probe per shape:
+ *   · SEGMENT PER COMMAND on `;`, `&`, `|` and newline, matching `rm` within a segment. A
+ *     whitespace-only split yields the single token `/*;echo` for `rm -rf /*;echo done` and the
+ *     target hides inside it — `(?=\s|$)` is a CHARACTER test, not a token boundary, the same defect
+ *     class as the pattern it replaced.
+ *   · JOIN BACKSLASH-NEWLINE FIRST, before segmenting, or the newline separator tears a continued
+ *     command in half at exactly the point an attacker would choose it.
+ *   · STRIP QUOTES, GROUPING AND A LEADING BACKSLASH. `/"*"` and `'/'*` are both `/*` to the shell;
+ *     `(rm -rf /*)` hides the command in a paren; `\rm` is the standard alias-bypass idiom and
+ *     without the strip the rule silently stands down. Quotes come out ANYWHERE in the token,
+ *     because mid-token is precisely where they were used to hide.
+ *
+ * KNOWN FALSE-DENY, accepted: a command that merely MENTIONS the string
+ * (`echo 'rm -rf /' >> notes.md`) is denied. For a DENY rule that is the correct direction to be
+ * wrong in — a false deny costs a rephrase, a false allow costs the filesystem.
+ *
+ * An earlier cut ALSO false-denied `rm -rf .next && du -sh /`, and recorded it as accepted. It was
+ * not accepted, merely unsegmented: `seenRm` was set once and carried to the end of the string. Per-
+ * segment reset removes it for free while keeping every deny case, and the lesson is worth more than
+ * the fix — a cost written down as "accepted" stops being re-examined, so an unnecessary one can sit
+ * in a comment indefinitely looking like a considered trade.
+ *
+ * NOT COVERED, recorded rather than chased: a variable-expanded target (`rm -rf "$HOME"`) contains
+ * no literal `/` or `~`, so nothing reading the command TEXT can see the value; and `cd / && rm -rf *`
+ * hides the danger in the preceding `cd`, the target being a bare `*` that is correctly allowed.
+ */
+function isDestructiveRm(command) {
+  // `/` or `~`, then only more slashes and stars. `/tmp/scratch` and `~/projects` fail because a
+  // NAMED segment follows — the two cases that separate a gate from a wall.
+  const LETHAL_TARGET = /^[/~][/*]*$/;
+  // Quotes come out ANYWHERE (mid-token is where they hide); grouping and a leading backslash come
+  // off the ends. `\rm` is the standard idiom for bypassing a shell alias — without the backslash
+  // strip the token never matches and the whole rule silently stands down.
+  const norm = (t) => t.replace(/["'`]/g, "").replace(/^[\\({[]+|[)}\]]+$/g, "");
+
+  // Join backslash-newline continuations BEFORE segmenting, or the split below tears one command in
+  // half at exactly the point an attacker would choose. This must come first: `rm -rf \⏎  /*` is one
+  // command, and treating the newline as a separator would file its target under a second, rm-less
+  // segment and allow it.
+  const joined = command.replace(/\\\r?\n/g, " ");
+
+  // ONE SEGMENT PER COMMAND, and `seenRm` resets at each. A chain operator genuinely starts a new
+  // command, so a lethal-looking token after one is not the `rm`'s target: `rm -rf .next && du -sh /`
+  // is ordinary work. Carrying the flag across the whole string (an earlier cut of this) made that a
+  // documented "accepted false-deny" — it was neither necessary nor accepted, just unsegmented.
+  // Newlines are separators here for the same reason, and that matters more than it looks: multiline
+  // command bodies are named in this file's header as the reason the hook exists at all, so a
+  // two-line script with `rm -rf dist` and `ls /` was being denied.
+  // Nothing weakens: `rm -rf /*;echo done` keeps its target in the FIRST segment, and `rm -rf foo /`
+  // has no operator to split on.
+  for (const segment of joined.split(/[;&|\n]+/)) {
+    let seenRm = false;
+    for (const raw of segment.split(/\s+/)) {
+      const t = norm(raw);
+      // `rm`, `/bin/rm` and `\rm` count; `rm-perf.mjs`, `rm:cache` and `confirm` do not.
+      if (/^(?:[^\s]*\/)?rm$/.test(t)) { seenRm = true; continue; }
+      if (seenRm && LETHAL_TARGET.test(t)) return true;
+    }
+  }
+  return false;
+}
+
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));
 process.stdin.on("end", () => {
@@ -41,40 +130,15 @@ process.stdin.on("end", () => {
       [/git\s+reset\s+--hard/, "hard reset is denied"],
       // @no-twin no settings pattern was ever written for this. LT measured the same gap on the
       // same rule; recorded here rather than invented, so the hole is visible instead of implied.
-      // ⚠ DENIED THE HARMLESS SHAPE AND PERMITTED THE LETHAL ONES until 2026-08-21. The old pattern
-      // was `rm\s+-rf?\s+["']?[\/~]["']?(\s|$)`, which required whitespace-or-end IMMEDIATELY after
-      // the root character — so bare `rm -rf /` was caught, while `rm -rf /*` and `rm -rf ~/*` were
-      // waved through. That is the inverse of the intended coverage: modern `rm` refuses a bare `/`
-      // without `--no-preserve-root` anyway, so the ONE shape the rule actually stopped is the one
-      // the OS already stops, and the shapes that destroy a filesystem all passed. Measured against
-      // 12 lethal spellings, the old pattern missed 7.
-      //
-      // Rebuilt on the doctrine `deniedGitSubcommand` (agent-write-scope.js) already carries twenty
-      // lines from here: DO NOT PARSE THE FLAG GRAMMAR. That lesson was written for the git rule and
-      // never swept across its neighbours — this rule sat parsing `-rf?` the whole time, and so
-      // inherited every defeat that shape invites: `-fr` (order), `-f` (no r), `-r -f` (split),
-      // `--recursive --force` (long spellings), `--no-preserve-root -rf` (an intervening flag).
-      // An intermediate fix that merely SKIPPED flag tokens still missed `rm -rf foo /`, because it
-      // assumed the target follows the flags.
-      //
-      // So: find `rm`, then require a LETHAL TARGET AS A STANDALONE TOKEN ANYWHERE AFTER IT — `/` or
-      // `~`, optionally followed by further `/` or `*`, terminating at whitespace or end. Position,
-      // flag order and flag spelling all stop mattering. Verified against 13 lethal spellings (all
-      // denied) and 9 ordinary ones (all allowed); the two that discriminate a shape-based rule from
-      // a wall are `rm -rf /tmp/scratch` and `rm -rf ~/projects/scratch`, which BEGIN with a lethal
-      // character and must still pass because a named segment follows.
-      //
-      // KNOWN FALSE-DENY, accepted and pre-existing: a command that merely MENTIONS the string
-      // (`echo 'rm -rf /' >> notes.md`) is denied. The old pattern did this too, so it is no
-      // regression, and for a DENY rule it is the correct direction to be wrong in.
-      // NOT COVERED, recorded rather than chased — two cases, same reason:
-      //   · a variable-expanded target (`rm -rf "$HOME"`, `rm -rf $HOME/*`) contains no literal `/`
-      //     or `~`, so no pattern over the command text can see the value.
-      //   · a chained context (`cd / && rm -rf *`) — the target is a bare `*`, which is correctly
-      //     ALLOWED on its own, and the danger lives entirely in the preceding `cd`.
-      // Widening to reach either would false-deny the benign half above, which is the direction
-      // that gets a gate deleted. Recorded beats assumed.
-      [/\brm\b.*?(?:\s)["']?[\/~][/*]*["']?(?=\s|$)/, "rm -rf on root/home is denied"],
+      // ⚠ DENIED THE HARMLESS SHAPE AND PERMITTED THE LETHAL ONES until 2026-08-21. The original was
+      // `rm\s+-rf?\s+["']?[\/~]["']?(\s|$)`, requiring whitespace-or-end IMMEDIATELY after the root
+      // character — so bare `rm -rf /` was caught, while `rm -rf /*` and `rm -rf ~/*` were waved
+      // through. The inverse of the intended coverage: modern `rm` refuses a bare `/` without
+      // `--no-preserve-root` anyway, so the ONE shape the rule stopped is the one the OS already
+      // stops. Its regex replacement closed those and opened two new holes of its own (six more
+      // bypasses, and a quadratic blowup) before adversarial review caught both.
+      // Rationale, doctrine, measurements and the accepted false-denies: see `isDestructiveRm`.
+      [isDestructiveRm, "rm -rf on root/home is denied"],
       // CLAUDE.md forbids --no-verify BY NAME ("which is why it is forbidden") and, until now,
       // nothing anywhere refused it: the .githooks gates cannot see the flag that skips them, and
       // no check can observe a hook that did not run. `-n` is the short spelling and skips the same
@@ -109,18 +173,37 @@ process.stdin.on("end", () => {
       // `.env` must now START a path token: at the beginning, or after whitespace, a quote, an `=`,
       // or a `/`. An identifier character before it (`process`, `meta`) means it is a property
       // access, not a file.
-      [/(?:^|[\s"'=/])\.env(\.|["'\s]|$)/, "touching .env files requires approval"],
+      // ⚠ THE LEADING ANCHOR SET NARROWED THIS RULE, and the first cut of it dropped four separators
+      // that carry real reads. Found by adversarial review: `cat C:\dev\pleks\.env`, `type .\.env`,
+      // `cat <.env`, `echo X >.env` and `cat *.env` ALL asked under the old unanchored pattern and
+      // were silently allowed by the anchored one. On Windows — this repo's platform — the omission
+      // of `\` alone un-gated every absolute path to a secrets file.
+      //
+      // The anchor is still the right discriminator, and the trailing side cannot do this job: the
+      // false positive being fixed was `process.env.NODE_ENV`, which is `.env` followed by `.`, and
+      // so is `.env.local`. What separates them is what comes BEFORE — an identifier character
+      // (`process`, `meta`) means a property access; a separator means a path.
+      //
+      // ACCEPTED COST, chosen rather than discovered: adding `\` makes `rg "\.env"` ask, because the
+      // regex-escape backslash is indistinguishable from a path separator without knowing the
+      // command's quoting. That probe was flipped from allow to ask deliberately. An extra prompt on
+      // a grep is cheap; a silent read of a secrets file is the thing this rule exists to stop.
+      [/(?:^|[\s"'=/\\<>*])\.env(\.|["'\s]|$)/, "touching .env files requires approval"],
       // @no-twin ad-hoc prod SQL through the CLI has no settings pattern — the other gap LT
       // measured. The MCP path is covered by mcp-ddl-gate; the `supabase db` CLI path is not.
       [/supabase\s+db\s+(push|reset)/, "prod database operations require approval"],
     ];
 
-    for (const [re, why] of DENY) {
-      if (re.test(cmd)) { decision = "deny"; reason = "bash-gate: " + why; break; }
+    // A rule is a RegExp or a predicate. The `rm` rule is a function because the regex form of it
+    // was quadratic in a gate that runs before every Bash call — see `isDestructiveRm`.
+    const hits = (rule, s) => (typeof rule === "function" ? rule(s) : rule.test(s));
+
+    for (const [rule, why] of DENY) {
+      if (hits(rule, cmd)) { decision = "deny"; reason = "bash-gate: " + why; break; }
     }
     if (decision === "allow") {
-      for (const [re, why] of ASK) {
-        if (re.test(cmd)) { decision = "ask"; reason = "bash-gate: " + why; break; }
+      for (const [rule, why] of ASK) {
+        if (hits(rule, cmd)) { decision = "ask"; reason = "bash-gate: " + why; break; }
       }
     }
   } catch {
