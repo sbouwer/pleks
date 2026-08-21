@@ -1,5 +1,5 @@
 /**
- * .claude/statusline.js — always-visible context budget.
+ * .claude/statusline.js — always-visible context budget, and the session's live permission mode.
  *
  * WHY THIS EXISTS RATHER THAN THE HOOK ALONE. `.claude/hooks/context-budget.js` measures the same
  * thing, but it can only reach the MODEL: its `additionalContext` is injected into the prompt, and
@@ -19,6 +19,16 @@
  * writes it. A statusline re-renders on a timer; scanning 54 subagent transcripts and rewriting
  * state at that rate would make the budget display a measurable line item in the budget it displays.
  * So this does exactly one stat and one 512KB positioned read, via `contextNow`.
+ *
+ * SECOND REMIT, added 2026-08-21: the permission mode, for exactly the reason above, one field over.
+ * A session-level mode (CLI arg or UI selection) OUTRANKS `permissions.defaultMode` in settings.json
+ * and is written to no file, so a session can run in ask-mode while every settings file on disk says
+ * `acceptEdits` — and from inside the session the three states are indistinguishable: allowed,
+ * prompted, and mode-overridden all look identical to the model, which cannot see a prompt at all.
+ * The stdin payload has carried `permissionMode` all along beside `model` and `transcript_path`;
+ * this file used two of the three and discarded the one that settles it. Three VS Code restarts and
+ * a hook-sentinel probe were spent searching files for a variable that was never in a file. The
+ * participant who is the only one able to CHANGE the mode was structurally unable to SEE it.
  *
  * FAILS TO A PLAIN LINE, NEVER TO AN ERROR. A statusline that throws renders its stack trace into
  * the UI on every frame.
@@ -48,6 +58,14 @@ function render(input) {
 
   const model = input.model && (input.model.display_name || input.model.id);
   if (model) parts.push(`${DIM}${model}${RESET}`);
+
+  // The session's LIVE permission mode, which outranks `permissions.defaultMode` in settings.json
+  // and lives in no file — it is a CLI arg or a UI selection. Shown only when it disagrees with
+  // what this project's settings ask for, so the common case stays quiet and a disagreement is
+  // loud. Silence here is a positive claim that settings won.
+  if (input.permissionMode && input.permissionMode !== "acceptEdits") {
+    parts.push(`${YELLOW}perm ${input.permissionMode}${RESET}`);
+  }
 
   let context = null;
   try { context = contextNow(input.transcript_path); } catch { /* fall through to no gauge */ }
