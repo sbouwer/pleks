@@ -728,6 +728,11 @@ question is no longer *which mode was the session in* but *what does a mode actu
 that cannot be answered without an instrument that detects a prompt — which does not exist, because
 **the only detector of a permission prompt in this system is the human watching the screen.**
 
+*(Half-corrected 2026-08-21 by E14: `toolDenialKind: "permission-rule"` records a prompt that was
+REJECTED, with timestamp and tool input, and records nothing when one is approved. So a prompt is
+detectable after the fact if the human declines it — which makes "reject, don't approve" a
+measurement technique. It does NOT reach subagent prompts, since subagent turns are unrecorded.)*
+
 ### What the instruments do now
 
 The statusline reports the value from `permissionMode` and **predicts nothing** — dim, no colour, no
@@ -828,6 +833,14 @@ in `settings.json` deleted as no longer addressing anything. Everything else in 
 Stated because the temptation is to file this closed, and because a symptom table that reads all-yes
 on the first pass is the failure this entry exists to record:
 
+> **⚠ THIS SECTION'S ARGUMENT IS WITHDRAWN — it counted the wrong population.** All the writes below
+> are MAIN-SESSION writes; the prompting complaint is about SUBAGENT artefact writes, and **zero
+> subagent writes are recorded in any transcript** (E14 proves this with a positive control). A
+> contradiction between main-session behaviour and a subagent-write claim is not a contradiction. The
+> counting is kept because the figures are correct and the lesson about *which* figure to count is
+> the point; the inference drawn from them is not. E14 answers the question properly, and its answer
+> — neither path prompts — happens to land in the same direction by a different route.
+
 The first draft of this section said "roughly a dozen" writes under `.claude/` outside handoff. **It
 was counted instead, over the four transcripts on this machine, and the real figure is 27 distinct
 files across 125 write calls — every single one with `permissionMode` reading `acceptEdits`, and none
@@ -858,11 +871,15 @@ wording suggests. **The move is still correct: it removes the dependency on the 
 precisely why it remains not-evidence, and why the hook's header says so at the site rather than only
 here. What it is no longer is a mystery with a settings-file explanation available.
 
-**And the counting instrument is the lesson repeating one section later.** "Roughly a dozen" was a
-recollection written into a document that had just spent 3,000 words on why recollections about the
-tree must be counted. The count cost two minutes, moved the figure by an order of magnitude, and
-turned a soft anomaly into `settings.json` ×13 — which is the version of this finding that is hard to
-explain away. Anchored: transcripts under `~/.claude/projects/c--dev-pleks/`, as at 2026-08-21.
+**And the counting instrument is the lesson repeating one section later — twice, in opposite
+directions.** "Roughly a dozen" was a recollection written into a document that had just spent 3,000
+words on why recollections about the tree must be counted; counting cost two minutes and moved the
+figure by an order of magnitude. Then the corrected count was *itself* wrong at a level the count
+could not see, because **a cardinality is only as good as the population it ranges over.** 125 is the
+right number for the wrong set. L-45 says a new channel is a hypothesis until you count it; the
+missing half is that **counting a channel does not establish that it contains the thing you are
+asking about** — one `isSidechain` tally would have shown it did not, and that tally is as cheap as
+the first one. Anchored: transcripts under `~/.claude/projects/c--dev-pleks/`, as at 2026-08-21.
 
 ### The kit gap, which survives the refutation intact
 
@@ -906,3 +923,185 @@ check — re-reading this session and finding `normal` again — reported succes
 The instruments now read the counted field (`2b3a9ca9`), with a probe putting BOTH fields in
 disagreement in one fixture, since that is the only configuration where reading the wrong one is
 detectable at all.
+
+---
+
+## E14 · Does a SUBAGENT write prompt because of the PATH, or because it is a subagent? — **RESULT WITHDRAWN AS CONFOUNDED. The secondary result stands, and the documentation answers the primary question outright.**
+
+**Pre-registered 2026-08-21T13:33Z, before the spawn.** Written first precisely because E13's arc
+shows what happens when the reading is composed after the result is in view.
+
+### Why E13's evidence could not answer this
+
+E13's contradiction — 126 unprompted `.claude/` writes against a documented "protected paths always
+prompt" — was measured over the wrong population, and the measurement that shows it is one line:
+
+| population | writes to `.claude/` (non-handoff) | writes to the handoff dir |
+|---|---|---|
+| main session | **126** | 26 |
+| subagent (`isSidechain: true`) | **0** | **0** |
+
+**58 `Agent`/`Task` spawns are recorded and not one subagent tool call appears in any transcript.**
+`isSidechain` exists in the record schema and is `true` on zero of 34,279 records. So subagent turns
+are not written to the project transcript at all, and NO transcript-derived count can speak to them.
+E13 compared main-session writes against a subagent-write complaint and called it a contradiction.
+That claim is corrected there rather than deleted; this entry is the measurement it needed.
+
+### The instrument that does exist, and its asymmetry
+
+`toolDenialKind: "permission-rule"` — 12 records across four transcripts, carrying timestamp and the
+tool input, including `"Permission to use Bash with command rm -f …"` and `"The user doesn't want to
+proceed with this tool use"`. **It fires when a prompt is REJECTED and records nothing when one is
+APPROVED.** E13's statement that no instrument detects a prompt is therefore half wrong, and the half
+that is right is exploitable: *reject every prompt* and each one writes itself into the transcript.
+The human stops being the detector and becomes the trigger for a logged one.
+
+Known limit, stated before the run: if subagent turns are unrecorded, a denial raised inside a
+subagent's context may be unrecorded too. Stéan's observation remains the primary channel; the
+`toolDenialKind` sweep is a second, and disagreement between them is itself a result.
+
+### Design
+
+One `census` spawn, TWO writes, same run, same mode, same actor:
+
+1. `.handoff/perm-probe/01-census.md` — treatment (the post-move location)
+2. `.claude/perm-probe/01-census.md` — control (inside the protected tree)
+
+`.claude/perm-probe` is temporarily added to `census`'s `SCOPES` for this run. **Without that, the
+control write is hook-DENIED — terminal, and raising no prompt — which is exactly the confound E12
+hit and recorded.** A treatment with no control is what produced three wrong answers in E13's arc.
+
+Stéan REJECTS anything that prompts, rather than approving it.
+
+### The three branches, fixed in advance
+
+| observed | reading |
+|---|---|
+| prompt on the `.claude/` write ONLY | Protected-path theory HOLDS for subagents. The handoff move is the fix. The 126 main-session writes become a separate question, not a refutation. |
+| BOTH writes prompt | Path is irrelevant — a subagent write prompts as such. The move does not help, and the pipeline needs a different fix (an allow rule for `.handoff/**`, or a mode). |
+| NEITHER prompts | Protected paths do nothing in this build. The move is insurance, not a remedy, and the original stall had another cause entirely. |
+
+The third row is what the control buys. Without a `.claude/` write in the same run, "no prompts"
+reads as success — the treatment appearing to work because nothing was ever going to prompt.
+
+A fourth outcome is possible and would supersede the table: **the subagent raises no prompt at all
+and instead fails or silently proceeds**, which is E12's open hypothesis (a subagent has no channel
+to ask). If that is what happens, this hook is the only gate below the top level, and every claim
+resting on "the user would be asked" is false for agents.
+
+### Result — run 2026-08-21T13:34Z, `permissionMode: acceptEdits`, branch THREE
+
+**Both writes succeeded. Neither prompted. No denial was recorded.**
+
+| arm | path | tool result | prompt |
+|---|---|---|---|
+| treatment | `.handoff/perm-probe/01-census.md` | `File created successfully` | none |
+| control | `.claude/perm-probe/01-census.md` | `File created successfully` | none |
+
+`toolDenialKind` records in the window: **0**. Both files verified on disk by the agent's own
+`ls -la` (204 and 382 bytes, 15:34 local). The agent was instructed to quote any rejection text
+verbatim and reported none, while correctly refusing to assert anything about a UI dialog it has no
+channel to see.
+
+**That was read as branch three — "protected paths do nothing in this build" — and it is wrong.**
+The reading survived about twenty minutes, until the protected-path documentation was actually
+looked up. Two documented sentences dissolve it:
+
+- **`acceptEdits` PROMPTS on a protected path.** Not "is allowed" — prompts. The per-mode table is
+  explicit (`default` prompts, `acceptEdits` prompts, `dontAsk` denies, `bypassPermissions` allows,
+  `plan`/`auto` route to the classifier).
+- **Approving a `.claude/` write once offers "Yes, and allow Claude to edit its own settings for
+  this session", and that auto-approves every later `.claude/` write in the SAME SESSION.**
+
+**So the control arm was run inside a session that had already been granted.** This session wrote to
+`.claude/` more than a hundred times before E14 was designed; whichever of those was first is where
+the prompt appeared and the session-scoped grant was given. By the time the probe agent wrote
+`.claude/perm-probe/01-census.md`, the tree had been open for hours. The experiment measured a
+standing grant and reported it as an absence of protection.
+
+**The same grant explains the 125-write anomaly in E13**, which is the more useful half: those
+writes were not evidence against protection, they were evidence of one approval early in each
+session. It predicts something sharp and cheap — **the FIRST `.claude/` write in a fresh session
+should prompt, and only the first** — which is the re-run.
+
+### Re-run protocol, pre-registered
+
+**In a FRESH session, before any write under `.claude/` has occurred:** spawn one agent that writes
+`.claude/perm-probe/01-census.md` first and `.handoff/perm-probe/01-census.md` second — control
+before treatment this time, since the control is what contaminates. Stéan REJECTS. Branch table:
+
+| observed | reading |
+|---|---|
+| the `.claude/` write prompts, `.handoff/` does not | Documentation confirmed. The move is a genuine fix. |
+| both prompt | Something prompts on subagent writes independent of path — the original question, still live. |
+| neither prompts | The session grant was not the confound and the documented table does not describe this build. Only THIS outcome, from a fresh session, would support what E14 originally claimed. |
+
+**A precondition check belongs in the protocol, not in the reasoning afterwards:** the run is only
+valid if no `.claude/` write precedes it in that session, and that is verifiable from the transcript
+before spawning. E14 had no such check because the confound was not known — which is the argument
+for reading the documentation of a mechanism *before* designing the experiment about it, not after.
+
+**Result depended on one human step**, stated when it was written and still true: Stéan was
+instructed to REJECT any prompt. Both writes succeeded, which is consistent with "no prompt appeared"
+and inconsistent with "a prompt appeared and was rejected".
+
+### The secondary result, which is larger than the primary one
+
+**Subagent tool calls are not recorded anywhere in the project transcript, and this run proves it
+with a positive control.** Two writes are known to have happened — the files are on disk, the agent
+quoted the tool results — and a sweep of all 94 records written after the spawn window found:
+
+| looked for | found |
+|---|---|
+| `isSidechain: true` records | **0** |
+| `tool_use` records naming `perm-probe` | **0** |
+| `toolDenialKind` records | 0 |
+
+Before this run, "subagent turns are unrecorded" was an inference from an absence (58 spawns, no
+sidechain records) and could have meant the agents simply never wrote. Now it is a measured blind
+spot: writes we can PROVE occurred appear nowhere. Consequences, and neither is small:
+
+- **No transcript-derived count can say anything about subagent behaviour.** That is what invalidated
+  E13's contradiction, and it applies to every future measurement of this kind — including any
+  attempt to audit what an agent did after the fact. The `agent-write-scope` hook is not merely the
+  enforcement point; **it is the only place a subagent's writes are observable at all.** A hook that
+  logged its decisions would be the only audit trail there is.
+- **`toolDenialKind` cannot detect a prompt raised inside a subagent's context.** The asymmetric
+  instrument this entry was built around does not reach the population it was aimed at. It remains
+  valid for main-session prompts, which is where E13's one unexplained prompt lives.
+
+### The documented list, which is what should have been read first
+
+`.handoff/` clears — and the reason to record the whole list rather than that one fact is that the
+docs' usual phrasing is *"such as `.git` and `.claude`"*, and picking a second protected path would
+have repeated the bug silently. It IS enumerated, in the "Protected paths" section of the
+permission-modes documentation:
+
+**Directories** (prefix match): `.git` · `.config/git` · `.vscode` · `.idea` · `.husky` · `.cargo` ·
+`.devcontainer` · `.yarn` · `.mvn` · `.claude` — **except `.claude/worktrees`**, which Claude writes
+to itself.
+
+**Files** (exact name): `.gitconfig` · `.gitmodules` · the shell rc/profile family (`.bashrc`,
+`.bash_profile`, `.zshrc`, `.profile`, `.envrc`, …) · the package-manager rc family (`.npmrc`,
+`.yarnrc`, `.yarnrc.yml`, `.pnp.cjs`, `.pnpmfile.cjs`, `bunfig.toml`, …) · `.bazelrc` ·
+`.pre-commit-config.yaml` and the lefthook family · the gradle/maven wrapper properties ·
+`.devcontainer.json` · `.ripgreprc` · `pyrightconfig.json` · `.mcp.json` · `.claude.json`.
+
+**There is no dotfile wildcard.** A repo-root `.handoff/` is unaffected; `.claude/.handoff/` would
+not have been. Two further documented points, both load-bearing here:
+
+- **Protection runs BEFORE `permissions.allow` is evaluated**, so an `Edit(.claude/**)` entry cannot
+  pre-approve a protected-path write. This is the documented form of what was established by
+  inspection in E13 (no such rule existed anyway) — and it retires the two `Write`/`Edit`
+  `(.claude/handoff/**)` lines as having been incapable of working, not merely unnecessary.
+- **Bash redirections (`>`, `>>`, `2>`) are covered too**, not just the edit tools.
+
+**NOT documented, and it is the gap this entry actually needed:** whether the protected-path guard
+applies to a SUBAGENT's tool calls the same way it applies to the main session. That is precisely
+E14's primary question, and it remains unanswered by documentation — so the re-run above is still
+the only way to settle it.
+
+### Cleanup
+
+`.claude/perm-probe` removed from `census`'s `SCOPES`; both probe directories deleted. The temporary
+entry lived for one run, as pre-registered.

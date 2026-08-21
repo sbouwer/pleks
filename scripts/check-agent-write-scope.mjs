@@ -101,6 +101,16 @@ const CASES = [
   ["`..` traversal out of the handoff directory", write("grounder", ".handoff/../../lib/env.ts", "Edit"), "deny"],
   ["crawler-doctrine outside both of its roots", write("crawler-doctrine", "docs/MECHANISABLE.md", "Edit"), "deny"],
 
+  // THE REGRESSION PROBE FOR THE 2026-08-21 MOVE, and the reason it is worth its line: the move from
+  // `.claude/handoff/` to `.handoff/` could have been done by ADDING the new root instead of
+  // REPLACING the old one, and every other probe in this file would pass either way. Only a probe
+  // asserting the OLD path is now DENIED distinguishes a move from a doubled grant. If this line
+  // starts failing, someone has re-added `.claude/handoff` to a SCOPES entry — check why before
+  // deleting the probe, because the whole point of the move was to leave that tree.
+  ["the OLD .claude/handoff path is no longer in scope", write("grounder", ".claude/handoff/m-048/01-grounder.md"), "deny"],
+  ["...for every read-only spine, not just grounder", write("census", ".claude/handoff/sweep/01-census.md"), "deny"],
+  ["...including crawler-doctrine, which kept a DIFFERENT .claude root", write("crawler-doctrine", ".claude/handoff/x/01.md", "Edit"), "deny"],
+
   // --- KNOWN-GOOD: the half that catches a gate which can never fire ---
   ["grounder writing its own artefact", write("grounder", ".handoff/m-048/01-grounder.md"), "allow"],
   ["walker writing its artefact", write("walker", ".handoff/m-048/03-walker.md"), "allow"],

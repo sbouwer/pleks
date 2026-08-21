@@ -18,15 +18,28 @@
  * one tree the permission system refuses to wave through, so an unattended run stalls on a prompt
  * per artefact, by design, with no hook or settings rule able to change it.
  *
- * ⚠ AND THE MECHANISM IS NOT FULLY SETTLED — recorded because the temptation is to write this up as
- * closed. Counted across this machine's transcripts as at 2026-08-21: **27 distinct files under
- * `.claude/` OUTSIDE handoff, 125 write calls, every one in `acceptEdits`, none prompting** — the
- * hooks themselves, `statusline.js`, and `settings.json` thirteen times. All three settings files
- * were read and NO `Write`/`Edit` allow rule covers any of those paths, which kills the "an explicit
- * allow overrides protection" reading. Meanwhile the one write that DID prompt was at the REPO ROOT,
- * outside `.claude/`, also in `acceptEdits`. Mode does not separate the two; path does not either.
- * The move is right regardless — it removes the dependency on the answer — but it is not evidence
- * that it fixes the prompting. See E13.
+ * The destination is confirmed safe against the DOCUMENTED list, which is enumerated and not merely
+ * exemplified: ten protected directories (`.git`, `.config/git`, `.vscode`, `.idea`, `.husky`,
+ * `.cargo`, `.devcontainer`, `.yarn`, `.mvn`, `.claude` minus `.claude/worktrees`) plus ~21 named
+ * files, and NO dotfile wildcard — so a repo-root `.handoff/` is unaffected. Protection is also
+ * documented to run BEFORE `permissions.allow` is evaluated, which is why the two
+ * `Write`/`Edit(.claude/handoff/**)` lines were deleted rather than repointed: they could never have
+ * worked, they were not merely redundant.
+ *
+ * ⚠ WHAT IS STILL NOT ESTABLISHED is whether that guard applies to a SUBAGENT's tool calls at all —
+ * the docs do not say, and E14's attempt to measure it is WITHDRAWN AS CONFOUNDED. Both arms wrote
+ * successfully with no prompt, but approving one `.claude/` write earlier in a session grants
+ * "allow Claude to edit its own settings for this session", and this session had written there over
+ * a hundred times before the probe ran. The experiment measured a standing grant. The re-run needs a
+ * FRESH session with the control arm first; protocol is in E14.
+ *
+ * ⚠ AND THE THING THAT MAKES THAT HOOK-SHAPED: **subagent tool calls are recorded NOWHERE in the
+ * project transcript.** E14 proved it with a positive control — two writes known to have happened,
+ * zero `isSidechain` records, zero `tool_use` records naming them, across all 94 records in the
+ * window. This hook is therefore not merely the enforcement point for a subagent's writes; it is the
+ * ONLY place they are observable at all. An earlier version of this note argued from 125 unprompted
+ * `.claude/` writes; every one of those was a MAIN-SESSION write, so it compared the wrong
+ * population and is corrected in E13. See E13 and E14.
  *
  * SECOND REMIT, added 2026-08-20 (M-068): a subagent may not CREATE COMMITS. The protocol says an
  * agent "ends at a report; the caller commits" — that was prose with nothing behind it, because
