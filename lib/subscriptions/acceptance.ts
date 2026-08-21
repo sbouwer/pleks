@@ -66,7 +66,10 @@ export interface TosAcceptanceRow {
   context: TosAcceptanceContext
 }
 
-/** Returns the most recent acceptance row for this org/user, or null if none exists. */
+/**
+ * Returns the most recent acceptance row for this org/user, or null if none exists.
+ * @knipignore Named in an untracked brief/ spec doc, independently re-read during the 2026-08-21 census.
+ */
 export async function getLatestTosAcceptance(
   supabase: SupabaseClient,
   orgId: string,

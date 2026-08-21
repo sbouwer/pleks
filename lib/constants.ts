@@ -65,6 +65,11 @@ export type AnyTier = Tier | HoaTier
 // Cap on TOTAL UNITS under management per HOA tier (D-18C-07 — cap basis = units, not schemes).
 // null = unlimited (bespoke/custom contract). Numbers provisional — confirm at GTM. canCreateHoaEntity()
 // reads this (Stage 2).
+/**
+ * @knipignore Its own doc comment names the future consumer (canCreateHoaEntity, Stage 2), which does not
+ * exist anywhere yet — grepped whole-repo, zero hits. A genuine not-yet-built consumer, not a
+ * stale claim.
+ */
 export const HOA_LIMITS = {
   hoa_studio:   { units: 300 },
   hoa_practice: { units: 1200 },
@@ -73,7 +78,14 @@ export const HOA_LIMITS = {
 } as const
 
 // Founding agent pricing (first 10 clients — 24-month lock)
+/**
+ * @knipignore Documented pricing: founding agent, first 10 clients, 24-month lock. Deleting removes the
+ * recorded figure.
+ */
 export const FOUNDING_AGENT_PRICE_CENTS = 29900 // R299/month
+/**
+ * @knipignore See FOUNDING_AGENT_PRICE_CENTS above — the other half of the same documented pricing decision.
+ */
 export const FOUNDING_AGENT_DURATION_MONTHS = 24
 
 // Application screening fees. SSOT: brief/legal/SEARCHWORX_RATE_CARD.md §1.1 (amended 2026-05-18).

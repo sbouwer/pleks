@@ -42,7 +42,10 @@ export const getMyCapabilities = cache(async (): Promise<string[]> => {
   return [...mine]
 })
 
-/** Server boundary check: does the current user hold `capability`? (owner / is_admin always true.) */
+/**
+ * Server boundary check: does the current user hold `capability`? (owner / is_admin always true.)
+ * @knipignore Same family as CapabilitiesProvider's useCan — capability gating is staged, not abandoned.
+ */
 export async function can(capability: string): Promise<boolean> {
   return (await getMyCapabilities()).includes(capability)
 }

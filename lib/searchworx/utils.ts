@@ -208,6 +208,11 @@ export function formatSearchworxDateForRequest(
 
 export type OwnerType = "person" | "company" | "trust" | "secretary" | "unknown"
 
+/**
+ * @knipignore Specified with its body in
+ * brief/vendors/searchworx/raw/lightstone-erf-valuation/endpoint_reference.md — referenced by a
+ * document knip cannot see.
+ */
 export function normaliseOwnerType(
   source: "deeds" | "lightstone" | "cipc",
   code: string,

@@ -191,6 +191,9 @@ export async function sendTenantPortalLink(tenantId: string, leaseId: string) {
  *
  * This is why the parity test carries exactly one enumerated exception rather than being weakened.
  * When AT lands, SMS delivery replaces this and the exception goes to zero (§16.2 item 5).
+ * @knipignore A SANCTIONED exception to "no portal action returns a session credential" (ADDENDUM_62F,
+ * post-incident). This is the exact symbol family behind the inviteTenant scar in CLAUDE.md §6 —
+ * too security-sensitive to classify as abandoned without a human ruling.
  */
 export async function issueTenantPortalLinkForHandover(tenantId: string, leaseId: string) {
   const gw = await requireAgentWriteAccess("invite_user")

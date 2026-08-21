@@ -158,6 +158,9 @@ export async function generateExport(
 
 // ─── Regenerate ───────────────────────────────────────────────────────────────
 
+/**
+ * @knipignore Sibling of lib/popia/erasure.ts:anonymiseRecord — same unwired POPIA-engine family.
+ */
 export async function regenerateExport(
   originalExportId: string,
   reason: string,

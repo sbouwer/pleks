@@ -72,6 +72,9 @@ export interface PleksInvoiceReference {
  * called BankStatementExtraction (bank / account_number_last4 / inflows…). Two same-named shapes for
  * two different things. If this one is ever wired to a typed parse, rename it then — something like
  * AffordabilityStatementExtraction — rather than leaving the collision in place.
+ * @knipignore Removing this orphans RecurringDebit / StatementQuality / DeclaredRentMatch /
+ * PleksInvoiceReference — the five together ARE the JSON schema the prompt below asks the model to
+ * return. Refused DEAD verdict, docs/DEAD-CODE-QUEUE.md.
  */
 export interface BankStatementExtraction {
   // Income (existing fields — unchanged)

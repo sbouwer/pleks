@@ -35,7 +35,11 @@ const TOS_CHANGELOG: Record<string, ChangelogEntry> = {
 /** Privacy Policy changelog. Keys are "fromVersion:toVersion". */
 const PRIVACY_CHANGELOG: Record<string, ChangelogEntry> = {}
 
-/** Returns change highlights between two ToS versions, or null if not catalogued. */
+/**
+ * Returns change highlights between two ToS versions, or null if not catalogued.
+ * @knipignore Kept because TOS_CHANGELOG carries live drafted v3.4.0 copy — the wiring is unbuilt, not broken.
+ * A prior dead-code pass already decided this; see this module's header.
+ */
 export function getTosHighlights(
   fromVersion: string | null | undefined,
   toVersion: string,
@@ -45,7 +49,10 @@ export function getTosHighlights(
   return TOS_CHANGELOG[key]?.highlights ?? null
 }
 
-/** Returns change highlights between two Privacy Policy versions, or null if not catalogued. */
+/**
+ * Returns change highlights between two Privacy Policy versions, or null if not catalogued.
+ * @knipignore See getTosHighlights above — same decision, same module header.
+ */
 export function getPrivacyHighlights(
   fromVersion: string | null | undefined,
   toVersion: string,

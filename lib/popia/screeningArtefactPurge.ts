@@ -161,6 +161,8 @@ async function fetchPurgeCandidates(
 /**
  * NON-DESTRUCTIVE dry-run: how many of an org's applications are eligible for the 90-day declined purge.
  * Mirrors the executor's filter exactly so the count cannot drift from what the purge would do.
+ * @knipignore Documented dry-run safety check for the purge — it exists to be called before the destructive
+ * path, and deleting it removes the rehearsal.
  */
 export async function countEligibleScreeningArtefacts(
   db: SupabaseClient,

@@ -22,6 +22,11 @@ export const SENTINEL_ORG_ID = "00000000-0000-0000-0000-000000000001" as const
  *   tos_acceptances              — 10-year ToS acceptance record (POPIA s17 accountability)
  *
  * BUILD_65 imports this array rather than defining its own.
+ * @knipignore WARNING: this array governs NOTHING today. Its own header says "BUILD_65 imports this array
+ * rather than defining its own" and supabase/migrations/010_platform_features.sql:1690 says a
+ * table was "Added to RETENTION_PROTECTED_TABLES" — a whole-repo grep finds no importer, so
+ * neither is true. Kept because it is a PPRA/POPIA retention list with two artefacts asserting it
+ * is live. Filed as M-082.
  */
 export const RETENTION_PROTECTED_TABLES = [
   "audit_log",

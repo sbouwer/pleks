@@ -21,4 +21,8 @@ export const SARS_EXPENSE_CATEGORIES = {
 
 export type SARSCategory = keyof typeof SARS_EXPENSE_CATEGORIES
 
+/**
+ * @knipignore Codifies a documented SARS statutory threshold (R30,000). Deleting removes the figure
+ * even though nothing reads it yet.
+ */
 export const PROVISIONAL_TAX_THRESHOLD_CENTS = 3_000_000 // R30,000

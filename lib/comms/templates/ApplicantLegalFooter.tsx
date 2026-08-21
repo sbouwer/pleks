@@ -21,6 +21,8 @@ export const APPLICANT_POPIA_FOOTER_TEXT =
  * Canonical Information Regulator reference — the WEBSITE, not the postal/email/phone details (those have
  * changed repeatedly, and a stale address on an immutable evidence record is a defect). Single source for every
  * IR reference in comms (R7.3; normalises the older justice.gov.za/inforeg references onto the current site).
+ * @knipignore Second instance of M-067's class. A competing SSOT (lib/external-links.ts) is what is actually
+ * consumed; which constant wins is CD's decision, not a lint question.
  */
 export const INFORMATION_REGULATOR_URL = "www.inforegulator.org.za"
 

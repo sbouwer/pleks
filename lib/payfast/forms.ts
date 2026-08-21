@@ -25,6 +25,10 @@ interface SubscriptionFormData {
 // before the PayFast form is submitted — once PayFast processes the change, rolling it back
 // requires a webhook reconciliation and leaves the org in an over-cap state.
 // See lib/tier/canDowngradeTo.ts.
+/**
+ * @knipignore Paired scaffolding with lib/tier/canDowngradeTo.ts: each file names the other as the missing
+ * half of one not-yet-built tier-downgrade feature.
+ */
 export function buildSubscriptionForm({ orgId, tier }: SubscriptionFormData) {
   const pricing = TIER_PRICING[tier]
   const amountCents = pricing.monthly

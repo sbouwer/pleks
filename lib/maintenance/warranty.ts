@@ -7,6 +7,8 @@
  *         WarrantyMatchInput/WarrantyMatchResult survive it and are now unreferenced; they are
  *         kept because reviving the match call needs its contract, not because anything uses them.
  *         The match prompt was conservative by design (D-60B-12): bias toward false negatives.
+ * @knipignore Kept on record after findWarrantyMatch was deliberately removed 2026-08-20: reviving the match
+ * call needs its contract.
  */
 export interface WarrantyMatchInput {
   id: string
@@ -18,6 +20,9 @@ export interface WarrantyMatchInput {
   notes?: string | null
 }
 
+/**
+ * @knipignore See WarrantyMatchInput above — the other half of the removed function's contract.
+ */
 export interface WarrantyMatchResult {
   match_warranty_id: string | null
   confidence: "high" | "medium" | "low" | null

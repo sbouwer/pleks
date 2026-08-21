@@ -12,6 +12,11 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
+/**
+ * @knipignore The missing ENTRY half of a LIVE feature: confirmMunicipalBill/markMunicipalBillPaid in this
+ * same file are wired to MunicipalBillActions.tsx. As at 2026-08-21 no UI path creates an account
+ * or uploads a bill — deleting these strands the live half.
+ */
 export async function createMunicipalAccount(formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId } = gw
@@ -46,6 +51,9 @@ export async function createMunicipalAccount(formData: FormData) {
   return { success: true }
 }
 
+/**
+ * @knipignore See createMunicipalAccount above — the same unwired entry half of a live municipal-bill flow.
+ */
 export async function uploadMunicipalBill(formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId, orgId } = gw

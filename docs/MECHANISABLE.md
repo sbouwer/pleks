@@ -492,6 +492,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rung:** check · **Blast:** other
 - **Sketch:** sketch: assert every name in `TRACKED_CRONS` is written by at least one route calling `withCronRun` with that exact `job_name` — the precise mismatch that caused the chronic "crons: degraded" false positive this paragraph describes.
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_67E_CRON_RELIABILITY.md`
+
 **Retained 2026-08-21** under the WON'T-BUILD default, and the reason is its provenance: it names a symptom that was OBSERVED — the chronic `crons: degraded` false positive — rather than a hazard inferred from the rule's wording. A tracked `job_name` no writer produces leaves the health check permanently wrong in the direction that teaches people to ignore it. **M-043 was closed into this entry**, being the same surface argued from the weaker end.
 
 
@@ -501,6 +502,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rung:** eslint · **Blast:** other
 - **Sketch:** PARTIAL: `pleks/no-inline-app-url` catches the templated-literal form of this bug (baseline-limited) — verified: it only visits `TemplateLiteral` nodes interpolating `APP_URL`/`MARKETING_URL`; a hand-typed literal string with no `${}` interpolation (e.g. `"https://app.pleks.co.za/wo/123"`) is a different AST shape the rule does not visit at all. Sketch: extend the rule to also visit plain `Literal` string nodes matching the production/apex origins, outside `lib/routing/`.
 - **Covering spec:** NEW
+
 **Retained 2026-08-21:** the cheapest build in the register and the reason is structural — the rule already EXISTS and already runs; the gap is one additional node type on a live visitor. The uncovered shape (a hand-typed `"https://app.pleks.co.za/…"`) is strictly SIMPLER than the covered one, and more likely to be written by hand than the interpolated form the rule already catches.
 
 
@@ -533,6 +535,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rung:** check · **Blast:** other
 - **Sketch:** PARTIAL. "Baselines only shrink" is what `check-claude-md.mjs` itself enforces for the UNENFORCEABLE-marker count and what `check-file-headers.mjs`/`check-pii-classification.mts` enforce for their own baselines — but that shrink-only property is per-script, not a general property every `*.baseline.json` is verified to hold; a NEW baseline file could widen on every run and nothing would notice. Sketch: one generic script enumerates every `*.baseline.json` in the repo and, in CI, compares each file's entry count against the base-branch version, failing if any grows.
 - **Covering spec:** NEW
+
 **Retained 2026-08-21:** the shrink-only property is doctrine CLAUDE.md §4 calls load-bearing — *"never widen one to make CI green — that deletes the finding"* — and three scripts already implement it privately for their own baselines. This is the generic form of a ratchet the repo has already decided it wants, not a new proposal.
 
 
@@ -701,6 +704,7 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Sketch:** verified at the site, not taken on report: a `﻿` BOM makes the first line `﻿---`, so `^---` cannot match at position 0. It then matches the frontmatter's CLOSING delimiter instead, and `paths:` is never found after it — the file is reported as missing `paths:` when it has it. **This fails LOUD, not silent** (a false positive, not a false negative), which is why it is a register entry and not a stop-work. Fix is `.replace(/^﻿/, "")` on read.
 - **The reason it is not a one-line fix:** the script has **no `--selftest`, no exported pure function, and no fixture** — ~~it is the only check in the chain with no probe seam at all~~ — **superlative struck 2026-08-20 as unmeasured: 21 of 31 chained checks have no `--selftest`.** The narrower claim stands and is what carries the entry: this script has no seam of any kind AND is about to have its parsing changed. Changing its parsing with nothing to probe against is how a check starts lying. The work is: extract the frontmatter test to an exported function, add `--selftest` with both directions (a BOM'd file WITH `paths:` must pass; a file genuinely without `paths:` must still fail), then apply the strip. Same shape as M-064 and could ship in the same commit.
 - **Covering spec:** NEW
+
 **Retained 2026-08-21:** a live check reports a false result on a valid file, and the entry's own point is that it has no seam to change safely. Closing it discards both halves and leaves the next person to rediscover the first while breaking the second.
 
 
@@ -848,6 +852,7 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Sketch:** give the hook probes a per-process scratch root and a unique marker path (they already build fixtures in `os.tmpdir()`; the contention is over the shared repo-relative marker and the shimmed `npm` resolution), then probe the property directly — run the probe body twice concurrently and require both green. Do NOT "fix" it by serialising the check; that hides the shared state rather than removing it.
 - **Related:** M-064 (materialisation-independence) · [[l-44]] (a probe and the thing it guards, authored by the same hand) — this is a third axis on the same theme: a probe whose result is a function of something other than the artefact under test.
 - **Covering spec:** NEW
+
 **Retained 2026-08-21:** a check that reports defects which are not there, early in the chain, blinds every step after it — which is how it was found, with both chains dying here before vitest ran. Note the shape of the value: this entry pays off by EXISTING, because it stops the next person hunting a phantom in the hooks. An entry whose worth is in being readable is the last kind to delete for being cheap.
 
 
@@ -906,6 +911,7 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Related:** E10 (`docs/EXPERIMENTS.md`) · M-068 (nothing stops a subagent committing — the control that now does half this work)
 - **Provenance:** CD review, 2026-08-21, against `.claude/hooks/agent-write-scope.js` read in full at `ca4689dc`. **E10 fallout nobody swept.**
 - **Covering spec:** NEW
+
 **Retained 2026-08-21:** a standing security grant whose only written justification names a control the E10 ruling removed. CD-authored, and the entry is explicit that the grant may still be right — what it needs is re-taking against current facts. That is a DECISION pending, not a build not done, and closing it would retire the question rather than answer it.
 
 
@@ -920,8 +926,26 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Related:** E7/E8 (what the payload carries) · [[l-44]] (a probe and the thing it guards, authored by the same hand)
 - **Provenance:** CD review, 2026-08-21. Not read as part of it: `.claude/hooks/mcp-ddl-gate.js`, which may make it three hooks rather than two.
 - **Covering spec:** NEW
+
 **Retained 2026-08-21:** it is a MEASUREMENT before it is a check. The force-push denial lives in one hook and the subagent-commit denial in the other, nothing has ever exercised their disagreement, and the entry already warns against writing the check against the assumed answer. Closing it closes an unasked question about two rung-1 controls.
 
+
+### M-082 — `RETENTION_PROTECTED_TABLES` governs nothing, and two artefacts say it does
+
+- **Rule:** the tables on this list are protected from retention purges — a PPRA/POPIA obligation, not a preference. The array names `audit_log`, `trust_transactions`, `consent_log`, `auth_events`, `tos_acceptances`.
+- **Where it lives:** `lib/subscriptions/retention.ts` — the array, and nothing else.
+- **Rung:** check · **Blast:** data-boundary
+- **Measured 2026-08-21 at `2265c58c`:** a whole-repo grep for the identifier finds the declaration and **no importer**. The array is exported, exhaustive, and read by nobody.
+- **What makes it a register entry rather than a deletion.** TWO artefacts assert it is live, in the present tense, and both are wrong:
+  1. its own module header — *"BUILD_65 imports this array rather than defining its own"*;
+  2. `supabase/migrations/010_platform_features.sql:1690` — a table was *"Added to RETENTION_PROTECTED_TABLES"*.
+  A reader who greps either one finds a list that looks authoritative and is inert. **This is the third instance of M-067's class** (a stated MUST with zero call sites), and the second where the false claim is load-bearing prose rather than absence — M-069 is the other.
+- **Why the shape matters more than the count.** The failure is silent and one-directional: a purge that should skip `consent_log` skips it only if the purge author happened to hardcode the same list. Nothing fails, nothing logs, and the evidence of the omission is the *absence* of rows — the same reason the 2026-08-19 cross-org READ hole (CLAUDE.md §6) went unnoticed while the write half was guarded.
+- **Sketch:** two halves, and the first is the cheap one. (a) A check asserting the array has at least one importer — the general form is M-067's, and building it once should cover all three instances rather than three times. (b) The real mechanism is at the purge sites: every `pg_cron` retention purge and every erasure path asserts its target table is NOT in this array, deriving the list by import. Until (b) exists, (a) only converts a silent lie into a loud one, which is still the right first move.
+- **⚠ Do not close this by deleting the array.** The list is a correct statement of a statutory obligation. Deleting it removes the record and leaves the obligation.
+- **Related:** M-067 (first instance) · M-069 (second) · M-078 (counsel text with the same "declared SSOT, unused" shape)
+- **Provenance:** the 2026-08-21 dead-code burn-down. knip reported the array as an unused export; asking *why* it has no caller produced this. It is now tagged `@knipignore` at the site with this entry named, so the tool stays green without the finding being lost.
+- **Covering spec:** NEW
 
 ### M-081 — three rules in one hook each re-derive "find X as a standalone token", and each got it wrong separately — **BUILT 2026-08-21 (`34468178`, `2b3a9ca9`)**
 

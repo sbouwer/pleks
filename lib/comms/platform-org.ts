@@ -28,6 +28,8 @@ export const PLATFORM_ORG_ID = "00000000-0000-0000-0000-000000000002"
  * constant rots.
  *
  *   const { data } = await excludePlatformOrg(db.from("organisations").select("id, name"))
+ * @knipignore An unenforced invariant, not dead code — filed as M-067 in docs/MECHANISABLE.md. Censusing every
+ * org-iterating query comes before any wire-or-delete decision.
  */
 export function excludePlatformOrg<T extends { eq(col: string, val: boolean): T }>(query: T): T {
   return query.eq("is_platform", false)

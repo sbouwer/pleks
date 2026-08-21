@@ -9,6 +9,40 @@ against HEAD before acting on it.
 
 ---
 
+## ▶ CLOSED, 2026-08-21 — 103 → 0, and knip is now IN `npm run check`
+
+**This queue is finished. Read this banner and stop; everything below is the working record.**
+
+`npx knip` reports **zero findings** and the tool entered the commit gate on 2026-08-21 — the exit
+condition `knip.jsonc`'s own header set when it was deliberately kept out.
+
+| | Count | How it was closed |
+|---|---:|---|
+| Genuinely dead | 56 | deleted, un-exported, or dropped from a barrel — three shapes, not one sweep |
+| Deliberate keeps, tagged at the site | 40 | `@knipignore <reason>` on the declaration |
+| Deliberate keeps, whole files | 4 | path entries in `knip.jsonc` (a tag does NOT clear an unused file — probed) |
+| Duplicate exports | 3 | `rules.duplicates: "off"` — all three are live aliases |
+| | **103** | |
+
+**Zero means "every finding is classified", NOT "there is no dead code."** The gate's aperture is
+narrower than it looks: `ignoreExportsUsedInFile` suppresses 174 further findings that nobody will be
+shown again. That is a deliberate trade — a type used only in its own module is that module's
+vocabulary — but it is the number to remember when reading the green.
+
+**A floor check guards the green.** `scripts/check-knip-floor.mjs` exists because a knip run that
+analyses *zero files* also reports zero and exits 0, which is indistinguishable at the gate from a
+clean tree. It asserts a **parity**: the count of `@knipignore` tags on disk must equal the count of
+findings when the `tags` key is removed. Not a hardcoded floor — that would rot the first time
+someone legitimately wires one of the 40 up. It caught a real error during its own construction (a
+`git checkout` reverting a probe also wiped a real tag in the same file).
+
+**Full baseline, for whoever asks "how much dead code is there really":** 258 with every suppression
+lifted — `ignoreExportsUsedInFile` 174, the `ignore` paths 28, `ignoreDependencies` 8. Those attribute
+to 210, not 211, because one finding sits in two buckets; each number was produced by its own run,
+since attributing by subtraction is how you get a plausible wrong answer.
+
+---
+
 ## ▶ STATUS, 2026-08-21 at `c3eafb81` — the DEAD half is actioned. 103 → 49.
 
 **⚠ The sections below are the ORIGINAL census, left verbatim as evidence. They still say "nothing

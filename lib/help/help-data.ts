@@ -36,7 +36,12 @@ export interface HelpEntry {
   legalCheck?: boolean   // statutory/compliance-weighted — prioritised in the §7 pass
 }
 
-/** Flip to false only after Stéan's §7 content-compliance pass (D-HELP-20). */
+/**
+ * Flip to false only after Stéan's §7 content-compliance pass (D-HELP-20).
+ * @knipignore A stated compliance gate ("flip to false only after the §7 content-compliance pass", D-HELP-20)
+ * with zero readers — M-067's class. Either the gate is not needed yet, or draft content is live
+ * with no code checking the flag.
+ */
 export const HELP_CONTENT_DRAFT = true
 
 export const ALL_ROLES: HelpRole[] = ["agent", "tenant", "landlord", "supplier"]
