@@ -968,3 +968,46 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Related:** M-077 (same fan-out, same "unused export is really an unenforced invariant" reading) · M-069 (two competing SSOTs, declared one has zero importers — this is that pattern with the copies inline rather than in a second constant)
 - **Provenance:** surfaced by the fan-out's slice 3, classified JUDGMENT/security-compliance; **all three sites read on filing**, and the gate-copy asymmetry above is a correction to the artefact's "word-for-word" summary, which was true of the clause bodies and loose about the lead. Artefact: `docs/DEAD-CODE-QUEUE.md`.
 - **Covering spec:** NEW
+
+### M-079 — the implementer's unrestricted write grant is defended by a control E10 removed
+
+- **Rule:** `.claude/hooks/agent-write-scope.js` — `implementer: null` in `SCOPES`, justified in the same file as "implementer's whole remit IS editing source, and its containment is **the worktree it is spawned into**, not a path list"
+- **Where it lives:** that comment, and nowhere else. The grant itself is one line of a lookup table.
+- **Rung:** hook · **Blast:** other
+- **The finding, and it is about the JUSTIFICATION rather than the grant.** There is no worktree any more. The E10 ruling moved implementer to the main checkout, and **the same file's header says so three paragraphs above** — "Dropping isolation (E10 ruling) removed the concealment". So one file simultaneously records that isolation was dropped and cites isolation as the containment for its only unrestricted write grant.
+- **The grant may well still be right** — path-scoping an agent whose entire job is editing arbitrary source is close to impossible, and the alternative (ask on every edit) makes the implementer useless. What changed is what actually contains it: **the caller's review of a dirty tree, plus the commit denial in the same hook.** Those are different guarantees from a throwaway checkout, and neither is named at the site.
+- **Sketch:** replace the stale sentence with the two controls that really apply, and state the residual exposure plainly — an implementer can write anywhere in the main checkout, and the only thing between that and a landed change is a human reading `git status`. If that is too thin, the mechanism is not a path list but a **write manifest**: the caller declares the files in scope at spawn time and the hook denies outside them. That is buildable today — `agent_type` and `cwd` are both in the payload — and it is the shape the spine's "declared scope" language already assumes exists.
+- **Why it is filed rather than fixed on sight:** changing a security posture on the strength of a stale comment is how the posture got stale. The grant is a deliberate decision that needs re-taking with the current facts, not a typo.
+- **Related:** E10 (`docs/EXPERIMENTS.md`) · M-068 (nothing stops a subagent committing — the control that now does half this work)
+- **Provenance:** CD review, 2026-08-21, against `.claude/hooks/agent-write-scope.js` read in full at `ca4689dc`. **E10 fallout nobody swept.**
+- **Covering spec:** NEW
+
+### M-080 — two hooks match `Bash` and their precedence is undocumented and unprobed
+
+- **Rule:** implicit — when two PreToolUse hooks both match a tool and return different decisions, one wins. Nothing states which.
+- **Where it lives:** nowhere. `bash-gate.js` matches `Bash`; `agent-write-scope.js` matches `Write|Edit|MultiEdit|NotebookEdit|Bash`. Every Bash call in every subagent runs both.
+- **Rung:** check · **Blast:** other
+- **Why it matters, specifically:** the **force-push denial lives in one hook** and the **subagent commit denial lives in the other**. Presumably most-restrictive wins — but that is an assumption, neither file asserts it, and **no probe exercises the disagreement case at all**. Both suites test their own hook in isolation, which is precisely the configuration in which a precedence bug is invisible.
+- **Sketch:** construct one payload the two hooks decide DIFFERENTLY — a subagent running an ordinary commit, which `bash-gate` allows and `agent-write-scope` denies — and assert the composite decision the harness actually applies. **This is a measurement before it is a check:** the answer is a harness behaviour nobody here has observed, so it belongs in `docs/EXPERIMENTS.md` first and becomes a probe once known.
+- **⚠ Do not write the check against the assumed answer.** "Most restrictive wins" is the intuitive design and would produce a check that passes by agreeing with itself. Measure, then encode.
+- **Related:** E7/E8 (what the payload carries) · [[l-44]] (a probe and the thing it guards, authored by the same hand)
+- **Provenance:** CD review, 2026-08-21. Not read as part of it: `.claude/hooks/mcp-ddl-gate.js`, which may make it three hooks rather than two.
+- **Covering spec:** NEW
+
+### M-081 — three rules in one hook each re-derive "find X as a standalone token", and each got it wrong separately
+
+- **Rule:** the shape all three want — locate a command or path token, independent of what surrounds it
+- **Where it lives:** `.claude/hooks/bash-gate.js` (the `rm` and `.env` rules) and `.claude/hooks/agent-write-scope.js` (`deniedGitSubcommand`)
+- **Rung:** check · **Blast:** other
+- **Measured, 2026-08-21, three instances in two files, all defective the same way:**
+  1. `deniedGitSubcommand` matched `git <flags>* <subcommand>` and was defeated by a `-C /repo` invocation on its first probe run. Fixed, with a twelve-line comment naming the lesson: **"DELIBERATELY NOT A GIT GRAMMAR PARSER."**
+  2. The `rm` rule sat twenty lines from that comment still parsing `-rf?`, and missed **7 of 13** lethal spellings — including the root-glob form, the one that actually destroys a filesystem.
+  3. The `.env` rule anchored on surrounding characters and asked for approval on `process.env.NODE_ENV`, in a hook whose stated posture is unattended autonomy.
+- **The finding is not any of the three defects — it is that a lesson landing on one rule did not propagate to its neighbours.** Instance 1's remedy was written down, in detail, in the same file, and instances 2 and 3 were authored and reviewed past it repeatedly. The sweep stopped at the rule that prompted it, twice: the `rm` fix left `.env` untouched, and the `.env` fix initially left two of five anchors unprobed.
+- **So the remedy is structural, not editorial.** "Sweep the whole file when a lesson lands" is correct and relies on somebody remembering — the thing that already failed three times. **A shared `standaloneToken(haystack, alternatives)` helper used by all three rules makes rule four correct by construction rather than by vigilance**, and gives the lesson one home instead of three comments.
+- **Sketch:** extract the matcher, migrate all three rules onto it, keep every existing probe (they are the regression suite for the migration), and add the helper's own probe suite covering the union of the three rules' edge cases. **Probe-first and in that order** — the migration is only safe because 54 probes already pin the current behaviour.
+- **The cost of not doing it, stated because this entry's blast radius reads as low:** two of the three instances were in DENY rules with a security remit, and one of them permitted the root-glob delete for as long as the hook has existed.
+- **A live demonstration arrived while this entry was being written:** the commit carrying it was DENIED by `bash-gate` because the prose quoted a forbidden flag literally. That is the documented accepted false-deny — the rule matches a command that is merely mentioned — and it is cheap in the right direction: the author rephrases. Worth knowing before writing a register entry about a deny rule.
+- **Related:** M-072 (`bash-gate` matches a flag token without checking which command owns it — same family, already filed) · [[l-44]]
+- **Provenance:** CD review, 2026-08-21, across three passes; the third instance was found INSIDE the sweep the second demanded, which is the evidence that the editorial remedy does not hold.
+- **Covering spec:** NEW

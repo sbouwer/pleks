@@ -642,3 +642,86 @@ reported the conflict instead of resolving it quietly. That is the census v9 han
 working on a case nobody designed it for. **A task-specific instruction that contradicts the spine
 should surface as `decision-needed`, and it did** — worth keeping in mind before writing "do not
 write any file" into a brief again, since it costs the run its artefact.
+
+---
+
+## E13 · Why every write in this session prompted — **DIAGNOSED: the session ran in `normal` mode; CONFIRMATION PENDING**
+
+**2026-08-21.** Closes an arc that cost three VS Code restarts, two rebuilt instruments, one withdrawn
+result and a half-dozen falsified hypotheses. **Diagnosis by CD; the correction is recorded here
+because CC held the evidence and reasoned past it.**
+
+### The answer
+
+The transcript carries `{"type":"mode","mode":"normal","sessionId":…}` records — **224 of them, every
+one `normal`**, spanning most of the session. `normal` is the first position in the permission-mode
+cycle (`normal → acceptEdits → plan`, cycled by Shift+Tab), and **normal prompts on every edit and
+write.** Every symptom falls out of that one fact:
+
+| Symptom | Explained by `normal` |
+|---|---|
+| writes prompted | yes — normal prompts on every write |
+| `Bash` never prompted | yes — `permissions.allow` rules still apply in normal mode |
+| the hook returned `allow` and a prompt appeared anyway | yes — the mode gates it regardless |
+| `defaultMode: acceptEdits` had no effect | yes — it was never applied |
+
+### Why every instrument missed it: two fields, different channels, both plausibly named
+
+- **`permission_mode` on a hook payload** = the CONFIGURED DEFAULT out of `settings.json`.
+- **`{"type":"mode"}` in the transcript** = the LIVE SESSION STATE.
+
+They disagreed for the session's entire length. So the statusline and the context-budget hook — even
+after the camelCase→snake_case fix — read `acceptEdits`, stayed silent, and reported an agreement
+that did not exist. **The instrument was built against the field that reports configuration, in a bug
+whose entire nature is configuration not being applied.**
+
+That is L-43's third instance and the sharpest: **the verification inherited the original method's
+assumption** — that the payload's mode field is the live mode. The correct check crossed into a
+different channel entirely.
+
+### CC's own miss, recorded because it is the more useful half
+
+CC **found the record and reasoned past it.** The `{"type":"mode","mode":"normal"}` record was dumped
+in full — the right discipline, and the same one that had caught the camelCase error twenty minutes
+earlier — and then dismissed on a NAME COLLISION: `normal` is also the editor mode's vocabulary
+(`normal`/`vim`), so it was ruled out by vocabulary instead of by evidence, and written off in the
+E12 draft as "the EDITOR mode, not the permission mode".
+
+Two checks would have settled it in seconds, and both were run only after CD named the answer:
+`editorMode` appears in **no settings file anywhere**, so the editor reading requires 224 records of
+an unset default explaining none of the symptoms; and the permission reading explains all four.
+**Dumping the channel is not the same as reading it.** The discipline got CC to the evidence; a
+plausible alternative name was enough to discard it.
+
+### NOT CONFIRMED, and it must not be recorded as fixed
+
+The predicted fix is one keystroke — Shift+Tab until the indicator shows auto-accept edits — and it
+is **untested as of this entry**: re-checked after the diagnosis, the transcript still shows
+`normal`, 224 records, no other value. The confirmation is free and has two observable halves, and
+BOTH are needed: **a new `mode` record with a different value**, and **prompting stopping on the next
+write**. Either alone is consistent with something else. Until then this is a diagnosis that explains
+everything and has predicted nothing.
+
+### Two things to record once it IS confirmed
+
+1. **`permissions.defaultMode` may not be applied by the VS Code extension at all.** That is the
+   claim the whole session's evidence points at, and it is exactly the class this arc keeps finding:
+   prose over an unenforced setting.
+2. **A correction to the portability claim, verified rather than assumed.** It was asserted that the
+   kit ships `defaultMode: acceptEdits` and every extension adopter would inherit a dead line.
+   **Grepped: `defaultMode` appears NOWHERE in `dev-standards` — zero hits across the whole repo**
+   (the kit is `CLAUDE_TEMPLATE.md` + `agents/`). So it is a pleks-local dead line, not a kit defect.
+   **But the correction inverts into a worse finding rather than dissolving:** the kit says nothing
+   about permission mode *at all*. An adopter installs the pipeline protocol, runs a session in
+   `normal`, and every agent artefact write stalls on a prompt with no documentation to recognise it
+   by — the exact failure that cost three restarts here, arriving with nothing to name it. The kit
+   needs the mode as a SETUP STEP WITH ITS SYMPTOM NAMED, not as a settings key.
+
+### The methodological finding, which is the part that generalises
+
+**Three instances in three days, same tell: when a search comes up empty, ask which CHANNEL you have
+not read, not which PATTERN you have not tried.** Restarts, glob-syntax guesses, `.claude/`-protection
+theories and hook-sentinel probes all searched harder within channels already open. What closed it
+was opening one nobody had looked at. The instruments now read that channel
+(`fix(statusline)`, `9874c5b6`), with a regression probe that puts the two channels in disagreement —
+the only configuration in which reading the wrong one is detectable.
