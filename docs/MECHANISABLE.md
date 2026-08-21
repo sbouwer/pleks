@@ -9,11 +9,18 @@
 > This note lives here because those commits are already pushed and amending them would require a
 > force-push — denied by `hook:bash-gate`, and by the push policy itself.
 
-**60 entries** as of 2026-08-18. Extracted from the `CLAUDE.md` + `.claude/rules/*.md` triage pass
-(`node scripts/check-claude-md.mjs`), which found ~100 of ~118 rules UNENFORCEABLE and, of those, 60
+Originally extracted from the `CLAUDE.md` + `.claude/rules/*.md` triage pass
+(`node scripts/check-claude-md.mjs`), which found most rules UNENFORCEABLE and, of those, the subset
 carrying a `MECHANISABLE (rung: … · blast: …)` sketch of what a mechanism would assert. This register
 holds the sketches so they stop paying rent in the always-loaded files; the source files now carry a
 one-line pointer (`MECHANISABLE → M-0NN`) instead.
+
+**No entry count here — it is a stat, stale by definition** (CLAUDE.md §4). This line previously read
+"60 entries as of 2026-08-18" and was still saying it at 82. Worse than merely stale: it was the only
+age evidence in the file, and a triage pass reached for it as if it dated the entries. **It does not.
+`git log` puts M-003…M-073 in ONE commit on 2026-08-20 (`fd818c0c`)** — the register has no per-entry
+age, and entry NUMBER is not a proxy for one. Count with `grep -cE '^### M-[0-9]+'` when a number is
+actually needed.
 
 **This is a build queue, not doctrine — it only shrinks.** An entry is removed when its mechanism ships
 and the source rule gets an `@enforced` tag instead of a pointer (moving a rule from N to D in the
