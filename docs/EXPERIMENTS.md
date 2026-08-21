@@ -11,10 +11,28 @@ E9** were measured **2026-08-20** with the version read directly: **2.1.235**. R
 future run — "which version was this true of" is the whole value of an anchor.
 
 **RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E1b**, **E2**, **E5**, **E7**,
-**E8**, **E9** and **E10** *before* trusting rule scoping, marker invisibility, the assumption that MCP
-tool schemas are deferred, the handoff write control, any conclusion drawn from a subagent's behaviour
-after a spine edit, or any output from a worktree-isolated write agent. Tracked as an OUTSTANDING
-item. All seven are load-bearing: E1b decides whether
+**E8**, **E9**, **E10**, **E12** and **E13** *before* trusting rule scoping, marker invisibility, the
+assumption that MCP tool schemas are deferred, the handoff write control, any conclusion drawn from a
+subagent's behaviour after a spine edit, any output from a worktree-isolated write agent, the write
+fence at depth 2, or either instrument that reads the permission mode. Tracked as an OUTSTANDING
+item.
+
+**E12 and E13 added 2026-08-21, and both are payload/transcript SHAPE observations — the most
+upgrade-fragile kind there is.** E12 rests on `agent_type` being present in a depth-2 PreToolUse
+payload and on no depth field existing there; a release that adds one, renames the other, or stops
+sending either silently changes what the write fence can decide. E13 now rests on records carrying a
+top-level `permissionMode` whose values are the permission vocabulary — if that field is renamed,
+dropped, or starts reporting a configured default rather than a live one, the statusline begins
+reporting a mode nobody is in. **Both failure modes are silent**, which is why they are on this list
+rather than left to be noticed.
+
+**E13's re-run has a specific first step, and it is not re-reading this session.** Count the field's
+distinct values ACROSS transcripts (`{"type":"mode"}.mode` measured cardinality 1 over 1735 records;
+`permissionMode` measured 3 with mid-session transitions). The entry's superseded diagnosis was
+confirmed twice against a single session, where a constant and a steady state are byte-identical.
+Any future claim about which field is live is worth exactly the cross-session count behind it.
+
+All nine are load-bearing: E1b decides whether
 scoped rules are a control or a convenience, E2 decides whether the entire marker vocabulary costs
 context budget, E5 decides whether connected MCP servers impose a flat per-turn floor (on 2.1.235
 they do not — a revert to eager tool loading would change the economics of every session),
@@ -444,3 +462,716 @@ a brief that names its expected base is the same discipline as anchoring a groun
 **Untested and worth knowing:** whether the base is `origin/main` specifically, the remote's default
 branch, or the repo's configured default. One repo, one observation of each — do not generalise the
 `origin/main` spelling to a repo whose default branch is named otherwise.
+
+---
+
+## E11 · Does `spawnDepth` distinguish a nested subagent run from a top-level one? — **ANSWERED: YES, AND THE PARENT EDGE RESOLVES INDEPENDENTLY**
+
+**Anchor:** same session, CLI 2.1.235, HEAD `a5b6f541` on branch `fix/day0-cancellation-copy`,
+2026-08-21. Design pre-registered at `.claude/handoff/fanout-probe/01-main.md` **before the run**,
+per §4b item 5 — a prediction written after the result is not a prediction. **That artefact was
+disposed of at wrap under §9**, so the citation is a provenance record, not a live path: the four
+predictions, the 49/49 readiness measurement and the result are all reproduced below, which is what
+makes the disposal safe. The observation dies, the decision survives.
+
+**Why it needed testing.** `scripts/agent-distribution.mjs` reports a `spawn depth` line and a
+`spawnedBy` edge, and neither had ever been exercised: **49 of 49 recorded runs were top-level**,
+the script saying so itself — *"every run is top-level (d1). No agent has spawned an agent."* A
+reporting path that has never had a non-trivial input is the green-and-unfailable shape. The
+script's own comment — *"the CLI writes spawnDepth: 1 for a run the main session asked for, 2+ for
+one another agent asked for"* — read as measured and was not: every observation behind it was a `1`,
+and `1` is what you get whether the CLI counts depth or hardcodes the field. Same shape as E8, where
+a `tools:` line was believed to withhold because nothing had tested it withholding.
+
+**Readiness established rather than assumed.** `spawnDepth` was present in 49/49 `agent-*.meta.json`,
+every one literally `1` — so the d1 baseline was a real observation, not `Number(j.spawnDepth) || 1`
+firing on an absent field. Had the field been absent, "every run is d1" would have been an absence
+dressed as an observation and the probe could not have discriminated. `toolUseId` was present in
+49/49 as a SECOND, independent discriminator: the parent edge is recovered by containment and does
+not depend on `spawnDepth` at all.
+
+**Result — outcome (a), the clean one.** A census parent fanned out three children over a real knip
+partition; a fourth nested census came from the scope probe:
+
+```
+spawn edges (4 nested run(s), deepest d2):
+  census → census  ×4
+```
+
+| prediction | outcome |
+|---|---|
+| 1 · children resolve `parent: census` by tool-use-id containment | HELD |
+| 2 · children carry `spawnDepth: 2` | HELD — the uncertain one, and the point of the run |
+| 3 · no grandchildren (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2`) | HELD — deepest is d2 |
+| 4 · negative space needs no new run — 49 existing d1 runs supply it | HELD by construction |
+
+Prediction 4 is worth keeping as method: manufacturing a 50th unnested run to "prove" an unnested
+run reports 1 would have been testing the fixture.
+
+**What this does NOT establish.** Three things, kept separate from the result because each was
+confounded and none is closed by it:
+
+- **Whether an unattended fan-out completes.** It did not. The parent dispatched four children and
+  closed saying it would synthesise once they returned — a turn ends when the agent stops emitting,
+  and a child's completion notifies the SESSION, not the parent. It was not paused, it was finished,
+  and the children sat unread until a human resumed it by hand. Fixed in census v9 as prose, marked
+  UNENFORCEABLE: nothing counts a run's children against its returns, so a stranded parent and a
+  complete one are the same artefact on disk.
+- **Whether the write-scope fence holds at depth 2.** Recorded as proven and then WITHDRAWN. The
+  evidence was that two out-of-scope `DELETE-ME` files were absent from disk — but absence is equally
+  consistent with a human clicking No on a prompt. The discriminator was only ever the hook's deny
+  string (`may only write to .claude/handoff`), which was never captured.
+  **→ SETTLED by E12 (same day, `0fd292df`): it holds.** The deny string was captured, from inside
+  the hook, and depth 2 was established by `agent_id` rather than inferred. E12 also returns the
+  negative result this entry could not have predicted — the payload carries **no depth field at
+  all**, so `spawnDepth` is a transcript fact and not a hook fact.
+- **Whether a hook's `allow` grants anything.** `agent-write-scope.js` returns
+  `permissionDecision: "allow"` for a main-session write and for an in-scope census write — verified
+  by piping both payloads through it. Writes prompted anyway, while the session ran in `acceptEdits`
+  (67 transcript records, no other value) and the session logged **zero `permission_denials`**. So a
+  hook returning `allow` may be an ABSENCE OF DENIAL rather than a grant. If that holds, five spines
+  and three canon documents overstate what the fence does. Not concluded here — it needs the
+  deny-string evidence above.
+
+**A measurement failure worth recording, because it nearly inverted the answer.** Two instruments
+were built to read the session's permission mode and both read `permissionMode`, camelCase. The
+`UserPromptSubmit` payload spells it **`permission_mode`**, snake_case, so both returned `undefined`
+— and `undefined` rendered as silence, which the design had defined to mean "settings won". A key
+typo was indistinguishable from a measurement. It was caught only because a throwaway probe dumped
+the payload's key list alongside the value; the shipped instrument would have reported agreement
+forever. Read both spellings, and never let an unread field share an output state with a real one.
+
+---
+
+## E12 · Does a DEPTH-2 subagent's PreToolUse payload carry `agent_type`? — **ANSWERED: YES, AND THE FENCE HOLDS AT DEPTH 2**
+
+**Run 2026-08-21, tree at `0fd292df`.** Closes the link E11 left open and un-withdraws the result
+E11 recorded as withdrawn. Prediction pre-registered before the hook was instrumented and before any
+agent was spawned; the design is unchanged from that file.
+
+### Why it mattered
+
+`agent-write-scope.js` treats an absent `agent_type` as "this is the main session" and returns
+`allow`. E7 measured the field's presence at **depth 1** only. If it were absent at depth 2, the hook
+would read a nested child as the main session and **wave through every write it made** — a hole
+precisely where the caller is least able to notice, because a depth-2 child's tool calls never appear
+in the main session's transcript.
+
+### The instrument, and why the previous attempt had none
+
+The first attempt concluded "the fence held" from two out-of-scope `DELETE-ME` files being absent
+from disk. Absence is equally consistent with the child never attempting the write, with the attempt
+being denied, and with a human clicking No — so the result was withdrawn.
+
+This run instrumented **the hook itself** to append every payload it received, plus the decision it
+returned, to a JSONL file outside the repository and outside the conversation. The evidence is
+therefore what the hook actually saw and actually returned, written from inside the hook process. No
+agent's self-report is load-bearing. The instrument was verified not to change behaviour — the same
+out-of-scope payload produced a byte-identical decision before and after, and `check-agent-write-scope`
+stayed green — and the hook was restored byte-for-byte afterwards (md5 `342e3c6e846c2c05d3b9e912916dceac`).
+
+**The full key set was logged, never a hand-picked subset.** That was a direct response to this
+session's `permission_mode` failure, where two instruments read a mis-guessed camelCase key, both got
+`undefined`, and `undefined` had been defined to mean a real reading.
+
+### Result — all four predictions held
+
+| # | Prediction | Outcome |
+|---|---|---|
+| P1 | the hook fires at depth 2 at all | **held** — both child writes logged |
+| P2 | `agent_type` present, naming the CHILD | **held** — `census`, not the parent's identity |
+| P3 | out-of-scope write DENIED with the hook's own string | **held** — `deny`, `may only write to .claude/handoff` |
+| P4 | in-scope write ALLOWED | **held** — `allow`, `census writing inside its scope` |
+
+**Depth 2 was established by identity, not inferred from the outcome.** The parent returned
+`agentId: ab052ca529035c1d0`; both logged writes carry `agent_id: a17325f9b71ab3aa4`. A different
+agent made them, and the parent made exactly one tool call (the spawn). The known-good half matters
+as much as the denial: P3 alone would prove only that the hook denies things, not that it
+discriminates — a gate that denies everything is not a gate.
+
+The main session's own `Bash` calls logged in the same file carry **neither `agent_id` nor
+`agent_type`**, re-confirming E7's both-directions claim at the same moment and on the same
+instrument. Absence really is a signal.
+
+### The negative result, which is the more useful half
+
+**The PreToolUse payload carries NO depth field.** The complete key set on a subagent call is:
+
+```
+session_id · transcript_path · cwd · prompt_id · permission_mode · agent_id ·
+agent_type · effort · hook_event_name · tool_name · tool_input · tool_use_id
+```
+
+E11 observed `spawnDepth` in the **transcript record**; it is not in the hook payload, under that or
+any other spelling. Two consequences, and neither is hypothetical:
+
+- **A hook cannot scope by depth.** It can know *which agent type* is calling and *which specific
+  agent*, never *how deep*. A rule of the form "an implementer may not spawn" or "no writes below
+  depth 1" is not buildable at rung 1 as the payload stands.
+- **`agent_type` is the child's own, not the parent's.** So scope does not inherit down a chain: a
+  `census` that spawned an `implementer` child would give that child implementer's unrestricted
+  grant, not census's handoff-only scope. **The fence is per-call, not per-lineage.** That is the
+  correct behaviour for the rule as written, and it is also the shape of the next hole — nothing
+  bounds what an agent may spawn, and the payload carries nothing a hook could use to bound it.
+
+### What this does NOT establish, stated so it is not later claimed
+
+- **Nothing about why writes prompt in this session — and it could not have, which was missed until
+  Stéan reported the prompt.** The run looked clean because neither write path exercised the open
+  question: the in-scope handoff write is covered by the two `Write(.claude/handoff/**)` /
+  `Edit(.claude/handoff/**)` lines live-but-uncommitted in `.claude/settings.json` **as at the run**
+  (both deleted later the same day with the handoff move out of `.claude/` — see E13), and the
+  out-of-scope write was hook-DENIED, which is terminal and raises no prompt. **A confound that makes
+  a result clean is more dangerous than one that makes it noisy**, because nothing about the output
+  says to look. Both logged main-session lines still show `permission_mode: acceptEdits` with
+  decision `allow`, the same contradiction E11 recorded, now seen from inside the hook.
+
+### The prompt this run DID raise, reported by Stéan mid-turn and invisible to every instrument
+
+**Exactly one prompt, on an `Agent` spawn — not on any write.** `Agent` is not in this hook's matcher
+(`Write|Edit|MultiEdit|NotebookEdit|Bash`), so it went to the ordinary permission layer, where no
+`Agent` allow rule exists. That part is unremarkable and is NOT the session's prompting mystery.
+
+**What is remarkable: two spawns, one prompt.** Depth 0→1 (main session) and depth 1→2 (the parent's
+child). Neither Stéan nor the instrument can say which one prompted — the run was not timestamped,
+which is a design miss to fix before the next one. The hypothesis that would explain it, untested:
+**a subagent's tool calls raise no interactive prompt at all**, because a subagent has no channel to
+ask. If that holds, then at depth ≥ 1 **this hook is the only gate that exists**, and every claim
+resting on "the user would be asked" is false below the top level. That would make the fence more
+load-bearing than any document currently says, not less.
+
+**And it re-establishes the instrumentation gap as a first-class finding.** A permission prompt leaves
+NO transcript record — searched by record type across the session, there is no prompt record, and
+`permission_denials` is zero. The `{"type":"mode","mode":"normal"}` records are the EDITOR mode, not
+the permission mode (the permission mode appears elsewhere as `acceptEdits`); reading them as the
+latter would have repeated this session's `permission_mode` error one field over.
+<!-- This sentence was contradicted by E13's original diagnosis, held for several commits as the
+     stale half of a documented conflict, and is now VINDICATED — see E13's cardinality table. It was
+     written from the same evidence that was later argued away. Left exactly as authored, because a
+     register whose wrong entries are quietly corrected teaches nothing about which reasoning to
+     trust; this one was right and lost the argument anyway. -->
+**The only detector
+of a permission prompt in this system is the human watching the screen** — which is why the
+three-states problem keeps recurring and cannot be closed from inside a session.
+- **Nothing about whether `allow` is a GRANT.** Unchanged and still open. A logged `deny` at depth 2
+  settles the fence; it does not settle what an `allow` buys. The hook-allow correction across five
+  spines and three canon documents was gated on THIS result and is now unblocked — but it should be
+  written to say the fence denies at depth 2, which is measured, and not that `allow` grants
+  anything, which is not.
+- **Nothing about depth 3+.** `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` makes depth 2 the deepest
+  reachable case here. "Deepest reachable today" is a setting, not a property; raising the cap
+  re-opens the question, and with no depth field in the payload nothing would report that it had.
+
+### A protocol conflict the run surfaced, unprompted
+
+The parent census closed `⚠️ decision-needed` rather than silently picking a side: the task forbade
+it from writing any file, its spine requires every run to close with a handoff artefact, and it
+reported the conflict instead of resolving it quietly. That is the census v9 hand-back behaviour
+working on a case nobody designed it for. **A task-specific instruction that contradicts the spine
+should surface as `decision-needed`, and it did** — worth keeping in mind before writing "do not
+write any file" into a brief again, since it costs the run its artefact.
+
+---
+
+## E13 · Why every write in this session prompted — **REFUTED twice, then given a documented cause that this repo's own session partly contradicts**
+
+**2026-08-21.** An arc that cost three VS Code restarts, three rebuilt instruments, two withdrawn
+results and a half-dozen falsified hypotheses — and the entry now records a WRONG diagnosis and how
+it was caught, which is worth more than the answer it claimed.
+
+> **⚠ SUPERSEDED CONTENT BELOW.** This entry originally read *"DIAGNOSED: the session ran in `normal`
+> mode; CONFIRMATION PENDING"* and asserted that `{"type":"mode"}` carries the live permission state.
+> That is refuted. The reasoning is kept in full because the failure mode is the finding.
+
+### What was claimed, and what refuted it
+
+The claim: the transcript's `{"type":"mode","mode":"normal"}` records — 224 of them in this session,
+every one `normal` — showed the session sitting in the first position of the permission cycle, and
+`normal` prompts on every write. Every symptom appeared to fall out of that one fact.
+
+**The refutation is a two-minute count, and it is the whole lesson: MEASURE THE FIELD'S CARDINALITY
+ACROSS SESSIONS BEFORE BELIEVING A CHANNEL IDENTIFICATION.** Across 12 transcripts on this machine:
+
+| field | records | distinct values | verdict |
+|---|---|---|---|
+| `{"type":"mode"}.mode` | 1735 | **1** — `normal`, always | a constant, not a state |
+| record `.permissionMode` | 549 | **3** — `acceptEdits` ×540, `auto` ×8, `default` ×1 | varies, and TRANSITIONS mid-session |
+
+A field that never varies across any session on the machine cannot be reporting something the user
+toggles. `normal` is not in the permission vocabulary at all — `default` is, and it sits on the
+*other* field; `normal` is the editor mode's word, which was **CC's original reading, abandoned under
+a confident correction.** `permissionMode` transitioning within a single file (`auto → acceptEdits`,
+`default → auto`) is the positive evidence that it tracks a session-level setting.
+
+### Why one session could never have caught this
+
+**Within a single transcript, a constant and a genuine steady state are byte-identical.** Every check
+run during the diagnosis read *this* session, where `normal` appeared 224 times and was consistent
+with both readings. The discriminating observation is only available ACROSS sessions, and nothing in
+the arc looked there — including the check that "confirmed" the diagnosis by re-reading the same file.
+
+### The symptom table, corrected
+
+The original table is the tell: every row said "yes", which should have been the warning rather than
+the conclusion. A hypothesis that explains everything, effortlessly, has usually stopped being
+constrained by the evidence.
+
+| Symptom | status |
+|---|---|
+| writes prompted | **unexplained.** This session ran in `acceptEdits` (×70 records) and a prompt still occurred |
+| `Bash` never prompted | consistent with `permissions.allow`, independent of mode |
+| the hook returned `allow` and a prompt appeared anyway | **unexplained** — and the most interesting one |
+| `defaultMode: acceptEdits` had no effect | **still stands.** `permissionMode` reaching `acceptEdits` does not show the settings key is what put it there |
+
+⚠ **Row 1 and row 4 both moved on 2026-08-21, in opposite directions — see E14.** Row 1 is now
+largely explained for writes under a PROTECTED PATH: `acceptEdits` is documented to *prompt* there,
+so a prompt in `acceptEdits` is the specified behaviour rather than an anomaly, and approving once
+grants the tree for the session — which is why it then went quiet. What remains unexplained is
+narrower: the one prompt on a write OUTSIDE any protected path.
+
+Row 4 is the correction that matters, because it moved the other way. **The reason for believing
+`defaultMode` inert WAS row 1** — a session configured `acceptEdits` prompted anyway, so the key
+looked dead. Row 1 now has a different explanation that does not implicate the key at all, so that
+inference is withdrawn: `defaultMode: acceptEdits` is set and `permissionMode` reads `acceptEdits`,
+which is consistent with the key working. It is still not PROOF (a CLI default and a UI selection
+produce the same record), but "had no effect" is no longer supported by anything. **Do not delete
+the key as inert** — that would act on a premise that has dissolved, and would destroy the only
+cheap measurement available: remove it in a FRESH session and see whether `permissionMode` still
+reads `acceptEdits`.
+
+**"acceptEdits ⇒ no prompts" is therefore false**, which retires the entire framing. The open
+question is no longer *which mode was the session in* but *what does a mode actually predict*, and
+that cannot be answered without an instrument that detects a prompt — which does not exist, because
+**the only detector of a permission prompt in this system is the human watching the screen.**
+
+*(Half-corrected 2026-08-21 by E14: `toolDenialKind: "permission-rule"` records a prompt that was
+REJECTED, with timestamp and tool input, and records nothing when one is approved. So a prompt is
+detectable after the fact if the human declines it — which makes "reject, don't approve" a
+measurement technique. It does NOT reach subagent prompts, since subagent turns are unrecorded.)*
+
+### What the instruments do now
+
+The statusline reports the value from `permissionMode` and **predicts nothing** — dim, no colour, no
+advice. It rendered RED with "writes WILL prompt" off the constant field, so it was a permanent false
+alarm on the one always-visible surface. The model-facing `[perm]` line is deleted, not repointed: an
+always-on token-costed line earns its budget only if the value predicts something actionable.
+
+The probe suite is the sharper correction. It **required** the word "prompt" on a non-`acceptEdits`
+mode — so it enforced the false claim rather than catching it. That is **L-44 in its purest form: a
+probe and the thing it guards, authored by the same hand, agree by construction.** The replacement
+asserts the ABSENCE of a prediction across three modes, which is the only assertion that survives the
+author being wrong about what a mode means.
+
+### Three wrong readings, one shape
+
+`permissionMode` (camelCase typo) → `permission_mode` (correct spelling, wrong channel) →
+`{"type":"mode"}` (wrong field entirely) → `permissionMode` as a RECORD field, which is where the
+first attempt's spelling accidentally pointed all along. Each correction was argued from
+plausibility — the name fit, the story fit — and each inherited the previous method's assumption
+about what kind of thing it was looking for. That is L-43's third instance and the sharpest: **the
+verification inherited the original method's assumption.** What finally settled it was not a better
+argument but a different operation: counting.
+
+### CC's own miss — and it is not the one recorded here first
+
+The original entry recorded CC's miss as *reasoning past the evidence*: the
+`{"type":"mode","mode":"normal"}` record was dumped in full, then dismissed on a NAME COLLISION,
+because `normal` is also the editor mode's vocabulary (`normal`/`vim`). That was written up as
+"dumping the channel is not the same as reading it".
+
+**The dismissal was correct.** `normal` was the editor mode. The recorded "miss" was CC abandoning a
+right answer under a confident correction, and then writing an entry explaining why the right answer
+had been wrong. The argument used to overturn it — that the editor reading "requires 224 records of
+an unset default explaining none of the symptoms" — is a precise description of what an unset default
+looks like, deployed as evidence against itself.
+
+So the useful half is not about reading evidence carefully. It is about what happens to a correctly
+held position when someone states the opposite with confidence and a plausible mechanism: **it was
+given up without a single new measurement being taken.** The measurement that would have settled it
+cost two minutes and was available the entire time.
+
+### NOT CONFIRMED — and now not confirmable in this form
+
+The predicted fix was one keystroke (Shift+Tab), pre-registered here with three branches. **That
+protocol is retired with the diagnosis it was testing.** It asked what happens to a field that is
+constant across every session on the machine; the answer is "nothing", and it would have been
+misread as branch two (*"the keystroke is not wired in the extension"*) — a plausible, wrong,
+actionable-looking conclusion, arrived at through a correctly-designed experiment aimed at the wrong
+variable. **Pre-registration protects against motivated reading of a result. It does not protect
+against measuring the wrong thing**, and the entry that carried it was, at that moment, three
+sections of careful reasoning built on an uncounted field.
+
+What remains open, stated as questions rather than pending confirmations:
+
+1. **What actually predicts a permission prompt?** Unknown, and currently unmeasurable from inside a
+   session. `acceptEdits` was live when a prompt occurred, so mode alone does not. *(Partly answered
+   below — the PATH matters as well as the mode — but the answer does not fit this session's own
+   writes, so the question stays open rather than closing.)*
+2. **Does `permissions.defaultMode` do anything in the VS Code extension?** Still unestablished.
+   `permissionMode` reaching `acceptEdits` does not show the settings key put it there — the CLI
+   default and a UI selection produce the same record.
+3. **Is `permissionMode` itself the live state, or another configured value?** It varies and it
+   transitions, which is much stronger evidence than the previous field had. It is not proof. It is
+   read by exactly one instrument, which now makes no claim about what it means. *(Corroborated
+   below: all three of its observed values — `acceptEdits`, `auto`, `default` — are members of the
+   documented six-mode enum, and the refuted field's single value is not. Vocabulary was the second
+   of the three cheap instruments, and it fires here too.)*
+
+### The documented answer, supplied from outside the session (Stéan, 2026-08-21)
+
+Every reading in this arc was derived from transcripts. The thing that settled it was **the product
+documentation**, which nobody in the arc had read, and it collapses two of the three open questions
+above:
+
+- **The permission modes are six, and `normal` is not one of them:** `default`, `acceptEdits`,
+  `plan`, `auto`, `dontAsk`, `bypassPermissions`. This is decisive on its own — a field whose only
+  value is outside the enum is not the permission channel, no cardinality count needed. It was
+  available the whole time and would have cost one lookup.
+- **Writes to PROTECTED PATHS are never auto-approved.** `.git` and `.claude` are protected; a write
+  under either raises a prompt in every mode a pipeline would actually run in. `bypassPermissions` is
+  the sole exception, and `dontAsk` — the mode whose name suggests otherwise — DENIES a protected-path
+  write rather than approving it. `auto` is plan- and model-gated, so it is not a general answer either.
+
+That is fatal to the handoff protocol as built. The protocol put every agent artefact in
+`.handoff/`'s predecessor, `.claude/handoff/` — inside the one tree the permission system refuses to
+wave through — so an unattended pipeline stalls on a prompt per artefact, BY DESIGN, with no hook and
+no settings rule able to change it. Two corroborating observations that had been sitting unexplained:
+writes to `brief/**` and to the scratchpad never prompted in any session, and both are outside
+`.claude/`.
+
+**The fix is structural, not diagnostic: move the handoff root out of `.claude/`.** Done 2026-08-21 —
+repo-root `.handoff/<task-slug>/`, gitignored, same shape; `SCOPES` in `agent-write-scope.js` changed
+by one string per agent; the two `Write(.claude/handoff/**)` / `Edit(.claude/handoff/**)` allow lines
+in `settings.json` deleted as no longer addressing anything. Everything else in the protocol stands.
+
+### What this session's own evidence does NOT let us claim
+
+Stated because the temptation is to file this closed, and because a symptom table that reads all-yes
+on the first pass is the failure this entry exists to record:
+
+> **⚠ THIS SECTION'S ARGUMENT IS WITHDRAWN — it counted the wrong population.** All the writes below
+> are MAIN-SESSION writes; the prompting complaint is about SUBAGENT artefact writes, and **zero
+> subagent writes are recorded in any transcript** (E14 proves this with a positive control). A
+> contradiction between main-session behaviour and a subagent-write claim is not a contradiction. The
+> counting is kept because the figures are correct and the lesson about *which* figure to count is
+> the point; the inference drawn from them is not. E14 answers the question properly, and its answer
+> — neither path prompts — happens to land in the same direction by a different route.
+
+The first draft of this section said "roughly a dozen" writes under `.claude/` outside handoff. **It
+was counted instead, over the four transcripts on this machine, and the real figure is 27 distinct
+files across 125 write calls — every single one with `permissionMode` reading `acceptEdits`, and none
+reported as prompting.** The heaviest are the hooks themselves (`context-budget.js` ×27,
+`bash-gate.js` ×23, `agent-write-scope.js` ×16, `statusline.js` ×13) and — the one that should settle
+the "narrower protected set" reading — **`.claude/settings.json` itself, 13 times**, plus
+`settings.local.json`. If any path in that tree is protected, the permission file is.
+
+Meanwhile the one prompt Stéan reported on a write in that window was `hook-path-probe-DELETE-ME.md`
+at the REPO ROOT — outside `.claude/` entirely — and the mode live at that write, recovered from the
+transcript, was **`acceptEdits` as well** (`2026-08-21T09:42:52Z`). So the two observations are the
+inverse of what "protected-path writes prompt, ordinary writes do not" predicts, on both halves, with
+the mode held constant across them. Mode does not separate them; path does not separate them.
+
+**One of the two surviving readings is now dead.** "An explicit `permissions.allow` entry overrides
+the protection" requires such an entry to exist, and all three settings files were read: project
+`settings.json` allows `Bash`, `WebSearch`, `WebFetch` and a list of read-only Supabase tools and
+nothing else; `settings.local.json` carries five `Bash(...)` entries; the user file at
+`~/.claude/settings.json` grants `Write`/`Edit` only under `brief/**` and a OneDrive path, plus
+`Read(...)` on `.claude/agents/**` — **no `Write` or `Edit` rule anywhere covers `.claude/hooks/`,
+`.claude/rules/`, `.claude/agents/` or `settings.json` itself.** (`additionalDirectories` lists
+`.claude\rules`, which grants reachability, not approval — and does not cover the hooks or the
+settings file, which took 66 of the 125 writes between them.)
+
+So what is left is that the protection, as this build applies it, does not cover an ordinary
+`Write`/`Edit` under `.claude/` in `acceptEdits` — or covers a narrower set than the documentation's
+wording suggests. **The move is still correct: it removes the dependency on the answer**, which is
+precisely why it remains not-evidence, and why the hook's header says so at the site rather than only
+here. What it is no longer is a mystery with a settings-file explanation available.
+
+**And the counting instrument is the lesson repeating one section later — twice, in opposite
+directions.** "Roughly a dozen" was a recollection written into a document that had just spent 3,000
+words on why recollections about the tree must be counted; counting cost two minutes and moved the
+figure by an order of magnitude. Then the corrected count was *itself* wrong at a level the count
+could not see, because **a cardinality is only as good as the population it ranges over.** 125 is the
+right number for the wrong set. L-45 says a new channel is a hypothesis until you count it; the
+missing half is that **counting a channel does not establish that it contains the thing you are
+asking about** — one `isSidechain` tally would have shown it did not, and that tally is as cheap as
+the first one. Anchored: transcripts under `~/.claude/projects/c--dev-pleks/`, as at 2026-08-21.
+
+### The kit gap, which survives the refutation intact
+
+It was asserted that `dev-standards` ships `defaultMode: acceptEdits` and every adopter inherits a
+dead line. **Grepped: `defaultMode` appears NOWHERE in `dev-standards` — zero hits.** So it is a
+pleks-local dead line, not a kit defect — but the correction inverts into a worse finding rather than
+dissolving: **the kit says nothing about permission mode at all.** An adopter installs the pipeline
+protocol, hits a prompt on every agent artefact write, and has nothing to name the failure by — the
+exact cost incurred here, arriving with no documentation to recognise it. That gap does not depend on
+which field is the live one, so it is actionable now: the kit needs the mode as a SETUP STEP WITH ITS
+SYMPTOM NAMED. What it must NOT yet claim is which field to read or what a mode guarantees.
+
+### The methodological finding, which is the part that generalises
+
+The original finding was: **when a search comes up empty, ask which CHANNEL you have not read, not
+which PATTERN you have not tried.** That still holds, and it is what got the arc unstuck. But on its
+own it produced three wrong answers in a row, because opening a new channel feels like progress
+whether or not the channel means anything.
+
+The complement is the one this entry was written to add, and it is cheap enough that there is no
+excuse for skipping it:
+
+> **A NEW CHANNEL IS A HYPOTHESIS UNTIL YOU COUNT IT. Before believing a field reports a state,
+> measure its CARDINALITY ACROSS SESSIONS. A constant is not a state.**
+
+It takes one pass over the transcripts already on disk. It requires no theory about what the field
+means, which is exactly why it works when the theory is wrong — it is a question about the DATA, not
+about the story, and every wrong reading in this arc was defeated by a story that fit.
+
+Three properties make it the right first check, in order of how often each would have fired:
+
+- **Cardinality 1 ⇒ not a state.** Refutes outright. This is what settled it.
+- **Vocabulary.** `normal` is not a permission-mode value; `default` is, and it was on the other
+  field. Free, and available from the moment both fields were visible.
+- **Transitions within one file.** Positive evidence — a field that changes mid-session tracks
+  something changeable. `permissionMode` does; nothing else looked at did.
+
+And the scope note that makes all three usable: **none of them can be run against a single session.**
+Within one transcript a constant and a steady state are byte-identical, which is why the "confirming"
+check — re-reading this session and finding `normal` again — reported success while proving nothing.
+The instruments now read the counted field (`2b3a9ca9`), with a probe putting BOTH fields in
+disagreement in one fixture, since that is the only configuration where reading the wrong one is
+detectable at all.
+
+---
+
+## E14 · Does a SUBAGENT write prompt because of the PATH, or because it is a subagent? — **RESULT WITHDRAWN AS CONFOUNDED. The secondary result stands, and the documentation answers the primary question outright.**
+
+**Pre-registered 2026-08-21T13:33Z, before the spawn.** Written first precisely because E13's arc
+shows what happens when the reading is composed after the result is in view.
+
+### Why E13's evidence could not answer this
+
+E13's contradiction — 126 unprompted `.claude/` writes against a documented "protected paths always
+prompt" — was measured over the wrong population, and the measurement that shows it is one line:
+
+| population | writes to `.claude/` (non-handoff) | writes to the handoff dir |
+|---|---|---|
+| main session | **126** | 26 |
+| subagent (`isSidechain: true`) | **0** | **0** |
+
+**58 `Agent`/`Task` spawns are recorded and not one subagent tool call appears in any transcript.**
+`isSidechain` exists in the record schema and is `true` on zero of 34,279 records. So subagent turns
+are not written to the project transcript at all, and NO transcript-derived count can speak to them.
+E13 compared main-session writes against a subagent-write complaint and called it a contradiction.
+That claim is corrected there rather than deleted; this entry is the measurement it needed.
+
+### The instrument that does exist, and its asymmetry
+
+`toolDenialKind: "permission-rule"` — 12 records across four transcripts, carrying timestamp and the
+tool input, including `"Permission to use Bash with command rm -f …"` and `"The user doesn't want to
+proceed with this tool use"`. **It fires when a prompt is REJECTED and records nothing when one is
+APPROVED.** E13's statement that no instrument detects a prompt is therefore half wrong, and the half
+that is right is exploitable: *reject every prompt* and each one writes itself into the transcript.
+The human stops being the detector and becomes the trigger for a logged one.
+
+Known limit, stated before the run: if subagent turns are unrecorded, a denial raised inside a
+subagent's context may be unrecorded too. Stéan's observation remains the primary channel; the
+`toolDenialKind` sweep is a second, and disagreement between them is itself a result.
+
+### Design
+
+One `census` spawn, TWO writes, same run, same mode, same actor:
+
+1. `.handoff/perm-probe/01-census.md` — treatment (the post-move location)
+2. `.claude/perm-probe/01-census.md` — control (inside the protected tree)
+
+`.claude/perm-probe` is temporarily added to `census`'s `SCOPES` for this run. **Without that, the
+control write is hook-DENIED — terminal, and raising no prompt — which is exactly the confound E12
+hit and recorded.** A treatment with no control is what produced three wrong answers in E13's arc.
+
+Stéan REJECTS anything that prompts, rather than approving it.
+
+### The three branches, fixed in advance
+
+| observed | reading |
+|---|---|
+| prompt on the `.claude/` write ONLY | Protected-path theory HOLDS for subagents. The handoff move is the fix. The 126 main-session writes become a separate question, not a refutation. |
+| BOTH writes prompt | Path is irrelevant — a subagent write prompts as such. The move does not help, and the pipeline needs a different fix (an allow rule for `.handoff/**`, or a mode). |
+| NEITHER prompts | Protected paths do nothing in this build. The move is insurance, not a remedy, and the original stall had another cause entirely. |
+
+The third row is what the control buys. Without a `.claude/` write in the same run, "no prompts"
+reads as success — the treatment appearing to work because nothing was ever going to prompt.
+
+A fourth outcome is possible and would supersede the table: **the subagent raises no prompt at all
+and instead fails or silently proceeds**, which is E12's open hypothesis (a subagent has no channel
+to ask). If that is what happens, this hook is the only gate below the top level, and every claim
+resting on "the user would be asked" is false for agents.
+
+### Result — run 2026-08-21T13:34Z, `permissionMode: acceptEdits`, branch THREE
+
+**Both writes succeeded. Neither prompted. No denial was recorded.**
+
+| arm | path | tool result | prompt |
+|---|---|---|---|
+| treatment | `.handoff/perm-probe/01-census.md` | `File created successfully` | none |
+| control | `.claude/perm-probe/01-census.md` | `File created successfully` | none |
+
+`toolDenialKind` records in the window: **0**. Both files verified on disk by the agent's own
+`ls -la` (204 and 382 bytes, 15:34 local). The agent was instructed to quote any rejection text
+verbatim and reported none, while correctly refusing to assert anything about a UI dialog it has no
+channel to see.
+
+**That was read as branch three — "protected paths do nothing in this build" — and it is wrong.**
+The reading survived about twenty minutes, until the protected-path documentation was actually
+looked up. Two documented sentences dissolve it:
+
+- **`acceptEdits` PROMPTS on a protected path.** Not "is allowed" — prompts. The per-mode table is
+  explicit (`default` prompts, `acceptEdits` prompts, `dontAsk` denies, `bypassPermissions` allows,
+  `plan`/`auto` route to the classifier).
+- **Approving a `.claude/` write once offers "Yes, and allow Claude to edit its own settings for
+  this session", and that auto-approves every later `.claude/` write in the SAME SESSION.**
+
+**So the control arm was run inside a session that had already been granted.** This session wrote to
+`.claude/` more than a hundred times before E14 was designed; whichever of those was first is where
+the prompt appeared and the session-scoped grant was given. By the time the probe agent wrote
+`.claude/perm-probe/01-census.md`, the tree had been open for hours. The experiment measured a
+standing grant and reported it as an absence of protection.
+
+**The same grant explains the 125-write anomaly in E13**, which is the more useful half: those
+writes were not evidence against protection, they were evidence of one approval early in each
+session. It predicts something sharp and cheap — **the FIRST `.claude/` write in a fresh session
+should prompt, and only the first** — which is the re-run.
+
+### Re-run protocol, pre-registered
+
+**In a FRESH session, before any write under `.claude/` has occurred:** spawn one agent that writes
+`.claude/perm-probe/01-census.md` first and `.handoff/perm-probe/01-census.md` second — control
+before treatment this time, since the control is what contaminates. Stéan REJECTS. Branch table:
+
+| observed | reading |
+|---|---|
+| the `.claude/` write prompts, `.handoff/` does not | Documentation confirmed. The move is a genuine fix. |
+| both prompt | Something prompts on subagent writes independent of path — the original question, still live. |
+| neither prompts | The session grant was not the confound and the documented table does not describe this build. Only THIS outcome, from a fresh session, would support what E14 originally claimed. |
+
+**A precondition check belongs in the protocol, not in the reasoning afterwards:** the run is only
+valid if no `.claude/` write precedes it in that session, and that is verifiable from the transcript
+before spawning. E14 had no such check because the confound was not known — which is the argument
+for reading the documentation of a mechanism *before* designing the experiment about it, not after.
+
+**Result depended on one human step**, stated when it was written and still true: Stéan was
+instructed to REJECT any prompt. Both writes succeeded, which is consistent with "no prompt appeared"
+and inconsistent with "a prompt appeared and was rejected".
+
+### The secondary result, which is larger than the primary one
+
+**Subagent tool calls are not recorded anywhere in the project transcript, and this run proves it
+with a positive control.** Two writes are known to have happened — the files are on disk, the agent
+quoted the tool results — and a sweep of all 94 records written after the spawn window found:
+
+| looked for | found |
+|---|---|
+| `isSidechain: true` records | **0** |
+| `tool_use` records naming `perm-probe` | **0** |
+| `toolDenialKind` records | 0 |
+
+Before this run, "subagent turns are unrecorded" was an inference from an absence (58 spawns, no
+sidechain records) and could have meant the agents simply never wrote. Now it is a measured blind
+spot: writes we can PROVE occurred appear nowhere. Consequences, and neither is small:
+
+- **No transcript-derived count can say anything about subagent behaviour.** That is what invalidated
+  E13's contradiction, and it applies to every future measurement of this kind — including any
+  attempt to audit what an agent did after the fact. The `agent-write-scope` hook is not merely the
+  enforcement point; **it is the only place a subagent's writes are observable at all.** A hook that
+  logged its decisions would be the only audit trail there is.
+- **`toolDenialKind` cannot detect a prompt raised inside a subagent's context.** The asymmetric
+  instrument this entry was built around does not reach the population it was aimed at. It remains
+  valid for main-session prompts, which is where E13's one unexplained prompt lives.
+
+### The documented list, which is what should have been read first
+
+`.handoff/` clears — and the reason to record the whole list rather than that one fact is that the
+docs' usual phrasing is *"such as `.git` and `.claude`"*, and picking a second protected path would
+have repeated the bug silently. It IS enumerated, in the "Protected paths" section of the
+permission-modes documentation:
+
+**Directories** (prefix match): `.git` · `.config/git` · `.vscode` · `.idea` · `.husky` · `.cargo` ·
+`.devcontainer` · `.yarn` · `.mvn` · `.claude` — **except `.claude/worktrees`**, which Claude writes
+to itself.
+
+**Files** (exact name): `.gitconfig` · `.gitmodules` · the shell rc/profile family (`.bashrc`,
+`.bash_profile`, `.zshrc`, `.profile`, `.envrc`, …) · the package-manager rc family (`.npmrc`,
+`.yarnrc`, `.yarnrc.yml`, `.pnp.cjs`, `.pnpmfile.cjs`, `bunfig.toml`, …) · `.bazelrc` ·
+`.pre-commit-config.yaml` and the lefthook family · the gradle/maven wrapper properties ·
+`.devcontainer.json` · `.ripgreprc` · `pyrightconfig.json` · `.mcp.json` · `.claude.json`.
+
+**There is no dotfile wildcard.** A repo-root `.handoff/` is unaffected; `.claude/.handoff/` would
+not have been. Two further documented points, both load-bearing here:
+
+- **Protection runs BEFORE `permissions.allow` is evaluated**, so an `Edit(.claude/**)` entry cannot
+  pre-approve a protected-path write. This is the documented form of what was established by
+  inspection in E13 (no such rule existed anyway) — and it retires the two `Write`/`Edit`
+  `(.claude/handoff/**)` lines as having been incapable of working, not merely unnecessary.
+- **Bash redirections (`>`, `>>`, `2>`) are covered too**, not just the edit tools.
+
+**NOT documented, and it is the gap this entry actually needed:** whether the protected-path guard
+applies to a SUBAGENT's tool calls the same way it applies to the main session. That is precisely
+E14's primary question, and it remains unanswered by documentation — so the re-run above is still
+the only way to settle it.
+
+### Cleanup
+
+`.claude/perm-probe` removed from `census`'s `SCOPES`; both probe directories deleted. The temporary
+entry lived for one run, as pre-registered.
+
+---
+
+## E15 · Does `autoCompactWindow: 300000` actually fire? — **ANSWERED: YES, and it is the one settings claim in this sweep that measurement CONFIRMS**
+
+**2026-08-21.** Raised as a suspected layer-claim violation (canon §4.6): `dev-standards/README.md`
+§1 calls this key *"worth more than every other efficiency measure combined"*, and **nothing had
+measured that it does anything.** The spec's own supporting table shows a compaction taking context
+from ~1M to ~16k — which demonstrates that COMPACTION works, not that the WINDOW fires at 300k. Those
+are different claims and only one of them had evidence.
+
+### The measurement, which was free and already on disk
+
+`compactMetadata.preTokens` on every `compact_boundary` record across this machine's transcripts.
+Near 300k means the key fires; near 1M means the harness default is still in force and the key is
+inert. There is a natural before/after: the key landed partway through, so the two sessions either
+side of it are the control and the treatment.
+
+| session | date range | trigger | preTokens |
+|---|---|---|---|
+| `2678b6e4` (before the key) | 15–19 Aug | auto | **1002k · 1002k · 999k** |
+| `0d9dadd6` (after the key) | 20–21 Aug | auto | **267k ×6 · 268k ×3 · 269k · 271k · 273k · 317k** |
+
+**n = 12 after, 3 before, and the step is ~1000k → ~268k exactly at the key's arrival.** No overlap
+between the two groups; nothing else changed that would move an auto-compaction threshold by a
+factor of four. The two `manual` boundaries (735k, 688k) are user-initiated and carry no information
+about the window.
+
+**Verdict: the key fires.** README §1's headline claim is supported. Note the trigger sits *under*
+the configured window — 267k against 300k, consistently — which is consistent with firing on a
+PROJECTED overshoot rather than on crossing the line, and is worth remembering if anyone later reads
+"it compacted at 267k, not 300k" as a discrepancy. The one 317k outlier is above the window; a single
+point, unexplained, not worth a theory.
+
+### Why this entry exists even though the answer is "it works"
+
+Because the sweep that produced it was looking for violations, and **a sweep that only records its
+confirmations is not a sweep.** Three settings claims were examined in one pass and they landed in
+three different places:
+
+| claim | verdict |
+|---|---|
+| `Write(.claude/handoff/**)` pre-approves a protected-path write | **INCAPABLE** — protection is evaluated before allow rules |
+| `permissions.defaultMode` controls the live session mode | **UNVERIFIED** — the evidence against it dissolved (E13 row 4); measure, do not delete |
+| `autoCompactWindow: 300000` sets the compaction threshold | **CONFIRMED by measurement** |
+
+A pattern-match on "settings keys implicated in the permission mess" would have condemned all three.
+One was genuinely incapable, one had no evidence either way, and one was the single most valuable
+line in the file. That spread is the argument for §4.6's guard — *can this layer enforce it*, not
+*is this claim currently suspected* — and it is why the guard was written at the point of
+application rather than left as a principle.
+
+**RE-RUN TRIGGER:** on any CLI major upgrade, and on any change to the key's value. Re-running is one
+pass over `compactMetadata.preTokens` and needs no session in a particular state.

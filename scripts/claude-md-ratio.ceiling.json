@@ -15,8 +15,17 @@
     "§5 and pasting it into §8 as prose lowers N with the rule still in the file, still",
     "unenforced, and now invisible. D falls with it, so that move fails here instead.",
     "D may only RISE: a new enforced rule should be easy. Deleting a rule lowers minD in the",
-    "same commit, naming which rule and why."
+    "same commit, naming which rule and why.",
+    "",
+    "2026-08-21 — maxN 89→88, minD 126→125. M-063 shipped: the js-family/multi-extension half of",
+    "the extension-migration rule is now enforced by check-extension-stem-pairs, so its bullet",
+    "stopped being UNENFORCEABLE (N-1). D fell too, and that needs saying rather than waving",
+    "through, because a falling D is normally the gamed move this floor exists to catch. Here the",
+    "rule was not deleted and did not move out of a tagged section: the two bullets it had been",
+    "SPLIT into were REJOINED into one, per CLAUDE.md §4 'coverage boundaries split the rule, never",
+    "qualify the tag' applied in reverse — the boundary closed, so the split had nothing left to",
+    "express. One rule, one bullet, one tag, and the same rule still covered."
   ],
-  "maxN": 89,
-  "minD": 126
+  "maxN": 88,
+  "minD": 125
 }

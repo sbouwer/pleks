@@ -136,6 +136,98 @@ const strip = (s) => s.replace(/\x1b\[[0-9;]*m/g, "")
   ok(/ctx —/.test(strip(r.out)), "a session with no assistant turn yet shows 'ctx —', not a fabricated 0k", JSON.stringify(r.out))
 }
 
+// ── the session's permission mode: the value, reported without a prediction ──────────────────
+//
+// THREE cuts of this feature read the wrong field, and the third is the instructive one. The first
+// two read the payload's mode field (once misspelled, once correctly). The third read the
+// transcript's `{"type":"mode"}` record on the reasoning that a payload carries the CONFIGURED
+// default while the transcript carries the LIVE state — and shipped a permanent red false alarm,
+// because that field has CARDINALITY 1: 1735 records across 12 transcripts on this machine, every
+// one `normal`. A constant is not a state.
+//
+// So these probes assert two different kinds of thing, and the second kind is new:
+//   · the READ is correct — the right field, latest-wins, absence distinguished from a value.
+//   · the RENDER makes NO claim about consequence. Whether a mode predicts a prompt is unmeasured
+//     (this session ran `acceptEdits` and a prompt happened anyway), so a probe that demanded the
+//     word "prompt" — as the previous suite did — was pinning a guess into the gate.
+{
+  const withMode = (name, mode) => {
+    const p = join(tmp, `${name}.jsonl`)
+    const lines = [usageLine(193_000)]
+    // The field is `permissionMode`, top-level on a record — measured cardinality 3
+    // (`acceptEdits`, `auto`, `default`), and it TRANSITIONS mid-session, which is the positive
+    // evidence that it tracks something the user changes.
+    if (mode !== null) lines.push(JSON.stringify({ type: "user", permissionMode: mode, sessionId: "probe" }))
+    writeFileSync(p, lines.join("\n") + "\n")
+    return p
+  }
+
+  const accept = strip(run(payload(withMode("m-accept", "acceptEdits"))).out)
+  ok(/perm acceptEdits/.test(accept), "the mode is rendered by name", accept)
+
+  const plan = strip(run(payload(withMode("m-plan", "plan"))).out)
+  ok(/perm plan/.test(plan), "…whatever the value is — no mode is special-cased", plan)
+
+  // ⚠ THE ANTI-ALARM PROBE, and the one that would have caught what shipped. Every mode renders the
+  // same way: no colour, no consequence, no advice. The previous suite REQUIRED the string "prompt"
+  // on a non-acceptEdits mode, so it enforced the false claim rather than catching it — a probe
+  // written from the same belief as the code cannot refute it (L-44), and this is that failure with
+  // a name on it. Asserting the ABSENCE of a prediction is the only form that survives the author
+  // being wrong about what the mode means.
+  for (const [name, mode] of [["a-accept", "acceptEdits"], ["a-plan", "plan"], ["a-default", "default"]]) {
+    const out = strip(run(payload(withMode(name, mode))).out)
+    ok(!/prompt|WILL|NOT the|Shift\+Tab/i.test(out),
+      `\`${mode}\` renders the value and predicts NOTHING — no instrument here knows what a mode causes`, out)
+  }
+
+  // Absence is its own rendering. If an unmeasurable mode looked like a measured one, this
+  // instrument would carry the very defect it was built to fix.
+  const none = strip(run(payload(withMode("m-none", null))).out)
+  ok(/perm \?/.test(none), "no mode record in the window renders `perm ?`", none)
+  ok(!/normal|acceptEdits|plan|default/.test(none),
+    "…and it names no mode, because it does not know one — `perm ?` is the absence, not a guess", none)
+
+  // Multiple records — the LAST one wins. Every probe above writes exactly ONE, so an implementation
+  // scanning forwards and taking the first passes all of them and then reports a stale mode forever.
+  // Both directions, because one direction also passes under an implementation that always returns
+  // the last match regardless of value.
+  const flipped = (name, ...modes) => {
+    const p = join(tmp, `${name}.jsonl`)
+    const lines = [usageLine(193_000),
+      ...modes.map((m) => JSON.stringify({ type: "user", permissionMode: m, sessionId: "probe" }))]
+    writeFileSync(p, lines.join("\n") + "\n")
+    return p
+  }
+
+  const toAccept = strip(run(payload(flipped("m-seq-a", "default", "acceptEdits"))).out)
+  ok(/perm acceptEdits/.test(toAccept), "default → acceptEdits: the LATEST record wins", toAccept)
+
+  const toDefault = strip(run(payload(flipped("m-seq-b", "acceptEdits", "default"))).out)
+  ok(/perm default/.test(toDefault), "acceptEdits → default: the latest wins in the other direction too", toDefault)
+
+  // ⚠ THE CHANNEL PROBE. A transcript carrying BOTH fields in disagreement: a `{"type":"mode"}`
+  // record saying `normal` (the constant — an unset editor default) and a `permissionMode` saying
+  // `acceptEdits`. An implementation reading the record renders `perm normal`, which is what shipped
+  // and what was permanently wrong. Only `permissionMode` can be right, and this is the sole
+  // configuration in which reading the other one is detectable at all.
+  const bothFields = join(tmp, "m-channel.jsonl")
+  writeFileSync(bothFields, [
+    usageLine(193_000),
+    JSON.stringify({ type: "mode", mode: "normal", sessionId: "probe" }),
+    JSON.stringify({ type: "user", permissionMode: "acceptEdits", sessionId: "probe" }),
+  ].join("\n") + "\n")
+  const ch = strip(run(payload(bothFields)).out)
+  ok(/perm acceptEdits/.test(ch) && !/perm normal/.test(ch),
+    "CHANNEL: `type:mode` says normal, `permissionMode` says acceptEdits → permissionMode wins; the other field is constant across every transcript on the machine", ch)
+
+  // UNTESTED BOUNDARY, recorded rather than assumed away: every fixture here is a few lines, so the
+  // 512KB tail window always holds the whole transcript and `perm ?` is only ever produced by
+  // omitting the field entirely. The FIELD case is a record that EXISTS but has scrolled out of the
+  // window. Testing it needs a >512KB fixture, which is real cost for a case that fails in the
+  // honest direction (`perm ?`, not a wrong mode). Deliberate; written down so it is not mistaken
+  // for coverage.
+}
+
 // ── it is actually wired up ──────────────────────────────────────────────────────────────────
 {
   const s = JSON.parse(readFileSync(SETTINGS, "utf8"))

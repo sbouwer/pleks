@@ -54,13 +54,74 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Dev-only utility scripts — not production code
     "scripts/**",
-    // Claude Code agent worktrees — not production code
-    ".claude/**",
+    // Claude Code agent worktrees and prompt files — not production code.
+    // ⚠ THE HOOKS AND THE STATUSLINE ARE DELIBERATELY NOT IGNORED (the negations below). That
+    // reason — "not production code" — was written when `.claude/` held prompts and worktrees, and
+    // it stopped being true once the hooks became security controls: bash-gate.js is the only rung
+    // that refuses --no-verify and rm-on-root, and agent-write-scope.js is what fences a subagent's
+    // writes. On 2026-08-21 a `[perm]` branch in context-budget.js referenced a block-scoped `const`
+    // from outside its block — a ReferenceError on EVERY invocation, swallowed by the surrounding
+    // catch, so the feature never ran once while `npm run check` stayed green. `no-undef` catches
+    // that in one pass, and could not see the file.
+    // Listed per-directory rather than as `.claude/**` with negations: in flat config an ignored
+    // DIRECTORY is never descended into, so `!.claude/hooks/**` cannot rescue a file underneath it.
+    // The five tracked `.js` files (four hooks + the statusline) are therefore reached by NOT
+    // ignoring their directories at all; everything else here is prompts, markdown and worktrees.
+    ".claude/agents/**",
+    ".claude/commands/**",
+    ".claude/rules/**",
+    ".claude/skills/**",
+    ".claude/crawlers/**",
+    ".claude/agent-memory/**",
+    ".claude/worktrees/**",
+    // Agent handoff artefacts. OUTSIDE `.claude/` since 2026-08-21 — `.claude` is a permission-
+    // protected path, and putting every agent artefact inside it was the handoff protocol writing
+    // into the one tree the permission system will not auto-approve. Gitignored either way.
+    ".handoff/**",
     // Design prototypes and build specs — not production code
     "brief/**",
     // Local ESLint rule implementations — not app code
     "eslint-rules/**",
   ]),
+  {
+    // ── the Claude Code hooks + statusline ────────────────────────────────────────────────────
+    // CommonJS Node scripts, not app code, and they need their own block for two reasons: the Next
+    // presets assume ESM and browser globals, and `no-undef` is OFF by default under the TS preset
+    // (the type-checker covers it there — but these are plain `.js`, so nothing did).
+    //
+    // The rule set is deliberately ONE rule. This is not an invitation to style-police the hooks;
+    // it is the specific control for the specific defect — a name referenced where it is not
+    // defined. Anything broader would produce a cleanup backlog on files whose value is that they
+    // are stable, and a noisy gate gets removed.
+    files: [".claude/hooks/**/*.js", ".claude/statusline.js"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        require: "readonly", module: "writable", exports: "writable", process: "readonly",
+        console: "readonly", Buffer: "readonly", __dirname: "readonly", __filename: "readonly",
+        setTimeout: "readonly", clearTimeout: "readonly", URL: "readonly", TextDecoder: "readonly",
+      },
+    },
+    rules: {
+      "no-undef": "error",
+      // Claude Code loads these as CommonJS — `require` is the calling convention, not a style
+      // choice, and `statusline.js` requires the hook as a library so the two share one reader.
+      "@typescript-eslint/no-require-imports": "off",
+      // KEPT ON, and it is the reason this block earns its place: `sonarjs/super-linear-regex` was
+      // configured in this repo the whole time and `.claude/**` sat in globalIgnores, so the one
+      // mechanism that catches catastrophic backtracking was pointed away from the security hooks.
+      // It flagged two live patterns the moment it could see them — one written this session, one
+      // years older — and both are now token matchers. See `bash-gate.js`.
+      "sonarjs/super-linear-regex": "error",
+      // OFF, deliberately, and the boundary is the point: these are maintainability opinions, and
+      // the repo runs `--max-warnings 0`, so leaving them on would make adding this block a
+      // refactor of four stable security hooks. A gate that arrives with a cleanup backlog gets
+      // reverted, and the two rules above — a name that is not defined, a regex that backtracks —
+      // are the ones with a demonstrated incident behind them in this very file.
+      "sonarjs/cognitive-complexity": "off",
+      "sonarjs/no-nested-conditional": "off",
+    },
+  },
   {
     // Part 1 of ADDENDUM_SCHEMA_SELECT_GUARD: make a Supabase query that ignores `error`
     // a build failure, so column drift / RLS / timeout failures are loud, not silent.

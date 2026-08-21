@@ -195,7 +195,37 @@ function readMain(path, prevOffset) {
     if (u) context = inputTokens(u);
   }
 
-  return { context, size, addedTokens, addedBillable, addedTurns, sawBoundary, gap };
+  // The session's permission mode, read from the record field `permissionMode`.
+  //
+  // ⚠ THIS READ WAS WRONG ONCE, AND THE FIELD IT USED LOOKED PERFECT. An earlier cut took the
+  // transcript's `{"type":"mode"}` record, on the reasoning that a payload's `permission_mode` is the
+  // CONFIGURED default out of settings.json while the transcript holds the LIVE state. The first half
+  // of that is still true. The second half was not, and the discriminator is CARDINALITY:
+  //
+  //     {"type":"mode"}.mode    1735 records across 12 transcripts, EVERY ONE `normal`  → cardinality 1
+  //     record.permissionMode   `acceptEdits` x540, `auto` x8, `default` x1            → cardinality 3
+  //
+  // A field that never varies across any session on the machine cannot be reporting a state the user
+  // toggles — a constant is not a state, it is an unset default being shouted. `normal` is not in the
+  // permission vocabulary at all (`default` is, and it is on the OTHER field); `normal` is the vim/
+  // editor mode's word. `permissionMode` also TRANSITIONS mid-session (`auto → acceptEdits`,
+  // `default → auto`), which is the positive evidence: it tracks something that changes.
+  //
+  // The lesson is the general one, and it is why this comment is long: BEFORE BELIEVING A CHANNEL
+  // IDENTIFICATION, MEASURE THE FIELD'S CARDINALITY ACROSS SESSIONS. Both wrong readings here were
+  // argued from plausibility — the name fit, the story fit — and a two-minute count refuted the
+  // second one outright. Reading one session's transcript could never have caught it, because within
+  // one session a constant and a genuine steady state are byte-identical.
+  //
+  // Costs no extra I/O: `parsed` is the window this function already read for the token count.
+  let liveMode = null;
+  // BACKWARDS, and the two ordering probes in check-statusline.mjs both fail on a forward scan.
+  // The first record is the mode the session STARTED in, which after one change is permanently wrong.
+  for (let i = parsed.length - 1; i >= 0 && liveMode === null; i--) {
+    if (typeof parsed[i].permissionMode === "string") liveMode = parsed[i].permissionMode;
+  }
+
+  return { context, size, addedTokens, addedBillable, addedTurns, sawBoundary, gap, liveMode };
 }
 
 /**
@@ -209,6 +239,18 @@ function readMain(path, prevOffset) {
  */
 function contextNow(transcriptPath) {
   return readMain(transcriptPath, Number.MAX_SAFE_INTEGER).context;
+}
+
+/**
+ * Context AND live permission mode from ONE positioned read.
+ *
+ * Exists so the statusline can show both without reading the transcript twice — `contextNow` stays
+ * for any caller that wants only the gauge. See `readMain`'s `liveMode` comment for why the mode
+ * must come from here and not from a hook payload's `permission_mode`.
+ */
+function snapshotNow(transcriptPath) {
+  const m = readMain(transcriptPath, Number.MAX_SAFE_INTEGER);
+  return { context: m.context, liveMode: m.liveMode };
 }
 
 /**
@@ -300,6 +342,7 @@ function measure(transcriptPath, cwd) {
 
   return {
     context: main.context,
+    liveMode: main.liveMode,                            // the transcript's mode, not the payload's
     mainBillable: state.main.billable,
     mainTurns: state.main.turns,
     mainPartial: state.main.partial,
@@ -389,6 +432,31 @@ if (require.main === module) {
         additionalContext = adviseAgent(m) ?? "";
         systemMessage = adviseUser(m);
       }
+      // ⚠ A `[perm]` LINE USED TO BE APPENDED HERE, TELLING THE MODEL THE SESSION WOULD PROMPT ON
+      // WRITES. It is deleted rather than repaired, and both reasons are worth keeping:
+      //
+      // 1. IT NEVER RAN, ONCE, IN ANY SESSION. `const m` is declared inside the
+      //    `if (input.transcript_path)` block above; the branch sat AFTER that block closed. Every
+      //    invocation threw a ReferenceError, which the `catch` below swallowed by design — and
+      //    because `additionalContext` had already been assigned, the hook still emitted its normal
+      //    `ctx 80k` line. Working output, dead feature, green `npm run check`: `eslint.config.mjs`
+      //    ignores `.claude/**`, so `no-undef` never looked at it, and no probe in
+      //    check-context-budget.mjs touched the perm line. The green-and-unfailable class, in the
+      //    instrument built to catch exactly that class.
+      // 2. ITS PREMISE WAS REFUTED. It fired when the mode was not `acceptEdits`, on the reading that
+      //    anything else prompts on writes. See `readMain` — the field it read has cardinality 1
+      //    across every transcript on this machine, so the branch would have been a permanent false
+      //    alarm had it ever executed. The two defects hid each other: the dead code was never
+      //    noticed because nothing missed its output, and the wrong premise was never noticed
+      //    because the code was dead.
+      //
+      // Not rebuilt against the corrected field either, and that is the deliberate part. This tier is
+      // always-on and token-costed, and a line saying "the mode is X" is only worth its budget if X
+      // PREDICTS something the model can act on. Whether a given mode predicts a prompt is exactly
+      // what is still unmeasured — this session ran in `acceptEdits` and a prompt happened anyway.
+      // Until there is an instrument that detects a prompt, an assertion here would be a third guess
+      // dressed as a measurement. The statusline shows the value to the human, who can see the
+      // prompt; that is the honest half and it costs no tokens.
     } catch {
       // A hook that cannot measure must not guess, and must not block: this one only ever ADDS a
       // line, so failing silent costs a missed reminder rather than a stalled session.
@@ -401,6 +469,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  adviseUser, adviseAgent, measure, readMain, readAgents, readRange, contextNow, loadState,
+  adviseUser, adviseAgent, measure, readMain, readAgents, readRange, contextNow, snapshotNow, loadState,
   WARN, STOP, CACHE_READ_MULTIPLIER, CACHE_WRITE_MULTIPLIER, STATE_FILE,
 };

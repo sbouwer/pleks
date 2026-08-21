@@ -9,13 +9,55 @@
  * at the tool call rather than asserted in a spine and hoped for.
  *
  * The pipeline protocol (dev-standards/playbooks/4-AGENT-PIPELINES.md §8) says agent artefacts go
- * to `.claude/handoff/<task-slug>/` and nowhere else. This is that sentence, enforced.
+ * to `.handoff/<task-slug>/` and nowhere else. This is that sentence, enforced.
+ *
+ * ⚠ THAT PATH WAS `.claude/handoff/` UNTIL 2026-08-21, AND MOVING IT IS A PERMISSIONS FIX, not
+ * tidying. Claude Code treats a small set of paths as PROTECTED — `.git` and `.claude` among them —
+ * and writes to them are documented as never auto-approved in any mode a pipeline would actually
+ * use (`bypassPermissions` excepted). The handoff protocol had put every agent artefact inside the
+ * one tree the permission system refuses to wave through, so an unattended run stalls on a prompt
+ * per artefact, by design, with no hook or settings rule able to change it.
+ *
+ * The destination is confirmed safe against the DOCUMENTED list, which is enumerated and not merely
+ * exemplified: ten protected directories (`.git`, `.config/git`, `.vscode`, `.idea`, `.husky`,
+ * `.cargo`, `.devcontainer`, `.yarn`, `.mvn`, `.claude` minus `.claude/worktrees`) plus ~21 named
+ * files, and NO dotfile wildcard — so a repo-root `.handoff/` is unaffected. Protection is also
+ * documented to run BEFORE `permissions.allow` is evaluated, which is why the two
+ * `Write`/`Edit(.claude/handoff/**)` lines were deleted rather than repointed: they could never have
+ * worked, they were not merely redundant.
+ *
+ * ⚠ WHAT IS STILL NOT ESTABLISHED is whether that guard applies to a SUBAGENT's tool calls at all —
+ * the docs do not say, and E14's attempt to measure it is WITHDRAWN AS CONFOUNDED. Both arms wrote
+ * successfully with no prompt, but approving one `.claude/` write earlier in a session grants
+ * "allow Claude to edit its own settings for this session", and this session had written there over
+ * a hundred times before the probe ran. The experiment measured a standing grant. The re-run needs a
+ * FRESH session with the control arm first; protocol is in E14.
+ *
+ * ⚠ AND THE THING THAT MAKES THAT HOOK-SHAPED: **subagent tool calls are recorded NOWHERE in the
+ * project transcript.** E14 proved it with a positive control — two writes known to have happened,
+ * zero `isSidechain` records, zero `tool_use` records naming them, across all 94 records in the
+ * window. This hook is therefore not merely the enforcement point for a subagent's writes; it is the
+ * ONLY place they are observable at all. An earlier version of this note argued from 125 unprompted
+ * `.claude/` writes; every one of those was a MAIN-SESSION write, so it compared the wrong
+ * population and is corrected in E13. See E13 and E14.
+ *
+ * SECOND REMIT, added 2026-08-20 (M-068): a subagent may not CREATE COMMITS. The protocol says an
+ * agent "ends at a report; the caller commits" — that was prose with nothing behind it, because
+ * this hook matched only the edit tools and never saw `Bash`. Worktree isolation did not enforce it
+ * either; it made a subagent's commit land on a throwaway branch instead of yours, which HID the
+ * behaviour rather than preventing it — and hid it while making the agent's work invisible to your
+ * tree, which is the E10 defect. Dropping isolation (E10 ruling) removed the concealment and left
+ * the real gap in view. This closes it at rung 1, where the E10 replacement assumed it already was.
+ *
+ * Scope of the git denial is deliberately the COMMIT-CREATING family plus `push`, not "git writes":
+ * an agent legitimately runs `git log`, `git diff`, `git show`, `git grep`, `git status` — that is
+ * most of how a read-only spine works, and denying those would break every pipeline.
  *
  * FAIL-CLOSED DIRECTION: an unparseable payload asks rather than allows — same posture as
  * bash-gate.js. A broken gate that stalls is recoverable; one that waves writes through is not.
  */
 // @event PreToolUse
-// @matcher Write|Edit|MultiEdit|NotebookEdit
+// @matcher Write|Edit|MultiEdit|NotebookEdit|Bash
 // @no-twin settings.json permissions have no agent dimension — a `Write(...)` rule cannot say
 // "only when the caller is a subagent", so any twin would either be dormant-and-useless or would
 // gate the main session's every edit. The probe suite in scripts/check-agent-write-scope.mjs is the
@@ -35,13 +77,54 @@ const path = require("node:path");
  * from an agent nobody scoped should be visible rather than silent.
  */
 const SCOPES = {
-  grounder: [".claude/handoff"],
-  census: [".claude/handoff"],
-  walker: [".claude/handoff"],
-  "db-inspector": [".claude/handoff"],
-  "crawler-doctrine": [".claude/handoff", ".claude/crawlers"],
+  grounder: [".handoff"],
+  census: [".handoff"],
+  walker: [".handoff"],
+  "db-inspector": [".handoff"],
+  "crawler-doctrine": [".handoff", ".claude/crawlers"],
   implementer: null,
 };
+
+/**
+ * Commit-creating git subcommands, plus `push`. Every one of these either writes a commit object or
+ * publishes one; none is recoverable by the caller simply re-running the step.
+ *
+ * `cherry-pick`, `revert` and `am` are here for the reason CLAUDE.md §3 already gives about them:
+ * they create commits while skipping `pre-commit`, so they are the cheapest way for this rule to be
+ * defeated by accident rather than intent.
+ */
+const GIT_COMMIT_FAMILY = "commit|merge|rebase|cherry-pick|revert|am|push";
+
+const GIT_WORD = /\bgit\b/;
+const DENIED_SUBCOMMAND = new RegExp(String.raw`(?:^|\s)(${GIT_COMMIT_FAMILY})(?![\w-])`);
+
+/**
+ * Returns the denied subcommand in `command`, or null.
+ *
+ * DELIBERATELY NOT A GIT GRAMMAR PARSER. The first version matched `git <flags>* <subcommand>` and
+ * was defeated by `git -C /repo commit` on its first probe run, because `-C` takes a value and the
+ * value is not a flag. Chasing that leads to enumerating every global option that takes an argument
+ * (`-C -c --git-dir --work-tree --namespace --exec-path --config-env`) and being wrong again on the
+ * next one. So: find `git`, then look for a denied subcommand as a standalone token ANYWHERE after
+ * it. An unusual invocation cannot slip past a test that does not depend on the invocation's shape.
+ *
+ * The trailing guard is `(?![\w-])`, NOT `\b` — a hyphen is a word boundary, so `\b` after `merge`
+ * matches inside `git merge-base`, which every grounder runs to test ancestry and which writes
+ * nothing. Both bugs were caught by the known-good half of the probe suite on the first two runs,
+ * which is the entire argument for writing that half.
+ *
+ * KNOWN FALSE-DENY, accepted: a command that merely mentions both (`rg "git commit" docs/`, or
+ * `git log --grep="I am"`) is denied. That is the correct direction to be wrong in — the agent is
+ * told exactly what to do instead and can rephrase, whereas a false-allow writes a commit nobody
+ * asked for onto the caller's branch, where `--no-verify`-style damage is not the risk so much as
+ * a commit the caller never reviewed and now has to find.
+ */
+function deniedGitSubcommand(command) {
+  const g = GIT_WORD.exec(command);
+  if (!g) return null;
+  const sub = DENIED_SUBCOMMAND.exec(command.slice(g.index + g[0].length));
+  return sub ? sub[1] : null;
+}
 
 /** Resolve a tool's target path, whatever the tool calls the field. */
 function targetPath(toolInput) {
@@ -69,7 +152,22 @@ process.stdin.on("end", () => {
     // No `agent_type` means the main session. E7 confirmed the field is absent there, and confirmed
     // it in BOTH directions (a control ran before and after the treatment) — so absence is a real
     // signal, not a field this hook simply never sees.
-    if (agentType) {
+    if (agentType && input.tool_name === "Bash") {
+      // Bash is gated on WHAT IT RUNS, never on a path — it has none. This branch must come before
+      // the path logic below, which would otherwise see a Bash call with no `file_path` and ask on
+      // every single command a subagent runs.
+      const command = (input.tool_input && input.tool_input.command) || "";
+      const hit = deniedGitSubcommand(command);
+      if (hit) {
+        decision = "deny";
+        reason =
+          `agent-write-scope: a subagent may not run \`git ${hit}\` — it creates or publishes a ` +
+          `commit on the caller's branch. Agents end at a REPORT; the caller commits and pushes. ` +
+          `Leave the tree dirty and say what you changed.`;
+      } else {
+        reason = `agent-write-scope: ${agentType} running a non-committing bash command`;
+      }
+    } else if (agentType) {
       const cwd = input.cwd || process.cwd();
       const raw = targetPath(input.tool_input);
       if (!raw) {
@@ -87,7 +185,7 @@ process.stdin.on("end", () => {
             decision = "deny";
             reason =
               `agent-write-scope: ${agentType} may only write to ${allowed.join(", ")} — ` +
-              `"${raw}" is outside it. Artefacts go to .claude/handoff/<task-slug>/; ` +
+              `"${raw}" is outside it. Artefacts go to .handoff/<task-slug>/; ` +
               `report findings to the caller instead of editing the tree.`;
           } else {
             reason = `agent-write-scope: ${agentType} writing inside its scope`;

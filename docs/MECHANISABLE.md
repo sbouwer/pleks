@@ -9,11 +9,18 @@
 > This note lives here because those commits are already pushed and amending them would require a
 > force-push — denied by `hook:bash-gate`, and by the push policy itself.
 
-**60 entries** as of 2026-08-18. Extracted from the `CLAUDE.md` + `.claude/rules/*.md` triage pass
-(`node scripts/check-claude-md.mjs`), which found ~100 of ~118 rules UNENFORCEABLE and, of those, 60
+Originally extracted from the `CLAUDE.md` + `.claude/rules/*.md` triage pass
+(`node scripts/check-claude-md.mjs`), which found most rules UNENFORCEABLE and, of those, the subset
 carrying a `MECHANISABLE (rung: … · blast: …)` sketch of what a mechanism would assert. This register
 holds the sketches so they stop paying rent in the always-loaded files; the source files now carry a
 one-line pointer (`MECHANISABLE → M-0NN`) instead.
+
+**No entry count here — it is a stat, stale by definition** (CLAUDE.md §4). This line previously read
+"60 entries as of 2026-08-18" and was still saying it at 82. Worse than merely stale: it was the only
+age evidence in the file, and a triage pass reached for it as if it dated the entries. **It does not.
+`git log` puts M-003…M-073 in ONE commit on 2026-08-20 (`fd818c0c`)** — the register has no per-entry
+age, and entry NUMBER is not a proxy for one. Count with `grep -cE '^### M-[0-9]+'` when a number is
+actually needed.
 
 **This is a build queue, not doctrine — it only shrinks.** An entry is removed when its mechanism ships
 and the source rule gets an `@enforced` tag instead of a pointer (moving a rule from N to D in the
@@ -752,12 +759,18 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 
 </details>
 
-### M-063 — extend the stem-pair check to the js-family and multi-extension spellings
-- **Rule:** "Do not split an extension migration across commits" — the half `check-extension-stem-pairs` does NOT cover (`CLAUDE.md`, DO NOT DO)
-- **Where it lives:** `CLAUDE.md:389-390` — the second of the two bullets the rule was split into
+### M-063 — extend the stem-pair check to the js-family and multi-extension spellings — ✅ BUILT 2026-08-21
+- **Rule:** "Do not split an extension migration across commits" — the half `check-extension-stem-pairs` did NOT cover (`CLAUDE.md`, DO NOT DO)
+- **Where it lives:** `CLAUDE.md` — the two split bullets are now **rejoined into one**, since the coverage boundary that justified the split is gone
+- **⚠ TWO PREMISES OF THE SKETCH BELOW WERE WRONG, and both were found by building it. Read them before reusing this entry's reasoning anywhere:**
+  1. *"Widen `sourceFiles`'s extension test"* — the `.ts`/`.tsx` test was hardcoded in **three** independent places (`sourceFiles`, `findStemPairs`, `gitTrackedSourceFiles`). Widening one would have under-reported silently. The shipped fix derives the regex FROM the extension array so the two spellings cannot drift — and that same class then bit the build **twice more** (a floor table diverging from its own guard list; a probe list diverging from the table). **Two independently-maintained spellings of one set is the defect class this entry should be remembered for**, not the extension list.
+  2. *"webpack's resolve order puts `.js`/`.mjs` AHEAD of `.ts`/`.tsx`"* — **not verifiable from this repository.** No override, no lockfile pin, upstream default only. `allowJs: true` IS verified in `tsconfig.json`, so the hazard shape is real, but the ordering claim was asserted rather than observed and is not repeated in the shipped text. Detection therefore ships **symmetric**, not directional: the walker's ruling, and it is the right one — a directional report would have to name which file wins, which is precisely the thing that could not be established.
+- **The "more dangerous half" framing is TEMPERED, measured:** all 81 js-family files are in `scripts/`, `eslint-rules/`, `.claude/hooks/`, postcss and supabase — **zero under `app/`, `lib/`, `components/`**, so the bundle-time hazard has no live surface today. The check is a ratchet against the first one that lands there. It landed green with no baseline, as predicted.
 - **Rung:** check · **Blast:** other
 - **Sketch:** M-041 shipped covering `.ts` ↔ `.tsx` only, which is what its sketch specified. The walk on that build measured the boundary: `/\.tsx?$/` also misses `.mts`, `.cts`, `.jsx`, `.mjs`, `.cjs` — 9 tracked `.mts` and 78 tracked js-family files today. **The uncovered half is the more dangerous one.** `tsconfig.json` has `allowJs: true` and Next's webpack resolve order puts `.js`/`.mjs` AHEAD of `.ts`/`.tsx`, so a surviving `foo.js` beside a new `foo.ts` shadows it at BUNDLE time while `tsc` typechecks the new file happily: typecheck green, runtime stale, and no gate in this repo looks at bundle-time resolution. The covered `.ts`-over-`.tsx` direction is at least visible to `tsc`. Sketch: widen `sourceFiles`'s extension test and give `findStemPairs` a resolution-ORDER model rather than a symmetric pair test — the finding is "the file that wins is not the file you added", which is directional, unlike the `.ts`/`.tsx` case where either survivor is a defect. Zero live violations of any extension combination as at `7f7ba3d0`, so this too would land green and needs no baseline.
-- **Covering spec:** NEW — split out of M-041 per CLAUDE.md §4, "coverage boundaries split the rule, never qualify the tag"
+- **What it cost, and what that says about the register's estimates:** built through a full P1 pipeline — GROUND, three IMPLEMENT legs, three WALKs, **48 mutants across the three walks plus 5 more from Main**. The check went from 13 probes to 39. Every walk found real defects **in the previous walk's repair**, none in the original transform. A one-line-sketch entry is not a one-commit entry, and the gap is not scope creep: it is the probe work that makes the difference between a check and a check that reports coverage it does not have.
+- **The failure mode this build kept reproducing, three times in three different costumes:** a probe that cannot fail. (1) Dropping `.jsx` from the extension array was invisible to 23 probes. (2) The `-z` hardening's own probe asserted a *space* in a filename — `git ls-files` neither quotes nor breaks on spaces, so reverting `-z` was invisible to all 37; a non-ASCII name discriminates and a space never could. (3) The floor table's guard compared **lengths**, so a coordinated two-site edit agreed with itself. **The third has no probe-side fix** — any two hand-maintained lists agree when both are edited consistently — and is closed instead by a guard derived from the TREE (`zeroFloorsWithLiveFiles`): an extension with live files may not carry a floor of 0. When a probe and the thing it guards are both authored by the same hand, only an outside source of truth breaks the tie.
+- **Covering spec:** NEW — split out of M-041 per CLAUDE.md §4, "coverage boundaries split the rule, never qualify the tag"; the split is now **rejoined**, same rule applied in reverse once the boundary closed
 
 ### M-064 — a check must not depend on how the tree was materialised
 
@@ -789,6 +802,20 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **The limitation, stated up front:** `brief/` is a OneDrive symlink and is **not version-controlled**, so this check can never run in CI — CI has no `brief/`. It can only run locally, and must SKIP-and-say-so when the directory is absent rather than pass silently. That makes it a weaker rung than a normal check (CLAUDE.md §1: "anything the tooling depends on belongs in the tracked tree instead"). Two honest options, and the choice is CD's: accept a local-only ratchet, or move the reference documents that matter into the tracked tree first and check those. Do not build it as a normal check and let a CI green be read as coverage.
 - **Covering spec:** NEW
 
+### M-068 — ✅ BUILT 2026-08-20
+
+**Was:** nothing stops a subagent committing.
+
+**Built as:** `.claude/hooks/agent-write-scope.js` now matches `Bash` as well as the edit tools, and denies `git commit|merge|rebase|cherry-pick|revert|am|push` from any subagent — including `implementer`, whose unrestricted *write* grant was never a commit grant. Read-only git (`log`, `diff`, `show`, `status`, `grep`, `merge-base`) and the main session are untouched. 42 probes in `scripts/check-agent-write-scope.mjs`, both directions.
+
+**Two bugs the known-good half caught, in the first two runs — the argument for writing it:**
+1. `\b` after `merge` matched inside `git merge-base`, which every grounder runs to test ancestry and which writes nothing. Fixed with `(?![\w-])`.
+2. `git -C /repo commit` defeated the flag-parsing, because `-C` takes a value and the value is not a flag. Rather than enumerate every global option that takes an argument and be wrong on the next one, the test stopped parsing git's grammar: find `git`, then look for a denied subcommand as a standalone token anywhere after it. **An unusual invocation cannot slip past a test that does not depend on the invocation's shape.**
+
+**Accepted false-deny, stated rather than discovered later:** a command merely mentioning both (`rg "git commit" docs/`) is denied. Correct direction to be wrong in — the agent is told what to do instead; a false-allow leaves an unreviewed commit on the caller's branch.
+
+**Superseded text below, kept for the reasoning.**
+
 ### M-068 — nothing stops a subagent committing
 
 - **Rule:** "the implementer ends at a report; YOU commit and push (it never does)" — `CLAUDE.md` §5 and §7
@@ -796,6 +823,79 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Rung:** hook · **Blast:** other
 - **Sketch:** `.claude/hooks/agent-write-scope.js` declares `// @matcher Write|Edit|MultiEdit|NotebookEdit` — it gates *where* an agent writes and never sees `Bash`, so `git commit` from inside a subagent is ungated. `bash-gate.js` denies `--no-verify` and force-push and asks on `git push`, none of which is "a subagent must not commit". Sketch: extend the write-scope hook's matcher to `Bash` and deny `git commit` / `git merge` / `git rebase` when `agent_type` is set, reusing the E7 `agent_type` field the hook already reads. Probe both directions — a commit attempted from an agent must be denied, and the same command from the main session must pass untouched.
 - **Exposed, not created, by the E10 ruling (2026-08-20):** worktree isolation never enforced this either. It made a subagent's commit land on a throwaway branch instead of yours, which hid the behaviour rather than preventing it — and it hid it *while making the agent's work invisible to your tree*, which is the E10 defect. Dropping isolation removes the accidental concealment and leaves the real gap in view. Do not read "isolation used to protect us here" into it.
+- **Covering spec:** NEW
+
+### M-074 — the purge clock advances whether or not the 30-day warning is ever delivered
+
+- **Rule:** counsel ruling 2026-08-20 — the Day-0 cancellation notice may state a *minimum retention period* instead of a deletion date, **"provided the surrounding lifecycle actually delivers the eventual date"**. The 30-day warning is that delivery. It is therefore a condition of the Day-0 disclosure being sufficient, not a courtesy send.
+- **Where it lives:** the counsel ruling recorded in `brief/legal/CANCELLATION_EMAIL_TEMPLATES_v1.1.md` and the header of `lib/comms/templates/agent/subscriptions/cancellation.tsx`. No code depends on it.
+- **Rung:** check (+ schema) · **Blast:** data-boundary
+- **Measured at `e4d75e3e`, 2026-08-20 — `processPurgeWarnSub` (`app/api/cron/subscription-purge-warnings/route.ts:78-110`) advances the lifecycle before, and independently of, any delivery:**
+  - `purge_eligible_at` and `purge_warning_sent_at` are written **first**; the send happens after.
+  - The send is wrapped in `.catch()` that only `console.error`s. A failed send does not fail the step, does not roll back the date, and does not retry the *step*.
+  - `if (contact)` — when `fetchOrgContact` returns no contact, **no email is attempted at all** and the clock still advances: the update already landed, `recordAudit` runs, the function returns `true`.
+  - `purge_warning_sent_at` **records that the cron ran, not that mail was delivered.** The column name asserts a delivery the code never establishes — which is why the gap reads as covered.
+  - Nothing downstream re-checks. `processFinalWarnSub` guards against duplicate *final* warnings via `communication_log`, but no step makes purge conditional on the 30-day warning having been delivered.
+- **What that means after the ruling:** an org can be purged having never received the exact deletion date, while the Day-0 notice it *did* receive was sufficient only on the premise that the date would arrive. The two-stage disclosure silently collapses to one stage, and the failure is invisible — a `console.error` in a cron log.
+- **Sketch — THREE parts, not one. `defer` alone is a second breach with better intentions.**
+  1. **Gate purge on delivery.** A `communication_log` row for `subscription.purge_warning_30d` is already written by the send path, so the signal exists. Gate `processPurgeDueSub` on it.
+  2. **Defer when absent** rather than purging.
+  3. **Surface every deferral as an operational item** — never log-and-continue, and **the no-contact case must be distinguishable from the send-failed case**, because they need different human responses (find a contact vs. investigate delivery).
+- **⚠ Why (3) is load-bearing and not polish:** an org with **no contact can never satisfy the gate**, so it defers forever — and **indefinite retention is also a POPIA failure, in the opposite direction.** Section 14 requires deletion once retention is no longer authorised. *"We never purged it because we couldn't warn them"* is not a defence; it is a second breach. This is **L-22 on a path where the quiet failure is legally symmetrical to the loud one** — the usual asymmetry that makes "fail closed" the safe default does not hold here, and a deferral that nobody sees is not a safe state.
+- **Probes, both directions and then some:** a purge with the warning logged must PROCEED · one without must DEFER · a deferral must RAISE an item · a no-contact deferral must be distinguishable from a send-failure deferral.
+- **⚠ The naming class is why this survived review, and the entry says so deliberately.** `purge_warning_sent_at` is **a column named for an outcome that records an attempt.** Same shape as a commit message claiming a build failure that did not exist, and as a `documented:` flag that records intent rather than fact. **A name asserting more than the code establishes reads as covered on every skim it ever gets.** Do **not** "fix" this by renaming the column — the missing thing is the dependency, not the label — but do not let the next reader take the same skim either.
+- **Timing, stated rather than assumed:** the population that can reach purge today is **empty** — no customer has cancelled, let alone eleven months ago. This is prospective, with a runway of at least eleven months past the first cancellation. **That is not licence to let it age in the register**; it is the reason it can be built properly, with the probes above, instead of hot-patched under pressure.
+- **Related:** M-071 (a retried send replays stored HTML, so a retry preserves the date but would drop any attachment). The date survives retry; the *step* has no retry.
+- **Provenance:** found while verifying the conditions counsel attached to their approval. The approval created the dependency — before it, a missed warning was an ops nuisance; after it, it is the leg the Day-0 disclosure stands on.
+- **Covering spec:** ADDENDUM_57G §11.3 · counsel ruling 2026-08-20
+
+### M-071 — attachments are supported, unimplemented, and silently dropped on retry
+
+- **Rule:** ADDENDUM_57G §11.3 — the T-30 purge warning goes *"with full export bundle attached"*. Not implemented, and not implementable as a one-line parameter.
+- **Where it lives:** §11.3 only. No code, no check.
+- **Rung:** check (+ migration) · **Blast:** data-boundary
+- **Measured at `f7c51d89`, 2026-08-20 — three states, and the first two readings each got it wrong in opposite directions:**
+  - **SUPPORTED.** `SendEmailParams.attachments?: Array<{ filename; content: string | Buffer; contentType? }>` (`lib/comms/send-email.ts:86`), forwarded to Resend (`:341`). `sendPlatformEmail(params: SendEmailParams)` spreads the whole object into `sendEmail` (`lib/subscriptions/sendWithRetry.ts:28,37`). A first send would carry an attachment today.
+  - **UNIMPLEMENTED.** Nothing passes one on this template. The warning templates render `<EmailButton href={appUrl}/reports>`.
+  - **SILENTLY DROPPED ON RETRY.** `drainPlatformEmailRetries` rebuilds a fresh `{ orgId, templateKey, to, subject, rawHtml }` from `platform_email_retries` (010 §1248 — columns `subject` + `body_html`, **no attachments column**). The retry re-sends from stored HTML.
+- **The defect this would ship if built naively:** an email that arrives **with** the bundle on the first attempt and **without** it on every retry — on the path that exists precisely because these sends matter, for the recipient whose delivery already failed once, with nothing reporting the difference. The customer receives a POPIA-adjacent statutory notice that promises an attachment it does not carry.
+- **Sketch:** one change across both halves or it is not started. (1) An `attachments` column on `platform_email_retries` plus persistence and replay in the drain; (2) the send site passing the bundle; (3) a check asserting the drain's field set is a superset of what the sender accepts — the general form, so the next field added to `SendEmailParams` cannot silently fail to survive a retry. Probe both directions: a retried send WITH an attachment must arrive with it, and a field added to the sender but not the retry table must FAIL.
+- **Do not build without a ruling.** Emailing a full PII bundle unprompted has its own POPIA posture, and CD ruled 2026-08-20 that **the spec moves — a link satisfies §11.3**. This entry is the build if that ruling is ever reversed, and the reason reversing it is not cheap.
+- **Provenance:** the claim "the code cannot attach" was asserted from a single-file grep, propagated to four documents, and falsified by a cleared session that resolved the type instead. See L-42/L-43 in `dev-standards/ledgers/LESSONS.md`.
+- **Covering spec:** ADDENDUM_57G §11.3
+
+### M-072 — `bash-gate` matches a flag token without checking which command owns it
+
+- **Rule:** `--no-verify` is forbidden on commit/push (`CLAUDE.md` §3, hook-denied).
+- **Where it lives:** `.claude/hooks/bash-gate.js`.
+- **Rung:** hook · **Blast:** other
+- **Measured at `f7c51d89`, 2026-08-20:** `git push > "$LOG" 2>&1; ...; grep -n "vitest" "$LOG"` was DENIED with *"-n is --no-verify on commit/push and is forbidden"*. The `-n` belongs to `grep`, not to `git push`. The hook found a git verb and a denied flag token in the same command string and joined them.
+- **Token-anchoring's fourth costume, in the hook family M-068 just corrected.** The first three: `\b` after `merge` matching inside `git merge-base`; `git -C /repo commit` defeating a flags-then-subcommand pattern; a grep for a parameter name where the parameter arrives through a type. Same root — **the token found is not the token meant.**
+- **Sketch:** same fix as M-068's. Find the command, then check only the flags belonging to *that* command — split on `;`/`&&`/`||`/`|` into segments, identify the segment whose leading verb is `git`, and match denied flags within that segment alone. Probe both directions: `git push --no-verify` must DENY, and `git push && grep -n x f` must ALLOW. **The known-good half is the half that finds these** — it is how both M-068 bugs surfaced.
+- **Direction of the failure:** fail-safe (a false deny, not a false allow), which is why it is a register entry and not an incident. But it blocks legitimate reads, and a gate that cries wolf is a gate people learn to route around.
+- **Sharper instance, found while filing this entry:** the commit message documenting M-072 and M-073 was itself DENIED, because its prose contained the words for a hard reset while describing why that operation is hook-denied. No command was being run — the string was heredoc text destined for a commit message. **The hook cannot distinguish a command from prose about a command**, which means the class it guards is also the class it prevents you from writing down. M-068's entry already accepted this direction of error (`rg "git commit" docs/` is denied); what is new is that it obstructs the register entry describing it. Segment-aware matching fixes both.
+- **Covering spec:** NEW
+
+### M-073 — nothing local stops a commit landing on the default branch
+
+- **Rule:** "If on the default branch, branch first" — and `main` is ruleset-protected on the remote.
+- **Where it lives:** prose only. `CLAUDE.md` §3 covers push policy; `.githooks/pre-commit` runs `npm run check` and says nothing about which branch it is on.
+- **Rung:** hook · **Blast:** other
+- **Measured at `f7c51d89`, 2026-08-20:** five commits were made directly on local `main` and every local gate passed — `npm run check` green on each. The violation was caught only by the GitHub ruleset at push time (`GH013`, "Changes must be made through a pull request"), after which the commits had to be moved to a branch and local `main` reset. **M-007's shape exactly:** a rule stated in `CLAUDE.md` with no local gate, where the remote is the first thing that notices.
+- **Sketch:** a `.githooks/pre-commit` guard failing when `git branch --show-current` is the default branch, resolved from `origin/HEAD` rather than hardcoded. Cheap, and it catches the error at the point where fixing it is one `git switch -c` instead of a reset. Probe both directions: a commit on `main` must FAIL, and the same commit on any other branch must PASS.
+- **Why the remote catching it is not good enough:** by then the work is committed, and the remedy (`git reset --keep`) sits one keystroke from `git reset --hard`, which is hook-denied for good reason. A local gate keeps the recovery trivial rather than adjacent to a destructive operation.
+- **Covering spec:** NEW
+
+### M-070 — a generated seed artefact with no regeneration check
+
+- **Rule:** `lib/comms/templates/seed/generated/document_templates.seed.generated.sql` is generated from `lib/comms/templates/seed/*.ts` by `scripts/gen-template-seed.mts`. The committed artefact is expected to match its source.
+- **Where it lives:** nowhere. Not a CLAUDE.md bullet, not a rule file, not a check.
+- **Rung:** check · **Blast:** data-boundary
+- **Measured at `e5e7abf9`, 2026-08-20:** `scripts/gen-template-seed.mts` is **referenced by nothing** — not `package.json`, not CI, not any `check-*.mjs`. A repo-wide grep for `gen-template-seed` returns only the file itself. `check-drift-if-sql-changed.mjs` and `check-schema-drift.mjs` cover Supabase *schema* drift, not this generator. Source and artefact were in sync at the time of measurement (mtimes 4 ms apart, same regeneration run) — **which is a property of whoever last ran it by hand, not a maintained invariant.**
+- **Sketch:** regenerate to a temp file, diff against the committed artefact, fail on mismatch. Standard generated-artefact guard; the generator already exists, so this is wiring plus a probe, not new machinery. Probe both directions: an edited source with a stale artefact must FAIL, and a freshly regenerated tree must PASS.
+- **Why it matters more than a normal codegen drift:** the rows carry `legal_review_ref` values (`ADDENDUM_70C §8.8`, `§10.1`, `§10.3`) and some are `locked: true` counsel-signed copy. A silent divergence between source and artefact means the text counsel signed and the text that reaches the database are two different strings, with nothing reporting it. The failure is invisible by construction — a stale artefact is a valid SQL file that applies cleanly.
+- **Live instance of exactly that:** `subscription.cancellation_confirm` (generated:890) still promises a deletion date — "your data is available until `{{purgeEligibleAt}}`" — after `e5e7abf9` moved the code path to a period-based promise. Not a drift defect *yet*, because both source and artefact are equally stale, which is the point: they agree with each other and disagree with the product. Settling that is counsel's call (see the item-3 fork), but when it is settled, three surfaces must move together and only two of them are in TypeScript.
+- **Provenance:** found 2026-08-20 while checking whether a third copy of the Day-0 cancellation text was a live implementation or an inert seed. It was inert — and the *reason* the check was cheap to run is that generated and source happened to agree. Filed because the next person will not be that lucky.
 - **Covering spec:** NEW
 
 ### M-069 — two competing Information-Regulator SSOTs, and the declared one has zero importers
@@ -819,4 +919,137 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Where it lives:** the helper's header comment. No CLAUDE.md bullet, no rule file, no check.
 - **Rung:** eslint · **Blast:** data-boundary
 - **Sketch:** found 2026-08-20 by the knip tranche-2 sweep, which flagged the export as unreferenced. It is not dead code — it is an **unenforced invariant**, which is the more dangerous reading of the same evidence: the guard exists, the rule is written down, and **no query in the tree applies it**. Either every org-iterating query is already safe for a reason the comment does not give, or the platform org is silently included in fan-outs that were meant to exclude it. Nobody has established which, and the helper's existence has been standing in for the answer. Two pieces of work, in order: (1) census every "for each org" query and classify per site whether platform-org inclusion is a defect there — the answer decides whether this is a burn-down or a no-op; (2) only then, an ESLint rule over org-iterating query shapes. Do NOT build (2) first; a rule with no measured population is how a check's first number becomes a finding.
+- **Covering spec:** NEW
+
+### M-075 — `check-git-hooks`'s probes are not concurrency-safe
+
+- **Rule:** a probe's result must be a function of what the tree SAYS, never of what else is running — the same family as **M-064** ("a check must not depend on how the tree was materialised"), one axis over: time rather than checkout
+- **Where it lives:** `scripts/check-git-hooks.mjs` — the probes that spawn real `.githooks/*` invocations with a shimmed `npm`
+- **Rung:** check · **Blast:** other
+- **Measured, 2026-08-21, not inferred:** two `npm run check` chains run concurrently against one checkout produced **3 failing probes in one chain and 1 in the other** — different failures, same tree, same commit (`078926eb`), both spurious. Named: `pre-commit passes when "npm run check" succeeds`, `pre-merge-commit passes when …`, `prepare-commit-msg: a marker for THIS tree skips the gate`, and in the other chain `prepare-commit-msg passes when …`. The probes shell out to the real hooks, which resolve and invoke `npm run check` themselves, so two chains contend over hook state and over the marker file that records "this exact tree already passed".
+- **Why it is filed rather than fixed on sight:** it is **harmless today and the reason is worth stating** — nothing runs two chains on one checkout, and CI gets a fresh one per job. Filing it is not a plan to fix it; it is so the next person who sees these four probes fail does not go looking for a defect in the hooks. **A probe that can report a defect that is not there costs more than one that misses**, because it is chased.
+- **The sharper consequence, and the reason this is not merely trivia:** it makes the two-chain concurrency test unusable for diagnosing anything downstream of it. That is exactly how it was found — the test was aimed at the vitest zero-collection intermittent, and **both chains died here, before vitest ran**, so the trial measured nothing about its target. A concurrency-unsafe check early in a chain is a blindfold over every step after it.
+- **Sketch:** give the hook probes a per-process scratch root and a unique marker path (they already build fixtures in `os.tmpdir()`; the contention is over the shared repo-relative marker and the shimmed `npm` resolution), then probe the property directly — run the probe body twice concurrently and require both green. Do NOT "fix" it by serialising the check; that hides the shared state rather than removing it.
+- **Related:** M-064 (materialisation-independence) · [[l-44]] (a probe and the thing it guards, authored by the same hand) — this is a third axis on the same theme: a probe whose result is a function of something other than the artefact under test.
+- **Covering spec:** NEW
+
+### M-076 — the re-entry cap cannot fire, because the artefacts erase the loop as it runs
+
+- **Rule:** `dev-standards/playbooks/4-AGENT-PIPELINES.md` §3.1b — `WALK_FAIL ⇒ IMPLEMENT`, **max 2 re-entries, then `decision-needed`**
+- **Where it lives:** §3.1b, and the `⇒` edges in §4's P1/P2 diagrams that cite it
+- **Rung:** check · **Blast:** other
+- **The finding, and it is about the evidence rather than the rule:** the cap is prose Main follows, which was known. What was NOT known until the disposition was audited is that **the artefacts cannot evidence it either.** A task directory holds one `NN-walker.md`; three walks appended to that one file. **The loop was overwritten as it ran**, so no check counting same-agent artefacts per task could ever have fired — not because the check does not exist, but because the evidence it would count was destroyed at the moment it was produced. This is the accreting-artefact problem in a place already ruled on: **one artefact per agent step, immutable once written. Three walks are three steps.**
+- **Sketch — two parts, both cheap:**
+  1. **Walks number sequentially** like every other step: `03-walker.md`, `05-walker.md`, `07-walker.md`. No new convention — the existing immutability ruling already requires it; the practice had drifted to append-in-place because a walk "continues" the previous one conceptually. It does not: it observes a **different tree**.
+  2. **A check fails a task directory carrying more than three artefacts of one agent type** (one initial + two permitted re-entries). Aperture is the task directory; the count is the whole test. Probe both directions: a directory with three walker artefacts must PASS, one with four must FAIL.
+- **⚠ Do not build (2) without (1).** With artefacts appended in place the check counts 1 forever and passes green having measured nothing — the green-and-unfailable class, arrived at by building the enforcement half of a two-part fix. The naming change is the load-bearing half.
+- **Until both exist, the rule is UNENFORCEABLE by the standard's own grammar and is now marked so at its site.** It had been reading as a bound.
+- **Not a criticism of the run that found it.** The cap DID hold at pleks M-063 — the pipeline exited `⊗ MAIN` at walk 3 and Main finished by hand. But it held because Main stopped, and the surviving artefacts cannot distinguish that from a Main that did not. **A rule that was obeyed and cannot be shown to have been obeyed is indistinguishable from one that was not**, which is the whole reason acceptance item 5 exists.
+- **The cap's rationale, recorded at the same site because a limit justified only by cost gets raised:** at walk 3 the four remaining findings were one-line probe fixes — exactly the shape that makes a fourth re-entry feel obvious. Taking them by hand is what surfaced that one had **no probe-side fix** and needed a tree-derived guard rather than another patch. **The cap forces a mode switch, and the mode switch finds a different class of thing.**
+- **Related:** [[l-44]] (the tree-derived guard that finding produced) · M-064, M-075 (probes whose result is a function of something other than the artefact under test)
+- **Covering spec:** `dev-standards/playbooks/4-AGENT-PIPELINES.md` §3.1b · §11 step 4b item 5
+
+### M-077 — `HELP_CONTENT_DRAFT` is a sign-off gate that nothing reads
+
+- **Rule:** `lib/help/help-data.ts:8` — its own header: "⚠ DRAFT — `HELP_CONTENT_DRAFT` is true until Stéan's §7 content-compliance pass signs off every answer"
+- **Where it lives:** that header comment and the constant's own declaration. No CLAUDE.md bullet, no rule file, no check.
+- **Rung:** eslint · **Blast:** other
+- **Measured at `b2eda39d`, 2026-08-21** (repo-wide `HELP_CONTENT_DRAFT`, excluding `docs/DEAD-CODE-QUEUE.md`): **two hits, and both are the declaration** — the header sentence at :8 and `export const HELP_CONTENT_DRAFT = true` at :40. **Zero readers.** The `/help` page and the help widget import `HelpRole` and the content itself and never consult the flag, so the un-signed-off state is asserted in a comment and rendered to users regardless.
+- **Third instance of M-067's class, and the class is now confirmed rather than suspected.** M-067 (`excludePlatformOrg`, a stated MUST) and M-069 (`INFORMATION_REGULATOR_URL`, a stated SSOT) are the same shape: **a constant whose existence stands in for the enforcement it names.** Three in two sweeps from independent domains — comms fan-out, legal copy, help content — makes it a repo-wide pattern with a single generalisable check, not three unrelated dead exports.
+- **Sketch — and note this one is cheaper than its two siblings, which is why it is worth doing first:** unlike M-067 (needs a per-site census before any rule) and M-069 (blocked on a counsel decision about which constant wins), this flag has **no prior decision to make**. Either it gates something or it should not exist. Two candidate shapes: (a) the narrow one — `/help` refuses to render, or renders a visible draft banner, while the flag is true, which converts the comment into behaviour; (b) the general one — a check that any `export const *_DRAFT`/`*_REQUIRED`-shaped boolean with zero readers fails, which is the class-level rule the three instances argue for. **(a) is a one-file change and provable; (b) needs its population measured before a number is recorded.** Do not ship (b) on a population of three.
+- **The reading that makes this a finding and not a knip deletion:** the export is unreferenced, so a dead-code sweep proposes deleting it — which would remove the *only* record that the content is unsigned, leaving the tree in the state the header warns against with nothing saying so. **Deleting an unenforced invariant is strictly worse than leaving it,** because it converts a visible gap into an invisible one. Same trap as M-067 and M-069.
+- **Provenance:** surfaced by the `census → census ×4` fan-out over the knip census (slice 3), classified JUDGMENT/other; **verified independently on filing** rather than taken on the child's word — the grep above and the absence of an existing register entry were both re-run against the tree. Artefact: `docs/DEAD-CODE-QUEUE.md` (Appendix C + the Promote section).
+- **Covering spec:** NEW
+
+### M-078 — counsel-reviewed disclaimer text exists three times, and the SSOT copy is the unused one
+
+- **Rule:** `lib/leases/disclaimer.ts:12,47` — its own comments name both source documents (`brief/legal/FINAL_PLATFORM_DISCLAIMER.md`, `brief/build/ADDENDUM_44A_CREDIT_TERMS.md §3`) and mark both constants "attorney reviewed". A constant that cites a legal source document IS a claim to be the SSOT for it.
+- **Where it lives:** those two comments. No check; `no-rerolled-money-format` and `no-adhoc-dates` guard their SSOTs, nothing guards this one.
+- **Rung:** check · **Blast:** data-boundary (liability text on a document a tenant signs)
+- **Measured at `b2eda39d`, 2026-08-21** — read at all three sites, not inferred from the census:
+  - `DISCLAIMER_GATE_TEXT` (`disclaimer.ts:14`) — **zero importers.** The live modal, `components/leases/LeaseDisclaimerGate.tsx`, hand-types the same text into a `SECTIONS` array: all six clause bodies verbatim, the intro paragraph verbatim, the "By clicking 'I accept'" closer verbatim.
+  - `DOCUMENT_DISCLAIMER_TEXT` (`disclaimer.ts:49`) — **zero importers.** `lib/leases/generateDocument.ts:692-711` builds `platformDisclaimer` from an inline array whose four strings are byte-for-byte the constant's four paragraphs, under the same `IMPORTANT NOTICE` heading — **including a duplicated copy of the source-document comment.**
+- **The two copies are NOT equally checkable, and that difference decides the mechanism:** the PDF copy is a clean structural split — prefix the heading, `join("\n\n")`, and it reconstructs the constant exactly, so an equality assertion is possible today. The gate copy is **not** reconstructable: headings are title-case in the component and UPPERCASE in the constant, and the constant's lead sentence ("Before using the Pleks lease template system…") has no counterpart in the modal, which opens with a header and a scroll instruction instead. **So the honest fix is asymmetric** — the PDF site can simply import the constant; the gate site needs the constant restructured into the sections the UI actually renders before it can. A check written as "these two strings are equal" would pass on the PDF and fail on the gate for a reason that is not a defect.
+- **Sketch:** (1) wire `generateDocument.ts` to `DOCUMENT_DISCLAIMER_TEXT` and delete the inline array — one edit, provable by a test asserting the generated paragraphs equal the constant's split; (2) restructure `DISCLAIMER_GATE_TEXT` into the `{heading, body}[]` shape the modal renders, export that, and have both the modal and any future plain-text rendering derive from it; (3) only then, a check that the disclaimer strings appear nowhere outside `lib/leases/disclaimer.ts` — the `no-rerolled-*` shape. **Order matters: (3) before (1) and (2) is a red gate over attorney-reviewed copy with no legal fix available.**
+- **Why this is a defect and not dead code, stated plainly because the sweep proposed the opposite:** knip flagged both constants as unused exports. Deleting them removes the only file that names which legal source document each block of text came from, leaving two hand-maintained copies of liability wording with no provenance and no link to each other. **Counsel amends one document; whoever applies the amendment has to know there are two places, and after the deletion nothing tells them.** The failure mode is a lease PDF and an acceptance modal that disagree about what the user agreed to — which is exactly the artefact that would be produced in a dispute.
+- **Related:** M-077 (same fan-out, same "unused export is really an unenforced invariant" reading) · M-069 (two competing SSOTs, declared one has zero importers — this is that pattern with the copies inline rather than in a second constant)
+- **Provenance:** surfaced by the fan-out's slice 3, classified JUDGMENT/security-compliance; **all three sites read on filing**, and the gate-copy asymmetry above is a correction to the artefact's "word-for-word" summary, which was true of the clause bodies and loose about the lead. Artefact: `docs/DEAD-CODE-QUEUE.md`.
+- **Covering spec:** NEW
+
+### M-079 — the implementer's unrestricted write grant is defended by a control E10 removed
+
+- **Rule:** `.claude/hooks/agent-write-scope.js` — `implementer: null` in `SCOPES`, justified in the same file as "implementer's whole remit IS editing source, and its containment is **the worktree it is spawned into**, not a path list"
+- **Where it lives:** that comment, and nowhere else. The grant itself is one line of a lookup table.
+- **Rung:** hook · **Blast:** other
+- **The finding, and it is about the JUSTIFICATION rather than the grant.** There is no worktree any more. The E10 ruling moved implementer to the main checkout, and **the same file's header says so three paragraphs above** — "Dropping isolation (E10 ruling) removed the concealment". So one file simultaneously records that isolation was dropped and cites isolation as the containment for its only unrestricted write grant.
+- **The grant may well still be right** — path-scoping an agent whose entire job is editing arbitrary source is close to impossible, and the alternative (ask on every edit) makes the implementer useless. What changed is what actually contains it: **the caller's review of a dirty tree, plus the commit denial in the same hook.** Those are different guarantees from a throwaway checkout, and neither is named at the site.
+- **Sketch:** replace the stale sentence with the two controls that really apply, and state the residual exposure plainly — an implementer can write anywhere in the main checkout, and the only thing between that and a landed change is a human reading `git status`. If that is too thin, the mechanism is not a path list but a **write manifest**: the caller declares the files in scope at spawn time and the hook denies outside them. That is buildable today — `agent_type` and `cwd` are both in the payload — and it is the shape the spine's "declared scope" language already assumes exists.
+- **Why it is filed rather than fixed on sight:** changing a security posture on the strength of a stale comment is how the posture got stale. The grant is a deliberate decision that needs re-taking with the current facts, not a typo.
+- **Related:** E10 (`docs/EXPERIMENTS.md`) · M-068 (nothing stops a subagent committing — the control that now does half this work)
+- **Provenance:** CD review, 2026-08-21, against `.claude/hooks/agent-write-scope.js` read in full at `ca4689dc`. **E10 fallout nobody swept.**
+- **Covering spec:** NEW
+
+### M-080 — two hooks match `Bash` and their precedence is undocumented and unprobed
+
+- **Rule:** implicit — when two PreToolUse hooks both match a tool and return different decisions, one wins. Nothing states which.
+- **Where it lives:** nowhere. `bash-gate.js` matches `Bash`; `agent-write-scope.js` matches `Write|Edit|MultiEdit|NotebookEdit|Bash`. Every Bash call in every subagent runs both.
+- **Rung:** check · **Blast:** other
+- **Why it matters, specifically:** the **force-push denial lives in one hook** and the **subagent commit denial lives in the other**. Presumably most-restrictive wins — but that is an assumption, neither file asserts it, and **no probe exercises the disagreement case at all**. Both suites test their own hook in isolation, which is precisely the configuration in which a precedence bug is invisible.
+- **Sketch:** construct one payload the two hooks decide DIFFERENTLY — a subagent running an ordinary commit, which `bash-gate` allows and `agent-write-scope` denies — and assert the composite decision the harness actually applies. **This is a measurement before it is a check:** the answer is a harness behaviour nobody here has observed, so it belongs in `docs/EXPERIMENTS.md` first and becomes a probe once known.
+- **⚠ Do not write the check against the assumed answer.** "Most restrictive wins" is the intuitive design and would produce a check that passes by agreeing with itself. Measure, then encode.
+- **Related:** E7/E8 (what the payload carries) · [[l-44]] (a probe and the thing it guards, authored by the same hand)
+- **Provenance:** CD review, 2026-08-21. Not read as part of it: `.claude/hooks/mcp-ddl-gate.js`, which may make it three hooks rather than two.
+- **Covering spec:** NEW
+
+### M-081 — three rules in one hook each re-derive "find X as a standalone token", and each got it wrong separately — **BUILT 2026-08-21 (`34468178`, `2b3a9ca9`)**
+
+> **STATUS: BUILT, partially — and the entry stays open because one of the three rules did not migrate.**
+> `segments()` + `normToken()` + `commandIndex()` now live in `bash-gate.js`; the `rm` and force-push
+> rules are token matchers over them. The `.env` rule is **still an anchored regex** — see the closing
+> note below for why that is a decision rather than an omission.
+>
+> **What the migration cost, and it is the entry's best argument:** rebuilding the `rm` rule as a
+> regex first — before the helper existed — introduced EIGHT new bypasses and a quadratic blowup,
+> and both survived a green 54-probe suite. Every one was found by adversarial review. The rules did
+> not converge on the shared shape because someone swept; they converged because the un-swept version
+> failed loudly enough to force it.
+>
+> **A mechanism nobody knew was already installed did the rest.** `sonarjs/super-linear-regex` has
+> been configured in this repo the whole time, and `.claude/**` sat in `globalIgnores` under the
+> reason "not production code" — so the one rule that catches catastrophic backtracking was pointed
+> away from the security hooks. It flagged two live patterns the instant it could see them: the one
+> written that day, and the force-push rule, years older, carrying the identical defect AND the
+> identical "the flag follows the subcommand" assumption. **Before filing a lesson as unmechanised,
+> check whether the mechanism exists and is merely scoped away from the file that needs it.**
+
+
+- **Rule:** the shape all three want — locate a command or path token, independent of what surrounds it
+- **Where it lives:** `.claude/hooks/bash-gate.js` (the `rm` and `.env` rules) and `.claude/hooks/agent-write-scope.js` (`deniedGitSubcommand`)
+- **Rung:** check · **Blast:** other
+- **Measured, 2026-08-21, three instances in two files, all defective the same way:**
+  1. `deniedGitSubcommand` matched `git <flags>* <subcommand>` and was defeated by a `-C /repo` invocation on its first probe run. Fixed, with a twelve-line comment naming the lesson: **"DELIBERATELY NOT A GIT GRAMMAR PARSER."**
+  2. The `rm` rule sat twenty lines from that comment still parsing `-rf?`, and missed **7 of 13** lethal spellings — including the root-glob form, the one that actually destroys a filesystem.
+  3. The `.env` rule anchored on surrounding characters and asked for approval on `process.env.NODE_ENV`, in a hook whose stated posture is unattended autonomy.
+- **The finding is not any of the three defects — it is that a lesson landing on one rule did not propagate to its neighbours.** Instance 1's remedy was written down, in detail, in the same file, and instances 2 and 3 were authored and reviewed past it repeatedly. The sweep stopped at the rule that prompted it, twice: the `rm` fix left `.env` untouched, and the `.env` fix initially left two of five anchors unprobed.
+- **So the remedy is structural, not editorial.** "Sweep the whole file when a lesson lands" is correct and relies on somebody remembering — the thing that already failed three times. **A shared `standaloneToken(haystack, alternatives)` helper used by all three rules makes rule four correct by construction rather than by vigilance**, and gives the lesson one home instead of three comments.
+- **Sketch:** extract the matcher, migrate all three rules onto it, keep every existing probe (they are the regression suite for the migration), and add the helper's own probe suite covering the union of the three rules' edge cases. **Probe-first and in that order** — the migration is only safe because 54 probes already pin the current behaviour.
+- **The cost of not doing it, stated because this entry's blast radius reads as low:** two of the three instances were in DENY rules with a security remit, and one of them permitted the root-glob delete for as long as the hook has existed.
+- **A live demonstration arrived while this entry was being written:** the commit carrying it was DENIED by `bash-gate` because the prose quoted a forbidden flag literally. That is the documented accepted false-deny — the rule matches a command that is merely mentioned — and it is cheap in the right direction: the author rephrases. Worth knowing before writing a register entry about a deny rule.
+- **WHY `.env` DID NOT MIGRATE, recorded so the gap is a decision and not an oversight.** The other
+  two rules ask *"which command is this, and what token follows it"* — genuinely the same question,
+  which is why one helper serves both. The `.env` rule asks *"is this string a path or a property
+  access"*, which is answered by the character BEFORE it, not by token position: `process.env` and
+  `./config/.env` tokenise identically. Forcing it onto the shared helper would have been
+  consolidation by resemblance rather than by shape, and the register's own standard — classify per
+  site, never sweep — cuts against it. **The `.env` rule's remaining exposure is its own line:** it is
+  a regex over an anchor set, and the anchor set has now been wrong twice (once over-firing on
+  `process.env.NODE_ENV`, once dropping `\` and un-gating every Windows absolute path). That is a
+  different mechanisation, not this one.
+- **What is now enforced rather than remembered** — the reason this entry can be closed at all:
+  `no-undef` and `sonarjs/super-linear-regex` run over `.claude/hooks/**` and `.claude/statusline.js`
+  as of `2b3a9ca9`, probed both directions (a planted block-scope violation fails; the real tree
+  passes). Rule four gets the backtracking half for free. The token-shape half is still vigilance.
+  <!-- @enforced eslint:sonarjs/super-linear-regex (scoped to .claude/hooks + statusline) -->
+- **Related:** M-072 (`bash-gate` matches a flag token without checking which command owns it — same family, already filed) · [[l-44]]
+- **Provenance:** CD review, 2026-08-21, across three passes; the third instance was found INSIDE the sweep the second demanded, which is the evidence that the editorial remedy does not hold. Built the same day, after a fourth instance — a quadratic regex — was introduced by the fix for the second.
 - **Covering spec:** NEW

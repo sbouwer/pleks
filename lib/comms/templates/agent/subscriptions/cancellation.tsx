@@ -3,12 +3,43 @@
  *
  * Auth:   agent-facing; sent to org owner / accountant only
  * Data:   all props injected at send time — no DB access
- * Notes:  Signed-off copy (v1.1, ADDENDUM_57G §10.6). LEGAL-REVIEW-PENDING flag removed once
- *         templates are wired to live sends. Templates 2–5 share a parametric base (WarningEmailBase);
+ * Notes:  v1.1 copy, ADDENDUM_57G §10.6. Templates 2–5 share a parametric base (WarningEmailBase);
  *         Templates 1 and 6 are written out due to unique structure.
+ *
+ *         ✅ COUNSEL-CLEARED 2026-08-20 — the period-based rewrite is approved and this component is
+ *         wired to the live Day-0 send. What was cleared: the substitution of "at least 12 months"
+ *         for "until {purgeEligibleAt}", and "at any time during the retention period" for "before
+ *         {purgeEligibleAt}". Recorded as a CLARIFICATION OF THE DISCLOSURE, not a change to the
+ *         retention policy. Nothing else in Template 1 was reopened. The gate it replaces held for
+ *         two days and did its job — it reverted a wiring that would have shipped unreviewed copy.
+ *
+ *         Template 1 promises a PERIOD, never a date — CD ruling 2026-08-20, "Settled — clock
+ *         model" in brief/legal/CANCELLATION_EMAIL_TEMPLATES_v1.1.md. `purge_eligible_at` is set
+ *         only when the T-30 warning fires (§11.3, month 11, gated on zero active leases), so at
+ *         Day 0 the date is UNDEFINED for a lease-holding org, not just unknown. Do NOT "fix" this
+ *         by naming a deletion date or by computing a provisional one — both were considered and
+ *         rejected on the record.
+ *
+ *         COUNSEL-APPROVED 2026-08-20, and note the framing, which counsel corrected: this is a
+ *         two-stage DISCLOSURE, not a change to the retention policy. Stage 1 (here) states the
+ *         minimum retention period; stage 2 (the 30-day warning) supplies the exact date once it is
+ *         determinable. Do NOT describe 12 months as "a floor rather than a deadline" — it was
+ *         always a minimum retention period, never a deletion deadline, given the lease gate and
+ *         other lawful-retention grounds. The accurate description: the wording expresses the
+ *         12-month period as a minimum retention period rather than representing an as-yet-uncreated
+ *         purge date; it does not shorten retention or permit deletion before the existing
+ *         eligibility conditions are satisfied.
+ *
+ *         ⚠ Stage 1 is sufficient ONLY BECAUSE stage 2 delivers the date. That makes the 30-day
+ *         warning legally load-bearing, not best-effort. See M-074.
+ *
+ *         OPEN JUDGMENT SITE — `cancellationMethod` has no source. Both paths into
+ *         confirmCancellationInner (app/(dashboard)/settings/subscription/actions.ts) reach AAL2
+ *         without recording which factor satisfied it, so passkey vs authenticator code is not
+ *         resolvable at the call site today. The prop is optional and the sentence is dropped when
+ *         absent, rather than guessed. Resolving it needs either a fourth CancellationMethod value
+ *         or passkey_aal_grants plumbing — a copy decision, not a refactor.
  */
-// LEGAL-REVIEW-PENDING: wire to live sends only after completing the pre-ship checklist in
-// brief/legal/Pleks Cancellation Email Templates v1.1 - Draft.md
 
 import * as React from "react"
 import { Row, Column, Section, Text, Link } from "@react-email/components"
@@ -165,31 +196,45 @@ export interface CancelledConfirmEmailProps {
   recipientName: string
   appUrl: string
   cancelledDate: string
-  purgeEligibleAt: string
-  daysUntilPurge: number
-  cancellationMethod: CancellationMethod
+  /**
+   * How the cancellation was confirmed — renders the evidentiary "We confirmed this cancellation
+   * via X" sentence. OPTIONAL because no call site can currently resolve it: both paths into
+   * `confirmCancellationInner` reach AAL2 without recording whether a passkey or an authenticator
+   * code satisfied it. Omitted → the sentence is dropped rather than guessed. See the open judgment
+   * site noted in this file's header.
+   */
+  cancellationMethod?: CancellationMethod
+  /**
+   * Absolute URL for the export CTA and the footer's export link. Defaults to `${appUrl}/reports`.
+   * Exists so a caller that computes its own export URL is not silently overridden — a signed,
+   * single-use export link is the foreseeable case, and without this prop it would be accepted by
+   * the call site and discarded here.
+   */
+  exportUrl?: string
 }
 
 export function CancelledConfirmEmail({
   branding, orgName, recipientName, appUrl,
-  cancelledDate, purgeEligibleAt, daysUntilPurge, cancellationMethod,
+  cancelledDate, cancellationMethod, exportUrl,
 }: Readonly<CancelledConfirmEmailProps>) {
+  const exportHref = exportUrl ?? `${appUrl}/reports`
   return (
     <EmailLayout
-      preview={`Your ${orgName} subscription was cancelled on ${cancelledDate}. Your data remains available and exportable until ${purgeEligibleAt}.`}
+      preview={`Your ${orgName} subscription was cancelled on ${cancelledDate}. Your data remains available and exportable for at least 12 months.`}
       branding={branding}
       footerVariant="cancelled_purge_warning"
       subscriptionAlert={{
         settingsUrl: `${appUrl}/settings/subscription`,
-        cancelledDate, purgeEligibleAt, daysUntilPurge,
-        exportUrl: `${appUrl}/reports`,
+        cancelledDate,
+        exportUrl: exportHref,
       }}
     >
-      <Text style={h1}>Subscription cancelled — your data is available until {purgeEligibleAt}</Text>
+      <Text style={h1}>Subscription cancelled — your data is available for at least 12 months</Text>
       <Text style={para}>Hi {recipientName},</Text>
       <Text style={para}>
         Your <strong>{orgName}</strong> subscription was cancelled on{" "}
-        <strong>{cancelledDate}</strong>. We confirmed this cancellation via {cancellationMethod}.
+        <strong>{cancelledDate}</strong>.
+        {cancellationMethod ? ` We confirmed this cancellation via ${cancellationMethod}.` : ""}
       </Text>
       <Text style={para}>
         By confirming cancellation, you instructed Pleks to begin the account closure and
@@ -202,13 +247,15 @@ export function CancelledConfirmEmail({
       <Text style={para}>
         <strong>Operational data</strong> — properties, leases, communications, tenant profiles,
         and historical records of day-to-day platform use — remains fully readable and exportable
-        until <strong>{purgeEligibleAt}</strong>. That&apos;s 12 months from {cancelledDate} (
-        {daysUntilPurge} days). After that date, Operational data is deleted from production
-        systems and excluded from backup retention thereafter.
+        for <strong>at least 12 months</strong> from {cancelledDate}. If active leases are still
+        running on your account at that point, the retention period continues until they end. We
+        will email you a 30-day warning before anything is deleted, and that warning will carry the
+        exact date. After that date, Operational data is deleted from production systems and
+        excluded from backup retention thereafter.
       </Text>
       <Text style={para}>
         <strong>Compliance Records</strong> — a small set of records we are legally required to
-        retain — will not be deleted on {purgeEligibleAt}. These include:
+        retain — are not deleted when the Operational data period ends. These include:
       </Text>
       <ComplianceList />
       <Text style={para}>
@@ -226,12 +273,12 @@ export function CancelledConfirmEmail({
         As the Responsible Party for your tenants&apos; personal information under POPIA, your
         obligations to those tenants continue after this cancellation. Trust account records carry
         a 5-year statutory retention requirement under the Property Practitioners Act. Please
-        export and securely store all records you may need for these obligations before{" "}
-        {purgeEligibleAt}.
+        export and securely store all records you may need for these obligations — you can do this
+        at any time during the retention period, and you do not need to wait for our warning email.
       </Text>
       <Row style={{ margin: "24px 0" }}>
         <Column style={{ paddingRight: 8 }}>
-          <EmailButton href={`${appUrl}/reports`} accentColor="#3f3f46">Export all data</EmailButton>
+          <EmailButton href={exportHref} accentColor="#3f3f46">Export all data</EmailButton>
         </Column>
         <Column style={{ paddingLeft: 8 }}>
           <EmailButton href={`${appUrl}/settings/subscription`} accentColor={branding.accentColor}>Reactivate</EmailButton>
@@ -245,8 +292,8 @@ export function CancelledConfirmEmail({
 
       <EmailSectionHeading>Reactivation</EmailSectionHeading>
       <Text style={para}>
-        You can reactivate your account at any time before <strong>{purgeEligibleAt}</strong> and
-        your Operational data will be restored in place — leases, tenants, documents and history.
+        You can reactivate your account at any time during the retention period and your
+        Operational data will be restored in place — leases, tenants, documents and history.
         The Terms of Service and pricing in force at the time of reactivation will apply.
       </Text>
 

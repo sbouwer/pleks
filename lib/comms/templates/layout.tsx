@@ -41,8 +41,16 @@ export interface OrgBranding {
 
 export interface SubscriptionAlertData {
   cancelledDate: string      // human-readable e.g. "7 May 2025"
-  purgeEligibleAt: string    // human-readable e.g. "7 May 2026"
-  daysUntilPurge: number
+  /**
+   * Human-readable purge date e.g. "7 May 2026" — OPTIONAL, and absent by design at Day 0.
+   * ADDENDUM_57G §11.3 sets `purge_eligible_at` only when the T-30 warning fires (month 11, gated on
+   * zero active leases), so at cancellation the date is UNDEFINED, not merely unknown: for an org
+   * still holding leases the clock has not started. Day-0 copy therefore promises a PERIOD, never a
+   * date (CD ruling 2026-08-20, brief/legal/CANCELLATION_EMAIL_TEMPLATES_v1.1.md "Settled — clock
+   * model"). Omit both this and `daysUntilPurge` at Day 0; the footer rewords itself below.
+   */
+  purgeEligibleAt?: string
+  daysUntilPurge?: number
   exportUrl: string          // absolute URL to /reports
   settingsUrl: string        // absolute URL to /settings/subscription
 }
@@ -186,6 +194,11 @@ function EmailSubscriptionFooter({ variant, alert }: Readonly<{ variant: EmailFo
   const cancelledClause = alert?.cancelledDate ? ` on ${alert.cancelledDate}` : ""
   const untilClause = alert?.purgeEligibleAt ? ` until ${alert.purgeEligibleAt}` : ""
   const daysClause = alert?.daysUntilPurge === undefined ? "" : ` (${alert.daysUntilPurge} days from today)`
+  // With no purge date (Day 0 — see SubscriptionAlertData) "before then" refers to nothing, so the
+  // reactivation clause names the period instead. Do not collapse these two back into one string.
+  const reactivateClause = alert?.purgeEligibleAt
+    ? "Reactivating any time before then "
+    : "Reactivating at any time during the retention period "
   return (
     <Section style={subFooter.dark}>
       <Text style={{ ...subFooter.text, color: "#e4e4e7" }}>
@@ -193,7 +206,7 @@ function EmailSubscriptionFooter({ variant, alert }: Readonly<{ variant: EmailFo
         Your full data export is available{" "}
         <Link href={alert?.exportUrl ?? "#"} style={subFooter.linkDark}>here</Link>
         {untilClause}{daysClause}.
-        Reactivating any time before then{" "}
+        {" "}{reactivateClause}
         <Link href={alert?.settingsUrl ?? "#"} style={subFooter.linkDark}>restores everything in place</Link>.
       </Text>
     </Section>

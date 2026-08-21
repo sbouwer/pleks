@@ -23,7 +23,7 @@
  * check asserts they agree. A verdict whose gloss contradicts its own state ("⛔ proceed") is a real
  * failure and is invisible in a bare word — the second encoding is what makes it detectable.
  *
- * SCOPE AND ITS HONEST LIMIT: `.claude/handoff/` is gitignored and `/wrap` clears it, so on a clean
+ * SCOPE AND ITS HONEST LIMIT: `.handoff/` is gitignored and `/wrap` clears it, so on a clean
  * tree this check validates ZERO files and passes. That is a check that cannot fire, which is
  * usually a defect — here it is the design, because the directory is task-scoped scratch. The
  * mitigations are that the live run REPORTS its denominator (so "0 artefacts" is visible rather
@@ -38,7 +38,7 @@ import { fileURLToPath } from "node:url"
 import { tmpdir } from "node:os"
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..").replace(/\\/g, "/")
-const HANDOFF = "/.claude/handoff"
+const HANDOFF = "/.handoff"
 
 /**
  * The five labels, in the order the block prints them. Order is part of the contract — a human scans
@@ -63,8 +63,50 @@ const VERDICTS = new Set(Object.values(GLYPHS))
  * Discovered the hard way: the first non-grounder pipeline (P2 SWEEP, knip-tranche-2) turned the
  * commit gate red on `01-census.md` / `02-main.md`, because the check's aperture had been written
  * for the end state while only one spine had shipped.
+ *
+ * WIDENED 2026-08-21, and the LAG IS THE LESSON. Step 5 bumped census/walker/db-inspector/
+ * implementer to spines that carry the block — and did not touch this set, so for the whole of that
+ * rollout the check reported green having validated one agent's artefacts and skipped everyone
+ * else's. The rule above ("same commit that ships its spine") was written precisely to prevent that
+ * and was not followed by the person who wrote it. What made it recoverable was the OTHER half of
+ * the design: skipped artefacts are named on every run, so the hole was legible in the output
+ * rather than inferable only from the source. A boundary that widens by hand needs a loud skip
+ * list, because the widening WILL be forgotten.
+ *
+ * `crawler-doctrine` is deliberately absent and is NOT a lag: its stdout is parsed as a single JSON
+ * object, so a trailing fenced block would break the parse. That exemption is written into its
+ * spine so a later reader does not close it as a gap. `main` is likewise absent — the main session
+ * has no spine to carry the rule, and `NN-main.md` files are its own notes.
  */
-export const CONTRACT_AGENTS = new Set(["grounder"])
+export const CONTRACT_AGENTS = new Set(["grounder", "census", "walker", "db-inspector", "implementer"])
+
+/**
+ * Agents whose spine specifies the machine-readable ANCHOR LINE. A NARROWER set than the one above,
+ * and the split is the point.
+ *
+ * Widening `CONTRACT_AGENTS` in one move switched on TWO assertions, not one — the contract block
+ * (which step 5 did splice into four more spines) and the anchor line (which it did not). Only
+ * `grounder.spine.md` carries the `anchor: task=… · agent=… · utc=… · commit=…` template; the other
+ * four say to anchor and never give the syntax, so their agents anchor in PROSE ("Commit anchor:
+ * a5b6f541") and fail a check that greps for the line. Verified 2026-08-21 by grepping all five
+ * canon spines: grounder 1 hit, census/walker/db-inspector/implementer 0 each.
+ *
+ * Enforcing it on them anyway would be the P2 SWEEP incident again, one paragraph after this file
+ * describes it: a rule cannot be enforced on an agent that was never told it. So the rule SPLITS
+ * rather than being qualified — the covered half is enforced for all five, the uncovered half is
+ * enforced for grounder and named here for the rest.
+ *
+ * CLEARED 2026-08-21, IN THE SAME CHANGE, exactly as the condition above required. census v8,
+ * walker v6, db-inspector v4 and implementer v4 each gained the literal anchor template and were
+ * propagated to this project; the two sets are now identical and this one is kept as a separate
+ * name rather than folded away, because the split is what the next rollout will need. Whoever adds
+ * a seventh agent adds it to CONTRACT_AGENTS when its spine carries the block, and to this set
+ * when its spine carries the anchor line — which may not be the same commit.
+ *
+ * The lag this closed lasted one session and was found only because the check NAMES what it skips.
+ * That is the transferable part: a hand-widened boundary will be forgotten, so it must be loud.
+ */
+export const ANCHOR_AGENTS = new Set(["grounder", "census", "walker", "db-inspector", "implementer"])
 
 /** Every `NN-<agent>.md` under a handoff root. Non-recursive past the task-slug level, by design. */
 export function artefacts(root) {
@@ -108,7 +150,7 @@ const valueOf = (text, l) => (text.match(new RegExp(`^\\s*${l}\\s{2,}(.+?)\\s*$`
  * WHAT it contains. An agent that adds a trailing newline or a closing fence has not broken the
  * contract; an agent that drops Promote has.
  */
-export function checkArtefact(path, text) {
+export function checkArtefact(path, text, enforceAnchor = true) {
   const out = []
 
   const missing = LABELS.filter((l) => valueOf(text, l) === undefined)
@@ -121,7 +163,9 @@ export function checkArtefact(path, text) {
   }
 
   // Anchor: a machinery map is a grounding claim, so an artefact with no anchor is itself a finding.
-  if (!/^\s*anchor:.*\bcommit=/m.test(text)) {
+  // Gated on ANCHOR_AGENTS — see its comment. The default is ENFORCE, so a caller that forgets to
+  // pass the flag over-checks rather than under-checks.
+  if (enforceAnchor && !/^\s*anchor:.*\bcommit=/m.test(text)) {
     out.push(`${path}: no anchor line carrying a commit — an unanchored observation is a finding, not a fact`)
   }
 
@@ -174,7 +218,7 @@ if (isEntry && process.argv.includes("--selftest")) {
     "",
     "Summary    Mapped. Buildable as specified. 12 sites, 2 need a naming call.",
     "",
-    "Artefact   .claude/handoff/m-041/01-grounder.md",
+    "Artefact   .handoff/m-041/01-grounder.md",
     "Promote    none",
     "```",
     "",
@@ -201,6 +245,19 @@ if (isEntry && process.argv.includes("--selftest")) {
   ok(checkArtefact("a.md", GOOD.replace(/^anchor:.*$/m, "")).some((f) => f.includes("anchor")),
     "a missing anchor fires — an unanchored observation is a finding")
 
+  // The anchor split, both directions. The uncovered half must be provably quiet, or the split is
+  // just a comment; the covered half must still fire, or widening ANCHOR_AGENTS would prove nothing.
+  ok(!checkArtefact("a.md", GOOD.replace(/^anchor:.*$/m, ""), false).some((f) => f.includes("anchor")),
+    "…and is SILENT for a spine that never specified the anchor line — the split, not a qualified tag")
+  ok(checkArtefact("a.md", GOOD.replace(/^anchor:.*$/m, ""), false).length === 0,
+    "…while that same artefact is otherwise fully checked — the split withholds one assertion, not the check")
+  // SUBSET, not STRICT subset. The first version of this probe asserted `<` and broke the moment
+  // the anchor rollout caught up — encoding a transient rollout state as an invariant. The real
+  // invariant is containment: an anchor rule on an agent whose artefacts are never checked would be
+  // unreachable, and that holds whether the sets are equal or not.
+  ok([...ANCHOR_AGENTS].every((a) => CONTRACT_AGENTS.has(a)),
+    "ANCHOR_AGENTS ⊆ CONTRACT_AGENTS — an anchor rule on an unenforced agent would be unreachable")
+
   // The glyph pair, both directions.
   ok(checkArtefact("a.md", GOOD.replace("✅ proceed — nothing to decide", "⛔ proceed — nothing to decide")).some((f) => f.includes("disagree")),
     "a glyph contradicting its own word fires — the whole reason the state is encoded twice")
@@ -217,31 +274,46 @@ if (isEntry && process.argv.includes("--selftest")) {
   // Discovery, walked for real: a block-shaped file that is not an artefact must not be scanned,
   // and an artefact in a task directory must be found.
   const tmp = mkdtempSync(join(tmpdir(), "handoff-")).replace(/\\/g, "/")
-  mkdirSync(join(tmp, ".claude", "handoff", "m-041"), { recursive: true })
-  writeFileSync(join(tmp, ".claude", "handoff", "m-041", "01-grounder.md"), GOOD)
-  writeFileSync(join(tmp, ".claude", "handoff", "m-041", "notes.md"), "scratch, not an artefact")
+  // Built from ONE segment, not `join(tmp, ".claude", "handoff", …)`. The 2026-08-21 move of the
+  // handoff root out of `.claude/` swept every string literal in the repo and missed this fixture
+  // precisely because the path was assembled from parts — and this probe is what caught it. A
+  // fixture that spells its path differently from production is a fixture that can drift silently.
+  mkdirSync(join(tmp, ".handoff", "m-041"), { recursive: true })
+  writeFileSync(join(tmp, ".handoff", "m-041", "01-grounder.md"), GOOD)
+  writeFileSync(join(tmp, ".handoff", "m-041", "notes.md"), "scratch, not an artefact")
   ok(artefacts(tmp).length === 1, "discovery finds NN-<agent>.md and ignores scratch files beside it")
   ok(artefacts(join(tmp, "nope")).length === 0, "a tree with no handoff directory yields nothing rather than throwing")
   rmSync(tmp, { recursive: true, force: true })
 
   // The rollout boundary, probed in BOTH directions. A boundary that only ever lets things through
   // is indistinguishable from a disabled check.
-  ok(agentOf(".claude/handoff/t/01-grounder.md") === "grounder", "agentOf reads the agent out of the filename")
-  ok(agentOf(".claude/handoff/t/03-db-inspector.md") === "db-inspector", "…including a hyphenated agent name")
+  ok(agentOf(".handoff/t/01-grounder.md") === "grounder", "agentOf reads the agent out of the filename")
+  ok(agentOf(".handoff/t/03-db-inspector.md") === "db-inspector", "…including a hyphenated agent name")
   ok(agentOf("notes.md") === null, "…and returns null rather than guessing when the name does not parse")
 
-  const P = (n) => `.claude/handoff/t/${n}`
-  const split = partition([P("01-grounder.md"), P("02-census.md"), P("03-walker.md")])
-  ok(split.enforced.length === 1 && split.enforced[0] === P("01-grounder.md"),
-    "MUST ENFORCE — grounder is the one spine carrying the block today")
+  const P = (n) => `.handoff/t/${n}`
+  const split = partition([
+    P("01-grounder.md"), P("02-census.md"), P("03-walker.md"),
+    P("04-db-inspector.md"), P("05-implementer.md"),
+    P("06-crawler-doctrine.md"), P("07-main.md"),
+  ])
+  ok(split.enforced.length === 5,
+    "MUST ENFORCE — all five spines that carry the block post-step-5, not just grounder")
+  ok(["grounder", "census", "walker", "db-inspector", "implementer"].every((a) => split.enforced.some((p) => agentOf(p) === a)),
+    "…and each of the five is named individually, so dropping one from the set fails here rather than silently narrowing the aperture")
+
+  // The boundary must still EXCLUDE something, or it has stopped being a boundary and these probes
+  // have stopped testing one. Both exclusions are permanent by design, not lag.
   ok(split.skipped.length === 2,
-    "MUST SKIP — census and walker artefacts are outside the boundary until step 5 splices their spines")
+    "MUST SKIP — crawler-doctrine (stdout is parsed JSON; a fenced block breaks it) and main (no spine)")
+  ok(split.skipped.some((p) => agentOf(p) === "crawler-doctrine") && split.skipped.some((p) => agentOf(p) === "main"),
+    "…and they are those two specifically — a skip list that drifted to something else is not this exemption")
 
   // The honest cost of the boundary, asserted rather than left implicit: a skipped artefact is not
   // checked AT ALL, so a malformed block in one is invisible. This probe exists so that the day a
   // spine is added to CONTRACT_AGENTS, the person doing it sees what they are switching on.
-  ok(partition([P("02-census.md")]).enforced.length === 0,
-    "a census artefact is skipped even when it DOES carry a block — the boundary is by agent, not by content")
+  ok(partition([P("06-crawler-doctrine.md")]).enforced.length === 0,
+    "a crawler-doctrine artefact is skipped even when it DOES carry a block — the boundary is by agent, not by content")
 
   console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — fires on a missing, unfilled or self-contradicting block, quiet on a well-formed one, and enforces only the spines that carry it")
   process.exit(failed ? 1 : 0)
@@ -249,12 +321,13 @@ if (isEntry && process.argv.includes("--selftest")) {
 
 if (isEntry && !process.argv.includes("--selftest")) {
   const { enforced, skipped } = partition(artefacts(ROOT))
-  const findings = enforced.flatMap((f) => checkArtefact(f.replace(ROOT + "/", ""), readFileSync(f, "utf8")))
+  const findings = enforced.flatMap((f) =>
+    checkArtefact(f.replace(ROOT + "/", ""), readFileSync(f, "utf8"), ANCHOR_AGENTS.has(agentOf(f))))
 
   // Named before the verdict, pass or fail. An artefact outside the rollout boundary is a thing the
   // check DID NOT LOOK AT, and a reader has to see that without reading the source.
   if (skipped.length) {
-    console.log(`   not checked — spine carries no contract block yet (§11 step 5 widens this):`)
+    console.log(`   not checked — no contract block required of this writer (crawler-doctrine: stdout is parsed JSON; main: no spine):`)
     for (const f of skipped) console.log(`     · ${f.replace(ROOT + "/", "")}`)
   }
 

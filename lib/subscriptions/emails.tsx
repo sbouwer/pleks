@@ -9,6 +9,7 @@ import { EmailLayout, EmailButton, EmailSectionHeading } from "@/lib/comms/templ
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { sendPlatformEmail } from "./sendWithRetry"
 import {
+  CancelledConfirmEmail,  CANCELLED_CONFIRM_SUBJECT,
   PurgeWarning30dEmail,   PURGE_WARNING_30D_SUBJECT,
   PurgeWarningFinalEmail, PURGE_WARNING_FINAL_SUBJECT,
   PurgedConfirmEmail,     PURGED_CONFIRM_SUBJECT,
@@ -476,6 +477,18 @@ export async function sendResumed(org: OrgContact) {
   })
 }
 
+/**
+ * Day-0 cancellation confirmation (Template 1).
+ *
+ * Renders `CancelledConfirmEmail` — the counsel-reviewed implementation. It was DEAD for months
+ * while this function re-implemented the same template key inline with its own JSX and subject
+ * string: two implementations of one key, and the reviewed one was the one nobody received. The
+ * inline copy lacked the ToS §04 incorporation, the Compliance Records carve-out, the legal-hold
+ * deferral, the POPIA Responsible-Party obligations and the export-integrity disclaimer.
+ *
+ * Wired 2026-08-20 once counsel cleared the period-based rewrite. Do not re-inline it: if this copy
+ * needs to change, change the component, or the fork comes back with the reviewed side losing again.
+ */
 export async function sendCancelledConfirm(
   org: OrgContact,
   data: { cancelledDate: string; exportUrl: string },
@@ -484,37 +497,18 @@ export async function sendCancelledConfirm(
     orgId: org.orgId,
     templateKey: "subscription.cancelled_confirm",
     to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
-    subject: "Your Pleks subscription has been cancelled",
+    subject: CANCELLED_CONFIRM_SUBJECT,
     emailElement: (
-      <EmailLayout
-        preview="Pleks subscription cancelled — your data remains accessible for up to 12 months"
+      <CancelledConfirmEmail
         branding={PLEKS_BRANDING}
-        footerVariant="cancelled_purge_warning"
-      >
-        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
-        <p style={S.body}>
-          Your Pleks subscription was cancelled on{" "}
-          <strong style={S.strong}>{data.cancelledDate}</strong>.
-        </p>
-        <EmailSectionHeading>What happens next</EmailSectionHeading>
-        <p style={S.body}>
-          Your data — all properties, leases, tenants, inspections, and financial records —
-          remains fully accessible and exportable for{" "}
-          <strong style={S.strong}>up to 12 months</strong> from the date of cancellation.
-          The exact deletion date depends on whether active leases remain at the time
-          of the scheduled cleanup. You will receive a 30-day warning email before any
-          data is removed.
-        </p>
-        <p style={S.body}>
-          You can reactivate your subscription at any time within those 12 months and
-          everything will be exactly where you left it.
-        </p>
-        <EmailButton href={data.exportUrl} accentColor={PLEKS_BRANDING.accentColor}>
-          Export your data now →
-        </EmailButton>
-      </EmailLayout>
+        orgName={org.orgName}
+        recipientName={org.adminName ?? org.orgName}
+        appUrl={APP_URL}
+        cancelledDate={data.cancelledDate}
+        exportUrl={data.exportUrl}
+      />
     ),
-    bodyPreview: `Subscription cancelled on ${data.cancelledDate}. Data accessible for up to 12 months.`,
+    bodyPreview: `Subscription cancelled on ${data.cancelledDate}. Data accessible for at least 12 months.`,
   })
 }
 
