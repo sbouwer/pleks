@@ -136,6 +136,82 @@ const strip = (s) => s.replace(/\x1b\[[0-9;]*m/g, "")
   ok(/ctx —/.test(strip(r.out)), "a session with no assistant turn yet shows 'ctx —', not a fabricated 0k", JSON.stringify(r.out))
 }
 
+// ── the LIVE permission mode, read from the transcript and not from the payload ──────────────
+//
+// These probes exist because the first two cuts of this feature both read the payload's mode field
+// and both were wrong. The regression probe below is the one that matters: it puts the two channels
+// in DISAGREEMENT, which is the only configuration where reading the wrong one is detectable — and
+// is exactly the configuration the live session was in for its whole length while every instrument
+// reported agreement.
+{
+  const withMode = (name, mode) => {
+    const p = join(tmp, `${name}.jsonl`)
+    const lines = [usageLine(193_000)]
+    if (mode !== null) lines.push(JSON.stringify({ type: "mode", mode, sessionId: "probe" }))
+    writeFileSync(p, lines.join("\n") + "\n")
+    return p
+  }
+
+  const normal = strip(run(payload(withMode("m-normal", "normal"))).out)
+  ok(/perm normal/.test(normal), "a transcript in `normal` mode is reported — normal prompts on every write", normal)
+  ok(/prompt/i.test(normal), "…and it says what that COSTS, not just the mode's name — a bare label is not actionable", normal)
+
+  const plan = strip(run(payload(withMode("m-plan", "plan"))).out)
+  ok(/perm plan/.test(plan), "a non-acceptEdits mode other than normal is reported too", plan)
+
+  // KNOWN-GOOD half. Without these, a rule that shouted on every mode would pass the three above.
+  const accept = strip(run(payload(withMode("m-accept", "acceptEdits"))).out)
+  ok(!/perm/.test(accept), "KNOWN-GOOD: `acceptEdits` renders NO mode clause — agreement stays quiet", accept)
+
+  // Three states, three renderings. `perm ?` is NOT cosmetic: if an unmeasurable mode rendered the
+  // same silence as `acceptEdits`, this instrument would carry the very defect it was built to fix.
+  const none = strip(run(payload(withMode("m-none", null))).out)
+  ok(/perm \?/.test(none),
+    "no mode record in the window renders `perm ?` — an unmeasurable mode must NOT share silence with an agreeing one", none)
+  ok(!/normal|acceptEdits|plan/.test(none),
+    "…and it names no mode, because it does not know one — `perm ?` is the absence, not a guess", none)
+
+  // Multiple mode records — the LAST one wins. Every probe above writes exactly ONE record, so an
+  // implementation scanning forwards and taking the first match passes all of them and then reports
+  // a stale mode in the field: the session that produced this file carried ~200 records, and a
+  // Shift+Tab out of `normal` would leave the bar shouting `perm normal` forever, which trains the
+  // reader to ignore it. Both directions, because a single direction also passes under an
+  // implementation that always returns the last match regardless of which value that is.
+  const flipped = (name, ...modes) => {
+    const p = join(tmp, `${name}.jsonl`)
+    const lines = [usageLine(193_000), ...modes.map((mode) => JSON.stringify({ type: "mode", mode, sessionId: "probe" }))]
+    writeFileSync(p, lines.join("\n") + "\n")
+    return p
+  }
+
+  const toAccept = strip(run(payload(flipped("m-seq-a", "normal", "acceptEdits"))).out)
+  ok(!/perm/.test(toAccept), "normal → acceptEdits: the LATEST record wins, so the clause goes silent", toAccept)
+
+  const toNormal = strip(run(payload(flipped("m-seq-b", "acceptEdits", "normal"))).out)
+  ok(/perm normal/.test(toNormal), "acceptEdits → normal: the latest wins in the other direction too", toNormal)
+
+  // UNTESTED BOUNDARY, recorded rather than assumed away: every fixture here is a few lines, so the
+  // 512KB tail window always contains the whole transcript and `perm ?` is only ever produced by
+  // omitting the record entirely. The FIELD case is a record that EXISTS but has scrolled out of the
+  // window — which is what determines how often `perm ?` really appears. Testing it needs a >512KB
+  // fixture, which is real cost for a case that fails in the honest direction (`perm ?`, not a wrong
+  // mode). The trade is deliberate; the gap is written down so it is not mistaken for coverage.
+
+  // ⚠ THE REGRESSION PROBE. Payload says acceptEdits (the configured default); transcript says
+  // normal (the live state). An implementation reading `permission_mode` renders silence here and
+  // calls it agreement — which is precisely what shipped, twice. Only the transcript can be right.
+  const conflicted = JSON.stringify({
+    transcript_path: withMode("m-conflict", "normal"),
+    cwd: freshCwd(),
+    model: { display_name: "Opus 5", id: "claude-opus-5" },
+    permission_mode: "acceptEdits",
+    permissionMode: "acceptEdits",
+  })
+  const c = strip(run(conflicted).out)
+  ok(/perm normal/.test(c),
+    "REGRESSION: payload says acceptEdits, transcript says normal → the TRANSCRIPT wins; reading the payload reports what was asked for, not what took", c)
+}
+
 // ── it is actually wired up ──────────────────────────────────────────────────────────────────
 {
   const s = JSON.parse(readFileSync(SETTINGS, "utf8"))

@@ -195,7 +195,23 @@ function readMain(path, prevOffset) {
     if (u) context = inputTokens(u);
   }
 
-  return { context, size, addedTokens, addedBillable, addedTurns, sawBoundary, gap };
+  // The LIVE permission mode, which is a different channel from the one the hook payload carries.
+  // `permission_mode` on a hook payload is the CONFIGURED default out of settings.json; the
+  // transcript's `{"type":"mode"}` record is the session's actual state, set by Shift+Tab and
+  // written to no settings file. They disagree, and the disagreement is the whole bug class: this
+  // session ran 200 `mode: normal` records — normal prompts on every write — while every payload
+  // reported `acceptEdits`, because `defaultMode` was never applied. An instrument reading the
+  // payload reports what was ASKED FOR in a bug whose entire nature is that it was not applied.
+  // Costs no extra I/O: `parsed` is the window this function already read for the token count.
+  let liveMode = null;
+  // BACKWARDS, and the two ordering probes in check-statusline.mjs both fail on a forward scan.
+  // A real transcript carries hundreds of these records; the first one is the mode the session
+  // STARTED in, which after a single Shift+Tab is exactly the wrong answer, shouted permanently.
+  for (let i = parsed.length - 1; i >= 0 && liveMode === null; i--) {
+    if (parsed[i].type === "mode" && typeof parsed[i].mode === "string") liveMode = parsed[i].mode;
+  }
+
+  return { context, size, addedTokens, addedBillable, addedTurns, sawBoundary, gap, liveMode };
 }
 
 /**
@@ -209,6 +225,18 @@ function readMain(path, prevOffset) {
  */
 function contextNow(transcriptPath) {
   return readMain(transcriptPath, Number.MAX_SAFE_INTEGER).context;
+}
+
+/**
+ * Context AND live permission mode from ONE positioned read.
+ *
+ * Exists so the statusline can show both without reading the transcript twice — `contextNow` stays
+ * for any caller that wants only the gauge. See `readMain`'s `liveMode` comment for why the mode
+ * must come from here and not from a hook payload's `permission_mode`.
+ */
+function snapshotNow(transcriptPath) {
+  const m = readMain(transcriptPath, Number.MAX_SAFE_INTEGER);
+  return { context: m.context, liveMode: m.liveMode };
 }
 
 /**
@@ -300,6 +328,7 @@ function measure(transcriptPath, cwd) {
 
   return {
     context: main.context,
+    liveMode: main.liveMode,                            // the transcript's mode, not the payload's
     mainBillable: state.main.billable,
     mainTurns: state.main.turns,
     mainPartial: state.main.partial,
@@ -401,12 +430,25 @@ if (require.main === module) {
       // on every turn would make this the wallpaper the file was written to replace. Agreement and
       // an absent field are both silent here; presence of the field is settled out of band rather
       // than by spending the budget on a permanent line.
-      // The hook payload spells this `permission_mode`; the statusline payload has used
-      // `permissionMode`. Read BOTH — a key typo here is indistinguishable from agreement, and the
-      // first cut of this line read only the camelCase spelling and reported silence for two turns.
-      const mode = input.permission_mode || input.permissionMode;
-      if (mode && mode !== "acceptEdits") {
-        additionalContext += `${additionalContext ? "\n" : ""}[perm] ${mode} overrides defaultMode acceptEdits`;
+      // ⚠ FROM THE TRANSCRIPT, NEVER FROM `input.permission_mode`. The payload field is the
+      // CONFIGURED default out of settings.json; `m.liveMode` is the transcript's `{"type":"mode"}`
+      // record, which is the session's ACTUAL state. Two earlier cuts of this line read the payload
+      // — one with a camelCase typo, one spelled right — and both were wrong, because in the session
+      // that produced them the two channels disagreed for its whole length: 200 `mode: normal`
+      // records (normal prompts on every write) against a payload reporting `acceptEdits`, since
+      // `defaultMode` was never applied by the VS Code extension. Reading the payload reports what
+      // was ASKED FOR in a bug whose nature is that it did not take — silence, called agreement.
+      //
+      // COVERAGE BOUNDARY, stated rather than left implicit. `m.liveMode === null` (no mode record
+      // in the tail window) is DELIBERATELY silent here, which means silence in THIS instrument
+      // still covers two states. That is a real gap and it is accepted for one reason: this tier is
+      // always-on and token-costed, with probes capping it and requiring empty output when there is
+      // nothing to say, so an "unknown" line every turn would make it the wallpaper this file exists
+      // to replace. The uncovered half is carried by `.claude/statusline.js`, which renders `perm ?`
+      // for exactly this case at zero token cost and is always visible. If that statusline is ever
+      // removed or unregistered, THIS becomes a silent-agreement defect again and needs the branch.
+      if (m.liveMode && m.liveMode !== "acceptEdits") {
+        additionalContext += `${additionalContext ? "\n" : ""}[perm] session is ${m.liveMode}, NOT the acceptEdits in settings — writes prompt; Shift+Tab to change`;
       }
     } catch {
       // A hook that cannot measure must not guess, and must not block: this one only ever ADDS a
@@ -420,6 +462,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  adviseUser, adviseAgent, measure, readMain, readAgents, readRange, contextNow, loadState,
+  adviseUser, adviseAgent, measure, readMain, readAgents, readRange, contextNow, snapshotNow, loadState,
   WARN, STOP, CACHE_READ_MULTIPLIER, CACHE_WRITE_MULTIPLIER, STATE_FILE,
 };
