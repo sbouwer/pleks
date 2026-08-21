@@ -444,3 +444,74 @@ a brief that names its expected base is the same discipline as anchoring a groun
 **Untested and worth knowing:** whether the base is `origin/main` specifically, the remote's default
 branch, or the repo's configured default. One repo, one observation of each — do not generalise the
 `origin/main` spelling to a repo whose default branch is named otherwise.
+
+---
+
+## E11 · Does `spawnDepth` distinguish a nested subagent run from a top-level one? — **ANSWERED: YES, AND THE PARENT EDGE RESOLVES INDEPENDENTLY**
+
+**Anchor:** same session, CLI 2.1.235, HEAD `a5b6f541` on branch `fix/day0-cancellation-copy`,
+2026-08-21. Design pre-registered at `.claude/handoff/fanout-probe/01-main.md` **before the run**,
+per §4b item 5 — a prediction written after the result is not a prediction.
+
+**Why it needed testing.** `scripts/agent-distribution.mjs` reports a `spawn depth` line and a
+`spawnedBy` edge, and neither had ever been exercised: **49 of 49 recorded runs were top-level**,
+the script saying so itself — *"every run is top-level (d1). No agent has spawned an agent."* A
+reporting path that has never had a non-trivial input is the green-and-unfailable shape. The
+script's own comment — *"the CLI writes spawnDepth: 1 for a run the main session asked for, 2+ for
+one another agent asked for"* — read as measured and was not: every observation behind it was a `1`,
+and `1` is what you get whether the CLI counts depth or hardcodes the field. Same shape as E8, where
+a `tools:` line was believed to withhold because nothing had tested it withholding.
+
+**Readiness established rather than assumed.** `spawnDepth` was present in 49/49 `agent-*.meta.json`,
+every one literally `1` — so the d1 baseline was a real observation, not `Number(j.spawnDepth) || 1`
+firing on an absent field. Had the field been absent, "every run is d1" would have been an absence
+dressed as an observation and the probe could not have discriminated. `toolUseId` was present in
+49/49 as a SECOND, independent discriminator: the parent edge is recovered by containment and does
+not depend on `spawnDepth` at all.
+
+**Result — outcome (a), the clean one.** A census parent fanned out three children over a real knip
+partition; a fourth nested census came from the scope probe:
+
+```
+spawn edges (4 nested run(s), deepest d2):
+  census → census  ×4
+```
+
+| prediction | outcome |
+|---|---|
+| 1 · children resolve `parent: census` by tool-use-id containment | HELD |
+| 2 · children carry `spawnDepth: 2` | HELD — the uncertain one, and the point of the run |
+| 3 · no grandchildren (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2`) | HELD — deepest is d2 |
+| 4 · negative space needs no new run — 49 existing d1 runs supply it | HELD by construction |
+
+Prediction 4 is worth keeping as method: manufacturing a 50th unnested run to "prove" an unnested
+run reports 1 would have been testing the fixture.
+
+**What this does NOT establish.** Three things, kept separate from the result because each was
+confounded and none is closed by it:
+
+- **Whether an unattended fan-out completes.** It did not. The parent dispatched four children and
+  closed saying it would synthesise once they returned — a turn ends when the agent stops emitting,
+  and a child's completion notifies the SESSION, not the parent. It was not paused, it was finished,
+  and the children sat unread until a human resumed it by hand. Fixed in census v9 as prose, marked
+  UNENFORCEABLE: nothing counts a run's children against its returns, so a stranded parent and a
+  complete one are the same artefact on disk.
+- **Whether the write-scope fence holds at depth 2.** Recorded as proven and then WITHDRAWN. The
+  evidence was that two out-of-scope `DELETE-ME` files were absent from disk — but absence is equally
+  consistent with a human clicking No on a prompt. The discriminator was only ever the hook's deny
+  string (`may only write to .claude/handoff`), which was never captured. Needs re-running.
+- **Whether a hook's `allow` grants anything.** `agent-write-scope.js` returns
+  `permissionDecision: "allow"` for a main-session write and for an in-scope census write — verified
+  by piping both payloads through it. Writes prompted anyway, while the session ran in `acceptEdits`
+  (67 transcript records, no other value) and the session logged **zero `permission_denials`**. So a
+  hook returning `allow` may be an ABSENCE OF DENIAL rather than a grant. If that holds, five spines
+  and three canon documents overstate what the fence does. Not concluded here — it needs the
+  deny-string evidence above.
+
+**A measurement failure worth recording, because it nearly inverted the answer.** Two instruments
+were built to read the session's permission mode and both read `permissionMode`, camelCase. The
+`UserPromptSubmit` payload spells it **`permission_mode`**, snake_case, so both returned `undefined`
+— and `undefined` rendered as silence, which the design had defined to mean "settings won". A key
+typo was indistinguishable from a measurement. It was caught only because a throwaway probe dumped
+the payload's key list alongside the value; the shipped instrument would have reported agreement
+forever. Read both spellings, and never let an unread field share an output state with a real one.
