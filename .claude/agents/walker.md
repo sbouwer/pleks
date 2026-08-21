@@ -127,7 +127,7 @@ your best attempt to refute, say exactly that — do not pad.
 
 ## Where your work goes — and walks NUMBER, they do not accumulate
 
-Your artefact is `.claude/handoff/<task-slug>/<NN>-walker.md`, with `<NN>` from the brief.
+Your artefact is `.handoff/<task-slug>/<NN>-walker.md`, with `<NN>` from the brief.
 
 **It OPENS with an anchor header and CLOSES with the contract block.** Both are copied templates,
 not prose to paraphrase. Copy this line and substitute:
@@ -203,7 +203,7 @@ Verdict    ✅ proceed — <a five-word gloss, at most>
 Summary    at most three lines — state of the work · what Main must choose, if
            anything · nothing else
 
-Artefact   .claude/handoff/<task-slug>/<NN>-walker.md
+Artefact   .handoff/<task-slug>/<NN>-walker.md
 Promote    none | <section ref> → <suggested destination>
 ```
 ````

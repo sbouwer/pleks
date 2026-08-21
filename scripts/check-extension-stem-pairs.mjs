@@ -294,7 +294,7 @@ export function zeroFloorsWithLiveFiles(files, floors = EXTENSION_FLOORS) {
  * Filters `files` (from `sourceFiles`, a WHOLE-TREE walk bounded only by `SKIP_DIRS`) down to the
  * files git would ever consider tracking — i.e. drops anything `.gitignore` excludes. Without this,
  * the walk and `gitTrackedSourceFiles` compare two sets that do not mean the same thing (M-063
- * re-entry, F3): the walk finds real files inside `out/`, `build/`, `docuseal/`, `.claude/handoff/`
+ * re-entry, F3): the walk finds real files inside `out/`, `build/`, `docuseal/`, `.handoff/`
  * and every other gitignored-but-JS-bearing directory this repo has, while `git ls-files
  * --exclude-standard` correctly never returns them — a mismatch on every machine with a build
  * artefact or an agent scratch file on disk, diagnosed by the entry block as "SKIP_DIRS is likely

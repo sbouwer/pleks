@@ -23,7 +23,7 @@
  * check asserts they agree. A verdict whose gloss contradicts its own state ("⛔ proceed") is a real
  * failure and is invisible in a bare word — the second encoding is what makes it detectable.
  *
- * SCOPE AND ITS HONEST LIMIT: `.claude/handoff/` is gitignored and `/wrap` clears it, so on a clean
+ * SCOPE AND ITS HONEST LIMIT: `.handoff/` is gitignored and `/wrap` clears it, so on a clean
  * tree this check validates ZERO files and passes. That is a check that cannot fire, which is
  * usually a defect — here it is the design, because the directory is task-scoped scratch. The
  * mitigations are that the live run REPORTS its denominator (so "0 artefacts" is visible rather
@@ -38,7 +38,7 @@ import { fileURLToPath } from "node:url"
 import { tmpdir } from "node:os"
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..").replace(/\\/g, "/")
-const HANDOFF = "/.claude/handoff"
+const HANDOFF = "/.handoff"
 
 /**
  * The five labels, in the order the block prints them. Order is part of the contract — a human scans
@@ -218,7 +218,7 @@ if (isEntry && process.argv.includes("--selftest")) {
     "",
     "Summary    Mapped. Buildable as specified. 12 sites, 2 need a naming call.",
     "",
-    "Artefact   .claude/handoff/m-041/01-grounder.md",
+    "Artefact   .handoff/m-041/01-grounder.md",
     "Promote    none",
     "```",
     "",
@@ -274,20 +274,24 @@ if (isEntry && process.argv.includes("--selftest")) {
   // Discovery, walked for real: a block-shaped file that is not an artefact must not be scanned,
   // and an artefact in a task directory must be found.
   const tmp = mkdtempSync(join(tmpdir(), "handoff-")).replace(/\\/g, "/")
-  mkdirSync(join(tmp, ".claude", "handoff", "m-041"), { recursive: true })
-  writeFileSync(join(tmp, ".claude", "handoff", "m-041", "01-grounder.md"), GOOD)
-  writeFileSync(join(tmp, ".claude", "handoff", "m-041", "notes.md"), "scratch, not an artefact")
+  // Built from ONE segment, not `join(tmp, ".claude", "handoff", …)`. The 2026-08-21 move of the
+  // handoff root out of `.claude/` swept every string literal in the repo and missed this fixture
+  // precisely because the path was assembled from parts — and this probe is what caught it. A
+  // fixture that spells its path differently from production is a fixture that can drift silently.
+  mkdirSync(join(tmp, ".handoff", "m-041"), { recursive: true })
+  writeFileSync(join(tmp, ".handoff", "m-041", "01-grounder.md"), GOOD)
+  writeFileSync(join(tmp, ".handoff", "m-041", "notes.md"), "scratch, not an artefact")
   ok(artefacts(tmp).length === 1, "discovery finds NN-<agent>.md and ignores scratch files beside it")
   ok(artefacts(join(tmp, "nope")).length === 0, "a tree with no handoff directory yields nothing rather than throwing")
   rmSync(tmp, { recursive: true, force: true })
 
   // The rollout boundary, probed in BOTH directions. A boundary that only ever lets things through
   // is indistinguishable from a disabled check.
-  ok(agentOf(".claude/handoff/t/01-grounder.md") === "grounder", "agentOf reads the agent out of the filename")
-  ok(agentOf(".claude/handoff/t/03-db-inspector.md") === "db-inspector", "…including a hyphenated agent name")
+  ok(agentOf(".handoff/t/01-grounder.md") === "grounder", "agentOf reads the agent out of the filename")
+  ok(agentOf(".handoff/t/03-db-inspector.md") === "db-inspector", "…including a hyphenated agent name")
   ok(agentOf("notes.md") === null, "…and returns null rather than guessing when the name does not parse")
 
-  const P = (n) => `.claude/handoff/t/${n}`
+  const P = (n) => `.handoff/t/${n}`
   const split = partition([
     P("01-grounder.md"), P("02-census.md"), P("03-walker.md"),
     P("04-db-inspector.md"), P("05-implementer.md"),

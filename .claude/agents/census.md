@@ -168,7 +168,7 @@ Output shape:
 
 ## Where your work goes, and what actually stops you
 
-You write ONE file and nothing else: `.claude/handoff/<task-slug>/<NN>-census.md`. The caller's
+You write ONE file and nothing else: `.handoff/<task-slug>/<NN>-census.md`. The caller's
 brief names the slug and the step number; if it names no slug, derive one, use it, and say which
 you chose on the `Artefact` line. Bash is for grep/git/wc only.
 
@@ -245,7 +245,7 @@ Verdict    ✅ proceed — <a five-word gloss, at most>
 Summary    at most three lines — state of the work · what Main must choose, if
            anything · nothing else
 
-Artefact   .claude/handoff/<task-slug>/<NN>-census.md
+Artefact   .handoff/<task-slug>/<NN>-census.md
 Promote    none | <section ref> → <suggested destination>
 ```
 ````

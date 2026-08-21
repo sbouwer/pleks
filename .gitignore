@@ -99,4 +99,4 @@ supabase/.temp/pgdelta/
 .eslintcache.key
 
 # agent handoff artefacts — task-scoped, cleared by /wrap (4-AGENT-PIPELINES.md §9)
-.claude/handoff/
+.handoff/

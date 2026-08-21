@@ -619,7 +619,8 @@ any other spelling. Two consequences, and neither is hypothetical:
 - **Nothing about why writes prompt in this session — and it could not have, which was missed until
   Stéan reported the prompt.** The run looked clean because neither write path exercised the open
   question: the in-scope handoff write is covered by the two `Write(.claude/handoff/**)` /
-  `Edit(.claude/handoff/**)` lines currently live-but-uncommitted in `.claude/settings.json`, and the
+  `Edit(.claude/handoff/**)` lines live-but-uncommitted in `.claude/settings.json` **as at the run**
+  (both deleted later the same day with the handoff move out of `.claude/` — see E13), and the
   out-of-scope write was hook-DENIED, which is terminal and raises no prompt. **A confound that makes
   a result clean is more dangerous than one that makes it noisy**, because nothing about the output
   says to look. Both logged main-session lines still show `permission_mode: acceptEdits` with
@@ -672,7 +673,7 @@ write any file" into a brief again, since it costs the run its artefact.
 
 ---
 
-## E13 · Why every write in this session prompted — **REFUTED, twice over. The cause is still unknown.**
+## E13 · Why every write in this session prompted — **REFUTED twice, then given a documented cause that this repo's own session partly contradicts**
 
 **2026-08-21.** An arc that cost three VS Code restarts, three rebuilt instruments, two withdrawn
 results and a half-dozen falsified hypotheses — and the entry now records a WRONG diagnosis and how
@@ -782,13 +783,86 @@ sections of careful reasoning built on an uncounted field.
 What remains open, stated as questions rather than pending confirmations:
 
 1. **What actually predicts a permission prompt?** Unknown, and currently unmeasurable from inside a
-   session. `acceptEdits` was live when a prompt occurred, so mode alone does not.
+   session. `acceptEdits` was live when a prompt occurred, so mode alone does not. *(Partly answered
+   below — the PATH matters as well as the mode — but the answer does not fit this session's own
+   writes, so the question stays open rather than closing.)*
 2. **Does `permissions.defaultMode` do anything in the VS Code extension?** Still unestablished.
    `permissionMode` reaching `acceptEdits` does not show the settings key put it there — the CLI
    default and a UI selection produce the same record.
 3. **Is `permissionMode` itself the live state, or another configured value?** It varies and it
    transitions, which is much stronger evidence than the previous field had. It is not proof. It is
-   read by exactly one instrument, which now makes no claim about what it means.
+   read by exactly one instrument, which now makes no claim about what it means. *(Corroborated
+   below: all three of its observed values — `acceptEdits`, `auto`, `default` — are members of the
+   documented six-mode enum, and the refuted field's single value is not. Vocabulary was the second
+   of the three cheap instruments, and it fires here too.)*
+
+### The documented answer, supplied from outside the session (Stéan, 2026-08-21)
+
+Every reading in this arc was derived from transcripts. The thing that settled it was **the product
+documentation**, which nobody in the arc had read, and it collapses two of the three open questions
+above:
+
+- **The permission modes are six, and `normal` is not one of them:** `default`, `acceptEdits`,
+  `plan`, `auto`, `dontAsk`, `bypassPermissions`. This is decisive on its own — a field whose only
+  value is outside the enum is not the permission channel, no cardinality count needed. It was
+  available the whole time and would have cost one lookup.
+- **Writes to PROTECTED PATHS are never auto-approved.** `.git` and `.claude` are protected; a write
+  under either raises a prompt in every mode a pipeline would actually run in. `bypassPermissions` is
+  the sole exception, and `dontAsk` — the mode whose name suggests otherwise — DENIES a protected-path
+  write rather than approving it. `auto` is plan- and model-gated, so it is not a general answer either.
+
+That is fatal to the handoff protocol as built. The protocol put every agent artefact in
+`.handoff/`'s predecessor, `.claude/handoff/` — inside the one tree the permission system refuses to
+wave through — so an unattended pipeline stalls on a prompt per artefact, BY DESIGN, with no hook and
+no settings rule able to change it. Two corroborating observations that had been sitting unexplained:
+writes to `brief/**` and to the scratchpad never prompted in any session, and both are outside
+`.claude/`.
+
+**The fix is structural, not diagnostic: move the handoff root out of `.claude/`.** Done 2026-08-21 —
+repo-root `.handoff/<task-slug>/`, gitignored, same shape; `SCOPES` in `agent-write-scope.js` changed
+by one string per agent; the two `Write(.claude/handoff/**)` / `Edit(.claude/handoff/**)` allow lines
+in `settings.json` deleted as no longer addressing anything. Everything else in the protocol stands.
+
+### What this session's own evidence does NOT let us claim
+
+Stated because the temptation is to file this closed, and because a symptom table that reads all-yes
+on the first pass is the failure this entry exists to record:
+
+The first draft of this section said "roughly a dozen" writes under `.claude/` outside handoff. **It
+was counted instead, over the four transcripts on this machine, and the real figure is 27 distinct
+files across 125 write calls — every single one with `permissionMode` reading `acceptEdits`, and none
+reported as prompting.** The heaviest are the hooks themselves (`context-budget.js` ×27,
+`bash-gate.js` ×23, `agent-write-scope.js` ×16, `statusline.js` ×13) and — the one that should settle
+the "narrower protected set" reading — **`.claude/settings.json` itself, 13 times**, plus
+`settings.local.json`. If any path in that tree is protected, the permission file is.
+
+Meanwhile the one prompt Stéan reported on a write in that window was `hook-path-probe-DELETE-ME.md`
+at the REPO ROOT — outside `.claude/` entirely — and the mode live at that write, recovered from the
+transcript, was **`acceptEdits` as well** (`2026-08-21T09:42:52Z`). So the two observations are the
+inverse of what "protected-path writes prompt, ordinary writes do not" predicts, on both halves, with
+the mode held constant across them. Mode does not separate them; path does not separate them.
+
+**One of the two surviving readings is now dead.** "An explicit `permissions.allow` entry overrides
+the protection" requires such an entry to exist, and all three settings files were read: project
+`settings.json` allows `Bash`, `WebSearch`, `WebFetch` and a list of read-only Supabase tools and
+nothing else; `settings.local.json` carries five `Bash(...)` entries; the user file at
+`~/.claude/settings.json` grants `Write`/`Edit` only under `brief/**` and a OneDrive path, plus
+`Read(...)` on `.claude/agents/**` — **no `Write` or `Edit` rule anywhere covers `.claude/hooks/`,
+`.claude/rules/`, `.claude/agents/` or `settings.json` itself.** (`additionalDirectories` lists
+`.claude\rules`, which grants reachability, not approval — and does not cover the hooks or the
+settings file, which took 66 of the 125 writes between them.)
+
+So what is left is that the protection, as this build applies it, does not cover an ordinary
+`Write`/`Edit` under `.claude/` in `acceptEdits` — or covers a narrower set than the documentation's
+wording suggests. **The move is still correct: it removes the dependency on the answer**, which is
+precisely why it remains not-evidence, and why the hook's header says so at the site rather than only
+here. What it is no longer is a mystery with a settings-file explanation available.
+
+**And the counting instrument is the lesson repeating one section later.** "Roughly a dozen" was a
+recollection written into a document that had just spent 3,000 words on why recollections about the
+tree must be counted. The count cost two minutes, moved the figure by an order of magnitude, and
+turned a soft anomaly into `settings.json` ×13 — which is the version of this finding that is hard to
+explain away. Anchored: transcripts under `~/.claude/projects/c--dev-pleks/`, as at 2026-08-21.
 
 ### The kit gap, which survives the refutation intact
 

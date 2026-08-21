@@ -108,7 +108,7 @@ Report shape:
    spellings if one was generated.
 5. **Deviations / surprises** — anything the transform forced that wasn't anticipated.
 
-Written to `.claude/handoff/<task-slug>/<NN>-implementer.md`, slug and number from the brief, in
+Written to `.handoff/<task-slug>/<NN>-implementer.md`, slug and number from the brief, in
 addition to the source files your declared scope names.
 
 **It OPENS with an anchor header and CLOSES with the contract block.** Both are copied templates,
@@ -193,7 +193,7 @@ Verdict    ✅ proceed — <a five-word gloss, at most>
 Summary    at most three lines — state of the work · what Main must choose, if
            anything · nothing else
 
-Artefact   .claude/handoff/<task-slug>/<NN>-implementer.md
+Artefact   .handoff/<task-slug>/<NN>-implementer.md
 Promote    none | <section ref> → <suggested destination>
 ```
 ````

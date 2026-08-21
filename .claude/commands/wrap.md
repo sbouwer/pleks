@@ -20,7 +20,7 @@ Close out the session properly. A session that ends without this is a session so
      M-register with rung + blast, an allowlist entry with its reason, a comment at the site, the
      commit message, a spec. Filing it is part of finishing the task, done BEFORE the push gate
      while the context that makes it meaningful still exists.
-   - **Then `rm -rf .claude/handoff/<task-slug>/`** for each task whose work is pushed and whose
+   - **Then `rm -rf .handoff/<task-slug>/`** for each task whose work is pushed and whose
      promotions are filed. The observation dies, the decision survives.
    - **A task that ABORTED (`⊗ MAIN` / `⊗ HUMAN`) keeps its directory.** An abort means a decision
      is pending and those artefacts are the evidence for it. Clear it when the decision is made, not

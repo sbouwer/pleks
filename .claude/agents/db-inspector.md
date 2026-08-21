@@ -89,7 +89,7 @@ Report shape:
    proved is real rather than merely empty.
 4. **Schema notes** — when relevant, the column's definition-of-record behind the live values.
 
-Written to ONE file: `.claude/handoff/<task-slug>/<NN>-db-inspector.md`, slug and number from the
+Written to ONE file: `.handoff/<task-slug>/<NN>-db-inspector.md`, slug and number from the
 brief.
 
 **It OPENS with an anchor header and CLOSES with the contract block.** Both are copied templates,
@@ -157,7 +157,7 @@ Verdict    ✅ proceed — <a five-word gloss, at most>
 Summary    at most three lines — state of the work · what Main must choose, if
            anything · nothing else
 
-Artefact   .claude/handoff/<task-slug>/<NN>-db-inspector.md
+Artefact   .handoff/<task-slug>/<NN>-db-inspector.md
 Promote    none | <section ref> → <suggested destination>
 ```
 ````

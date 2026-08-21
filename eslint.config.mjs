@@ -72,9 +72,12 @@ const eslintConfig = defineConfig([
     ".claude/rules/**",
     ".claude/skills/**",
     ".claude/crawlers/**",
-    ".claude/handoff/**",
     ".claude/agent-memory/**",
     ".claude/worktrees/**",
+    // Agent handoff artefacts. OUTSIDE `.claude/` since 2026-08-21 — `.claude` is a permission-
+    // protected path, and putting every agent artefact inside it was the handoff protocol writing
+    // into the one tree the permission system will not auto-approve. Gitignored either way.
+    ".handoff/**",
     // Design prototypes and build specs — not production code
     "brief/**",
     // Local ESLint rule implementations — not app code

@@ -3,7 +3,7 @@
  * scripts/check-agent-write-scope.mjs — probes for the subagent write-scope gate.
  *
  * Probes BOTH directions, and the second direction is the one that matters here: a planted write
- * outside `.claude/handoff/` must be DENIED, and an ordinary write must still be ALLOWED. A gate
+ * outside `.handoff/` must be DENIED, and an ordinary write must still be ALLOWED. A gate
  * that denies everything looks identical to a working gate right up until it blocks the main
  * session, and a gate that can never fire looks identical to a working gate forever.
  *
@@ -98,14 +98,14 @@ const CASES = [
   ["an absolute path outside the scope", write("grounder", `${CWD}/package.json`, "Edit"), "deny"],
   // Traversal is the way a path check gets defeated: the string starts with the allowed prefix and
   // the resolved path does not. Compared after `path.resolve`, so this lands outside and is denied.
-  ["`..` traversal out of the handoff directory", write("grounder", ".claude/handoff/../../lib/env.ts", "Edit"), "deny"],
+  ["`..` traversal out of the handoff directory", write("grounder", ".handoff/../../lib/env.ts", "Edit"), "deny"],
   ["crawler-doctrine outside both of its roots", write("crawler-doctrine", "docs/MECHANISABLE.md", "Edit"), "deny"],
 
   // --- KNOWN-GOOD: the half that catches a gate which can never fire ---
-  ["grounder writing its own artefact", write("grounder", ".claude/handoff/m-048/01-grounder.md"), "allow"],
-  ["walker writing its artefact", write("walker", ".claude/handoff/m-048/03-walker.md"), "allow"],
-  ["census writing its artefact", write("census", ".claude/handoff/sweep/01-census.md"), "allow"],
-  ["an absolute path INSIDE the scope", write("grounder", `${CWD}/.claude/handoff/x/01-grounder.md`), "allow"],
+  ["grounder writing its own artefact", write("grounder", ".handoff/m-048/01-grounder.md"), "allow"],
+  ["walker writing its artefact", write("walker", ".handoff/m-048/03-walker.md"), "allow"],
+  ["census writing its artefact", write("census", ".handoff/sweep/01-census.md"), "allow"],
+  ["an absolute path INSIDE the scope", write("grounder", `${CWD}/.handoff/x/01-grounder.md`), "allow"],
   ["crawler-doctrine writing its findings file", write("crawler-doctrine", ".claude/crawlers/FINDINGS.json", "Edit"), "allow"],
   ["implementer editing source — its entire remit", write("implementer", "lib/constants.ts", "Edit"), "allow"],
   ["implementer writing a new file", write("implementer", "lib/screening/newThing.ts"), "allow"],
@@ -138,15 +138,15 @@ if (!saysReport) failed++
 
 // The denial has to tell the agent where its artefact DOES go, or it will retry somewhere else.
 const shown = decide(write("grounder", "lib/env.ts", "Edit"))
-const helpful = shown.reason.includes(".claude/handoff")
+const helpful = shown.reason.includes(".handoff")
 console.log(`  ${helpful ? "✓" : "✗"} must show  — the denial names the directory artefacts belong in`)
 if (!helpful) failed++
 
 // The handoff directory must be gitignored, or the post-run `git status --porcelain` control in
 // §8 of the pipeline protocol reports every artefact as untracked noise and stops being read.
-const ignored = spawnSync("git", ["check-ignore", "-q", ".claude/handoff/x/01-grounder.md"], { encoding: "utf8" })
+const ignored = spawnSync("git", ["check-ignore", "-q", ".handoff/x/01-grounder.md"], { encoding: "utf8" })
 const isIgnored = ignored.status === 0
-console.log(`  ${isIgnored ? "✓" : "✗"} must ignore — .claude/handoff/ is gitignored`)
+console.log(`  ${isIgnored ? "✓" : "✗"} must ignore — .handoff/ is gitignored`)
 if (!isIgnored) failed++
 
 console.log(

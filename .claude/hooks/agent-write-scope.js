@@ -9,7 +9,24 @@
  * at the tool call rather than asserted in a spine and hoped for.
  *
  * The pipeline protocol (dev-standards/playbooks/4-AGENT-PIPELINES.md §8) says agent artefacts go
- * to `.claude/handoff/<task-slug>/` and nowhere else. This is that sentence, enforced.
+ * to `.handoff/<task-slug>/` and nowhere else. This is that sentence, enforced.
+ *
+ * ⚠ THAT PATH WAS `.claude/handoff/` UNTIL 2026-08-21, AND MOVING IT IS A PERMISSIONS FIX, not
+ * tidying. Claude Code treats a small set of paths as PROTECTED — `.git` and `.claude` among them —
+ * and writes to them are documented as never auto-approved in any mode a pipeline would actually
+ * use (`bypassPermissions` excepted). The handoff protocol had put every agent artefact inside the
+ * one tree the permission system refuses to wave through, so an unattended run stalls on a prompt
+ * per artefact, by design, with no hook or settings rule able to change it.
+ *
+ * ⚠ AND THE MECHANISM IS NOT FULLY SETTLED — recorded because the temptation is to write this up as
+ * closed. Counted across this machine's transcripts as at 2026-08-21: **27 distinct files under
+ * `.claude/` OUTSIDE handoff, 125 write calls, every one in `acceptEdits`, none prompting** — the
+ * hooks themselves, `statusline.js`, and `settings.json` thirteen times. All three settings files
+ * were read and NO `Write`/`Edit` allow rule covers any of those paths, which kills the "an explicit
+ * allow overrides protection" reading. Meanwhile the one write that DID prompt was at the REPO ROOT,
+ * outside `.claude/`, also in `acceptEdits`. Mode does not separate the two; path does not either.
+ * The move is right regardless — it removes the dependency on the answer — but it is not evidence
+ * that it fixes the prompting. See E13.
  *
  * SECOND REMIT, added 2026-08-20 (M-068): a subagent may not CREATE COMMITS. The protocol says an
  * agent "ends at a report; the caller commits" — that was prose with nothing behind it, because
@@ -47,11 +64,11 @@ const path = require("node:path");
  * from an agent nobody scoped should be visible rather than silent.
  */
 const SCOPES = {
-  grounder: [".claude/handoff"],
-  census: [".claude/handoff"],
-  walker: [".claude/handoff"],
-  "db-inspector": [".claude/handoff"],
-  "crawler-doctrine": [".claude/handoff", ".claude/crawlers"],
+  grounder: [".handoff"],
+  census: [".handoff"],
+  walker: [".handoff"],
+  "db-inspector": [".handoff"],
+  "crawler-doctrine": [".handoff", ".claude/crawlers"],
   implementer: null,
 };
 
@@ -155,7 +172,7 @@ process.stdin.on("end", () => {
             decision = "deny";
             reason =
               `agent-write-scope: ${agentType} may only write to ${allowed.join(", ")} — ` +
-              `"${raw}" is outside it. Artefacts go to .claude/handoff/<task-slug>/; ` +
+              `"${raw}" is outside it. Artefacts go to .handoff/<task-slug>/; ` +
               `report findings to the caller instead of editing the tree.`;
           } else {
             reason = `agent-write-scope: ${agentType} writing inside its scope`;

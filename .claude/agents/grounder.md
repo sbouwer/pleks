@@ -66,7 +66,7 @@ Given a task (or the concepts it touches):
 
 ## Where your work goes
 
-You write ONE file and nothing else: `.claude/handoff/<task-slug>/01-grounder.md`. The caller's
+You write ONE file and nothing else: `.handoff/<task-slug>/01-grounder.md`. The caller's
 brief names the slug; if it does not, derive one from the task, use it, and say which you chose on
 the `Artefact` line. **Every other path is denied at the tool call** — a PreToolUse hook, not a
 convention. Never edit source, never commit, never touch config. Bash is for grep/git only.
@@ -153,7 +153,7 @@ Verdict    ✅ proceed — <a five-word gloss, at most>
 Summary    at most three lines — state of the work · what Main must choose, if
            anything · nothing else
 
-Artefact   .claude/handoff/<task-slug>/01-grounder.md
+Artefact   .handoff/<task-slug>/01-grounder.md
 Promote    none | <section ref> → <suggested destination>
 ```
 ````
