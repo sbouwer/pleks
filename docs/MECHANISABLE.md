@@ -994,7 +994,27 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Provenance:** CD review, 2026-08-21. Not read as part of it: `.claude/hooks/mcp-ddl-gate.js`, which may make it three hooks rather than two.
 - **Covering spec:** NEW
 
-### M-081 — three rules in one hook each re-derive "find X as a standalone token", and each got it wrong separately
+### M-081 — three rules in one hook each re-derive "find X as a standalone token", and each got it wrong separately — **BUILT 2026-08-21 (`34468178`, `2b3a9ca9`)**
+
+> **STATUS: BUILT, partially — and the entry stays open because one of the three rules did not migrate.**
+> `segments()` + `normToken()` + `commandIndex()` now live in `bash-gate.js`; the `rm` and force-push
+> rules are token matchers over them. The `.env` rule is **still an anchored regex** — see the closing
+> note below for why that is a decision rather than an omission.
+>
+> **What the migration cost, and it is the entry's best argument:** rebuilding the `rm` rule as a
+> regex first — before the helper existed — introduced EIGHT new bypasses and a quadratic blowup,
+> and both survived a green 54-probe suite. Every one was found by adversarial review. The rules did
+> not converge on the shared shape because someone swept; they converged because the un-swept version
+> failed loudly enough to force it.
+>
+> **A mechanism nobody knew was already installed did the rest.** `sonarjs/super-linear-regex` has
+> been configured in this repo the whole time, and `.claude/**` sat in `globalIgnores` under the
+> reason "not production code" — so the one rule that catches catastrophic backtracking was pointed
+> away from the security hooks. It flagged two live patterns the instant it could see them: the one
+> written that day, and the force-push rule, years older, carrying the identical defect AND the
+> identical "the flag follows the subcommand" assumption. **Before filing a lesson as unmechanised,
+> check whether the mechanism exists and is merely scoped away from the file that needs it.**
+
 
 - **Rule:** the shape all three want — locate a command or path token, independent of what surrounds it
 - **Where it lives:** `.claude/hooks/bash-gate.js` (the `rm` and `.env` rules) and `.claude/hooks/agent-write-scope.js` (`deniedGitSubcommand`)
@@ -1008,6 +1028,21 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Sketch:** extract the matcher, migrate all three rules onto it, keep every existing probe (they are the regression suite for the migration), and add the helper's own probe suite covering the union of the three rules' edge cases. **Probe-first and in that order** — the migration is only safe because 54 probes already pin the current behaviour.
 - **The cost of not doing it, stated because this entry's blast radius reads as low:** two of the three instances were in DENY rules with a security remit, and one of them permitted the root-glob delete for as long as the hook has existed.
 - **A live demonstration arrived while this entry was being written:** the commit carrying it was DENIED by `bash-gate` because the prose quoted a forbidden flag literally. That is the documented accepted false-deny — the rule matches a command that is merely mentioned — and it is cheap in the right direction: the author rephrases. Worth knowing before writing a register entry about a deny rule.
+- **WHY `.env` DID NOT MIGRATE, recorded so the gap is a decision and not an oversight.** The other
+  two rules ask *"which command is this, and what token follows it"* — genuinely the same question,
+  which is why one helper serves both. The `.env` rule asks *"is this string a path or a property
+  access"*, which is answered by the character BEFORE it, not by token position: `process.env` and
+  `./config/.env` tokenise identically. Forcing it onto the shared helper would have been
+  consolidation by resemblance rather than by shape, and the register's own standard — classify per
+  site, never sweep — cuts against it. **The `.env` rule's remaining exposure is its own line:** it is
+  a regex over an anchor set, and the anchor set has now been wrong twice (once over-firing on
+  `process.env.NODE_ENV`, once dropping `\` and un-gating every Windows absolute path). That is a
+  different mechanisation, not this one.
+- **What is now enforced rather than remembered** — the reason this entry can be closed at all:
+  `no-undef` and `sonarjs/super-linear-regex` run over `.claude/hooks/**` and `.claude/statusline.js`
+  as of `2b3a9ca9`, probed both directions (a planted block-scope violation fails; the real tree
+  passes). Rule four gets the backtracking half for free. The token-shape half is still vigilance.
+  <!-- @enforced eslint:sonarjs/super-linear-regex (scoped to .claude/hooks + statusline) -->
 - **Related:** M-072 (`bash-gate` matches a flag token without checking which command owns it — same family, already filed) · [[l-44]]
-- **Provenance:** CD review, 2026-08-21, across three passes; the third instance was found INSIDE the sweep the second demanded, which is the evidence that the editorial remedy does not hold.
+- **Provenance:** CD review, 2026-08-21, across three passes; the third instance was found INSIDE the sweep the second demanded, which is the evidence that the editorial remedy does not hold. Built the same day, after a fourth instance — a quadratic regex — was introduced by the fix for the second.
 - **Covering spec:** NEW
