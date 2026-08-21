@@ -9,7 +9,7 @@
 
 import { useState, useRef } from "react"
 import { Upload, FileText, X } from "lucide-react"
-import { ActionButton, InlineLink } from "@/components/ui/actions"
+import { InlineLink } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { fmtDateLongZA } from "@/lib/dates"
 
@@ -169,11 +169,7 @@ export function HoaRulesUpload({
   )
 }
 
-// Stub upload API (placeholder — BUILD_44 wires to Supabase Storage)
-export function HoaUploadStub() {
-  return (
-    <ActionButton tone="secondary" icon={<Upload className="h-3.5 w-3.5" />} disabled>
-      Upload conduct rules PDF
-    </ActionButton>
-  )
-}
+// A HoaUploadStub() lived here — a permanently `disabled` ActionButton reading "Upload conduct rules
+// PDF", placeholder for BUILD_44 wiring to Supabase Storage. It was rendered by nothing and named by
+// no register entry or spec, so it was a placeholder for a placeholder; deleted 2026-08-21. BUILD_44
+// builds the real control against the storage path, not against this shape.
