@@ -32,7 +32,36 @@ process.stdin.on("end", () => {
       [/git\s+reset\s+--hard/, "hard reset is denied"],
       // @no-twin no settings pattern was ever written for this. LT measured the same gap on the
       // same rule; recorded here rather than invented, so the hole is visible instead of implied.
-      [/rm\s+-rf?\s+["']?[\/~]["']?(\s|$)/, "rm -rf on root/home is denied"],
+      // ⚠ DENIED THE HARMLESS SHAPE AND PERMITTED THE LETHAL ONES until 2026-08-21. The old pattern
+      // was `rm\s+-rf?\s+["']?[\/~]["']?(\s|$)`, which required whitespace-or-end IMMEDIATELY after
+      // the root character — so bare `rm -rf /` was caught, while `rm -rf /*` and `rm -rf ~/*` were
+      // waved through. That is the inverse of the intended coverage: modern `rm` refuses a bare `/`
+      // without `--no-preserve-root` anyway, so the ONE shape the rule actually stopped is the one
+      // the OS already stops, and the shapes that destroy a filesystem all passed. Measured against
+      // 12 lethal spellings, the old pattern missed 7.
+      //
+      // Rebuilt on the doctrine `deniedGitSubcommand` (agent-write-scope.js) already carries twenty
+      // lines from here: DO NOT PARSE THE FLAG GRAMMAR. That lesson was written for the git rule and
+      // never swept across its neighbours — this rule sat parsing `-rf?` the whole time, and so
+      // inherited every defeat that shape invites: `-fr` (order), `-f` (no r), `-r -f` (split),
+      // `--recursive --force` (long spellings), `--no-preserve-root -rf` (an intervening flag).
+      // An intermediate fix that merely SKIPPED flag tokens still missed `rm -rf foo /`, because it
+      // assumed the target follows the flags.
+      //
+      // So: find `rm`, then require a LETHAL TARGET AS A STANDALONE TOKEN ANYWHERE AFTER IT — `/` or
+      // `~`, optionally followed by further `/` or `*`, terminating at whitespace or end. Position,
+      // flag order and flag spelling all stop mattering. Verified against 13 lethal spellings (all
+      // denied) and 9 ordinary ones (all allowed); the two that discriminate a shape-based rule from
+      // a wall are `rm -rf /tmp/scratch` and `rm -rf ~/projects/scratch`, which BEGIN with a lethal
+      // character and must still pass because a named segment follows.
+      //
+      // KNOWN FALSE-DENY, accepted and pre-existing: a command that merely MENTIONS the string
+      // (`echo 'rm -rf /' >> notes.md`) is denied. The old pattern did this too, so it is no
+      // regression, and for a DENY rule it is the correct direction to be wrong in.
+      // NOT COVERED, recorded rather than chased: a variable-expanded target (`rm -rf "$HOME"`,
+      // `rm -rf $HOME/*`) contains no literal `/` or `~`, so no pattern of this family can reach it.
+      // Widening until it does would false-deny the benign half above.
+      [/\brm\b.*?(?:\s)["']?[\/~][/*]*["']?(?=\s|$)/, "rm -rf on root/home is denied"],
       // CLAUDE.md forbids --no-verify BY NAME ("which is why it is forbidden") and, until now,
       // nothing anywhere refused it: the .githooks gates cannot see the flag that skips them, and
       // no check can observe a hook that did not run. `-n` is the short spelling and skips the same
