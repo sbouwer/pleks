@@ -11,10 +11,22 @@ E9** were measured **2026-08-20** with the version read directly: **2.1.235**. R
 future run — "which version was this true of" is the whole value of an anchor.
 
 **RE-RUN TRIGGER:** on any Claude Code major-version upgrade, re-run **E1b**, **E2**, **E5**, **E7**,
-**E8**, **E9** and **E10** *before* trusting rule scoping, marker invisibility, the assumption that MCP
-tool schemas are deferred, the handoff write control, any conclusion drawn from a subagent's behaviour
-after a spine edit, or any output from a worktree-isolated write agent. Tracked as an OUTSTANDING
-item. All seven are load-bearing: E1b decides whether
+**E8**, **E9**, **E10**, **E12** and **E13** *before* trusting rule scoping, marker invisibility, the
+assumption that MCP tool schemas are deferred, the handoff write control, any conclusion drawn from a
+subagent's behaviour after a spine edit, any output from a worktree-isolated write agent, the write
+fence at depth 2, or either instrument that reads the permission mode. Tracked as an OUTSTANDING
+item.
+
+**E12 and E13 added 2026-08-21, and both are payload/transcript SHAPE observations — the most
+upgrade-fragile kind there is.** E12 rests on `agent_type` being present in a depth-2 PreToolUse
+payload and on no depth field existing there; a release that adds one, renames the other, or stops
+sending either silently changes what the write fence can decide. E13 rests on the transcript carrying
+`{"type":"mode"}` records that mean the LIVE permission mode while the payload's `permission_mode`
+means the CONFIGURED default — if that split ever closes, or the record's vocabulary changes, the
+statusline and the context-budget hook both start reporting a mode nobody is in. **Both failure modes
+are silent**, which is why they are on this list rather than left to be noticed.
+
+All nine are load-bearing: E1b decides whether
 scoped rules are a control or a convenience, E2 decides whether the entire marker vocabulary costs
 context budget, E5 decides whether connected MCP servers impose a flat per-turn floor (on 2.1.235
 they do not — a revert to eager tool loading would change the economics of every session),
@@ -451,7 +463,10 @@ branch, or the repo's configured default. One repo, one observation of each — 
 
 **Anchor:** same session, CLI 2.1.235, HEAD `a5b6f541` on branch `fix/day0-cancellation-copy`,
 2026-08-21. Design pre-registered at `.claude/handoff/fanout-probe/01-main.md` **before the run**,
-per §4b item 5 — a prediction written after the result is not a prediction.
+per §4b item 5 — a prediction written after the result is not a prediction. **That artefact was
+disposed of at wrap under §9**, so the citation is a provenance record, not a live path: the four
+predictions, the 49/49 readiness measurement and the result are all reproduced below, which is what
+makes the disposal safe. The observation dies, the decision survives.
 
 **Why it needed testing.** `scripts/agent-distribution.mjs` reports a `spawn depth` line and a
 `spawnedBy` edge, and neither had ever been exercised: **49 of 49 recorded runs were top-level**,
