@@ -389,6 +389,21 @@ if (require.main === module) {
         additionalContext = adviseAgent(m) ?? "";
         systemMessage = adviseUser(m);
       }
+      // The session's LIVE permission mode, reported to the MODEL because it cannot observe one.
+      // A session-level mode outranks permissions.defaultMode and is written to no file, so from
+      // inside a turn "allowed", "prompted" and "mode-overridden" are indistinguishable. The
+      // statusline carries this too, but a statusline is not rendered on every surface — measured
+      // 2026-08-21, the VS Code panel shows none, which is the same invisibility this hook's own
+      // header describes one participant over. Reported ONLY on disagreement with settings.json;
+      // silence is a positive claim that settings won.
+      // ONLY on disagreement. The always-on tier has a hard size budget (its own probe caps it at
+      // 92 chars) and two more probes require EMPTY output when there is nothing to say, so a line
+      // on every turn would make this the wallpaper the file was written to replace. Agreement and
+      // an absent field are both silent here; presence of the field is settled out of band rather
+      // than by spending the budget on a permanent line.
+      if (input.permissionMode && input.permissionMode !== "acceptEdits") {
+        additionalContext += `${additionalContext ? "\n" : ""}[perm] ${input.permissionMode} overrides defaultMode acceptEdits`;
+      }
     } catch {
       // A hook that cannot measure must not guess, and must not block: this one only ever ADDS a
       // line, so failing silent costs a missed reminder rather than a stalled session.
