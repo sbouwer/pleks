@@ -130,6 +130,3 @@ export function witnessDisagreement(a: readonly ApiHoliday[], b: readonly ApiHol
 export function auditLiveTable(apiEntries: readonly ApiHoliday[], coversFrom: string, coversThrough: string): HolidayAuditResult {
   return classifyHolidayDiff(SA_PUBLIC_HOLIDAYS, apiEntries, coversFrom, coversThrough)
 }
-
-/** Re-exported so callers need one import. */
-export { isWithinHolidayHorizon } from "./saPublicHolidays"

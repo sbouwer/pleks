@@ -71,7 +71,7 @@ export const PERIOD_OPTIONS = [
   { value: "quarter", label: "Quarter" },
   { value: "annual", label: "Annual" },
 ]
-export const PERIOD_DIVISOR: Record<IncomePeriod, number> = { month: 1, quarter: 3, annual: 12 }
+const PERIOD_DIVISOR: Record<IncomePeriod, number> = { month: 1, quarter: 3, annual: 12 }
 
 /** The SA income-source catalog — grouped so a longer picker stays scannable; labels match how applicants
  *  describe their income. Keys align with the reconciler's evidence handling (employment / rental / dividends /

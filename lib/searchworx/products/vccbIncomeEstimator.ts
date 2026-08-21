@@ -22,8 +22,10 @@ import {
 
 export const VCCB_PRODUCT_KEY  = "vccb_income_estimator"
 export const VCCB_COST_CENTS   = 635   // R6.35 ex-VAT — ADDENDUM_14H v3 rate card
-export const VCCB_SEARCH_TYPE  = 220   // VeriCredIncomeEstimation
 const VCCB_PRODUCT_PATH = "credit/vericred/incomeestimate"
+// VCCB_SEARCH_TYPE (= 220, VeriCredIncomeEstimation) was exported here and read by nobody — the
+// integration addresses the product by PATH, above. Removed 2026-08-21; same call as its twin in
+// combinedConsumerCreditReport.ts.
 
 export const VCCB_RESULT_SUMMARIES = {
   success:                "Gross income estimate retrieved",

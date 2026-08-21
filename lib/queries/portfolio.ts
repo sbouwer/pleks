@@ -140,17 +140,10 @@ export async function fetchMaintenance(supabase: SupabaseClient, orgId: string, 
   return data ?? []
 }
 
-export async function fetchApplications(supabase: SupabaseClient, orgId: string, scope: WorkScope = "all", userId?: string) {
-  let query = supabase
-    .from("applications")
-    .select("id, first_name, last_name, applicant_email, stage1_status, stage2_status, prescreen_score, fitscore, gross_monthly_income_cents, is_foreign_national, has_co_applicant, applicant_motivation, created_at, assigned_user_id, assigned_team_id, handled_by, listing_id, listings(id, public_slug, asking_rent_cents, applications_count, units(unit_number, properties(name)))")
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-  if (scope === "mine" && userId) query = applyWorkScope(query, "mine", userId)
-  const { data, error } = await query.order("created_at", { ascending: false }).limit(100)
-  if (error) { console.error("fetchApplications failed:", error.message); return [] }
-  return data ?? []
-}
+// fetchApplications(supabase, orgId, scope, userId) lived here, alongside its siblings. Its only
+// caller was fetchApplicationsAction in ./portfolioActions, which had no callers of its own; both
+// were removed 2026-08-21. The applications list is served elsewhere — this pair was a dead rung of
+// the portfolio-query ladder, not the live path.
 
 export async function fetchPayments(supabase: SupabaseClient, orgId: string) {
   const { data, error } = await supabase

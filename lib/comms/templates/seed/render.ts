@@ -9,7 +9,7 @@
  */
 
 import type { TemplateSeed } from "./types"
-import type { TemplateBlock, TemplateBodyVariants, TemplateFlavour } from "../blocks/types"
+import type { TemplateBlock, TemplateFlavour } from "../blocks/types"
 import { ECTA_FOOTER_TEXT, popiaProcessingLine } from "../legalCitations"
 
 /** One block → its review-text representation (tokens preserved). */
@@ -76,5 +76,6 @@ export function renderSeedReview(seed: TemplateSeed): string {
   return `${head}\n\n${bodySection}\n`
 }
 
-/** Variants helper exported for the generator's flavour iteration. */
-export type { TemplateBodyVariants }
+// `TemplateBodyVariants` was re-exported from here, described as the generator's flavour-iteration
+// helper. The generator imports it from ../blocks/types directly and nothing imported this copy;
+// removed 2026-08-21.

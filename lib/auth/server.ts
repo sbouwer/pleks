@@ -291,5 +291,5 @@ export async function requireAgentWriteAccess(
   return gw
 }
 
-export type { AgentWriteAction, SubscriptionState } from "@/lib/subscriptions/state"
+export type { AgentWriteAction } from "@/lib/subscriptions/state"
 export type { GatewayContext } from "@/lib/supabase/gateway"

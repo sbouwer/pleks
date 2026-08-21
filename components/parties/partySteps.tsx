@@ -9,7 +9,7 @@
  */
 import { useEffect } from "react"
 import { Plus, X } from "lucide-react"
-import { PARTY_ROLES, SPECIALITY_OPTIONS, COMPANY_FUNCTION_OPTIONS, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
+import { SPECIALITY_OPTIONS, COMPANY_FUNCTION_OPTIONS, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
 import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson, type PartyAddressInput, type PartyBankAccountInput } from "@/lib/parties/partyValidation"
 import type { PartyStepId } from "@/lib/parties/partyStepPlan"
 import {
@@ -293,7 +293,7 @@ type StepBodyProps = Readonly<{
   fullFica: boolean; companyPeople: boolean; lockEntity?: boolean; hideWelcomePack?: boolean
 }>
 
-export function IdentityStep({ role, entity, setEntity, f, set, errors, fullFica, companyPeople, lockEntity }: StepBodyProps) {
+function IdentityStep({ role, entity, setEntity, f, set, errors, fullFica, companyPeople, lockEntity }: StepBodyProps) {
   const lockedLabel = entity === "individual" ? "Individual" : "Company"
   return (
     <>
@@ -475,7 +475,7 @@ function reviewAddressLine(a: PartyAddressInput): string {
   return parts.map((s) => s?.trim()).filter(Boolean).join(", ")
 }
 
-export function ReviewStep({
+function ReviewStep({
   role, entity, f, hideWelcomePack,
 }: Readonly<{ role: PartyRole; entity: PartyEntity; f: PartyFormState; hideWelcomePack?: boolean }>) {
   const isIndividual = entity === "individual"
@@ -557,45 +557,6 @@ export function ReviewStep({
           <ReviewRow k="Welcome pack" v={f.sendWelcomePack !== false ? "Will send" : "Skip"} />
         </ReviewSection>
       )}
-    </div>
-  )
-}
-
-// ── Success ───────────────────────────────────────────────────────────────────
-export function SuccessView({
-  role, entity, f, displayName, onClose, onAddAnother, onPrimaryAction,
-}: Readonly<{
-  role: PartyRole; entity: PartyEntity; f: PartyFormState; displayName: string
-  onClose: () => void; onAddAnother: () => void; onPrimaryAction?: () => void
-}>) {
-  const cfg = PARTY_ROLES[role]
-  const name = displayName
-    || (entity === "individual" ? [f.firstName, f.lastName].filter(Boolean).join(" ") : f.companyName)
-    || cfg.singular
-  return (
-    <div className="flex flex-col items-center py-4 text-center">
-      <svg width={60} height={60} viewBox="0 0 64 64" fill="none" className="overflow-visible">
-        <path d="M32 5 L55 13 L55 31 C55 45 46 54 32 59 C18 54 9 45 9 31 L9 13 Z"
-          className="fill-primary/10 stroke-primary" strokeWidth="2.4" strokeLinejoin="round" />
-        <path d="M21 33 L29 41 L44 24" className="stroke-primary" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </svg>
-      <p className="mt-4 text-lg font-semibold text-foreground">{name} added.</p>
-      <p className="mt-1 max-w-xs text-sm text-muted-foreground">{cfg.successNote}</p>
-      <div className="mt-6 flex flex-col items-stretch gap-2 self-stretch">
-        {cfg.successAction && (
-          <button type="button" onClick={onPrimaryAction ?? onClose}
-            className="rounded-[var(--r-button)] bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-            {cfg.successAction}
-          </button>
-        )}
-        <button type="button" onClick={onAddAnother}
-          className="rounded-[var(--r-button)] border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/40">
-          Add another {cfg.singular.toLowerCase()}
-        </button>
-        <button type="button" onClick={onClose} className="px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
-          Done
-        </button>
-      </div>
     </div>
   )
 }

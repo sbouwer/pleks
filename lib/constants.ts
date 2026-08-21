@@ -134,11 +134,10 @@ export function screeningFeeLineCount(input: {
   return input.hasCoApplicant ? 2 : 1
 }
 export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income — PRINCIPAL/co-applicant ceiling (rent ÷ combined gross; ≈ income ≥ 3.33× rent)
-// Guarantor/surety floor — DECOUPLED from and STRICTER than the principal threshold. A guarantor must cover the
-// WHOLE lease on default (not share it), so their independent income is checked against a higher multiple of rent
-// (industry 4–6×; 4× ⇒ rent ≤ 25% of guarantor income). Tunable strictness dial; guarantor income is NEVER summed
-// into combined affordability — it produces a separate guarantee-strength signal. (ADDENDUM_14M J4)
-export const GUARANTOR_MIN_INCOME_MULTIPLE = 4
+// A GUARANTOR_MIN_INCOME_MULTIPLE of 4 lived here, described as the guarantor/surety affordability floor —
+// decoupled from and stricter than the principal threshold above (ADDENDUM_14M J4). It had no callers: the
+// guarantee-strength signal it was meant to feed was never built, so the constant documented a design rather
+// than tuning one. Deleted 2026-08-21. If that signal is built, the number and its reasoning are in git.
 export const PROBATION_MONTHS = 3 // typical SA probation window — an inference for screening, NOT a legal status
 // Applicants get the initial pre-screen + exactly ONE adjustment (re-check). Caps Sonnet cost + gaming;
 // after this the agent reviews. Hard-enforced server-side (submit + /screen) AND surfaced clearly in the UI.
@@ -166,7 +165,8 @@ export type OrgType = (typeof ORG_TYPES)[number]
 // which are what every gate and query actually read. A third copy here had no importers.
 
 export const LEASE_TYPES = ["residential", "commercial"] as const
-export type LeaseType = (typeof LEASE_TYPES)[number]
+// No `LeaseType` alias here: the one that existed had no importers, and the name is used elsewhere
+// in the tree for an unrelated notion. Callers that want the union write `(typeof LEASE_TYPES)[number]`.
 
 export const SA_PROVINCES = [
   "Western Cape",

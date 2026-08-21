@@ -85,11 +85,3 @@ export function isEncrypted(value: string): boolean {
   if (parts.length !== 3) return false
   return parts.every((p) => /^[0-9a-f]+$/.test(p))
 }
-
-/**
- * Encrypts a value only if it is not already encrypted.
- */
-export function encryptIfNeeded(value: string): string {
-  if (isEncrypted(value)) return value
-  return encrypt(value)
-}

@@ -6,7 +6,7 @@
  *         Identity/details validators return a { field: message } map (empty = valid). Kept here
  *         (not in the component) so the same rules drive both the modal UI and any future API guard.
  */
-import type { PartyRole, PartyEntity, PartyRoleConfig } from "./partyConfig"
+import type { PartyRole, PartyEntity } from "./partyConfig"
 import { isValidEmail, emailError, phoneError } from "@/lib/validation/contact"
 
 /** A person under a company contact (ADDENDUM_25A) — first-class contact, role derives from the company. */
@@ -174,19 +174,10 @@ function validateIndividualIdentity(f: PartyFormState, e: PartyErrors, need: (k:
   checkSaId(f, "idType", "idNumber", e)
 }
 
-/** Physical address mandatory (line1 + city); an opened postal/billing block must be complete or removed. */
-function companyAddressError(addresses: PartyAddressInput[] | undefined): string | null {
-  const list = addresses ?? []
-  const phys = list.find((a) => a.type === "physical")
-  if (!phys?.line1?.trim() || !phys?.city?.trim()) return "A street address (line 1 + city) is required."
-  for (const a of list) {
-    if (a.type === "physical") continue
-    if ((a.line1?.trim() || a.city?.trim()) && (!a.line1?.trim() || !a.city?.trim())) {
-      return `Complete the ${a.type} address (line 1 + city) or remove it.`
-    }
-  }
-  return null
-}
+// companyAddressError() lived here — physical address mandatory, an opened postal/billing block must
+// be complete or removed. Its only caller was validateCompanyPeopleIdentity, deleted below in the
+// same pass, and validateAddressStep now enforces the identical two rules against every party rather
+// than only the FICA company path. Removed 2026-08-21.
 
 /** A signatory whose SA-ID fails the checksum (passport/permit aren't checksum-validated). */
 function signatoryHasBadId(p: PartyPerson): boolean {
@@ -197,59 +188,13 @@ function signatoryHasBadId(p: PartyPerson): boolean {
   return !!v && !v.valid
 }
 
-/**
- * 25A people-repeater company path: ≥1 person, all named + functioned, exactly one primary. For FICA
- * companies (landlord/tenant) also requires ≥1 signatory and every signatory to carry a valid FICA ID.
- */
-function validateCompanyPeopleIdentity(f: PartyFormState, fullFica: boolean, e: PartyErrors, need: (k: keyof PartyFormState) => void) {
-  need("companyName")
-  if (fullFica) {
-    const addrErr = companyAddressError(f.addresses)
-    if (addrErr) e.addresses = addrErr
-  }
-  const people = f.people ?? []
-  if (people.length === 0) { e.people = "Add at least one contact person."; return }
-  if (people.some((p) => !p.firstName?.trim() || !p.lastName?.trim() || !p.companyFunction)) {
-    e.people = "Each person needs a first name, last name and a function."
-    return
-  }
-  if (people.filter((p) => p.isPrimary).length !== 1) {
-    e.people = "Mark exactly one person as the primary contact."
-    return
-  }
-  if (fullFica) {
-    const signatories = people.filter((p) => p.isSignatory)
-    if (signatories.length === 0) {
-      e.people = "Mark at least one person as a signatory — they sign for the company and need FICA."
-      return
-    }
-    if (signatories.some(signatoryHasBadId)) {
-      e.people = "Every signatory needs a valid ID number (FICA)."
-    }
-  }
-}
-
-/** Step 1 (Identity) validator — entity-aware; company path branches on cfg.companyPeople (25A). */
-export function validateIdentity(entity: PartyEntity, f: PartyFormState, cfg: PartyRoleConfig): PartyErrors {
-  const e: PartyErrors = {}
-  const need = (k: keyof PartyFormState) => {
-    const v = f[k]
-    if (typeof v !== "string" || !v.trim()) e[k] = "Required"
-  }
-  if (entity === "individual") validateIndividualIdentity(f, e, need)
-  else validateCompanyPeopleIdentity(f, cfg.fullFica, e, need)
-  return e
-}
-
-/** Step 2 (Details) validator — role-specific gates (tenant POPIA consent, supplier specialities). */
-export function validateDetails(role: PartyRole, f: PartyFormState): PartyErrors {
-  const e: PartyErrors = {}
-  if (role === "tenant" && !f.popiaConsent) e.popiaConsent = "POPIA consent is required to continue."
-  if (role === "supplier" && (!f.specialities || f.specialities.length === 0)) {
-    e.specialities = "Pick at least one speciality."
-  }
-  return e
-}
+// THE TWO-STEP ERA WAS DELETED HERE, 2026-08-21. Three functions went, none with a caller:
+// validateIdentity (step 1) and validateDetails (step 2) — the whole-form validators from when the
+// party form had two steps — and validateCompanyPeopleIdentity, the company branch validateIdentity
+// dispatched into. Every rule they carried survives BELOW, not merely in git: validateIdentityCore
+// replaces validateIdentity, validatePeopleStep is a line-for-line replacement of
+// validateCompanyPeopleIdentity (same checks, same messages), validateAddressStep covers the FICA
+// company-address branch, and validateSpecialitiesStep / validateConsentStep cover validateDetails.
 
 // ── Per-step validators (multi-step wizard) ───────────────────────────────────
 // The flow is split into focused steps; each step validates only its own section.

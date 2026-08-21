@@ -151,5 +151,3 @@ export function Sidebar() {
     </aside>
   )
 }
-
-export { NAV_GROUPS }

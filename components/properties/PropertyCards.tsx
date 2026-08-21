@@ -1,21 +1,14 @@
 /**
- * components/properties/PropertyCards.tsx — card-grid portfolio view (owner/steward tiers)
+ * components/properties/PropertyCards.tsx — the portfolio row shape
  *
  * Data:   PropertyCardData[] from properties/page.tsx (nested active units + leases)
  * Notes:  Active units are those with deleted_at == null (the sole archive marker — D-1); the legacy
- *         is_archived boolean is no longer consulted. KPIs (units/occupancy/rent-roll) sum active only.
+ *         is_archived boolean is no longer consulted.
+ *         The `PropertyCards` card-grid component that gave this file its name was deleted
+ *         2026-08-21 as dead code — `PropertyList` is the live grid and imports only this type.
+ *         The file keeps its name because the type is imported by that path; renaming it is a
+ *         separate change, not part of a dead-code pass.
  */
-import Link from "next/link"
-import { Home } from "lucide-react"
-import { AddPropertyButton } from "./AddPropertyButton"
-import { EmptyResourceState } from "@/components/ui/empty-resource-state"
-import { ResourcePageHeader } from "@/components/ui/resource-page-header"
-import { PortfolioMetrics } from "./PropertyMetrics"
-import { PropertyCard } from "./PropertyCard"
-import { isInForceLease } from "@/lib/leases/rentRoll"
-import { TIER_LIMITS } from "@/lib/constants"
-import type { Tier } from "@/lib/constants"
-
 export interface PropertyCardData {
   id: string
   name: string
@@ -24,106 +17,4 @@ export interface PropertyCardData {
   city: string
   is_sectional_title?: boolean | null
   units: { id: string; status: string; deleted_at: string | null; asking_rent_cents: number | null; leases: { rent_amount_cents: number; status: string }[] }[]
-}
-
-interface Props {
-  readonly properties: PropertyCardData[]
-  readonly tier: Tier
-  readonly totalUnitCount: number
-  readonly arrearsPct?: number
-}
-
-export function PropertyCards({ properties, tier, totalUnitCount, arrearsPct }: Props) {
-  const unitLimit = TIER_LIMITS[tier].leases
-
-  const totalUnits = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.deleted_at).length, 0)
-  const occupiedUnits = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.deleted_at && u.status === "occupied").length, 0)
-  const rentRollCents = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.deleted_at).reduce((us, u) => {
-      const lease = u.leases.find(l => isInForceLease(l.status))
-      return us + (lease?.rent_amount_cents ?? 0)
-    }, 0), 0)
-  const potentialCents = properties.reduce((sum, p) =>
-    sum + p.units.filter(u => !u.deleted_at).reduce((us, u) => {
-      const lease = u.leases.find(l => isInForceLease(l.status))
-      return us + (lease?.rent_amount_cents ?? u.asking_rent_cents ?? 0)
-    }, 0), 0)
-  const occupancyPct = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
-
-  if (properties.length === 0) {
-    return (
-      <EmptyResourceState
-        eyebrow="Portfolio"
-        title="Properties"
-        headline="No properties yet"
-        headerSub="Add your first property to start building leases, statements and maintenance."
-        emptyTitle="Your portfolio is empty"
-        emptySub="It takes about two minutes to add your first one."
-        icon={<Home className="h-6 w-6" />}
-        headerAction={<AddPropertyButton />}
-        heroAction={<AddPropertyButton variant="hero" label="Add your first property" showPlus={false} />}
-      />
-    )
-  }
-
-  return (
-    <div>
-      <ResourcePageHeader
-        title="Properties"
-        headline="Your portfolio"
-        sub="Every property and unit you manage — live occupancy and rent roll below."
-        action={<AddPropertyButton />}
-      />
-
-      <PortfolioMetrics
-        propertyCount={properties.length}
-        unitCount={totalUnits}
-        occupiedUnits={occupiedUnits}
-        occupancyPct={occupancyPct}
-        rentRollCents={rentRollCents}
-        potentialCents={potentialCents}
-        arrearsPct={arrearsPct}
-      />
-
-      {/* Near-limit warning for steward */}
-      {unitLimit != null && totalUnitCount >= unitLimit - 3 && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-600">
-          <span>
-            {totalUnitCount}/{unitLimit} units used on your plan.{" "}
-            <Link href="/settings/subscription" className="underline underline-offset-2 hover:text-amber-700">
-              Upgrade to Portfolio →
-            </Link>
-          </span>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {properties.map((p) => {
-            const activeUnits = p.units.filter(u => !u.deleted_at)
-            const occupied = activeUnits.filter(u => u.status === "occupied").length
-            const rentRoll = activeUnits.reduce((sum, u) => {
-              const activeLease = u.leases.find(l => l.status === "active")
-              return sum + (activeLease?.rent_amount_cents ?? 0)
-            }, 0)
-            return (
-              <PropertyCard
-                key={p.id}
-                id={p.id}
-                name={p.name}
-                type={p.type}
-                addressLine1={p.address_line1}
-                city={p.city}
-                isSectionalTitle={p.is_sectional_title ?? false}
-                totalUnits={activeUnits.length}
-                occupiedUnits={occupied}
-                rentRollCents={rentRoll}
-                attentionCount={0}
-              />
-            )
-          })}
-      </div>
-    </div>
-  )
 }
