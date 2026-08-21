@@ -791,7 +791,7 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Probe, kept:** `scripts/` has no home for it yet; the five cases are reproduced in the bullet above so the next attempt starts from the measurement rather than the code.
 
 
-### M-073 — nothing local stops a commit landing on the default branch
+### M-073 — nothing local stops a commit landing on the default branch — ✅ BUILT 2026-08-21
 
 - **Rule:** "If on the default branch, branch first" — and `main` is ruleset-protected on the remote.
 - **Where it lives:** prose only. `CLAUDE.md` §3 covers push policy; `.githooks/pre-commit` runs `npm run check` and says nothing about which branch it is on.
@@ -804,6 +804,23 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **SECOND occurrence, 2026-08-21 — and the first one the remote did not catch either.** Work in this session was committed directly onto local `main` again: `git status` at session start named a feature branch, that branch had since been merged and deleted, and the checkout was left on `main` with nothing saying so. Four commits landed before it was noticed. Every local gate passed, exactly as measured at `f7c51d89`.
 - **What the recovery cost, which is the part that argues for the gate:** the fix was `git switch -c chore/dead-code-burndown` followed by `git branch -f main origin/main` — chosen specifically to avoid `git reset --hard`, which is hook-denied. That is the entry's own "one keystroke from a destructive operation" prediction, met in practice, by a session that knew the rule.
 - **This makes it a recurrence, not an anecdote.** Two occurrences, months apart, both by a session with the rule in context, is the signature of a rule that prose cannot hold — and `.githooks/pre-commit` now EXISTS (M-007), so the sketch is no longer "add a hook" but "add three lines to a hook already running on every commit".
+
+**✅ BUILT 2026-08-21, in the session that produced the second occurrence.** `.githooks/pre-commit`
+refuses a commit whose branch is the default, resolved from `refs/remotes/origin/HEAD` rather than
+hardcoded — a repo defaulting to `master` gets the same guard, and the probe resolves it the same way
+so it cannot pass by agreeing with a hardcoded "main" on both sides. It runs **before** the check
+chain, which is the property that keeps the remedy at one `git switch -c`.
+
+Five probes in `scripts/check-git-hooks.mjs`, both directions: the default branch BLOCKS, the refusal
+says why, the guard fires even when the chain seam says the chain would pass (proving order), a
+normal feature branch is untouched, and `<default>-but-not-quite` passes — the last two are the half
+that catches an over-broad guard, without which "block everything" would score green.
+
+**One design note worth keeping.** The guard is skipped under `PLEKS_HOOK_PROBE=1` unless its own
+seam opts in. Without that, `npm run check` would fail *on the default branch* — `check-git-hooks`
+spawns the real hook, so the guard would fire during an ordinary check run that is not committing
+anything. A gate that makes the gate unrunnable is the failure this file keeps recording in other
+forms; here it was caught before shipping rather than after.
 
 
 ### M-070 — a generated seed artefact with no regeneration check

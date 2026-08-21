@@ -8,6 +8,37 @@
 # PLEKS_PRECOMMIT_CMD exists so the probe can drive both directions without a two-minute run.
 # It is a test seam, not a bypass — a bypass would be --no-verify, which CLAUDE.md forbids.
 set -e
+
+# ─── Default-branch guard — M-073 ─────────────────────────────────────────────
+# "If on the default branch, branch first" was prose only, and the remote ruleset was the first
+# thing that noticed: five commits on 2026-08-20, four more on 2026-08-21, every local gate green
+# both times. The 2026-08-21 recurrence was by a session that HAD the rule in context — `git status`
+# named a feature branch that had since been merged and deleted, leaving the checkout on `main` with
+# nothing saying so.
+#
+# It runs BEFORE the check chain deliberately. Caught here the remedy is one `git switch -c`; caught
+# at push time the work is already committed and the fix sits one keystroke from `git reset --hard`,
+# which is hook-denied for good reason.
+#
+# The default branch is RESOLVED, never hardcoded — a repo whose default is `master` or `trunk` must
+# get the same guard, and a hardcoded "main" would silently protect nothing there.
+BRANCH="${PLEKS_BRANCH_PROBE:-$(git branch --show-current)}"
+if [ "$PLEKS_HOOK_PROBE" = "1" ] && [ -z "$PLEKS_BRANCH_PROBE" ]; then
+  : # command-seam probes drive the CHECK CHAIN; skipping keeps `npm run check` runnable on any
+    # branch, including the default one. The guard's own probes set PLEKS_BRANCH_PROBE to opt in.
+elif [ -n "$BRANCH" ]; then
+  # Empty during a detached HEAD or a rebase — those are not "committing on main", so they pass.
+  DEFAULT=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
+  [ -n "$DEFAULT" ] || DEFAULT=main
+  if [ "$BRANCH" = "$DEFAULT" ]; then
+    echo "pre-commit → REFUSED: this commit would land on '$BRANCH', the default branch." >&2
+    echo "  CLAUDE.md: if on the default branch, branch first. The remote ruleset rejects the" >&2
+    echo "  push anyway (GH013), but by then the work is committed and moving it is no longer free." >&2
+    echo "  Fix, and it costs nothing right now:  git switch -c <type>/<short-description>" >&2
+    exit 1
+  fi
+fi
+
 if [ -n "$PLEKS_PRECOMMIT_CMD" ] && [ "$PLEKS_HOOK_PROBE" = "1" ]; then
   CMD="$PLEKS_PRECOMMIT_CMD"
 else
