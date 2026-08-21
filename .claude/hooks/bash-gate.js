@@ -73,38 +73,116 @@
  * no literal `/` or `~`, so nothing reading the command TEXT can see the value; and `cd / && rm -rf *`
  * hides the danger in the preceding `cd`, the target being a bare `*` that is correctly allowed.
  */
+/**
+ * Strip the shell punctuation that carries no meaning for these rules, so one token compares as one
+ * word. `/"*"` and `'/'*` are both `/*` to the shell; `(rm` hides a command inside a subshell paren;
+ * `\rm` is the standard alias-bypass idiom. Quotes come out ANYWHERE, because mid-token is exactly
+ * where they were used to hide.
+ *
+ * A CHARACTER LOOP, NOT A REGEX, and that is not fussiness: `/^[\\({[]+|[)}\]]+$/` is super-linear
+ * (an anchored greedy class backtracks across a run of the same character) and `sonarjs/
+ * super-linear-regex` flags it. This file is the wrong place to argue that the input is short.
+ */
+function normToken(t) {
+  const s = t.replace(/["'`]/g, "");
+  let i = 0, j = s.length;
+  while (i < j && "\\({[".includes(s[i])) i++;
+  while (j > i && ")}]".includes(s[j - 1])) j--;
+  return s.slice(i, j);
+}
+
+/**
+ * A command string as SEGMENTS of normalised tokens — one segment per shell command.
+ *
+ * Shared by every rule below that needs to know where a command starts, which is the consolidation
+ * this file kept re-deriving: three rules had each grown their own idea of a token boundary out of
+ * `\s`, `\b` and lookaheads, and every one of them was defeated by punctuation touching the target.
+ *
+ * Continuations are joined BEFORE segmenting, or the newline separator tears a continued command in
+ * half at exactly the point an attacker would choose it.
+ */
+function segments(command) {
+  return command
+    .replace(/\\\r?\n/g, " ")
+    .split(/[;&|\n]+/)
+    .map((seg) => seg.split(/\s+/).map(normToken).filter(Boolean));
+}
+
+/** Does this segment run `name` (as `name`, `/usr/bin/name` or `\name`)? Returns the token index. */
+function commandIndex(tokens, name) {
+  const re = new RegExp(`^(?:[^\\s]*/)?${name}$`);
+  return tokens.findIndex((t) => re.test(t));
+}
+
+/**
+ * Is this an `rm` aimed at a filesystem root or a bare home directory?
+ *
+ * NOT A REGEX, on purpose, and the reason is measured rather than stylistic. The regex this
+ * replaced — a lazy expansion after the command token — was QUADRATIC: it rescans the whole tail
+ * from every `rm` token, so cost grows with (occurrences × length). Doubling the input quadrupled
+ * the time (measured 4.02×), and this gate runs in front of EVERY Bash call:
+ *      10KB command   6.6ms      (the linear predecessor: 0.003ms)
+ *      60KB commit    61ms       — this repo writes register entries that long
+ *      100KB          679ms
+ *      500KB          17,057ms
+ * Token matching is one pass: 500KB in ~27ms, flat per character.
+ *
+ * That is the ReDoS lesson for the FOURTH time in this repo — the email check, the money formatter,
+ * and `supabase/reconcile/apply-prod.mjs:40`, which says in a comment "a gate is not the place for
+ * it" and chose a plain line scan for exactly this reason. The repo also had `sonarjs/
+ * super-linear-regex` configured the whole time and `.claude/**` was in `globalIgnores`, so the one
+ * mechanism that catches this class was pointed away from the file that most needed it.
+ *
+ * The matching doctrine is `deniedGitSubcommand`'s: DO NOT PARSE THE FLAG GRAMMAR. Find the command,
+ * then look for a lethal target as a STANDALONE TOKEN anywhere after it in the same segment. Flag
+ * order, flag spelling and target position all stop mattering, which is what defeated every earlier
+ * attempt: `-fr`, `-f`, `-r -f`, `--recursive --force`, `--no-preserve-root -rf`, and a target that
+ * does not follow the flags at all.
+ *
+ * KNOWN FALSE-DENY, accepted: a command that merely MENTIONS the string is denied — this commit's
+ * own message had to be written to a file because of it. For a DENY rule that is the correct
+ * direction to be wrong in: a false deny costs a rephrase, a false allow costs the filesystem.
+ *
+ * An earlier cut ALSO false-denied a delete followed by an unrelated command reading a root path,
+ * and recorded it as accepted. It was not accepted, merely unsegmented — the seen-flag was set once
+ * and carried to the end of the string. Per-segment reset removes it for free, and the lesson is
+ * worth more than the fix: a cost written down as "accepted" stops being re-examined, so an
+ * unnecessary one can sit in a comment indefinitely looking like a considered trade.
+ *
+ * NOT COVERED, recorded rather than chased: a variable-expanded target contains no literal `/` or
+ * `~`, so nothing reading the command TEXT can see the value; and a `cd` to root followed by a
+ * delete of `*` hides the danger in the `cd`, the target being a bare `*` that is correctly allowed.
+ */
 function isDestructiveRm(command) {
   // `/` or `~`, then only more slashes and stars. `/tmp/scratch` and `~/projects` fail because a
   // NAMED segment follows — the two cases that separate a gate from a wall.
   const LETHAL_TARGET = /^[/~][/*]*$/;
-  // Quotes come out ANYWHERE (mid-token is where they hide); grouping and a leading backslash come
-  // off the ends. `\rm` is the standard idiom for bypassing a shell alias — without the backslash
-  // strip the token never matches and the whole rule silently stands down.
-  const norm = (t) => t.replace(/["'`]/g, "").replace(/^[\\({[]+|[)}\]]+$/g, "");
+  for (const tokens of segments(command)) {
+    const at = commandIndex(tokens, "rm");
+    if (at === -1) continue;
+    if (tokens.slice(at + 1).some((t) => LETHAL_TARGET.test(t))) return true;
+  }
+  return false;
+}
 
-  // Join backslash-newline continuations BEFORE segmenting, or the split below tears one command in
-  // half at exactly the point an attacker would choose. This must come first: `rm -rf \⏎  /*` is one
-  // command, and treating the newline as a separator would file its target under a second, rm-less
-  // segment and allow it.
-  const joined = command.replace(/\\\r?\n/g, " ");
-
-  // ONE SEGMENT PER COMMAND, and `seenRm` resets at each. A chain operator genuinely starts a new
-  // command, so a lethal-looking token after one is not the `rm`'s target: `rm -rf .next && du -sh /`
-  // is ordinary work. Carrying the flag across the whole string (an earlier cut of this) made that a
-  // documented "accepted false-deny" — it was neither necessary nor accepted, just unsegmented.
-  // Newlines are separators here for the same reason, and that matters more than it looks: multiline
-  // command bodies are named in this file's header as the reason the hook exists at all, so a
-  // two-line script with `rm -rf dist` and `ls /` was being denied.
-  // Nothing weakens: `rm -rf /*;echo done` keeps its target in the FIRST segment, and `rm -rf foo /`
-  // has no operator to split on.
-  for (const segment of joined.split(/[;&|\n]+/)) {
-    let seenRm = false;
-    for (const raw of segment.split(/\s+/)) {
-      const t = norm(raw);
-      // `rm`, `/bin/rm` and `\rm` count; `rm-perf.mjs`, `rm:cache` and `confirm` do not.
-      if (/^(?:[^\s]*\/)?rm$/.test(t)) { seenRm = true; continue; }
-      if (seenRm && LETHAL_TARGET.test(t)) return true;
-    }
+/**
+ * Is this a force push? Same doctrine, and it was carrying the same defect.
+ *
+ * The regex here was `git\s+push\s+[^\n]*(--force|-f\s)` — an unbounded class followed by an
+ * alternation, which `sonarjs/super-linear-regex` flags for the same backtracking reason as the
+ * `rm` rule's. It also inherited the same blind spot: `-f` required a trailing SPACE, so
+ * `git push -f` at the end of a line matched only via the `[^\n]*` swallowing nothing, and any
+ * punctuation-adjacent spelling was a coin flip. Tokens remove the question.
+ */
+function isForcePush(command) {
+  const FORCE = /^(?:-f|--force(?:-with-lease)?(?:=.*)?)$/;
+  for (const tokens of segments(command)) {
+    const git = commandIndex(tokens, "git");
+    if (git === -1) continue;
+    // `git -C dir push --force` — the subcommand is not always adjacent, which is the same
+    // "target follows the flags" assumption that defeated the rm rule.
+    if (!tokens.slice(git + 1).includes("push")) continue;
+    if (tokens.slice(git + 1).some((t) => FORCE.test(t))) return true;
   }
   return false;
 }
@@ -125,7 +203,7 @@ process.stdin.on("end", () => {
     const DENY = [
       // @twin Bash(git push --force*)
       // @twin Bash(git push -f*)
-      [/git\s+push\s+[^\n]*(--force|-f\s)/, "force push is denied"],
+      [isForcePush, "force push is denied"],
       // @twin Bash(git reset --hard*)
       [/git\s+reset\s+--hard/, "hard reset is denied"],
       // @no-twin no settings pattern was ever written for this. LT measured the same gap on the

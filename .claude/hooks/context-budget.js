@@ -195,20 +195,34 @@ function readMain(path, prevOffset) {
     if (u) context = inputTokens(u);
   }
 
-  // The LIVE permission mode, which is a different channel from the one the hook payload carries.
-  // `permission_mode` on a hook payload is the CONFIGURED default out of settings.json; the
-  // transcript's `{"type":"mode"}` record is the session's actual state, set by Shift+Tab and
-  // written to no settings file. They disagree, and the disagreement is the whole bug class: this
-  // session ran 200 `mode: normal` records — normal prompts on every write — while every payload
-  // reported `acceptEdits`, because `defaultMode` was never applied. An instrument reading the
-  // payload reports what was ASKED FOR in a bug whose entire nature is that it was not applied.
+  // The session's permission mode, read from the record field `permissionMode`.
+  //
+  // ⚠ THIS READ WAS WRONG ONCE, AND THE FIELD IT USED LOOKED PERFECT. An earlier cut took the
+  // transcript's `{"type":"mode"}` record, on the reasoning that a payload's `permission_mode` is the
+  // CONFIGURED default out of settings.json while the transcript holds the LIVE state. The first half
+  // of that is still true. The second half was not, and the discriminator is CARDINALITY:
+  //
+  //     {"type":"mode"}.mode    1735 records across 12 transcripts, EVERY ONE `normal`  → cardinality 1
+  //     record.permissionMode   `acceptEdits` x540, `auto` x8, `default` x1            → cardinality 3
+  //
+  // A field that never varies across any session on the machine cannot be reporting a state the user
+  // toggles — a constant is not a state, it is an unset default being shouted. `normal` is not in the
+  // permission vocabulary at all (`default` is, and it is on the OTHER field); `normal` is the vim/
+  // editor mode's word. `permissionMode` also TRANSITIONS mid-session (`auto → acceptEdits`,
+  // `default → auto`), which is the positive evidence: it tracks something that changes.
+  //
+  // The lesson is the general one, and it is why this comment is long: BEFORE BELIEVING A CHANNEL
+  // IDENTIFICATION, MEASURE THE FIELD'S CARDINALITY ACROSS SESSIONS. Both wrong readings here were
+  // argued from plausibility — the name fit, the story fit — and a two-minute count refuted the
+  // second one outright. Reading one session's transcript could never have caught it, because within
+  // one session a constant and a genuine steady state are byte-identical.
+  //
   // Costs no extra I/O: `parsed` is the window this function already read for the token count.
   let liveMode = null;
   // BACKWARDS, and the two ordering probes in check-statusline.mjs both fail on a forward scan.
-  // A real transcript carries hundreds of these records; the first one is the mode the session
-  // STARTED in, which after a single Shift+Tab is exactly the wrong answer, shouted permanently.
+  // The first record is the mode the session STARTED in, which after one change is permanently wrong.
   for (let i = parsed.length - 1; i >= 0 && liveMode === null; i--) {
-    if (parsed[i].type === "mode" && typeof parsed[i].mode === "string") liveMode = parsed[i].mode;
+    if (typeof parsed[i].permissionMode === "string") liveMode = parsed[i].permissionMode;
   }
 
   return { context, size, addedTokens, addedBillable, addedTurns, sawBoundary, gap, liveMode };
@@ -418,38 +432,31 @@ if (require.main === module) {
         additionalContext = adviseAgent(m) ?? "";
         systemMessage = adviseUser(m);
       }
-      // The session's LIVE permission mode, reported to the MODEL because it cannot observe one.
-      // A session-level mode outranks permissions.defaultMode and is written to no file, so from
-      // inside a turn "allowed", "prompted" and "mode-overridden" are indistinguishable. The
-      // statusline carries this too, but a statusline is not rendered on every surface — measured
-      // 2026-08-21, the VS Code panel shows none, which is the same invisibility this hook's own
-      // header describes one participant over. Reported ONLY on disagreement with settings.json;
-      // silence is a positive claim that settings won.
-      // ONLY on disagreement. The always-on tier has a hard size budget (its own probe caps it at
-      // 92 chars) and two more probes require EMPTY output when there is nothing to say, so a line
-      // on every turn would make this the wallpaper the file was written to replace. Agreement and
-      // an absent field are both silent here; presence of the field is settled out of band rather
-      // than by spending the budget on a permanent line.
-      // ⚠ FROM THE TRANSCRIPT, NEVER FROM `input.permission_mode`. The payload field is the
-      // CONFIGURED default out of settings.json; `m.liveMode` is the transcript's `{"type":"mode"}`
-      // record, which is the session's ACTUAL state. Two earlier cuts of this line read the payload
-      // — one with a camelCase typo, one spelled right — and both were wrong, because in the session
-      // that produced them the two channels disagreed for its whole length: 200 `mode: normal`
-      // records (normal prompts on every write) against a payload reporting `acceptEdits`, since
-      // `defaultMode` was never applied by the VS Code extension. Reading the payload reports what
-      // was ASKED FOR in a bug whose nature is that it did not take — silence, called agreement.
+      // ⚠ A `[perm]` LINE USED TO BE APPENDED HERE, TELLING THE MODEL THE SESSION WOULD PROMPT ON
+      // WRITES. It is deleted rather than repaired, and both reasons are worth keeping:
       //
-      // COVERAGE BOUNDARY, stated rather than left implicit. `m.liveMode === null` (no mode record
-      // in the tail window) is DELIBERATELY silent here, which means silence in THIS instrument
-      // still covers two states. That is a real gap and it is accepted for one reason: this tier is
-      // always-on and token-costed, with probes capping it and requiring empty output when there is
-      // nothing to say, so an "unknown" line every turn would make it the wallpaper this file exists
-      // to replace. The uncovered half is carried by `.claude/statusline.js`, which renders `perm ?`
-      // for exactly this case at zero token cost and is always visible. If that statusline is ever
-      // removed or unregistered, THIS becomes a silent-agreement defect again and needs the branch.
-      if (m.liveMode && m.liveMode !== "acceptEdits") {
-        additionalContext += `${additionalContext ? "\n" : ""}[perm] session is ${m.liveMode}, NOT the acceptEdits in settings — writes prompt; Shift+Tab to change`;
-      }
+      // 1. IT NEVER RAN, ONCE, IN ANY SESSION. `const m` is declared inside the
+      //    `if (input.transcript_path)` block above; the branch sat AFTER that block closed. Every
+      //    invocation threw a ReferenceError, which the `catch` below swallowed by design — and
+      //    because `additionalContext` had already been assigned, the hook still emitted its normal
+      //    `ctx 80k` line. Working output, dead feature, green `npm run check`: `eslint.config.mjs`
+      //    ignores `.claude/**`, so `no-undef` never looked at it, and no probe in
+      //    check-context-budget.mjs touched the perm line. The green-and-unfailable class, in the
+      //    instrument built to catch exactly that class.
+      // 2. ITS PREMISE WAS REFUTED. It fired when the mode was not `acceptEdits`, on the reading that
+      //    anything else prompts on writes. See `readMain` — the field it read has cardinality 1
+      //    across every transcript on this machine, so the branch would have been a permanent false
+      //    alarm had it ever executed. The two defects hid each other: the dead code was never
+      //    noticed because nothing missed its output, and the wrong premise was never noticed
+      //    because the code was dead.
+      //
+      // Not rebuilt against the corrected field either, and that is the deliberate part. This tier is
+      // always-on and token-costed, and a line saying "the mode is X" is only worth its budget if X
+      // PREDICTS something the model can act on. Whether a given mode predicts a prompt is exactly
+      // what is still unmeasured — this session ran in `acceptEdits` and a prompt happened anyway.
+      // Until there is an instrument that detects a prompt, an assertion here would be a third guess
+      // dressed as a measurement. The statusline shows the value to the human, who can see the
+      // prompt; that is the honest half and it costs no tokens.
     } catch {
       // A hook that cannot measure must not guess, and must not block: this one only ever ADDS a
       // line, so failing silent costs a missed reminder rather than a stalled session.

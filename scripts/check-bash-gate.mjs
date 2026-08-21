@@ -46,6 +46,13 @@ const CASES = [
   ["force push, long flag", bash("git push --force origin main"), "deny"],
   ["force push, short flag", bash("git push -f origin main"), "deny"],
   ["force-with-lease is still a force push", bash("git push --force-with-lease origin main"), "deny"],
+  // The force-push rule was `git\s+push\s+[^\n]*(--force|-f\s)` until 2026-08-21 — super-linear for
+  // the same backtracking reason as the rm rule, and carrying the same "the flag follows the
+  // subcommand" assumption. These are the shapes that assumption misses.
+  ["a global option between git and push", bash("git -C /some/dir push --force origin main"), "deny"],
+  ["force-with-lease with a value", bash("git push --force-with-lease=main:abc123 origin main"), "deny"],
+  ["-f at the very end of the line", bash("git push origin main -f"), "deny"],
+  ["force push in the second command of a chain", bash("npm run check && git push -f origin main"), "deny"],
   ["hard reset", bash("git reset --hard HEAD~3"), "deny"],
   // rm-on-root. Until 2026-08-21 this rule DENIED THE HARMLESS SHAPE AND PERMITTED THE LETHAL ONES:
   // the pattern required whitespace-or-end immediately after the root character, so bare `rm -rf /`

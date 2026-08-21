@@ -97,12 +97,15 @@ function render(input) {
   // one per twenty lines, so the window almost always holds one — but "almost always" is the
   // reasoning this file rejects everywhere else, and `ctx —` twelve lines below already makes the
   // same distinction for the same reason.
-  if (!liveMode) {
-    parts.push(`${DIM}perm ?${RESET}`);
-  } else if (liveMode !== "acceptEdits") {
-    const label = liveMode === "normal" ? "perm normal — writes WILL prompt" : `perm ${liveMode}`;
-    parts.push(`${RED}${label}${RESET}`);
-  }
+  // REPORTS THE VALUE, PREDICTS NOTHING — and the missing half of that sentence is the finding.
+  // This rendered RED with "writes WILL prompt" until 2026-08-21, off a field that turned out to be
+  // constant, so it was a permanent false alarm on the one surface that is always visible. Red is a
+  // claim about CONSEQUENCE, and the consequence is what is not known: this session ran in
+  // `acceptEdits` and a prompt still happened, so "acceptEdits ⇒ no prompts" is already false.
+  // Nothing here can be coloured by severity until something can actually detect a prompt.
+  // Dim and factual is the whole remit: the human can see the prompt, they just could not see the
+  // mode, and that asymmetry is what this exists to close.
+  parts.push(`${DIM}perm ${liveMode || "?"}${RESET}`);
 
   if (context === null || context === undefined) {
     // Nothing measurable yet — a fresh session before its first assistant turn. Saying "0k" would
