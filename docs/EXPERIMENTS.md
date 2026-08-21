@@ -499,7 +499,11 @@ confounded and none is closed by it:
 - **Whether the write-scope fence holds at depth 2.** Recorded as proven and then WITHDRAWN. The
   evidence was that two out-of-scope `DELETE-ME` files were absent from disk — but absence is equally
   consistent with a human clicking No on a prompt. The discriminator was only ever the hook's deny
-  string (`may only write to .claude/handoff`), which was never captured. Needs re-running.
+  string (`may only write to .claude/handoff`), which was never captured.
+  **→ SETTLED by E12 (same day, `0fd292df`): it holds.** The deny string was captured, from inside
+  the hook, and depth 2 was established by `agent_id` rather than inferred. E12 also returns the
+  negative result this entry could not have predicted — the payload carries **no depth field at
+  all**, so `spawnDepth` is a transcript fact and not a hook fact.
 - **Whether a hook's `allow` grants anything.** `agent-write-scope.js` returns
   `permissionDecision: "allow"` for a main-session write and for an in-scope census write — verified
   by piping both payloads through it. Writes prompted anyway, while the session ran in `acceptEdits`
@@ -515,3 +519,126 @@ were built to read the session's permission mode and both read `permissionMode`,
 typo was indistinguishable from a measurement. It was caught only because a throwaway probe dumped
 the payload's key list alongside the value; the shipped instrument would have reported agreement
 forever. Read both spellings, and never let an unread field share an output state with a real one.
+
+---
+
+## E12 · Does a DEPTH-2 subagent's PreToolUse payload carry `agent_type`? — **ANSWERED: YES, AND THE FENCE HOLDS AT DEPTH 2**
+
+**Run 2026-08-21, tree at `0fd292df`.** Closes the link E11 left open and un-withdraws the result
+E11 recorded as withdrawn. Prediction pre-registered before the hook was instrumented and before any
+agent was spawned; the design is unchanged from that file.
+
+### Why it mattered
+
+`agent-write-scope.js` treats an absent `agent_type` as "this is the main session" and returns
+`allow`. E7 measured the field's presence at **depth 1** only. If it were absent at depth 2, the hook
+would read a nested child as the main session and **wave through every write it made** — a hole
+precisely where the caller is least able to notice, because a depth-2 child's tool calls never appear
+in the main session's transcript.
+
+### The instrument, and why the previous attempt had none
+
+The first attempt concluded "the fence held" from two out-of-scope `DELETE-ME` files being absent
+from disk. Absence is equally consistent with the child never attempting the write, with the attempt
+being denied, and with a human clicking No — so the result was withdrawn.
+
+This run instrumented **the hook itself** to append every payload it received, plus the decision it
+returned, to a JSONL file outside the repository and outside the conversation. The evidence is
+therefore what the hook actually saw and actually returned, written from inside the hook process. No
+agent's self-report is load-bearing. The instrument was verified not to change behaviour — the same
+out-of-scope payload produced a byte-identical decision before and after, and `check-agent-write-scope`
+stayed green — and the hook was restored byte-for-byte afterwards (md5 `342e3c6e846c2c05d3b9e912916dceac`).
+
+**The full key set was logged, never a hand-picked subset.** That was a direct response to this
+session's `permission_mode` failure, where two instruments read a mis-guessed camelCase key, both got
+`undefined`, and `undefined` had been defined to mean a real reading.
+
+### Result — all four predictions held
+
+| # | Prediction | Outcome |
+|---|---|---|
+| P1 | the hook fires at depth 2 at all | **held** — both child writes logged |
+| P2 | `agent_type` present, naming the CHILD | **held** — `census`, not the parent's identity |
+| P3 | out-of-scope write DENIED with the hook's own string | **held** — `deny`, `may only write to .claude/handoff` |
+| P4 | in-scope write ALLOWED | **held** — `allow`, `census writing inside its scope` |
+
+**Depth 2 was established by identity, not inferred from the outcome.** The parent returned
+`agentId: ab052ca529035c1d0`; both logged writes carry `agent_id: a17325f9b71ab3aa4`. A different
+agent made them, and the parent made exactly one tool call (the spawn). The known-good half matters
+as much as the denial: P3 alone would prove only that the hook denies things, not that it
+discriminates — a gate that denies everything is not a gate.
+
+The main session's own `Bash` calls logged in the same file carry **neither `agent_id` nor
+`agent_type`**, re-confirming E7's both-directions claim at the same moment and on the same
+instrument. Absence really is a signal.
+
+### The negative result, which is the more useful half
+
+**The PreToolUse payload carries NO depth field.** The complete key set on a subagent call is:
+
+```
+session_id · transcript_path · cwd · prompt_id · permission_mode · agent_id ·
+agent_type · effort · hook_event_name · tool_name · tool_input · tool_use_id
+```
+
+E11 observed `spawnDepth` in the **transcript record**; it is not in the hook payload, under that or
+any other spelling. Two consequences, and neither is hypothetical:
+
+- **A hook cannot scope by depth.** It can know *which agent type* is calling and *which specific
+  agent*, never *how deep*. A rule of the form "an implementer may not spawn" or "no writes below
+  depth 1" is not buildable at rung 1 as the payload stands.
+- **`agent_type` is the child's own, not the parent's.** So scope does not inherit down a chain: a
+  `census` that spawned an `implementer` child would give that child implementer's unrestricted
+  grant, not census's handoff-only scope. **The fence is per-call, not per-lineage.** That is the
+  correct behaviour for the rule as written, and it is also the shape of the next hole — nothing
+  bounds what an agent may spawn, and the payload carries nothing a hook could use to bound it.
+
+### What this does NOT establish, stated so it is not later claimed
+
+- **Nothing about why writes prompt in this session — and it could not have, which was missed until
+  Stéan reported the prompt.** The run looked clean because neither write path exercised the open
+  question: the in-scope handoff write is covered by the two `Write(.claude/handoff/**)` /
+  `Edit(.claude/handoff/**)` lines currently live-but-uncommitted in `.claude/settings.json`, and the
+  out-of-scope write was hook-DENIED, which is terminal and raises no prompt. **A confound that makes
+  a result clean is more dangerous than one that makes it noisy**, because nothing about the output
+  says to look. Both logged main-session lines still show `permission_mode: acceptEdits` with
+  decision `allow`, the same contradiction E11 recorded, now seen from inside the hook.
+
+### The prompt this run DID raise, reported by Stéan mid-turn and invisible to every instrument
+
+**Exactly one prompt, on an `Agent` spawn — not on any write.** `Agent` is not in this hook's matcher
+(`Write|Edit|MultiEdit|NotebookEdit|Bash`), so it went to the ordinary permission layer, where no
+`Agent` allow rule exists. That part is unremarkable and is NOT the session's prompting mystery.
+
+**What is remarkable: two spawns, one prompt.** Depth 0→1 (main session) and depth 1→2 (the parent's
+child). Neither Stéan nor the instrument can say which one prompted — the run was not timestamped,
+which is a design miss to fix before the next one. The hypothesis that would explain it, untested:
+**a subagent's tool calls raise no interactive prompt at all**, because a subagent has no channel to
+ask. If that holds, then at depth ≥ 1 **this hook is the only gate that exists**, and every claim
+resting on "the user would be asked" is false below the top level. That would make the fence more
+load-bearing than any document currently says, not less.
+
+**And it re-establishes the instrumentation gap as a first-class finding.** A permission prompt leaves
+NO transcript record — searched by record type across the session, there is no prompt record, and
+`permission_denials` is zero. The `{"type":"mode","mode":"normal"}` records are the EDITOR mode, not
+the permission mode (the permission mode appears elsewhere as `acceptEdits`); reading them as the
+latter would have repeated this session's `permission_mode` error one field over. **The only detector
+of a permission prompt in this system is the human watching the screen** — which is why the
+three-states problem keeps recurring and cannot be closed from inside a session.
+- **Nothing about whether `allow` is a GRANT.** Unchanged and still open. A logged `deny` at depth 2
+  settles the fence; it does not settle what an `allow` buys. The hook-allow correction across five
+  spines and three canon documents was gated on THIS result and is now unblocked — but it should be
+  written to say the fence denies at depth 2, which is measured, and not that `allow` grants
+  anything, which is not.
+- **Nothing about depth 3+.** `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` makes depth 2 the deepest
+  reachable case here. "Deepest reachable today" is a setting, not a property; raising the cap
+  re-opens the question, and with no depth field in the payload nothing would report that it had.
+
+### A protocol conflict the run surfaced, unprompted
+
+The parent census closed `⚠️ decision-needed` rather than silently picking a side: the task forbade
+it from writing any file, its spine requires every run to close with a handoff artefact, and it
+reported the conflict instead of resolving it quietly. That is the census v9 hand-back behaviour
+working on a case nobody designed it for. **A task-specific instruction that contradicts the spine
+should surface as `decision-needed`, and it did** — worth keeping in mind before writing "do not
+write any file" into a brief again, since it costs the run its artefact.
