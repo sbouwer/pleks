@@ -46,8 +46,11 @@ import type { ApplicationArchetype, ApplicationInput, Document, DocumentExtracti
 import type { AiCallOptions } from "@/lib/ai/client"
 
 // PipelineResult / PipelineDocumentResult now live in ./types (so reconciler/fraud can consume them without a
-// value-import cycle). Re-exported here for existing importers (e.g. the harness outputWriter).
-export type { PipelineResult, PipelineDocumentResult } from "./types"
+// value-import cycle). PipelineResult is re-exported here for existing importers (e.g. the harness
+// outputWriter). PipelineDocumentResult was re-exported alongside it and imported by nobody — the
+// justifying comment had gone stale — so that half was removed 2026-08-21. It is still imported
+// above and used throughout this module; only the re-export went.
+export type { PipelineResult } from "./types"
 
 type AiOpts = Pick<AiCallOptions, "orgId" | "suppressLogging" | "harnessMode">
 

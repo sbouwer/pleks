@@ -18,31 +18,6 @@ import { SA_TIMEZONE } from "@/lib/dates"
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean) => void
 
-// ── Stepper ─────────────────────────────────────────────────────────────────
-export function Stepper({ labels, current }: Readonly<{ labels: string[]; current: number }>) {
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return (
-    <div className="mt-3">
-      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-        Step {pad(current + 1)} of {pad(labels.length)} · {labels[current]}
-      </p>
-      <div className="mt-2 flex gap-1.5">
-        {labels.map((l, i) => (
-          <span
-            key={l}
-            className={cn(
-              "h-1 flex-1 rounded-full transition-colors",
-              i < current && "bg-primary/60",
-              i === current && "bg-primary",
-              i > current && "bg-muted",
-            )}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ── Section label ("01 · PERSONAL DETAILS") ───────────────────────────────────
 // The rule sits IN LINE after the label (not underneath), with the amber number + a · separator — the canonical
 // section-header rhythm shared across the apply flow, party forms, settings, and the focus-shell landing.
@@ -58,7 +33,7 @@ export function SectLabel({ n, children }: Readonly<{ n?: string; children: Reac
 }
 
 // ── Field shell + inputs ──────────────────────────────────────────────────────
-export function Field({
+function Field({
   label, required, error, span, children,
 }: Readonly<{ label: string; required?: boolean; error?: string; span?: boolean; children: React.ReactNode }>) {
   return (

@@ -12,16 +12,8 @@ export interface ChartBar {
   color?: string
 }
 
-export interface ChartPoint {
-  label: string
-  value: number
-}
-
-export interface PieSlice {
-  label: string
-  value: number
-  color?: string
-}
+// ChartPoint and PieSlice were declared here and implemented by nothing — no chart function in this
+// module takes either shape. Removed 2026-08-21; the live chart inputs are the types above.
 
 // ─── Bar chart ────────────────────────────────────────────────────────────────
 

@@ -18,8 +18,6 @@ import { cn } from "@/lib/utils"
 import type { LatestPull } from "../../properties/[id]/PropertyVerificationCard"
 import { fmtDateZA } from "@/lib/dates"
 
-export type { LatestPull }
-
 export interface LinkedDeedsPull {
   propertyId:   string
   propertyName: string

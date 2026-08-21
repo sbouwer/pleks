@@ -230,7 +230,9 @@ export function fmtDateTimeZA(value: Date | string): string {
 }
 
 // ── 5 · business days — re-exported so callers need one import ────────────────────────────────────────
+// Narrowed 2026-08-21: addBusinessDays, subtractBusinessDays, isPublicHoliday and
+// HOLIDAY_TABLE_COVERS_FROM were re-exported here and imported by nobody — every caller reaches
+// ./saPublicHolidays directly. They remain exported from that module; only the barrel line shrank.
 export {
-  addBusinessDays, subtractBusinessDays, subtractBusinessDaysStrict, isPublicHoliday,
-  isWithinHolidayHorizon, HOLIDAY_TABLE_COVERS_FROM, HOLIDAY_TABLE_COVERS_THROUGH,
+  subtractBusinessDaysStrict, isWithinHolidayHorizon, HOLIDAY_TABLE_COVERS_THROUGH,
 } from "./saPublicHolidays"

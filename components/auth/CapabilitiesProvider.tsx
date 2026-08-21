@@ -29,6 +29,8 @@ export function CapabilitiesProvider({ children }: Readonly<{ children: ReactNod
  * Client affordance check — UX only; the server capability check + RLS are the boundary. Fail-OPEN while
  * capabilities are still hydrating, so a legitimate user never sees nav/items flash away on load (a
  * non-capable user briefly over-sees an item that then hides — harmless, the route/action still guard).
+ * @knipignore Capability gating is deliberately unwired; surfaces adopt these primitives one at a time (see
+ * this file's header). Deleting removes the building blocks a documented rollout still needs.
  */
 export function useCan(capability: string): boolean {
   const { caps, hydrated } = useContext(CapabilitiesContext)

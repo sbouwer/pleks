@@ -25,10 +25,6 @@ import { EditPartyModal } from "@/components/parties/EditPartyModal"
 import { addContractorParty, fetchContractorParty, updateContractorParty } from "@/lib/actions/parties"
 import { fetchArchivedSuppliers, reactivateSupplier, type ArchivedSupplier } from "@/lib/actions/supplierArchive"
 
-// Canonical speciality list lives in lib/parties/partyConfig (single source — re-exported here so
-// any existing importer of this module keeps working).
-export { SPECIALITY_OPTIONS } from "@/lib/parties/partyConfig"
-
 export interface Contractor {
   id: string
   contact_id: string

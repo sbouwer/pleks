@@ -8,7 +8,7 @@
  *        Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §6.2, §10.6.
  */
 
-import { Font, StyleSheet } from "@react-pdf/renderer"
+import { Font } from "@react-pdf/renderer"
 import path from "node:path"
 
 // ─── Font registration ────────────────────────────────────────────────────────
@@ -323,17 +323,9 @@ export const GRADE_LABELS: Record<string, string> = {
 }
 
 // ─── Shared typography base styles ────────────────────────────────────────────
-
-export const T = StyleSheet.create({
-  h2:      { fontSize: 11, fontFamily: FONTS.sans, fontWeight: 'bold',   color: RAW.ink, marginBottom: 4, marginTop: 10 },
-  h3:      { fontSize: 9,  fontFamily: FONTS.sans, fontWeight: 'bold',   color: RAW.ink, marginBottom: 3, marginTop: 8 },
-  body:    { fontSize: 9,  fontFamily: FONTS.sans,                        color: RAW.ink, lineHeight: 1.5 },
-  small:   { fontSize: 7.5, fontFamily: FONTS.sans,                       color: RAW.inkSoft },
-  faint:   { fontSize: 7,   fontFamily: FONTS.sans,                       color: RAW.inkFaint },
-  label:   { fontSize: 6.5, fontFamily: FONTS.sans, fontWeight: 'bold',   color: RAW.inkFaint, textTransform: 'uppercase' },
-  row:     { flexDirection: 'row' as const },
-  divider: { borderBottomWidth: 0.75, borderBottomColor: RAW.divider, marginVertical: 8 },
-})
+// A `T` StyleSheet lived here and was imported by nobody: the PDF primitives (BlockHeader,
+// SectionHeader) import `T` from _pdf/primitives/theme.ts, which declares its own. Two same-named
+// style sheets, one unreferenced — removed 2026-08-21. The _pdf one is the live definition.
 
 // ─── Editorial constants ──────────────────────────────────────────────────────
 

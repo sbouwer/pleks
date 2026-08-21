@@ -125,8 +125,9 @@ export function bundleCostInclVatCents(isForeignNational: boolean): number {
   return Math.round(bundleCostExclVatCents(isForeignNational) * (1 + VAT_RATE))
 }
 
-/** Re-exported for callers already holding this module; the definition lives in lib/constants.ts. */
-export { getApplicationFee }
+// `getApplicationFee` was re-exported here "for callers already holding this module". There were
+// none — every caller imports it from lib/constants.ts, which is where it is defined. The
+// convenience re-export was removed 2026-08-21; the import above stays, it feeds screeningMarginCents.
 
 /**
  * How many bundles a given application consumes — a joint application screens BOTH applicants.

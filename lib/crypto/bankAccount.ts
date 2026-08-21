@@ -24,7 +24,7 @@ import { optionalEnv } from "@/lib/env"
  * Masks a bank account number for display.
  * Shows last 4 digits only: "6241234567" → "••••••4567"
  */
-export function maskBankAccount(accountNumber: string): string {
+function maskBankAccount(accountNumber: string): string {
   if (!accountNumber) return "—"
   const clean = accountNumber.replace(/\s/g, "")
   if (clean.length <= 4) return "••••"

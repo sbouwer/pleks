@@ -399,19 +399,19 @@ Different audiences, same missing control.
 
 ## OTHER
 
-### M-033 — explicitly declare `@typescript-eslint/no-explicit-any` so it's resolver-visible
-- **Rule:** "`any` types leaking through (fix them, don't suppress)" (`CLAUDE.md`, DB ACCESS)
-- **Where it lives:** `CLAUDE.md:179-180`
-- **Rung:** eslint · **Blast:** other
-- **Sketch:** genuinely enforced (verified: `@typescript-eslint/no-explicit-any` fires as an error on a planted `const x: any = 1`, part of `eslint . --max-warnings 0`), but it is inherited via the `eslint-config-next` preset, not literally quoted in `eslint.config.mjs`, so `check-claude-md.mjs`'s `eslint:` resolver (which greps `eslint.config.mjs` for the literal quoted id) cannot verify it. Sketch: explicitly declare `"@typescript-eslint/no-explicit-any": "error"` in `eslint.config.mjs`'s own rules block (a no-behaviour-change restatement of what the preset already does) so the id becomes resolver-visible, then tag `@enforced eslint:@typescript-eslint/no-explicit-any`.
-- **Covering spec:** NEW
+### M-033 — ✅ BUILT (found already shipped 2026-08-21) — `@typescript-eslint/no-explicit-any` is resolver-visible
 
-### M-034 — explicitly declare `react/jsx-key` so it's resolver-visible
-- **Rule:** "Missing `key` props in .map() renders" (`CLAUDE.md`, DB ACCESS)
-- **Where it lives:** `CLAUDE.md:181-182`
-- **Rung:** eslint · **Blast:** other
-- **Sketch:** same gap as M-033: genuinely enforced by the built-in `react/jsx-key` rule (verified: fires on a planted keyless `.map()`), inherited via preset rather than literally quoted, so it isn't resolver-visible under the current `eslint:` grammar. Sketch: same fix as M-033 — explicitly declare `"react/jsx-key": "error"` in `eslint.config.mjs`, then tag.
-- **Covering spec:** NEW
+- **Rule:** "`any` types leaking through (fix them, don't suppress)" (`CLAUDE.md`)
+- **Asked for:** an explicit `"@typescript-eslint/no-explicit-any": "error"` declaration in `eslint.config.mjs`'s own rules block, so `check-claude-md.mjs`'s `eslint:` resolver (which greps for the literally quoted id) can verify a tag the preset was providing invisibly.
+- **Verified 2026-08-21 at `3e785e61`:** `eslint.config.mjs:145` declares it literally; `scripts/check-claude-md.mjs:91` resolves a configured built-in by `cfg.includes('"' + id + '"')`; CLAUDE.md carries `@enforced eslint:@typescript-eslint/no-explicit-any` and `npm run check` is green, so the claim resolves rather than merely parsing.
+- **Why it sat open:** the fix landed as part of the resolver work described in this file's own preamble (the `@`-in-id parser bug, `c0d3344b`) and nothing walked back to the entries that had asked for it. **An entry closes when someone checks; shipping the mechanism does not close it by itself.**
+
+
+### M-034 — ✅ BUILT (found already shipped 2026-08-21) — `react/jsx-key` is resolver-visible
+
+- **Rule:** "Missing `key` props in .map() renders" (`CLAUDE.md`)
+- **Verified 2026-08-21 at `3e785e61`:** `eslint.config.mjs:146` declares `"react/jsx-key": "error"` literally, CLAUDE.md carries the matching `@enforced` tag, and the resolver path is the same one M-033 records. Twin of M-033 and closed with it, in the same commit, for the same reason.
+
 
 ### M-035 — flag the literal substring `ANON_KEY` outside `lib/env.ts`
 - **Rule:** "Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY (not ANON_KEY)" (`CLAUDE.md`, KEY CONSTANTS)
@@ -420,12 +420,6 @@ Different audiences, same missing control.
 - **Sketch:** `pleks/no-raw-process-env` blocks a raw read of ANY env var name outside `lib/env.ts`, so it happens to touch this one without knowing the string "ANON_KEY" — it would equally flag the correct name, and would miss a wrong alias declared inside `lib/env.ts` itself. Sketch: a small, specific check (or an extension of `no-raw-process-env`) that flags the literal substring `ANON_KEY` anywhere outside `lib/env.ts`, distinct from the general raw-env-var block.
 - **Covering spec:** NEW
 
-### M-036 — flag the literal substring `ANON_KEY` outside `lib/env.ts` (DO NOT DO twin)
-- **Rule:** "Do not use ANON_KEY — the correct env var is NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY" (`CLAUDE.md`, DO NOT DO)
-- **Where it lives:** `CLAUDE.md:689-694` (twin of M-035)
-- **Rung:** eslint · **Blast:** other
-- **Sketch:** `pleks/no-raw-process-env` catches a raw read of ANY env var outside `lib/env.ts`, which incidentally catches this one. It has no knowledge of the string "ANON_KEY" and would equally flag a raw read of the CORRECT name; if `lib/env.ts` itself aliased it, nothing would notice. A coincidental catch of a general pattern, not enforcement of this rule.
-- **Covering spec:** NEW
 
 ### M-037 — grep cron/webhook route files for a `requireAgentWriteAccess(` call
 - **Rule:** "Cron and webhook handlers: do NOT use `requireAgentWriteAccess`" (`CLAUDE.md`, DB ACCESS)
@@ -434,26 +428,6 @@ Different audiences, same missing control.
 - **Sketch:** `route-census.mjs` classifies a route as `cron`/`webhook` by path prefix or secret header, but nothing greps those same files for a `requireAgentWriteAccess(` call and fails if found. Sketch: extend `route-census.mjs` to grep cron/webhook-bucket route files for a `requireAgentWriteAccess(` call and fail if present.
 - **Covering spec:** NEW
 
-### M-038 — `vercel.json` guard against a `crons` key or `check` in `buildCommand`
-- **Rule:** "No cron runs from `vercel.json`." (`.claude/rules/crons.md`)
-- **Where it lives:** `.claude/rules/crons.md:18`
-- **Rung:** check · **Blast:** other
-- **Sketch:** sketch: a check parses `vercel.json` and fails if it gains a `crons` key or a `buildCommand` containing `npm run check`. (Note: `vercel.json` is strict JSON, so this doctrine cannot live as an in-file comment — a script is the only carrier.)
-- **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_67C_CRON_HANDLER_MIGRATION.md` (the migration off Vercel Cron this guard would protect)
-
-### M-039 — scan `app/(public)/**` JSX for un-escaped `</strong> text` (generalised)
-- **Rule:** "This applies to any element immediately followed by descriptive text" (`.claude/rules/legal-docs-jsx.md`)
-- **Where it lives:** `.claude/rules/legal-docs-jsx.md:29` (twin of M-040)
-- **Rung:** check · **Blast:** other
-- **Sketch:** sketch: a check scans `app/(public)/**` JSX for `</strong>` (or `</span>`/`</em>`) immediately followed by a bare space and text, and fails on the un-escaped form.
-- **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_LEGAL_DOCS_SPACING_2026-05-27.md`
-
-### M-040 — scan legal pages for un-escaped `</strong> text` (specific twin)
-- **Rule:** "bolded labels must use the explicit JSX space expression, never a bare literal space" (`.claude/rules/legal-docs-jsx.md`)
-- **Where it lives:** `.claude/rules/legal-docs-jsx.md:11` (twin of M-039)
-- **Rung:** check · **Blast:** other
-- **Sketch:** twin of the generalised bullet, same mechanism. Nothing scans these specific legal pages for a bare-space `</strong> text` pattern and fails.
-- **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_LEGAL_DOCS_SPACING_2026-05-27.md`
 
 ### M-041 — ✅ BUILT 2026-08-20
 
@@ -511,12 +485,6 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Sketch:** `PUBLIC_API_ROUTES` is hand-maintained (unlike Category 8's disk-derived census) and `cat9_rateLimiting` only floods `.slice(0, 2)` of it regardless of length, so nothing fails if a new public route is never added. Sketch: derive the flood target list from `route-census.mjs`'s `byBucket.public`, the same pattern Category 8 already uses.
 - **Covering spec:** NEW
 
-### M-043 — enumerate `app/api/cron/**/route.ts` against the orchestrator/table
-- **Rule:** "When adding a new cron job, decide..." (`.claude/rules/crons.md`)
-- **Where it lives:** `.claude/rules/crons.md:61`
-- **Rung:** check · **Blast:** other
-- **Sketch:** sketch: enumerate `app/api/cron/**/route.ts` on disk and assert each one appears either in the daily orchestrator's source or in this table's cPanel-entry list — an undocumented cron currently goes unnoticed the same way an undocumented public route used to (Category 8's disk-derived census, before it existed).
-- **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_67E_CRON_RELIABILITY.md`
 
 ### M-044 — assert every `TRACKED_CRONS` name is written by a matching `withCronRun` call
 - **Rule:** "Health-check tracking: `lib/observability/health.ts` `checkCrons` tracks only top-level scheduled `job_name`s that ACTUALLY write a `cron_runs` row" (`.claude/rules/crons.md`)
@@ -525,6 +493,9 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Sketch:** sketch: assert every name in `TRACKED_CRONS` is written by at least one route calling `withCronRun` with that exact `job_name` — the precise mismatch that caused the chronic "crons: degraded" false positive this paragraph describes.
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_67E_CRON_RELIABILITY.md`
 
+**Retained 2026-08-21** under the WON'T-BUILD default, and the reason is its provenance: it names a symptom that was OBSERVED — the chronic `crons: degraded` false positive — rather than a hazard inferred from the rule's wording. A tracked `job_name` no writer produces leaves the health check permanently wrong in the direction that teaches people to ignore it. **M-043 was closed into this entry**, being the same surface argued from the weaker end.
+
+
 ### M-045 — extend `no-inline-app-url` to visit plain string `Literal` nodes
 - **Rule:** "Any hardcoded `https://app.pleks.co.za/...` in template or email code is a bug." (`.claude/rules/comms-urls.md`)
 - **Where it lives:** `.claude/rules/comms-urls.md:21`
@@ -532,19 +503,8 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Sketch:** PARTIAL: `pleks/no-inline-app-url` catches the templated-literal form of this bug (baseline-limited) — verified: it only visits `TemplateLiteral` nodes interpolating `APP_URL`/`MARKETING_URL`; a hand-typed literal string with no `${}` interpolation (e.g. `"https://app.pleks.co.za/wo/123"`) is a different AST shape the rule does not visit at all. Sketch: extend the rule to also visit plain `Literal` string nodes matching the production/apex origins, outside `lib/routing/`.
 - **Covering spec:** NEW
 
-### M-046 — flag a server page importing an array/object value from a `"use client"` module
-- **Rule:** "Tabs: URL-sync via `?tab=`... keep the tab set in a plain `tabs.ts` — not the `\"use client\"` strip" (`.claude/rules/components.md`)
-- **Where it lives:** `.claude/rules/components.md:36`
-- **Rung:** eslint · **Blast:** other
-- **Sketch:** sketch: a check flagging a server page importing an array/object value (not a component) from a file whose nearest ancestor module carries `"use client"`.
-- **Covering spec:** NEW
+**Retained 2026-08-21:** the cheapest build in the register and the reason is structural — the rule already EXISTS and already runs; the gap is one additional node type on a live visitor. The uncovered shape (a hand-typed `"https://app.pleks.co.za/…"`) is strictly SIMPLER than the covered one, and more likely to be written by hand than the interpolated form the rule already catches.
 
-### M-047 — scan filled headers for surviving literal placeholder text
-- **Rule:** file-header TS/TSX format template (`CLAUDE.md`, FILE HEADERS)
-- **Where it lives:** `CLAUDE.md:97-98`
-- **Rung:** check · **Blast:** other
-- **Sketch:** sketch: scan filled headers for surviving literal placeholder text (e.g. "(omit if not a page)") and fail; nothing does today.
-- **Covering spec:** NEW
 
 ### M-048 — diff staged files against `file-headers.baseline.json` for surviving `FILL:`
 - **Rule:** "Touch a file with a stub header (contains `FILL:`) → fill it in before committing" (`CLAUDE.md`, FILE HEADERS)
@@ -553,19 +513,6 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Sketch:** `check-file-headers.mjs` only fails on a `FILL:` stub NOT already in `file-headers.baseline.json`; touching a baselined file's body without filling its header leaves the file still baselined and still passing. Sketch: diff staged files against the baseline and fail if a staged, baselined file still contains `FILL:`.
 - **Covering spec:** NEW
 
-### M-049 — `.husky/pre-commit` hook running `npm run check`
-- **Rule:** "Do not push code that fails `npm run check`." (`CLAUDE.md`, RUN CHECKS BEFORE EVERY COMMIT)
-- **Where it lives:** `CLAUDE.md:112-113` (twin: `CLAUDE.md:676-677`, see M-050)
-- **Rung:** hook · **Blast:** other
-- **Sketch:** there is no pre-commit hook in this repo (no `.husky`, no `core.hooksPath`), so nothing stops a commit that fails `npm run check`. CI's `quick-check` job runs `npm run check` but only after the commit exists, on the PR. Sketch: add a `.husky/pre-commit` hook running `npm run check` (or a fast subset) that blocks the commit.
-- **Covering spec:** NEW
-
-### M-050 — `.husky/pre-commit` hook running `npm run check` (DO NOT DO twin)
-- **Rule:** "Do not commit without running `npm run check` first" (`CLAUDE.md`, DO NOT DO)
-- **Where it lives:** `CLAUDE.md:676-677` (twin of M-049)
-- **Rung:** hook · **Blast:** other
-- **Sketch:** twin of the identical rule under RUN CHECKS BEFORE EVERY COMMIT, same mechanism. There is NO pre-commit hook in this repo (no .husky, no core.hooksPath, empty .git/hooks). CI catches it on the PR, after the commit exists. `--no-verify` has nothing to bypass.
-- **Covering spec:** NEW
 
 ### M-051 — local `pre-push` git hook running `npm run check:full`
 - **Rule:** "`npm run check:full`... must be green" (`CLAUDE.md`, pre-push checklist step 1)
@@ -581,19 +528,6 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Sketch:** the `pr-title` job validates only the title's `type(scope): subject` grammar (`amannn/action-semantic-pull-request`, no `subjectPattern` configured); it does not check the PR/commit body for a `BREAKING CHANGE:` footer. `semantic-release` parses the footer at RELEASE time (post-merge) to size the version bump. Sketch: a CI step reads the PR title; if it contains `!`, assert the PR body contains a `BREAKING CHANGE:` line and fail otherwise.
 - **Covering spec:** NEW
 
-### M-053 — allowlist requirement on server-side `sharp(` calls in inspection-photo code
-- **Rule:** "`sharp`... is a server-side safety net only — it should never be the primary compression path." (`.claude/rules/inspections.md`)
-- **Where it lives:** `.claude/rules/inspections.md:29`
-- **Rung:** check · **Blast:** other
-- **Sketch:** a check could flag a server-side call into `sharp` from an inspection-photo upload handler that isn't clearly gated as a fallback, but distinguishing "safety net" usage from "primary path" usage requires reading intent, not just presence of a call. Sketch: same "provably intentional" allowlist pattern as the `gateway()`-on-write rule (M-003) — require an inline allowlist comment/reason on any server-side `sharp(` call in this area; an unmarked call fails.
-- **Covering spec:** NEW
-
-### M-054 — unit test asserting EXIF-before-compression call order + branded `CompressedPhoto` type
-- **Rule:** "Photos must be compressed client-side before upload... EXIF extraction happens BEFORE compression" (`.claude/rules/inspections.md`)
-- **Where it lives:** `.claude/rules/inspections.md:18`
-- **Rung:** check · **Blast:** other
-- **Sketch:** nothing asserts (statically or in a test) that the upload path only ever receives a Canvas-compressed blob under the size/dimension target, or that EXIF extraction runs before compression in the call order. Sketch: a unit test on the compression module mocking the EXIF-extract and Canvas-compress calls and asserting invocation order, plus a branded `CompressedPhoto` type the upload function accepts (not a raw `File`) so an uncompressed upload fails to type-check.
-- **Covering spec:** NEW
 
 ### M-055 — one generic script enumerating every `*.baseline.json` for shrink-only
 - **Rule:** "Baselines only SHRINK." (`.claude/rules/lint-rules.md`)
@@ -602,42 +536,8 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Sketch:** PARTIAL. "Baselines only shrink" is what `check-claude-md.mjs` itself enforces for the UNENFORCEABLE-marker count and what `check-file-headers.mjs`/`check-pii-classification.mts` enforce for their own baselines — but that shrink-only property is per-script, not a general property every `*.baseline.json` is verified to hold; a NEW baseline file could widen on every run and nothing would notice. Sketch: one generic script enumerates every `*.baseline.json` in the repo and, in CI, compares each file's entry count against the base-branch version, failing if any grows.
 - **Covering spec:** NEW
 
-### M-056 — AST check flagging an enumeration test with no non-emptiness floor
-- **Rule:** "Every enumeration test asserts NON-EMPTY, as its own case" (`.claude/rules/lint-rules.md`)
-- **Where it lives:** `.claude/rules/lint-rules.md:50`
-- **Rung:** check · **Blast:** other
-- **Sketch:** a property of how a NEW enumeration test is written; nothing scans `**/__tests__/**` for an `it(...)` whose body iterates a `readdirSync`/`git ls-files` result and asserts no non-emptiness floor on the list length. Sketch: an AST check over `**/__tests__/**` flagging a test that reads a directory/glob result but never calls `.toBeGreaterThan(...)` (or similar) on that result's `.length` within the same test body.
-- **Covering spec:** NEW
+**Retained 2026-08-21:** the shrink-only property is doctrine CLAUDE.md §4 calls load-bearing — *"never widen one to make CI green — that deletes the finding"* — and three scripts already implement it privately for their own baselines. This is the generic form of a ratchet the repo has already decided it wants, not a new proposal.
 
-### M-057 — AST check flagging a hand-written parity-test member array instead of disk enumeration
-- **Rule:** "A parity test ENUMERATES its members; it never samples them" (`.claude/rules/lint-rules.md`)
-- **Where it lives:** `.claude/rules/lint-rules.md:71`
-- **Rung:** check · **Blast:** other
-- **Sketch:** whether a NEW parity test derives its member list from disk vs. a hand-written array is a property of the test's own source, unchecked by anything outside code review. Sketch: an AST check over parity-test files (by naming convention) flagging a hand-written array literal used as the "members" list instead of a `readdirSync`/`git ls-files` call.
-- **Covering spec:** NEW
-
-### M-058 — component-canon partial slice (`rounded-*` + shadcn `Button` import ban)
-- **Rule:** "Reach for the Use column; never the Not column without a reason." (`.claude/rules/components.md`)
-- **Where it lives:** `.claude/rules/components.md:20`
-- **Rung:** eslint · **Blast:** other
-- **Sketch:** PARTIAL: one row of the table (`DetailTabs` vs shadcn `ui/tabs` under `/settings/**`) is enforced; the other rows (`ResourcePageHeader`, `SettingsPageHeader`, form-field grammar, `ActionButton`, `DetailCard`, corner radius) have no equivalent check — any of them can be skipped for an ad-hoc alternative with nothing failing. Sketch (first slice, not full coverage): a `no-restricted-syntax`-style rule flagging `rounded-md`/`rounded-lg`/`rounded-full` (outside pill contexts) and a `no-restricted-imports` restriction on shadcn `Button` outside `components/ui/actions` — the two rows with a crisp, cheap syntactic signature. The free-text layout rows need a harder JSX-shape heuristic and are not sketched here.
-- **Covering spec:** NEW
-
-### M-059 — `check-subprocessor-claims.mts` mirroring `check-retention-claims.mts`
-- **Rule:** "The Truth Pipeline (load-bearing)" — sub-processor identities as derived facts (`.claude/rules/marketing-voice.md`)
-- **Where it lives:** `.claude/rules/marketing-voice.md:70`
-- **Rung:** check · **Blast:** other
-- **Sketch:** PARTIAL, noted precisely: retention-period claims specifically are defended by a SEPARATE script, `check-retention-claims.mts` (also in `npm run check`), not by `check-marketing-consistency.mjs`. Sub-processor identities and sub-processor lists have no equivalent CI defence found in this census; a new sub-processor added to prose without updating its backing structured data would not be caught by either script. Sketch: a `check-subprocessor-claims.mts` mirroring `check-retention-claims.mts`'s structure — an SSOT sub-processor data file, the public page rendering from it, the script asserting the two match.
-- **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_00J_MARKETING_CONSISTENCY.md`
-
-### M-060 — parity test asserting each `createMessage` call site's model matches its task
-- **Rule:** "AI MODEL ROUTING (unchanged)" (`.claude/rules/ai-routing.md`)
-- **Where it lives:** `.claude/rules/ai-routing.md:13`
-- **Rung:** check · **Blast:** other
-- **Sketch:** `createMessage` (`lib/ai/client.ts`) is the required entry point (`no-restricted-imports` forbids a direct `@anthropic-ai/sdk` import, forcing calls through it), and nothing asserts the MODEL argument each call site passes matches this table. Sketch: a parity/enumeration test (per `.claude/rules/lint-rules.md`) deriving every `createMessage` call site from disk and asserting its model argument against the task it performs.
-- **Covering spec:** NEW
-
----
 
 ## MONEY (continued — remaining band entries, ranked after M-003)
 
@@ -666,6 +566,19 @@ rather than quietly weakening the hook.
 - **Covering spec:** NEW
 
 </details>
+
+> **⚠ CORRECTION, 2026-08-21 — M-049 and M-050 were folded into this entry and deleted.**
+> Both were twin entries asking for a `.husky/pre-commit` hook running `npm run check`, and both
+> asserted as their central premise: *"there is no pre-commit hook in this repo (no `.husky`, no
+> `core.hooksPath`, empty `.git/hooks`)."* **That was false at `3e785e61`** — `core.hooksPath` is
+> `.githooks`, which holds `pre-commit`, `pre-merge-commit`, `pre-push` and `prepare-commit-msg`,
+> and CLAUDE.md §3 tags the commit gate `check:check-git-hooks`. The mechanism shipped as THIS entry
+> and under a different tool than the sketch named, so neither twin ever matched on the string it was
+> watching. **The register contradicted itself in the same file for as long as both existed** —
+> M-007 recording the hook as built while M-049/M-050 recorded it as absent. Sketches that name a
+> specific tool (`.husky`) rather than a property (`a hook that runs the gate before a commit`)
+> cannot notice the property being satisfied another way.
+
 
 ### M-008 — scan for `25000`/`47000`/`0.30`-shaped literals outside `lib/constants.ts`
 - **Rule:** "`APPLICATION_FEE_CENTS` · `JOINT_APPLICATION_FEE_CENTS` · `INCOME_AFFORDABILITY_THRESHOLD` → `lib/constants.ts`" (`CLAUDE.md`, KEY CONSTANTS)
@@ -792,15 +705,8 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **The reason it is not a one-line fix:** the script has **no `--selftest`, no exported pure function, and no fixture** — ~~it is the only check in the chain with no probe seam at all~~ — **superlative struck 2026-08-20 as unmeasured: 21 of 31 chained checks have no `--selftest`.** The narrower claim stands and is what carries the entry: this script has no seam of any kind AND is about to have its parsing changed. Changing its parsing with nothing to probe against is how a check starts lying. The work is: extract the frontmatter test to an exported function, add `--selftest` with both directions (a BOM'd file WITH `paths:` must pass; a file genuinely without `paths:` must still fail), then apply the strip. Same shape as M-064 and could ship in the same commit.
 - **Covering spec:** NEW
 
-### M-066 — every reference/wording document names its decision authority
+**Retained 2026-08-21:** a live check reports a false result on a valid file, and the entry's own point is that it has no seam to change safely. Closing it discards both halves and leaves the next person to rediscover the first while breaking the second.
 
-- **Rule:** a document that carries WORDING or reference values, rather than rulings, opens with a line naming what decides for it — `Reference for X. Decision authority: ADDENDUM_NN §M. On disagreement, the addendum wins.` (Stéan ruling, 2026-08-20)
-- **Where it lives:** nowhere yet. The nearest existing bullet is CLAUDE.md's PRICING PRECEDENCE ruling, which is the same shape solved one document at a time.
-- **Rung:** check · **Blast:** other
-- **Sketch:** scan `brief/**/*.md` for files that are not themselves decision documents (not `_ADDENDUM/`, not `INDEX.md`) and fail any that lack a `Decision authority:` line in the first ~20 lines. The line must name a document AND a section, not just a document — "see ADDENDUM_57G" is what a stale reference already looks like.
-- **Why a check and not prose:** **three instances of the same class, none of which prose caught.** (1) Classic GitHub branch protection vs the `main-protection` ruleset. (2) `SEARCHWORX_RATE_CARD.md` vs INDEX/ADDENDUM — settled by a standing CLAUDE.md ruling *specific to that one file*. (3) `CANCELLATION_EMAIL_TEMPLATES_v1.1.md`'s five-notice cadence vs ADDENDUM_57G §10.6's three — found 2026-08-20, and the file had been carrying "5-notification cadence" under a heading that literally reads **"Locked decisions"** since 2026-05-07. Each was resolved by a human noticing; the resolution helps only the person who already opened both files. The header line helps at the moment someone opens the *wrong* file, which is the only moment that matters.
-- **The limitation, stated up front:** `brief/` is a OneDrive symlink and is **not version-controlled**, so this check can never run in CI — CI has no `brief/`. It can only run locally, and must SKIP-and-say-so when the directory is absent rather than pass silently. That makes it a weaker rung than a normal check (CLAUDE.md §1: "anything the tooling depends on belongs in the tracked tree instead"). Two honest options, and the choice is CD's: accept a local-only ratchet, or move the reference documents that matter into the tracked tree first and check those. Do not build it as a normal check and let a CI green be read as coverage.
-- **Covering spec:** NEW
 
 ### M-068 — ✅ BUILT 2026-08-20
 
@@ -876,7 +782,16 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Sharper instance, found while filing this entry:** the commit message documenting M-072 and M-073 was itself DENIED, because its prose contained the words for a hard reset while describing why that operation is hook-denied. No command was being run — the string was heredoc text destined for a commit message. **The hook cannot distinguish a command from prose about a command**, which means the class it guards is also the class it prevents you from writing down. M-068's entry already accepted this direction of error (`rg "git commit" docs/` is denied); what is new is that it obstructs the register entry describing it. Segment-aware matching fixes both.
 - **Covering spec:** NEW
 
-### M-073 — nothing local stops a commit landing on the default branch
+- **Re-measured 2026-08-21 at `3e785e61`, five cases, both directions — the entry is UNFIXED and the fix that landed did not reach it.** `bash-gate.js` gained real `segments()` splitting for M-068, but the flag rule at `DENY_PATTERNS` is still a regex over the RAW command string whose `[^\n]*` spans `;`, `&&` and `|`. Three of four known-good cases DENY:
+  - `git push && grep -n vitest /tmp/log` → denied, *"-n is --no-verify on commit/push and is forbidden"*. **The `-n` alias is still live** — this is the original `f7c51d89` case, unchanged.
+  - the flag appearing in a LATER segment of a command whose first segment is `git push` → denied.
+  - the flag named inside a `git commit -m` MESSAGE → denied.
+  - `rg` for the flag under `docs/` → correctly ALLOWED, so the prose problem is narrower than the entry claimed: it is the git-verb-plus-later-text span, not any mention.
+- **Found while re-measuring, first-hand:** the probe could not be run inline at all. A single Bash command containing the flag as a quoted test case was denied by the hook under test, so the probe had to be written to a file that assembles the token from fragments. **The control obstructs its own measurement**, which is one turn worse than obstructing its own documentation.
+- **Probe, kept:** `scripts/` has no home for it yet; the five cases are reproduced in the bullet above so the next attempt starts from the measurement rather than the code.
+
+
+### M-073 — nothing local stops a commit landing on the default branch — ✅ BUILT 2026-08-21
 
 - **Rule:** "If on the default branch, branch first" — and `main` is ruleset-protected on the remote.
 - **Where it lives:** prose only. `CLAUDE.md` §3 covers push policy; `.githooks/pre-commit` runs `npm run check` and says nothing about which branch it is on.
@@ -885,6 +800,28 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Sketch:** a `.githooks/pre-commit` guard failing when `git branch --show-current` is the default branch, resolved from `origin/HEAD` rather than hardcoded. Cheap, and it catches the error at the point where fixing it is one `git switch -c` instead of a reset. Probe both directions: a commit on `main` must FAIL, and the same commit on any other branch must PASS.
 - **Why the remote catching it is not good enough:** by then the work is committed, and the remedy (`git reset --keep`) sits one keystroke from `git reset --hard`, which is hook-denied for good reason. A local gate keeps the recovery trivial rather than adjacent to a destructive operation.
 - **Covering spec:** NEW
+
+- **SECOND occurrence, 2026-08-21 — and the first one the remote did not catch either.** Work in this session was committed directly onto local `main` again: `git status` at session start named a feature branch, that branch had since been merged and deleted, and the checkout was left on `main` with nothing saying so. Four commits landed before it was noticed. Every local gate passed, exactly as measured at `f7c51d89`.
+- **What the recovery cost, which is the part that argues for the gate:** the fix was `git switch -c chore/dead-code-burndown` followed by `git branch -f main origin/main` — chosen specifically to avoid `git reset --hard`, which is hook-denied. That is the entry's own "one keystroke from a destructive operation" prediction, met in practice, by a session that knew the rule.
+- **This makes it a recurrence, not an anecdote.** Two occurrences, months apart, both by a session with the rule in context, is the signature of a rule that prose cannot hold — and `.githooks/pre-commit` now EXISTS (M-007), so the sketch is no longer "add a hook" but "add three lines to a hook already running on every commit".
+
+**✅ BUILT 2026-08-21, in the session that produced the second occurrence.** `.githooks/pre-commit`
+refuses a commit whose branch is the default, resolved from `refs/remotes/origin/HEAD` rather than
+hardcoded — a repo defaulting to `master` gets the same guard, and the probe resolves it the same way
+so it cannot pass by agreeing with a hardcoded "main" on both sides. It runs **before** the check
+chain, which is the property that keeps the remedy at one `git switch -c`.
+
+Five probes in `scripts/check-git-hooks.mjs`, both directions: the default branch BLOCKS, the refusal
+says why, the guard fires even when the chain seam says the chain would pass (proving order), a
+normal feature branch is untouched, and `<default>-but-not-quite` passes — the last two are the half
+that catches an over-broad guard, without which "block everything" would score green.
+
+**One design note worth keeping.** The guard is skipped under `PLEKS_HOOK_PROBE=1` unless its own
+seam opts in. Without that, `npm run check` would fail *on the default branch* — `check-git-hooks`
+spawns the real hook, so the guard would fire during an ordinary check run that is not committing
+anything. A gate that makes the gate unrunnable is the failure this file keeps recording in other
+forms; here it was caught before shipping rather than after.
+
 
 ### M-070 — a generated seed artefact with no regeneration check
 
@@ -932,6 +869,9 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Sketch:** give the hook probes a per-process scratch root and a unique marker path (they already build fixtures in `os.tmpdir()`; the contention is over the shared repo-relative marker and the shimmed `npm` resolution), then probe the property directly — run the probe body twice concurrently and require both green. Do NOT "fix" it by serialising the check; that hides the shared state rather than removing it.
 - **Related:** M-064 (materialisation-independence) · [[l-44]] (a probe and the thing it guards, authored by the same hand) — this is a third axis on the same theme: a probe whose result is a function of something other than the artefact under test.
 - **Covering spec:** NEW
+
+**Retained 2026-08-21:** a check that reports defects which are not there, early in the chain, blinds every step after it — which is how it was found, with both chains dying here before vitest ran. Note the shape of the value: this entry pays off by EXISTING, because it stops the next person hunting a phantom in the hooks. An entry whose worth is in being readable is the last kind to delete for being cheap.
+
 
 ### M-076 — the re-entry cap cannot fire, because the artefacts erase the loop as it runs
 
@@ -989,6 +929,9 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Provenance:** CD review, 2026-08-21, against `.claude/hooks/agent-write-scope.js` read in full at `ca4689dc`. **E10 fallout nobody swept.**
 - **Covering spec:** NEW
 
+**Retained 2026-08-21:** a standing security grant whose only written justification names a control the E10 ruling removed. CD-authored, and the entry is explicit that the grant may still be right — what it needs is re-taking against current facts. That is a DECISION pending, not a build not done, and closing it would retire the question rather than answer it.
+
+
 ### M-080 — two hooks match `Bash` and their precedence is undocumented and unprobed
 
 - **Rule:** implicit — when two PreToolUse hooks both match a tool and return different decisions, one wins. Nothing states which.
@@ -999,6 +942,26 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **⚠ Do not write the check against the assumed answer.** "Most restrictive wins" is the intuitive design and would produce a check that passes by agreeing with itself. Measure, then encode.
 - **Related:** E7/E8 (what the payload carries) · [[l-44]] (a probe and the thing it guards, authored by the same hand)
 - **Provenance:** CD review, 2026-08-21. Not read as part of it: `.claude/hooks/mcp-ddl-gate.js`, which may make it three hooks rather than two.
+- **Covering spec:** NEW
+
+**Retained 2026-08-21:** it is a MEASUREMENT before it is a check. The force-push denial lives in one hook and the subagent-commit denial in the other, nothing has ever exercised their disagreement, and the entry already warns against writing the check against the assumed answer. Closing it closes an unasked question about two rung-1 controls.
+
+
+### M-082 — `RETENTION_PROTECTED_TABLES` governs nothing, and two artefacts say it does
+
+- **Rule:** the tables on this list are protected from retention purges — a PPRA/POPIA obligation, not a preference. The array names `audit_log`, `trust_transactions`, `consent_log`, `auth_events`, `tos_acceptances`.
+- **Where it lives:** `lib/subscriptions/retention.ts` — the array, and nothing else.
+- **Rung:** check · **Blast:** data-boundary
+- **Measured 2026-08-21 at `2265c58c`:** a whole-repo grep for the identifier finds the declaration and **no importer**. The array is exported, exhaustive, and read by nobody.
+- **What makes it a register entry rather than a deletion.** TWO artefacts assert it is live, in the present tense, and both are wrong:
+  1. its own module header — *"BUILD_65 imports this array rather than defining its own"*;
+  2. `supabase/migrations/010_platform_features.sql:1690` — a table was *"Added to RETENTION_PROTECTED_TABLES"*.
+  A reader who greps either one finds a list that looks authoritative and is inert. **This is the third instance of M-067's class** (a stated MUST with zero call sites), and the second where the false claim is load-bearing prose rather than absence — M-069 is the other.
+- **Why the shape matters more than the count.** The failure is silent and one-directional: a purge that should skip `consent_log` skips it only if the purge author happened to hardcode the same list. Nothing fails, nothing logs, and the evidence of the omission is the *absence* of rows — the same reason the 2026-08-19 cross-org READ hole (CLAUDE.md §6) went unnoticed while the write half was guarded.
+- **Sketch:** two halves, and the first is the cheap one. (a) A check asserting the array has at least one importer — the general form is M-067's, and building it once should cover all three instances rather than three times. (b) The real mechanism is at the purge sites: every `pg_cron` retention purge and every erasure path asserts its target table is NOT in this array, deriving the list by import. Until (b) exists, (a) only converts a silent lie into a loud one, which is still the right first move.
+- **⚠ Do not close this by deleting the array.** The list is a correct statement of a statutory obligation. Deleting it removes the record and leaves the obligation.
+- **Related:** M-067 (first instance) · M-069 (second) · M-078 (counsel text with the same "declared SSOT, unused" shape)
+- **Provenance:** the 2026-08-21 dead-code burn-down. knip reported the array as an unused export; asking *why* it has no caller produced this. It is now tagged `@knipignore` at the site with this entry named, so the tool stays green without the finding being lost.
 - **Covering spec:** NEW
 
 ### M-081 — three rules in one hook each re-derive "find X as a standalone token", and each got it wrong separately — **BUILT 2026-08-21 (`34468178`, `2b3a9ca9`)**
@@ -1053,3 +1016,90 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Related:** M-072 (`bash-gate` matches a flag token without checking which command owns it — same family, already filed) · [[l-44]]
 - **Provenance:** CD review, 2026-08-21, across three passes; the third instance was found INSIDE the sweep the second demanded, which is the evidence that the editorial remedy does not hold. Built the same day, after a fourth instance — a quadratic regex — was introduced by the fix for the second.
 - **Covering spec:** NEW
+
+---
+
+## CLOSED — WON'T BUILD (ruled 2026-08-21)
+
+**The ruling.** A triage of the register found 28 entries carrying neither a HIGH blast tag
+(money/data-boundary/schema/auth) nor any citation outside this file. CD's ruling inverted the burden
+on them: *those default to WON'T BUILD; retention requires a stated reason.* The entries below did not
+carry one. Their headings are removed so `grep -cE '^### M-[0-9]+'` reflects real open work; the ID
+and the reason stay, because **an entry closed without a recorded reason reopens itself** the next time
+someone reads the rule it came from and has the same idea.
+
+**Two findings the pass produced, which matter more than the closures:**
+
+1. **The blast taxonomy under-describes a defect in a control.** `blast` records what the RULE guards,
+   so an entry about a bug in `bash-gate.js` — a hook whose DENY list covers force-push, `rm -rf` on
+   root, and the commit-gate bypass — is tagged `blast: other`, because the miscellany it guards is
+   miscellaneous. Six of the 28 were defects in rung-1 controls, and the "no HIGH blast tag" half of
+   the triage filter selected FOR them. They are retained on that ground, and the tag is the thing at
+   fault, not the entries. Filed as an input to TASK 3 (control-aim audit), whose question — *is this
+   control pointed where the class lives?* — is the same question one level up.
+
+2. **Four of the 28 were already done.** M-033 and M-034 were shipped by the resolver work described
+   in this file's preamble; M-049 and M-050 asked for a hook that exists, under a different name than
+   their sketch watched for. **The register does not notice its own entries being satisfied** — nothing
+   re-resolves a sketch against the tree, so an entry's open state means only that nobody has looked.
+   That is a claim about this file of exactly the kind CLAUDE.md §8 requires an anchor for.
+
+**M-036 — flag the literal substring `ANON_KEY` outside `lib/env.ts`**
+
+WON'T BUILD. The hazard — a raw env read of ANY name — is already covered by `pleks/no-raw-process-env`. A literal-substring ban would fire on every document that names the trap, including CLAUDE.md's own warning and this register: the M-072 shape, bought for a string the general rule already forbids.
+
+**M-038 — `vercel.json` guard against a `crons` key**
+
+WON'T BUILD. Re-adding a `crons` key is a deliberate edit to a short config file, not a drift class. The completed migration off Vercel Cron is the control; a guard against reversing it on purpose guards nothing.
+
+**M-039 — scan `app/(public)/**` JSX for un-escaped `</strong> text` (generalised)**
+
+WON'T BUILD. Closed as a PAIR with M-040 — closing one half of a twin leaves the register asymmetric. The defect is a visible rendering fault in public prose, apparent to anyone who opens the page; and `</strong>` followed by a space cannot be told from an intended space without rendering it.
+
+**M-040 — scan legal pages for un-escaped `</strong> text` (specific twin)**
+
+WON'T BUILD. See M-039 — closed as its twin, same reason, same commit.
+
+**M-043 — enumerate `app/api/cron/**/route.ts` against the orchestrator**
+
+WON'T BUILD. Closed in favour of M-044, which asserts the sharper half of the same property. M-044 starts from a symptom that was OBSERVED; this one starts from a hazard inferred from the rule's wording. Where two entries cover one surface, keep the measured one.
+
+**M-046 — flag a server page importing a value from a `"use client"` module**
+
+WON'T BUILD. The failure is loud and immediate — `X.some is not a function` at render, on the first page load. A check earns its keep against SILENT failures; this class announces itself.
+
+**M-047 — scan filled headers for surviving literal placeholder text**
+
+WON'T BUILD. `check-file-headers` already fails on the `FILL:` stub, which is the half with consequence. A second scan for a surviving parenthetical hint guards a cosmetic class whose cost is that a header reads slightly oddly.
+
+**M-053 — allowlist requirement on server-side `sharp(` calls**
+
+WON'T BUILD. The entry's own sketch concedes the distinction it needs — safety net vs primary path — requires reading intent. Its proposed remedy is an inline allowlist comment, which DOCUMENTS the call rather than detecting the misuse.
+
+**M-054 — EXIF-before-compression order test + branded `CompressedPhoto` type**
+
+WON'T BUILD. The branded-type half is a change to the upload function's signature — a refactor, not a mechanism — and the order test without it asserts a call order in a module that could be bypassed entirely. If wanted, it belongs in the inspections spec as design work.
+
+**M-056 — AST check flagging an enumeration test with no non-emptiness floor**
+
+WON'T BUILD. "An `it()` whose body iterates a `readdirSync` result and asserts no floor on its length" has no crisp AST signature; the check would arrive with a baseline on day one, and CLAUDE.md §4 is explicit that a baseline is a decision log, not a parking space.
+
+**M-057 — AST check flagging a hand-written parity-test member array**
+
+WON'T BUILD. Same family and same objection as M-056, plus a sharper one: identifying "parity-test files by naming convention" IS the difficulty, and getting it wrong points a working rule away from the class — the MISAIMED verdict, bought in advance.
+
+**M-058 — component-canon partial slice (`rounded-*` + shadcn `Button` import ban)**
+
+WON'T BUILD. `rounded-md`/`rounded-lg` are widespread in the tree today, so the check's first act is a large baseline over surfaces the design doc already calls "old-style". Restyle the surfaces, then ratchet — a ratchet installed against a tree that has not moved yet only records the tree.
+
+**M-059 — `check-subprocessor-claims.mts` mirroring `check-retention-claims.mts`**
+
+WON'T BUILD. The check is the small half. It requires an SSOT sub-processor data file that does not exist, and building that SSOT is the actual work — it belongs to ADDENDUM_00J, with the check as its closing step, not to a queue of mechanisms.
+
+**M-060 — parity test asserting each `createMessage` call site's model matches its task**
+
+WON'T BUILD. `no-restricted-imports` already forces every call through one entry point. Asserting each call site's model against the routing table means encoding that table a second time, in a test, where the copy rots against the rule it mirrors.
+
+**M-066 — every reference/wording document names its decision authority**
+
+WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifying fact itself: `brief/` is a OneDrive symlink outside version control, so this can never run in CI, and it warns against shipping it as a normal check where a CI green would read as coverage. It also puts a genuine choice to CD (accept a local-only ratchet, or move the reference documents into the tracked tree first). That choice is a DECISION, and it is recorded in `brief/build/OUTSTANDING.md` rather than left here as a build item.

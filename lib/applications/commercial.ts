@@ -41,6 +41,10 @@ interface DeclareDirectorsResult {
  * Creates application_directors rows for all declared directors.
  * For surety directors, also creates an application_co_applicants row and sends an invite.
  * Called from Step 1.5 of the commercial application flow.
+ * @knipignore Mid-build commercial-applicant flow, gate-before-wiring (verifyApplicantToken is CALLED, not
+ * merely described). WARNING for whoever wires it: this takes orgId as a caller-supplied parameter
+ * and uses it as the write scope — the shape of the 2026-07-06 cross-org IDOR scar. Derive it at
+ * wiring time.
  */
 export async function declareDirectors(
   applicationId: string,
@@ -265,6 +269,8 @@ export interface ReplacementDirector {
  * 2. Flags any existing payment for manual refund (14C handles disbursement)
  * 3. Creates new application_directors + application_co_applicants rows
  * 4. Sends invite to replacement director
+ * @knipignore See declareDirectors above. Additionally touches application_screening_payments and a
+ * manual-refund flag, and carries the same caller-supplied-orgId warning.
  */
 export async function replaceDirector(
   oldCoApplicantId: string,

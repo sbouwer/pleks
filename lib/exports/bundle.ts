@@ -73,6 +73,7 @@ export async function generateBundle(
 /**
  * Verify a previously generated bundle by re-fetching artefacts from Storage
  * and recomputing their hashes.
+ * @knipignore POPIA export-bundle hash/tamper verifier. Unwired compliance scaffolding, deliberately kept.
  */
 export async function verifyBundle(
   bucket: string,

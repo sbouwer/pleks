@@ -26,9 +26,10 @@ interface PurgeWarningData {
   settingsUrl:     string
 }
 
-function formatDate(iso: string) {
-  return fmtDateLongZA(iso)
-}
+// A one-line `formatDate(iso)` wrapper over fmtDateLongZA lived here, re-exported at the foot of the
+// file for "purge step callers". Removing the re-export (see the note there) left the wrapper with no
+// caller inside the module either — it existed only to be re-exported. Both went 2026-08-21; anything
+// needing this formatting imports fmtDateLongZA from @/lib/dates, the SSOT.
 
 // Pleks → customer system emails are always Pleks-branded (never the agency brand) — branding follows the
 // sender→recipient relationship. Overrides whatever branding the billing crons build; the recipient's name
@@ -512,5 +513,8 @@ export async function sendCancelledConfirm(
   })
 }
 
-// formatDate used by purge step callers
-export { formatDate }
+// `export { formatDate }` sat here under the comment "used by purge step callers". All seven
+// importing files were checked and none of them is such a caller — the comment described an
+// intention, not a fact, which is the failure mode that makes a stale justifying comment worse than
+// a bare re-export. Removed 2026-08-21, and with no external caller the wrapper it exported had no
+// internal one either; it went too (see the note at its declaration).

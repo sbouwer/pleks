@@ -243,6 +243,9 @@ export async function transitionRequestStatus(
   return data as DataSubjectRequest
 }
 
+/**
+ * @knipignore Same unwired POPIA-engine family; carries its own "unwired... flag for a human when wired" note.
+ */
 export async function assignRequest(
   requestId: string,
   assignee_user_id: string,

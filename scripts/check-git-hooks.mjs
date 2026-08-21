@@ -97,6 +97,40 @@ for (const { file, env, wraps } of HOOKS) {
   clearMarker()
 }
 
+// ─── The default-branch guard (M-073) ────────────────────────────────────────────────────────────
+// Two occurrences (2026-08-20, 2026-08-21) of commits landing on the default branch with every
+// local gate green. The guard is driven through its own seam so these cases opt IN to it, leaving
+// the command-seam probes above — and `npm run check` on any branch — untouched.
+{
+  const HOOK = ".githooks/pre-commit"
+  const drive = (branch) => {
+    clearMarker()
+    return spawnSync("sh", [HOOK], {
+      encoding: "utf8",
+      env: { ...process.env, PLEKS_HOOK_PROBE: "1", PLEKS_PRECOMMIT_CMD: "true", PLEKS_BRANCH_PROBE: branch },
+    })
+  }
+
+  // Resolved the same way the hook resolves it, so the probe cannot pass by agreeing with a
+  // hardcoded "main" on both sides — a repo defaulting to `master` must exercise `master` here.
+  const resolved = spawnSync("git", ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], { encoding: "utf8" })
+    .stdout.trim().replace(/^origin\//, "") || "main"
+
+  const onDefault = drive(resolved)
+  ok(onDefault.status !== 0, `${HOOK}: BLOCKS a commit on the default branch ("${resolved}")`)
+  ok(/default branch/i.test(`${onDefault.stdout ?? ""}${onDefault.stderr ?? ""}`),
+    `${HOOK}: says WHY it refused — a bare non-zero exit sends you looking at the check chain`)
+
+  // It must fire BEFORE the chain: the seam here says the chain would PASS, so a failure can only
+  // come from the guard. This is the property that makes the remedy one `git switch -c`.
+  ok(onDefault.status !== 0, `${HOOK}: the guard runs BEFORE the check chain (chain seam is "true" and it still refused)`)
+
+  // KNOWN-GOOD — the half that catches an over-broad guard. Without it, "block everything" passes.
+  ok(drive("fix/some-feature-branch").status === 0, `${HOOK}: a normal feature branch is untouched`)
+  ok(drive(`${resolved}-but-not-quite`).status === 0, `${HOOK}: matches the default branch EXACTLY, not as a prefix`)
+  clearMarker()
+}
+
 // The seam must be INERT without the probe flag, or it is just --no-verify with extra steps.
 //
 // The first version tested this by GREPPING the hook's source for the `PLEKS_HOOK_PROBE` string and

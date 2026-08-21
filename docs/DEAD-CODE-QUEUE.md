@@ -4,8 +4,147 @@ A classified `knip` census, promoted out of `.claude/handoff/` on 2026-08-21 so 
 
 **What this is:** 103 knip findings at commit `a5b6f541`, each classified DEAD / RETAINED / JUDGMENT /
 FALSE POSITIVE by a 3-way census fan-out, with per-item grep evidence preserved in the appendices.
-**Nothing here has been deleted from the tree.** This is a queue of candidates, not a record of work
-done — every DEAD verdict is a claim to re-verify against HEAD before acting on it.
+This was a queue of candidates, not a record of work done — every DEAD verdict a claim to re-verify
+against HEAD before acting on it.
+
+---
+
+## ▶ CLOSED, 2026-08-21 — 103 → 0, and knip is now IN `npm run check`
+
+**This queue is finished. Read this banner and stop; everything below is the working record.**
+
+`npx knip` reports **zero findings** and the tool entered the commit gate on 2026-08-21 — the exit
+condition `knip.jsonc`'s own header set when it was deliberately kept out.
+
+| | Count | How it was closed |
+|---|---:|---|
+| Genuinely dead | 56 | deleted, un-exported, or dropped from a barrel — three shapes, not one sweep |
+| Deliberate keeps, tagged at the site | 40 | `@knipignore <reason>` on the declaration |
+| Deliberate keeps, whole files | 4 | path entries in `knip.jsonc` (a tag does NOT clear an unused file — probed) |
+| Duplicate exports | 3 | `rules.duplicates: "off"` — all three are live aliases |
+| | **103** | |
+
+**Zero means "every finding is classified", NOT "there is no dead code."** The gate's aperture is
+narrower than it looks: `ignoreExportsUsedInFile` suppresses 174 further findings that nobody will be
+shown again. That is a deliberate trade — a type used only in its own module is that module's
+vocabulary — but it is the number to remember when reading the green.
+
+**A floor check guards the green.** `scripts/check-knip-floor.mjs` exists because a knip run that
+analyses *zero files* also reports zero and exits 0, which is indistinguishable at the gate from a
+clean tree. It asserts a **parity**: the count of `@knipignore` tags on disk must equal the count of
+findings when the `tags` key is removed. Not a hardcoded floor — that would rot the first time
+someone legitimately wires one of the 40 up. It caught a real error during its own construction (a
+`git checkout` reverting a probe also wiped a real tag in the same file).
+
+**Full baseline, for whoever asks "how much dead code is there really":** 258 with every suppression
+lifted — `ignoreExportsUsedInFile` 174, the `ignore` paths 28, `ignoreDependencies` 8. Those attribute
+to 210, not 211, because one finding sits in two buckets; each number was produced by its own run,
+since attributing by subtraction is how you get a plausible wrong answer.
+
+---
+
+## ▶ STATUS, 2026-08-21 at `c3eafb81` — the DEAD half is actioned. 103 → 49.
+
+**⚠ The sections below are the ORIGINAL census, left verbatim as evidence. They still say "nothing
+deleted" and still describe 57 DEAD items. That was true at `a5b6f541` and is not true now.** Read
+this banner first; treat every DEAD row below as *actioned unless named as a refusal here*.
+
+`npx knip --no-progress` at `c3eafb81`: **49 items** — 4 unused files, 38 unused exports, 4 unused
+exported types, 3 duplicate-export pairs. The 49 reconcile exactly:
+
+| Class | Count | State |
+|---|---:|---|
+| RETAINED | 21 | settled keeps — reasons in the table below; a future census must not re-raise them |
+| JUDGMENT | 25 | **awaiting a CD ruling.** 7 money-adjacent, 11 security/compliance-adjacent |
+| Refused DEAD verdicts | 3 | re-classified during the burn-down — see immediately below |
+| **Total still reported** | **49** | |
+
+**THREE DEAD VERDICTS WERE REFUSED and the code kept.** Each was re-verified, found to be an unwired
+feature half rather than obsolete code, and is now the JUDGMENT class in everything but the original
+label:
+
+1. **`lib/actions/inspections.ts:rescheduleInspection`** — the live reschedule path,
+   `respondToRescheduleRequest` in `app/(dashboard)/inspections/[inspectionId]/actions.ts`, updates
+   `scheduled_date` but sends **no tenant communication**. This module's own header says "I3 fires on
+   rescheduleInspection when tenant_id is set", so deleting it deletes the only implementation of
+   comm I3. **That gap is itself a finding: as at `c3eafb81`, a tenant whose inspection is
+   rescheduled through the live path is not notified.**
+2. **`lib/actions/leases.ts:giveNotice`** — the only lease-termination-notice implementation in the
+   tree. `issueDemandToVacate` in `lib/actions/notices.ts` is the *breach* instrument, a different
+   thing. It carries SAST calendar arithmetic written to fix a real off-by-one (an agent giving
+   notice at 00:30 SAST recorded yesterday). Deleting it means the next person to wire a termination
+   notice re-derives that.
+3. **`lib/screening/bankStatementExtraction.ts:BankStatementExtraction`** — deleted and then restored
+   mid-pass. Removing it orphaned `RecurringDebit` / `StatementQuality` / `DeclaredRentMatch` /
+   `PleksInvoiceReference`; those five interfaces together **are** the JSON schema the prompt fifty
+   lines below asks the model to return. The name collision with the live, unrelated
+   `BankStatementExtraction` in `lib/extraction/types.ts` is now documented at the site.
+
+**What the DEAD burn-down actually did** — three shapes, deliberately not one sweep: an export used
+inside its own file lost the `export` keyword and kept its body; a barrel line shrank without
+touching the definition it pointed at (`lib/crypto/index.ts` −9, `lib/dates/index.ts` −4); a genuinely
+unreachable symbol was deleted with a comment at the site naming what went and why. Two second-order
+cascades surfaced (`validateCompanyPeopleIdentity` + `companyAddressError`; both inspection room
+arrays) and were caught by lint, not assumed.
+
+**The path to gating knip in `npm run check`** — the exit condition `knip.jsonc`'s own header sets —
+is now blocked only on the JUDGMENT rulings, not on more deletion. When they are ruled, each survivor
+needs its reason recorded *at the site* (knip reads JSDoc tags, which suits this better than a
+central list) before the tool can go green and enter the gate.
+
+---
+
+## ▶ THE JUDGMENT RULINGS, 2026-08-21 at `a309c74b` — 47 left, and the pass turned up four findings
+
+**CD ruling:** apply the M-register triage pattern. Default verdict is DELETE; **retention requires a
+reason**, and two classes get a real per-item verdict regardless — anything money- or
+security/compliance-adjacent, and anything another artefact actually references.
+
+### OTHER class (5) — ACTIONED, the class where a default is safe
+
+| Item | Verdict | Reason |
+|---|---|---|
+| `HoaRulesUpload.tsx:HoaUploadStub` | **DELETED** | permanently `disabled` placeholder for BUILD_44, rendered by nothing, named by no spec |
+| `emails.tsx:formatDate` + its re-export | **DELETED** | re-export claimed "purge step callers"; all 7 importers checked, none is one. Removing it left the wrapper with no internal caller either |
+| `help-data.ts:HELP_CONTENT_DRAFT` | **RETAINED** | cited 3× in `docs/MECHANISABLE.md` — referenced |
+| `searchworx/utils.ts:normaliseOwnerType` | **RETAINED** | specified with its body in `brief/vendors/searchworx/raw/lightstone-erf-valuation/endpoint_reference.md` — referenced |
+| `applyDomain.ts:STEP_DOCS_OPTIONAL\|LAST_DATA_STEP` | **RETAINED** | not dead: both names live and separately imported. knip flags the aliasing, not the code |
+
+### MONEY-ADJACENT (7 names) — every one KEPT, and two of them are findings
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| `QuickPaymentButton.tsx`, `lib/actions/payments.ts`, `templates/tenant/rent/payment-received.tsx` | **KEEP** | referenced: `.claude/crawlers/INTENTIONAL.md` already holds this chain as an open product question. `recordPayment` is the ONLY single-payment recording implementation; bulk import calls `record_payment_atomic` directly. Deleting the chain decides the question |
+| `municipal.ts:createMunicipalAccount`, `uploadMunicipalBill` | **KEEP — ⚠ FINDING** | **these are the missing entry half of a LIVE feature.** Their two siblings in the same file, `confirmMunicipalBill` and `markMunicipalBillPaid`, ARE wired — to `app/(dashboard)/billing/municipal/[billId]/MunicipalBillActions.tsx`. So a municipal bill can be confirmed and marked paid, and **as at `a309c74b` there is no UI path that creates an account or uploads a bill.** Deleting these strands the live half |
+| `commercial.ts:declareDirectors`, `replaceDirector` | **KEEP** | mid-build commercial-applicant flow; both are genuinely gated (`verifyApplicantToken` is CALLED, not merely described) ahead of wiring, and `replaceDirector` touches `application_screening_payments` and a manual-refund flag. **Worth noting for whoever wires them:** both take `orgId` as a caller-supplied parameter and use it as the write scope. That is the shape of the 2026-07-06 cross-org IDOR scar; derive it at wiring time rather than accepting it |
+
+### SECURITY / COMPLIANCE-ADJACENT (13 names) — every one KEPT, one is a finding
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| `CapabilitiesProvider.tsx:useCan`, `can.ts:can`, `orgRoles.ts:capabilitiesForRole`, `requireCapability.ts:requireMinTier` | **KEEP** | one family. Each file states outright that gating is deliberately not yet wired and that surfaces adopt them one at a time. Deleting removes the primitives a documented rollout still needs |
+| `auth/server.ts:getCurrentSubscriptionState` | **KEEP** | built ahead of consumers named in ADDENDUM_57G |
+| `platform-org.ts:excludePlatformOrg` | **KEEP** | referenced — `docs/MECHANISABLE.md` **M-067** |
+| `ApplicantLegalFooter.tsx:INFORMATION_REGULATOR_URL` | **KEEP** | referenced — **M-069** |
+| `disclaimer.ts:DISCLAIMER_GATE_TEXT`, `DOCUMENT_DISCLAIMER_TEXT` | **KEEP** | referenced — **M-078**. Verified SSOT drift, not dead code: two counsel-reviewed liability texts hand-copied into live sites. The fix is wiring those sites to import these, the opposite of deletion |
+| `inviteTenant.ts:issueTenantPortalLinkForHandover` | **KEEP** | sanctioned exception to "no portal action returns a session credential" (ADDENDUM_62F, post-incident). Too security-sensitive to guess mid-build vs abandoned — and this is the exact symbol family behind the `inviteTenant` scar in CLAUDE.md §6 |
+| `decisionReasonLabels.ts:NOT_SHORTLISTED_REASON_LABELS`, `WITHDRAWN_REASON_LABELS` | **KEEP** | exhaustive `Record`s over counsel-signed decision-code unions. Deleting removes a compile-time exhaustiveness check, not inert code — the union gains a member and nothing complains |
+| `retention.ts:RETENTION_PROTECTED_TABLES` | **KEEP — ⚠ FINDING** | its own header says *"BUILD_65 imports this array rather than defining its own"*, and `supabase/migrations/010_platform_features.sql:1690` says a table was *"Added to RETENTION_PROTECTED_TABLES"*. **Neither is true.** A whole-repo grep finds no importer: this is a PPRA/POPIA retention list (audit_log, trust_transactions, consent_log, auth_events, tos_acceptances) that governs nothing, with two artefacts asserting it is live. Same shape as M-067/M-069 — **files as a new M-register entry** |
+
+### The four findings this pass produced, which is the actual yield
+
+1. **Comm I3 has no live sender.** The live inspection-reschedule path updates `scheduled_date` and
+   notifies nobody; the only implementation of the tenant notification is in the function the census
+   called dead.
+2. **The municipal bill flow has no UI entry point.** Confirm and mark-paid are wired; create-account
+   and upload-bill are not.
+3. **`RETENTION_PROTECTED_TABLES` enforces nothing**, while a module header and a migration comment
+   both state that it does.
+4. **`declareDirectors` / `replaceDirector` take `orgId` from the caller** and use it as the write
+   scope — the 2026-07-06 IDOR shape, harmless while unwired and not harmless after.
+
+A dead-code pass is a poor tool for finding these and an excellent one for *provoking* them: every
+finding above came from asking "why does this have no caller?" rather than from the count.
 
 **Why it is a register rather than a report.** The 25 JUDGMENT items are routed for a human and had
 no durable home; 7 are money-adjacent and 11 security/compliance-adjacent, which is exactly the set

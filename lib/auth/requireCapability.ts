@@ -25,6 +25,7 @@ export async function requireCapability(capability: string): Promise<void> {
  * owner/is_admin are NOT exempt (a Firm feature is unreachable on Steward until they upgrade). Comparison is
  * via hasAccess, which is WITHIN a product line — a cross-line pair (e.g. an HOA tier vs a residential
  * min-tier) is a deliberate deny (/403), never an undefined TIER_ORDER comparison that happens to be false.
+ * @knipignore Same family as lib/auth/can.ts:can — capability gating is staged, not abandoned.
  */
 export async function requireMinTier(minTier: AnyTier): Promise<void> {
   const gw = await gatewaySSR()

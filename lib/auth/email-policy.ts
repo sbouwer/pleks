@@ -48,14 +48,6 @@ export function isPersonalEmailDomain(email: string): boolean {
   return PERSONAL_EMAIL_DOMAINS.has(domain)
 }
 
-/**
- * Returns true when the portal class requires an organisation-controlled email.
- * Currently only agent class — tenants, landlords, and suppliers may use personal emails.
- */
-export function requiresOrgDomain(portalClass: PortalClass): boolean {
-  return portalClass === "agent"
-}
-
 // ── assertEmailAvailableForRole ───────────────────────────────────────────────
 
 type AssertResult =

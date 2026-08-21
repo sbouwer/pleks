@@ -176,6 +176,7 @@ export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities
  * Reads sub_status from the pleks_org cookie (zero DB on cache hit).
  * Falls back to a DB query on miss. Used by server components that need
  * the full SubscriptionState (e.g. email footer variant, dunning cron).
+ * @knipignore Built ahead of the consumers ADDENDUM_57G names.
  */
 export const getCurrentSubscriptionState = cache(async (): Promise<SubscriptionState> => {
   const fallback: SubscriptionState = {
@@ -291,5 +292,5 @@ export async function requireAgentWriteAccess(
   return gw
 }
 
-export type { AgentWriteAction, SubscriptionState } from "@/lib/subscriptions/state"
+export type { AgentWriteAction } from "@/lib/subscriptions/state"
 export type { GatewayContext } from "@/lib/supabase/gateway"

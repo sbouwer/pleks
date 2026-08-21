@@ -6,11 +6,17 @@
   // paid for in three cleanup passes and two broken builds. What is NOT ported is their ignore
   // list: theirs is about shadcn and Prisma, neither of which exists here.
   //
-  // DELIBERATELY NOT IN `npm run check` YET. knip reports whole categories nobody in this repo has
-  // agreed to act on, and wiring a red tool into the gate makes every commit fail for reasons that
-  // have not been triaged. LT kept it out for exactly this reason and gated it once the tree was at
-  // zero; that is the intended path here too. `check-tier0.mjs` in dev-standards will keep saying
-  // "available but NOT gated", which is the correct and honest reading until the burn-down is done.
+  // IN `npm run check` SINCE 2026-08-21, on the exit condition this header set: the tree is at zero.
+  // It took a 103 → 0 burn-down. 56 findings were genuinely dead and were deleted, un-exported or
+  // dropped from a barrel; the remaining 47 are DECISIONS, and each one now carries its reason —
+  // 40 as an `@knipignore` tag at the site, 4 as file entries below, 3 as the `duplicates` rule.
+  //
+  // ⚠ READ THIS BEFORE ADDING AN IGNORE. Zero here means "every finding has been classified", NOT
+  // "there is no dead code". The gate's aperture is narrower than it looks: `ignoreExportsUsedInFile`
+  // below suppresses 174 findings that nobody will ever be shown again, and that is a deliberate
+  // trade, not an oversight. Reaching zero by SILENCING is the failure mode this file exists to
+  // prevent — an entry earns its place by carrying a reason a stranger can check, and the reasons
+  // are the artefact, not the count.
   //
   // JSONC, not JSON, because every ignore needs its REASON. An ignore list without reasons is a
   // silencer; with them it is a decision log, and the next reader can tell a deliberate retention
@@ -58,6 +64,12 @@
     "lib/**/*.{ts,tsx}",
     "components/**/*.{ts,tsx}",
     "hooks/**/*.{ts,tsx}",
+    // `types/` DOES NOT EXIST as at 2026-08-21, so knip emits a "Refine project pattern (no
+    // matches)" hint on every run. That hint is EXPECTED — do not chase it, and do not delete this
+    // line to silence it. A `project` pattern that matches nothing is defensive (it costs a hint);
+    // a `project` path that is MISSING when the directory appears is contaminating (it makes live
+    // code read as dead, which is the mistake recorded in the comment above). The asymmetry is
+    // the whole reason this stays.
     "types/**/*.ts",
     "content/**/*.{ts,tsx}",
     "scripts/**/*.{ts,mts,mjs}",
@@ -73,7 +85,42 @@
   // two broke their build three times in one pass.
   "ignoreExportsUsedInFile": { "interface": true, "type": true },
 
+  // Deliberate keeps are marked `@knipignore <reason>` on the declaration itself. WITHOUT this key
+  // the tag is inert — probed both directions 2026-08-21: no key → the tagged export is still
+  // reported; key present → it clears. A site tag beats a central list here because the reason has
+  // to survive next to the code, and because a stranger reading the export sees why it has no
+  // caller. It does NOT work for a whole unused FILE (also probed — a file whose every export is
+  // tagged still reports), which is why the four below are path entries instead.
+  "tags": ["-knipignore"],
+
+  "rules": {
+    // Two names bound to one value. All three instances are deliberate and LIVE, so this reports a
+    // style opinion rather than dead code: `encryptDob`/`decryptDob` alias the id_number functions
+    // (9+ call sites — DOB is ciphertext on `applications`, whose column was widened date→text, and
+    // calling `encryptDob` at a dob column is what makes that legible), and
+    // `STEP_DOCS_OPTIONAL`/`LAST_DATA_STEP` are separately imported under both names.
+    "duplicates": "off"
+  },
+
   "ignore": [
+    // ─── Unwired feature halves. Four files, two pairs, both KEPT by ruling on 2026-08-21. ───
+    // These are not obsolete code; they are the half of a feature that was built first. The census
+    // that found them produced two findings in the process, recorded in docs/DEAD-CODE-QUEUE.md.
+
+    // The single-payment chain. `recordPayment` is the ONLY single-payment recording implementation
+    // (bulk import calls `record_payment_atomic` directly), and its one caller is itself rendered by
+    // nothing. `.claude/crawlers/INTENTIONAL.md` already holds this as an open PRODUCT question —
+    // deleting the chain decides it, which is not a dead-code pass's call to make.
+    "app/(dashboard)/leases/[leaseId]/QuickPaymentButton.tsx",
+    "lib/actions/payments.ts",
+    "lib/comms/templates/tenant/rent/payment-received.tsx",
+
+    // The tier-downgrade pair: each file's comment names the other as the missing half
+    // (`canDowngradeTo.ts` — "call buildSubscriptionForm ... once that action is built"). It
+    // enforces the lease-cap invariant in the "coming down" direction, the half `canActivateLease`
+    // does not cover. `buildSubscriptionForm` is tagged at its site; this one is a whole file.
+    "lib/tier/canDowngradeTo.ts",
+
     // shadcn/ui primitives. They arrive as a SET — you install a component and its Radix dependency
     // together — and several are staged ahead of the screens that will use them. Reporting them
     // every run trains people to skim the whole report, which costs more than the few unused files.

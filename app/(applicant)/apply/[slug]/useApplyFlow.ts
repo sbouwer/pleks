@@ -33,7 +33,7 @@ import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV,
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { hardNavigate } from "@/lib/navigation"
 
-export const TYPE_LABEL: Record<ApplicantType, string> = { individual: "Individual", couple: "Couple", company: "Company", guarantor: "With a guarantor" }
+const TYPE_LABEL: Record<ApplicantType, string> = { individual: "Individual", couple: "Couple", company: "Company", guarantor: "With a guarantor" }
 
 /** Apply-only marital/spouse validation (the shared identity validator doesn't cover these). Marital status is
  *  mandatory; married → regime mandatory; married + in community → the spouse must consent (s15 MPA) — either an

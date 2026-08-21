@@ -1,42 +1,13 @@
 /**
- * lib/inspections/roomTemplates.ts — static residential/commercial room + item templates and condition options for inspections
+ * lib/inspections/roomTemplates.ts — static residential/commercial ITEM templates and condition options for inspections
  *
  * Notes:  Legacy flat fallback template set (used when a unit has no profile/unit_type); the richer path is templateEngine.
+ *         The ROOM half of that fallback is gone as of 2026-08-21: two module-local arrays
+ *         (RESIDENTIAL_ROOMS, 16 areas; COMMERCIAL_ROOMS, 12) and the two accessors that were their
+ *         only door — getRoomTemplate(leaseType) and getItemsForRoom(leaseType, roomType) — had no
+ *         callers anywhere, and the arrays were never exported, so nothing outside could reach them.
+ *         The ITEM tables below ARE exported and still imported; they stay.
  */
-const RESIDENTIAL_ROOMS = [
-  { type: "entrance", label: "Entrance / Hallway" },
-  { type: "lounge", label: "Lounge" },
-  { type: "dining", label: "Dining Room" },
-  { type: "kitchen", label: "Kitchen" },
-  { type: "bedroom_1", label: "Bedroom 1 (Main)" },
-  { type: "bedroom_2", label: "Bedroom 2" },
-  { type: "bedroom_3", label: "Bedroom 3" },
-  { type: "bathroom_1", label: "Bathroom / Shower" },
-  { type: "bathroom_2", label: "En-suite" },
-  { type: "toilet", label: "Toilet" },
-  { type: "laundry", label: "Laundry / Utility" },
-  { type: "garage", label: "Garage" },
-  { type: "garden", label: "Garden / Yard" },
-  { type: "pool", label: "Pool Area" },
-  { type: "storeroom", label: "Storeroom" },
-  { type: "other", label: "Other" },
-] as const
-
-const COMMERCIAL_ROOMS = [
-  { type: "reception", label: "Reception / Entrance lobby" },
-  { type: "open_plan", label: "Open plan office" },
-  { type: "boardroom", label: "Boardroom / Meeting room" },
-  { type: "private_office", label: "Private office" },
-  { type: "server_room", label: "Server room / IT room" },
-  { type: "kitchen_comm", label: "Kitchen / Canteen" },
-  { type: "ablutions", label: "Ablutions / Bathrooms" },
-  { type: "storage", label: "Storage / Storeroom" },
-  { type: "parking", label: "Parking / Loading bay" },
-  { type: "exterior", label: "Exterior / Signage" },
-  { type: "plant_room", label: "Plant room / Utility" },
-  { type: "other", label: "Other area" },
-] as const
-
 export const RESIDENTIAL_ITEMS: Record<string, string[]> = {
   default: ["Walls", "Ceiling", "Floor", "Windows", "Doors", "Light fittings", "Power points"],
   bedroom: ["Walls", "Ceiling", "Floor / Carpet", "Windows", "Window blinds", "Curtain rails", "Doors", "Door handles", "Built-in cupboards", "Light fittings", "Power points"],
@@ -61,16 +32,3 @@ export const CONDITION_OPTIONS = [
   { value: "missing", label: "Missing", color: "text-danger" },
   { value: "not_inspected", label: "Not Inspected", color: "text-muted-foreground" },
 ] as const
-
-export function getRoomTemplate(leaseType: string) {
-  return leaseType === "commercial" ? COMMERCIAL_ROOMS : RESIDENTIAL_ROOMS
-}
-
-export function getItemsForRoom(leaseType: string, roomType: string): string[] {
-  const items = leaseType === "commercial" ? COMMERCIAL_ITEMS : RESIDENTIAL_ITEMS
-  // Match room type to item templates
-  for (const [key, value] of Object.entries(items)) {
-    if (roomType.includes(key)) return value
-  }
-  return items.default
-}

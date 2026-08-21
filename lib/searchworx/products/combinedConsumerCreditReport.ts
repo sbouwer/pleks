@@ -30,14 +30,12 @@ import type { XdsParsed }                          from "./_subparsers/xds"
 
 export const COMBINED_PRODUCT_KEY  = "combined_consumer_credit_report"
 export const COMBINED_COST_CENTS   = 17000  // R170.00 ex-VAT — ADDENDUM_14H v3 rate card
-export const COMBINED_SEARCH_TYPE  = 126    // CSICombinedCreditReport
 const COMBINED_PRODUCT_PATH = "credit/combinedreport/consumer"
-
-export const COMBINED_DISPLAY_NAME = "Credit profile & identity verification — Multi-bureau"
-export const COMBINED_DESCRIPTION  =
-  "Multi-bureau credit profile combining TransUnion, XDS, Experian Sigma, and VeriCred " +
-  "into a single cross-verified record. Includes Home Affairs verification, fraud register " +
-  "check (SAFPS), credit scores, payment behaviour, and adverse listings."
+// Three exports were removed 2026-08-21, none with a caller: COMBINED_SEARCH_TYPE (= 126,
+// Searchworx's CSICombinedCreditReport id — this integration addresses the product by PATH, above,
+// so the numeric search type was never read), and COMBINED_DISPLAY_NAME / COMBINED_DESCRIPTION,
+// product copy for a surface that was never built. Copy and id are both recoverable from git; the
+// vendor contract they describe is in ADDENDUM_14H v3.
 
 export const COMBINED_RESULT_SUMMARIES = {
   success_full:    "Multi-bureau credit profile retrieved (all bureaus online)",

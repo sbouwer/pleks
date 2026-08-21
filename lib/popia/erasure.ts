@@ -37,6 +37,9 @@ export type ErasureScope =
   | { type: "targeted"; categories: DataCategory[] }
   | { type: "nuke"; acknowledged_carveouts: AcknowledgedCarveout[] }
 
+/**
+ * @knipignore Travels with anonymiseRecord — the contract of an unwired POPIA engine.
+ */
 export interface ErasurePreview {
   by_category: Record<
     DataCategory,
@@ -140,6 +143,8 @@ export async function executeErasure(
 
 /**
  * Anonymise a single record — strips identifying PII while retaining the structural row.
+ * @knipignore Self-documented unwired POPIA engine — its own eslint-disable reads "has no caller in the
+ * codebase (unwired)... Flag for a human when wired".
  */
 export async function anonymiseRecord(
   table: string,

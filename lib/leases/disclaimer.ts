@@ -11,6 +11,11 @@ export const DISCLAIMER_VERSION = "v1"
 // ─── Acceptance gate text (shown in modal, user must scroll + accept) ───────
 // Source: brief/legal/FINAL_PLATFORM_DISCLAIMER.md — attorney reviewed
 
+/**
+ * @knipignore Verified SSOT drift, NOT dead code: LeaseDisclaimerGate.tsx and lib/leases/generateDocument.ts
+ * each hand-duplicate this attorney-reviewed text verbatim instead of importing it. Filed as
+ * M-078. The fix is wiring those sites, the opposite of deletion.
+ */
 export const DISCLAIMER_GATE_TEXT = `Before using the Pleks lease template system, please read and accept the following:
 
 The lease templates, clauses, and annexures on this platform have been professionally drafted with input from qualified South African attorneys and are maintained at the cost of Pleks (Pty) Ltd. They have been prepared with the intention of being legally sound and aligned with current South African rental legislation. However, no template can account for every letting arrangement, and the following terms apply to your use of this content:
@@ -46,6 +51,10 @@ By clicking "I accept," you acknowledge that you have read and understood this d
 // ─── In-document disclaimer (appended to every generated lease PDF) ──────────
 // Source: brief/build/ADDENDUM_44A_CREDIT_TERMS.md section 3 — attorney reviewed
 
+/**
+ * @knipignore See DISCLAIMER_GATE_TEXT above — the other half of the same counsel-reviewed SSOT that live
+ * sites re-implement inline.
+ */
 export const DOCUMENT_DISCLAIMER_TEXT = `IMPORTANT NOTICE
 
 This lease agreement has been generated using the Pleks property management platform. The standard clauses contained herein have been drafted with reference to the Rental Housing Act 50 of 1999, the Consumer Protection Act 68 of 2008, and applicable South African law. However, this agreement does not constitute legal advice.

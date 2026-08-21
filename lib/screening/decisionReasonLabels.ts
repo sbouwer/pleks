@@ -94,6 +94,10 @@ export const ADVERSE_FACTOR_LABELS: Record<AdverseFactorCode, string> = {
   adverse_director_individual_fitscore_low: "Director individual FitScore low",
 }
 
+/**
+ * @knipignore An exhaustive Record over a counsel-signed decision-code union: a COMPILE-TIME exhaustiveness
+ * trap, not inert data. Delete it and the union can gain a member with nothing complaining.
+ */
 export const NOT_SHORTLISTED_REASON_LABELS: Record<NotShortlistedReasonCode, string> = {
   not_shortlisted_other_applicant_selected: "Another applicant was selected",
   not_shortlisted_no_decision_provided: "No decision recorded",
@@ -102,6 +106,10 @@ export const NOT_SHORTLISTED_REASON_LABELS: Record<NotShortlistedReasonCode, str
   not_shortlisted_expired_unactioned: "Expired without action",
 }
 
+/**
+ * @knipignore See NOT_SHORTLISTED_REASON_LABELS above — the same compile-time trap over the other
+ * counsel-governed union.
+ */
 export const WITHDRAWN_REASON_LABELS: Record<WithdrawnReasonCode, string> = {
   withdrawn_applicant_initiated: "Applicant withdrew",
   withdrawn_applicant_unreachable: "Applicant unreachable",

@@ -290,6 +290,9 @@ export async function getRetentionPolicies(orgId: string): Promise<RetentionPoli
 /**
  * Subject-facing retention summary — bypasses user_orgs check via service role.
  * Used by the subject's retention dashboard to show per-category retention status.
+ * @knipignore Pinned by INVARIANT_REGISTRY's pending POPIA ratchet in
+ * lib/invariants/__tests__/invariant-coverage.test.ts — the test names it while the enforcement is
+ * still pending.
  */
 export async function getRetentionForSubject(
   subjectUserId: string,
@@ -347,6 +350,9 @@ export async function getRetentionForSubject(
   return results
 }
 
+/**
+ * @knipignore See getRetentionForSubject above — same pending invariant ratchet.
+ */
 export async function getErasureEligibleDate(
   category: DataCategory,
   context: {

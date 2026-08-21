@@ -121,7 +121,10 @@ export async function assignableRoleSlugs(orgId: string): Promise<Set<string>> {
   return set
 }
 
-/** Resolve a single role's capabilities (owner → all). For can() enforcement in a later phase. */
+/**
+ * Resolve a single role's capabilities (owner → all). For can() enforcement in a later phase.
+ * @knipignore Same family as lib/auth/can.ts:can — capability gating is staged, not abandoned.
+ */
 export async function capabilitiesForRole(roleSlug: string): Promise<string[]> {
   if (roleSlug === "owner") return [...ALL_CAPABILITIES]
   const gw = await gateway()

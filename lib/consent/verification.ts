@@ -27,12 +27,6 @@ export interface RateLimitResult {
   retryAfterSeconds?: number
 }
 
-export interface SendResult {
-  ok: boolean
-  verificationId?: string
-  error?: string
-  rateLimited?: boolean
-}
 
 function getHmacSecret(): string {
   const secret = optionalEnv("CONSENT_HMAC_SECRET")

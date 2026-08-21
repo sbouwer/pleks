@@ -27,17 +27,17 @@ export {
   fmtTime,
 } from "../../_primitives/theme"
 
+// Narrowed 2026-08-21: ApplicantEmployment, NarrativeResponse, ExpenditureItem and
+// FitScoreFinancialAnalysis were re-exported here with no importer. They remain exported from
+// ../../_primitives/theme, which is where the four names are defined and where anything wanting
+// them should reach.
 export type {
   FitScoreReportData,
   FitScoreApplicantEntry,
-  ApplicantEmployment,
   FitScoreBand,
   ConfidenceGrade,
   VerificationIntegrityGrade,
   MaterialFlag,
-  NarrativeResponse,
-  ExpenditureItem,
-  FitScoreFinancialAnalysis,
   BureauEntry,
   VerificationOutcome,
   VerificationCheckItem,

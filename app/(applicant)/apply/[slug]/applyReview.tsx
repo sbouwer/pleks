@@ -305,7 +305,7 @@ export function ReadOnlyAssessment({ assessment, askingRentCents, emp }: Readonl
  *  binding, so consent is captured after auth_user_id exists; (3) resume-after-bounce (account made, left before
  *  consent) returns signed-in → binds on mount → lands on consent, never re-creates the account. Co-aware: a co
  *  sends its access token as `ct`, the lead its app token as `token`. */
-export function AccountStep({ applicationId, fillToken, isCo, email, signedInEmail, ready, onReady }: Readonly<{
+function AccountStep({ applicationId, fillToken, isCo, email, signedInEmail, ready, onReady }: Readonly<{
   applicationId: string | null
   fillToken: string | null            // lead application_tokens token, OR a co's access_token
   isCo: boolean

@@ -385,6 +385,11 @@ export async function updateItemCondition(
   return { success: true }
 }
 
+/**
+ * @knipignore The ONLY implementation of tenant comm I3. The live reschedule path (respondToRescheduleRequest)
+ * updates scheduled_date and notifies nobody — that gap is a finding, not a reason to delete this
+ * half. Refused DEAD verdict, docs/DEAD-CODE-QUEUE.md.
+ */
 export async function rescheduleInspection(
   inspectionId: string,
   newDate: string,

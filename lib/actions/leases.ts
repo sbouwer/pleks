@@ -518,6 +518,11 @@ export async function sendForSigning(leaseId: string) {
   return { success: true }
 }
 
+/**
+ * @knipignore The only lease-termination-notice implementation in the tree; issueDemandToVacate is the BREACH
+ * instrument, a different thing. Carries SAST calendar arithmetic written to fix a real
+ * off-by-one. Refused DEAD verdict, docs/DEAD-CODE-QUEUE.md.
+ */
 export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord", reason?: string) {
   const gw = await requireAgentWriteAccess("terminate_lease")
   const { db, userId, orgId } = gw

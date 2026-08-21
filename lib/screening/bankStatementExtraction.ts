@@ -58,6 +58,24 @@ export interface PleksInvoiceReference {
   amount_cents: number
 }
 
+/**
+ * The JSON contract `buildExtractionPrompt` below asks the model to return, field for field.
+ *
+ * ⚠ UNREFERENCED AND DELIBERATELY KEPT (2026-08-21 dead-code pass). knip reports it, and its route
+ * caller parses the model's reply without typing it against this shape — so nothing here is checked
+ * by the compiler. It was classified DEAD on the mechanical test (zero importers) and RETAINED on
+ * inspection: deleting it also orphans RecurringDebit / StatementQuality / DeclaredRentMatch /
+ * PleksInvoiceReference, and those five interfaces together ARE the prompt's schema. The prompt is
+ * fifty lines below and names these exact fields.
+ *
+ * ⚠ NAME COLLISION, unresolved: lib/extraction/types.ts exports a DIFFERENT, live interface also
+ * called BankStatementExtraction (bank / account_number_last4 / inflows…). Two same-named shapes for
+ * two different things. If this one is ever wired to a typed parse, rename it then — something like
+ * AffordabilityStatementExtraction — rather than leaving the collision in place.
+ * @knipignore Removing this orphans RecurringDebit / StatementQuality / DeclaredRentMatch /
+ * PleksInvoiceReference — the five together ARE the JSON schema the prompt below asks the model to
+ * return. Refused DEAD verdict, docs/DEAD-CODE-QUEUE.md.
+ */
 export interface BankStatementExtraction {
   // Income (existing fields — unchanged)
   avg_monthly_income_cents: number | null
