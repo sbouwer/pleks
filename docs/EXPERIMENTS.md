@@ -20,11 +20,17 @@ item.
 **E12 and E13 added 2026-08-21, and both are payload/transcript SHAPE observations — the most
 upgrade-fragile kind there is.** E12 rests on `agent_type` being present in a depth-2 PreToolUse
 payload and on no depth field existing there; a release that adds one, renames the other, or stops
-sending either silently changes what the write fence can decide. E13 rests on the transcript carrying
-`{"type":"mode"}` records that mean the LIVE permission mode while the payload's `permission_mode`
-means the CONFIGURED default — if that split ever closes, or the record's vocabulary changes, the
-statusline and the context-budget hook both start reporting a mode nobody is in. **Both failure modes
-are silent**, which is why they are on this list rather than left to be noticed.
+sending either silently changes what the write fence can decide. E13 now rests on records carrying a
+top-level `permissionMode` whose values are the permission vocabulary — if that field is renamed,
+dropped, or starts reporting a configured default rather than a live one, the statusline begins
+reporting a mode nobody is in. **Both failure modes are silent**, which is why they are on this list
+rather than left to be noticed.
+
+**E13's re-run has a specific first step, and it is not re-reading this session.** Count the field's
+distinct values ACROSS transcripts (`{"type":"mode"}.mode` measured cardinality 1 over 1735 records;
+`permissionMode` measured 3 with mid-session transitions). The entry's superseded diagnosis was
+confirmed twice against a single session, where a constant and a steady state are byte-identical.
+Any future claim about which field is live is worth exactly the cross-session count behind it.
 
 All nine are load-bearing: E1b decides whether
 scoped rules are a control or a convenience, E2 decides whether the entire marker vocabulary costs
@@ -637,7 +643,13 @@ load-bearing than any document currently says, not less.
 NO transcript record — searched by record type across the session, there is no prompt record, and
 `permission_denials` is zero. The `{"type":"mode","mode":"normal"}` records are the EDITOR mode, not
 the permission mode (the permission mode appears elsewhere as `acceptEdits`); reading them as the
-latter would have repeated this session's `permission_mode` error one field over. **The only detector
+latter would have repeated this session's `permission_mode` error one field over.
+<!-- This sentence was contradicted by E13's original diagnosis, held for several commits as the
+     stale half of a documented conflict, and is now VINDICATED — see E13's cardinality table. It was
+     written from the same evidence that was later argued away. Left exactly as authored, because a
+     register whose wrong entries are quietly corrected teaches nothing about which reasoning to
+     trust; this one was right and lost the argument anyway. -->
+**The only detector
 of a permission prompt in this system is the human watching the screen** — which is why the
 three-states problem keeps recurring and cannot be closed from inside a session.
 - **Nothing about whether `allow` is a GRANT.** Unchanged and still open. A logged `deny` at depth 2
@@ -660,83 +672,163 @@ write any file" into a brief again, since it costs the run its artefact.
 
 ---
 
-## E13 · Why every write in this session prompted — **DIAGNOSED: the session ran in `normal` mode; CONFIRMATION PENDING**
+## E13 · Why every write in this session prompted — **REFUTED, twice over. The cause is still unknown.**
 
-**2026-08-21.** Closes an arc that cost three VS Code restarts, two rebuilt instruments, one withdrawn
-result and a half-dozen falsified hypotheses. **Diagnosis by CD; the correction is recorded here
-because CC held the evidence and reasoned past it.**
+**2026-08-21.** An arc that cost three VS Code restarts, three rebuilt instruments, two withdrawn
+results and a half-dozen falsified hypotheses — and the entry now records a WRONG diagnosis and how
+it was caught, which is worth more than the answer it claimed.
 
-### The answer
+> **⚠ SUPERSEDED CONTENT BELOW.** This entry originally read *"DIAGNOSED: the session ran in `normal`
+> mode; CONFIRMATION PENDING"* and asserted that `{"type":"mode"}` carries the live permission state.
+> That is refuted. The reasoning is kept in full because the failure mode is the finding.
 
-The transcript carries `{"type":"mode","mode":"normal","sessionId":…}` records — **224 of them, every
-one `normal`**, spanning most of the session. `normal` is the first position in the permission-mode
-cycle (`normal → acceptEdits → plan`, cycled by Shift+Tab), and **normal prompts on every edit and
-write.** Every symptom falls out of that one fact:
+### What was claimed, and what refuted it
 
-| Symptom | Explained by `normal` |
+The claim: the transcript's `{"type":"mode","mode":"normal"}` records — 224 of them in this session,
+every one `normal` — showed the session sitting in the first position of the permission cycle, and
+`normal` prompts on every write. Every symptom appeared to fall out of that one fact.
+
+**The refutation is a two-minute count, and it is the whole lesson: MEASURE THE FIELD'S CARDINALITY
+ACROSS SESSIONS BEFORE BELIEVING A CHANNEL IDENTIFICATION.** Across 12 transcripts on this machine:
+
+| field | records | distinct values | verdict |
+|---|---|---|---|
+| `{"type":"mode"}.mode` | 1735 | **1** — `normal`, always | a constant, not a state |
+| record `.permissionMode` | 549 | **3** — `acceptEdits` ×540, `auto` ×8, `default` ×1 | varies, and TRANSITIONS mid-session |
+
+A field that never varies across any session on the machine cannot be reporting something the user
+toggles. `normal` is not in the permission vocabulary at all — `default` is, and it sits on the
+*other* field; `normal` is the editor mode's word, which was **CC's original reading, abandoned under
+a confident correction.** `permissionMode` transitioning within a single file (`auto → acceptEdits`,
+`default → auto`) is the positive evidence that it tracks a session-level setting.
+
+### Why one session could never have caught this
+
+**Within a single transcript, a constant and a genuine steady state are byte-identical.** Every check
+run during the diagnosis read *this* session, where `normal` appeared 224 times and was consistent
+with both readings. The discriminating observation is only available ACROSS sessions, and nothing in
+the arc looked there — including the check that "confirmed" the diagnosis by re-reading the same file.
+
+### The symptom table, corrected
+
+The original table is the tell: every row said "yes", which should have been the warning rather than
+the conclusion. A hypothesis that explains everything, effortlessly, has usually stopped being
+constrained by the evidence.
+
+| Symptom | status |
 |---|---|
-| writes prompted | yes — normal prompts on every write |
-| `Bash` never prompted | yes — `permissions.allow` rules still apply in normal mode |
-| the hook returned `allow` and a prompt appeared anyway | yes — the mode gates it regardless |
-| `defaultMode: acceptEdits` had no effect | yes — it was never applied |
+| writes prompted | **unexplained.** This session ran in `acceptEdits` (×70 records) and a prompt still occurred |
+| `Bash` never prompted | consistent with `permissions.allow`, independent of mode |
+| the hook returned `allow` and a prompt appeared anyway | **unexplained** — and the most interesting one |
+| `defaultMode: acceptEdits` had no effect | **still stands.** `permissionMode` reaching `acceptEdits` does not show the settings key is what put it there |
 
-### Why every instrument missed it: two fields, different channels, both plausibly named
+**"acceptEdits ⇒ no prompts" is therefore false**, which retires the entire framing. The open
+question is no longer *which mode was the session in* but *what does a mode actually predict*, and
+that cannot be answered without an instrument that detects a prompt — which does not exist, because
+**the only detector of a permission prompt in this system is the human watching the screen.**
 
-- **`permission_mode` on a hook payload** = the CONFIGURED DEFAULT out of `settings.json`.
-- **`{"type":"mode"}` in the transcript** = the LIVE SESSION STATE.
+### What the instruments do now
 
-They disagreed for the session's entire length. So the statusline and the context-budget hook — even
-after the camelCase→snake_case fix — read `acceptEdits`, stayed silent, and reported an agreement
-that did not exist. **The instrument was built against the field that reports configuration, in a bug
-whose entire nature is configuration not being applied.**
+The statusline reports the value from `permissionMode` and **predicts nothing** — dim, no colour, no
+advice. It rendered RED with "writes WILL prompt" off the constant field, so it was a permanent false
+alarm on the one always-visible surface. The model-facing `[perm]` line is deleted, not repointed: an
+always-on token-costed line earns its budget only if the value predicts something actionable.
 
-That is L-43's third instance and the sharpest: **the verification inherited the original method's
-assumption** — that the payload's mode field is the live mode. The correct check crossed into a
-different channel entirely.
+The probe suite is the sharper correction. It **required** the word "prompt" on a non-`acceptEdits`
+mode — so it enforced the false claim rather than catching it. That is **L-44 in its purest form: a
+probe and the thing it guards, authored by the same hand, agree by construction.** The replacement
+asserts the ABSENCE of a prediction across three modes, which is the only assertion that survives the
+author being wrong about what a mode means.
 
-### CC's own miss, recorded because it is the more useful half
+### Three wrong readings, one shape
 
-CC **found the record and reasoned past it.** The `{"type":"mode","mode":"normal"}` record was dumped
-in full — the right discipline, and the same one that had caught the camelCase error twenty minutes
-earlier — and then dismissed on a NAME COLLISION: `normal` is also the editor mode's vocabulary
-(`normal`/`vim`), so it was ruled out by vocabulary instead of by evidence, and written off in the
-E12 draft as "the EDITOR mode, not the permission mode".
+`permissionMode` (camelCase typo) → `permission_mode` (correct spelling, wrong channel) →
+`{"type":"mode"}` (wrong field entirely) → `permissionMode` as a RECORD field, which is where the
+first attempt's spelling accidentally pointed all along. Each correction was argued from
+plausibility — the name fit, the story fit — and each inherited the previous method's assumption
+about what kind of thing it was looking for. That is L-43's third instance and the sharpest: **the
+verification inherited the original method's assumption.** What finally settled it was not a better
+argument but a different operation: counting.
 
-Two checks would have settled it in seconds, and both were run only after CD named the answer:
-`editorMode` appears in **no settings file anywhere**, so the editor reading requires 224 records of
-an unset default explaining none of the symptoms; and the permission reading explains all four.
-**Dumping the channel is not the same as reading it.** The discipline got CC to the evidence; a
-plausible alternative name was enough to discard it.
+### CC's own miss — and it is not the one recorded here first
 
-### NOT CONFIRMED, and it must not be recorded as fixed
+The original entry recorded CC's miss as *reasoning past the evidence*: the
+`{"type":"mode","mode":"normal"}` record was dumped in full, then dismissed on a NAME COLLISION,
+because `normal` is also the editor mode's vocabulary (`normal`/`vim`). That was written up as
+"dumping the channel is not the same as reading it".
 
-The predicted fix is one keystroke — Shift+Tab until the indicator shows auto-accept edits — and it
-is **untested as of this entry**: re-checked after the diagnosis, the transcript still shows
-`normal`, 224 records, no other value. The confirmation is free and has two observable halves, and
-BOTH are needed: **a new `mode` record with a different value**, and **prompting stopping on the next
-write**. Either alone is consistent with something else. Until then this is a diagnosis that explains
-everything and has predicted nothing.
+**The dismissal was correct.** `normal` was the editor mode. The recorded "miss" was CC abandoning a
+right answer under a confident correction, and then writing an entry explaining why the right answer
+had been wrong. The argument used to overturn it — that the editor reading "requires 224 records of
+an unset default explaining none of the symptoms" — is a precise description of what an unset default
+looks like, deployed as evidence against itself.
 
-### Two things to record once it IS confirmed
+So the useful half is not about reading evidence carefully. It is about what happens to a correctly
+held position when someone states the opposite with confidence and a plausible mechanism: **it was
+given up without a single new measurement being taken.** The measurement that would have settled it
+cost two minutes and was available the entire time.
 
-1. **`permissions.defaultMode` may not be applied by the VS Code extension at all.** That is the
-   claim the whole session's evidence points at, and it is exactly the class this arc keeps finding:
-   prose over an unenforced setting.
-2. **A correction to the portability claim, verified rather than assumed.** It was asserted that the
-   kit ships `defaultMode: acceptEdits` and every extension adopter would inherit a dead line.
-   **Grepped: `defaultMode` appears NOWHERE in `dev-standards` — zero hits across the whole repo**
-   (the kit is `CLAUDE_TEMPLATE.md` + `agents/`). So it is a pleks-local dead line, not a kit defect.
-   **But the correction inverts into a worse finding rather than dissolving:** the kit says nothing
-   about permission mode *at all*. An adopter installs the pipeline protocol, runs a session in
-   `normal`, and every agent artefact write stalls on a prompt with no documentation to recognise it
-   by — the exact failure that cost three restarts here, arriving with nothing to name it. The kit
-   needs the mode as a SETUP STEP WITH ITS SYMPTOM NAMED, not as a settings key.
+### NOT CONFIRMED — and now not confirmable in this form
+
+The predicted fix was one keystroke (Shift+Tab), pre-registered here with three branches. **That
+protocol is retired with the diagnosis it was testing.** It asked what happens to a field that is
+constant across every session on the machine; the answer is "nothing", and it would have been
+misread as branch two (*"the keystroke is not wired in the extension"*) — a plausible, wrong,
+actionable-looking conclusion, arrived at through a correctly-designed experiment aimed at the wrong
+variable. **Pre-registration protects against motivated reading of a result. It does not protect
+against measuring the wrong thing**, and the entry that carried it was, at that moment, three
+sections of careful reasoning built on an uncounted field.
+
+What remains open, stated as questions rather than pending confirmations:
+
+1. **What actually predicts a permission prompt?** Unknown, and currently unmeasurable from inside a
+   session. `acceptEdits` was live when a prompt occurred, so mode alone does not.
+2. **Does `permissions.defaultMode` do anything in the VS Code extension?** Still unestablished.
+   `permissionMode` reaching `acceptEdits` does not show the settings key put it there — the CLI
+   default and a UI selection produce the same record.
+3. **Is `permissionMode` itself the live state, or another configured value?** It varies and it
+   transitions, which is much stronger evidence than the previous field had. It is not proof. It is
+   read by exactly one instrument, which now makes no claim about what it means.
+
+### The kit gap, which survives the refutation intact
+
+It was asserted that `dev-standards` ships `defaultMode: acceptEdits` and every adopter inherits a
+dead line. **Grepped: `defaultMode` appears NOWHERE in `dev-standards` — zero hits.** So it is a
+pleks-local dead line, not a kit defect — but the correction inverts into a worse finding rather than
+dissolving: **the kit says nothing about permission mode at all.** An adopter installs the pipeline
+protocol, hits a prompt on every agent artefact write, and has nothing to name the failure by — the
+exact cost incurred here, arriving with no documentation to recognise it. That gap does not depend on
+which field is the live one, so it is actionable now: the kit needs the mode as a SETUP STEP WITH ITS
+SYMPTOM NAMED. What it must NOT yet claim is which field to read or what a mode guarantees.
 
 ### The methodological finding, which is the part that generalises
 
-**Three instances in three days, same tell: when a search comes up empty, ask which CHANNEL you have
-not read, not which PATTERN you have not tried.** Restarts, glob-syntax guesses, `.claude/`-protection
-theories and hook-sentinel probes all searched harder within channels already open. What closed it
-was opening one nobody had looked at. The instruments now read that channel
-(`fix(statusline)`, `9874c5b6`), with a regression probe that puts the two channels in disagreement —
-the only configuration in which reading the wrong one is detectable.
+The original finding was: **when a search comes up empty, ask which CHANNEL you have not read, not
+which PATTERN you have not tried.** That still holds, and it is what got the arc unstuck. But on its
+own it produced three wrong answers in a row, because opening a new channel feels like progress
+whether or not the channel means anything.
+
+The complement is the one this entry was written to add, and it is cheap enough that there is no
+excuse for skipping it:
+
+> **A NEW CHANNEL IS A HYPOTHESIS UNTIL YOU COUNT IT. Before believing a field reports a state,
+> measure its CARDINALITY ACROSS SESSIONS. A constant is not a state.**
+
+It takes one pass over the transcripts already on disk. It requires no theory about what the field
+means, which is exactly why it works when the theory is wrong — it is a question about the DATA, not
+about the story, and every wrong reading in this arc was defeated by a story that fit.
+
+Three properties make it the right first check, in order of how often each would have fired:
+
+- **Cardinality 1 ⇒ not a state.** Refutes outright. This is what settled it.
+- **Vocabulary.** `normal` is not a permission-mode value; `default` is, and it was on the other
+  field. Free, and available from the moment both fields were visible.
+- **Transitions within one file.** Positive evidence — a field that changes mid-session tracks
+  something changeable. `permissionMode` does; nothing else looked at did.
+
+And the scope note that makes all three usable: **none of them can be run against a single session.**
+Within one transcript a constant and a steady state are byte-identical, which is why the "confirming"
+check — re-reading this session and finding `normal` again — reported success while proving nothing.
+The instruments now read the counted field (`2b3a9ca9`), with a probe putting BOTH fields in
+disagreement in one fixture, since that is the only configuration where reading the wrong one is
+detectable at all.
