@@ -91,8 +91,20 @@ push red; never force-push.
 
 **Hook-denied** (`.claude/hooks/bash-gate.js`): force-push · `git reset --hard` · `rm -rf` on
 root or home · `--no-verify`. **Hook-ask:** `git push` · `.env` files · prod database operations.
-**Settings-ask twins** (`.claude/settings.json`, coarse, consulted when the hook is dead): the
-Supabase MCP mutation tools. The MCP surface has its own gate, `.claude/hooks/mcp-ddl-gate.js`,
+**Settings twins** (`.claude/settings.json`, coarse, consulted only when the hook is dead): the
+Supabase MCP mutation tools, plus deny entries for force-push and hard-reset.
+
+**Those Bash twins cover CANONICAL INVOCATIONS ONLY, and hook-dead is not "degraded but complete".**
+Settings speak in prefix globs, so `Bash(git push --force*)` matches exactly that spelling.
+`git -C /repo push --force`, an absolute path, an env prefix or an alias **passes the twin** — the
+hook catches all of them because it token-matches (find `git`, then `push`, then a force flag as a
+standalone token anywhere after). **The hook is the control; the twin is a partial floor for
+canonical forms.** Not fixed by widening: `Bash(git*)` at `ask` prompts on every `git status`, and a
+twin that fires constantly is deleted within a day, which trades something narrow for nothing.
+A narrower `Bash(git -C*)` twin — the single likeliest bypass vehicle — was **considered and
+rejected on measurement**: `git -C` appears 112 times in this machine's transcripts, almost all
+read-only, so the twin would fire constantly and be gone within a day. Measuring the rarity before
+adding a vehicle twin is canon (`CLAUDE-MD-STANDARD.md` §4.4); this is that rule's first case. The MCP surface has its own gate, `.claude/hooks/mcp-ddl-gate.js`,
 which shows the statement before asking.
 
 Approval-gated actions sequence to the **END** of a task, so an unattended session parks at the

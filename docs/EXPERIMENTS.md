@@ -1121,3 +1121,57 @@ the only way to settle it.
 
 `.claude/perm-probe` removed from `census`'s `SCOPES`; both probe directories deleted. The temporary
 entry lived for one run, as pre-registered.
+
+---
+
+## E15 · Does `autoCompactWindow: 300000` actually fire? — **ANSWERED: YES, and it is the one settings claim in this sweep that measurement CONFIRMS**
+
+**2026-08-21.** Raised as a suspected layer-claim violation (canon §4.6): `dev-standards/README.md`
+§1 calls this key *"worth more than every other efficiency measure combined"*, and **nothing had
+measured that it does anything.** The spec's own supporting table shows a compaction taking context
+from ~1M to ~16k — which demonstrates that COMPACTION works, not that the WINDOW fires at 300k. Those
+are different claims and only one of them had evidence.
+
+### The measurement, which was free and already on disk
+
+`compactMetadata.preTokens` on every `compact_boundary` record across this machine's transcripts.
+Near 300k means the key fires; near 1M means the harness default is still in force and the key is
+inert. There is a natural before/after: the key landed partway through, so the two sessions either
+side of it are the control and the treatment.
+
+| session | date range | trigger | preTokens |
+|---|---|---|---|
+| `2678b6e4` (before the key) | 15–19 Aug | auto | **1002k · 1002k · 999k** |
+| `0d9dadd6` (after the key) | 20–21 Aug | auto | **267k ×6 · 268k ×3 · 269k · 271k · 273k · 317k** |
+
+**n = 12 after, 3 before, and the step is ~1000k → ~268k exactly at the key's arrival.** No overlap
+between the two groups; nothing else changed that would move an auto-compaction threshold by a
+factor of four. The two `manual` boundaries (735k, 688k) are user-initiated and carry no information
+about the window.
+
+**Verdict: the key fires.** README §1's headline claim is supported. Note the trigger sits *under*
+the configured window — 267k against 300k, consistently — which is consistent with firing on a
+PROJECTED overshoot rather than on crossing the line, and is worth remembering if anyone later reads
+"it compacted at 267k, not 300k" as a discrepancy. The one 317k outlier is above the window; a single
+point, unexplained, not worth a theory.
+
+### Why this entry exists even though the answer is "it works"
+
+Because the sweep that produced it was looking for violations, and **a sweep that only records its
+confirmations is not a sweep.** Three settings claims were examined in one pass and they landed in
+three different places:
+
+| claim | verdict |
+|---|---|
+| `Write(.claude/handoff/**)` pre-approves a protected-path write | **INCAPABLE** — protection is evaluated before allow rules |
+| `permissions.defaultMode` controls the live session mode | **UNVERIFIED** — the evidence against it dissolved (E13 row 4); measure, do not delete |
+| `autoCompactWindow: 300000` sets the compaction threshold | **CONFIRMED by measurement** |
+
+A pattern-match on "settings keys implicated in the permission mess" would have condemned all three.
+One was genuinely incapable, one had no evidence either way, and one was the single most valuable
+line in the file. That spread is the argument for §4.6's guard — *can this layer enforce it*, not
+*is this claim currently suspected* — and it is why the guard was written at the point of
+application rather than left as a principle.
+
+**RE-RUN TRIGGER:** on any CLI major upgrade, and on any change to the key's value. Re-running is one
+pass over `compactMetadata.preTokens` and needs no session in a particular state.
