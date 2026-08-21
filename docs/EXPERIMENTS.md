@@ -723,6 +723,22 @@ constrained by the evidence.
 | the hook returned `allow` and a prompt appeared anyway | **unexplained** — and the most interesting one |
 | `defaultMode: acceptEdits` had no effect | **still stands.** `permissionMode` reaching `acceptEdits` does not show the settings key is what put it there |
 
+⚠ **Row 1 and row 4 both moved on 2026-08-21, in opposite directions — see E14.** Row 1 is now
+largely explained for writes under a PROTECTED PATH: `acceptEdits` is documented to *prompt* there,
+so a prompt in `acceptEdits` is the specified behaviour rather than an anomaly, and approving once
+grants the tree for the session — which is why it then went quiet. What remains unexplained is
+narrower: the one prompt on a write OUTSIDE any protected path.
+
+Row 4 is the correction that matters, because it moved the other way. **The reason for believing
+`defaultMode` inert WAS row 1** — a session configured `acceptEdits` prompted anyway, so the key
+looked dead. Row 1 now has a different explanation that does not implicate the key at all, so that
+inference is withdrawn: `defaultMode: acceptEdits` is set and `permissionMode` reads `acceptEdits`,
+which is consistent with the key working. It is still not PROOF (a CLI default and a UI selection
+produce the same record), but "had no effect" is no longer supported by anything. **Do not delete
+the key as inert** — that would act on a premise that has dissolved, and would destroy the only
+cheap measurement available: remove it in a FRESH session and see whether `permissionMode` still
+reads `acceptEdits`.
+
 **"acceptEdits ⇒ no prompts" is therefore false**, which retires the entire framing. The open
 question is no longer *which mode was the session in* but *what does a mode actually predict*, and
 that cannot be answered without an instrument that detects a prompt — which does not exist, because
