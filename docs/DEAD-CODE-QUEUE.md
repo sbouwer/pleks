@@ -54,9 +54,63 @@ cascades surfaced (`validateCompanyPeopleIdentity` + `companyAddressError`; both
 arrays) and were caught by lint, not assumed.
 
 **The path to gating knip in `npm run check`** — the exit condition `knip.jsonc`'s own header sets —
-is now blocked only on the 25 JUDGMENT rulings, not on more deletion. 46 of the 49 are deliberate
-keeps. When they are ruled, each survivor needs its reason recorded *at the site* (knip reads JSDoc
-tags, which suits this better than a central list) before the tool can go green and enter the gate.
+is now blocked only on the JUDGMENT rulings, not on more deletion. When they are ruled, each survivor
+needs its reason recorded *at the site* (knip reads JSDoc tags, which suits this better than a
+central list) before the tool can go green and enter the gate.
+
+---
+
+## ▶ THE JUDGMENT RULINGS, 2026-08-21 at `a309c74b` — 47 left, and the pass turned up four findings
+
+**CD ruling:** apply the M-register triage pattern. Default verdict is DELETE; **retention requires a
+reason**, and two classes get a real per-item verdict regardless — anything money- or
+security/compliance-adjacent, and anything another artefact actually references.
+
+### OTHER class (5) — ACTIONED, the class where a default is safe
+
+| Item | Verdict | Reason |
+|---|---|---|
+| `HoaRulesUpload.tsx:HoaUploadStub` | **DELETED** | permanently `disabled` placeholder for BUILD_44, rendered by nothing, named by no spec |
+| `emails.tsx:formatDate` + its re-export | **DELETED** | re-export claimed "purge step callers"; all 7 importers checked, none is one. Removing it left the wrapper with no internal caller either |
+| `help-data.ts:HELP_CONTENT_DRAFT` | **RETAINED** | cited 3× in `docs/MECHANISABLE.md` — referenced |
+| `searchworx/utils.ts:normaliseOwnerType` | **RETAINED** | specified with its body in `brief/vendors/searchworx/raw/lightstone-erf-valuation/endpoint_reference.md` — referenced |
+| `applyDomain.ts:STEP_DOCS_OPTIONAL\|LAST_DATA_STEP` | **RETAINED** | not dead: both names live and separately imported. knip flags the aliasing, not the code |
+
+### MONEY-ADJACENT (7 names) — every one KEPT, and two of them are findings
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| `QuickPaymentButton.tsx`, `lib/actions/payments.ts`, `templates/tenant/rent/payment-received.tsx` | **KEEP** | referenced: `.claude/crawlers/INTENTIONAL.md` already holds this chain as an open product question. `recordPayment` is the ONLY single-payment recording implementation; bulk import calls `record_payment_atomic` directly. Deleting the chain decides the question |
+| `municipal.ts:createMunicipalAccount`, `uploadMunicipalBill` | **KEEP — ⚠ FINDING** | **these are the missing entry half of a LIVE feature.** Their two siblings in the same file, `confirmMunicipalBill` and `markMunicipalBillPaid`, ARE wired — to `app/(dashboard)/billing/municipal/[billId]/MunicipalBillActions.tsx`. So a municipal bill can be confirmed and marked paid, and **as at `a309c74b` there is no UI path that creates an account or uploads a bill.** Deleting these strands the live half |
+| `commercial.ts:declareDirectors`, `replaceDirector` | **KEEP** | mid-build commercial-applicant flow; both are genuinely gated (`verifyApplicantToken` is CALLED, not merely described) ahead of wiring, and `replaceDirector` touches `application_screening_payments` and a manual-refund flag. **Worth noting for whoever wires them:** both take `orgId` as a caller-supplied parameter and use it as the write scope. That is the shape of the 2026-07-06 cross-org IDOR scar; derive it at wiring time rather than accepting it |
+
+### SECURITY / COMPLIANCE-ADJACENT (13 names) — every one KEPT, one is a finding
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| `CapabilitiesProvider.tsx:useCan`, `can.ts:can`, `orgRoles.ts:capabilitiesForRole`, `requireCapability.ts:requireMinTier` | **KEEP** | one family. Each file states outright that gating is deliberately not yet wired and that surfaces adopt them one at a time. Deleting removes the primitives a documented rollout still needs |
+| `auth/server.ts:getCurrentSubscriptionState` | **KEEP** | built ahead of consumers named in ADDENDUM_57G |
+| `platform-org.ts:excludePlatformOrg` | **KEEP** | referenced — `docs/MECHANISABLE.md` **M-067** |
+| `ApplicantLegalFooter.tsx:INFORMATION_REGULATOR_URL` | **KEEP** | referenced — **M-069** |
+| `disclaimer.ts:DISCLAIMER_GATE_TEXT`, `DOCUMENT_DISCLAIMER_TEXT` | **KEEP** | referenced — **M-078**. Verified SSOT drift, not dead code: two counsel-reviewed liability texts hand-copied into live sites. The fix is wiring those sites to import these, the opposite of deletion |
+| `inviteTenant.ts:issueTenantPortalLinkForHandover` | **KEEP** | sanctioned exception to "no portal action returns a session credential" (ADDENDUM_62F, post-incident). Too security-sensitive to guess mid-build vs abandoned — and this is the exact symbol family behind the `inviteTenant` scar in CLAUDE.md §6 |
+| `decisionReasonLabels.ts:NOT_SHORTLISTED_REASON_LABELS`, `WITHDRAWN_REASON_LABELS` | **KEEP** | exhaustive `Record`s over counsel-signed decision-code unions. Deleting removes a compile-time exhaustiveness check, not inert code — the union gains a member and nothing complains |
+| `retention.ts:RETENTION_PROTECTED_TABLES` | **KEEP — ⚠ FINDING** | its own header says *"BUILD_65 imports this array rather than defining its own"*, and `supabase/migrations/010_platform_features.sql:1690` says a table was *"Added to RETENTION_PROTECTED_TABLES"*. **Neither is true.** A whole-repo grep finds no importer: this is a PPRA/POPIA retention list (audit_log, trust_transactions, consent_log, auth_events, tos_acceptances) that governs nothing, with two artefacts asserting it is live. Same shape as M-067/M-069 — **files as a new M-register entry** |
+
+### The four findings this pass produced, which is the actual yield
+
+1. **Comm I3 has no live sender.** The live inspection-reschedule path updates `scheduled_date` and
+   notifies nobody; the only implementation of the tenant notification is in the function the census
+   called dead.
+2. **The municipal bill flow has no UI entry point.** Confirm and mark-paid are wired; create-account
+   and upload-bill are not.
+3. **`RETENTION_PROTECTED_TABLES` enforces nothing**, while a module header and a migration comment
+   both state that it does.
+4. **`declareDirectors` / `replaceDirector` take `orgId` from the caller** and use it as the write
+   scope — the 2026-07-06 IDOR shape, harmless while unwired and not harmless after.
+
+A dead-code pass is a poor tool for finding these and an excellent one for *provoking* them: every
+finding above came from asking "why does this have no caller?" rather than from the count.
 
 **Why it is a register rather than a report.** The 25 JUDGMENT items are routed for a human and had
 no durable home; 7 are money-adjacent and 11 security/compliance-adjacent, which is exactly the set
