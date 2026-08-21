@@ -63,8 +63,11 @@ function render(input) {
   // and lives in no file — it is a CLI arg or a UI selection. Shown only when it disagrees with
   // what this project's settings ask for, so the common case stays quiet and a disagreement is
   // loud. Silence here is a positive claim that settings won.
-  if (input.permissionMode && input.permissionMode !== "acceptEdits") {
-    parts.push(`${YELLOW}perm ${input.permissionMode}${RESET}`);
+  // Both spellings: the hook payload uses `permission_mode`, the statusline payload `permissionMode`.
+  // Reading one only is a silent miss — undefined and "agrees with settings" render identically.
+  const mode = input.permission_mode || input.permissionMode;
+  if (mode && mode !== "acceptEdits") {
+    parts.push(`${YELLOW}perm ${mode}${RESET}`);
   }
 
   let context = null;

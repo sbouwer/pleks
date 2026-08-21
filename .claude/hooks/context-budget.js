@@ -401,8 +401,12 @@ if (require.main === module) {
       // on every turn would make this the wallpaper the file was written to replace. Agreement and
       // an absent field are both silent here; presence of the field is settled out of band rather
       // than by spending the budget on a permanent line.
-      if (input.permissionMode && input.permissionMode !== "acceptEdits") {
-        additionalContext += `${additionalContext ? "\n" : ""}[perm] ${input.permissionMode} overrides defaultMode acceptEdits`;
+      // The hook payload spells this `permission_mode`; the statusline payload has used
+      // `permissionMode`. Read BOTH — a key typo here is indistinguishable from agreement, and the
+      // first cut of this line read only the camelCase spelling and reported silence for two turns.
+      const mode = input.permission_mode || input.permissionMode;
+      if (mode && mode !== "acceptEdits") {
+        additionalContext += `${additionalContext ? "\n" : ""}[perm] ${mode} overrides defaultMode acceptEdits`;
       }
     } catch {
       // A hook that cannot measure must not guess, and must not block: this one only ever ADDS a
