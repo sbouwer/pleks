@@ -4,8 +4,59 @@ A classified `knip` census, promoted out of `.claude/handoff/` on 2026-08-21 so 
 
 **What this is:** 103 knip findings at commit `a5b6f541`, each classified DEAD / RETAINED / JUDGMENT /
 FALSE POSITIVE by a 3-way census fan-out, with per-item grep evidence preserved in the appendices.
-**Nothing here has been deleted from the tree.** This is a queue of candidates, not a record of work
-done — every DEAD verdict is a claim to re-verify against HEAD before acting on it.
+This was a queue of candidates, not a record of work done — every DEAD verdict a claim to re-verify
+against HEAD before acting on it.
+
+---
+
+## ▶ STATUS, 2026-08-21 at `c3eafb81` — the DEAD half is actioned. 103 → 49.
+
+**⚠ The sections below are the ORIGINAL census, left verbatim as evidence. They still say "nothing
+deleted" and still describe 57 DEAD items. That was true at `a5b6f541` and is not true now.** Read
+this banner first; treat every DEAD row below as *actioned unless named as a refusal here*.
+
+`npx knip --no-progress` at `c3eafb81`: **49 items** — 4 unused files, 38 unused exports, 4 unused
+exported types, 3 duplicate-export pairs. The 49 reconcile exactly:
+
+| Class | Count | State |
+|---|---:|---|
+| RETAINED | 21 | settled keeps — reasons in the table below; a future census must not re-raise them |
+| JUDGMENT | 25 | **awaiting a CD ruling.** 7 money-adjacent, 11 security/compliance-adjacent |
+| Refused DEAD verdicts | 3 | re-classified during the burn-down — see immediately below |
+| **Total still reported** | **49** | |
+
+**THREE DEAD VERDICTS WERE REFUSED and the code kept.** Each was re-verified, found to be an unwired
+feature half rather than obsolete code, and is now the JUDGMENT class in everything but the original
+label:
+
+1. **`lib/actions/inspections.ts:rescheduleInspection`** — the live reschedule path,
+   `respondToRescheduleRequest` in `app/(dashboard)/inspections/[inspectionId]/actions.ts`, updates
+   `scheduled_date` but sends **no tenant communication**. This module's own header says "I3 fires on
+   rescheduleInspection when tenant_id is set", so deleting it deletes the only implementation of
+   comm I3. **That gap is itself a finding: as at `c3eafb81`, a tenant whose inspection is
+   rescheduled through the live path is not notified.**
+2. **`lib/actions/leases.ts:giveNotice`** — the only lease-termination-notice implementation in the
+   tree. `issueDemandToVacate` in `lib/actions/notices.ts` is the *breach* instrument, a different
+   thing. It carries SAST calendar arithmetic written to fix a real off-by-one (an agent giving
+   notice at 00:30 SAST recorded yesterday). Deleting it means the next person to wire a termination
+   notice re-derives that.
+3. **`lib/screening/bankStatementExtraction.ts:BankStatementExtraction`** — deleted and then restored
+   mid-pass. Removing it orphaned `RecurringDebit` / `StatementQuality` / `DeclaredRentMatch` /
+   `PleksInvoiceReference`; those five interfaces together **are** the JSON schema the prompt fifty
+   lines below asks the model to return. The name collision with the live, unrelated
+   `BankStatementExtraction` in `lib/extraction/types.ts` is now documented at the site.
+
+**What the DEAD burn-down actually did** — three shapes, deliberately not one sweep: an export used
+inside its own file lost the `export` keyword and kept its body; a barrel line shrank without
+touching the definition it pointed at (`lib/crypto/index.ts` −9, `lib/dates/index.ts` −4); a genuinely
+unreachable symbol was deleted with a comment at the site naming what went and why. Two second-order
+cascades surfaced (`validateCompanyPeopleIdentity` + `companyAddressError`; both inspection room
+arrays) and were caught by lint, not assumed.
+
+**The path to gating knip in `npm run check`** — the exit condition `knip.jsonc`'s own header sets —
+is now blocked only on the 25 JUDGMENT rulings, not on more deletion. 46 of the 49 are deliberate
+keeps. When they are ruled, each survivor needs its reason recorded *at the site* (knip reads JSDoc
+tags, which suits this better than a central list) before the tool can go green and enter the gate.
 
 **Why it is a register rather than a report.** The 25 JUDGMENT items are routed for a human and had
 no durable home; 7 are money-adjacent and 11 security/compliance-adjacent, which is exactly the set
