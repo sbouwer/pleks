@@ -812,6 +812,23 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Exposed, not created, by the E10 ruling (2026-08-20):** worktree isolation never enforced this either. It made a subagent's commit land on a throwaway branch instead of yours, which hid the behaviour rather than preventing it — and it hid it *while making the agent's work invisible to your tree*, which is the E10 defect. Dropping isolation removes the accidental concealment and leaves the real gap in view. Do not read "isolation used to protect us here" into it.
 - **Covering spec:** NEW
 
+### M-074 — the purge clock advances whether or not the 30-day warning is ever delivered
+
+- **Rule:** counsel ruling 2026-08-20 — the Day-0 cancellation notice may state a *minimum retention period* instead of a deletion date, **"provided the surrounding lifecycle actually delivers the eventual date"**. The 30-day warning is that delivery. It is therefore a condition of the Day-0 disclosure being sufficient, not a courtesy send.
+- **Where it lives:** the counsel ruling recorded in `brief/legal/CANCELLATION_EMAIL_TEMPLATES_v1.1.md` and the header of `lib/comms/templates/agent/subscriptions/cancellation.tsx`. No code depends on it.
+- **Rung:** check (+ schema) · **Blast:** data-boundary
+- **Measured at `e4d75e3e`, 2026-08-20 — `processPurgeWarnSub` (`app/api/cron/subscription-purge-warnings/route.ts:78-110`) advances the lifecycle before, and independently of, any delivery:**
+  - `purge_eligible_at` and `purge_warning_sent_at` are written **first**; the send happens after.
+  - The send is wrapped in `.catch()` that only `console.error`s. A failed send does not fail the step, does not roll back the date, and does not retry the *step*.
+  - `if (contact)` — when `fetchOrgContact` returns no contact, **no email is attempted at all** and the clock still advances: the update already landed, `recordAudit` runs, the function returns `true`.
+  - `purge_warning_sent_at` **records that the cron ran, not that mail was delivered.** The column name asserts a delivery the code never establishes — which is why the gap reads as covered.
+  - Nothing downstream re-checks. `processFinalWarnSub` guards against duplicate *final* warnings via `communication_log`, but no step makes purge conditional on the 30-day warning having been delivered.
+- **What that means after the ruling:** an org can be purged having never received the exact deletion date, while the Day-0 notice it *did* receive was sufficient only on the premise that the date would arrive. The two-stage disclosure silently collapses to one stage, and the failure is invisible — a `console.error` in a cron log.
+- **Sketch:** make the second stage a precondition of the purge rather than a side effect of scheduling it. (1) Record delivery, not attempt — a `communication_log` row for `subscription.purge_warning_30d` is already written by the send path, so the signal exists; (2) gate `processPurgeDueSub` on that row existing, deferring rather than purging when it does not; (3) a check asserting no purge path lacks that guard. Probe both directions: a purge with the warning logged must PROCEED, and one without must DEFER. **Do not "fix" this by renaming the column** — the missing thing is the dependency, not the label.
+- **Related:** M-071 (a retried send replays stored HTML, so a retry preserves the date but would drop any attachment). The date survives retry; the *step* has no retry.
+- **Provenance:** found while verifying the conditions counsel attached to their approval. The approval created the dependency — before it, a missed warning was an ops nuisance; after it, it is the leg the Day-0 disclosure stands on.
+- **Covering spec:** ADDENDUM_57G §11.3 · counsel ruling 2026-08-20
+
 ### M-071 — attachments are supported, unimplemented, and silently dropped on retry
 
 - **Rule:** ADDENDUM_57G §11.3 — the T-30 purge warning goes *"with full export bundle attached"*. Not implemented, and not implementable as a one-line parameter.

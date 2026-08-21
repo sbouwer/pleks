@@ -19,8 +19,20 @@
  *         only when the T-30 warning fires (§11.3, month 11, gated on zero active leases), so at
  *         Day 0 the date is UNDEFINED for a lease-holding org, not just unknown. Do NOT "fix" this
  *         by naming a deletion date or by computing a provisional one — both were considered and
- *         rejected on the record. The floor is "at least 12 months": the lease gate can only ever
- *         defer the purge, never bring it forward.
+ *         rejected on the record.
+ *
+ *         COUNSEL-APPROVED 2026-08-20, and note the framing, which counsel corrected: this is a
+ *         two-stage DISCLOSURE, not a change to the retention policy. Stage 1 (here) states the
+ *         minimum retention period; stage 2 (the 30-day warning) supplies the exact date once it is
+ *         determinable. Do NOT describe 12 months as "a floor rather than a deadline" — it was
+ *         always a minimum retention period, never a deletion deadline, given the lease gate and
+ *         other lawful-retention grounds. The accurate description: the wording expresses the
+ *         12-month period as a minimum retention period rather than representing an as-yet-uncreated
+ *         purge date; it does not shorten retention or permit deletion before the existing
+ *         eligibility conditions are satisfied.
+ *
+ *         ⚠ Stage 1 is sufficient ONLY BECAUSE stage 2 delivers the date. That makes the 30-day
+ *         warning legally load-bearing, not best-effort. See M-074.
  *
  *         OPEN JUDGMENT SITE — `cancellationMethod` has no source. Both paths into
  *         confirmCancellationInner (app/(dashboard)/settings/subscription/actions.ts) reach AAL2
