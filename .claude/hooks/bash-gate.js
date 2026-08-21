@@ -6,8 +6,17 @@
  * regardless of any allow rule, which stalls unattended sessions. A PreToolUse hook decides
  * BEFORE the permission system: "allow" skips the prompt; "ask"/"deny" force the gate.
  *
- * Posture: allow everything EXCEPT the named gates below. deny/ask rules in settings.json
- * still take precedence over a hook "allow", so this is belt-and-braces with the rule list.
+ * Posture: allow everything EXCEPT the named gates below.
+ *
+ * ⚠ THIS HEADER USED TO SAY the settings rule list was "belt-and-braces" with these patterns,
+ * because deny/ask rules in settings.json "still take precedence over a hook allow". Corrected
+ * 2026-08-21: the layers are SERIAL, not redundant — the hook answers first, and its twin in
+ * settings.json is DORMANT while the hook lives. "Belt-and-braces" describes two controls both
+ * firing; that is not what happens, and reading it that way is how a gap in one layer looks
+ * covered by the other. Worse, the precedence claim it rested on is itself the open question:
+ * whether a hook's `allow` GRANTS anything or merely declines to deny is recorded as UNRESOLVED in
+ * docs/EXPERIMENTS.md (E12). This header asserted as settled the thing the register calls open.
+ * The twins are a fallback for when the hook is dead, and each is tagged `@twin` at its rule.
  */
 // @event PreToolUse
 // @matcher Bash
@@ -58,9 +67,13 @@ process.stdin.on("end", () => {
       // KNOWN FALSE-DENY, accepted and pre-existing: a command that merely MENTIONS the string
       // (`echo 'rm -rf /' >> notes.md`) is denied. The old pattern did this too, so it is no
       // regression, and for a DENY rule it is the correct direction to be wrong in.
-      // NOT COVERED, recorded rather than chased: a variable-expanded target (`rm -rf "$HOME"`,
-      // `rm -rf $HOME/*`) contains no literal `/` or `~`, so no pattern of this family can reach it.
-      // Widening until it does would false-deny the benign half above.
+      // NOT COVERED, recorded rather than chased — two cases, same reason:
+      //   · a variable-expanded target (`rm -rf "$HOME"`, `rm -rf $HOME/*`) contains no literal `/`
+      //     or `~`, so no pattern over the command text can see the value.
+      //   · a chained context (`cd / && rm -rf *`) — the target is a bare `*`, which is correctly
+      //     ALLOWED on its own, and the danger lives entirely in the preceding `cd`.
+      // Widening to reach either would false-deny the benign half above, which is the direction
+      // that gets a gate deleted. Recorded beats assumed.
       [/\brm\b.*?(?:\s)["']?[\/~][/*]*["']?(?=\s|$)/, "rm -rf on root/home is denied"],
       // CLAUDE.md forbids --no-verify BY NAME ("which is why it is forbidden") and, until now,
       // nothing anywhere refused it: the .githooks gates cannot see the flag that skips them, and
@@ -82,7 +95,21 @@ process.stdin.on("end", () => {
       [/git\s+push\b/, "pushing to origin requires approval"],
       // @twin Read(.env)
       // @twin Read(.env.*)
-      [/\.env(\.|["'\s]|$)/, "touching .env files requires approval"],
+      // ANCHORED ON A PATH BOUNDARY, not on the surrounding characters. The old pattern was
+      // `\.env(\.|["'\s]|$)`, which matched `.env` followed by a dot ANYWHERE — so
+      // `node -e "console.log(process.env.NODE_ENV)"` asked, and so did `import.meta.env` and
+      // `rg "\.env" docs/`. In a hook whose stated posture is unattended autonomy, the residual
+      // friction landed on shapes agents use constantly.
+      //
+      // Same defect class as the rm rule twenty lines up and as the git rule before it: the pattern
+      // matched characters AROUND the thing instead of the thing. Third instance in this one file,
+      // which is the actual finding — a lesson landing on one rule does not propagate to its
+      // neighbours, and the sweep has to be the whole file, not the rule that prompted it.
+      //
+      // `.env` must now START a path token: at the beginning, or after whitespace, a quote, an `=`,
+      // or a `/`. An identifier character before it (`process`, `meta`) means it is a property
+      // access, not a file.
+      [/(?:^|[\s"'=/])\.env(\.|["'\s]|$)/, "touching .env files requires approval"],
       // @no-twin ad-hoc prod SQL through the CLI has no settings pattern — the other gap LT
       // measured. The MCP path is covered by mcp-ddl-gate; the `supabase db` CLI path is not.
       [/supabase\s+db\s+(push|reset)/, "prod database operations require approval"],

@@ -68,6 +68,10 @@ const CASES = [
   ["quoted target", bash('rm -rf "/"'), "deny"],
   ["target NOT adjacent to the flags", bash("rm -rf foo /"), "deny"],
   ["chained after the destructive half", bash("rm -rf /* && echo done"), "deny"],
+  // A shape-based rule's whole claim is position-independence, and `sudo` is the commonest prefix
+  // in the wild. It denied before this probe existed — this converts a working accident into a
+  // stated property.
+  ["sudo prefix", bash("sudo rm -rf /*"), "deny"],
 
   // --no-verify: forbidden BY NAME in CLAUDE.md, and until 2026-08-19 refused by nothing. The
   // .githooks gates cannot see the flag that skips them, and no check can observe a hook that did
@@ -81,6 +85,14 @@ const CASES = [
   // ── ASK ─────────────────────────────────────────────────────────────────────────────────────
   ["an ordinary push reaches a human", bash("git push origin feature-branch"), "ask"],
   ["reading a .env file", bash("cat .env.local"), "ask"],
+  ["a bare .env", bash("cat .env"), "ask"],
+  ["a .env reached through a path", bash("cat ./config/.env"), "ask"],
+  // The anchor set is five — start, whitespace, quote, `=`, `/` — and every one needs its ASK case,
+  // or the rule is proven not to over-fire on anchors it was never proven to fire on. `=` is the
+  // one that matters most: --env-file LOADS the secrets into a running process rather than printing
+  // them, which is the risk this rule exists for, and it was exercised only on its allow side.
+  ["--env-file loads a .env into the process", bash("node --env-file=.env script.js"), "ask"],
+  ["a quoted .env path", bash('cat ".env"'), "ask"],
   ["supabase db push is a prod operation", bash("supabase db push"), "ask"],
   ["supabase db reset is a prod operation", bash("supabase db reset"), "ask"],
   ["unparseable payload fails to a prompt, not to silence", "{not json", "ask"],
@@ -109,6 +121,15 @@ const CASES = [
   ["git rm on a real directory", bash("git rm -r somedir/"), "allow"],
   ["a command-substituted path", bash('rm -rf "$(pwd)/dist"'), "allow"],
   ["rm -f on a single file", bash("rm -f package-lock.json"), "allow"],
+  // The .env rule's discriminating half, which it went without entirely until 2026-08-21 — one ASK
+  // probe and no ALLOW cases, while its pattern matched `.env` followed by a dot ANYWHERE. These
+  // are the direct parallel of `/tmp/scratch` above: they contain the guarded string and must still
+  // pass, because it is a property access rather than a file. In a hook whose posture is unattended
+  // autonomy, these are shapes agents run constantly.
+  ["process.env is not a .env file", bash('node -e "console.log(process.env.NODE_ENV)"'), "allow"],
+  ["import.meta.env is not a .env file", bash('rg "import.meta.env" app/'), "allow"],
+  ["searching for the string is not reading the file", bash('rg "\\.env" docs/'), "allow"],
+  ["a JS property access in a script", bash("node scripts/x.mjs --mode=process.env.NODE_ENV"), "allow"],
 ]
 
 let failed = 0
