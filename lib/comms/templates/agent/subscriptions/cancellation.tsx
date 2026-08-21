@@ -6,13 +6,12 @@
  * Notes:  v1.1 copy, ADDENDUM_57G §10.6. Templates 2–5 share a parametric base (WarningEmailBase);
  *         Templates 1 and 6 are written out due to unique structure.
  *
- *         ⛔ LEGAL-REVIEW-PENDING — CancelledConfirmEmail is NOT signed-off copy any more. Its
- *         date-based text was signed off; the period-based rewrite below (2026-08-20, forced by the
- *         D-57G-10 lease gate leaving purge_eligible_at NULL at Day 0) is not. Do not wire this
- *         component to a live send before counsel clears the rewrite — see the pre-ship checklist in
- *         brief/legal/CANCELLATION_EMAIL_TEMPLATES_v1.1.md. The previous marker carried a filename
- *         that no longer exists, which is how it came to be deleted rather than repointed; the
- *         checklist it names is the gate, not this comment.
+ *         ✅ COUNSEL-CLEARED 2026-08-20 — the period-based rewrite is approved and this component is
+ *         wired to the live Day-0 send. What was cleared: the substitution of "at least 12 months"
+ *         for "until {purgeEligibleAt}", and "at any time during the retention period" for "before
+ *         {purgeEligibleAt}". Recorded as a CLARIFICATION OF THE DISCLOSURE, not a change to the
+ *         retention policy. Nothing else in Template 1 was reopened. The gate it replaces held for
+ *         two days and did its job — it reverted a wiring that would have shipped unreviewed copy.
  *
  *         Template 1 promises a PERIOD, never a date — CD ruling 2026-08-20, "Settled — clock
  *         model" in brief/legal/CANCELLATION_EMAIL_TEMPLATES_v1.1.md. `purge_eligible_at` is set
@@ -205,12 +204,20 @@ export interface CancelledConfirmEmailProps {
    * site noted in this file's header.
    */
   cancellationMethod?: CancellationMethod
+  /**
+   * Absolute URL for the export CTA and the footer's export link. Defaults to `${appUrl}/reports`.
+   * Exists so a caller that computes its own export URL is not silently overridden — a signed,
+   * single-use export link is the foreseeable case, and without this prop it would be accepted by
+   * the call site and discarded here.
+   */
+  exportUrl?: string
 }
 
 export function CancelledConfirmEmail({
   branding, orgName, recipientName, appUrl,
-  cancelledDate, cancellationMethod,
+  cancelledDate, cancellationMethod, exportUrl,
 }: Readonly<CancelledConfirmEmailProps>) {
+  const exportHref = exportUrl ?? `${appUrl}/reports`
   return (
     <EmailLayout
       preview={`Your ${orgName} subscription was cancelled on ${cancelledDate}. Your data remains available and exportable for at least 12 months.`}
@@ -219,7 +226,7 @@ export function CancelledConfirmEmail({
       subscriptionAlert={{
         settingsUrl: `${appUrl}/settings/subscription`,
         cancelledDate,
-        exportUrl: `${appUrl}/reports`,
+        exportUrl: exportHref,
       }}
     >
       <Text style={h1}>Subscription cancelled — your data is available for at least 12 months</Text>
@@ -271,7 +278,7 @@ export function CancelledConfirmEmail({
       </Text>
       <Row style={{ margin: "24px 0" }}>
         <Column style={{ paddingRight: 8 }}>
-          <EmailButton href={`${appUrl}/reports`} accentColor="#3f3f46">Export all data</EmailButton>
+          <EmailButton href={exportHref} accentColor="#3f3f46">Export all data</EmailButton>
         </Column>
         <Column style={{ paddingLeft: 8 }}>
           <EmailButton href={`${appUrl}/settings/subscription`} accentColor={branding.accentColor}>Reactivate</EmailButton>
