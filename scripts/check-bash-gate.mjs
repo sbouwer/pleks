@@ -107,6 +107,19 @@ const CASES = [
   ["--no-verify on push", bash("git push --no-verify origin main"), "deny"],
   ["-n on commit is --no-verify", bash('git commit -n -m "x"'), "deny"],
   ["-n on push is --no-verify", bash("git push -n origin main"), "deny"],
+  // ⚠ THE NO-BYPASS CASE, and the boundary that decides how much of M-072's false-deny is safe to
+  // fix. The tempting fix — blank every quoted span so a flag inside a commit MESSAGE stops matching
+  // — wins back the prose cases and hands over the real one: the shell strips these quotes before
+  // git ever sees the argument, so `git commit "--no-verify"` genuinely skips the hooks. Only a
+  // `-m`/`--message` VALUE is inert, because git treats it as text whatever it spells. If this
+  // probe ever goes green-by-allow, the masking has been widened into a hole.
+  ["a QUOTED flag is still a flag — the shell strips the quotes", bash('git commit "--no-verify"'), "deny"],
+  // `git -C dir commit` — the verb is not adjacent to `git`. The same shape that passes the
+  // settings twin (CLAUDE.md §3 records `git -C` as the likeliest bypass vehicle) and that the hook
+  // is supposed to catch by token-matching rather than by prefix.
+  ["-C puts a path between git and its verb", bash("git -C /repo commit --no-verify -m x"), "deny"],
+  // The flag belonging to a LATER git command in the chain. The segment split must not lose it.
+  ["a chained commit is still a commit", bash('npm run check && git commit --no-verify -m "x"'), "deny"],
 
   // ── ASK ─────────────────────────────────────────────────────────────────────────────────────
   ["an ordinary push reaches a human", bash("git push origin feature-branch"), "ask"],
@@ -130,6 +143,10 @@ const CASES = [
   // here and a path separator in the five probes above, and the hook cannot tell them apart without
   // parsing the quoting. Asking on a grep is the cheap direction to be wrong in.
   ["ACCEPTED cost: searching for the escaped string now asks", bash('rg "\\.env" docs/'), "ask"],
+  // THE COMMAND THAT PRODUCED M-072, verbatim from the transcript. It must reach the human as an
+  // ordinary push, not be refused as `--no-verify` — the `-n` is grep's, two commands later. ASK is
+  // the correct answer here and DENY was the bug; an `allow` expectation would be the other error.
+  ["the measured M-072 case: a push, then a grep -n on its log", bash('git push > "$LOG" 2>&1; grep -n "vitest" "$LOG"'), "ask"],
   ["supabase db push is a prod operation", bash("supabase db push"), "ask"],
   ["supabase db reset is a prod operation", bash("supabase db reset"), "ask"],
   ["unparseable payload fails to a prompt, not to silence", "{not json", "ask"],
@@ -145,6 +162,18 @@ const CASES = [
   ["git cherry-pick -n is --no-commit", bash("git cherry-pick -n abc1234"), "allow"],
   ["git merge -n is --no-stat", bash("git merge -n main"), "allow"],
   ["git log -n 5 is a count", bash("git log -n 5"), "allow"],
+  // M-072's DISCRIMINATING HALF — the `-n` that belongs to a DIFFERENT command in the chain. The
+  // raw-string rules put `[^\n]*` between the git verb and the flag, and `[^\n]*` spans `;`, `&&`
+  // and `|`, so any later `-n` anywhere on the line was read as the git command's. Measured twice on
+  // real commands, at f7c51d89 and again at 3e785e61.
+  ["grep -n after a git command is grep's", bash('git log --oneline | grep -n "vitest"'), "allow"],
+  ["…and across a semicolon", bash('git status; grep -n TODO scripts/lint.mjs'), "allow"],
+  // Prose ABOUT the flag, inside the message argument. This one is not hypothetical either: the
+  // commit that recorded M-072 was itself refused because its body described the flag, and M-072
+  // could not be re-measured inline at all — a Bash command carrying the flag as a quoted TEST CASE
+  // was denied by the hook under test. A gate that forbids writing down the rule it enforces.
+  ["the flag NAMED inside a commit message is prose", bash('git commit -m "docs: explain why --no-verify is forbidden"'), "allow"],
+  ["…and the long spelling of the message flag", bash('git commit --message "chore: drop the -n shortcut"'), "allow"],
   // A soft reset is not a hard reset, and `rm -rf` on a real path is ordinary cleanup.
   ["git reset --soft", bash("git reset --soft HEAD~1"), "allow"],
   ["rm -rf on a project subdirectory", bash("rm -rf node_modules/.cache"), "allow"],
