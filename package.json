@@ -16,6 +16,8 @@
     "fuzz": "tsx scripts/fuzz-import.mts",
     "schema:drift": "node scripts/check-schema-drift.mjs",
     "check:secrets": "node scripts/check-workflow-secrets.mjs",
+    "security": "node scripts/security/audit.mjs",
+    "security:quick": "node scripts/security/audit.mjs --quick",
     "security:db": "node scripts/security/audit.mjs --ci && tsx scripts/security/cat14-behavioural.mts --ci && tsx scripts/security/trust-sovereignty-parity.mts --ci",
     "security:behavioural": "tsx scripts/security/cat14-behavioural.mts",
     "security:prod": "cross-env APP_URL=https://app.pleks.co.za node scripts/security/audit.mjs",

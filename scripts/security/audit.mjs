@@ -114,6 +114,33 @@ const findings = []
 let testsRun = 0
 let testsPassed = 0
 
+// ── OUTCOME ACCOUNTING (control-aim audit R5, CD ruling 2026-08-22) ───────────────────────────
+// `testsRun` counts assertions STARTED; `testsPassed` counts those a category explicitly registered.
+// They were never reconciled, and they disagreed badly: a real run reported `Tests run: 293 / Tests
+// passed: 55` and still printed ALL TESTS PASSED, because the verdict derived from `findings === 0`
+// alone. 238 assertions were neither passed, failed, nor skipped — they printed an outcome line and
+// vanished. A category could execute two hundred assertions, register none, and read as green.
+//
+// The invariant asserted below is the one that actually matters and needs no re-plumbing of ~293
+// call sites: EVERY `test()` must produce exactly one outcome line. So the outcome printers count
+// themselves, and `printReport` fails when the totals do not reconcile. Same collapsed-analysis
+// shape `check-knip-floor.mjs` and `check-register-integrity.mjs` already guard in their own
+// domains — an enumeration that analyses zero items must FAIL, not pass.
+//
+// ⚠ MEASURED AFTER BUILDING THIS, AND IT NARROWED THE FINDING. `outcomes` came back EQUAL to
+// `testsRun` (293/293) on the first run — so every assertion DID print an outcome; nothing vanished.
+// The 293-vs-55 gap was never missing analysis: `ok()` fires on every passing assertion while
+// `pass()` is called in only some branches, so `testsPassed` was a partial counter being displayed
+// as if it were the whole. The defect was the DISPLAY inviting "55 of 293 passed", plus a verdict
+// that consulted neither. Both are fixed below; the invariant is kept because it is the one that
+// would catch a category going silent later.
+let outcomes = 0
+let okCount = 0
+let failCount = 0
+// Categories that never ran at all. Distinct from a skipped ASSERTION: a skipped category is a whole
+// surface unexamined, and it is what made a 7-of-15 run print ALL TESTS PASSED.
+const skippedCategories = []
+
 function finding(category, severity, title, detail, fix) {
   findings.push({ category, severity, title, detail, fix })
 }
@@ -128,18 +155,24 @@ function test(label) {
 }
 
 function ok(msg) {
+  outcomes++
+  okCount++
   console.log(` ✅ ${msg || "PASS"}`)
 }
 
 function fail(msg) {
+  outcomes++
+  failCount++
   console.log(` 🔴 ${msg || "FAIL"}`)
 }
 
 function warn(msg) {
+  outcomes++
   console.log(` ⚠️  ${msg || "WARNING"}`)
 }
 
 function skip(msg) {
+  outcomes++
   console.log(` ⏭️  ${msg || "SKIPPED"}`)
 }
 
@@ -1137,12 +1170,52 @@ function printReport() {
   const low = findings.filter(f => f.severity === "LOW")
 
   console.log(`\n  Tests run:    ${testsRun}`)
-  console.log(`  Tests passed: ${testsPassed}`)
+  console.log(`  Passed:       ${okCount}`)
+  console.log(`  Failed:       ${failCount}`)
+  console.log(`  Warned/skipped: ${outcomes - okCount - failCount}`)
+  // Kept, and deliberately labelled as partial. `pass()` is called by only some branches, so this
+  // undercounts by design — it was previously printed as "Tests passed", which read as "55 of 293
+  // passed" and was the misleading half of the 2026-08-22 finding.
+  console.log(`  (of which explicitly registered via pass(): ${testsPassed})`)
   console.log(`  Findings:     ${findings.length}`)
   console.log(`    🔴 Critical: ${critical.length}`)
   console.log(`    🟠 High:     ${high.length}`)
   console.log(`    🟡 Medium:   ${medium.length}`)
   console.log(`    🔵 Low:      ${low.length}`)
+
+  // ── THE VERDICT IS NOT `findings === 0` ──────────────────────────────────────────────────────
+  // Three ways a run can be worthless while producing no findings, all of them observed in the
+  // 2026-08-22 control-aim audit. Each is reported as its own line, because "why this is not green"
+  // is the information a human deciding to deploy actually needs.
+  const unaccounted = testsRun - outcomes
+  const blockers = []
+  if (skippedCategories.length > 0) {
+    blockers.push(
+      `${skippedCategories.length} of the 15 categories did not run: ${skippedCategories.join(", ")}. ` +
+      `A category that never executed is not a category that found nothing.`,
+    )
+  }
+  if (unaccounted !== 0) {
+    blockers.push(
+      `${Math.abs(unaccounted)} assertion(s) ${unaccounted > 0 ? "produced no outcome line" : "produced an outcome with no matching test()"} ` +
+      `(${testsRun} started vs ${outcomes} accounted). The run did not analyse what it counted.`,
+    )
+  }
+  if (testsRun === 0) {
+    blockers.push("ZERO assertions ran. An empty run is a broken run, never a clean one.")
+  }
+
+  if (blockers.length > 0) {
+    console.log("\n" + "─".repeat(60))
+    console.log("\n  ⛔ THIS RUN IS NOT ASSURANCE — it did not examine what it reports on:\n")
+    for (const b of blockers) console.log(`     · ${b}`)
+    console.log("\n  Fix the coverage and re-run. `npm run dev` must be up for the app-surface")
+    console.log("  categories (3, 4, 6, 8–12); see CLAUDE.md §3 for the deploy gate's prerequisites.")
+    if (findings.length === 0) {
+      console.log("\n" + "═".repeat(60))
+      process.exit(1)
+    }
+  }
 
   if (findings.length === 0) {
     console.log("\n  ✅ ALL TESTS PASSED — No findings")
@@ -1421,7 +1494,20 @@ async function main() {
   for (const [num, fn] of Object.entries(categories)) {
     if (singleCategory && parseInt(num) !== singleCategory) continue
     if (!fn) {
-      console.log(`\n📋 Category ${num}: SKIPPED (app not running)`)
+      // ⚠ NOT A SKIP — a CRITICAL finding. This is CD's ruling of 2026-08-17 (see runCiMode below,
+      // "ABSENT CREDENTIALS ARE A CRITICAL FINDING, NOT A SKIP") applied to the half of this file it
+      // was never applied to. An absent SERVER is the same condition as an absent CREDENTIAL: the
+      // category did not run, and "I could not look" is indistinguishable from "I looked and found
+      // nothing" in a report that exits 0.
+      console.log(`\n📋 Category ${num}: DID NOT RUN — ${APP_URL} unreachable`)
+      skippedCategories.push(`Cat ${num}`)
+      finding(
+        num,
+        "CRITICAL",
+        `Category ${num} did not run — the app surface was unreachable`,
+        `${APP_URL} did not respond, so this category's tests never executed. Nothing was examined and nothing can be concluded.`,
+        `Start the dev server (\`npm run dev\`) and re-run, or point APP_URL at a running deployment (\`npm run security:prod\`).`,
+      )
       continue
     }
     try {
