@@ -140,8 +140,20 @@ export function partition(paths) {
  * Read one label's value. The block is column-aligned, so the separator is RUN OF SPACES, not a
  * colon — `\s{2,}` rather than `:`. Captured to end of line: matching `(\S+)` would read an unfilled
  * placeholder's first token as a valid value and wave the whole template through.
+ *
+ * `[ \t]` THROUGHOUT, never `\s`. Two reasons, and the first was found by a probe rather than by
+ * reading:
+ *   1. QUADRATIC. `^\s*` under /m re-consumes the whole trailing newline run at every line start —
+ *      a 60k-blank-line artefact took 20 SECONDS here, and this runs once per label. `sonarjs/
+ *      super-linear-regex` did not flag it and could not: the pattern is assembled through
+ *      `new RegExp`, and the rule reads regex LITERALS. The control is aimed at the spelling, not
+ *      at the class, so a dynamically built pattern is invisible to it — worth knowing before
+ *      trusting a green run of that rule anywhere.
+ *   2. CORRECTNESS. `\s{2,}` as the column separator could cross a newline and read the NEXT line's
+ *      text as this label's value, turning a malformed block into a plausible one. The separator is
+ *      a run of spaces on one line, which is what `[ \t]{2,}` says.
  */
-const valueOf = (text, l) => (text.match(new RegExp(`^\\s*${l}\\s{2,}(.+?)\\s*$`, "m")) ?? [])[1]
+const valueOf = (text, l) => (text.match(new RegExp(`^[ \\t]*${l}[ \\t]{2,}(.+?)[ \\t]*$`, "m")) ?? [])[1]
 
 /**
  * Validate one artefact's trailing contract block. Returns findings, empty when well-formed.
@@ -165,7 +177,16 @@ export function checkArtefact(path, text, enforceAnchor = true) {
   // Anchor: a machinery map is a grounding claim, so an artefact with no anchor is itself a finding.
   // Gated on ANCHOR_AGENTS — see its comment. The default is ENFORCE, so a caller that forgets to
   // pass the flag over-checks rather than under-checks.
-  if (enforceAnchor && !/^\s*anchor:.*\bcommit=/m.test(text)) {
+  // `[ \t]*`, NOT `\s*`. Under /m, `\s` includes `\n`, so `^\s*` could anchor at one line start and
+  // consume an entire run of blank lines before reaching `anchor:` — n line starts × n whitespace
+  // chars, quadratic on an artefact with a large blank region. Agent-written text is the least
+  // controlled input this file sees, which is why this one is bounded and the ones in `scripts/`
+  // that parse the repo's own tracked files are baselined instead.
+  // ONE CLAIM IN THE RULING DOES NOT SURVIVE CHECKING, and it is recorded rather than repeated: the
+  // cross-line match is real but OUTCOME-EQUIVALENT. Any position `\s*` can reach by crossing
+  // newlines is itself a line start, and `.*` cannot cross one, so the boolean result was never
+  // different. The quadratic is the whole of the defect here.
+  if (enforceAnchor && !/^[ \t]*anchor:.*\bcommit=/m.test(text)) {
     out.push(`${path}: no anchor line carrying a commit — an unanchored observation is a finding, not a fact`)
   }
 
@@ -175,13 +196,18 @@ export function checkArtefact(path, text, enforceAnchor = true) {
   // A bare `—` is NOT a placeholder: it is the specified value for "the brief named no pipeline".
   for (const l of LABELS) {
     const v = valueOf(text, l)
-    if (v !== undefined && /<[^>]+>/.test(v)) {
+    // BOUNDED at 200. `<[^>]+>` is the classic unclosed-delimiter quadratic: on a run of `<` with
+    // no `>`, every start position consumes the tail and backtracks a character at a time. ASCII
+    // art, a diagram, or a nested generic in an agent's artefact produces exactly that run. No
+    // real placeholder is 200 characters, and the probes assert both halves — a normal placeholder
+    // still fires, and a 40k-`<` artefact stays linear.
+    if (v !== undefined && /<[^>]{1,200}>/.test(v)) {
       out.push(`${path}: ${l} still holds the spine's placeholder ("${v}") — the block was copied, not filled in`)
     }
   }
 
   const verdict = valueOf(text, "Verdict")
-  if (verdict !== undefined && !/<[^>]+>/.test(verdict)) {
+  if (verdict !== undefined && !/<[^>]{1,200}>/.test(verdict)) {   // bounded — see the note above
     // Strip the variation selector: ⚠️ is ⚠ + U+FE0F, and only one of those spellings is typed.
     const v = verdict.replace(/️/g, "")
     const glyph = Object.keys(GLYPHS).find((g) => v.startsWith(g))
@@ -314,6 +340,41 @@ if (isEntry && process.argv.includes("--selftest")) {
   // spine is added to CONTRACT_AGENTS, the person doing it sees what they are switching on.
   ok(partition([P("06-crawler-doctrine.md")]).enforced.length === 0,
     "a crawler-doctrine artefact is skipped even when it DOES carry a block — the boundary is by agent, not by content")
+
+  // ── ReDoS bounds, both directions ────────────────────────────────────────────────────────────
+  // These three patterns run over AGENT-WRITTEN artefacts. The other 22 `super-linear-regex` sites
+  // in `scripts/` parse the repo's own tracked files and are baselined as debt; these were fixed,
+  // because the input is the one an agent composes freely.
+  //
+  // The second half is the half that matters: a bound that breaks the match is a silently disabled
+  // check, which is the failure this repo keeps finding. So the fixture asserts the placeholder
+  // still fires FIRST, and the timing assertion second.
+  ok(checkArtefact("a.md", GOOD.replace("Promote    none", "Promote    <what to promote>")).some((f) => f.includes("placeholder")),
+    "KNOWN-GOOD: an ordinary placeholder still fires with the 200-char bound in place")
+  ok(checkArtefact("a.md", GOOD.replace("Promote    none", `Promote    <${"x".repeat(199)}>`)).some((f) => f.includes("placeholder")),
+    "…and one exactly at the bound still fires")
+  // THE HONEST COST, asserted rather than left implicit: past 200 chars a placeholder is no longer
+  // detected. That is the price of the bound and it is cheap — the spine's longest real placeholder
+  // is 31 characters — but it is a real aperture, and a probe is where a cost like this stays visible.
+  ok(!checkArtefact("a.md", GOOD.replace("Promote    none", `Promote    <${"x".repeat(201)}>`)).some((f) => f.includes("placeholder")),
+    "…and one PAST the bound does not — the aperture the bound buys, stated")
+
+  const timed = (text) => {
+    const t0 = process.hrtime.bigint()
+    checkArtefact("a.md", text)
+    return Number(process.hrtime.bigint() - t0) / 1e6
+  }
+  // Measured on this machine 2026-08-22, each pattern in isolation on its own fixture:
+  //   <[^>]+>   120k '<'      5850ms   →  <[^>]{1,200}>        58ms   (100×)
+  //   ^\s*…     60k newlines  1871ms   →  ^[ \t]*…              0ms
+  //   valueOf   60k newlines  1837ms   →  [ \t] throughout      0ms
+  // The 500ms threshold sits an order of magnitude either side, so this is not a timing-flake test:
+  // reverting any one bound fails it by a wide margin. The blank-region fixture ran 20,316ms end to
+  // end before `valueOf` was fixed, which is how that second pattern was found at all.
+  const bracketMs = timed(GOOD.replace("Promote    none", `Promote    ${"<".repeat(120_000)}`))
+  ok(bracketMs < 500, `a 120k-'<' run with no '>' completes in ${bracketMs.toFixed(0)}ms — bounded, not quadratic`)
+  const blankMs = timed(`${"\n".repeat(60_000)}anchor: task=t · commit=abc1234\n${GOOD}`)
+  ok(blankMs < 500, `a 60k-newline blank region completes in ${blankMs.toFixed(0)}ms — [ \\t]* cannot cross lines`)
 
   console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — fires on a missing, unfilled or self-contradicting block, quiet on a well-formed one, and enforces only the spines that carry it")
   process.exit(failed ? 1 : 0)
