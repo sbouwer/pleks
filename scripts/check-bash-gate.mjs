@@ -29,7 +29,9 @@ if (!existsSync(HOOK)) {
 }
 
 function decide(payload) {
-  const r = spawnSync("node", [HOOK], { input: payload, encoding: "utf8" })
+  // `process.execPath`, not "node" — the hook must be probed under the interpreter running this
+  // check, not whatever PATH resolves. See eslint.config.mjs on `no-os-command-from-path`.
+  const r = spawnSync(process.execPath, [HOOK], { input: payload, encoding: "utf8" })
   if (r.status !== 0) return { decision: `hook exited ${r.status}`, reason: r.stderr.slice(0, 200) }
   try {
     const o = JSON.parse(r.stdout).hookSpecificOutput

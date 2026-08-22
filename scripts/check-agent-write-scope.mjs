@@ -25,7 +25,11 @@ if (!existsSync(HOOK)) {
 }
 
 function decide(payload) {
-  const r = spawnSync("node", [HOOK], { input: payload, encoding: "utf8" })
+  // `process.execPath`, not "node": a bare name resolves through PATH and can start a DIFFERENT
+  // interpreter than the one running this probe. In a repo pinned to Node 22 that means the gate
+  // is exercised under an engine nobody chose. Correctness, not PATH-hijacking — see the note on
+  // `sonarjs/no-os-command-from-path` in eslint.config.mjs.
+  const r = spawnSync(process.execPath, [HOOK], { input: payload, encoding: "utf8" })
   if (r.status !== 0) return { decision: `hook exited ${r.status}`, reason: r.stderr.slice(0, 200) }
   try {
     const o = JSON.parse(r.stdout).hookSpecificOutput

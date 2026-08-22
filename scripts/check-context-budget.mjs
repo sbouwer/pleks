@@ -71,7 +71,8 @@ function freshCwd() {
 }
 
 function run(payload) {
-  const r = spawnSync("node", [HOOK], { input: payload, encoding: "utf8" })
+  // `process.execPath`, not "node" — the hook must run under the interpreter running this check.
+  const r = spawnSync(process.execPath, [HOOK], { input: payload, encoding: "utf8" })
   if (r.status !== 0) return { error: `hook exited ${r.status}: ${r.stderr.slice(0, 200)}` }
   try {
     const j = JSON.parse(r.stdout)
@@ -182,7 +183,10 @@ const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  $
   }
 
   const measureRss = (p) => {
-    const r = spawnSync("node", [driver, p, freshCwd()], { encoding: "utf8" })
+    // `process.execPath` matters MORE here than in the probe above: this measures RSS, and a
+    // different Node major has a different baseline heap. A PATH-resolved interpreter would make
+    // the number meaningless rather than merely unpinned.
+    const r = spawnSync(process.execPath, [driver, p, freshCwd()], { encoding: "utf8" })
     const line = r.stdout.split("\n").find((l) => l.startsWith("RSSPROBE:"))
     if (!line) return { error: `no RSSPROBE line. stderr: ${r.stderr.slice(0, 200)}` }
     try { return JSON.parse(line.slice("RSSPROBE:".length)) } catch { return { error: `bad RSSPROBE payload: ${line.slice(0, 120)}` } }

@@ -26,7 +26,7 @@
  * Now considers the committed range against the upstream as well, and says which window it used.
  */
 
-import { execSync } from "node:child_process"
+import { execSync, execFileSync } from "node:child_process"
 import { resolve, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -120,7 +120,10 @@ if (degraded && !hasMigrationSql(files)) {
 }
 
 try {
-  execSync("node scripts/check-schema-drift.mjs", { cwd: ROOT, stdio: "inherit" })
+  // `execFileSync(process.execPath, …)`, not `execSync("node …")`. Two changes, one reason each:
+  // the interpreter is the one running this script rather than whatever PATH resolves, and the
+  // argument is an array rather than a shell string, so no shell parses the path.
+  execFileSync(process.execPath, ["scripts/check-schema-drift.mjs"], { cwd: ROOT, stdio: "inherit" })
 } catch {
   process.exit(1)
 }
