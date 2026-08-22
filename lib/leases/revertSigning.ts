@@ -9,6 +9,7 @@
  *         status = 'pending_signing', so a concurrent completion (→ active) or a duplicate event is a no-op.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 export type SigningRevertReason = "declined" | "expired"
 type TriggeredBy = "tenant" | "system" | "cron"
@@ -43,6 +44,18 @@ export async function revertPendingSigningToDraft(
     return false
   }
   if (!updated || updated.length === 0) return false // another path resolved it first
+
+  // Audited only PAST the race guard: the `.select("id")` above returning rows is what proves THIS
+  // call did the transition. Auditing before it would record a revert on every duplicate webhook
+  // delivery and every concurrent cron pass, which is worse than no audit — a trail that logs
+  // events that did not happen cannot be used to establish that one did.
+  // actorId is null by design: the callers are a webhook and a cron, so there is no human actor to
+  // name, and inventing one would be a false attribution on a lease-state record.
+  await recordAudit(db, {
+    orgId: lease.org_id, actorId: null, action: "UPDATE", table: "leases", recordId: lease.id,
+    before: { status: "pending_signing" },
+    after: { status: "draft", action: `lease_signing_${reason}`, triggered_by: triggeredBy },
+  })
 
   const eventType = reason === "declined" ? "lease_signing_declined" : "lease_signing_expired"
   const { error: evErr } = await db.from("lease_lifecycle_events").insert({

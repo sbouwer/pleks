@@ -77,6 +77,7 @@ async function handleSignReminder(service: Service, lease: SignReminderLease, no
   })
 
   if (result.success) {
+    // eslint-disable-next-line pleks/require-audit-on-sensitive-mutation -- comms bookkeeping, not a tenancy-state change: stamps WHEN a signing reminder went out so the cron does not re-send. The lease itself does not move. routeAndSend already wrote communication_log for the delivery, and the actor is a cron, so an audit_log row would duplicate that record with no actor to name.
     await service.from("leases").update({ sign_reminder_sent_at: new Date().toISOString() }).eq("id", lease.id)
     return true
   }
@@ -126,6 +127,7 @@ async function handleEscalationNotice(service: Service, lease: EscalationLease):
   })
 
   if (result.success) {
+    // eslint-disable-next-line pleks/require-audit-on-sensitive-mutation -- same class as sign_reminder_sent_at above: delivery bookkeeping for the escalation notice, stamped only on a successful send so a failure retries. No lease state changes here; communication_log holds the send, and the actor is a cron.
     await service.from("leases").update({ escalation_notice_sent_at: new Date().toISOString() }).eq("id", lease.id)
     return true
   }

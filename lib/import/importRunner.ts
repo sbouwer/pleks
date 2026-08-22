@@ -1988,6 +1988,17 @@ async function processActiveLease(
       return
     }
 
+    // A tenancy coming into existence, so it gets a row of its own — the same call this file already
+    // makes for tenant_bank_accounts (see the per-account audit above), for the same reason: the
+    // session-level audit in writeAuditLog() records THAT an import ran and its totals, which cannot
+    // answer "who created this particular lease, and when". A bulk import is exactly the path where
+    // that question gets asked later.
+    await recordAudit(ctx.supabase, {
+      orgId: ctx.orgId, actorId: ctx.agentId, action: "INSERT",
+      table: "leases", recordId: String(newLease.id),
+      after: { source: "bulk_import", unit_id: unitId, tenant_id: primaryTenantId, row_index: index },
+    })
+
     const leaseId = String(newLease.id)
     ctx.result.leasesCreated++
 
@@ -2057,6 +2068,7 @@ async function migrateDeposit(
   // Only the rate itself is persisted. The HOLD is not: it is what the accrual engine concludes, live, when
   // no rate reaches the lease — so it self-heals the moment one does, instead of a stale stamp freezing it.
   if (rate.ratePercent !== null) {
+    // eslint-disable-next-line pleks/require-audit-on-sensitive-mutation -- a DERIVED reference value, not an agent decision: the prime-linked deposit interest rate resolved for this lease during import. There is no human choice here to attribute — the same input produces the same rate — and the lease's creation is audited at its INSERT above, with the run itself in writeAuditLog(). Auditing this would record the import re-stating a lookup.
     const { error: rateError } = await ctx.supabase
       .from("leases")
       .update({ deposit_interest_rate_percent: rate.ratePercent })
@@ -2171,6 +2183,7 @@ async function linkTenantToLease(
   }
 
   // Set tenant_id on the lease for primary tenant
+  // eslint-disable-next-line pleks/require-audit-on-sensitive-mutation -- completes the lease row this import just created rather than changing an existing tenancy: the INSERT above is audited and already carries tenant_id in its `after`, so a second row here would record the same fact twice under two timestamps. A LATER change of tenant_id on a live lease is a different act and is not this path.
   const { error } = await ctx.supabase
     .from("leases")
     .update({ tenant_id: tenantId })
@@ -2803,6 +2816,7 @@ async function linkLandlordsToProperties(ctx: ImportContext): Promise<void> {
     // Cascade to the leases on that property. leases.landlord_id is nullable and read by the lease detail,
     // maintenance-approval and finance surfaces; a lease that knows its owner does not have to go via the
     // property to find them.
+    // eslint-disable-next-line pleks/require-audit-on-sensitive-mutation -- a SET-VALUED cascade, and the one shape a per-row audit reports badly: this fills landlord_id on every lease of one property that has none, so one agent action would fan out into an unbounded number of audit rows that all say the same thing at the same instant. The `.is("landlord_id", null)` guard makes it fill-only, never a re-assignment of an owner someone had already set. The act is the landlord LINK, recorded at property level, and the run is in writeAuditLog(). Re-assigning an owner on a live lease is a different act on a different path.
     const { error: leaseError } = await ctx.supabase
       .from("leases").update({ landlord_id: landlordId })
       .eq("property_id", property.id).eq("org_id", ctx.orgId).is("landlord_id", null)

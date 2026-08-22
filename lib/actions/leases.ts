@@ -458,7 +458,12 @@ export async function sendForSigning(leaseId: string) {
   if (lease.status !== "draft") return { error: "Lease has already been sent for signing" }
   if (!lease.generated_doc_path) return { error: "Generate the lease document first" }
 
-  await db.from("leases").update({ status: "pending_signing", sent_for_signing_at: new Date().toISOString() }).eq("id", leaseId).eq("org_id", orgId)
+  const sentForSigningAt = new Date().toISOString()
+  await db.from("leases").update({ status: "pending_signing", sent_for_signing_at: sentForSigningAt }).eq("id", leaseId).eq("org_id", orgId)
+  // draft → pending_signing is the point the lease leaves the agent's control and goes to a signer.
+  // Its counterpart revert (lib/leases/revertSigning.ts) now audits too, so the round trip is a pair
+  // of rows rather than a state that changes twice and is recorded once.
+  await recordAudit(db, { orgId: orgId, table: "leases", recordId: leaseId, action: "UPDATE", actorId: userId, before: { status: "draft" }, after: { status: "pending_signing", sent_for_signing_at: sentForSigningAt, action: "lease_sent_for_signing" } })
 
   // event_type 'lease_sent_for_signing' was previously rejected by the CHECK constraint (silent-fail, D1);
   // the constraint now allows it. Surface any future regression instead of swallowing it.

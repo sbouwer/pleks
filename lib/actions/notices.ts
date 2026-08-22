@@ -22,6 +22,7 @@ import { isOnHold } from "@/lib/legal/holds"
 import { getOrgDisplayName } from "@/lib/org/displayName"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { gatherNoticeFacts, evaluateNoticePreconditions, type GatherLease, type PreconditionFinding, type PreconditionResult } from "@/lib/notices/preconditions"
 import { resolveNoticeContext, type ContextLease } from "@/lib/notices/resolveNoticeContext"
@@ -69,7 +70,17 @@ function leaseEffectComplete(lease: ActionLease, type: DemandNoticeType): boolea
   return Boolean(lease.terminated_at)
 }
 
-/** Apply the lease EFFECT (E-5 second write). Idempotent; emits the terminal lifecycle only on transition. */
+/** Apply the lease EFFECT (E-5 second write). Idempotent; emits the terminal lifecycle only on transition.
+ *
+ * ⚠ ALL THREE BRANCHES END A TENANCY, so all three audit. The breach branch already wrote a
+ * `lease_lifecycle_events` row and that is NOT a substitute: a lifecycle event is the tenant-facing
+ * narrative of what happened to the lease, and audit_log is the who/when of who caused it. They
+ * answer different questions and are read by different people — the lifecycle row has
+ * `triggered_by: "agent"` with no actor on the other two branches at all. The m2m and expiry
+ * branches had neither, so a termination date could move with nothing recording who moved it.
+ *
+ * `before` carries only the columns this function changes, read off the lease row the caller
+ * already fetched — not a re-read, which would race the update it is meant to describe. */
 async function applyLeaseEffect(db: Db, orgId: string, lease: ActionLease, type: DemandNoticeType, userId: string | null, cancellationISO: string, finalNoticeSentAt: string | null): Promise<void> {
   if (type === "demand_vacate_breach") {
     const wasCancelled = lease.status === "cancelled"
@@ -77,6 +88,13 @@ async function applyLeaseEffect(db: Db, orgId: string, lease: ActionLease, type:
       .update({ status: "cancelled", cancellation_effective_date: cancellationISO, final_notice_date: finalNoticeSentAt })
       .eq("id", lease.id).eq("org_id", orgId)
     logQueryError("applyLeaseEffect breach", error)
+    if (!error) {
+      await recordAudit(db, {
+        orgId, actorId: userId, action: "UPDATE", table: "leases", recordId: lease.id,
+        before: { status: lease.status, cancellation_effective_date: lease.cancellation_effective_date },
+        after: { status: "cancelled", cancellation_effective_date: cancellationISO, final_notice_date: finalNoticeSentAt, action: "lease_cancelled_for_breach" },
+      })
+    }
     if (!wasCancelled) {
       await db.from("lease_lifecycle_events").insert({
         org_id: orgId, lease_id: lease.id, event_type: "lease_cancelled_for_breach",
@@ -87,9 +105,24 @@ async function applyLeaseEffect(db: Db, orgId: string, lease: ActionLease, type:
   } else if (type === "demand_vacate_m2m") {
     const { error } = await db.from("leases").update({ termination_notice_date: lease.notice_given_date }).eq("id", lease.id).eq("org_id", orgId)
     logQueryError("applyLeaseEffect m2m", error)
+    if (!error) {
+      await recordAudit(db, {
+        orgId, actorId: userId, action: "UPDATE", table: "leases", recordId: lease.id,
+        before: { termination_notice_date: lease.termination_notice_date },
+        after: { termination_notice_date: lease.notice_given_date, action: "termination_notice_served_m2m" },
+      })
+    }
   } else {
-    const { error } = await db.from("leases").update({ terminated_at: new Date().toISOString() }).eq("id", lease.id).eq("org_id", orgId)
+    const terminatedAt = new Date().toISOString()
+    const { error } = await db.from("leases").update({ terminated_at: terminatedAt }).eq("id", lease.id).eq("org_id", orgId)
     logQueryError("applyLeaseEffect expiry", error)
+    if (!error) {
+      await recordAudit(db, {
+        orgId, actorId: userId, action: "UPDATE", table: "leases", recordId: lease.id,
+        before: { terminated_at: lease.terminated_at },
+        after: { terminated_at: terminatedAt, action: "lease_terminated_on_expiry" },
+      })
+    }
   }
 }
 
