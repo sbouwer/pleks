@@ -474,6 +474,16 @@ summons the scoped rules (E1b).
 anchor. An unanchored observation is itself a finding. **This file states intent; it does not carry
 observations about the tree** — no counts, no "as at" states. Those rot. Name the artefact instead.
 
+**The same rule on the RECEIVING end — a CD ruling that asserts what the code, schema or config
+CURRENTLY does, without naming the file it was read from, is `decision-needed`, not an
+instruction.** Ask for the citation before implementing. A ruling about what the system SHOULD do
+needs no citation — that is CD's remit, and the distinction is the authored/grounding split applied
+to rulings rather than to specs. This is not deference-by-default: CD has shipped uncited claims
+that were wrong (an attachment "impossible" in code that was merely unimplemented; a permission
+field read from its name rather than its cardinality), each corrected by someone opening the file.
+It is the half of a two-sided rule that fires when CD's own discipline does not — and hardening
+only one half is how a gap reads as covered.
+
 **Whole-file reconciliation** on any status correction — grep `awaiting`, `TODO`, `- [ ]`, `CC
 should`, and settle all or say why not. A partially-fixed file looks reviewed.
 
