@@ -828,6 +828,27 @@ spawns the real hook, so the guard would fire during an ordinary check run that 
 anything. A gate that makes the gate unrunnable is the failure this file keeps recording in other
 forms; here it was caught before shipping rather than after.
 
+**⚠ THAT NOTE WAS WRONG, AND THE THING IT CLAIMED TO HAVE AVOIDED SHIPPED (2026-08-22).** The seam
+covers every probe that sets `PLEKS_HOOK_PROBE=1` — but `check-git-hooks.mjs` has one block that
+CLEARS the flag on purpose, because seam-inertness is the property it tests. On the default branch
+the guard therefore fires there, refusing before pre-commit echoes the command it resolved, and both
+of that block's assertions read `(no output)`. `npm run check` fails on `main`: exactly the outcome
+the note said the seam prevented.
+
+- **It went GREEN on the PR and RED on the push to main** (run `32523760908`, 2 probes wrong). A PR
+  is built from a detached merge ref, where `git branch --show-current` is empty and the guard is
+  inert; a push to `main` has the branch set. **The run that gates merging exercised the inert
+  half.** That is the transferable finding — a branch-sensitive control is only half-tested by PR CI,
+  and this repo's CI has no run that would have caught it before merge.
+- **Fixed** by naming the simulated branch in that one block (`PLEKS_BRANCH_PROBE`, the guard's own
+  seam — declaring which branch the probe simulates, not opting out), plus a NEW probe pinning the
+  combination nothing asserted: flag absent AND branch is the default → must refuse. Kept under the
+  npm shim deliberately: if the guard ever stops refusing there, the hook falls through to a real
+  `npm run check` that re-enters this script, which is the documented fork bomb.
+- **The lesson is the one M-072 ends on, one rung up.** A design note reasoning about a seam's
+  coverage is a claim about every caller, and it was written from the callers that were in mind.
+  The probe suite had a caller the note's author did not enumerate — in the same file.
+
 
 ### M-070 — a generated seed artefact with no regeneration check
 
