@@ -1085,7 +1085,7 @@ the note said the seam prevented.
 - **Provenance:** CD review, 2026-08-21, across three passes; the third instance was found INSIDE the sweep the second demanded, which is the evidence that the editorial remedy does not hold. Built the same day, after a fourth instance — a quadratic regex — was introduced by the fix for the second.
 - **Covering spec:** NEW
 
-### M-083 — this register does not notice a duplicate ID, or an entry its own mechanism has satisfied
+### M-083 — this register does not notice a duplicate ID, or an entry its own mechanism has satisfied — ⚠ HALF BUILT 2026-08-22
 
 - **Rule:** an M-number identifies exactly one entry, and an entry whose named mechanism now exists is BUILT, not open.
 - **Where it lives:** nowhere. `docs/MECHANISABLE.md` is prose; nothing reads it.
@@ -1097,6 +1097,53 @@ the note said the seam prevented.
   1. Heading IDs are unique — `sort | uniq -d` over `^### M-`. Probe both directions: a planted duplicate must FAIL, and the real file must PASS once M-068b lands.
   2. Every entry citing a `check:`/`hook:`/`eslint:`/`audit:` marker that RESOLVES, and not marked BUILT, is reported. **Do not fail on this one — report it.** Resolution proves the mechanism exists, not that it asserts what the entry wanted; that judgement is the grounding pass. A hard failure would push the next author to delete the citation rather than settle the entry, which is the allowlist-widening failure in a new costume.
 - **Reuse, not new machinery:** `check-claude-md.mjs` already carries the marker resolver (built for the `@enforced` ratio) and already knows the `rung:` vocabulary. This is a second caller for it, plus a `uniq -d`.
+
+**⚠ HALF BUILT 2026-08-22 — and assertion 2 was MEASURED BEFORE BUILDING IT AND FOUND NOT TO WORK.**
+`scripts/check-register-integrity.mjs` ships assertion 1 and is in `npm run check`. Assertion 2 is
+**not built**, and the reason is a correction to this entry rather than a scheduling note.
+
+- **✅ Assertion 1, duplicate IDs.** Ten selftest cases, four known-good — a lettered suffix is a
+  different entry, a heading that MENTIONS another id is not a second entry, numbering gaps are fine.
+  **Proved against the real defect, not only synthetic cases:** run over `git show
+  25eab6f1:docs/MECHANISABLE.md`, it exits 1 naming *"M-068 is used by TWO entries (lines 711 and
+  725)"* — the exact pair found by hand a day earlier. It takes an optional path argument so that
+  historical proof is repeatable. Carries the same non-empty guard as `check-knip-floor.mjs`: a file
+  that parses to zero entries FAILS, because a renamed heading level would otherwise read as clean.
+- **⚠ AND THE BUILT COUNTER SHIPPED THE DEFECT IT WAS WRITTEN TO CATCH — caught within the hour, by
+  its own output.** The first cut read BUILT as `/BUILT/` over the heading tail. Marking this entry
+  `⚠ HALF BUILT` moved the reported figure from 18 to 19: **the substring matched the qualifier that
+  exists precisely to deny it.** Same class as the four `bash-gate.js` defects written up the day
+  before — *the pattern matched characters AROUND the thing instead of the thing* — reappearing in a
+  check about register defects, written by the session that had just written those four up. Knowing
+  the class is not protection from it; the discriminating probe is. `isBuilt` now rejects
+  HALF/PARTIAL(LY)/NOT/NEVER and requires BUILT as a token, with seven probes, **four of them the
+  deny half** — without those, "answer not-built to everything" scores green.
+  - **Fixing it surfaced a second, older miscount: `M-004` is `⚠ PARTIALLY BUILT` and the naive rule
+    had been counting it as BUILT all along.** So the true figure was never 18 — it is **17 BUILT of
+    68** — and every count reported before this fix, including in this session, was one too high.
+    Nobody planted that; it was simply never derived by anything that had to be right. **This is the
+    entry's own thesis arriving as evidence for itself:** a relational defect, invisible to per-entry
+    reading, found by a count disagreeing with its previous value.
+- **✗ Assertion 2, satisfied-but-open. Measured at `5dbd0684`: exactly ONE of the 50 open entries
+  carries a real `@enforced` marker.** The detector would have examined **2% of the register**, and
+  would not have caught M-068b (no marker) nor the four stale-BUILT entries found by hand on
+  2026-08-21 (M-033, M-034, M-049, M-050) — i.e. **none of the five cases that motivated it.**
+- **The lesson is about how this entry was written, and it is worth more than the check.** The sketch
+  said the resolver "already exists, so this is wiring plus a `uniq -d`" — reasoning from the
+  MECHANISM that was available rather than from the DEFECT that occurred. It is the register's own
+  standing warning (*"a check's first number is a hypothesis"*) applied one level up: **a sketch's
+  claimed coverage is a hypothesis too, and costs nothing to test before building.** Testing it here
+  took one `awk` over the file.
+- **What assertion 2 would actually require, filed rather than half-built:** a machine-readable slot
+  on each entry naming the mechanism that would satisfy it — `**Satisfied when:** check:check-foo` —
+  which the resolver can then evaluate. That is a NEW CONVENTION for ~50 existing entries, only as
+  good as the author who fills it in, and worth a ruling before adoption rather than a slot nobody
+  populates. **A dead slot would be the same defect in a new costume**: machinery whose output
+  nobody consumes, which is M-084's finding. Not built, deliberately.
+- **Also not reused, and the reason is recorded so it is not re-attempted blind:** `controlExists` in
+  `check-claude-md.mjs` cannot be imported — that file executes its whole check at module top level.
+  Making it importable is a guard-clause refactor of a load-bearing gate, which is cheap but is not
+  free, and there is currently no consumer to justify it.
 - **Why it is worth building rather than "just be careful":** the counter-argument is that a human re-reading the register catches both. That is exactly what the 2026-08-21 pass was, and it caught neither — it found four stale-BUILT entries by reading them one at a time and missed the fifth plus the duplicate. The failures are *relational*, and per-entry attention is structurally blind to them.
 - **Covering spec:** NEW
 
