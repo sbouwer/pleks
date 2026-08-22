@@ -1,6 +1,13 @@
 # .github/workflows/release.yml
-# Runs only on main pushes. Creates a semver tag, updates CHANGELOG.md,
-# publishes a GitHub Release with notes. No npm publish.
+# Runs only on main pushes. Creates a semver tag and publishes a GitHub Release
+# with generated notes. No npm publish.
+#
+# ⚠ THIS HEADER SAID "updates CHANGELOG.md" until 2026-08-22. It never did, and never could:
+# `.releaserc` loads commit-analyzer, release-notes-generator and @semantic-release/github, and
+# NEITHER @semantic-release/changelog NOR @semantic-release/git is installed. There is no
+# CHANGELOG.md in this repo and there never has been — `git log -- CHANGELOG.md` is empty. The notes
+# live on the GitHub Release only. A false claim sitting beside three true ones is how it survived
+# review; it reads as verified because its neighbours are.
 
 name: Release
 
@@ -11,7 +18,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write         # push CHANGELOG commit + create tag
+  contents: write         # create + push the tag (NOT a CHANGELOG commit — see the header)
   issues: write           # semantic-release may comment on related issues
   pull-requests: write    # semantic-release may comment on related PRs
 
