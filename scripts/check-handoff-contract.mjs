@@ -155,6 +155,9 @@ export function partition(paths) {
  */
 const valueOf = (text, l) => (text.match(new RegExp(`^[ \\t]*${l}[ \\t]{2,}(.+?)[ \\t]*$`, "m")) ?? [])[1]
 
+/** Parse cap — see the block in `checkArtefact` for why refusing beats truncating. */
+const MAX_ARTEFACT_BYTES = 1024 * 1024
+
 /**
  * Validate one artefact's trailing contract block. Returns findings, empty when well-formed.
  *
@@ -164,6 +167,27 @@ const valueOf = (text, l) => (text.match(new RegExp(`^[ \\t]*${l}[ \\t]{2,}(.+?)
  */
 export function checkArtefact(path, text, enforceAnchor = true) {
   const out = []
+
+  // ── INPUT SIZE CAP (external review, 2026-08-22) ────────────────────────────────────────────────
+  // Every bound below is per-pattern: each says "this regex stays linear". None of them says
+  // anything about the SUM. `checkArtefact` runs ~8 passes over `text` (one `valueOf` per label,
+  // twice, plus the anchor test), so a 200MB artefact is slow at linear time — bounded complexity
+  // and bounded work are different claims, and only the first was ever established.
+  //
+  // The producer is an AGENT, which is the least controlled input this file sees. A contract block
+  // is a few hundred bytes; the artefact around it is prose. 1MB is roughly two orders of magnitude
+  // above anything real and still parses instantly.
+  //
+  // This is a REFUSAL, not a truncation. Truncating would parse the head and report a well-formed
+  // contract for a file whose block sits past the cut — a false PASS on the exact input that
+  // tripped the cap. Refusing converts an unbounded parse into a finding a human reads.
+  if (text.length > MAX_ARTEFACT_BYTES) {
+    out.push(
+      `${path}: artefact is ${(text.length / 1024 / 1024).toFixed(1)}MB, over the ${MAX_ARTEFACT_BYTES / 1024 / 1024}MB parse cap — not parsed. ` +
+      `A handoff artefact is prose around a few hundred bytes of contract block; this size means a runaway writer or a pasted binary, not a contract to validate.`,
+    )
+    return out
+  }
 
   const missing = LABELS.filter((l) => valueOf(text, l) === undefined)
   if (missing.length === LABELS.length) {
@@ -346,6 +370,20 @@ if (isEntry && process.argv.includes("--selftest")) {
   // in `scripts/` parse the repo's own tracked files and are baselined as debt; these were fixed,
   // because the input is the one an agent composes freely.
   //
+  // ⚠ THE HONEST CEILING, stated because an external review (2026-08-22) found the comments in this
+  // file making a STRONGER claim than the code supports — which is the more dangerous direction, as
+  // a confident comment stops the next reader from measuring:
+  //
+  //   ReDoS posture: bounded for the known adversarial cases. `valueOf` remains intentionally
+  //   line-local and MEASURED linear on every shape tried; it is not a formally proven
+  //   linear-time parser, and no proof is claimed here.
+  //
+  // What IS established, by measurement rather than by reading: doubling the input doubles the time
+  // (100k→800k newlines gave ratios 0.96 / 1.47 / 1.97 against a FAILING match, the worst case).
+  // The reviewer's proposed rewrite to a line-oriented parser was declined AS A SECURITY FIX for
+  // that reason — it buys no measured time, and shipping it as one would put a security claim on a
+  // change that earns none. It remains a legitimate readability refactor.
+  //
   // The second half is the half that matters: a bound that breaks the match is a silently disabled
   // check, which is the failure this repo keeps finding. So the fixture asserts the placeholder
   // still fires FIRST, and the timing assertion second.
@@ -368,13 +406,28 @@ if (isEntry && process.argv.includes("--selftest")) {
   //   <[^>]+>   120k '<'      5850ms   →  <[^>]{1,200}>        58ms   (100×)
   //   ^\s*…     60k newlines  1871ms   →  ^[ \t]*…              0ms
   //   valueOf   60k newlines  1837ms   →  [ \t] throughout      0ms
-  // The 500ms threshold sits an order of magnitude either side, so this is not a timing-flake test:
-  // reverting any one bound fails it by a wide margin. The blank-region fixture ran 20,316ms end to
-  // end before `valueOf` was fixed, which is how that second pattern was found at all.
+  // THRESHOLD 1000ms, RAISED FROM 500 (external review, 2026-08-22). The review's point is right and
+  // is about what this probe is FOR: it separates linear from quadratic, and the gap it separates is
+  // 100× (58ms vs 5850ms). A 500ms line through that gap buys no discriminating power over a 1000ms
+  // one — but on a loaded CI box it turns a shared-runner hiccup into a red build with no code
+  // change, which is how a timing probe gets deleted rather than fixed. 1000ms is still ~5× above
+  // the slowest fixed measurement and ~6× below the fastest broken one, so reverting any bound
+  // fails it by a wide margin. The blank-region fixture ran 20,316ms end to end before `valueOf`
+  // was fixed, which is how that second pattern was found at all.
+  const THRESHOLD_MS = 1000
   const bracketMs = timed(GOOD.replace("Promote    none", `Promote    ${"<".repeat(120_000)}`))
-  ok(bracketMs < 500, `a 120k-'<' run with no '>' completes in ${bracketMs.toFixed(0)}ms — bounded, not quadratic`)
+  ok(bracketMs < THRESHOLD_MS, `a 120k-'<' run with no '>' completes in ${bracketMs.toFixed(0)}ms — bounded, not quadratic`)
   const blankMs = timed(`${"\n".repeat(60_000)}anchor: task=t · commit=abc1234\n${GOOD}`)
-  ok(blankMs < 500, `a 60k-newline blank region completes in ${blankMs.toFixed(0)}ms — [ \\t]* cannot cross lines`)
+  ok(blankMs < THRESHOLD_MS, `a 60k-newline blank region completes in ${blankMs.toFixed(0)}ms — [ \\t]* cannot cross lines`)
+
+  // ── The input size cap, both directions ──────────────────────────────────────────────────────
+  ok(checkArtefact("a.md", GOOD).length === 0,
+    "KNOWN-GOOD: an ordinary artefact is nowhere near the parse cap and is checked normally")
+  {
+    const over = checkArtefact("a.md", `${GOOD}\n${"x".repeat(1024 * 1024)}`)
+    ok(over.length === 1 && over[0].includes("parse cap"),
+      "an artefact past the parse cap is REFUSED with one finding — not truncated, which would report a well-formed contract for a file whose block sits past the cut")
+  }
 
   console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — fires on a missing, unfilled or self-contradicting block, quiet on a well-formed one, and enforces only the spines that carry it")
   process.exit(failed ? 1 : 0)
