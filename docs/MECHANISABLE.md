@@ -1272,3 +1272,41 @@ WON'T BUILD. `no-restricted-imports` already forces every call through one entry
 **M-066 — every reference/wording document names its decision authority**
 
 WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifying fact itself: `brief/` is a OneDrive symlink outside version control, so this can never run in CI, and it warns against shipping it as a normal check where a CI green would read as coverage. It also puts a genuine choice to CD (accept a local-only ratchet, or move the reference documents into the tracked tree first). That choice is a DECISION, and it is recorded in `brief/build/OUTSTANDING.md` rather than left here as a build item.
+
+---
+
+### M-085 — the raw-env rule in `scripts/` pushes toward the change that breaks the script
+
+- **Rule:** `pleks/no-raw-process-env` — read env through `@/lib/env`, never `process.env` directly. Real rule with a real incident behind it (the June 4–10 outage: `RESEND_API_KEY` read raw in a path that only ran on a live send).
+- **Where it lives:** the five production-touching scripts un-ignored by the control-aim audit R1 — `encrypt-existing-pii.ts`, `backfill-insurance-checklists.ts`, `migrate-totp-host-claims.ts`, `wa-submit-templates.ts`, `extraction-harness/run.ts`. Recorded in `eslint-suppressions.json`.
+- **Rung:** check · **Blast:** other — no data path; what breaks is a one-off operational script, silently and at the worst moment.
+- **⚠ THIS IS A TRAP, WHICH IS WHY IT IS HERE AND NOT ONLY IN THE BASELINE.** The obvious fix makes it worse. Probed 2026-08-22 (temporary `scripts/__env_order_probe__.ts`, deleted in the same turn): `lib/env`'s public half is a set of **top-level consts** evaluated at module load, and ESM evaluates imports before any module-body statement — so in a script that calls `dotenv.config({ path: ".env.local" })` in its body, `import { SUPABASE_URL } from "../lib/env"` yields `""` while `process.env.NEXT_PUBLIC_SUPABASE_URL` holds the real value. Observed side by side: `SUPABASE_URL (named export) = ""` · `process.env after dotenv.config() = "https://noexjtlrffkzzclibvbq.s…"`. A naive migration therefore points a service-role client at an empty URL. The SERVER half is fine — `requireEnv(name)` reads `process.env[name]` at CALL time and returned the live key in the same probe.
+- **Sketch (the designed fix, both halves):**
+  1. A shared `scripts/_env.ts` that calls `dotenv.config()` as an import **side effect**, imported before `lib/env` in every script. Import order then puts the values in `process.env` before `lib/env` is evaluated, and the named exports work.
+  2. Four registry additions to `SERVER_ENV` in `lib/env.ts` for the names that are not there — `WA_API_KEY`, `WA_USERNAME`, `WA_SANDBOX`, `WA_BUSINESS_PHONE_ID` — without which `requireEnv` does not typecheck for them.
+  Three sites are already hand-rolling `requireEnv` (`if (!process.env.ENCRYPTION_KEY) { … }`), so part of the burn-down is deletion.
+- **Probe both directions:** a script migrated to the bootstrap must print a NON-EMPTY `SUPABASE_URL`, and a script that imports `lib/env` WITHOUT the bootstrap must be shown to print `""` — the second half is the whole finding, and without it the fix is unfalsifiable.
+- **Covering spec:** NEW
+
+### M-086 — nine real defects in `scripts/` are recorded in a ratchet, which has no owner, priority or blast tag
+
+- **Rule:** the defects each already have a rule; none has a queue entry. `eslint-suppressions.json` stops them multiplying and says nothing about what they are.
+- **Rung:** eslint (all nine are already caught) · **Blast:** mixed, tagged per site below.
+- **Why not fixed on discovery:** commit hygiene — editing `encrypt-existing-pii.ts` belongs in a commit that is about `encrypt-existing-pii.ts`, not in one about lint configuration. That is a fair reason to defer, and not a reason to file them where nobody sees them ranked.
+- **Ranked:**
+  1. **`encrypt-existing-pii.ts` — post-run round-trip verification, `require-supabase-error-check`.** Blast: **data-boundary**. `const { data: sample } = await supabase.from("contacts").select("id, id_number")…` drops `error`. On a read failure `sample` is undefined, `stored` is undefined, and **neither** the ✅ branch nor the ⚠ branch prints — the spot check silently vanishes after the highest-risk irreversible operation in the PII programme, and its absence looks like a quiet success. Fix: destructure `error`, and print a THIRD outcome ("verification could not run") rather than folding it into either existing branch.
+  2. **`backfill-insurance-checklists.ts` ×3 — `require-supabase-error-check`.** Blast: other. The `units` read feeds `hasFurnishedUnits`, and `(units ?? []).some(…)` turns a query error into `false`, which generates the WRONG checklist for a furnished property. The two `properties` / `property_insurance_checklists` reads turn an error into a silently skipped `POLICY_HEADER` derivation.
+  3. **`render-density-pass.ts:347` — `no-all-duplicated-branches`.** Blast: other. `divergencePoints: opts.ldp ? null : null` — a ternary that cannot produce two outcomes. Either a stub someone meant to finish or a condition that was inverted away; both need a human who knows which.
+  4. **`check-schema-drift.mjs:848` — `no-all-duplicated-branches`.** Blast: other. A glyph ternary in the drift reporter whose arms agree, so one class of drift renders as another.
+  5. **`agent-distribution.mjs:186` — `no-duplicated-branches`.** Blast: other. `else if (r.mtime && r.mtime >= since) n++` repeats the block above it.
+  6. **`wa-submit-templates.ts:212,215` — `no-adhoc-dates` ×2.** Blast: other. `toLocaleDateString()` with no `timeZone` in a CLI status table; renders in the host's zone. One-line fix each to `fmtDateZA`.
+- **Covering spec:** NEW
+
+### M-087 — twelve probe suites hand-roll the same `ok()` helper; extracting it is a decision, not a cleanup
+
+- **Rule:** none yet. This is a NAMED DECISION rather than a build item, recorded so the duplication is one somebody chose.
+- **Where it lives:** `const ok = (c, l) => { if (!c) failed++; console.log(\`  ${c ? "✓" : "✗"} ${l}\`) }`, copied into twelve `--selftest` harnesses (`check-git-hooks`, `check-context-budget`, `check-statusline`, `check-migration-integrity`, `check-handoff-contract`, `check-hook-registration`, `check-import-cycles`, `check-extension-stem-pairs`, `check-drift-if-sql-changed`, `check-prepush-composition`, `eslint-cache-guard`, `agent-distribution`).
+- **Rung:** n/a · **Blast:** other.
+- **The two sides, and neither is obviously right.** Extracting it collapses the whole `sonarjs/no-unenclosed-multiline-block` suppression set to zero and gives one place to improve probe output. But it also puts **every probe suite in this repo behind one shared reader** — the L-33 shape, and this repo has already been bitten by a shared-import collision. A defect in the extracted helper would degrade every gate's selftest at once, and the selftests are what the gates' credibility rests on. The current duplication is the reason a broken `ok()` can only break one suite.
+- **What would settle it:** if the helper is extracted, its own probe must assert that a FAILING case increments and returns non-zero — a shared reader that silently counts nothing would make twelve suites green at once, which is the failure mode the duplication currently prevents.
+- **Covering spec:** NEW

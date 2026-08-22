@@ -190,6 +190,7 @@ async function showStatus(): Promise<void> {
 
   const { data: templates, error } = await db
     .from("document_templates")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by `scope = "system"`, which is what org-agnostic MEANS for this table: a system template belongs to the platform, not to an org, so there is no org_id to filter on
     .select("name, meta_template_id, meta_template_status, whatsapp_meta_submitted_at, whatsapp_meta_approved_at, whatsapp_meta_rejection_reason")
     .eq("template_type", "whatsapp")
     .eq("scope", "system")
@@ -307,6 +308,7 @@ async function run(): Promise<void> {
 
   const { data: templates, error: loadErr } = await db
     .from("document_templates")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- same as showStatus(): bounded by `scope = "system"`, a platform-owned template with no org_id
     .select("id, name, whatsapp_body, body_variants, merge_fields, meta_template_id, meta_template_status, whatsapp_meta_variable_map, whatsapp_meta_submitted_at")
     .eq("template_type", "whatsapp")
     .eq("scope", "system")

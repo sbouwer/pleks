@@ -52,8 +52,24 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Dev-only utility scripts — not production code
-    "scripts/**",
+    // ⚠ `scripts/**` WAS IGNORED HERE, as "dev-only utility scripts — not production code".
+    // REMOVED 2026-08-22 (control-aim audit R1, CD ruling). That reason was false for at least four
+    // tracked files, each of which declares production intent in its OWN header while holding a
+    // service-role key: encrypt-existing-pii.ts ("the highest-risk, IRREVERSIBLE operation in the
+    // PII programme"), migrate-totp-host-claims.ts ("run once after deploying to production"),
+    // backfill-insurance-checklists.ts ("run once on 60A go-live"), and nuke-user.mjs (which also
+    // carries a management PAT).
+    //
+    // This is the `.claude/**` finding one entry up, repeated: the note below explains at length why
+    // "not production code" stopped being true there — and the identical premise sat nine lines
+    // above it, unexamined, for as long.
+    //
+    // The ruling was NOT "add a baseline". A baseline records violations as debt to burn down, and
+    // several of these exemptions are correct FOREVER — encrypt-existing-pii.ts must handle raw ID
+    // values because it IS the encryption implementation; the one-off migrations are deliberately
+    // platform-wide, so an org filter would defeat them. A baseline would have filed permanent
+    // correctness as a backlog. Exemptions live at the SITE, as an inline disable carrying its
+    // reason, where the next person to touch the file reads it in the diff.
     // Claude Code agent worktrees and prompt files — not production code.
     // ⚠ THE HOOKS AND THE STATUSLINE ARE DELIBERATELY NOT IGNORED (the negations below). That
     // reason — "not production code" — was written when `.claude/` held prompts and worktrees, and
@@ -130,6 +146,13 @@ const eslintConfig = defineConfig([
     rules: { "pleks/require-supabase-error-check": "error", "pleks/no-popia-raw-delete": "error", "pleks/require-audit-on-sensitive-mutation": "error", "pleks/require-scope-on-delete": "error", "pleks/settings-use-detail-tabs": "error", "pleks/no-cookie-client-from": "error", "pleks/require-org-scope-on-service-write": "error", "pleks/require-org-scope-on-service-read": "error", "pleks/require-id-number-encryption": "error", "pleks/no-direct-resend-send": "error", "pleks/no-raw-cron-secret": "error", "pleks/no-adhoc-dates": "error", "pleks/no-raw-process-env": "error", "pleks/no-raw-content-hash": "error", "pleks/no-rerolled-phone-normalise": "error", "pleks/no-rerolled-money-format": "error", "pleks/no-inline-app-url": "error", "pleks/no-raw-audit-log-insert": "error", "pleks/no-id-number-hash-in-app": "error", "pleks/no-rerolled-property-label": "error", "pleks/no-derived-contact-column-write": "error" },
   },
   {
+    // SCOPED 2026-08-22 (R1). This block carried no `files:` and so applied to every file ESLint
+    // could see — which was harmless only because everything that was not TS/TSX sat in
+    // globalIgnores. Un-ignoring `scripts/**` exposed it immediately: `react/jsx-key` reached `.mjs`
+    // files, where `next/core-web-vitals` has not registered the react plugin, and ESLint hard-fails
+    // ("the react plugin is not defined in your configuration file") rather than skipping. These are
+    // TS and React rules; naming their surface is what they always meant.
+    files: ["**/*.ts", "**/*.tsx"],
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
 
@@ -266,6 +289,108 @@ const eslintConfig = defineConfig([
     files: ["**/opengraph-image.tsx", "**/twitter-image.tsx", "**/icon.tsx", "**/apple-icon.tsx"],
     rules: { "@next/next/no-img-element": "off" },
   },
+  {
+    // ── `scripts/**` RULE SELECTION (CD ruling, 2026-08-22) ───────────────────────────────────────
+    // Mirrors the `.claude/hooks/**` block above, deliberately and for the same reason: the security
+    // and correctness rules stay ON, the maintainability opinions go OFF, because the repo runs
+    // `--max-warnings 0` and a gate that arrives with a 176-item cleanup backlog gets reverted.
+    //
+    // ON (not restated here — they apply by inheritance): every `pleks/*` rule, and
+    // `sonarjs/super-linear-regex`. Those are the two families with an incident behind them.
+    //
+    // `sonarjs/no-os-command-from-path` — OFF, and this is the reason, at the site rather than in a
+    // commit message so it is in the diff when someone revisits it:
+    //   All 36 sites pass a hardcoded command literal (`git` ×17, `node` ×7, `sh` ×7, `npx` ×3,
+    //   `gh` ×2); none takes the command name from input, and `lint.mjs`'s `shell: true` is the
+    //   Windows `.cmd`-shim workaround, not an injection surface. The rule's class is PATH
+    //   hijacking — but every one of these runs UNDER `npm run check`, invoked by npm and node
+    //   resolved through that same PATH. A hostile PATH has already won before `git` is spawned.
+    //   The rule guards one link in a chain whose earlier links are unguarded.
+    // The seven `node` sites were nonetheless changed to `process.execPath` in the same commit, for
+    // a DIFFERENT reason — a bare `node` can start an interpreter other than the one running the
+    // script, which is a real bug class in a repo pinned to Node 22. Silencing seven findings was
+    // the side effect, not the motive, and no equivalent exists for git/sh/npx/gh.
+    files: ["scripts/**"],
+    rules: {
+      "sonarjs/no-os-command-from-path": "off",
+      // The maintainability set. Refactor opinions about gate scripts whose value is that they are
+      // stable; none names a defect class this repo has been bitten by.
+      "sonarjs/cognitive-complexity": "off",
+      "sonarjs/no-nested-conditional": "off",
+      // The unused family, all three spellings — `@typescript-eslint` for the TS scripts, the two
+      // SonarJS twins for the `.mjs` ones. Named individually rather than by prefix, so adding a
+      // fourth spelling is a decision someone makes rather than one that arrives.
+      "@typescript-eslint/no-unused-vars": "off",
+      "sonarjs/no-unused-vars": "off",
+      "sonarjs/unused-import": "off",
+      "sonarjs/no-dead-store": "off",
+
+      // ── the cosmetic regex-shape family ──────────────────────────────────────────────────────
+      // OFF, not baselined, and the distinction is the whole reason these four are listed rather
+      // than left in `eslint-suppressions.json`. Every live site is `[a-zA-Z_]` under an `/i` flag
+      // in check-migration-forward-refs.mjs — a redundant range, behaviourally identical, in a
+      // regex that parses `CREATE TABLE` and `REFERENCES` out of migration files. Rewriting a
+      // working gate regex to satisfy a cosmetic rule is precisely the `\s`→`s` scar: a pattern
+      // corrupted in the edit, producing a plausible-but-wrong artefact that reported 328, then 29,
+      // then 21 unpaired policies across three rebuilds.
+      //
+      // That argument says these should NEVER be fixed, which makes them exemptions. Baselining a
+      // permanent exemption files correctness as a backlog — the exact error the `scripts/**`
+      // ruling avoided at the directory level, reproduced one level down inside the baseline. It
+      // also costs the baseline its only signal: a ratchet that cannot reach zero cannot tell
+      // "burned down as far as it goes" from "stalled".
+      "sonarjs/duplicates-in-character-class": "off",
+      "sonarjs/concise-regex": "off",
+      "sonarjs/regex-complexity": "off",
+      "sonarjs/single-char-in-character-classes": "off",
+      // Same call, different family: `(tables[x] ??= []).push(y)` is a deliberate idiom, not a
+      // nested assignment someone will one day untangle.
+      "sonarjs/no-nested-assignment": "off",
+    },
+  },
+  {
+    // `.cjs` is a CommonJS file by its own extension — `require` is its calling convention, not a
+    // style choice. Identical to the `@typescript-eslint/no-require-imports: off` in the hooks block
+    // above, and for the identical reason. Two files: generate-import-template.cjs, parse-sonar.cjs.
+    files: ["**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 ]);
+
+// ── `eslint-suppressions.json` — every entry is in `scripts/` ────────────────────────────────────
+// ESLint's bulk-suppressions baseline (v9.24+). Every entry is DEBT with a reachable zero, recorded
+// so `scripts/**` could be un-ignored today rather than after a cleanup sweep. Same discipline as
+// every other baseline here: entries only SHRINK (`--prune-suppressions`), a NEW violation past the
+// recorded count fails immediately, and it is never widened to make CI green.
+//
+// NO COUNTS BELOW, deliberately. §8 forbids this file carrying observations about the tree, and the
+// first `--prune-suppressions` run would make every number wrong while leaving the comment looking
+// reviewed — precision reads as verification. Which rule, which class, which reason is durable; how
+// many is a stat the JSON already holds.
+//
+// Two things this list is NOT. It is not where exemptions live — those are inline
+// `eslint-disable-next-line … -- <why>` at the site, because a config-level exemption list rots
+// invisibly while a directive appears in the diff whenever the file is touched. And it is not where
+// real defects are TRACKED: a baseline has no owner, no priority and no blast tag. The defects and
+// the designed fixes are in `docs/MECHANISABLE.md`; the entries here only stop them multiplying.
+//
+//   super-linear-regex             parsers over the repo's OWN tracked files and its own tool
+//                                  output. The sites reading AGENT-WRITTEN artefacts were FIXED
+//                                  instead (check-handoff-contract.mjs) — that input is the one an
+//                                  agent composes freely, and "repo-tracked input is trusted" is the
+//                                  premise that already failed twice here.
+//   no-unenclosed-multiline-block  almost all one hand-rolled `const ok = (c,l) => { if (!c)
+//                                  failed++; console.log(…) }` probe helper, copied per suite, where
+//                                  the unconditional second statement IS the intent. Whether to
+//                                  extract it is a named open decision → M-087.
+//   prefer-single-boolean-return   style, reachable zero.
+//   no-redundant-jump              style, reachable zero.
+//
+//   pleks/no-raw-process-env       ⚠ A TRAP, not ordinary debt — the rule pushes toward the change
+//                                  that breaks these scripts. Sketch and probe → M-085.
+//   require-supabase-error-check   REAL defects, one of them on the PII retrofit's verification
+//   no-adhoc-dates                 path. Enumerated with blast tags → M-086.
+//   no-all-duplicated-branches     REAL. → M-086.
+//   no-duplicated-branches         REAL. → M-086.
 
 export default eslintConfig;
