@@ -56,7 +56,40 @@ export default function setup(): void {
         "THIS is the 'is Docker running?' case. Start Docker Desktop and retry.",
     )
   }
-  if (!container) throw new Error("DB tests: no running `supabase_db` container — run `npx supabase start` first.")
+  if (!container) {
+    // ⚠ THE THIRD BRANCH COMMITTED THE DEFECT THE OTHER TWO WERE FIXED FOR. It read
+    // "no running `supabase_db` container — run `npx supabase start` first", which is a CAUSE, and
+    // reaching this line does not establish it: `docker ps --filter` SUCCEEDED and returned empty,
+    // so the daemon answered. Empty is equally consistent with the filter looking at a different
+    // daemon (a second `docker` binary, or a non-default context — `docker context ls`), or with the
+    // container existing under a name the filter does not match.
+    //
+    // Measured 2026-08-21: a `test:db` run failed with the old message while Docker had been up for
+    // days, containers included. The message sent the session to `npx supabase start` — the one fix
+    // that was already in place — and the real cause was never found, because the diagnostic had
+    // consumed the evidence. It is not reproducible now, and that is the point: the observations
+    // below are what the NEXT occurrence needs, and nothing collects them after the throw.
+    const observe = (label: string, cmd: string): string => {
+      try {
+        return `  ${label}: ${execSync(cmd, { encoding: "utf8", stdio: "pipe" }).trim().replace(/\r?\n/g, " | ") || "(empty)"}`
+      } catch (e) {
+        return `  ${label}: (command failed — ${e instanceof Error ? e.message.split("\n")[0] : String(e)})`
+      }
+    }
+    throw new Error(
+      [
+        "DB tests: `docker ps` answered, but no container matched `--filter name=supabase_db`.",
+        "  Reporting what was OBSERVED rather than naming a cause — the daemon replied, so this is",
+        "  NOT the 'Docker is not running' case, and it may not be the 'not started' case either.",
+        `  docker binary chosen: ${docker}`,
+        `  candidates considered: ${dockerCandidates().join(" | ")}`,
+        observe("docker context", `"${docker}" context ls --format "{{.Name}}{{if .Current}} *CURRENT*{{end}}"`),
+        observe("ALL containers (unfiltered)", `"${docker}" ps -a --format "{{.Names}} [{{.State}}]"`),
+        "  If the list above is empty, `npx supabase start` is the fix. If it names a supabase",
+        "  container, the filter and the daemon disagree — check the context and the binary first.",
+      ].join("\n"),
+    )
+  }
 
   execSync(`"${docker}" exec -i ${container} psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "${GRANTS}"`, {
     stdio: "pipe",
