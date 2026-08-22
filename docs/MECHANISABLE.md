@@ -27,7 +27,33 @@ and the source rule gets an `@enforced` tag instead of a pointer (moving a rule 
 `check-claude-md.mjs` ratio). Do not add speculative entries here outside a fresh triage pass; do not
 widen an entry's scope to cover something the original annotation didn't claim.
 
-**Ranking:** blast radius band (`money → data-boundary → schema → auth → other`), then ascending cost
+**What `blast` MEANS, corrected 2026-08-22 after finding the field applied two different ways inside
+one class.** It is *what is exposed when **this defect** fires* — **not** the domain the rule's
+subject belongs to. The two readings only diverge for entries whose subject is a CONTROL, and there
+the register had both: **M-061** (an ESLint discriminator that misses files) inherited the aperture of
+what its rule guards → `data-boundary`, correctly; **M-081** (three token matchers in `bash-gate.js`,
+whose regex-first rebuild introduced eight bypasses) was tagged `other`, describing the rule's *topic*
+rather than what eight open bypasses in the destructive-command gate expose. Same class, opposite
+treatment.
+
+**The rule that resolves it, and it turns on DIRECTION, not on being a control.** A control defect
+that fails OPEN inherits the aperture of everything that control guards. A control defect that fails
+SAFE — a false deny — exposes nothing and stays `other` no matter how central the control is.
+**M-072 is the worked example on the `other` side:** it is a defect in a rung-1 deny in `bash-gate.js`,
+and `other` is the CORRECT tag, because every one of its measured failures was a refusal of a
+legitimate command. Do not re-tag an entry upward merely because it lives in a hook.
+
+- **New band, `control`, ranked FIRST.** A fail-open control defect's radius is the union of what it
+  guards, and for `bash-gate`/`agent-write-scope` that union includes destroying the working tree and
+  rewriting published history — which no existing band names. Bands are now
+  `control → money → data-boundary → schema → auth → other`.
+- **This matters for triage, which is how it was found.** The 2026-08-21 pass ruled "no HIGH blast tag
+  AND cited nowhere → WON'T BUILD". `other` is not a HIGH tag, so a mis-tagged fail-open control
+  defect is *selected for* closure by the filter — the one class where the default disposition is
+  most expensive. **The filter was not wrong; the tags it read were.** Any future triage on `blast`
+  re-checks the control entries by hand first.
+
+**Ranking:** blast radius band (`control → money → data-boundary → schema → auth → other`), then ascending cost
 within a band (cheapest/most self-contained mechanism first). **M-001 through M-006 were fixed by prior
 agreement before this register was written** — their band does not sort purely by the money-first rule
 (three are `data-boundary`, sequenced ahead of the money band) because they were pinned to those IDs
@@ -722,7 +748,7 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 
 **Superseded text below, kept for the reasoning.**
 
-### M-068 — nothing stops a subagent committing
+### M-068b — nothing stops a subagent committing — ✅ BUILT 2026-08-20, **recorded 2026-08-22**
 
 - **Rule:** "the implementer ends at a report; YOU commit and push (it never does)" — `CLAUDE.md` §5 and §7
 - **Where it lives:** `CLAUDE.md` §5, the implementer bullet
@@ -730,6 +756,21 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Sketch:** `.claude/hooks/agent-write-scope.js` declares `// @matcher Write|Edit|MultiEdit|NotebookEdit` — it gates *where* an agent writes and never sees `Bash`, so `git commit` from inside a subagent is ungated. `bash-gate.js` denies `--no-verify` and force-push and asks on `git push`, none of which is "a subagent must not commit". Sketch: extend the write-scope hook's matcher to `Bash` and deny `git commit` / `git merge` / `git rebase` when `agent_type` is set, reusing the E7 `agent_type` field the hook already reads. Probe both directions — a commit attempted from an agent must be denied, and the same command from the main session must pass untouched.
 - **Exposed, not created, by the E10 ruling (2026-08-20):** worktree isolation never enforced this either. It made a subagent's commit land on a throwaway branch instead of yours, which hid the behaviour rather than preventing it — and it hid it *while making the agent's work invisible to your tree*, which is the E10 defect. Dropping isolation removes the accidental concealment and leaves the real gap in view. Do not read "isolation used to protect us here" into it.
 - **Covering spec:** NEW
+
+**✅ BUILT — verified against the tree 2026-08-22 at `8ba85b5c`, not taken from `CLAUDE.md`'s claim.**
+`.claude/hooks/agent-write-scope.js:60` declares `// @matcher Write|Edit|MultiEdit|NotebookEdit|Bash`
+and `:96` defines `GIT_COMMIT_FAMILY = "commit|merge|rebase|cherry-pick|revert|am|push"` — the sketch
+above, plus `revert`/`am`, gated on `agent_type` being present. `scripts/check-agent-write-scope.mjs`
+probes both directions, including the `git -C` shape that defeated the first cut and a main-session
+control case that must still pass.
+
+- **⚠ THIS ENTRY WAS FILED UNDER A DUPLICATE ID and sat satisfied-but-open for two days.** There were
+  two `### M-068` headings: the BUILT one above and this one. Renumbered to **M-068b** rather than to
+  the next free number, so the two `git log` references to "M-068" that predate the split still
+  resolve to something. **Nothing in this register detects either failure** — an ID reused, or an
+  entry whose named mechanism now exists. Both are mechanisable and both are cheap: heading IDs are a
+  `sort | uniq -d`, and `check-claude-md.mjs` already contains a marker resolver that can tell whether
+  a cited `check:`/`hook:`/`eslint:` control resolves. → **M-083**
 
 ### M-074 — the purge clock advances whether or not the 30-day warning is ever delivered
 
@@ -774,7 +815,7 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 
 - **Rule:** `--no-verify` is forbidden on commit/push (`CLAUDE.md` §3, hook-denied).
 - **Where it lives:** `.claude/hooks/bash-gate.js`.
-- **Rung:** hook · **Blast:** other
+- **Rung:** hook · **Blast:** other — **held at `other` on review, 2026-08-22, and this is the worked example for the band rule at the top of this file.** It is a defect in a rung-1 deny, which is the shape that tempts an upgrade; but every measured failure is a REFUSAL of a legitimate command, so it fails safe and exposes nothing. Sibling entry M-081, in the same file, moved to `control` because its instances fail open. Direction decides, not location.
 - **Measured at `f7c51d89`, 2026-08-20:** `git push > "$LOG" 2>&1; ...; grep -n "vitest" "$LOG"` was DENIED with *"-n is --no-verify on commit/push and is forbidden"*. The `-n` belongs to `grep`, not to `git push`. The hook found a git verb and a denied flag token in the same command string and joined them.
 - **Token-anchoring's fourth costume, in the hook family M-068 just corrected.** The first three: `\b` after `merge` matching inside `git merge-base`; `git -C /repo commit` defeating a flags-then-subcommand pattern; a grep for a parameter name where the parameter arrives through a type. Same root — **the token found is not the token meant.**
 - **Sketch:** same fix as M-068's. Find the command, then check only the flags belonging to *that* command — split on `;`/`&&`/`||`/`|` into segments, identify the segment whose leading verb is `git`, and match denied flags within that segment alone. Probe both directions: `git push --no-verify` must DENY, and `git push && grep -n x f` must ALLOW. **The known-good half is the half that finds these** — it is how both M-068 bugs surfaced.
@@ -1015,7 +1056,7 @@ the note said the seam prevented.
 
 - **Rule:** the shape all three want — locate a command or path token, independent of what surrounds it
 - **Where it lives:** `.claude/hooks/bash-gate.js` (the `rm` and `.env` rules) and `.claude/hooks/agent-write-scope.js` (`deniedGitSubcommand`)
-- **Rung:** check · **Blast:** other
+- **Rung:** check · **Blast:** control — *re-tagged from `other`, 2026-08-22.* Every instance below fails OPEN: a defeated token match lets the guarded command through. The regex-first rebuild of the `rm` rule alone introduced **eight bypasses**, all surviving a green 54-probe suite, on the rule whose aperture is `rm -rf` against root and home. `other` described the entry's topic ("token matching"); it did not describe what eight open bypasses in the destructive-command gate expose. See the band definition at the top of this file — direction is what decides this, which is why sibling entry M-072 stays `other`.
 - **Measured, 2026-08-21, three instances in two files, all defective the same way:**
   1. `deniedGitSubcommand` matched `git <flags>* <subcommand>` and was defeated by a `-C /repo` invocation on its first probe run. Fixed, with a twelve-line comment naming the lesson: **"DELIBERATELY NOT A GIT GRAMMAR PARSER."**
   2. The `rm` rule sat twenty lines from that comment still parsing `-rf?`, and missed **7 of 13** lethal spellings — including the root-glob form, the one that actually destroys a filesystem.
@@ -1042,6 +1083,21 @@ the note said the seam prevented.
   <!-- @enforced eslint:sonarjs/super-linear-regex (scoped to .claude/hooks + statusline) -->
 - **Related:** M-072 (`bash-gate` matches a flag token without checking which command owns it — same family, already filed) · [[l-44]]
 - **Provenance:** CD review, 2026-08-21, across three passes; the third instance was found INSIDE the sweep the second demanded, which is the evidence that the editorial remedy does not hold. Built the same day, after a fourth instance — a quadratic regex — was introduced by the fix for the second.
+- **Covering spec:** NEW
+
+### M-083 — this register does not notice a duplicate ID, or an entry its own mechanism has satisfied
+
+- **Rule:** an M-number identifies exactly one entry, and an entry whose named mechanism now exists is BUILT, not open.
+- **Where it lives:** nowhere. `docs/MECHANISABLE.md` is prose; nothing reads it.
+- **Rung:** check · **Blast:** other — the register is a work queue, not a control, so a defect here misroutes effort rather than exposing anything.
+- **Measured 2026-08-22 at `8ba85b5c`, both failures live in the file at once:**
+  - **Duplicate ID:** two headings read `### M-068`, one BUILT and one open, filed a day apart. It survived a full triage pass on 2026-08-21 that read every entry — because the pass read entries, and the defect is only visible across them. It also silently broke the open/built counts: the derived figure came out 50 or 51 depending on which grep was used, and **both numbers were reported to CD as if exact.**
+  - **Satisfied but open:** the same entry's sketch — extend the write-scope hook's matcher to `Bash`, deny the commit-creating family on `agent_type` — was BUILT on 2026-08-20 and the entry never moved. Four more entries in the 2026-08-21 pass turned out the same way (M-033, M-034, M-049, M-050), which is 5 of ~66. **A register that is wrong about a twelfth of itself is one that gets re-derived instead of read.**
+- **Sketch, two assertions, both cheap:**
+  1. Heading IDs are unique — `sort | uniq -d` over `^### M-`. Probe both directions: a planted duplicate must FAIL, and the real file must PASS once M-068b lands.
+  2. Every entry citing a `check:`/`hook:`/`eslint:`/`audit:` marker that RESOLVES, and not marked BUILT, is reported. **Do not fail on this one — report it.** Resolution proves the mechanism exists, not that it asserts what the entry wanted; that judgement is the grounding pass. A hard failure would push the next author to delete the citation rather than settle the entry, which is the allowlist-widening failure in a new costume.
+- **Reuse, not new machinery:** `check-claude-md.mjs` already carries the marker resolver (built for the `@enforced` ratio) and already knows the `rung:` vocabulary. This is a second caller for it, plus a `uniq -d`.
+- **Why it is worth building rather than "just be careful":** the counter-argument is that a human re-reading the register catches both. That is exactly what the 2026-08-21 pass was, and it caught neither — it found four stale-BUILT entries by reading them one at a time and missed the fifth plus the duplicate. The failures are *relational*, and per-entry attention is structurally blind to them.
 - **Covering spec:** NEW
 
 ---
