@@ -188,7 +188,8 @@ TS/TSX format:
    `.claude/rules/identity-scoped-tables.md`. Do not invoke the exception without applying the test.
    <!-- @enforced check:check-migration-integrity:shared -->
    The allowlist is read FROM that rule file, so the doc is the single source — no mirrored constant
-   to drift. 29 pre-existing tables are baselined with a stated reason each; the baseline only shrinks.
+   to drift. Pre-existing tables without `org_id` are baselined with a stated reason each in
+   `scripts/migration-integrity.baseline.json` (`orgIdTables`) — read it there; the baseline only shrinks.
 - RLS on every new table <!-- @enforced audit:cat7_rlsPolicyAudit -->
 - audit_log on every state change — **for the tables the rule covers** (`contact_bank_accounts`, `tenant_bank_accounts`, `leases`): a module that mutates one must write an audit row in the same module. <!-- @enforced eslint:pleks/require-audit-on-sensitive-mutation -->
 - Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. <!-- @enforced eslint:pleks/require-id-number-encryption --> The SA **`id_number`** is
@@ -209,8 +210,9 @@ TS/TSX format:
    by construction. Today no caller resolves across orgs, but that is the *absence of a caller*, not a control.
    The moment an agent can see "this applicant also applied at another agency", Pleks has shipped a shared
    tenant blacklist: a different product, with a different consent basis and a different regulatory profile,
-   built by accident. Enforced by `pleks/no-id-number-hash-in-app` (ESLint) — 3 pre-existing route handlers are
-   baselined and burning down; a new site anywhere under `app/` fails immediately. Keep the lookup in `lib/`
+   built by accident. Enforced by `pleks/no-id-number-hash-in-app` (ESLint) — its baseline is
+   `eslint-rules/no-id-number-hash-in-app.baseline.json`; read it for what remains. A new site anywhere
+   under `app/` fails immediately. Keep the lookup in `lib/`
    (`hashIdNumber` / `idNumberColumns` / the import identity matcher), org-scoped. **Never rotate the salt** —
    rotation breaks every historical join; if forced, version the column and dual-write through a transition.
    See `brief/build/SPEC_ANALYTICS_CAPTURE.md` §2.3.
@@ -223,8 +225,10 @@ TS/TSX format:
   Two other idempotency patterns are accepted, because both are genuinely safe and classifying them
   per site is what kept this check honest: an `IF NOT EXISTS (SELECT 1 FROM pg_policies …)` guard
   naming the policy, and a dynamic `EXECUTE format('DROP POLICY IF EXISTS %I ON t', …)` loop over the
-  table. 6 real consolidation defects are baselined — each DROPs old names and CREATEs a new one that
-  is never dropped, so a re-run aborts. Fix is one `DROP POLICY IF EXISTS` line each.
+  table. The consolidation defects this rule was written for — DROP the old policy names, CREATE a new
+  one that is never dropped, so a re-run aborts — were FIXED rather than baselined, one
+  `DROP POLICY IF EXISTS` line each. `scripts/migration-integrity.baseline.json` carries the state and
+  the classification of every site; its `policies` map is the thing to read, not a number restated here.
 - Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead <!-- @enforced hook:mcp-ddl-gate -->
 - Do not import a payment-initiation SDK — Pleks reads bank statement matches only. Agencies hold mandates bank-side between themselves and their bank. Pleks is not in the payment flow. <!-- @enforced eslint:no-restricted-imports -->
 
