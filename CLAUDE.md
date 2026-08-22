@@ -75,7 +75,7 @@ Default to using these instead of asking the user to copy-paste data. For exampl
 | Gate | Command |
 |---|---|
 | Before every commit | `npm run check` — enforced by `.githooks/pre-commit` |
-| Before every push | `npm run check:full`, scoped by `scripts/prepush-scope.mjs` (the DB tier runs only when the diff touches it; CI runs it on every PR regardless) |
+| Before every push | `npm run check:full`, scoped by `scripts/prepush-scope.mjs` (the DB tier runs only when the diff touches it; CI runs it on every PR regardless). **Schema drift runs on BOTH scopes**, outside that gate — see below |
 | Before every deploy | `npm run security` (`security:quick` for a routine check) |
 
 **The deploy gate has two prerequisites, and without them it reports success while checking less
@@ -83,6 +83,18 @@ than it appears to.** `npm run dev` must be running — Categories 3, 4, 6 and 8
 so eight of the fifteen silently cannot fire without it. And `get_rls_audit()` must exist in
 Supabase (`scripts/security/setup-rls-audit.sql`); Category 7 is the RLS policy audit and has
 nothing to query without it.
+
+**Schema drift is triggered by TWO conditions, and the second one is why it is not inside the scope
+gate.** `check-drift-if-sql-changed.mjs` runs when migration SQL changed in the pushed range, **or**
+when this clone has not verified prod inside its staleness window. The first arm asks "could THIS
+push have introduced drift?" and structurally cannot answer "is prod already drifted?" — so a
+migration merged by someone else and never applied was invisible to every push that did not itself
+touch `supabase/migrations/**`, which is most of them. `.githooks/pre-push` therefore calls it on
+both scopes. It self-throttles per clone, and a machine holding no Supabase token prints **DUE AND
+NOT RUN** and exits 0 rather than blocking a docs push on a credential it never had — a real finding
+still blocks, but only where one could actually be observed. The window, the state file and the
+degenerate-stamp directions are in that script; do not restate them here.
+<!-- @enforced check:check-drift-if-sql-changed -->
 
 **Push policy: announce intent, then push.** `hook:bash-gate` makes every push an approval gate —
 the announcement is the *content* of that approval: what is in the batch, what was verified, what

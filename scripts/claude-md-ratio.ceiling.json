@@ -24,8 +24,15 @@
     "rule was not deleted and did not move out of a tagged section: the two bullets it had been",
     "SPLIT into were REJOINED into one, per CLAUDE.md §4 'coverage boundaries split the rule, never",
     "qualify the tag' applied in reverse — the boundary closed, so the split had nothing left to",
-    "express. One rule, one bullet, one tag, and the same rule still covered."
+    "express. One rule, one bullet, one tag, and the same rule still covered.",
+    "",
+    "2026-08-22 — minD 125→126, maxN unchanged at 88. §3 gained one rule, ENFORCED from birth: the",
+    "two-condition schema-drift trigger, tagged check:check-drift-if-sql-changed. D rises, which is",
+    "the direction this floor wants and the easy case it was written to allow; N is untouched",
+    "because the new rule was never a prose-only one. Raising the floor in the same commit is the",
+    "point of the ratchet — a new enforced rule that left minD alone would leave room to later",
+    "delete an UNENFORCEABLE bullet for free."
   ],
   "maxN": 88,
-  "minD": 125
+  "minD": 126
 }

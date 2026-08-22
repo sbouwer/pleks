@@ -30,3 +30,16 @@ else
 fi
 echo "pre-push → $CMD"
 $CMD
+
+# ── Schema drift, on BOTH scopes (2026-08-22) ────────────────────────────────────────────────────
+# `check:full` already chains this, so on the full scope the call below is a ~0.3s no-op that finds
+# a fresh stamp. It is here for the QUICK scope, and that is the whole point: drift was previously
+# reachable only when a push touched a DB surface, so a migration merged by someone else and never
+# applied to prod was invisible to every ordinary push. `contact_change_requests` survived four days
+# that way and was found by coincidence. See scripts/check-drift-if-sql-changed.mjs.
+#
+# Cheap enough to sit outside the scope gate: it self-throttles to once per STALE_DAYS per clone,
+# and a machine holding no Supabase token reports "DUE AND NOT RUN" and exits 0 rather than blocking
+# a docs push on a credential it was never expected to have. A real finding still blocks — that is
+# the point — but only on a machine that could actually check.
+node scripts/check-drift-if-sql-changed.mjs
