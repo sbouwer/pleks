@@ -337,7 +337,13 @@ than the thing it describes, which is exactly how it survived review: precision 
 
 **Ruling needed** — PART 4, R5.
 
-### 3.5 🟥 Seven of fifteen categories skipped, and the run still reports ALL TESTS PASSED
+### 3.5 🟥 EIGHT of fifteen categories skipped, and the run still reports ALL TESTS PASSED
+
+> **⚠ CORRECTED 2026-08-22.** This section first said *seven*, while its own code block listed
+> eight. The fix's output settled it: `8 of the 15 categories did not run: Cat 3, 4, 6, 8, 9, 10, 11,
+> 12` — which is also exactly what CLAUDE.md §3 says (*"Categories 3, 4, 6 and 8–12 … eight of the
+> fifteen"*). **A miscount inside the audit about miscounted coverage**, caught by the remediation
+> printing the number rather than by re-reading the prose.
 
 Run at `5ddbaee1` with **no dev server** (`localhost:3000` refused), `node scripts/security/audit.mjs
 --quick`:
@@ -382,13 +388,25 @@ length, in this file, twelve hundred lines from the code that contradicts it.
 From the same run: **`Tests run: 293` · `Tests passed: 55` · headline `ALL TESTS PASSED`.**
 
 238 tests are neither passed nor failed. `test()` increments the run counter; `pass()` increments the
-passed counter; many assertions call `ok()` without `pass()`, so they vanish. **The headline verdict
-is derived from `findings === 0` alone** — it never compares passed against run.
+passed counter; many assertions call `ok()` without `pass()`. **The headline verdict is derived from
+`findings === 0` alone** — it never consults either counter.
 
-A category could execute two hundred assertions, record none, produce no findings, and print ALL
-TESTS PASSED. That is the same collapsed-analysis shape `check-knip-floor.mjs` guards in its own
-domain, and `check-register-integrity.mjs` (#263) adopted last week: **an enumeration that analyses
-zero items must fail, not pass.** The audit's own summary is the one place it is not applied.
+> **⚠ NARROWED 2026-08-22, by building the fix.** I wrote that the 238 assertions *"vanish"*, and
+> that a category *"could execute two hundred assertions, record none, produce no findings, and print
+> ALL TESTS PASSED."* Instrumenting the outcome printers refuted the first half: **`Outcomes: 293`
+> came back equal to `Tests run: 293`.** Every assertion *did* produce an outcome line — nothing
+> vanished. The real defect is narrower and duller: `pass()` is a **partial counter displayed as a
+> total**, so `Tests passed: 55` reads as "55 of 293 passed" when it means "55 of 293 additionally
+> called `pass()`". The verdict ignoring it was real; the missing analysis was not.
+>
+> **I would not have found that by re-reading.** The counter had to be built and run before the
+> claim could be checked — which is the same lesson as §3.5's withdrawn fail-open, one level in.
+
+What survives is the verdict defect, and it is real: a run that examines **eight of fifteen
+categories** still printed ALL TESTS PASSED and exited 0. That is the collapsed-analysis shape
+`check-knip-floor.mjs` guards in its own domain and `check-register-integrity.mjs` (#263) adopted
+last week — **an enumeration that analyses zero items must fail, not pass** — and the audit's own
+summary was the one place it was not applied.
 
 **Ruling needed** — PART 4, R5 (same fix as 3.5).
 
