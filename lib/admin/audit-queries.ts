@@ -8,6 +8,7 @@
  *         Cursor is encoded as "ISO-ts|uuid" and decoded on use.
  *         Free-text search uses new_values::text ILIKE — fast on a small filtered set.
  */
+/* eslint-disable pleks/require-org-scope-on-service-read -- the platform-admin audit viewer: reading ACROSS orgs is the feature, and org_id is a returned column the caller filters on, not a bound the caller asserts. Gated by requireAdminAuth upstream (app/(admin)), not by an org membership. */
 import { createServiceClient } from "@/lib/supabase/server"
 import { type AuditLogRow } from "./audit-severity"
 import { logQueryError } from "@/lib/supabase/logQueryError"

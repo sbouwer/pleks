@@ -12,6 +12,7 @@
  *         keys / periods / verdicts only — never raw name/ID).
  * Notes:  heavy (10–60s of AI) — must NOT run inside the submit request; fired async + swept by cron.
  */
+/* eslint-disable pleks/require-org-scope-on-service-write -- gated by application_tokens .eq("token", token).eq("application_id", id) — the IDOR guard is explicit and bound to THIS id; public apply flow, so there is no caller org to scope to */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"

@@ -4,6 +4,7 @@
  * Auth:   Server component — rendered inside admin sidebar (behind requireAdminAuth)
  * Data:   audit_exports (service-role read — recently completed, not yet downloaded)
  */
+/* eslint-disable pleks/require-org-scope-on-service-read -- the admin's own completed audit exports; scoped by the export job, and the admin surface is cross-org by design */
 import Link from "next/link"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"

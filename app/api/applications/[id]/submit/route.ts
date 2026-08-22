@@ -7,6 +7,7 @@
  * shortlist (Step 2). Does NOT set submitted_at; the applicant reviews the free assessment, then submits via
  * /submit-to-agent. (ADDENDUM_14M three-step funnel, P1e — supersedes the eager-extraction-at-submit posture.)
  */
+/* eslint-disable pleks/require-org-scope-on-service-write -- resolveApplicationCredential() bakes in the .eq(applicationId) IDOR guard plus expiry for all three credential shapes; public apply flow, no caller org */
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"

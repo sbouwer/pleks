@@ -10,6 +10,7 @@
  *         the token (now+30d) so a weeks-long document-gathering session isn't killed mid-edit. income_sources
  *         is validated + bounded server-side (shared parseIncomeSources). Returns { applicationId, token, resumeUrl }.
  */
+/* eslint-disable pleks/require-org-scope-on-service-write -- gated by application_tokens .eq("token", body.token).eq("application_id", body.applicationId); the remaining write targets a row id derived server-side. Public apply flow, no caller org. */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { randomBytes } from "crypto"

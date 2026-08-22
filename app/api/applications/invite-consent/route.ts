@@ -114,11 +114,11 @@ export async function POST(req: NextRequest) {
   // Link verification row back to consent_log
   if (verificationId) {
     // Same boundary on the write half — unbound, this overwrote the VICTIM row's consent_log_id.
-    // ⚠ NO `eslint-disable` HERE, AND THAT ABSENCE IS THE FINDING — see director-consent: the WRITE
-    //   rule path-skips `app/api/applications/**` while the READ rule covers it, so a directive
-    //   would report as unused because the rule is blind here, not because the write is safe.
+    // The WRITE rule was blind to this surface until R2 aligned the two skip sets (see
+    // director-consent for the narrative); it now fires here.
     await service
       .from("consent_verifications")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-write -- bound by .eq("application_id", …) below to the application the invite token proved; consent_verifications.org_id is nullable and cannot carry this
       .update({ consent_log_id: logEntry?.id })
       .eq("id", verificationId)
       .eq("application_id", tokenRow.application_id)
@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
 
   const { error: updateErr } = await service
     .from("applications")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- targets the application the invite token at the top of this handler proved ownership of; public applicant flow, no caller org
     .update({
       stage2_consent_given:    true,
       stage2_consent_given_at: now,

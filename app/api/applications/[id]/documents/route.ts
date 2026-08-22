@@ -9,6 +9,7 @@
  * Data:   applications, listings, application-docs storage; Anthropic API via lib/ai/client.ts
  * Notes:  Sonnet income extraction gated behind ai_full (Portfolio+). Falls back to self-reported income.
  */
+/* eslint-disable pleks/require-org-scope-on-service-write -- verifyApplicantToken(supabase, body.token, applicationId) runs BEFORE any mutation and binds the token to THIS application id — that check is the boundary, and the route has no caller org (public apply flow) */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"

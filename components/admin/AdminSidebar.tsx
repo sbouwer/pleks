@@ -5,6 +5,7 @@
  * Notes:  Dark ink background matching the design system. Active item: amber left bar.
  *         Server component — badge counts fetched here and passed to nav items inline.
  */
+/* eslint-disable pleks/require-org-scope-on-service-read -- platform-wide open-item counts for the admin nav (feedback, custom lease requests); rendered only inside app/(admin), behind requireAdminAuth */
 import Link from "next/link"
 import { headers } from "next/headers"
 import { AccentBracket } from "@/components/ui/AccentBracket"

@@ -114,6 +114,7 @@ export async function POST(req: NextRequest) {
 
   const { error: updateErr } = await service
     .from("application_co_applicants")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- targets the co-applicant row the access_token at the top of this handler proved ownership of; public director flow, no caller org
     .update({
       stage2_consent_given:    true,
       stage2_consent_given_at: now,
@@ -130,13 +131,12 @@ export async function POST(req: NextRequest) {
   // F5: link verification row back to consent_log (mirrors invite-consent pattern)
   if (verificationId && logEntry?.id) {
     // Same boundary on the write half — unbound, this overwrote the VICTIM row's consent_log_id.
-    // ⚠ NO `eslint-disable` HERE, AND THAT ABSENCE IS THE FINDING. The WRITE rule's SKIP_PATH lists
-    //   `applications`, so `app/api/applications/**` is path-skipped for writes while the READ rule
-    //   covers it — a directive here reports as UNUSED because the rule cannot see this surface,
-    //   not because the write is safe. When the two skip sets are aligned (control-aim audit R2)
-    //   this write starts being checked and needs the same annotation as the read above.
+    // The WRITE rule was blind to this surface until R2 aligned the two skip sets: it listed
+    // `applications` and the READ rule did not, so this file was checked for reads and not for
+    // writes. That asymmetry is what let the defect land; it is closed, and this now fires.
     await service
       .from("consent_verifications")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-write -- bound by .eq("application_id", …) below to the application the access_token proved; consent_verifications.org_id is nullable and cannot carry this
       .update({ consent_log_id: logEntry.id })
       .eq("id", verificationId)
       .eq("application_id", coApp.primary_application_id)

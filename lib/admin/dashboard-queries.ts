@@ -7,6 +7,7 @@
  * Notes:  All queries run in parallel via Promise.all for ~50ms cold total.
  *         Page caches the result with revalidate=60.
  */
+/* eslint-disable pleks/require-org-scope-on-service-read -- every query here is a PLATFORM aggregate (MRR, trials, waitlist, cron health, VAT rate) whose whole meaning is cross-org. An org filter would not narrow these reads, it would empty them. */
 import { createServiceClient } from "@/lib/supabase/server"
 
 export interface AttentionItem {

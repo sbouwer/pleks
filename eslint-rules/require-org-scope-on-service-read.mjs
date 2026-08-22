@@ -129,11 +129,16 @@ const ORG_AWARE = /\.eq\(\s*["'`]org_id["'`]|org_id\s*[!=]==?\s*|orgId\s*[!=]==?
 
 // Same non-agent surfaces the write rule skips: a different isolation model, where org-scoping is
 // not the boundary and the heuristic would only false-positive.
-// `components/admin` is in this list on evidence, not by analogy: every hit there was a
-// platform-admin dashboard read (`platform_cost_snapshots`, `feedback_submissions`, `cron_runs`)
-// that is cross-org BY DESIGN — the same reason `(admin)`, `api/admin` and `lib/admin` are here.
-// Baselining those 12 would have recorded the admin surface's whole purpose as debt.
-const SKIP_PATH = /[/\\](cron|webhooks?)[/\\]|[/\\]api[/\\]auth[/\\]|[/\\]lib[/\\]auth[/\\]|[/\\]lib[/\\](portal|consent)[/\\]|[/\\]api[/\\](consent|wo|profile)[/\\]|[/\\]\(auth\)[/\\]|[/\\]\(applicant\)[/\\]|[/\\]\(public\)[/\\]|[/\\]\(tenant\)[/\\]|[/\\]\(landlord\)[/\\]|[/\\]\(supplier\)[/\\]|[/\\]\(admin\)[/\\]|[/\\]api[/\\]admin[/\\]|[/\\]lib[/\\]admin[/\\]|[/\\]components[/\\]admin[/\\]|\[token\]|\[pull_id\]/
+// ⚠ `lib/admin` AND `components/admin` WERE IN THIS LIST AND ARE NOT ANY MORE (2026-08-22, R2).
+// The reason recorded for them was true — every hit was a platform-admin dashboard read
+// (`platform_cost_snapshots`, `feedback_submissions`, `cron_runs`) that is cross-org BY DESIGN —
+// but the write rule never carried those two entries, so the pair's aperture differed by surface.
+// The 2026-08-22 consent IDOR landed in the mirror image of that gap. Both skip sets are now the
+// INTERSECTION of what they were: identical, so the coverage of the pair is the union of coverage.
+// Cross-org-by-design is still cross-org-by-design; it now says so at each site, in an inline
+// disable, rather than in a path list nobody re-reads. A path entry is invisible in the diff when
+// somebody adds a NEW, non-admin read to one of those directories.
+const SKIP_PATH = /[/\\](cron|webhooks?)[/\\]|[/\\]api[/\\]auth[/\\]|[/\\]lib[/\\]auth[/\\]|[/\\]lib[/\\](portal|consent)[/\\]|[/\\]api[/\\](consent|wo|profile)[/\\]|[/\\]\(auth\)[/\\]|[/\\]\(applicant\)[/\\]|[/\\]\(public\)[/\\]|[/\\]\(tenant\)[/\\]|[/\\]\(landlord\)[/\\]|[/\\]\(supplier\)[/\\]|[/\\]\(admin\)[/\\]|[/\\]api[/\\]admin[/\\]|\[token\]|\[pull_id\]/
 
 // Test files exercise fixtures, not production reads. Scoped OUT rather than baselined — a baseline
 // entry means "real debt", and calling a fixture debt makes the baseline lie about its own size.
