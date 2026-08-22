@@ -244,6 +244,29 @@ jobs:
         env:
           PARITY_BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
+  # M-084. Release failed on three consecutive merges over two days and nobody noticed, because its
+  # result went nowhere — two sessions read `gh run list` output with `failure` on the Release row and
+  # acted on the CI row. A CI job whose result nobody consumes is not a control; this makes the next
+  # PR the thing that consumes it. PR-only on purpose: on a main push it would report what the very
+  # next Release run is about to re-decide.
+  release-health:
+    name: Release health (M-084)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read           # `gh run list` reads the Actions API; the top-level grant is contents-only
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0      # the deadlock carve-out diffs against origin/<base>
+
+      - name: Check the last Release run on main
+        run: node scripts/check-release-health.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   pr-title:
     name: PR title (Conventional Commits)
     if: github.event_name == 'pull_request'

@@ -1100,7 +1100,7 @@ the note said the seam prevented.
 - **Why it is worth building rather than "just be careful":** the counter-argument is that a human re-reading the register catches both. That is exactly what the 2026-08-21 pass was, and it caught neither — it found four stale-BUILT entries by reading them one at a time and missed the fifth plus the duplicate. The failures are *relational*, and per-entry attention is structurally blind to them.
 - **Covering spec:** NEW
 
-### M-084 — a failing Release job is invisible; three releases were lost before anyone noticed
+### M-084 — a failing Release job is invisible; three releases were lost before anyone noticed — ✅ BUILT 2026-08-22
 
 - **Rule:** a merge to `main` cuts a GitHub Release, sized from the commit types. `CLAUDE.md` §4 calls the PR-title type "a versioning decision" *because* semantic-release acts on it.
 - **Where it lives:** `.github/workflows/release.yml`. Nothing watches whether it succeeded.
@@ -1111,6 +1111,33 @@ the note said the seam prevented.
 - **Fixed** in the same change as this entry: the release job unsets `core.hooksPath` after `npm ci`. Scoped to the pusher rather than to the hook — teaching every hook to stand down on `CI` would make the whole rung-1 set conditional on a variable any job can set, to fix one job.
 - **Still MECHANISABLE, and that is what this entry is for.** The fix stops this instance; nothing reports the next one. **Sketch:** a scheduled or post-merge check that fails when the most recent `Release` run on `main` did not succeed — `gh run list --workflow=Release --branch main --limit 1 --json conclusion`. Probe both directions: a seeded failure must FAIL, a green run must PASS. The general class is broader than Release, and worth stating as the rule: **a CI job nobody reads is not a control.** Its result has to reach something that fails.
 - **Covering spec:** NEW
+
+**✅ BUILT 2026-08-22.** `scripts/check-release-health.mjs` + a `Release health (M-084)` job in `ci.yml`.
+Eleven selftest cases, six of them known-good, in `npm run check`; the live query runs in the PR job only.
+
+- **A PR job, not a cron.** A cron that opens an issue is a second thing nobody reads — the failure
+  mode being fixed, relocated. The next PR is the first moment a human is definitely looking at this
+  repo's checks, so that is where the result is made to land.
+- **⚠ THE DEADLOCK IS THE DESIGN PROBLEM, and pretending otherwise is how this control would have
+  died.** A gate that blocks every PR while releases are broken also blocks the PR that FIXES them,
+  and a gate that blocks its own remedy earns a permanent `|| true` within a week. So a diff touching
+  `.releaserc*`, `release.yml` or the check itself passes with the failure **reported** rather than
+  enforced. Mechanical, not a judgement call — no exemption by branch name, author, or a magic
+  commit-message token. The carve-out has its own probe asserting it still PRINTS the failure: a
+  silent carve-out is indistinguishable from a pass, which is precisely the defect this entry names.
+- **Three fail-closed decisions, each the direction this repo keeps getting wrong.** `gh` missing or
+  unauthenticated **fails** (a check that could not run is not green). Zero runs returned **fails**
+  (this repo has released since 2026-08-17, so an empty result is a broken query — the collapsed-
+  analysis shape `check-knip-floor.mjs` guards in its own domain). An uncomputable base diff enables
+  the gate rather than the carve-out.
+- **`in_progress` and `queued` pass, and that is load-bearing.** A running release has an EMPTY
+  conclusion; treating empty as not-success would redden every PR opened mid-release. That false red
+  is what gets a check deleted, and it is the case the known-good half exists to pin.
+- **HONEST GAP, stated rather than papered over:** the FAILURE path is probed in the pure predicate
+  only. Live, only the success path has run end-to-end — the two share every line except the value
+  `gh` returns, and the JSON field names are confirmed by that green path. **Deliberately no env seam
+  to force a verdict:** a variable that can fake `success` in CI is a worse hole than an unprobed
+  branch. The first real failure is the end-to-end proof, and it will arrive on its own.
 
 ---
 
