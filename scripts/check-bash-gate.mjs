@@ -139,6 +139,30 @@ const CASES = [
   ["a shell redirect IN", bash("cat <.env"), "ask"],
   ["a shell redirect OUT overwrites it", bash("echo X >.env"), "ask"],
   ["a glob", bash("cat *.env"), "ask"],
+  // ── R4: the prod-apply script, matched on the OPERATION not the tool ────────────────────────
+  // The known-good half of this pair is the two `supabase db` probes below: they prove the clause
+  // that ALREADY worked still works, so a green suite here is not "the new regex swallowed
+  // everything". Every runner spelling gets its own case, because the whole point of matching the
+  // path rather than `node` is that the runner must not matter.
+  ["the prod-apply script via node", bash("node supabase/reconcile/apply-prod.mjs --confirm"), "ask"],
+  ["…via npx tsx", bash("npx tsx supabase/reconcile/apply-prod.mjs --confirm"), "ask"],
+  ["…via an absolute path", bash("node C:\\dev\\pleks\\supabase\\reconcile\\apply-prod.mjs --confirm"), "ask"],
+  ["…bare, with no runner at all", bash("./supabase/reconcile/apply-prod.mjs --confirm"), "ask"],
+  ["…chained after something harmless", bash("npm run check && node supabase/reconcile/apply-prod.mjs --confirm"), "ask"],
+  ["the clause it was modelled on still fires", bash("supabase db push"), "ask"],
+  ["…and its reset sibling", bash("npx supabase db reset"), "ask"],
+  // ── R6's use/mention fixtures — BOTH shapes, because they resolve differently ────────────────
+  // The R6 convention: every token detector ships a case where the token appears as a MENTION and
+  // must not fire. Requiring the `reconcile/` segment AND the `.mjs` extension is what buys that
+  // here — the bare name is the spelling a human writes when TALKING about the script, and it is
+  // allowed. I predicted this case would ask and was wrong; the anchored rule is tighter than the
+  // one I described in its own comment.
+  ["a MENTION of the script's name does not fire", bash("rg apply-prod docs/"), "allow"],
+  ["…nor does prose about it", bash('rg "the apply-prod script" brief/'), "allow"],
+  // The full path IS the invocation spelling, so a grep for it asks. Same accepted cost as the
+  // `rg "\.env"` probe above: an extra prompt on a search is the cheap direction to be wrong in
+  // when the other direction is an irreversible write to production.
+  ["ACCEPTED cost: grepping for the full path asks", bash("rg reconcile/apply-prod.mjs docs/"), "ask"],
   // FLIPPED FROM allow, deliberately — see the rule's comment. `\` before `.env` is a regex escape
   // here and a path separator in the five probes above, and the hook cannot tell them apart without
   // parsing the quoting. Asking on a grep is the cheap direction to be wrong in.

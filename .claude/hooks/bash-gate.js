@@ -363,6 +363,26 @@ process.stdin.on("end", () => {
       // @no-twin ad-hoc prod SQL through the CLI has no settings pattern — the other gap LT
       // measured. The MCP path is covered by mcp-ddl-gate; the `supabase db` CLI path is not.
       [/supabase\s+db\s+(push|reset)/, "prod database operations require approval"],
+      // ── R4, control-aim audit 2026-08-22 ────────────────────────────────────────────────────
+      // The rule ABOVE matched the TOOL (`supabase db`) rather than the OPERATION (writes to
+      // production) — twin-the-vehicle, inverted. Probed both directions at 5ddbaee1:
+      // `supabase db push` asked, and `node supabase/reconcile/apply-prod.mjs --confirm` was
+      // ALLOWED. That script's own header says "⚠ WRITES TO PRODUCTION", it posts a whole SQL file
+      // through the Management API — and this very file cites it twice as the source of the ReDoS
+      // lesson, so it was read by whoever last hardened this hook and still was not gated.
+      //
+      // It is not ungoverned: it demands --confirm, refuses any file but 01_reconcile.sql, and
+      // refuses a script not wrapped in BEGIN/COMMIT. Those are rung-0 — INSIDE the thing being
+      // invoked — and the actor who types --confirm is the actor this hook exists to interrupt.
+      // Under the stated unattended-autonomy posture, rung 0 is not a gate.
+      //
+      // Matched on the SCRIPT PATH, not on `node`: the operation is "run the prod-apply script",
+      // however it is spelled. `node x`, `npx tsx x`, an absolute path, a different runner and a
+      // bare `./x` all carry the same path token, so all of them ask. Backslashes are accepted for
+      // Windows spellings. Anchored on a separator so a file merely NAMED in prose — `rg
+      // apply-prod` — still asks rather than silently differing from the real thing; an extra
+      // prompt on a grep is the same accepted cost as the `.env` rule four lines up.
+      [/reconcile[/\\]apply-prod\.mjs/, "applying a reconciliation script to PRODUCTION requires approval"],
     ];
 
     // A rule is a RegExp or a predicate. The `rm` rule is a function because the regex form of it
