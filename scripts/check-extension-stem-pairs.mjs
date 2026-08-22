@@ -68,7 +68,48 @@ import { readdirSync, statSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, r
 import { join, dirname, extname, basename, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { tmpdir } from "node:os"
-import { spawnSync } from "node:child_process"
+import { spawnSync as rawSpawnSync } from "node:child_process"
+
+// Git's repo-context environment variables. When git runs a hook it EXPORTS its own context into
+// the hook's environment — `GIT_INDEX_FILE` always for a pathspec commit (`git commit -- path`,
+// which builds a temporary index), and `GIT_DIR`/`GIT_WORK_TREE` in other invocations. Any `git`
+// subprocess this script spawns then inherits that context and IGNORES its own `cwd`.
+//
+// That is not theoretical: it is how this check failed. Every probe here passed standalone and the
+// whole of `npm run check` was green, but the identical run under `.githooks/pre-commit` failed
+// `KNOWN-GOOD: real js-bearing gitignored directories ... do NOT false-fail the reconciliation`.
+// The probe `git init`s a temp fixture and calls `gitTrackedSourceFiles(gitTmp)`; with
+// `GIT_INDEX_FILE` inherited, `git ls-files` read PLEKS' index instead of the fixture's, so a
+// fixture holding four files reconciled against a few thousand tracked paths and "false-failed"
+// exactly as the probe's name says it must not. Reproduced deterministically outside any hook with
+// `GIT_INDEX_FILE=… node scripts/check-extension-stem-pairs.mjs --selftest`.
+//
+// The real (non-probe) path has the same exposure for the same reason — a check whose answer
+// depends on whether a hook invoked it is not a check — so the scrub is applied to EVERY git spawn
+// in this file, not only the fixtures. Scrubbed rather than pinned: this script always passes an
+// explicit `cwd`, so git discovering the repo from that directory is the intended behaviour, and
+// unsetting is the only way to say "discover normally" once a caller has set these.
+const GIT_CONTEXT_VARS = [
+  "GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_NAMESPACE",
+  "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CEILING_DIRECTORIES",
+  "GIT_PREFIX", "GIT_INDEX_VERSION",
+]
+
+/** `process.env` with git's inherited repo context removed. Exported for the probe below. */
+export function scrubbedGitEnv(env = process.env) {
+  const out = { ...env }
+  for (const k of GIT_CONTEXT_VARS) delete out[k]
+  return out
+}
+
+/**
+ * Every subprocess spawn in this file goes through here. Named `spawnSync` so the call sites read
+ * normally and a new one cannot accidentally reach the unscrubbed builtin — the raw import is
+ * aliased away above for the same reason.
+ */
+function spawnSync(cmd, args, opts = {}) {
+  return rawSpawnSync(cmd, args, { ...opts, env: scrubbedGitEnv(opts.env ?? process.env) })
+}
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..").replace(/\\/g, "/")
 // Narrowed at M-041 walk review: "generated" and "build" are legal, real directory names in this
@@ -667,6 +708,52 @@ if (isEntry && process.argv.includes("--selftest")) {
         noIndexRegressionRecon.onlyWalked.some((f) => f.endsWith("nested/docuseal/tracked.ts")),
       "growing the git-side skip list alone by a segment matching an unanchored ignore pattern still surfaces the genuinely-tracked file (the --no-index regression, fixed)",
     )
+
+    // ── Hook-environment hermeticity (2026-08-22). See GIT_CONTEXT_VARS at the top of this file for
+    // the incident: every probe here passed standalone while the SAME run under .githooks/pre-commit
+    // failed the "real js-bearing gitignored directories" probe, because a pathspec commit exports
+    // GIT_INDEX_FILE and every `git` subprocess below silently read the real repo instead of its
+    // fixture. Probed in both directions, and the negative direction is the one that can actually
+    // fail: without it, this probe would pass against an implementation that scrubs NOTHING.
+    {
+      // NEGATIVE — the var is load-bearing. An UNSCRUBBED ls-files in the fixture, with
+      // GIT_INDEX_FILE pointed at this repo's own index, must return something OTHER than the
+      // fixture's own file list. If this ever stops differing, the positive probe below has become
+      // vacuous and is no longer evidence of anything.
+      const poisoned = { ...process.env, GIT_INDEX_FILE: `${ROOT}/.git/index` }
+      const lsArgs = ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "*.ts"]
+      const dirty = rawSpawnSync("git", lsArgs, { cwd: gitTmp, encoding: "utf8", env: poisoned })
+      const clean = rawSpawnSync("git", lsArgs, { cwd: gitTmp, encoding: "utf8", env: scrubbedGitEnv(poisoned) })
+      ok(
+        dirty.status === 0 && clean.status === 0 && dirty.stdout !== clean.stdout,
+        "NEGATIVE: an inherited GIT_INDEX_FILE really does change what `git ls-files` reports from a fixture cwd — the poison this scrub neutralises is real, so the probe below is not vacuous",
+      )
+
+      // POSITIVE — with the same poison present in the ambient environment, the reconciliation this
+      // file actually ships resolves the fixture correctly. This is the pre-commit failure itself,
+      // reproduced without a hook: it fails against the pre-fix code and passes against the fix.
+      const restore = process.env.GIT_INDEX_FILE
+      process.env.GIT_INDEX_FILE = `${ROOT}/.git/index`
+      try {
+        const hookRecon = gitReconciliationViolations(gitTmp, sourceFiles(gitTmp))
+        ok(
+          !hookRecon.skipped && hookRecon.onlyTracked.length === 0,
+          "the reconciliation is hermetic against git's hook environment — an inherited GIT_INDEX_FILE no longer makes a fixture reconcile against the REAL repo (the .githooks/pre-commit false failure)",
+        )
+      } finally {
+        if (restore === undefined) delete process.env.GIT_INDEX_FILE
+        else process.env.GIT_INDEX_FILE = restore
+      }
+
+      // The scrub removes git's context and NOTHING else — a scrub that emptied the environment
+      // would satisfy both probes above while breaking PATH for every spawn on this file's real path.
+      const sample = scrubbedGitEnv({ GIT_DIR: "/x", GIT_INDEX_FILE: "/y", PATH: "/usr/bin", HOME: "/h" })
+      ok(
+        !("GIT_DIR" in sample) && !("GIT_INDEX_FILE" in sample) &&
+          sample.PATH === "/usr/bin" && sample.HOME === "/h",
+        "KNOWN-GOOD: scrubbedGitEnv drops git's repo-context vars and leaves the rest of the environment intact",
+      )
+    }
 
     // W2-F3: gitTrackedSourceFiles is now -z-parsed like filterGitIgnored.
     //
