@@ -85,8 +85,17 @@ export default function setup(): void {
         `  candidates considered: ${dockerCandidates().join(" | ")}`,
         observe("docker context", `"${docker}" context ls --format "{{.Name}}{{if .Current}} *CURRENT*{{end}}"`),
         observe("ALL containers (unfiltered)", `"${docker}" ps -a --format "{{.Names}} [{{.State}}]"`),
-        "  If the list above is empty, `npx supabase start` is the fix. If it names a supabase",
-        "  container, the filter and the daemon disagree — check the context and the binary first.",
+        // ⚠ THIS BLOCK USED TO END "If the list above is empty, `npx supabase start` is the fix."
+        // It fired for real on 2026-08-22 inside the RELEASE job, where that advice is wrong twice
+        // over: a CI runner has no stack to start, and the DB tier had no business running there at
+        // all. One turn after replacing a message that named a cause, the replacement named one —
+        // in its last line, where it read as a helpful closing note rather than as a claim.
+        "  Candidate causes, none of them established by reaching this line:",
+        "   · the local stack is not started        → `npx supabase start`",
+        "   · this client is not the one holding the containers (see the context and binary above)",
+        "   · nothing was ever meant to run here    → a CI runner or a git hook on a machine with no",
+        "     Docker stack. If this came from a `git push`, the pre-push hook ran the DB tier in an",
+        "     environment that cannot host it; unwire the hook for that caller, do not weaken the tier.",
       ].join("\n"),
     )
   }

@@ -1100,6 +1100,18 @@ the note said the seam prevented.
 - **Why it is worth building rather than "just be careful":** the counter-argument is that a human re-reading the register catches both. That is exactly what the 2026-08-21 pass was, and it caught neither — it found four stale-BUILT entries by reading them one at a time and missed the fifth plus the duplicate. The failures are *relational*, and per-entry attention is structurally blind to them.
 - **Covering spec:** NEW
 
+### M-084 — a failing Release job is invisible; three releases were lost before anyone noticed
+
+- **Rule:** a merge to `main` cuts a GitHub Release, sized from the commit types. `CLAUDE.md` §4 calls the PR-title type "a versioning decision" *because* semantic-release acts on it.
+- **Where it lives:** `.github/workflows/release.yml`. Nothing watches whether it succeeded.
+- **Rung:** ci · **Blast:** other — no data is exposed; what is lost is the version history and the release notes, silently.
+- **Measured 2026-08-22 at `1578dac5`:** the Release workflow failed on the last **three** merges to `main` (2026-08-21 14:21, 2026-08-21 20:28, 2026-08-22 06:14); last success 2026-08-20 19:13. **Nobody noticed for two days**, across two of my own sessions that read `gh run list` output containing the word `failure` on the Release row and acted only on the CI row. The register's own "verify before you tick" discipline did not extend to a job whose output nobody consumes.
+- **Root cause, and it is this repo's controls eating themselves:** `package.json`'s `prepare` script runs `git config core.hooksPath .githooks`, so `npm ci` on the release runner wires the local hooks into a checkout that is about to be pushed to. semantic-release then pushes a tag, which fires `.githooks/pre-push` → `npm run check:full` → `test:db` → a vitest global-setup requiring a `supabase_db` container that a release runner does not have. **Both halves landed in the same commit, `fd818c0c`.** The gate built to protect pushes from a dev machine blocked the one push that is not from a dev machine.
+- **Why it took a diagnostic to see it:** the failure surfaced as an execa dump ending in `failed to push some refs`, with the real cause a hundred lines up in a vitest stack. It was read as a local Docker problem for two days — including by me, in writing, twice. What resolved it was the global-setup diagnostic rebuilt the day before to report its observations: `docker context: default *CURRENT*` and `ALL containers: (empty)` are not what this machine looks like, which is what finally located the failure on a runner rather than here.
+- **Fixed** in the same change as this entry: the release job unsets `core.hooksPath` after `npm ci`. Scoped to the pusher rather than to the hook — teaching every hook to stand down on `CI` would make the whole rung-1 set conditional on a variable any job can set, to fix one job.
+- **Still MECHANISABLE, and that is what this entry is for.** The fix stops this instance; nothing reports the next one. **Sketch:** a scheduled or post-merge check that fails when the most recent `Release` run on `main` did not succeed — `gh run list --workflow=Release --branch main --limit 1 --json conclusion`. Probe both directions: a seeded failure must FAIL, a green run must PASS. The general class is broader than Release, and worth stating as the rule: **a CI job nobody reads is not a control.** Its result has to reach something that fails.
+- **Covering spec:** NEW
+
 ---
 
 ## CLOSED — WON'T BUILD (ruled 2026-08-21)

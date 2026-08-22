@@ -54,6 +54,30 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
 
+      # ⚠ MUST COME AFTER `npm ci`, WHICH IS WHAT SETS IT. package.json's `prepare` script runs
+      # `git config core.hooksPath .githooks`, so installing dependencies on the runner wires this
+      # repo's local hooks into a checkout that will then be pushed to.
+      #
+      # semantic-release creates a tag and pushes it. That push fires `.githooks/pre-push`, which
+      # runs `npm run check:full` → `test:db` → a vitest global-setup that requires a running
+      # `supabase_db` container. A release runner has no Docker stack, so the hook throws, the push
+      # fails, and the Release job dies AFTER the version has been decided. Introduced by `fd818c0c`
+      # (the commit that added both the `prepare` wiring and check:full at pre-push) and it has
+      # blocked every release since 2026-08-21 14:21 — three merges, no GitHub Release, no tag.
+      #
+      # UNSETTING IT HERE IS NOT WEAKENING A GATE, and the distinction is the whole reason this is
+      # scoped to one job rather than to the hook. pre-push exists to stop a HUMAN publishing work a
+      # dev machine has not verified. The commit being tagged here has already passed CI — the
+      # `gate` job above blocks on Lint & Typecheck, Security and the CVE scan before this job runs
+      # at all, and the DB tier ran as its own PR job. Re-running the same assertions inside a
+      # credentialed release step adds nothing and, on a runner with no database, cannot pass.
+      #
+      # Deliberately NOT fixed by teaching the hook to stand down when `CI` is set: that would make
+      # every hook in this repo conditional on an environment variable any job can set, to fix one
+      # job that pushes. Scope it to the pusher.
+      - name: Unwire local git hooks for the release push
+        run: git config --unset-all core.hooksPath || true
+
       - name: Semantic Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
