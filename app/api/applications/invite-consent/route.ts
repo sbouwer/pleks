@@ -25,8 +25,12 @@ export async function POST(req: NextRequest) {
   const service = await createServiceClient()
 
   // F6: check expires_at (consistent with send-code applicant path)
+  // THIS READ IS THE OWNERSHIP PROOF for the whole handler — the "prove ownership first" exit, with
+  // the invite token as the proof. The caller is an unauthenticated applicant; there is no caller
+  // org to scope to, and the application (and its org) is DERIVED from this row.
   const { data: tokenRow, error: tokenRowError } = await service
     .from("application_tokens")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by the applicant's invite token; org is derived from this row, not asserted against it
     .select("application_id, applicant_email")
     .eq("token", token)
     .gt("expires_at", new Date().toISOString())
@@ -39,6 +43,7 @@ export async function POST(req: NextRequest) {
 
   const { data: app, error: appError } = await service
     .from("applications")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by the application_id the token above proves ownership of
     .select("org_id, stage2_consent_given")
     .eq("id", tokenRow.application_id)
     .single()
@@ -55,10 +60,17 @@ export async function POST(req: NextRequest) {
   // Re-verify SMS verification server-side if provided (ADDENDUM_14F)
   let verificationMethod = "none"
   if (verificationId) {
+    // ⚠ `.eq("application_id", …)` IS THE SECURITY BOUNDARY — see director-consent for the full
+    //   narrative. `verificationId` is caller-supplied; the token above proves ownership of THIS
+    //   application, not of an arbitrary verification row, so `status === "verified"` alone let any
+    //   verified row on the platform satisfy the check and forge the provenance of a POPIA
+    //   s11(1)(a) record. Bound on application_id rather than org_id, which is nullable here.
     const { data: verif, error: verifError } = await service
       .from("consent_verifications")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bound to the application the verified token above proves ownership of; consent_verifications.org_id is nullable and cannot carry this
       .select("status")
       .eq("id", verificationId)
+      .eq("application_id", tokenRow.application_id)
       .single()
     logQueryError("POST consent_verifications", verifError)
 
@@ -101,10 +113,15 @@ export async function POST(req: NextRequest) {
 
   // Link verification row back to consent_log
   if (verificationId) {
+    // Same boundary on the write half — unbound, this overwrote the VICTIM row's consent_log_id.
+    // ⚠ NO `eslint-disable` HERE, AND THAT ABSENCE IS THE FINDING — see director-consent: the WRITE
+    //   rule path-skips `app/api/applications/**` while the READ rule covers it, so a directive
+    //   would report as unused because the rule is blind here, not because the write is safe.
     await service
       .from("consent_verifications")
       .update({ consent_log_id: logEntry?.id })
       .eq("id", verificationId)
+      .eq("application_id", tokenRow.application_id)
   }
 
   const { error: updateErr } = await service

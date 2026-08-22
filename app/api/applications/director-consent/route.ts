@@ -25,9 +25,14 @@ export async function POST(req: NextRequest) {
 
   const service = await createServiceClient()
 
-  // Validate token matches co-applicant and is unexpired
+  // Validate token matches co-applicant and is unexpired.
+  // THIS READ IS THE OWNERSHIP PROOF the rest of the handler leans on — it is the "prove ownership
+  // first" exit the rule names, with `access_token` as the proof rather than `org_id`. The route is
+  // reached by an unauthenticated director holding a private token; there is no caller org to scope
+  // to, and `coApp.org_id` is a RESULT of this read, not an input to it.
   const { data: coApp, error } = await service
     .from("application_co_applicants")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by the director's private access_token; org is derived from this row, not asserted against it
     .select("id, org_id, primary_application_id, applicant_email, stage2_consent_given_at, access_token_expires, declined_at")
     .eq("id", coApplicantId)
     .eq("access_token", token)
@@ -52,10 +57,24 @@ export async function POST(req: NextRequest) {
   // Re-verify the SMS verification server-side if provided (ADDENDUM_14F)
   let verificationMethod = "none"
   if (verificationId) {
+    // ⚠ `.eq("application_id", …)` IS THE SECURITY BOUNDARY, not a filter. `verificationId` is
+    //   caller-supplied and the token above proves ownership of THIS co-applicant, not of an
+    //   arbitrary verification row. Bound only by `status === "verified"`, any verified row on the
+    //   platform satisfied the check — so a caller could stamp `verification_method: "sms_code"` on
+    //   their own consent_log using someone else's SMS round, in another org. That forges the
+    //   provenance of a POPIA s11(1)(a) record: the consent still exists, but the evidence that it
+    //   was verified is another person's.
+    //   Bound on `application_id`, NOT `org_id`: send-code populates application_id from a
+    //   non-nullable string on every insert path, while its orgId is `string | null`, so an org
+    //   filter would fail closed on legitimate rows.
+    // Selecting `status` alone — consent_type, code_verified_at and target_phone_e164 were read and
+    // never used. The last is a phone number, so this is data minimisation, not tidying.
     const { data: verif, error: verifError } = await service
       .from("consent_verifications")
-      .select("status, consent_type, target_phone_e164, code_verified_at")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bound to the application the verified access_token above proves ownership of; consent_verifications.org_id is nullable and cannot carry this
+      .select("status")
       .eq("id", verificationId)
+      .eq("application_id", coApp.primary_application_id)
       .single()
     logQueryError("POST consent_verifications", verifError)
 
@@ -110,10 +129,17 @@ export async function POST(req: NextRequest) {
 
   // F5: link verification row back to consent_log (mirrors invite-consent pattern)
   if (verificationId && logEntry?.id) {
+    // Same boundary on the write half — unbound, this overwrote the VICTIM row's consent_log_id.
+    // ⚠ NO `eslint-disable` HERE, AND THAT ABSENCE IS THE FINDING. The WRITE rule's SKIP_PATH lists
+    //   `applications`, so `app/api/applications/**` is path-skipped for writes while the READ rule
+    //   covers it — a directive here reports as UNUSED because the rule cannot see this surface,
+    //   not because the write is safe. When the two skip sets are aligned (control-aim audit R2)
+    //   this write starts being checked and needs the same annotation as the read above.
     await service
       .from("consent_verifications")
       .update({ consent_log_id: logEntry.id })
       .eq("id", verificationId)
+      .eq("application_id", coApp.primary_application_id)
   }
 
   return NextResponse.json({ ok: true })

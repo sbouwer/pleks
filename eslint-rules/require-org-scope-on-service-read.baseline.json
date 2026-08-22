@@ -10,8 +10,6 @@
   "app/api/applications/[id]/submit-to-agent/route.ts",
   "app/api/applications/[id]/submit/route.ts",
   "app/api/applications/create/route.ts",
-  "app/api/applications/director-consent/route.ts",
-  "app/api/applications/invite-consent/route.ts",
   "app/api/applications/resend-link/route.ts",
   "app/api/applications/save-draft/route.ts",
   "app/api/billing/screening/route.ts",

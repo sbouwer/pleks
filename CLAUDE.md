@@ -427,6 +427,23 @@ section that never mentioned joint applications).
   **Every probe passed**, because each exercised a file the discriminator already recognised.
   A probe suite confirms the cases you thought of; it cannot report the class you did not. Caught
   by adversarial review, and the reason a new control gets one before it is believed.
+- **2026-08-22 · caller-supplied ids, the THIRD time — and both mechanisations were aimed short.**
+  Two consent routes accepted a `verificationId` from the request body, checked only
+  `status === "verified"`, and never bound it to the application the caller's token proves ownership
+  of. Any verified row on the platform satisfied the check, so a caller could stamp
+  `verification_method: "sms_code"` on their own consent record using **someone else's** SMS round,
+  in another org, and overwrite the victim row's `consent_log_id`. The consent still exists; the
+  evidence that it was verified belongs to a different person — provenance forgery on a POPIA
+  s11(1)(a) record, which is worse than a leak because it survives audit.
+  **The finding is not the two routes. It is that two rules exist for exactly this class and each
+  missed a different half.** The READ rule covered the surface, fired, and was silenced by a
+  **file-level baseline entry** — classified once as debt, never re-read, and a baseline entry means
+  *read and classified*, which this one had stopped being. The WRITE rule never looked: its
+  `SKIP_PATH` lists `applications` and the read rule's does not, so `app/api/applications/**` is
+  path-skipped for writes. **Two rules for one class, with different apertures, is one rule with a
+  hole** — and neither a probe nor a green gate can show it, because both behaved exactly as
+  written. Aligning the skip sets is open work, not done here.
+
 - **2026-07-02 · the site-content hole.** A write gated with bare `gateway()` was
   indistinguishable from a write whose gate was forgotten. Narrative in `.claude/rules/data-access.md`.
 - **Payout-banking fraud vector (F1).** Swapping a bank account left no who/when.
