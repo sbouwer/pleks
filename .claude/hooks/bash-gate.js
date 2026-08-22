@@ -187,6 +187,94 @@ function isForcePush(command) {
   return false;
 }
 
+/**
+ * Blank the TEXT of a `-m` / `--message` argument, leaving its quotes in place.
+ *
+ * Only ever call this before scanning for FLAGS. A flag inside a commit message is prose — the
+ * message is git's argument, not a switch — and denying it means the gate forbids writing down the
+ * rule it enforces. That is not hypothetical: the commit documenting M-072 was refused because its
+ * body described a hard reset, and re-measuring M-072 could not be done inline at all because a
+ * Bash command carrying the flag as a quoted TEST CASE was denied by the hook under test.
+ *
+ * ⚠ THIS IS NOT "STRIP QUOTES", AND THE DIFFERENCE IS A BYPASS. `normToken` already removes quote
+ * characters, so `git commit "--no-verify"` normalises to the bare flag — and it really is a flag,
+ * because the shell strips the quotes before git ever sees it. Blanking every quoted span would
+ * therefore wave through the exact command this rule exists to stop. Only the value of `-m` is
+ * inert, because git treats it as message text whatever it spells.
+ *
+ * Hand-scanned rather than matched: a regex for "quoted span after a flag" is an unbounded class
+ * inside an alternation, which is the ReDoS shape this file has now been bitten by four times.
+ * One pass, no backtracking.
+ */
+function maskMessageText(command) {
+  const out = command.split("");
+  const isSpace = (c) => c !== undefined && (c === " " || c === "\t" || c === "\r" || c === "\n");
+  // A `while` rather than a `for`, because the scan JUMPS past a masked span and reassigning a
+  // for-loop counter is `sonarjs/updated-loop-counter`. The jump is what keeps this one pass.
+  let i = 0;
+  while (i < command.length) {
+    let flagLen = 0;
+    if (command.startsWith("--message", i)) flagLen = 9;
+    else if (command.startsWith("-m", i)) flagLen = 2;
+    // Must be a standalone token: preceded by whitespace/start, followed by whitespace/end.
+    const standalone =
+      flagLen > 0 && (i === 0 || isSpace(command[i - 1])) && !(command[i + flagLen] !== undefined && !isSpace(command[i + flagLen]));
+    if (!standalone) {
+      i++;
+      continue;
+    }
+
+    let k = i + flagLen;
+    while (k < command.length && isSpace(command[k])) k++;
+    const quote = command[k];
+    if (quote !== '"' && quote !== "'") {
+      // An UNQUOTED -m value is a single token and cannot hide a flag behind whitespace; leave it.
+      i = k > i ? k : i + 1;
+      continue;
+    }
+
+    let end = k + 1;
+    while (end < command.length && command[end] !== quote) {
+      if (command[end] === "\\") end++;
+      end++;
+    }
+    for (let p = k + 1; p < Math.min(end, command.length); p++) out[p] = " ";
+    i = end + 1;
+  }
+  return out.join("");
+}
+
+/**
+ * `--no-verify`, and `-n` where `-n` MEANS `--no-verify`.
+ *
+ * Was two regexes over the raw command string with `[^\n]*` between the git verb and the flag —
+ * and `[^\n]*` spans `;`, `&&` and `|`, so the flag did not have to belong to the git command at
+ * all. Measured at `f7c51d89` and still failing at `3e785e61`: `git push > "$LOG" 2>&1; grep -n
+ * "vitest" "$LOG"` was DENIED as "-n is --no-verify on commit/push", where the `-n` is grep's.
+ *
+ * M-068 gave this file `segments()` and fixed the `rm` and force-push rules with it; these two were
+ * left behind, which is the finding M-072 actually records — **a lesson landing on one rule does
+ * not propagate to its neighbours**, now the fourth instance in this one file.
+ *
+ * `-n` is deliberately NOT denied on merge/revert/cherry-pick, where it means `--no-stat` and
+ * `--no-commit`. A false deny in a DENY list is the expensive direction to be wrong in.
+ */
+function isNoVerify(command) {
+  const LONG_VERBS = ["commit", "push", "merge", "revert", "cherry-pick"];
+  const SHORT_VERBS = ["commit", "push"];
+  for (const tokens of segments(maskMessageText(command))) {
+    const git = commandIndex(tokens, "git");
+    if (git === -1) continue;
+    // `git -C dir commit` — the verb is not always adjacent, same as isForcePush.
+    const rest = tokens.slice(git + 1);
+    const verb = rest.find((t) => LONG_VERBS.includes(t));
+    if (!verb) continue;
+    if (rest.includes("--no-verify")) return true;
+    if (SHORT_VERBS.includes(verb) && rest.includes("-n")) return true;
+  }
+  return false;
+}
+
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));
 process.stdin.on("end", () => {
@@ -226,11 +314,16 @@ process.stdin.on("end", () => {
       // command line (`git commit -m x --no-verify`), so `Bash(git commit --no-verify*)` would miss
       // the ordinary spelling. The hole is recorded rather than papered over with a rule that reads
       // like cover and matches almost nothing.
-      [/git\s+(commit|push|merge|revert|cherry-pick)\b[^\n]*--no-verify/, "--no-verify skips the commit/push gate and is forbidden"],
-      // `-n` is --no-verify ONLY for commit and push. On revert and cherry-pick it is --no-commit
-      // and on merge it is --no-stat, all legitimate — denying those would be a false positive in a
-      // DENY list, which is the expensive direction to be wrong in.
-      [/git\s+(commit|push)\b[^\n]*\s-n(\s|$)/, "-n is --no-verify on commit/push and is forbidden"],
+      //
+      // ⚠ WAS TWO RAW-STRING REGEXES, and both spanned command separators (M-072, fixed 2026-08-21):
+      // `[^\n]*` between the git verb and the flag matches straight through `;`, `&&` and `|`, so the
+      // flag never had to belong to the git command. `git push > "$LOG" 2>&1; grep -n "vitest" "$LOG"`
+      // was DENIED as "-n is --no-verify on commit/push" — grep's `-n`. Same defect class as the rm
+      // rule and the `.env` rule above, in the same file, for the FOURTH time: the pattern matched
+      // characters AROUND the thing instead of the thing, and `segments()` — built for the rm rule —
+      // was never carried across to its neighbours. Rationale and the no-bypass boundary (a quoted
+      // `--no-verify` is still a flag) are at `isNoVerify` / `maskMessageText`.
+      [isNoVerify, "--no-verify (or -n on commit/push) skips the commit gate and is forbidden"],
     ];
     const ASK = [
       // @twin Bash(git push*)

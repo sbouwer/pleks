@@ -770,7 +770,7 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Provenance:** the claim "the code cannot attach" was asserted from a single-file grep, propagated to four documents, and falsified by a cleared session that resolved the type instead. See L-42/L-43 in `dev-standards/ledgers/LESSONS.md`.
 - **Covering spec:** ADDENDUM_57G §11.3
 
-### M-072 — `bash-gate` matches a flag token without checking which command owns it
+### M-072 — `bash-gate` matches a flag token without checking which command owns it — ✅ BUILT 2026-08-22
 
 - **Rule:** `--no-verify` is forbidden on commit/push (`CLAUDE.md` §3, hook-denied).
 - **Where it lives:** `.claude/hooks/bash-gate.js`.
@@ -789,6 +789,12 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
   - `rg` for the flag under `docs/` → correctly ALLOWED, so the prose problem is narrower than the entry claimed: it is the git-verb-plus-later-text span, not any mention.
 - **Found while re-measuring, first-hand:** the probe could not be run inline at all. A single Bash command containing the flag as a quoted test case was denied by the hook under test, so the probe had to be written to a file that assembles the token from fragments. **The control obstructs its own measurement**, which is one turn worse than obstructing its own documentation.
 - **Probe, kept:** `scripts/` has no home for it yet; the five cases are reproduced in the bullet above so the next attempt starts from the measurement rather than the code.
+
+**✅ BUILT 2026-08-22.** Both raw-string flag rules replaced by `isNoVerify()` in `.claude/hooks/bash-gate.js`, mirroring `isForcePush`'s idiom: `segments()` → `commandIndex(tokens, "git")` → find the verb among the remaining tokens → test for the flag as a STANDALONE TOKEN in that segment alone. Nine probes added to `scripts/check-bash-gate.mjs`, four of them known-good, including the original `f7c51d89` command verbatim (it now resolves to **ask** — an ordinary push — which was the correct answer all along).
+
+- **The fix is NARROWER than this entry proposed, and the boundary is a security one.** "Segment-aware matching fixes both" (the prose bullet above) is only half right. Prose about the flag inside a commit **message** is fixed — but by masking the VALUE of `-m`/`--message` specifically, not by stripping quoted spans generally. `normToken` already removes quote characters, so `git commit "--no-verify"` normalises to the bare flag — and it genuinely *is* a flag, because the shell strips those quotes before git sees the argument. A general quoted-span strip would have waved through the exact command the rule exists to stop. Only a `-m` value is inert, because git treats it as text whatever it spells. That case is now a DENY probe labelled as the no-bypass boundary; if it ever flips to allow, the masking has been widened into a hole.
+- **What stayed a false deny, deliberately:** a command mentioning the flag outside a `-m` value in the same segment as a git verb. Same accepted direction as the `rm` rule's — a false deny costs a rephrase.
+- **The finding this entry ends on is not about the flag.** Four separate rules in ONE file — `rm`, force-push, `.env`, and now this — each shipped matching characters *around* the thing instead of the thing, and each was fixed in isolation. `segments()` was built for the first and sat twenty lines above the last two for a full day without being carried across. **A lesson landing on one rule does not propagate to its neighbours**, and the sweep after a fix has to be the whole file, not the rule that prompted it. → [[l-44]]
 
 
 ### M-073 — nothing local stops a commit landing on the default branch — ✅ BUILT 2026-08-21
@@ -821,6 +827,27 @@ seam opts in. Without that, `npm run check` would fail *on the default branch* �
 spawns the real hook, so the guard would fire during an ordinary check run that is not committing
 anything. A gate that makes the gate unrunnable is the failure this file keeps recording in other
 forms; here it was caught before shipping rather than after.
+
+**⚠ THAT NOTE WAS WRONG, AND THE THING IT CLAIMED TO HAVE AVOIDED SHIPPED (2026-08-22).** The seam
+covers every probe that sets `PLEKS_HOOK_PROBE=1` — but `check-git-hooks.mjs` has one block that
+CLEARS the flag on purpose, because seam-inertness is the property it tests. On the default branch
+the guard therefore fires there, refusing before pre-commit echoes the command it resolved, and both
+of that block's assertions read `(no output)`. `npm run check` fails on `main`: exactly the outcome
+the note said the seam prevented.
+
+- **It went GREEN on the PR and RED on the push to main** (run `32523760908`, 2 probes wrong). A PR
+  is built from a detached merge ref, where `git branch --show-current` is empty and the guard is
+  inert; a push to `main` has the branch set. **The run that gates merging exercised the inert
+  half.** That is the transferable finding — a branch-sensitive control is only half-tested by PR CI,
+  and this repo's CI has no run that would have caught it before merge.
+- **Fixed** by naming the simulated branch in that one block (`PLEKS_BRANCH_PROBE`, the guard's own
+  seam — declaring which branch the probe simulates, not opting out), plus a NEW probe pinning the
+  combination nothing asserted: flag absent AND branch is the default → must refuse. Kept under the
+  npm shim deliberately: if the guard ever stops refusing there, the hook falls through to a real
+  `npm run check` that re-enters this script, which is the documented fork bomb.
+- **The lesson is the one M-072 ends on, one rung up.** A design note reasoning about a seam's
+  coverage is a claim about every caller, and it was written from the callers that were in mind.
+  The probe suite had a caller the note's author did not enumerate — in the same file.
 
 
 ### M-070 — a generated seed artefact with no regeneration check

@@ -173,6 +173,22 @@ for (const { file, env, wraps } of HOOKS) {
         ...process.env,
         PATH: `${shimDir}:${process.env.PATH}`,
         PLEKS_HOOK_PROBE: "",
+        // ⚠ THE BRANCH MUST BE NAMED HERE, and this block is the ONLY caller that has to. Every
+        // other probe sets PLEKS_HOOK_PROBE=1, under which the M-073 default-branch guard stands
+        // down; this one CLEARS it on purpose, because seam-inertness is the property under test.
+        // That leaves the guard live — so on the default branch it refuses before pre-commit ever
+        // echoes the command it resolved, and both assertions below read "(no output)".
+        //
+        // It went green on the PR and RED on the push to main (run 32523760908, 2 probes wrong),
+        // because a PR is built from a detached merge ref where `git branch --show-current` is
+        // empty and the guard is inert. **A gate that behaves differently in the two CI contexts is
+        // only half-tested by the one that gates merging** — and the same failure hits anyone
+        // running `npm run check` on main, which is exactly the cost M-073's design note claimed to
+        // have avoided by adding the seam.
+        //
+        // Naming a branch is not opting out of the guard: it declares which branch this probe
+        // SIMULATES, the same seam the M-073 cases use, and keeps the two properties independent.
+        PLEKS_BRANCH_PROBE: "fix/seam-inertness-probe",
         [env]: "echo SEAM-LEAKED",
       },
     })
@@ -186,6 +202,28 @@ for (const { file, env, wraps } of HOOKS) {
     // The shim must actually have been the thing that ran, or the assertion above is about an echo
     // and nothing else — the hook could resolve the right string and invoke something else.
     ok(out.includes("SHIM npm run check"), `${file}: …and INVOKED it — the shimmed npm was reached`)
+  }
+
+  // THE INTERACTION THAT BIT, pinned. The two probes above and the M-073 guard each behaved
+  // correctly in isolation; what nothing asserted is what pre-commit does when the seam flag is
+  // ABSENT and the branch IS the default — the combination CI hits on every push to main, and the
+  // one a local `npm run check` on main hits too.
+  //
+  // Deliberately inside the shim block. If the guard ever stops refusing here, the hook falls
+  // through to a REAL `npm run check`, which re-enters this very script — the fork bomb documented
+  // above (58 orphaned processes, ten-minute hang). The shim makes the failure mode a red probe
+  // instead of a wedged machine. Never move this case out from under the shim.
+  {
+    clearMarker()
+    const resolved = spawnSync("git", ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], { encoding: "utf8" })
+      .stdout.trim().replace(/^origin\//, "") || "main"
+    const r = spawnSync("sh", [".githooks/pre-commit"], {
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${shimDir}:${process.env.PATH}`, PLEKS_HOOK_PROBE: "", PLEKS_BRANCH_PROBE: resolved },
+    })
+    const said = `${r.stdout ?? ""}${r.stderr ?? ""}`
+    ok(r.status !== 0 && /default branch/i.test(said),
+      `.githooks/pre-commit: the guard is live with NO probe flag set — the real-session and push-to-main path`)
   }
   rmSync(shimDir, { recursive: true, force: true })
 }
