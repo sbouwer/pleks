@@ -454,11 +454,15 @@ section that never mentioned joint applications).
   **The finding is not the two routes. It is that two rules exist for exactly this class and each
   missed a different half.** The READ rule covered the surface, fired, and was silenced by a
   **file-level baseline entry** — classified once as debt, never re-read, and a baseline entry means
-  *read and classified*, which this one had stopped being. The WRITE rule never looked: its
-  `SKIP_PATH` lists `applications` and the read rule's does not, so `app/api/applications/**` is
-  path-skipped for writes. **Two rules for one class, with different apertures, is one rule with a
-  hole** — and neither a probe nor a green gate can show it, because both behaved exactly as
-  written. Aligning the skip sets is open work, not done here.
+  *read and classified*, which this one had stopped being. The WRITE rule never looked: as at
+  `b33a0855`, its `SKIP_PATH` listed `applications` and the read rule's did not, so
+  `app/api/applications/**` was path-skipped for writes. **Two rules for one class, with different
+  apertures, is one rule with a hole** — and neither a probe nor a green gate can show it, because
+  both behaved exactly as written.
+  Aligned in `fa1f4da0`: both skip sets are now the INTERSECTION of what they were, so the pair's
+  coverage is their union. That exposed 40 sites in 16 files, classified per site, and each
+  exemption is a per-file directive carrying its reason **at the site** — not a path-list entry,
+  which is invisible in the diff when somebody later adds a new read under one of those paths.
 
 - **2026-07-02 · the site-content hole.** A write gated with bare `gateway()` was
   indistinguishable from a write whose gate was forgotten. Narrative in `.claude/rules/data-access.md`.
