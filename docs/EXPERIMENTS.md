@@ -1266,6 +1266,31 @@ against the raw transcripts. This does not eliminate the bias — it makes it vi
 
 ### Status
 
-**PRE-REGISTERED. No arm has run.** Next action: build the transcript-aggregating harness and probe
-it for the subagent-file confound above, before any of the nine runs — a run measured by an unproven
-harness is a run that has to be repeated.
+**PRE-REGISTERED. Harness BUILT and PROBED 2026-08-23. No arm has run yet.**
+
+`scripts/transcript-metrics.mjs` — `--selftest` (pure, in the gate), `--probe` (reads real
+transcripts, run manually before any arm), and a report mode taking `--since`/`--until` so one arm's
+slice cannot inherit another's spend.
+
+**The confound probe passes, and the number it returned is the argument for the whole design.** On
+this repo's own session `0d9dadd6`: **36 subagent transcripts carrying 43.90M weighted units that
+the main transcript does not contain — 22.5% of total spend.** A main-transcript-only harness would
+have reported that session as costing 151M instead of 195M, and would have understated any
+delegating arm by roughly that fraction.
+
+**Independently corroborated.** `.claude/hooks/context-budget.js` computes agent spend by its own
+route and reported "36 invocations, ~43.9M billable-equivalent" for the same session. Two
+implementations, written for different purposes, agreeing to three significant figures — which is
+worth more than either number alone, and is the closest thing available to a calibration.
+
+**What the same run says about weighting.** main + subagents: 1,410M cache-read against 7.16M
+output. Counting output tokens — the intuitive proxy — would have measured about half a percent of
+the real cost and ranked the arms on noise.
+
+**Known imprecision, recorded now rather than discovered mid-experiment:** the main transcript shows
+`Agent×31` tool calls against 36 subagent transcript files. The gap is unexplained — nested spawns
+and compaction boundaries are both candidates. It does not affect token totals (those are summed
+from the files, not from the call count), but it does mean **agent-invocation counts from tool calls
+are not trustworthy as a per-arm metric**; count transcript files instead.
+
+Next action: the nine runs. Each arm's slice bounded by `--since`/`--until`, `--probe` re-run first.
