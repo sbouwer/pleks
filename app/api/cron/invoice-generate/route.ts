@@ -195,13 +195,20 @@ export async function GET(req: Request) {
 
     if (existing && existing.length > 0) continue
 
-    // Generate invoice number
-    const { count } = await supabase
+    // Generate invoice number. The count IS the sequence, so an unreadable count is not a cosmetic
+    // problem: `count || 0` made every failed read produce PLEKS-YYYY-00001 again, colliding with
+    // the org's first invoice. Skip this lease and let tomorrow's run pick it up — a late invoice is
+    // recoverable, a duplicated invoice number on a financial record is not.
+    const { count, error: countError } = await supabase
       .from("rent_invoices")
       .select("id", { count: "exact", head: true })
       .eq("org_id", lease.org_id)
+    if (countError || count === null) {
+      console.error("invoice-generate: invoice-number count failed for lease", lease.id, countError?.message ?? "count was null")
+      continue
+    }
 
-    const seq = ((count || 0) + 1).toString().padStart(5, "0")
+    const seq = (count + 1).toString().padStart(5, "0")
     const invoiceNumber = `PLEKS-${today.slice(0, 4)}-${seq}`
 
     const dueDay = Math.min(lease.payment_due_day || 1, 28)

@@ -65,12 +65,26 @@ async function fetchOrgContact(supabase: SupabaseClient, orgId: string) {
   }
 }
 
-async function hasActiveLeases(supabase: SupabaseClient, orgId: string): Promise<boolean> {
-  const { count } = await supabase
+/**
+ * true = the org has active leases · false = it provably has none · null = COULD NOT TELL.
+ *
+ * The third state is load-bearing. This gate is what stops a purge warning — and the
+ * `purge_eligible_at` stamp that starts a 30-day data-destruction countdown — from reaching an org
+ * that is still trading. The previous body ended `return (count ?? 0) > 0`, so a timeout or an RLS
+ * fault answered "no active leases" and the countdown began on a query error. Every caller treats
+ * anything other than a definite `false` as "do not warn": an org wrongly left alone is a cron run
+ * that retries tomorrow, an org wrongly warned is a customer told their data will be deleted.
+ */
+async function hasActiveLeases(supabase: SupabaseClient, orgId: string): Promise<boolean | null> {
+  const { count, error } = await supabase
     .from("leases")
     .select("*", { count: "exact", head: true })
     .eq("org_id", orgId)
     .eq("status", "active")
+  if (error) {
+    console.error("subscription-purge-warnings: active-lease check failed for", orgId, error.message)
+    return null
+  }
   return (count ?? 0) > 0
 }
 
@@ -79,7 +93,8 @@ async function processWarn30dSub(
   sub: { id: string; org_id: string; cancelled_at: string | null },
   now: Date,
 ): Promise<boolean> {
-  if (await hasActiveLeases(supabase, sub.org_id)) return false
+  const active = await hasActiveLeases(supabase, sub.org_id)
+  if (active !== false) return false   // true = still trading; null = unreadable — never warn on an unknown
 
   const purgeEligibleAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
   const { error: updateErr } = await supabase
@@ -114,7 +129,8 @@ async function processFinalWarnSub(
   supabase: SupabaseClient,
   sub: { id: string; org_id: string; cancelled_at: string | null; purge_eligible_at: string | null },
 ): Promise<boolean> {
-  if (await hasActiveLeases(supabase, sub.org_id)) return false
+  const active = await hasActiveLeases(supabase, sub.org_id)
+  if (active !== false) return false   // true = still trading; null = unreadable — never warn on an unknown
 
   const { data: prior, error: priorError } = await supabase
     .from("communication_log")
@@ -160,7 +176,12 @@ async function processPurgeDueSub(
   supabase: SupabaseClient,
   sub: { id: string; org_id: string },
 ): Promise<"purged" | "deferred" | "skipped"> {
-  if (await hasActiveLeases(supabase, sub.org_id)) return "skipped"
+  const active = await hasActiveLeases(supabase, sub.org_id)
+  // A definite "no active leases" is the only state that may proceed to a purge. `null` is DEFERRED,
+  // not skipped: skipped is a quiet no-op, and an unreadable lease state on a destructive path is
+  // exactly the thing the deferral channel exists to put in front of a human.
+  if (active === true) return "skipped"
+  if (active === null) return "deferred"
 
   // Most recent first: a re-send after a bounce should be able to open the gate the bounce closed.
   const { data: warningRows, error: warningErr } = await supabase

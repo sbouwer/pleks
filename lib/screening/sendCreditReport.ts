@@ -13,14 +13,23 @@ import { sendCreditReportDelivered } from "@/lib/applications/emails"
 export async function sendCreditReportToApplicant(applicationId: string): Promise<void> {
   const supabase = await createServiceClient()
 
-  // Dedup: only send once per application
-  const { count } = await supabase
+  // Dedup: only send once per application. A false zero here is a SECOND credit report emailed to
+  // an applicant — `count: null` from a failed read used to satisfy `(count ?? 0) > 0 === false`,
+  // which is the branch that means "never sent, go ahead". Refuse to decide instead: the caller's
+  // retry sends once when the log is readable, where guessing sends twice today.
+  const { count, error: dedupError } = await supabase
     .from("communication_log")
     .select("id", { count: "exact", head: true })
     .eq("template_key", "application.credit_report_delivered")
     .eq("entity_id", applicationId)
+  if (dedupError || count === null) {
+    throw new Error(
+      `sendCreditReportToApplicant(${applicationId}): could not read the delivery log ` +
+        `(${dedupError?.message ?? "count was null"}). Not sending — an unreadable dedup state must not read as "not yet sent".`,
+    )
+  }
 
-  if ((count ?? 0) > 0) return
+  if (count > 0) return
 
   const ctx = await buildEmailContext(applicationId)
   if (!ctx) return

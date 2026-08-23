@@ -22,11 +22,20 @@ export const trustReconciliationDriftRule: OrgRule = {
   tags:          ["trust", "reconciliation", "bank-feed", "compliance"],
 
   async condition({ supabase, org, now }) {
-    // Only relevant if org has a linked bank account
-    const { count: bankCount } = await supabase
+    // Only relevant if org has a linked bank account.
+    //
+    // Throws rather than returning false, which differs deliberately from the `latest` read below.
+    // `!bankCount` is true for both "this org has no bank account" and "the count could not be
+    // read", and only the first is a reason for a reconciliation-drift rule to stand down. The
+    // engine catches, reports to Sentry and writes an `error` rule_run, so an unreadable
+    // precondition is recorded as unevaluated instead of silently as "not applicable". (M-090)
+    const { count: bankCount, error: bankCountError } = await supabase
       .from("bank_accounts")
       .select("id", { count: "exact", head: true })
       .eq("org_id", org.id)
+    if (bankCountError) {
+      throw new Error(`[trust-reconciliation-drift] bank_accounts count failed for org ${org.id}: ${bankCountError.message}`)
+    }
 
     if (!bankCount) return false
 

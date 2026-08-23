@@ -168,12 +168,20 @@ export async function createMaintenanceRequest(formData: FormData) {
   const now = new Date()
   const yearMonth = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, "0")}`
   const catCode = workOrderCategoryCode(triage.category)
-  const { count } = await db
+  // The count IS the running counter, so an unreadable count does not degrade the number — it
+  // restarts it. `(count || 0) + 1` minted WO-YYYYMM-CAT-00001 again on every failed read, against
+  // an org that may already have hundreds. Refuse to create rather than mint a colliding work
+  // order number: the agent sees the failure and retries, where guessing writes a duplicate.
+  const { count, error: countError } = await db
     .from("maintenance_requests")
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId)
+  if (countError || count === null) {
+    console.error("createMaintenanceRequest: work-order counter read failed for org", orgId, countError?.message ?? "count was null")
+    return { error: "Could not allocate a work order number. Please try again." }
+  }
 
-  const seq = ((count || 0) + 1).toString().padStart(5, "0")
+  const seq = (count + 1).toString().padStart(5, "0")
   const workOrderNumber = `WO-${yearMonth}-${catCode}-${seq}`
 
   const { data: request, error } = await db
