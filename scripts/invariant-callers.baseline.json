@@ -23,11 +23,6 @@
       "register": "M-067",
       "reason": "A stated MUST ('every for-each-org query MUST exclude the platform org') with zero call sites. Either every org-iterating query is already safe for a reason the comment does not give, or the platform org is silently included in fan-outs meant to exclude it. M-067 requires the per-site census BEFORE any rule, because a rule with no measured population is how a check's first number becomes a finding."
     },
-    "HELP_CONTENT_DRAFT": {
-      "file": "lib/help/help-data.ts",
-      "register": "M-077",
-      "reason": "A sign-off gate nothing reads. The flag is true, meaning the help content has NOT passed the §7 content-compliance pass (D-HELP-20), and /help renders it to users regardless because no code consults it. Cheapest of the three to resolve — M-077 notes it has no prior decision blocking it, only Stean's sign-off or a visible draft banner."
-    },
     "RETENTION_PROTECTED_TABLES": {
       "file": "lib/subscriptions/retention.ts",
       "register": "M-082",
