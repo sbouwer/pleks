@@ -24,8 +24,18 @@ export async function startTrial(
     .from("subscriptions")
     .select("status, tier, trial_ends_at")
     .eq("org_id", orgId)
-    .single()
+    // Purged rows are history. `subscriptions.org_id` has an INDEX, not a unique constraint
+    // (001_foundation.sql:265), so an org purged and then resubscribed holds two rows and `.single()`
+    // errored — which read here as "no subscription at all" and refused the trial with the confidently
+    // wrong reason "Already on a paid plan".
+    .not("status", "eq", "purged")
+    .maybeSingle()
   logQueryError("startTrial subscriptions", existingError)
+  // An unread row cannot clear the trial-abuse checks below — every one of them is phrased as
+  // "unless we can see a reason not to", so a null `existing` silently satisfies all three.
+  if (existingError) {
+    return { success: false, error: "Could not read the current subscription — try again" }
+  }
 
   if (existing?.status === "trialing") {
     return { success: false, error: "Trial already active" }

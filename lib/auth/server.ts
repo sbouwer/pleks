@@ -17,6 +17,7 @@ import { hasCapability } from "@/lib/auth/can"
 import {
   canPerformAgentAction,
   SubscriptionLockdownError,
+  SubscriptionStateUnavailableError,
   type AgentWriteAction,
   type SubscriptionState,
   type SubscriptionStatus,
@@ -218,10 +219,29 @@ async function getSubscriptionState(orgId: string): Promise<SubscriptionState> {
     .from("subscriptions")
     .select("status, past_due_since, paused_at, cancelled_at, purge_eligible_at")
     .eq("org_id", orgId)
-    .single()
+    // A purged row is history, not a subscription. Excluded here for the same reason
+    // getCurrentOrgCapabilities excludes it — and NOT excluding it is half of the defect below.
+    .not("status", "eq", "purged")
+    .maybeSingle()
 
-  if (error || !data) {
-    // No subscription row = owner-free tier; treat as active for write purposes.
+  // A FAILED READ IS NOT AN ACTIVE SUBSCRIPTION. This was one branch — `if (error || !data)` —
+  // which conflated the legitimate case (no row at all = owner-free tier, permitted to write) with
+  // the one that must never grant anything (the query did not answer). The gate that decides
+  // whether a paused org may write was reading its own data source fail-open.
+  //
+  // NOT HYPOTHETICAL, and this is why it is worth the error class. `subscriptions.org_id` carries
+  // an INDEX, not a unique constraint (001_foundation.sql:265), so ">1 row" lands on the error
+  // branch too — and in production, as at 2026-08-23, the ONLY org holding a subscription held two
+  // rows (one `purged`, one `active`). `.single()` therefore errored on every call and the gate
+  // returned "active" unconditionally. It read as correct only because that org happens to BE
+  // active; had it been paused, every agent write would still have been allowed.
+  //
+  // Same shape as the `user_orgs` `.single()` corrected earlier the same day: a query written as if
+  // a uniqueness constraint existed, failing into the permissive answer when it does not.
+  if (error) throw new SubscriptionStateUnavailableError(error.message)
+
+  // Genuinely no row = owner-free tier. This is the ONLY thing the fallback was ever meant to cover.
+  if (!data) {
     return { status: "active", past_due_since: null, paused_at: null, cancelled_at: null, purge_eligible_at: null }
   }
 
@@ -239,6 +259,10 @@ async function getSubscriptionState(orgId: string): Promise<SubscriptionState> {
  * Call this instead of gateway() in any server action or route handler that writes.
  *
  * Throws SubscriptionLockdownError (HTTP 403) when the org is paused or cancelled.
+ * Throws SubscriptionStateUnavailableError when the subscription could not be READ — a distinct
+ * error because it is not a 403: the caller must not tell the user anything about their plan, and
+ * the routes that catch SubscriptionLockdownError deliberately do not catch this one. Until
+ * 2026-08-23 this case returned "active" and the write proceeded.
  * Throws a plain Error when the user is not authenticated.
  *
  * Usage:

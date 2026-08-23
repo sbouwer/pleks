@@ -26,7 +26,10 @@ export default async function AdminOrgDetailPage({
 
   const [orgRes, subRes, membersRes, auditRes] = await Promise.all([
     supabase.from("organisations").select("*").eq("id", orgId).single(),
-    supabase.from("subscriptions").select("*").eq("org_id", orgId).single(),
+    // Purged rows are history, and org_id has an INDEX rather than a unique constraint
+    // (001_foundation.sql:265) — without the filter a purged-then-resubscribed org has two rows,
+    // `.single()` errors, and this admin page renders as though the org has no subscription at all.
+    supabase.from("subscriptions").select("*").eq("org_id", orgId).not("status", "eq", "purged").maybeSingle(),
     supabase
       .from("user_orgs")
       .select("user_id, role, created_at, user_profiles(full_name)")

@@ -48,15 +48,26 @@ export async function GET(
       .from("subscriptions")
       .select("tier")
       .eq("org_id", orgId)
-      .single(),
+      // A purged row is history, not a subscription — and org_id carries an INDEX, not a unique
+      // constraint (001_foundation.sql:265), so leaving it in makes `.single()` error for any org
+      // that has ever been purged and resubscribed. See the error branch below for what that cost.
+      .not("status", "eq", "purged")
+      .maybeSingle(),
   ])
 
   if (!propertyRes.data) return NextResponse.json({ error: "Property not found" }, { status: 404 })
 
   // Compute credits
   const { TIER_REFORMAT_LIMITS } = await import("@/lib/rules/templates")
-  const tier = (subRes.data?.tier as string | null) ?? "steward"
-  const limit = TIER_REFORMAT_LIMITS[tier] ?? 3
+
+  // A FAILED TIER READ MUST NOT MINT CREDITS. `?? "steward"` gave an unread subscription 3 AI
+  // reformat credits — and an `owner`-tier org is entitled to 0, so the fallback was not a cautious
+  // default, it was a grant. Fail closed: no answer, no credits.
+  if (subRes.error) {
+    return NextResponse.json({ error: "Could not read subscription" }, { status: 503 })
+  }
+  const tier = (subRes.data?.tier as string | null) ?? "owner"
+  const limit = TIER_REFORMAT_LIMITS[tier] ?? 0
   const used = propertyRes.data.ai_reformat_count ?? 0
   const bonus = propertyRes.data.ai_reformat_bonus ?? 0
   const total = limit + bonus
