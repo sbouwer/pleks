@@ -1022,8 +1022,17 @@ the note said the seam prevented.
 - **Rule:** `lib/comms/platform-org.ts` — its own JSDoc: every "for each org" query MUST exclude the platform org
 - **Where it lives:** the helper's header comment. No CLAUDE.md bullet, no rule file, no check.
 - **Rung:** eslint · **Blast:** data-boundary
-- **Satisfied when:** check:check-invariant-has-callers
+- **Satisfied when:** eslint:pleks/require-platform-org-exclusion
+- **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23; it makes the gap loud. This entry closes only AFTER the per-site census it requires, and then a rule over org-iterating query shapes.
 - **Sketch:** found 2026-08-20 by the knip tranche-2 sweep, which flagged the export as unreferenced. It is not dead code — it is an **unenforced invariant**, which is the more dangerous reading of the same evidence: the guard exists, the rule is written down, and **no query in the tree applies it**. Either every org-iterating query is already safe for a reason the comment does not give, or the platform org is silently included in fan-outs that were meant to exclude it. Nobody has established which, and the helper's existence has been standing in for the answer. Two pieces of work, in order: (1) census every "for each org" query and classify per site whether platform-org inclusion is a defect there — the answer decides whether this is a burn-down or a no-op; (2) only then, an ESLint rule over org-iterating query shapes. Do NOT build (2) first; a rule with no measured population is how a check's first number becomes a finding.
+
+**Visibility ratchet SHIPPED 2026-08-23 — `scripts/check-invariant-has-callers.mjs`. This entry, M-077 and M-082 all stay OPEN, and the distinction matters.** The check asserts that an export carrying an `@invariant M-0NN` tag has at least one CODE reader — comments are blanked before counting, because M-082's finding was that prose asserting a list is live made the gap invisible, so a sentence must never satisfy it. All three known instances are recorded in `scripts/invariant-callers.baseline.json` with their reason and register pointer; the check goes red on the **fourth** instance, not on these three.
+
+What it does NOT do, stated plainly: it does not exclude the platform org from any query, sign off the help content, or protect a table from a purge. It converts a silent lie into a loud one — M-082 sketch half (a) — and that is still the right first move, because all three went unnoticed for months precisely because nothing asked the question out loud. Each entry's `Satisfied when` now names the mechanism that actually closes it.
+
+**Deliberately NOT built: the general form.** M-077 rejected "any `*_DRAFT`/`*_REQUIRED`-shaped export with zero readers" on a population of three, and that rejection stands — this is a ratchet over DECLARED invariants, so an export nobody tagged is invisible to it. That hole is real, and is why the class-level rule stays open rather than reading as covered.
+
+**Probed both directions against the real tree, not only in fixtures:** a newly tagged export with no reader FAILS; a baselined invariant that GAINS a reader FAILS with "the baseline must shrink"; a baseline entry naming no tagged export FAILS; the clean tree passes. A tag resolving to no export also fails — which caught the check author's own explanatory comment on first run: the third time this repo has been bitten by a token written in prose, and the first time a check caught it rather than being fooled by it.
 - **Covering spec:** NEW
 
 ### M-075 — `check-git-hooks`'s probes are not concurrency-safe
@@ -1064,7 +1073,8 @@ the note said the seam prevented.
 - **Rule:** `lib/help/help-data.ts:8` — its own header: "⚠ DRAFT — `HELP_CONTENT_DRAFT` is true until Stéan's §7 content-compliance pass signs off every answer"
 - **Where it lives:** that header comment and the constant's own declaration. No CLAUDE.md bullet, no rule file, no check.
 - **Rung:** eslint · **Blast:** other
-- **Satisfied when:** check:check-invariant-has-callers
+- **Satisfied when:** test:app/(public)/help/__tests__/draft-banner.test.ts
+- **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23; it makes the gap loud. This entry closes when /help actually consults the flag (a banner or a refusal to render), or when Stéan's §7 sign-off flips it to false.
 - **Measured at `b2eda39d`, 2026-08-21** (repo-wide `HELP_CONTENT_DRAFT`, excluding `docs/DEAD-CODE-QUEUE.md`): **two hits, and both are the declaration** — the header sentence at :8 and `export const HELP_CONTENT_DRAFT = true` at :40. **Zero readers.** The `/help` page and the help widget import `HelpRole` and the content itself and never consult the flag, so the un-signed-off state is asserted in a comment and rendered to users regardless.
 - **Third instance of M-067's class, and the class is now confirmed rather than suspected.** M-067 (`excludePlatformOrg`, a stated MUST) and M-069 (`INFORMATION_REGULATOR_URL`, a stated SSOT) are the same shape: **a constant whose existence stands in for the enforcement it names.** Three in two sweeps from independent domains — comms fan-out, legal copy, help content — makes it a repo-wide pattern with a single generalisable check, not three unrelated dead exports.
 - **Sketch — and note this one is cheaper than its two siblings, which is why it is worth doing first:** unlike M-067 (needs a per-site census before any rule) and M-069 (blocked on a counsel decision about which constant wins), this flag has **no prior decision to make**. Either it gates something or it should not exist. Two candidate shapes: (a) the narrow one — `/help` refuses to render, or renders a visible draft banner, while the flag is true, which converts the comment into behaviour; (b) the general one — a check that any `export const *_DRAFT`/`*_REQUIRED`-shaped boolean with zero readers fails, which is the class-level rule the three instances argue for. **(a) is a one-file change and provable; (b) needs its population measured before a number is recorded.** Do not ship (b) on a population of three.
@@ -1136,7 +1146,8 @@ concealing.
 - **Rule:** the tables on this list are protected from retention purges — a PPRA/POPIA obligation, not a preference. The array names `audit_log`, `trust_transactions`, `consent_log`, `auth_events`, `tos_acceptances`.
 - **Where it lives:** `lib/subscriptions/retention.ts` — the array, and nothing else.
 - **Rung:** check · **Blast:** data-boundary
-- **Satisfied when:** check:check-invariant-has-callers
+- **Satisfied when:** check:check-retention-purge-derives-skiplist
+- **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23 and is sketch half (a) only. Half (b) is the real mechanism: every pg_cron retention purge and erasure path deriving its skip-list from this array by import.
 - **Measured 2026-08-21 at `2265c58c`:** a whole-repo grep for the identifier finds the declaration and **no importer**. The array is exported, exhaustive, and read by nobody.
 - **What makes it a register entry rather than a deletion.** TWO artefacts assert it is live, in the present tense, and both are wrong:
   1. its own module header — *"BUILD_65 imports this array rather than defining its own"*;

@@ -41,6 +41,9 @@ export interface HelpEntry {
  * @knipignore A stated compliance gate ("flip to false only after the §7 content-compliance pass", D-HELP-20)
  * with zero readers — M-067's class. Either the gate is not needed yet, or draft content is live
  * with no code checking the flag.
+ * @invariant M-077 — declared to check-invariant-has-callers, currently baselined as unread. Note
+ * what that means while it stays baselined: this flag is `true`, so the content is UNSIGNED, and
+ * /help renders it to users anyway because nothing consults the flag.
  */
 export const HELP_CONTENT_DRAFT = true
 

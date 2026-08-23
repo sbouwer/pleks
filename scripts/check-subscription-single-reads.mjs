@@ -23,32 +23,14 @@
  */
 import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
+import { blankComments } from "./lib/blank-comments.mjs"
 
 const TERMINATORS = ["single", "maybeSingle"]
 
-/**
- * Blank out `//` and block comments, character by character, preserving length so byte offsets and
- * line numbers still line up. LINEAR AND REGEX-FREE ON PURPOSE — twice this month a check has been
- * fooled by its own explanatory comment (the knip floor counted `@knipignore` written in prose;
- * the first draft of THIS file flagged four sites it had just fixed, because each carried a comment
- * saying "`.single()` errors"). A comment-stripping regex was the other candidate and this repo's
- * super-linear-regex rule rejects that shape, correctly.
- */
-export function blankComments(src) {
-  let out = ""
-  let i = 0
-  while (i < src.length) {
-    if (src[i] === "/" && src[i + 1] === "/") {
-      while (i < src.length && src[i] !== "\n") { out += " "; i++ }
-    } else if (src[i] === "/" && src[i + 1] === "*") {
-      while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) { out += src[i] === "\n" ? "\n" : " "; i++ }
-      out += "  "; i += 2
-    } else {
-      out += src[i]; i++
-    }
-  }
-  return out
-}
+// Extracted to scripts/lib/blank-comments.mjs on 2026-08-23 when check-invariant-has-callers
+// needed the same transform. Imported AND re-exported: `export { x } from` alone would leave no
+// local binding, and findViolations below calls it.
+export { blankComments }
 
 /**
  * Pure, so both directions are testable without a repo. Returns violation objects.
