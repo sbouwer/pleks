@@ -7,7 +7,7 @@
  *         hasBeenActionedFor() so one lease firing does not block others in the same org.
  */
 import type { OrgRule } from "../types"
-import { hasBeenActionedFor } from "../engine"
+import { hasBeenActionedFor } from "../actioned"
 
 const RULE_ID = "deposit-return-t7"
 const ALERT_DAYS = 7

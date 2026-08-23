@@ -24,7 +24,7 @@
  *           consistent cross-rule payload querying.
  */
 import type { OrgRule, RuleActionResult } from "../types"
-import { hasBeenActionedFor } from "../engine"
+import { hasBeenActionedFor } from "../actioned"
 
 const RULE_ID = "email-bounce-alert"
 

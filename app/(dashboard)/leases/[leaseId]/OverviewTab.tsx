@@ -13,7 +13,7 @@ import { formatZAR } from "@/lib/constants"
 import { ContactCard } from "@/components/contacts/ContactCard"
 import { CoTenantAvatars } from "@/components/contacts/CoTenantAvatars"
 import { CollectionChart, type MonthBar } from "./CollectionChart"
-import type { TenantContactInfo } from "./ContactsTab"
+import type { TenantContactInfo } from "./contact-info"
 import { fmtDateZA, fmtZA } from "@/lib/dates"
 
 const EVENT_DOT: Record<string, string> = {

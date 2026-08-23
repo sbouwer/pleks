@@ -3,7 +3,7 @@
  *
  * Notes:  Presentational. renderBody wraps the first occurrence of bodyHighlight in an amber-wash span.
  */
-import type { MomentData } from "./FounderTimeline"
+import type { MomentData } from "./moment-data"
 import styles from "./founder.module.css"
 
 /** Render `body`, wrapping the first occurrence of `highlight` in an amber-wash span. */

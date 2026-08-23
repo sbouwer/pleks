@@ -11,7 +11,7 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { ArrowLeft, Loader2 } from "lucide-react"
-import type { AnalysisResult, ImportDecisions, ImportResultData } from "../page"
+import type { AnalysisResult, ImportDecisions, ImportResultData } from "../wizard-types"
 
 interface Step4Props {
   analysis: AnalysisResult

@@ -15,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 import { detectMappingCollisions } from "@/lib/import/columnMapper"
-import type { AnalysisResult } from "../page"
+import type { AnalysisResult } from "../wizard-types"
 // FIELD_ALIASES available for future Haiku fallback
 
 const ALL_FIELDS = [

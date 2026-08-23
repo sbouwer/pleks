@@ -18,11 +18,8 @@ import type { GatewayContext } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
-import {
-  DepositReturnScheduleEmail,
-  type DeductionItem,
-  type DepositChargeItem,
-} from "@/lib/comms/templates/tenant/deposits/deposit-return-schedule"
+import { DepositReturnScheduleEmail } from "@/lib/comms/templates/tenant/deposits/deposit-return-schedule"
+import type { DeductionItem, DepositChargeItem } from "@/lib/comms/templates/tenant/deposits/schedule-items"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { isValidJustification } from "@/lib/deposits/justification"
 import { fmtDateLongZA } from "@/lib/dates"

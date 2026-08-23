@@ -10,7 +10,7 @@ import { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Upload, CheckCircle2, Loader2 } from "lucide-react"
 import { InlineLink } from "@/components/ui/actions"
-import type { AnalysisResult } from "../page"
+import type { AnalysisResult } from "../wizard-types"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
 
 interface Step0UploadProps {

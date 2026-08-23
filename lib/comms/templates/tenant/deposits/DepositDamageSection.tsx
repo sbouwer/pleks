@@ -8,7 +8,7 @@
 
 import * as React from "react"
 import { Section, Text } from "@react-email/components"
-import { CLASSIFICATION_LABELS, type DeductionItem } from "./deposit-return-schedule"
+import { CLASSIFICATION_LABELS, type DeductionItem } from "./schedule-items"
 import { formatZAR } from "@/lib/constants"
 
 function classificationLabel(c: string): string {

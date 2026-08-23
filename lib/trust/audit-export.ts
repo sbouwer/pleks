@@ -21,7 +21,7 @@ import {
   type DepositHeldRow,
   type ManagementFeeRow,
 } from "./TrustAuditPdf"
-import type { OutstandingItem } from "./close"
+import type { OutstandingItem } from "./outstanding-item"
 import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
 
 export interface GenerateAuditExportParams {

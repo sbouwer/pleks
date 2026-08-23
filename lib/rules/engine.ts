@@ -4,7 +4,7 @@
  * Auth:   Called by daily cron (service role client passed in)
  * Notes:  Two deduplication patterns — see BUILD_67_RULES_ENGINE.md §Idempotency.
  *         Org-level cooldown: cooldownDays on rule definition, checked via rule_runs.
- *         Entity-level: hasBeenActionedFor() called inside rule condition/action.
+ *         Entity-level: hasBeenActionedFor() (lib/rules/actioned.ts) called inside rule condition/action.
  */
 import * as Sentry from "@sentry/nextjs"
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -59,30 +59,6 @@ async function writeRuleRun(
     duration_ms: durationMs,
   })
   if (error) console.error(`[rules/engine] writeRuleRun failed for ${ruleId}:`, error.message)
-}
-
-// ── Entity-level deduplication helper (exported for use in rule conditions) ───
-
-/**
- * Returns true if this rule has already been actioned for the given entity
- * (identified by entity_id in rule_runs.payload) within the optional time window.
- * Rules that use per-entity dedup must include entity_id in their action's data.
- */
-export async function hasBeenActionedFor(
-  supabase: SupabaseClient,
-  ruleId: string,
-  entityId: string,
-  since?: Date,
-): Promise<boolean> {
-  let query = supabase
-    .from("rule_runs")
-    .select("id", { head: true, count: "exact" })
-    .eq("rule_id", ruleId)
-    .eq("outcome", "actioned")
-    .contains("payload", { entity_id: entityId })
-  if (since) query = query.gte("evaluated_at", since.toISOString())
-  const { count } = await query
-  return (count ?? 0) > 0
 }
 
 // ── Org rule evaluation ───────────────────────────────────────────────────────

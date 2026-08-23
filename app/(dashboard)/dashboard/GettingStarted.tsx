@@ -16,15 +16,7 @@ import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { dismissOnboarding } from "@/lib/actions/dismissOnboarding"
 import { OnboardingWizard } from "./OnboardingWizard"
-
-export interface GettingStartedProgress {
-  landlord:   boolean
-  property:   boolean
-  tenant:     boolean
-  lease:      boolean
-  inspection: boolean
-  supplier:   boolean
-}
+import type { GettingStartedProgress } from "./onboarding-progress"
 
 type StepKey = keyof GettingStartedProgress
 
