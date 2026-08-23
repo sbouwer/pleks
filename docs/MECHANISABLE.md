@@ -1472,7 +1472,16 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 - **Provenance:** found by reading the diff of a manifest regen that was only being run to unblock M-074, rather than by any control. That is the whole argument for the entry: the only reason anyone looked was an unrelated task.
 - **Covering spec:** NEW
 
-### M-090 — the rules engine's dedup helper reads a count it never checked, and a DB fault becomes a duplicate send
+### M-090 — ✅ BUILT 2026-08-23 — the rules engine's dedup helper reads a count it never checked, and a DB fault becomes a duplicate send
+
+- **BUILT in `d92a2a20`, and the sketch below was aimed at HALF the defect.** Widening `RESULT_FIELDS` from `data` to `{data, count, status, statusText}` exposed 28 sites — and `lib/rules/actioned.ts`, the file this entry was WRITTEN ABOUT, was not among them. It builds its query conditionally and awaits an **Identifier**, so the rule returned at `type !== "CallExpression"` before reading any field. Two holes, one class; shipping the field fix alone would have closed this entry with a rule that still missed its own motivating case, and every probe would have passed.
+  **It was found by an absence** — running the widened rule over the tree and noticing the expected file was not in its own findings. A green result never shows you that.
+  With the identifier arm the count went 28 → 35. Seven of those were new, and **six destructure `data`** — the rule's ORIGINAL field, in six `lib/reports/*` modules, blind since it shipped. In five of the six the very next query in the same function *does* bind `error`. The authors were not careless: the rule fired on the sibling and not on this one, so this one is what got skipped. **A discriminator does not only miss what it cannot see — it teaches the codebase where the requirement stops.**
+- **⚠ THE BLAST FIELD BELOW WAS WRONG, and it was wrong because the entry was written from one site.** Recorded as `other` on the reasoning that a duplicate email is not money and crosses no org boundary. The census found the same shape deciding an **invoice number**, a **work-order number**, a **trust-audit-export version** (all three are counter-as-identifier: a false zero does not degrade the number, it *restarts* it, colliding with a live record), a **credit-report send**, an **inspection re-seed**, and `hasActiveLeases` in the purge cron — where the false zero stamps `purge_eligible_at` and tells an agency its data will be deleted in 30 days. Correct blast: **money**, with a POPIA-adjacent edge. Eight such sites were fixed in `6294b1c2`, ahead of the mechanism and deliberately separate from it.
+  Also found, and the sharpest of the 35: `test/db/idor.dbtest.ts` asserted ABSENCE via `expect(depositTxns ?? 0).toBe(0)`, so **the cross-org IDOR test passed on a query that never ran**. An instrument that cannot fail is not an instrument.
+- **Shipped with NO baseline** — all 35 classified and fixed, nothing carried forward.
+
+**As originally filed:**
 
 - **Rule:** `pleks/require-supabase-error-check` — always check `{ data, error }`; never let a fallback stand in for a failed query. The incident behind it is a missing column returning `{ data: null, error: 42703 }` that `?? []` turned into "the table is empty".
 - **Where it lives:** `lib/rules/actioned.ts` (`hasBeenActionedFor`), called by four rules — `communication/email-bounce-alert`, `compliance/deposit-deadline-breach`, `tenant/deposit-return-t1`, `tenant/deposit-return-t7`.
@@ -1492,7 +1501,15 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 - **Provenance:** found while moving the function verbatim to break a circular import, not by any check. Moved unchanged on purpose: a cycle sweep is the wrong commit to change dedup semantics in, and a behavioural fix buried in a 38-file refactor is a fix nobody reviews.
 - **Covering spec:** NEW
 
-### M-091 — nothing stops a capability gate reading the forgeable cookie tier, and until today nothing could
+### M-091 — ✅ BUILT 2026-08-23 — nothing stops a capability gate reading the forgeable cookie tier, and until today nothing could
+
+- **BUILT in `71e746c9` as `eslint:pleks/no-forgeable-tier-in-gate`, and it was not a ratchet on a clean tree.** Its first run found **five of the eight importers gating a paid capability on the forgeable value**: a `403 upgrade_required` paywall on `/api/leases/preview-document`, and four `hasFeature(...)` checks standing in front of spend the platform pays for (Anthropic on application documents, SMS, WhatsApp, AI maintenance triage). All five repointed to `getOrgTierCanonical` in the same commit.
+- **The forgeability was PROBED, not read off the module's own comment** — the memory-of-record says mechanism claims read off code are reliably wrong in the same direction. `pleks_org` is plain JSON, `httpOnly` + `sameSite:lax` + `secure`, and **unsigned**; `getServerOrgMembership` (`lib/auth/server.ts:58-64`, as at `71e746c9`) validates exactly one field, `parsed.user_id === user.id`, and returns `tier` as supplied. `httpOnly` stops browser JavaScript, not the authenticated user replaying their own request with a crafted `Cookie` header — and here the user is the party who benefits.
+- **One judgement site left open on purpose**, recorded in the rule header rather than swept in: `app/(dashboard)/properties/page.tsx` uses the forgeable tier to widen a listing scope from `mine` to `all` **within the caller's own org**. Visibility inside one organisation is not obviously an entitlement; it wants a ruling, not a guess.
+- **Probed in its own suite**, not as a case in `all-rules-probed`. That harness gives one filename per rule, and two of this rule's three "decides-entitlement" tests ARE the filename (`app/api/`, `"use server"`) — one filename can only probe one arm and the other two would ship unprobed, which is precisely the false-green the harness exists to prevent.
+- **This entry's prediction held and is worth keeping**: the rule is a path match, and a path match is only available because the module was split first. Do not simplify it into a name test.
+
+**As originally filed:**
 
 - **Rule:** the forgeable tier is display-only. `getOrgTier` reads the `pleks_org` cookie, which a user can set to `tier:"bespoke"`; every entitlement, capability and lease gate must read `getOrgTierCanonical` instead. Stated in both modules' headers and in the function's own doc comment — rung 3, prose, three times over.
 - **Where it lives:** `lib/tier/getOrgTierFromCookie.ts` (the forgeable reader) vs `lib/tier/getOrgTier.ts` (the two authoritative ones).
@@ -1503,5 +1520,24 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 - **Sketch:** a rule forbidding any import of `lib/tier/getOrgTierFromCookie` from a module that also imports a gate helper (`requireAgentWriteAccess`, `requireCapability`, `canActivateLease`, `canDowngradeTo`) or that declares `"use server"`. Probe both directions: a page importing it for a plan badge must PASS; a server action importing it beside `requireCapability` must FAIL. And the degenerate third — a file importing neither must not report clean by accident.
 - **Do not build it as a name test.** If a future edit re-exports `getOrgTier` from `lib/tier/getOrgTier.ts` for convenience, the path rule silently stops covering the re-export path. The rule should therefore also assert that no module re-exports the forgeable reader — the cheap half of the check, and the half that keeps the expensive half honest.
 - **Provenance:** the module split (CD ruling 2026-08-23) was made for three reasons and this was the third; the first was blast-radius isolation and the second was direction of dependency. The import cycle it also broke was the least of them.
+- **Covering spec:** NEW
+
+### M-092 — ⛔ NOT A MECHANISATION GAP: the session cookie's `org_id` is caller-supplied, and a service client trusts it
+
+**This entry is filed here because M-091 found it and it must not be lost, NOT because a lint rule is
+the answer. It needs a ruling before it needs a mechanism, and the ruling is CD's.** Do not close it
+with a check.
+
+- **Rung:** n/a — architecture · **Blast:** data-boundary. Cross-org read of another organisation's records.
+- **Satisfied when:** decision-needed — CD rules on how `pleks_org` is to be trusted
+- **What was observed, as at `71e746c9`** (three files, read in this order):
+  1. `lib/auth/cookie-config.ts:8-13` — `AUTH_COOKIE_OPTS` is `httpOnly`, `sameSite:"lax"`, `secure` in prod. **There is no signature and no HMAC anywhere in the repo for this cookie** (grepped).
+  2. `lib/auth/server.ts:58-64` — `getServerOrgMembership` does `JSON.parse(cookie)` and accepts it if `parsed.org_id && parsed.role && parsed.user_id === user.id`. `org_id` and `role` are **never checked against `user_orgs`** on this path.
+  3. `proxy.ts:~200` — `if (hasOrgCookieRaw && orgDetailCookieRaw && orgCookieHasRole(orgDetailCookieRaw)) return null`. A well-formed cookie makes the middleware return **without re-hydrating**. The re-hydration path (`refreshOrgCookieParallel`) *does* verify membership with `.eq("user_id", userId).eq("org_id", orgId)` — but it is only reached when the cookie is absent or malformed. **A forged cookie is well-formed, so it takes the branch that skips the check.**
+- **Why `httpOnly` is not the mitigation it looks like.** It stops page JavaScript reading or writing the cookie. It does nothing about the authenticated user sending their own request with a chosen `Cookie:` header, and in this threat model the user IS the attacker — an agent at agency A wanting agency B's book.
+- **What it reaches.** `app/(dashboard)/leases/page.tsx:17-27` takes `org_id` straight from `getServerOrgMembership()` and passes it to a **`createServiceClient()`** query — the service client bypasses RLS, so the explicit `org_id` filter IS the boundary, and here that filter's value came from the caller. Roughly two dozen pages follow the same `const membership = await getServerOrgMembership()` → `const { org_id: orgId } = membership` shape; **they were NOT individually classified in this pass and the count above is a shape match, not a finding.** Classify per site before anyone acts on a number.
+- **`role` has the same shape and was not investigated.** The cookie carries `role`, the same single check covers it, and `leases/page.tsx:21` reads `membership.role === "owner"`. Whether that reaches an authorisation decision anywhere is **unknown** — stated as unknown rather than folded into the finding, which is the distinction M-088 exists to keep.
+- **This is the caller-supplied-id class for the FOURTH time** (CLAUDE.md §6 has three: 2026-07-06 writes, 2026-08-19 reads, 2026-08-22 consent). Each previous instance arrived through a request parameter, and every control built for the class inspects query shape. This one arrives through the **session cookie**, so `require-org-scope-on-service-*` sees a perfectly scoped query — `.eq("org_id", orgId)` is present and correct — and has no way to know the value is attacker-chosen. **The rules are not wrong; they are aimed at the argument rather than at where the argument came from.** That is why a lint rule is not obviously the remedy and why this entry refuses to sketch one.
+- **Provenance:** found 2026-08-23 while verifying M-091's forgeability claim rather than citing the module comment for it. M-091's own fix (five capability gates repointed to the canonical tier read) does **not** address this: `getOrgTierCanonical(orgId)` is only as sound as the `orgId` handed to it.
 - **Covering spec:** NEW
 

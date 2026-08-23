@@ -101,6 +101,15 @@ export function resolveMarker(marker, root = ".") {
   // the entry" there would be worse than saying nothing — it would argue for closing an open hole.
   // Returned as its own state so it is never confused with "absent" or with an unreadable marker.
   if (/^extends:/.test(marker)) return "extends"
+  // `decision-needed — <what has to be ruled on>` — the entry is REAL and its remedy is not a
+  // mechanism at all, so there is nothing for this resolver to look for. M-092 is the first: a
+  // caller-supplied `org_id` in the session cookie, where every control built for that class
+  // inspects query shape and would see a correctly scoped query. Sketching a rule there would be
+  // inventing a remedy for a question nobody has ruled on yet.
+  // Its own state, never "absent": absent argues for building something, and this argues for
+  // asking someone. The trailing prose after the em dash is required — a bare `decision-needed`
+  // records that a decision is owed without recording WHAT, which is how an entry goes quiet.
+  if (/^decision-needed\s+—\s+\S/.test(marker)) return "decision-needed"
   const m = MARKER.exec(marker)
   if (!m) return "unknown"
   const [, kind, name] = m
@@ -195,6 +204,7 @@ export function evaluate(entries) {
     }
     const state = resolveMarker(e.slot)
     if (state === "extends") continue           // existence decides nothing; see resolveMarker
+    if (state === "decision-needed") continue    // nothing to look for; a human owes a ruling
     if (state === true) {
       notes.push(`⚑ ${e.id} (line ${e.line}) is OPEN but its named mechanism \`${e.slot}\` now EXISTS — check whether it asserts what this entry wanted, and close it if so. Reported, never enforced: resolution proves the mechanism is there, not that it is right.`)
     } else if (state === "unknown") {
@@ -304,6 +314,11 @@ function selftest() {
     // extend-an-existing-rule entry toward being closed while its hole is still open.
     ["extends:eslint:pleks/no-inline-app-url", "extends", "an EXTENDS marker is never decided by existence"],
     ["extends:check:check-nope-not-real", "extends",      "…including when the named mechanism is absent"],
+    // `decision-needed` must carry its subject. A bare one records that a decision is owed without
+    // recording what — which reads as filled and says nothing, the same shape as the empty-slot case.
+    ["decision-needed — CD rules on how the org cookie is trusted", "decision-needed", "a DECISION-NEEDED marker states what has to be ruled on"],
+    ["decision-needed", "unknown",               "…and a bare one is UNKNOWN, not an accepted slot"],
+    ["decision-needed — ", "unknown",            "…nor does an em dash with nothing after it count"],
   ]
   for (const [marker, want, why] of resolverCases) {
     const got = resolveMarker(marker)
