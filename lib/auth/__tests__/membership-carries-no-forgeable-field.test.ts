@@ -66,4 +66,26 @@ describe("getServerOrgMembership carries no unvalidated cookie field", () => {
     expect(body, "must not re-derive a cookie reader locally").not.toContain("JSON.parse")
     expect(body, "must not read pleks_org directly").not.toContain("pleks_org")
   })
+
+  it("has no cookie fast path anywhere in the module, not just in that one function", () => {
+    // WHOLE-FILE, on purpose. Scoping this to getServerOrgMembership is the mistake the M-091 lint
+    // rule made one level up: it guarded the route it knew about while the same forgeable value was
+    // read by three other functions in this file. getCurrentOrgCapabilities read `type`/`name`/
+    // `sub_status` and getCurrentSubscriptionState read `sub_status`, both unvalidated, both twenty
+    // lines from the function everyone was looking at. All three fast paths were removed 2026-08-23.
+    const src = readFileSync(join(process.cwd(), "lib/auth/server.ts"), "utf8")
+
+    // MATCHED ON CODE SHAPE, NOT ON COMMENT-STRIPPED SOURCE. The first draft stripped comments with
+    // `/\/\*[\s\S]*?\*\//g` — which the repo's own super-linear-regex rule rejected at the commit
+    // gate, correctly. Each needle below is a syntactic form that cannot occur in the prose of this
+    // file (the docstrings discuss `pleks_org` and cookies at length, but never as a call or an
+    // import specifier), so no stripping is needed and there is no pattern to get wrong. If a future
+    // docstring ever writes one of these verbatim, this test fails loudly rather than silently
+    // widening — the safe direction.
+    for (const needle of ['JSON.parse(', 'from "next/headers"', "cookieStore.get(", "cookies()"]) {
+      expect(src, `\`${needle}\` is how a cookie fast path comes back into this module`).not.toContain(
+        needle,
+      )
+    }
+  })
 })

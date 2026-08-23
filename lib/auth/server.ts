@@ -8,7 +8,6 @@
  * requireAgentWriteAccess()   — Single chokepoint for all agent-side mutations (ADDENDUM_57G)
  */
 import { cache } from "react"
-import { cookies } from "next/headers"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { setSentryUser } from "@/lib/observability/user-context"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
@@ -121,37 +120,36 @@ export const getIdentityForkState = cache(async (): Promise<IdentityForkState | 
 })
 
 /**
- * Org capabilities — cached per render tree (ADDENDUM_61A).
- * Resolves org type + name from DB, derives the full capability object.
+ * Org capabilities — cached per render tree (ADDENDUM_61A). ONE PATH: the database.
+ * Resolves org type + name + subscription status from DB, derives the full capability object.
  * Use in server components for redirect guards and capability-aware rendering.
  *
- * When §6.4 (cookie payload extension) ships, this can read type+name from
- * the pleks_org cookie to eliminate the DB round-trip. Until then it queries
- * once per render tree (React.cache deduplicates).
+ * THE COOKIE FAST PATH WAS REMOVED 2026-08-23 (CD ruling), not repaired. It read `type`, `name` and
+ * `sub_status` out of the unsigned `pleks_org` cookie and validated none of them, while
+ * `getServerOrgMembership` — read on the same pages, one line above — had just been converged onto a
+ * DB-validated resolver. Three unvalidated fields sitting beside two validated ones, on the same
+ * object graph, with nothing at either call site saying which is which, is the partial-validation
+ * trap that removed `tier` from that function's return, one object over.
+ *
+ * DROPPED RATHER THAN VALIDATED, deliberately. Validating three fields invites "which fields are
+ * safe?" to be re-answered later by someone with less context, and `name` looking harmless today is
+ * the same argument as `role` being UI-only — an argument about the current call sites, not about
+ * the mechanism. `caps.hasHOA` and `caps.hasLandlordsList` gate route redirects
+ * (`app/(dashboard)/hoa/page.tsx`, `app/(dashboard)/landlords/page.tsx`), so `type: "hoa"` in your
+ * own cookie passed the first of them.
+ *
+ * The write gate was never on this path and still is not: `requireAgentWriteAccess` reads
+ * `subscriptions` directly via `getSubscriptionState(gw.orgId)`, and `isLockedDown` has no readers.
+ * That bounded the severity to route visibility; it was not the reason to keep the fast path.
+ *
+ * Costs one round-trip per render tree (React.cache deduplicates); the two queries run in parallel.
  */
 export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities | null> => {
   const membership = await getServerOrgMembership()
   if (!membership) return null
 
-  // Fast path: pleks_org cookie carries type, name, sub_status (set by proxy.ts).
-  const cookieStore = await cookies()
-  const raw = cookieStore.get("pleks_org")?.value
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as { type?: string; name?: string; sub_status?: string | null }
-      if (parsed.type && parsed.name) {
-        return getOrgCapabilities(
-          parsed.type as OrgType,
-          parsed.name,
-          (parsed.sub_status ?? "active") as SubscriptionStatus,
-        )
-      }
-    } catch { /* fall through to DB */ }
-  }
-
-  // Slow path: DB query (cookie not yet populated — one round-trip, cached per render tree).
   const service = await createServiceClient()
-  const [{ data: org, error }, { data: sub }] = await Promise.all([
+  const [{ data: org, error }, { data: sub, error: subError }] = await Promise.all([
     service.from("organisations").select("type, name").eq("id", membership.org_id).single(),
     service.from("subscriptions").select("status").eq("org_id", membership.org_id).not("status", "eq", "purged").maybeSingle(),
   ])
@@ -162,6 +160,16 @@ export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities
   }
   if (!org) return null
 
+  // An unread subscription row is NOT "active" — it is unknown, and `?? "active"` would render a
+  // paused org's banner as healthy. This error went unchecked while the cookie was the usual path
+  // and the DB was the rare fallback; removing the fast path makes it the only path, so it is
+  // checked now. Returning null degrades to "capabilities unknown", which every caller already
+  // handles (the redirect guards send the user somewhere safe rather than granting access).
+  if (subError) {
+    console.error("[getCurrentOrgCapabilities] subscription read failed:", subError.message)
+    return null
+  }
+
   return getOrgCapabilities(
     (org.type as OrgType) ?? "agency",
     org.name as string,
@@ -170,34 +178,35 @@ export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities
 })
 
 /**
- * Current subscription state — cached per render tree (ADDENDUM_57G).
- * Reads sub_status from the pleks_org cookie (zero DB on cache hit).
- * Falls back to a DB query on miss. Used by server components that need
- * the full SubscriptionState (e.g. email footer variant, dunning cron).
+ * Current subscription state — cached per render tree (ADDENDUM_57G). ONE PATH: the database.
+ * Used by server components that need the full SubscriptionState (e.g. email footer variant,
+ * dunning cron).
+ *
+ * ITS COOKIE FAST PATH WENT WITH getCurrentOrgCapabilities', in the same change and for the same
+ * reason. It read the same unvalidated `sub_status` and it sits twenty lines away — fixing one and
+ * leaving the other is how a repo ends up with two readers of one forgeable field at different
+ * apertures, which is the 2026-08-22 scar this whole batch has been unwinding.
+ *
+ * The fast path also returned a SubscriptionState with every lifecycle date null-filled from the
+ * fallback, so `past_due_since`/`paused_at`/`cancelled_at` were absent whenever the cookie answered.
+ * A caller reading those dates got nulls that meant "not in the cookie", not "not set".
+ *
+ * KEPT rather than deleted despite having no callers today, because the tag below records that it
+ * was built ahead of the consumers ADDENDUM_57G names. Deleting it is also defensible; what is not
+ * is leaving it reading a forgeable value while it waits. (Naming the tag token in this prose is
+ * what broke the knip-floor parity when this docstring was first written — the floor greps the
+ * token, so a mention counts as a tag.)
  * @knipignore Built ahead of the consumers ADDENDUM_57G names.
  */
 export const getCurrentSubscriptionState = cache(async (): Promise<SubscriptionState> => {
-  const fallback: SubscriptionState = {
-    status: "active", past_due_since: null, paused_at: null,
-    cancelled_at: null, purge_eligible_at: null,
-  }
-
   const membership = await getServerOrgMembership()
-  if (!membership) return fallback
-
-  // Fast path: cookie carries sub_status written by proxy.ts
-  const cookieStore = await cookies()
-  const raw = cookieStore.get("pleks_org")?.value
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as { sub_status?: string | null }
-      if (parsed.sub_status) {
-        return { ...fallback, status: parsed.sub_status as SubscriptionStatus }
-      }
-    } catch { /* fall through */ }
+  if (!membership) {
+    return {
+      status: "active", past_due_since: null, paused_at: null,
+      cancelled_at: null, purge_eligible_at: null,
+    }
   }
 
-  // Slow path: full lifecycle columns from DB
   return getSubscriptionState(membership.org_id)
 })
 
