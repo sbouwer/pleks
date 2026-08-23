@@ -8,7 +8,7 @@
  *         Tier gate: sms_notifications feature requires Steward+.
  */
 import { hasFeature } from "@/lib/tier/gates"
-import { getOrgTier } from "@/lib/tier/getOrgTierFromCookie"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { checkAtEnvironment, AT_SANDBOX_USERNAME } from "@/lib/messaging/africastalking"
@@ -54,7 +54,7 @@ export async function sendSMS(
   const to = normalizePhone(rawTo) ?? rawTo
 
   // Tier gate — SMS requires Steward+ (sms_notifications feature)
-  const tier = await getOrgTier(orgId)
+  const tier = await getOrgTierCanonical(orgId)
   if (!hasFeature(tier, "sms_notifications")) {
     const service = await createServiceClient()
     const { data: log, error: logError } = await service.from("communication_log").insert({

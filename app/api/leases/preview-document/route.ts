@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"
-import { getOrgTier } from "@/lib/tier/getOrgTierFromCookie"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { generateSampleLeaseDocument } from "@/lib/leases/generateSampleDocument"
 
 export async function GET(req: NextRequest) {
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const { db, orgId } = gw
 
   // Sample downloads are not available on the free (owner) tier
-  const tier = await getOrgTier(orgId)
+  const tier = await getOrgTierCanonical(orgId)
   if (tier === "owner") {
     return NextResponse.json(
       { error: "upgrade_required", message: "Sample downloads are available on paid plans." },

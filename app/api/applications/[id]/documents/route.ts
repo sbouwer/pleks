@@ -20,7 +20,7 @@ import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
 import { resolveAffordabilityThreshold } from "@/lib/screening/screeningPolicy"
 import { hasFeature } from "@/lib/tier/gates"
-import { getOrgTier } from "@/lib/tier/getOrgTierFromCookie"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
 
@@ -81,7 +81,7 @@ export async function POST(
   let extractedIncome: number | null = null
 
   // Extract bank statement with Sonnet — only for Portfolio+ (ai_full)
-  const tier = await getOrgTier(application.org_id)
+  const tier = await getOrgTierCanonical(application.org_id)
   if (bankStatementPath && optionalEnv("ANTHROPIC_API_KEY") && hasFeature(tier, "ai_full")) {
     try {
       const { data: fileData, error: fileDataError } = await supabase.storage
