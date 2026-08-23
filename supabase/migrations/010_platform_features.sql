@@ -1728,7 +1728,13 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_pending_cancellation
 --  Records which ToS version each org accepted and when. Append-only (immutable
 --  trigger). org_id uses ON DELETE RESTRICT â€” purgeOrg() must repoint to sentinel
 --  before deleting the org row (enforced by purge_org_cascade step 1 above).
---  Retention: 10 years (POPIA s17 accountability). Added to RETENTION_PROTECTED_TABLES.
+--  Retention: 10 years (POPIA s17 accountability). Listed in RETENTION_PROTECTED_TABLES
+--  (lib/subscriptions/retention.ts) AND in both of this function's copies of that list — the
+--  step 1 repoint block and the step 2 exclusion list. All three are asserted equal by
+--  scripts/check-retention-skiplist.mts on `npm run check`, so adding a table to one copy and
+--  not the others goes red. Until 2026-08-23 this line read "Added to RETENTION_PROTECTED_TABLES"
+--  and was true-but-inert: the array governed nothing, so membership in it protected no row.
+--  M-082 filed that; the check is what made the sentence mean something.
 
 CREATE TABLE IF NOT EXISTS tos_acceptances (
   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),

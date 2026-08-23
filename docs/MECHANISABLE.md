@@ -1183,13 +1183,53 @@ concealing.
 **Retained 2026-08-21:** it is a MEASUREMENT before it is a check. The force-push denial lives in one hook and the subagent-commit denial in the other, nothing has ever exercised their disagreement, and the entry already warns against writing the check against the assumed answer. Closing it closes an unasked question about two rung-1 controls.
 
 
-### M-082 — `RETENTION_PROTECTED_TABLES` governs nothing, and two artefacts say it does
+### M-082 — `RETENTION_PROTECTED_TABLES` governs nothing, and two artefacts say it does — **BUILT 2026-08-23 (`scripts/check-retention-skiplist.mts`)**
 
-- **Rule:** the tables on this list are protected from retention purges — a PPRA/POPIA obligation, not a preference. The array names `audit_log`, `trust_transactions`, `consent_log`, `auth_events`, `tos_acceptances`.
+- **Rule:** the tables on this list are protected from retention purges — a PPRA/POPIA obligation, not a preference. The array names `audit_log`, `trust_transactions`, `trust_reconciliation_periods`, `consent_log`, `auth_events`, `tos_acceptances` — **six**, and this line said five until 2026-08-23, omitting `trust_reconciliation_periods`. That is the entry's own copy of the list having silently drifted from the array while the entry was open about the danger of copies of the list drifting. Left visible rather than quietly corrected, because it is the cheapest available demonstration of the failure mode: a fourth copy, in prose, in the register that exists to track it.
 - **Where it lives:** `lib/subscriptions/retention.ts` — the array, and nothing else.
 - **Rung:** check · **Blast:** data-boundary
-- **Satisfied when:** check:check-retention-purge-derives-skiplist
-- **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23 and is sketch half (a) only. Half (b) is the real mechanism: every pg_cron retention purge and erasure path deriving its skip-list from this array by import.
+- **Satisfied when:** check:check-retention-skiplist
+- **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23 and is sketch half (a) only. Half (b) shipped later the same day, but **not in the shape this entry specified** — see below.
+
+**⚠ HALF (b) AS WRITTEN IS NOT BUILDABLE, AND SAYING SO IS THE FINDING.** The sketch below asks for
+"every purge and erasure path deriving its skip-list from this array **by import**". The path that
+matters is `purge_org_cascade`, a SQL `SECURITY DEFINER` function — **it cannot import a TypeScript
+array**, in this or any other design. The sketch was written from the shape of the language its
+author was reading (the same error M-067 made in the opposite direction, proposing an ESLint rule
+for a defect that turned out to live in SQL). An entry can be open for months on a plan that was
+never executable; nothing in the register format catches that, because a sketch is prose and prose
+is not run.
+
+**What shipped instead, ruled 2026-08-23: the array stays the SSOT and becomes real by being
+CHECKED against the SQL rather than imported by it.** `scripts/check-retention-skiplist.mts` reads
+`purge_org_cascade` out of `010_platform_features.sql`, extracts BOTH copies of the list it
+carries — the Step 1 `UPDATE <t> SET org_id = v_sentinel` statements and the Step 2 `NOT IN (…)`
+exclusion list — and asserts each matches the array exactly, in both directions.
+
+**The list existed THREE times and nothing compared any pair.** That is more than the entry
+originally found: half (b) was framed as "the array governs nothing", but the two SQL copies could
+also silently disagree **with each other**, and neither direction raises an error. A table in the
+UPDATE block but missing from the NOT IN list is repointed to the sentinel and then DELETED —
+statutory records destroyed by a purge that reports success. A table in the NOT IN list but missing
+from the UPDATE block survives un-anonymised under a dead org's id. Both are the one-directional
+silence this entry already named; there were simply two of them, not one.
+
+**Probed both directions, and the vacuous-pass case explicitly.** A table missing from either SQL
+copy fails; SQL protecting a table the array does not declare fails; a parse matching nothing fails
+rather than passing empty; a renamed function returns null and fails rather than reporting clean.
+The parser probes run against fixture text shaped like the real function, not against the real file
+— a selftest that read the real file would pass by tautology, which is the same collapse as a probe
+suite that only exercises cases the discriminator already recognises (CLAUDE.md §6, 2026-08-19).
+The two "handled separately" tables (`organisations`, `subscriptions`, dealt with by Steps 4 and 5)
+are excluded by reading the SQL's own marker comment as the boundary rather than by subtracting a
+hardcoded set — a subtraction would have been a *fourth* copy of a list, inside the check written
+to stop lists being copied.
+
+**Still open after the build, and deliberately so:** the array now has a mechanical reader but still
+no *runtime* importer, so it stays in `scripts/invariant-callers.baseline.json`. A check is not a
+caller. Whether that baseline entry should be satisfiable by a check is itself unsettled — closing
+it by loosening the ratchet's definition of "read" would weaken the ratchet to close one of the
+entries that motivated it.
 - **Measured 2026-08-21 at `2265c58c`:** a whole-repo grep for the identifier finds the declaration and **no importer**. The array is exported, exhaustive, and read by nobody.
 - **What makes it a register entry rather than a deletion.** TWO artefacts assert it is live, in the present tense, and both are wrong:
   1. its own module header — *"BUILD_65 imports this array rather than defining its own"*;
