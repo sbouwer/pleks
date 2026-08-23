@@ -21,6 +21,7 @@ import {
   sendPurgeWarningFinal,
 } from "@/lib/subscriptions/emails"
 import { purgeOrg } from "@/lib/subscriptions/purge"
+import { classifyPurgeWarning } from "@/lib/subscriptions/purgeWarningGate"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { fmtDateLongZA } from "@/lib/dates"
@@ -142,10 +143,69 @@ async function processFinalWarnSub(
   return true
 }
 
-async function processPurgeDueSub(supabase: SupabaseClient, sub: { org_id: string }): Promise<boolean> {
-  if (await hasActiveLeases(supabase, sub.org_id)) return false
+/**
+ * M-074 — purge is gated on the 30-day warning having actually been delivered.
+ *
+ * `purge_eligible_at` is set by processWarn30dSub BEFORE the send is attempted, and is set even
+ * when the org has no contact and no send happens at all. Reaching the date therefore says nothing
+ * about whether the org was warned. Counsel's ruling made the warning a condition of the Day-0
+ * notice being sufficient, so purging unwarned collapses a two-stage disclosure into one stage
+ * after the fact.
+ *
+ * Returns "purged" | "deferred" | "skipped" rather than a boolean, because the caller has to COUNT
+ * deferrals separately to get them in front of a human. A deferral that only increments nothing is
+ * the log-and-continue this entry was filed against.
+ */
+async function processPurgeDueSub(
+  supabase: SupabaseClient,
+  sub: { id: string; org_id: string },
+): Promise<"purged" | "deferred" | "skipped"> {
+  if (await hasActiveLeases(supabase, sub.org_id)) return "skipped"
+
+  // Most recent first: a re-send after a bounce should be able to open the gate the bounce closed.
+  const { data: warningRows, error: warningErr } = await supabase
+    .from("communication_log")
+    .select("status, created_at")
+    .eq("org_id", sub.org_id)
+    .eq("template_key", "subscription.purge_warning_30d")
+    .order("created_at", { ascending: false })
+    .limit(1)
+  logQueryError("processPurgeDueSub communication_log", warningErr)
+
+  // A FAILED QUERY IS NOT AN ABSENT WARNING. Treating the error case as "no row" would defer every
+  // org on a transient DB blip, and a deferral is not a free no-op — it is an item a human chases.
+  if (warningErr) return "skipped"
+
+  const warning = warningRows?.[0] ?? null
+  const { contact } = warning ? { contact: null } : await fetchOrgContact(supabase, sub.org_id)
+  const gate = classifyPurgeWarning(warning, contact !== null)
+
+  if (!gate.ok) {
+    const { error: deferErr } = await supabase
+      .from("subscriptions")
+      .update({ purge_deferred_at: new Date().toISOString(), purge_deferred_reason: gate.reason })
+      .eq("id", sub.id)
+      .eq("org_id", sub.org_id)
+    logQueryError("processPurgeDueSub defer update", deferErr)
+    await recordAudit(supabase, {
+      orgId: sub.org_id, table: "subscriptions", recordId: sub.org_id, action: "UPDATE",
+      after: { action: "subscription_purge_deferred", reason: gate.reason },
+    })
+    console.error(`[subscription-purge-warnings] purge DEFERRED for ${sub.org_id} — ${gate.reason}`)
+    return "deferred"
+  }
+
+  // Clear any stale deferral: the warning has since been established, so the item is resolved and
+  // must stop being reported. A deferral flag nobody ever clears trains its reader to ignore it.
+  const { error: clearErr } = await supabase
+    .from("subscriptions")
+    .update({ purge_deferred_at: null, purge_deferred_reason: null })
+    .eq("id", sub.id)
+    .eq("org_id", sub.org_id)
+  logQueryError("processPurgeDueSub clear deferral", clearErr)
+
   await purgeOrg(sub.org_id, "cancelled_tail")
-  return true
+  return "purged"
 }
 
 function dormancyPurgeIsBlocked(lastLogin: Date | null, dormancyWarningSentAt: string | null): boolean {
@@ -193,7 +253,10 @@ async function runFinalWarnScan(supabase: SupabaseClient, now: Date): Promise<nu
   return count
 }
 
-async function runCancelledPurgeScan(supabase: SupabaseClient, now: Date): Promise<number> {
+async function runCancelledPurgeScan(
+  supabase: SupabaseClient,
+  now: Date,
+): Promise<{ purged: number; deferred: number }> {
   const { data: purgeDue, error: purgeErr } = await supabase
     .from("subscriptions")
     .select("id, org_id, cancelled_at")
@@ -203,13 +266,16 @@ async function runCancelledPurgeScan(supabase: SupabaseClient, now: Date): Promi
 
   if (purgeErr) {
     console.error("subscription-purge-warnings: purge-due query failed:", purgeErr.message)
-    return 0
+    return { purged: 0, deferred: 0 }
   }
-  let count = 0
+  let purged = 0
+  let deferred = 0
   for (const sub of purgeDue ?? []) {
-    if (await processPurgeDueSub(supabase, sub)) count++
+    const outcome = await processPurgeDueSub(supabase, sub)
+    if (outcome === "purged") purged++
+    else if (outcome === "deferred") deferred++
   }
-  return count
+  return { purged, deferred }
 }
 
 async function runDormancyPurgeScan(supabase: SupabaseClient, now: Date): Promise<number> {
@@ -262,13 +328,17 @@ export async function GET(req: NextRequest) {
 
   // §11.3 — Final warning + purge-due + dormancy purge delegated to scan helpers
   const warnedFinal    = await runFinalWarnScan(supabase, now)
-  const purgeTriggered = (await runCancelledPurgeScan(supabase, now))
-                       + (await runDormancyPurgeScan(supabase, now))
+  const cancelledTail  = await runCancelledPurgeScan(supabase, now)
+  const purgeTriggered = cancelledTail.purged + (await runDormancyPurgeScan(supabase, now))
 
+  // `deferred` is read by the daily orchestrator's runJob and lands in the cron digest (M-074
+  // part 3). It is NOT folded into `failed`: a deferral is a held-back purge needing a human, not
+  // an email that failed to send, and a digest that cannot tell them apart cannot be acted on.
   return Response.json({
     ok: true,
     warned_30d:      warned30d,
     warned_final:    warnedFinal,
     purge_triggered: purgeTriggered,
+    deferred:        cancelledTail.deferred,
   })
 }

@@ -68,9 +68,11 @@ async function runJob(
     const res = await handler(cronReq)
     results[name] = res.ok ? "ok" : "failed"
     // Capture the C-1 belt's { sent, failed } so the digest can flag "ran ok but N emails failed".
-    let body: { sent?: number; failed?: number } = {}
+    let body: { sent?: number; failed?: number; deferred?: number } = {}
     try { body = await res.json() } catch { /* non-JSON body — fine */ }
-    detail[name] = { status: results[name], sent: body?.sent, failed: body?.failed }
+    // `deferred` (M-074): work the job held back rather than performed. Carried separately from
+    // `failed` all the way to the digest — see CronJobDetail for why they must not merge.
+    detail[name] = { status: results[name], sent: body?.sent, failed: body?.failed, deferred: body?.deferred }
   } catch (err) {
     Sentry.captureException(err, { tags: { cron_job: name } })
     results[name] = "error"
