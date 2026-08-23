@@ -1472,3 +1472,23 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 - **Provenance:** found by reading the diff of a manifest regen that was only being run to unblock M-074, rather than by any control. That is the whole argument for the entry: the only reason anyone looked was an unrelated task.
 - **Covering spec:** NEW
 
+### M-090 — the rules engine's dedup helper reads a count it never checked, and a DB fault becomes a duplicate send
+
+- **Rule:** `pleks/require-supabase-error-check` — always check `{ data, error }`; never let a fallback stand in for a failed query. The incident behind it is a missing column returning `{ data: null, error: 42703 }` that `?? []` turned into "the table is empty".
+- **Where it lives:** `lib/rules/actioned.ts` (`hasBeenActionedFor`), called by four rules — `communication/email-bounce-alert`, `compliance/deposit-deadline-breach`, `tenant/deposit-return-t1`, `tenant/deposit-return-t7`.
+- **Rung:** eslint · **Blast:** other — no data crosses an org boundary and nothing is corrupted; what escapes is a duplicate statutory-adjacent email to a tenant.
+- **Satisfied when:** extends:eslint:pleks/require-supabase-error-check
+- **Measured 2026-08-23 at `686235c1`**, while extracting the helper for the import-cycle burn-down. The body is four lines and the last two are the finding:
+  ```ts
+  const { count } = await query
+  return (count ?? 0) > 0
+  ```
+  `error` is never destructured, let alone read. On any query failure Supabase returns `count: null`, `?? 0` makes the expression `false`, and **false is the answer that means "this rule has NOT been actioned for this entity yet"** — so the rule fires again.
+- **The direction matters and it is the unusual one.** Most false zeros fail quiet: a count that cannot be read becomes "nothing found" and something silently does not happen. This one fails LOUD, into the customer's inbox. `hasBeenActionedFor` is the entity-level deduplication guard, so a transient database fault does not suppress a send — it **repeats** one, on deposit-return notices among others. The usual reassurance that a false zero is a missed detection rather than a wrong action does not apply here.
+- **⚠ Why the rule that exists for this class does not see it, and why that is the mechanisable part.** `pleks/require-supabase-error-check` keys on the `{ data, error }` destructuring shape. This site destructures `{ count }` — no `data`, so there is nothing for the rule to notice a missing `error` beside. **The aperture is set by a variable NAME, not by the call.**
+  **PROBED 2026-08-23, not read off the rule source** (temporary `lib/__probe__/aperture.ts`, two functions differing only in the destructured field, deleted in the same turn). The `{ data }` function was flagged; the `{ count }` function carrying the identical defect was **silent**. Stated because a mechanism claim inferred from reading a rule is the class of claim this project has been wrong about most often, and in the same direction each time — the rule looks like it covers the call, so the hole reads as covered. That is the 2026-08-22 consent-route shape again in a third costume: one class, a rule that covers it, and a hole where the rule's discriminator looked at the wrong feature. `head: true` + `count: "exact"` is the canonical Supabase way to ask "does a row exist", so this is a shape the codebase will keep producing.
+- **Sketch:** widen the rule's trigger from "destructures `data`" to "destructures ANY result field of an awaited PostgREST chain" — `data`, `count`, `status`, `statusText` — and require `error` alongside. Census the `{ count }` and `{ status }` spellings first and classify per site before recording a number; the `data` half of this rule already has a baseline and this must not silently inherit one. **Probe both directions:** a `const { count } = await supabase...` with no `error` must FAIL, and the same call WITH `error` checked must PASS — plus the degenerate third, a file that parses to zero Supabase calls must not report clean.
+- **Do not "fix" it by defaulting the other way.** `(count ?? 1) > 0` would turn a fault into permanent suppression, which is the s14 failure M-074 spent three parts avoiding. The correct shape is to read `error`, and to make an unreadable dedup state a reported condition rather than a guess in either direction — the same three-state discipline as M-088 and `resolveMarker`.
+- **Provenance:** found while moving the function verbatim to break a circular import, not by any check. Moved unchanged on purpose: a cycle sweep is the wrong commit to change dedup semantics in, and a behavioural fix buried in a 38-file refactor is a fix nobody reviews.
+- **Covering spec:** NEW
+
