@@ -1,6 +1,13 @@
-# .github/workflows/release.yml
-# Runs only on main pushes. Creates a semver tag and publishes a GitHub Release
-# with generated notes. No npm publish.
+# .github/workflows/release.yml — tag and publish a GitHub Release from conventional commits
+#
+# Trigger: push to main; workflow_dispatch for a manual re-run.
+# Auth:    GITHUB_TOKEN only. No npm publish, no external registry, no long-lived credential.
+# Data:    conventional-commit subjects since the last v* tag, read by .releaserc.
+# Notes:   Authored by CD 2026-08-22 as release.yml.cd-draft with four ⚠CONFIRM items it said must
+#          be verified in a session with the tree. All four were resolved 2026-08-23 and the
+#          findings are recorded at the lines they bear on — two of them did not come out the way
+#          the draft assumed. The draft is deleted in the same commit; a draft kept beside the file
+#          it became is a second source that disagrees the moment either moves.
 #
 # ⚠ THIS HEADER SAID "updates CHANGELOG.md" until 2026-08-22. It never did, and never could:
 # `.releaserc` loads commit-analyzer, release-notes-generator and @semantic-release/github, and
@@ -32,10 +39,57 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # ⚠ THE REGEXP USED TO NAME A CHECK THAT NO LONGER EXISTS, AND TO SKIP THE ONE THAT MATTERS.
+      # It was '(Lint & Typecheck|Security|Dependency CVE scan)'. There is no check named
+      # "Security" — that was the `security-scan` job, removed 2026-08-17 because it ran against
+      # secrets that were never set and reported green in ~45s having scanned nothing (see the long
+      # comment where it used to live in ci.yml). So one third of the gate matched nothing.
+      #
+      # Worse, `DB integration tier (test:db)` was NOT matched. That job runs the dbtest tier AND
+      # the security DB categories — the job added because that tier previously ran on one laptop
+      # and in no workflow, a gap that had already cost a bad merge (#245). Release did not wait
+      # for it.
+      #
+      # THE RULE, so this cannot rot the same way: the gate names EVERY check that runs on a push to
+      # main. A check that runs and that nothing waits on is not a gate (M-084).
+      #
+      # ✅ VERIFIED 2026-08-23 against .github/workflows/ci.yml as at 686235c1. ci.yml defines seven
+      # jobs; exactly three carry `if: github.event_name == 'pull_request'` (FitScore parity,
+      # Release health, PR title) and never run here. The other four are the four named below.
+      #
+      # ⚠ AND THE REQUIRED SET IS A DIFFERENT FOUR — they differ in BOTH directions, which is why
+      # neither list can be derived from the other. The `main-protection` ruleset (id 15261637, read
+      # 2026-08-23) requires: Lint & Typecheck · DB integration tier (test:db) · Dependency CVE scan
+      # (Trivy) · PR title (Conventional Commits).
+      #   - `PR title` is REQUIRED to merge but never runs on main. Waiting for it here would hang
+      #     this job for the full 30-minute timeout on a check that will never report.
+      #   - `Marketing consistency` runs on main but is NOT required to merge. It is named below
+      #     anyway, because the rule above is about what RUNS, not about what blocks a merge.
+      # Two enforcement sites for one intent (L-31): changing ci.yml's triggers or the ruleset's
+      # required list means revisiting this regexp in the same change.
+      #
+      # Substring matching on purpose — the full names carry parentheses that would need escaping,
+      # and an escaping mistake fails silently in the permissive direction.
       - uses: lewagon/wait-on-check-action@v1.9.0
         with:
           ref: ${{ github.sha }}
-          check-regexp: '(Lint & Typecheck|Security|Dependency CVE scan)'
+          check-regexp: '(Lint & Typecheck|Marketing consistency|DB integration tier|Dependency CVE scan)'
+          # ✅ VERIFIED 2026-08-23 against v1.9.0's own action.yml. The draft worried that `cancelled`
+          # might be in the default; it is not. The default is `success,skipped` — so the risk was
+          # real but the mechanism was different: today a check that SKIPS satisfies this gate, and
+          # a job silently made conditional would stop blocking the release without anything saying
+          # so. Naming `success` alone is therefore a genuine tightening, not a restatement.
+          #
+          # The cost of that tightening is stated rather than discovered: a skipped job now FAILS
+          # this gate. That is safe only because none of the four named above is conditional —
+          # verified at the same commit, the only job-level `if:` guards in ci.yml are on the three
+          # PR-only jobs. Add an `if:` to any of the four and this line must be revisited.
+          allowed-conclusions: success
+          # Explicit because it is load-bearing and happens to be the default: if the regexp matches
+          # NOTHING — a job renamed, a trigger changed — this fails instead of sailing through
+          # having waited for nothing. That is the failure mode the old "Security" entry had, and an
+          # inherited default is one dependency bump away from not being the default.
+          fail-on-no-checks: true
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 10
           running-workflow-name: 'Release'
@@ -46,6 +100,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
+    outputs:
+      published: ${{ steps.release.outputs.published }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -75,9 +132,9 @@ jobs:
       # UNSETTING IT HERE IS NOT WEAKENING A GATE, and the distinction is the whole reason this is
       # scoped to one job rather than to the hook. pre-push exists to stop a HUMAN publishing work a
       # dev machine has not verified. The commit being tagged here has already passed CI — the
-      # `gate` job above blocks on Lint & Typecheck, Security and the CVE scan before this job runs
-      # at all, and the DB tier ran as its own PR job. Re-running the same assertions inside a
-      # credentialed release step adds nothing and, on a runner with no database, cannot pass.
+      # `gate` job above blocks on every check that runs on main before this job runs at all.
+      # Re-running the same assertions inside a credentialed release step adds nothing and, on a
+      # runner with no database, cannot pass.
       #
       # Deliberately NOT fixed by teaching the hook to stand down when `CI` is set: that would make
       # every hook in this repo conditional on an environment variable any job can set, to fix one
@@ -85,9 +142,100 @@ jobs:
       - name: Unwire local git hooks for the release push
         run: git config --unset-all core.hooksPath || true
 
+      # ⚠ M-084 EXISTS BECAUSE THIS STEP'S OUTCOME USED TO GO NOWHERE. Release failed on three
+      # consecutive merges over two days and nobody noticed, because two sessions read `gh run list`
+      # and acted on the CI row rather than the Release row. `check-release-health.mjs` now catches
+      # that on the NEXT PR — which is detection after the fact, and better than nothing.
+      #
+      # This captures the outcome AT SOURCE instead. semantic-release exits 0 both when it publishes
+      # and when it decides no release is warranted, so "green" currently means either. Those are
+      # different states and the run should say which.
+      #
+      # ✅ VERIFIED 2026-08-23 against the installed semantic-release 25.0.9. `lib/get-logger.js`
+      # streams both `log` and `success` to STDOUT (only `error` and `warn` go to stderr), and
+      # `index.js:221` emits `Published release <version> on <channel> channel`. So the pipe below
+      # captures the line and the grep matches it. Both halves had to hold: a logger writing to
+      # stderr would have produced `published=false` on every successful release — a false negative
+      # in the one report added to stop false negatives.
+      #
+      # The draft's note here referred to parsing `--dry-run=false`; no such flag is used, and the
+      # reference is dropped rather than left to read as a verified constraint.
       - name: Semantic Release
+        id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Unset GIT_AUTHOR_* / GIT_COMMITTER_* — semantic-release
-          # sets them from `@semantic-release/git` config.
-        run: npx semantic-release
+        run: |
+          # pipefail so a semantic-release failure is not masked by tee's exit code. The runner's
+          # default shell already carries -e, so a failed pipeline exits here and the parsing below
+          # is reached only on success — no explicit status check is needed, and the draft's
+          # PIPESTATUS branch was unreachable.
+          set -o pipefail
+          npx semantic-release | tee release.log
+          if grep -q "Published release" release.log; then
+            version=$(grep -oE "Published release [0-9]+\.[0-9]+\.[0-9]+" release.log | tail -1 | awk '{print $3}')
+            echo "published=true"   >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false"  >> "$GITHUB_OUTPUT"
+            echo "version="         >> "$GITHUB_OUTPUT"
+          fi
+
+  # A rendered summary on every run, success or failure. Borrowed from the yoros pipeline, which
+  # does this well — and it is the direct answer to M-084's finding that a result nobody consumes is
+  # not a control. `if: always()` is the whole point: the run that FAILS is the one whose summary
+  # matters, and the failure that went unnoticed for two days is exactly this shape.
+  #
+  # Deliberately NOT a PR comment or a webhook: this fires on main pushes where there is no PR to
+  # comment on, and a notification channel nobody has wired is another result that goes nowhere.
+  report:
+    name: Release outcome
+    needs: [gate, release]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    # This job writes one file and calls no API, so it needs no token at all. Without this it would
+    # inherit the workflow's `contents: write` — the credential that creates tags — for a step that
+    # echoes a table. The `gate` job is deliberately NOT narrowed the same way: the check-waiting
+    # action's exact API surface was not verified here, and guessing it wrong blocks every release
+    # rather than one summary.
+    permissions: {}
+    steps:
+      - name: Write the summary
+        run: |
+          {
+            echo "## Release — \`${GITHUB_SHA:0:8}\`"
+            echo
+            echo "| Stage | Result |"
+            echo "|---|---|"
+            echo "| Wait for CI | ${{ needs.gate.result }} |"
+            echo "| Semantic Release | ${{ needs.release.result }} |"
+            echo
+            if [ "${{ needs.gate.result }}" != "success" ]; then
+              echo "⛔ **CI did not pass — nothing was released.** The tag and GitHub Release do not exist for this commit."
+            elif [ "${{ needs.release.result }}" != "success" ]; then
+              echo "⛔ **Release FAILED after CI passed.** A version may have been decided but not published — check the job log before re-running."
+            elif [ "${{ needs.release.outputs.published }}" = "true" ]; then
+              echo "✅ **Published \`${{ needs.release.outputs.version }}\`.**"
+            else
+              echo "ℹ️ **No release.** CI passed and semantic-release found no version-bumping commits since the last tag. This is a normal outcome for docs/chore/refactor-only merges — not a failure."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# ✅ VERIFIED 2026-08-23 — CI RUNS TWICE PER CHANGE, AND THE SECOND RUN MUST STAY.
+# ci.yml triggers on both `pull_request` and `push: main`, so a squash-merge re-tests what the PR
+# run already tested. The draft left this open pending one setting: the `main-protection` ruleset
+# has `strict_required_status_checks_policy: true`, so a branch must be up to date before merging
+# and the squash commit's tree does match what the PR run tested. By that measure the second run is
+# pure latency.
+#
+# It still cannot be removed, for a reason the duplication argument does not reach: the `gate` job
+# waits on checks attached to `github.sha`, which on a main push is the SQUASH COMMIT. A PR run's
+# checks are attached to the PR HEAD sha — a different commit. Drop the `push: main` trigger and
+# this gate finds no checks for the merge commit at all, `fail-on-no-checks` fires, and every
+# release fails. The re-run is not redundant here; it is the only run whose results this workflow
+# can see.
+#
+# Anyone optimising that latency has to solve the attachment problem first — gate on the PR head
+# sha, or publish from the PR rather than from main. Neither is a trigger edit.
+# ─────────────────────────────────────────────────────────────────────────────────────────────
