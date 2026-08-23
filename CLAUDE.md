@@ -75,7 +75,7 @@ Default to using these instead of asking the user to copy-paste data. For exampl
 | Gate | Command |
 |---|---|
 | Before every commit | `npm run check` — enforced by `.githooks/pre-commit` |
-| Before every push | `npm run check:full`, scoped by `scripts/prepush-scope.mjs` (the DB tier runs only when the diff touches it; CI runs it on every PR regardless) |
+| Before every push | `npm run check:full`, scoped by `scripts/prepush-scope.mjs` (the DB tier runs only when the diff touches it; CI runs it on every PR regardless). **Schema drift runs on BOTH scopes**, outside that gate — see below |
 | Before every deploy | `npm run security` (`security:quick` for a routine check) |
 
 **The deploy gate has two prerequisites, and without them it reports success while checking less
@@ -83,6 +83,18 @@ than it appears to.** `npm run dev` must be running — Categories 3, 4, 6 and 8
 so eight of the fifteen silently cannot fire without it. And `get_rls_audit()` must exist in
 Supabase (`scripts/security/setup-rls-audit.sql`); Category 7 is the RLS policy audit and has
 nothing to query without it.
+
+**Schema drift is triggered by TWO conditions, and the second one is why it is not inside the scope
+gate.** `check-drift-if-sql-changed.mjs` runs when migration SQL changed in the pushed range, **or**
+when this clone has not verified prod inside its staleness window. The first arm asks "could THIS
+push have introduced drift?" and structurally cannot answer "is prod already drifted?" — so a
+migration merged by someone else and never applied was invisible to every push that did not itself
+touch `supabase/migrations/**`, which is most of them. `.githooks/pre-push` therefore calls it on
+both scopes. It self-throttles per clone, and a machine holding no Supabase token prints **DUE AND
+NOT RUN** and exits 0 rather than blocking a docs push on a credential it never had — a real finding
+still blocks, but only where one could actually be observed. The window, the state file and the
+degenerate-stamp directions are in that script; do not restate them here.
+<!-- @enforced check:check-drift-if-sql-changed -->
 
 **Push policy: announce intent, then push.** `hook:bash-gate` makes every push an approval gate —
 the announcement is the *content* of that approval: what is in the batch, what was verified, what
@@ -188,7 +200,8 @@ TS/TSX format:
    `.claude/rules/identity-scoped-tables.md`. Do not invoke the exception without applying the test.
    <!-- @enforced check:check-migration-integrity:shared -->
    The allowlist is read FROM that rule file, so the doc is the single source — no mirrored constant
-   to drift. 29 pre-existing tables are baselined with a stated reason each; the baseline only shrinks.
+   to drift. Pre-existing tables without `org_id` are baselined with a stated reason each in
+   `scripts/migration-integrity.baseline.json` (`orgIdTables`) — read it there; the baseline only shrinks.
 - RLS on every new table <!-- @enforced audit:cat7_rlsPolicyAudit -->
 - audit_log on every state change — **for the tables the rule covers** (`contact_bank_accounts`, `tenant_bank_accounts`, `leases`): a module that mutates one must write an audit row in the same module. <!-- @enforced eslint:pleks/require-audit-on-sensitive-mutation -->
 - Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. <!-- @enforced eslint:pleks/require-id-number-encryption --> The SA **`id_number`** is
@@ -209,8 +222,9 @@ TS/TSX format:
    by construction. Today no caller resolves across orgs, but that is the *absence of a caller*, not a control.
    The moment an agent can see "this applicant also applied at another agency", Pleks has shipped a shared
    tenant blacklist: a different product, with a different consent basis and a different regulatory profile,
-   built by accident. Enforced by `pleks/no-id-number-hash-in-app` (ESLint) — 3 pre-existing route handlers are
-   baselined and burning down; a new site anywhere under `app/` fails immediately. Keep the lookup in `lib/`
+   built by accident. Enforced by `pleks/no-id-number-hash-in-app` (ESLint) — its baseline is
+   `eslint-rules/no-id-number-hash-in-app.baseline.json`; read it for what remains. A new site anywhere
+   under `app/` fails immediately. Keep the lookup in `lib/`
    (`hashIdNumber` / `idNumberColumns` / the import identity matcher), org-scoped. **Never rotate the salt** —
    rotation breaks every historical join; if forced, version the column and dual-write through a transition.
    See `brief/build/SPEC_ANALYTICS_CAPTURE.md` §2.3.
@@ -223,8 +237,10 @@ TS/TSX format:
   Two other idempotency patterns are accepted, because both are genuinely safe and classifying them
   per site is what kept this check honest: an `IF NOT EXISTS (SELECT 1 FROM pg_policies …)` guard
   naming the policy, and a dynamic `EXECUTE format('DROP POLICY IF EXISTS %I ON t', …)` loop over the
-  table. 6 real consolidation defects are baselined — each DROPs old names and CREATEs a new one that
-  is never dropped, so a re-run aborts. Fix is one `DROP POLICY IF EXISTS` line each.
+  table. The consolidation defects this rule was written for — DROP the old policy names, CREATE a new
+  one that is never dropped, so a re-run aborts — were FIXED rather than baselined, one
+  `DROP POLICY IF EXISTS` line each. `scripts/migration-integrity.baseline.json` carries the state and
+  the classification of every site; its `policies` map is the thing to read, not a number restated here.
 - Do not apply ad-hoc SQL to the live DB — put it in the appropriate migration file instead <!-- @enforced hook:mcp-ddl-gate -->
 - Do not import a payment-initiation SDK — Pleks reads bank statement matches only. Agencies hold mandates bank-side between themselves and their bank. Pleks is not in the payment flow. <!-- @enforced eslint:no-restricted-imports -->
 
@@ -427,6 +443,27 @@ section that never mentioned joint applications).
   **Every probe passed**, because each exercised a file the discriminator already recognised.
   A probe suite confirms the cases you thought of; it cannot report the class you did not. Caught
   by adversarial review, and the reason a new control gets one before it is believed.
+- **2026-08-22 · caller-supplied ids, the THIRD time — and both mechanisations were aimed short.**
+  Two consent routes accepted a `verificationId` from the request body, checked only
+  `status === "verified"`, and never bound it to the application the caller's token proves ownership
+  of. Any verified row on the platform satisfied the check, so a caller could stamp
+  `verification_method: "sms_code"` on their own consent record using **someone else's** SMS round,
+  in another org, and overwrite the victim row's `consent_log_id`. The consent still exists; the
+  evidence that it was verified belongs to a different person — provenance forgery on a POPIA
+  s11(1)(a) record, which is worse than a leak because it survives audit.
+  **The finding is not the two routes. It is that two rules exist for exactly this class and each
+  missed a different half.** The READ rule covered the surface, fired, and was silenced by a
+  **file-level baseline entry** — classified once as debt, never re-read, and a baseline entry means
+  *read and classified*, which this one had stopped being. The WRITE rule never looked: as at
+  `b33a0855`, its `SKIP_PATH` listed `applications` and the read rule's did not, so
+  `app/api/applications/**` was path-skipped for writes. **Two rules for one class, with different
+  apertures, is one rule with a hole** — and neither a probe nor a green gate can show it, because
+  both behaved exactly as written.
+  Aligned in `fa1f4da0`: both skip sets are now the INTERSECTION of what they were, so the pair's
+  coverage is their union. That exposed 40 sites in 16 files, classified per site, and each
+  exemption is a per-file directive carrying its reason **at the site** — not a path-list entry,
+  which is invisible in the diff when somebody later adds a new read under one of those paths.
+
 - **2026-07-02 · the site-content hole.** A write gated with bare `gateway()` was
   indistinguishable from a write whose gate was forgotten. Narrative in `.claude/rules/data-access.md`.
 - **Payout-banking fraud vector (F1).** Swapping a bank account left no who/when.
@@ -473,6 +510,16 @@ summons the scoped rules (E1b).
 **Anchor grounding claims** to the version read. *Does X* → anchor, past tense. *Should X* → no
 anchor. An unanchored observation is itself a finding. **This file states intent; it does not carry
 observations about the tree** — no counts, no "as at" states. Those rot. Name the artefact instead.
+
+**The same rule on the RECEIVING end — a CD ruling that asserts what the code, schema or config
+CURRENTLY does, without naming the file it was read from, is `decision-needed`, not an
+instruction.** Ask for the citation before implementing. A ruling about what the system SHOULD do
+needs no citation — that is CD's remit, and the distinction is the authored/grounding split applied
+to rulings rather than to specs. This is not deference-by-default: CD has shipped uncited claims
+that were wrong (an attachment "impossible" in code that was merely unimplemented; a permission
+field read from its name rather than its cardinality), each corrected by someone opening the file.
+It is the half of a two-sided rule that fires when CD's own discipline does not — and hardening
+only one half is how a gap reads as covered.
 
 **Whole-file reconciliation** on any status correction — grep `awaiting`, `TODO`, `- [ ]`, `CC
 should`, and settle all or say why not. A partially-fixed file looks reviewed.

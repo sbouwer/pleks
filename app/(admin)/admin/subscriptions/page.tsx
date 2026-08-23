@@ -31,6 +31,17 @@ export default async function AdminSubscriptionsPage() {
     .order("trial_ends_at", { ascending: true })
     logQueryError("AdminSubscriptionsPage subscriptions", expiringTrialsError)
 
+  // M-074 — purges held back because the 30-day warning was never established. Red, not amber:
+  // an expiring trial resolves itself, this does not. Every row here is an org that is PAST its
+  // deletion date and still holding data, and indefinite retention is a POPIA s14 breach in its own
+  // right — so this list emptying is the goal, and a row ageing in it is the failure.
+  const { data: deferredPurges, error: deferredPurgesError } = await supabase
+    .from("subscriptions")
+    .select("org_id, purge_deferred_at, purge_deferred_reason, purge_eligible_at, organisations(name)")
+    .not("purge_deferred_at", "is", null)
+    .order("purge_deferred_at", { ascending: true })
+    logQueryError("AdminSubscriptionsPage deferred purges", deferredPurgesError)
+
   // All subscriptions
   const { data: subs, error: subsError } = await supabase
     .from("subscriptions")
@@ -56,6 +67,54 @@ export default async function AdminSubscriptionsPage() {
       <h1 className="font-heading text-2xl">Subscriptions</h1>
 
       <SetStateWidget orgs={orgOptions} />
+
+      {/* M-074 — purges held back pending a human. Each reason needs a DIFFERENT response, which is
+          why the reason is a column here rather than a single "deferred" flag. */}
+      {(deferredPurges ?? []).length > 0 && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-sm text-destructive">
+              Purges held back — action required ({(deferredPurges ?? []).length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <p className="mb-3 text-xs text-muted-foreground">
+              These orgs reached their deletion date without a confirmed 30-day warning, so the purge
+              was held. They are past due for deletion — clearing this list is the goal, not managing it.
+            </p>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-xs text-muted-foreground">
+                  <th className="text-left py-2">Org</th>
+                  <th className="text-left py-2">Reason</th>
+                  <th className="text-left py-2">What to do</th>
+                  <th className="text-left py-2">Held since</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(deferredPurges ?? []).map((d) => {
+                  const org = d.organisations as unknown as { name: string } | null
+                  const advice: Record<string, string> = {
+                    no_contact:        "No admin contact — find one, then the warning can send",
+                    no_warning_logged: "Contact exists but no warning was logged — check the 30-day step",
+                    send_failed:       "Warning failed or bounced — investigate delivery to this org",
+                    not_delivered:     "Unrecognised delivery status — inspect communication_log",
+                  }
+                  const reason = d.purge_deferred_reason ?? ""
+                  return (
+                    <tr key={d.org_id} className="border-b last:border-0">
+                      <td className="py-2">{org?.name ?? d.org_id}</td>
+                      <td className="py-2"><Badge variant="destructive">{reason || "unknown"}</Badge></td>
+                      <td className="py-2 text-muted-foreground">{advice[reason] ?? "Inspect this row manually"}</td>
+                      <td className="py-2">{d.purge_deferred_at ? formatDateShort(d.purge_deferred_at) : "—"}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Expiring trials warning */}
       {(expiringTrials ?? []).length > 0 && (

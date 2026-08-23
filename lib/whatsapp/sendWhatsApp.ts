@@ -12,7 +12,7 @@
  *         Tier gate: whatsapp_notifications feature requires Steward+.
  */
 import { hasFeature } from "@/lib/tier/gates"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendWhatsAppMessage } from "@/lib/messaging/whatsapp/provider"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -50,7 +50,7 @@ export async function sendWhatsApp(
   audit?:   WhatsAppAuditParams,
 ): Promise<WhatsAppResult> {
   // Tier gate — WhatsApp requires Steward+ (whatsapp_notifications feature)
-  const tier = await getOrgTier(orgId)
+  const tier = await getOrgTierCanonical(orgId)
   if (!hasFeature(tier, "whatsapp_notifications")) {
     const service = await createServiceClient()
     const { data: log, error: logError } = await service.from("communication_log").insert({

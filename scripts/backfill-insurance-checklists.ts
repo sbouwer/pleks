@@ -6,6 +6,18 @@
  * Properties that already have checklist rows are skipped.
  *
  * Requires: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY in .env.local
+ *
+ * ⚠ THIS SCRIPT IS DELIBERATELY PLATFORM-WIDE. It runs once, before any org is using the feature,
+ * and its job is to give EVERY property on the platform its checklist rows. `org_id` scoping would
+ * not make it safer — it would make it wrong, because there is no caller whose organisation the
+ * reads should be bounded to. That is why `pleks/require-org-scope-on-service-*` is disabled at each
+ * site below with a reason rather than baselined: a baseline says "debt, burn it down", and there is
+ * nothing here to burn down. (Un-ignored from eslint globalIgnores 2026-08-22 — control-aim audit R1.)
+ *
+ * The raw `process.env` reads below are the OPPOSITE call and are baselined as real debt, not
+ * exempted: `lib/env`'s named exports are top-level consts evaluated at import, so they read `""`
+ * in a script that calls `dotenv.config()` in its module body (probed 2026-08-22). The fix is a
+ * shared `scripts/` env bootstrap, not an annotation at each read.
  */
 
 import { createClient } from "@supabase/supabase-js"
@@ -39,9 +51,7 @@ function isApplicable(item: CatalogueItem, ctx: ApplicabilityContext): boolean {
     if (!ctx.scenarioType || !scenarios.includes(ctx.scenarioType)) return false
   }
 
-  if (item.applies_when.furnishing_status && !ctx.hasFurnishedUnits) return false
-
-  return true
+  return !item.applies_when.furnishing_status || ctx.hasFurnishedUnits
 }
 
 async function main() {
@@ -49,6 +59,7 @@ async function main() {
 
   const { data: catalogue, error: catErr } = await db
     .from("insurance_checklist_items")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- the checklist catalogue is a platform reference table; it has no org_id to filter on
     .select("code, applies_to_scenarios, applies_when")
     .eq("is_active", true)
     .order("sort_order")
@@ -63,6 +74,7 @@ async function main() {
   // Fetch all non-deleted properties
   const { data: properties, error: propErr } = await db
     .from("properties")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- the go-live sweep: EVERY property on the platform, by design. An org filter would defeat the script.
     .select("id, org_id, scenario_type")
     .is("deleted_at", null)
     .order("created_at")
@@ -81,6 +93,7 @@ async function main() {
   for (const property of properties) {
     const { data: existingCount, error: countErr } = await db
       .from("property_insurance_checklists")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-read -- head-count for one property already selected by the platform-wide sweep above
       .select("id", { count: "exact", head: true })
       .eq("property_id", property.id)
 
@@ -97,6 +110,7 @@ async function main() {
     // Re-query to get count properly
     const { count, error: c2 } = await db
       .from("property_insurance_checklists")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-read -- head-count for one property already selected by the platform-wide sweep above
       .select("*", { count: "exact", head: true })
       .eq("property_id", property.id)
 
@@ -106,16 +120,33 @@ async function main() {
       continue
     }
 
-    if ((count ?? 0) > 0) {
+    // `count` is null-on-unknown even when the query itself succeeded, and a false zero here does
+    // not skip a property — it BACKFILLS one that already has rows. Treat unknown as "leave alone".
+    if (count === null) {
+      console.error(`  [${property.id}] count came back null with no error — refusing to backfill blind`)
+      errors++
+      continue
+    }
+
+    if (count > 0) {
       skipped++
       continue
     }
 
     // Fetch units for furnishing check
-    const { data: units } = await db
+    const { data: units, error: unitsErr } = await db
       .from("units")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by property_id, and the property came from the platform-wide sweep; `units` has no org_id column
       .select("furnishing_status")
       .eq("property_id", property.id)
+
+    // An unread units list is indistinguishable from "no furnished units", and that difference
+    // decides whether the furnishing-conditional catalogue items get written at all.
+    if (unitsErr) {
+      console.error(`  [${property.id}] units read failed:`, unitsErr.message)
+      errors++
+      continue
+    }
 
     const hasFurnishedUnits = (units ?? []).some(
       (u) => u.furnishing_status === "semi_furnished" || u.furnishing_status === "furnished"
@@ -135,6 +166,7 @@ async function main() {
 
     const { data: inserted, error: insertErr } = await db
       .from("property_insurance_checklists")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-write -- rows are built per-property from the platform-wide sweep; there is no caller org to scope to
       .upsert(rows, { onConflict: "property_id,item_code", ignoreDuplicates: true })
       .select("id, item_code, state")
 
@@ -167,8 +199,9 @@ async function main() {
     }
 
     // Auto-derive POLICY_HEADER
-    const { data: prop } = await db
+    const { data: prop, error: propErr } = await db
       .from("properties")
+      // eslint-disable-next-line pleks/require-org-scope-on-service-read -- single property by id, from the platform-wide sweep above
       .select(
         "insurance_provider, insurance_policy_number, insurance_policy_type, " +
           "insurance_renewal_date, insurance_replacement_value_cents, insurance_excess_cents"
@@ -176,7 +209,12 @@ async function main() {
       .eq("id", property.id)
       .single()
 
-    if (prop) {
+    // Unread and "no policy fields set" both leave POLICY_HEADER unconfirmed, but only one of them
+    // is a finding. Say which happened rather than letting the row quietly stay `unknown`.
+    if (propErr) {
+      console.error(`  [${property.id}] policy-header read failed:`, propErr.message)
+      errors++
+    } else if (prop) {
       const allPresent =
         !!(prop.insurance_provider as string | null)?.trim() &&
         !!(prop.insurance_policy_number as string | null)?.trim() &&
@@ -186,17 +224,22 @@ async function main() {
         prop.insurance_excess_cents !== null
 
       if (allPresent) {
-        const { data: headerRow } = await db
+        const { data: headerRow, error: headerErr } = await db
           .from("property_insurance_checklists")
+          // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by property_id + item_code; the property came from the platform-wide sweep
           .select("id, state")
           .eq("property_id", property.id)
           .eq("item_code", "POLICY_HEADER")
           .maybeSingle()
 
-        if (headerRow && headerRow.state === "unknown") {
+        if (headerErr) {
+          console.error(`  [${property.id}] POLICY_HEADER read failed:`, headerErr.message)
+          errors++
+        } else if (headerRow && headerRow.state === "unknown") {
           const now = new Date().toISOString()
           await db
             .from("property_insurance_checklists")
+            // eslint-disable-next-line pleks/require-org-scope-on-service-write -- targets the single headerRow.id read two lines above, itself bounded by property_id
             .update({
               state: "confirmed",
               confirmed_at: now,

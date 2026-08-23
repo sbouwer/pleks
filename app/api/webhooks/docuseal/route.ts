@@ -18,6 +18,7 @@ import { timingSafeEqual } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 import { activateLeaseCascade } from "@/lib/leases/activateLeaseCascade"
 import { revertPendingSigningToDraft, type SigningRevertReason } from "@/lib/leases/revertSigning"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import { optionalEnv } from "@/lib/env"
 
 export const runtime = "nodejs"
@@ -85,7 +86,19 @@ async function handleCompleted(
           .update({ docuseal_document_url: storagePath })
           .eq("id", lease.id)
           .eq("org_id", lease.org_id)
-        if (updErr) console.error("[docuseal] docuseal_document_url update failed:", updErr.message)
+        if (updErr) {
+          console.error("[docuseal] docuseal_document_url update failed:", updErr.message)
+        } else {
+          // The EXECUTED lease document's location — the evidence that this tenancy was signed, and
+          // nothing else records where it landed. Worth a row even though the status transition
+          // itself belongs to activateLeaseCascade below: if the cascade's audit and this one ever
+          // disagree about which lease was signed, that disagreement is the finding.
+          // actorId null — a webhook has no human actor; the signer is DocuSeal's record, not ours.
+          await recordAudit(supabase, {
+            orgId: lease.org_id, actorId: null, action: "UPDATE", table: "leases", recordId: lease.id,
+            after: { action: "signed_document_stored", docuseal_document_url: storagePath },
+          })
+        }
       }
     } catch (e) {
       console.error("[docuseal] signed PDF store failed:", e)

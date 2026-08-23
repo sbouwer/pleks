@@ -12,7 +12,7 @@ import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, Building2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import type { ImportResultData } from "../page"
+import type { ImportResultData } from "../wizard-types"
 
 interface StepSuccessProps {
   result: ImportResultData

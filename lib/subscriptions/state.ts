@@ -44,6 +44,24 @@ export type EmailFooterVariant =
 
 export type LockdownReason = "locked_paused" | "locked_cancelled"
 
+/**
+ * Thrown when the subscription row could not be READ — a transient DB failure, or more than one
+ * live row for the org. **NOT the same as "this org has no subscription"**, which is the owner-free
+ * tier and is a legitimate, permitted state.
+ *
+ * It exists because those two were one branch (`if (error || !data) return { status: "active" }`),
+ * so an unanswerable question returned a yes on the gate that decides whether an org may write.
+ * Distinct from SubscriptionLockdownError on purpose: that one is a 403 the caller should render as
+ * "your account is paused", this one is a failure the caller must not render as anything about the
+ * subscription at all.
+ */
+export class SubscriptionStateUnavailableError extends Error {
+  constructor(detail: string) {
+    super(`Subscription state could not be read: ${detail}`)
+    this.name = "SubscriptionStateUnavailableError"
+  }
+}
+
 export class SubscriptionLockdownError extends Error {
   readonly reason: LockdownReason
   readonly action: AgentWriteAction

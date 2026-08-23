@@ -7,7 +7,7 @@
  */
 
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer"
-import type { OutstandingItem } from "@/lib/trust/close"
+import type { OutstandingItem } from "@/lib/trust/outstanding-item"
 import { SA_TIMEZONE, fmtDateZA, fmtZA } from "@/lib/dates"
 
 // ─── Shared data types ────────────────────────────────────────────────────────

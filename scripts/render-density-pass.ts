@@ -338,13 +338,18 @@ function foreign(overrides: Partial<FitScoreApplicantEntry>): FitScoreApplicantE
 
 // ─── Dimension stats defaults ──────────────────────────────────────────────────
 
-function dims(rentPct: number, opts: { allForeign?: boolean; ldp?: boolean } = {}) {
+// `ldp` was an option here whose only consumer was `divergencePoints: opts.ldp ? null : null` —
+// both arms null, so the option never changed a rendered byte. Dropped rather than given a value:
+// no producer sets divergencePoints today (assembleReportData.ts hardcodes null), so a non-null LDP
+// figure would be a fixture asserting something the pipeline cannot yet emit. Which fixtures are LDP
+// cases is carried by `ldpSummary` and by their ids, not by this.
+function dims(rentPct: number, opts: { allForeign?: boolean } = {}) {
   return {
     affordability: { rentToIncomePct: rentPct, windowMonths: 6 },
     stability:     { currentTenureDisplay: '3y 4mo', employersIn7Years: 1 },
     credit: {
       bureauCoverageDisplay: opts.allForeign ? 'n/a' : '3 / 3',
-      divergencePoints:      opts.ldp ? null : null,
+      divergencePoints:      null,
     },
     verification: { checksPassedDisplay: '5 / 5', manualOverridesPending: 0, auditEntriesCount: 5 },
   }
@@ -790,7 +795,7 @@ const FIXTURES: Fixture[] = [
         creditBehaviour_preferred_threshold: 50, verificationIntegrity_preferred_threshold: 70 },
       materialFlags: [F_BUREAU],
       narrative: NAR_LDP_MULTI,
-      dimensions: dims(30, { ldp: true }),
+      dimensions: dims(30),
       applicants: [
         sa({ label: 'A', fullName: 'Jane Mokoena',    verifiedIncomeCents: 3000000, incomeSharePct: 38,
              respondingBureaus: [], verificationPassCount: 2 }),
@@ -886,7 +891,7 @@ const FIXTURES: Fixture[] = [
         creditBehaviour_preferred_threshold: null, verificationIntegrity_preferred_threshold: 70 },
       materialFlags: [],
       narrative: NAR_LDP_FOREIGN,
-      dimensions: dims(28, { allForeign: true, ldp: true }),
+      dimensions: dims(28, { allForeign: true }),
       applicants: [
         foreign({ label: 'A', fullName: 'Amara Okonkwo', verifiedIncomeCents: 5000000, incomeSharePct: 55,
                   verificationPassCount: 3 }),

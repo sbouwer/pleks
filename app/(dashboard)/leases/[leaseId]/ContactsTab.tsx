@@ -14,38 +14,9 @@ import { toast } from "sonner"
 import { ContactCard, type PortalStatus } from "@/components/contacts/ContactCard"
 import { CoTenantAvatars } from "@/components/contacts/CoTenantAvatars"
 import { LeasePortalActions } from "./LeasePortalActions"
+import type { TenantContactInfo, LandlordContactInfo } from "./contact-info"
 import { inviteLandlordPortal } from "./actions"
 import { inviteTenantPortal } from "@/lib/portal/inviteTenant"
-
-export interface TenantContactInfo {
-  id: string
-  name: string
-  role: string
-  email: string | null
-  phone: string | null
-  address?: string | null
-  entityType: string | null
-  tenantId: string
-  ficaVerified: boolean | null
-  idOrRegNumber: string | null
-  idOrRegLabel: string
-  portalStatus: "none" | "invited" | "active" | null
-  welcomePackSentAt: string | null
-}
-
-export interface LandlordContactInfo {
-  id: string
-  name: string
-  company: string | null
-  email: string | null
-  phone: string | null
-  address?: string | null
-  entityType: string | null
-  ficaVerified: boolean | null
-  idOrRegNumber: string | null
-  idOrRegLabel: string
-  portalStatus: PortalStatus
-}
 
 interface ContactsTabProps {
   readonly tenants: TenantContactInfo[]

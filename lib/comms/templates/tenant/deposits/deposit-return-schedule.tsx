@@ -15,23 +15,7 @@ import { LegalFooter } from "../../LegalFooter"
 import { DEPOSIT_RETURN_SCHEDULE_BASIS } from "../../legalCitations"
 import { DepositDamageSection } from "./DepositDamageSection"
 import { DepositChargesSection } from "./DepositChargesSection"
-
-export interface DeductionItem {
-  id: string
-  room: string | null
-  item_description: string
-  deduction_amount_cents: number
-  classification: string
-  ai_justification: string | null
-}
-
-export interface DepositChargeItem {
-  id: string
-  charge_type: string
-  description: string
-  deduction_amount_cents: number
-  notes: string | null
-}
+import type { DeductionItem, DepositChargeItem } from "./schedule-items"
 
 export interface DepositReturnScheduleEmailProps {
   branding: OrgBranding
@@ -49,15 +33,6 @@ export interface DepositReturnScheduleEmailProps {
   deadlineDate: string
   returnDays: number
   referenceNumber: string
-}
-
-// Canonical classifications from deposit_deduction_items.classification CHECK constraint.
-// Exported for reuse in PDF renders and future tooling.
-export const CLASSIFICATION_LABELS: Record<string, string> = {
-  tenant_damage: "Deductions — Tenant Damage",
-  wear_and_tear: "Deductions — Wear & Tear",
-  pre_existing:  "Deductions — Pre-existing Condition",
-  disputed:      "Deductions — Disputed",
 }
 
 export function DepositReturnScheduleEmail({

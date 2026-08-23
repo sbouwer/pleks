@@ -8,7 +8,7 @@
 
 import * as React from "react"
 import { Section, Text } from "@react-email/components"
-import type { DepositChargeItem } from "./deposit-return-schedule"
+import type { DepositChargeItem } from "./schedule-items"
 import { formatZAR } from "@/lib/constants"
 
 const CHARGE_TYPE_LABELS: Record<string, string> = {

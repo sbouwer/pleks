@@ -18,7 +18,7 @@ import { revalidatePath } from "next/cache"
 import { triageMaintenanceRequest, deriveSeverityFromTriage } from "@/lib/ai/maintenanceTriage"
 import { workOrderCategoryCode } from "@/lib/maintenance/categories"
 import { hasFeature } from "@/lib/tier/gates"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { resolveCompanyContact } from "@/lib/contacts/resolveCompanyContact"
 import { routeAndSend } from "@/lib/messaging/router"
@@ -150,7 +150,7 @@ export async function createMaintenanceRequest(formData: FormData) {
 
   // AI triage — only for Steward+ (Owner tier gets manual defaults, zero API cost)
   // If the form already ran triage client-side and agent overrode, use those values
-  const tier = await getOrgTier(orgId)
+  const tier = await getOrgTierCanonical(orgId)
   let triage: { category: string; urgency: string; urgency_reason: string; suggested_action: string; severity: "routine" | "elevated" | "urgent" | "critical"; insurance_relevant: boolean }
   if (categoryOverride) {
     const sev = deriveSeverityFromTriage(categoryOverride, urgencyOverride ?? "routine", title, description)
@@ -168,12 +168,20 @@ export async function createMaintenanceRequest(formData: FormData) {
   const now = new Date()
   const yearMonth = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, "0")}`
   const catCode = workOrderCategoryCode(triage.category)
-  const { count } = await db
+  // The count IS the running counter, so an unreadable count does not degrade the number — it
+  // restarts it. `(count || 0) + 1` minted WO-YYYYMM-CAT-00001 again on every failed read, against
+  // an org that may already have hundreds. Refuse to create rather than mint a colliding work
+  // order number: the agent sees the failure and retries, where guessing writes a duplicate.
+  const { count, error: countError } = await db
     .from("maintenance_requests")
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId)
+  if (countError || count === null) {
+    console.error("createMaintenanceRequest: work-order counter read failed for org", orgId, countError?.message ?? "count was null")
+    return { error: "Could not allocate a work order number. Please try again." }
+  }
 
-  const seq = ((count || 0) + 1).toString().padStart(5, "0")
+  const seq = (count + 1).toString().padStart(5, "0")
   const workOrderNumber = `WO-${yearMonth}-${catCode}-${seq}`
 
   const { data: request, error } = await db

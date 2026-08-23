@@ -6,6 +6,7 @@
  *         User-agent reduced to browser family only.
  *         Row-by-row streaming avoids loading all rows into memory simultaneously.
  */
+/* eslint-disable pleks/require-org-scope-on-service-read -- platform-admin audit export — same cross-org-by-design surface as audit-queries.ts, behind the same requireAdminAuth gate */
 import { escapeCsvCell } from "@/lib/security/csvInjection"
 import { createServiceClient } from "@/lib/supabase/server"
 

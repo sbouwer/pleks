@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ActionButton } from "@/components/ui/actions"
 import { Users, Building2, FileText, ArrowLeft, ArrowRight, Info, Wrench, UserCheck } from "lucide-react"
-import type { AnalysisResult } from "../page"
+import type { AnalysisResult } from "../wizard-types"
 
 interface Step1DetectedProps {
   analysis: AnalysisResult

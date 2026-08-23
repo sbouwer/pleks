@@ -1,0 +1,37 @@
+{
+  "_comment": [
+    "Declared invariants that currently have NO code reader. An entry here means READ AND CLASSIFIED,",
+    "never EXEMPT — each names the M-register entry holding the open decision, and each is a live",
+    "finding that has simply been made visible instead of left silent. This list only shrinks.",
+    "",
+    "WHY THESE THREE ARE BASELINED RATHER THAN FIXED. Every one needs a decision that is not the",
+    "check author's to take: whether the platform org is genuinely excluded everywhere it must be",
+    "(a per-site census first), whether the help content has passed its §7 compliance sign-off, and",
+    "which purge sites should derive their skip-list from the retention array. Shipping the check red",
+    "would have forced three rushed answers; shipping it with this file forces none, and makes the",
+    "FOURTH instance fail on arrival — which is the whole value, since all three of these went",
+    "unnoticed for months precisely because nothing ever asked the question out loud.",
+    "",
+    "TO REMOVE AN ENTRY: wire a real reader. The check then FAILS until the line is deleted from here,",
+    "which is the ratchet — a baseline that silently tolerated a healed entry would drift back to",
+    "meaning nothing. Do NOT remove an entry by deleting the export: that removes the record of the",
+    "rule and leaves the obligation, which is strictly worse than the gap it closes."
+  ],
+  "entries": {
+    "excludePlatformOrg": {
+      "file": "lib/comms/platform-org.ts",
+      "register": "M-067",
+      "reason": "A stated MUST ('every for-each-org query MUST exclude the platform org') with zero call sites. Either every org-iterating query is already safe for a reason the comment does not give, or the platform org is silently included in fan-outs meant to exclude it. M-067 requires the per-site census BEFORE any rule, because a rule with no measured population is how a check's first number becomes a finding."
+    },
+    "HELP_CONTENT_DRAFT": {
+      "file": "lib/help/help-data.ts",
+      "register": "M-077",
+      "reason": "A sign-off gate nothing reads. The flag is true, meaning the help content has NOT passed the §7 content-compliance pass (D-HELP-20), and /help renders it to users regardless because no code consults it. Cheapest of the three to resolve — M-077 notes it has no prior decision blocking it, only Stean's sign-off or a visible draft banner."
+    },
+    "RETENTION_PROTECTED_TABLES": {
+      "file": "lib/subscriptions/retention.ts",
+      "register": "M-082",
+      "reason": "A PPRA/POPIA statutory retention list with no importer, which two artefacts asserted was live in the present tense (the module header, now corrected, and 010_platform_features.sql:1690, not). The real mechanism is at the purge sites — every pg_cron retention purge and erasure path deriving its skip-list from this array by import — which is M-082 sketch half (b) and a larger build than this check."
+    }
+  }
+}

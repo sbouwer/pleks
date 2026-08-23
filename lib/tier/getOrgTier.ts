@@ -1,18 +1,24 @@
 /**
- * lib/tier/getOrgTier.ts — Org tier resolvers: canonical DB (gates) and cookie fast-path (display)
+ * lib/tier/getOrgTier.ts — The AUTHORITATIVE org tier read. Every resolver here is gate-safe.
  *
- * Auth:   Server-only; service client for canonical path, cookie-backed client for fast-path
- * Data:   subscriptions table (canonical); pleks_org cookie (fast-path display only)
- * Notes:  getOrgTierCanonical is the ONLY resolver for entitlement gates — cookie tier is forgeable.
+ * Auth:   Server-only; service client (bypasses RLS, so org_id is passed explicitly).
+ * Data:   subscriptions table.
+ * Notes:  getOrgTierCanonical is the ONLY resolver for entitlement gates.
  *         getOrgTierAny is the SAME read, typed as AnyTier for the product-line-aware route guard
  *         (an HOA org's subscriptions.tier genuinely holds an hoa_* literal). Both go through one
  *         _readEffectiveTier() so the two views can never drift (ADDENDUM_18C).
- *         getOrgTier (fast-path) is for display surfaces only (badges, plan labels, feature hints).
+ *
+ *         THERE IS NO LONGER A FORGEABLE READER ANYWHERE. A cookie fast-path used to be the third
+ *         export here, was split out to ./getOrgTierFromCookie on 2026-08-23 so a lint rule could
+ *         name it by module path, and was deleted the same day when the CD ruling removed `tier`
+ *         from getServerOrgMembership's return — with nothing forgeable left to fast-path, that
+ *         module's whole body reduced to `return getOrgTierCanonical(orgId)`. The invariant it
+ *         guarded now holds by construction: no code path produces a tier that did not come from
+ *         `subscriptions`. Do not reintroduce one; put the memoisation in _readEffectiveTier instead.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { Tier, AnyTier } from "@/lib/constants"
 import { getEffectiveTier } from "./effectiveTier"
-import { getServerOrgMembership } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /** The single canonical read of an org's effective tier from subscriptions (service client). Returns the
@@ -33,7 +39,9 @@ async function _readEffectiveTier(orgId: string): Promise<string> {
 
 /** Canonical tier for ALL entitlement/lease gates (canActivateLease, canDowngradeTo, etc.). Return type
  *  stays Tier — its residential assumption is intact and these money-adjacent gates are untouched by the
- *  HOA line (an HOA org never reaches them). The cookie fast-path (getOrgTier) is display-only/forgeable. */
+ *  HOA line (an HOA org never reaches them). Display surfaces call this too — since the forgeable cookie
+ *  reader was deleted there is no cheaper answer, and a badge showing a tier the org has not paid for is
+ *  not a cheaper answer either. Costs one `subscriptions` read per call; see the module header. */
 export async function getOrgTierCanonical(orgId: string): Promise<Tier> {
   return (await _readEffectiveTier(orgId)) as Tier
 }
@@ -43,21 +51,4 @@ export async function getOrgTierCanonical(orgId: string): Promise<Tier> {
  *  org's line and denies cross-line. Same underlying read as getOrgTierCanonical — never a second query. */
 export async function getOrgTierAny(orgId: string): Promise<AnyTier> {
   return (await _readEffectiveTier(orgId)) as AnyTier
-}
-
-/** Display-only tier — reads pleks_org cookie with DB fallback on cache miss.
- *  Forgeable: a user can set tier:"bespoke" in the cookie to mislead display.
- *  Use ONLY for display surfaces (badges, plan labels, feature-visibility hints).
- *  Never use for capability gates — use getOrgTierCanonical instead. */
-export async function getOrgTier(orgId: string): Promise<Tier> {
-  const membership = await getServerOrgMembership()
-  if (membership?.org_id === orgId && membership.tier) {
-    return membership.tier as Tier
-  }
-
-  // Cache miss → fall back to the SAME canonical read the gates use (service client, explicit org_id).
-  // This used to re-roll the query on the COOKIE client, whose auth does not reliably reach Postgres RLS —
-  // so an unwarmed session read empty and silently displayed the Owner tier. The service-client read cannot
-  // drift from getOrgTierCanonical, and the cookie is still the fast path above.
-  return (await _readEffectiveTier(orgId)) as Tier
 }

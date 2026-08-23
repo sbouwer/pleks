@@ -135,12 +135,19 @@ async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, re
 
   if (existing?.renewal_date === renewalDate) return  // already sent
 
-  // Count still-unknown items
-  const { count } = await db
+  // Count still-unknown items. `!count` conflates "everything is verified" with "the count could
+  // not be read", and only the first is a reason to stay quiet. Both end in `return` here — a
+  // reminder skipped today is sent by tomorrow's run — but the error is logged so a persistent
+  // fault shows up as a fault rather than as an unusually well-verified portfolio.
+  const { count, error: unknownCountError } = await db
     .from("property_insurance_checklists")
     .select("id", { count: "exact", head: true })
     .eq("property_id", propertyId)
     .eq("state", "unknown")
+  if (unknownCountError) {
+    console.error("sendRenewalReminder unknown-item count failed for property", propertyId, unknownCountError.message)
+    return
+  }
 
   if (!count || count === 0) return  // all verified, no reminder needed
 

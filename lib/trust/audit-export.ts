@@ -21,7 +21,7 @@ import {
   type DepositHeldRow,
   type ManagementFeeRow,
 } from "./TrustAuditPdf"
-import type { OutstandingItem } from "./close"
+import type { OutstandingItem } from "./outstanding-item"
 import { SA_TIMEZONE, fmtZA } from "@/lib/dates"
 
 export interface GenerateAuditExportParams {
@@ -133,12 +133,21 @@ export async function generateAuditExport(
   const managementFees = await fetchManagementFees(db, params.orgId, period.period_start, period.period_end)
 
   // ── 9. Version number (existing exports count + 1) ───────────────────────
-  const { count } = await db
+  // The count IS the version, so an unreadable count silently re-issues version 1 for a period that
+  // already has one — two different trust audit exports carrying the same version number, on the
+  // record a PPRA audit reads. `?? 0` is not a safe default for a value that identifies a document.
+  const { count, error: versionCountError } = await db
     .from("trust_audit_exports")
     .select("id", { count: "exact", head: true })
     .eq("period_id", params.periodId)
+  if (versionCountError || count === null) {
+    throw new Error(
+      `trust audit export: could not determine the version number for period ${params.periodId}: ` +
+        `${versionCountError?.message ?? "count was null"}. Refusing to issue an export that may collide with an existing version.`,
+    )
+  }
 
-  const version = (count ?? 0) + 1
+  const version = count + 1
 
   // ── 10. Build audit data object ───────────────────────────────────────────
   const generatedAt = new Date().toISOString()

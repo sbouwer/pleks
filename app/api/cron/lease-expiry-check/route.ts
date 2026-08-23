@@ -128,6 +128,7 @@ export async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLeas
     // throw), so an unchecked stamp marked leases "notified" during the June outage — poisoning the same
     // predicate the Demand-to-Vacate Rule 5 guard reads. A failed send leaves the column null → the cron retries.
     if (result.success) {
+      // eslint-disable-next-line pleks/require-audit-on-sensitive-mutation -- comms bookkeeping, not a tenancy-state change: this stamps WHEN a reminder was delivered so the cron does not re-send. Nothing about the lease itself moves. The delivery already has its own trail in communication_log via routeAndSend, and the actor is a cron, so an audit_log row would add a second record of the same send with no actor to name. The lease STATE changes below (status → expired) and that one IS audited.
       await supabase.from("leases").update({ expiry_reminder_sent_at: new Date().toISOString() }).eq("id", lease.id)
     }
   } catch {
@@ -177,7 +178,12 @@ async function handleNoticeExpired(supabase: Supabase, lease: NoticeLease, today
     }
   }
 
+  // ⚠ THIS IS THE SITE THE RULE WAS FUNCTION-SCOPED FOR. Two other functions in this file already
+  // called recordAudit, and under the original module-scoped rule that exempted the whole file — so
+  // a cron could end a tenancy with no audit row and the gate stayed green. See the rule's header.
+  // actorId omitted: a cron has no human actor, and naming one would be a false attribution.
   await supabase.from("leases").update({ status: "expired" }).eq("id", lease.id)
+  await recordAudit(supabase, { orgId: lease.org_id, table: "leases", recordId: lease.id, action: "UPDATE", after: { status: "expired", action: "lease_expired_notice_period_ended" } })
   await supabase.from("units").update({ status: "vacant" }).eq("id", lease.unit_id)
 
   await supabase.from("unit_status_history").insert({

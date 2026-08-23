@@ -27,11 +27,13 @@ async function seedCharge(c: { orgId: string; leaseId: string }): Promise<string
   return data!.id as string
 }
 async function depTxnCount(leaseId: string): Promise<number> {
-  const { count } = await db.from("deposit_transactions").select("id", { count: "exact", head: true }).eq("lease_id", leaseId)
+  const { count, error } = await db.from("deposit_transactions").select("id", { count: "exact", head: true }).eq("lease_id", leaseId)
+  if (error) throw new Error(`depositTxnCount: ${error.message}`)
   return count ?? 0
 }
 async function trustDeductionCount(leaseId: string): Promise<number> {
-  const { count } = await db.from("trust_transactions").select("id", { count: "exact", head: true }).eq("lease_id", leaseId).eq("transaction_type", "deposit_deduction")
+  const { count, error } = await db.from("trust_transactions").select("id", { count: "exact", head: true }).eq("lease_id", leaseId).eq("transaction_type", "deposit_deduction")
+  if (error) throw new Error(`trustDeductionCount: ${error.message}`)
   return count ?? 0
 }
 async function chargeLink(chargeId: string): Promise<string | null> {

@@ -12,7 +12,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { formatZAR } from "@/lib/constants"
 import { InlineLink } from "@/components/ui/actions"
 import { CheckCircle2, FileText, AlertTriangle } from "lucide-react"
-import type { OutstandingItem } from "@/lib/trust/close"
+import type { OutstandingItem } from "@/lib/trust/outstanding-item"
 import { SovereignBadge } from "@/components/trust/SovereignBadge"
 import { fmtDateLongZA, fmtZA } from "@/lib/dates"
 

@@ -34,12 +34,20 @@ export async function seedInspectionRooms(
   leaseType: string,
   unitId?: string,
 ): Promise<void> {
-  // Guard: skip if already seeded
-  const { count } = await db
+  // Guard: skip if already seeded. A false zero here does not skip a seed — it repeats one, so the
+  // inspection comes back with every room duplicated and the inspector reconciles by hand. `?? 0`
+  // took the "not seeded yet" branch on any read failure, which is the branch that writes. (M-090)
+  const { count, error: seededError } = await db
     .from("inspection_rooms")
     .select("id", { count: "exact", head: true })
     .eq("inspection_id", inspectionId)
-  if ((count ?? 0) > 0) return
+  if (seededError || count === null) {
+    throw new Error(
+      `seedRooms(${inspectionId}): could not check for existing rooms ` +
+        `(${seededError?.message ?? "count was null"}). Not seeding — an unreadable state must not read as "empty".`,
+    )
+  }
+  if (count > 0) return
 
   let rooms: RoomSuggestion[]
 

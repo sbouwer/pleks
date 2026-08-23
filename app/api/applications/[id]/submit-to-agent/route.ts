@@ -10,6 +10,7 @@
  *         off submitted_at — so viewing the assessment never counts as submitting. Idempotent: a second call on
  *         an already-submitted row is a no-op. Gated by the J1 rule: all co-applicants must be complete first.
  */
+/* eslint-disable pleks/require-org-scope-on-service-write -- accepts a lead application_tokens token or a co-applicant access_token, each matched .eq(...id) against THIS application before any write; public apply flow, no caller org */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendSubmissionNotifications } from "@/lib/applications/submissionEmails"

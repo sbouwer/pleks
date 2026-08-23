@@ -6,6 +6,7 @@
  *         Falls back to active subscriptions sum if no snapshot data yet.
  * Notes:  ZAR values in cents throughout. Chart rendered client-side via MRRTrendChart.
  */
+/* eslint-disable pleks/require-org-scope-on-service-read -- platform MRR: the sum over all orgs is the number being displayed */
 import { createServiceClient } from "@/lib/supabase/server"
 import { MRRTrendChart } from "./MRRTrendChart"
 import { saDateISO } from "@/lib/dates"

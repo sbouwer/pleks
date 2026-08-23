@@ -10,7 +10,7 @@
 import { notFound, redirect } from "next/navigation"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { updateProperty } from "@/lib/actions/properties"
 import { PropertyEditForm } from "../../PropertyEditForm"
 import { BackLink } from "@/components/ui/BackLink"
@@ -28,7 +28,7 @@ export default async function EditPropertyPage({
 
   const [supabase, service] = await Promise.all([createClient(), createServiceClient()])
 
-  const tier = await getOrgTier(orgId)
+  const tier = await getOrgTierCanonical(orgId)
 
   const [
     { data: property },

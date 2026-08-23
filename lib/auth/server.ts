@@ -2,26 +2,26 @@
  * lib/auth/server.ts — Cached per-request server auth helpers
  *
  * getServerUser()             — GoTrue-verified user (not cookie-spoofable; one round-trip per render tree)
- * getServerOrgMembership()    — org_id + role from pleks_org cookie (zero DB) or user_orgs DB fallback
+ * getServerOrgMembership()    — org_id + role, resolved by gateway's resolveOrgMembership (cookie
+ *                               CHOOSES the org, user_orgs AUTHORISES it). No tier — see below.
  * getCurrentOrgCapabilities() — OrgCapabilities for the current org (ADDENDUM_61A — org-type-aware rendering)
  * requireAgentWriteAccess()   — Single chokepoint for all agent-side mutations (ADDENDUM_57G)
  */
 import { cache } from "react"
-import { cookies } from "next/headers"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { setSentryUser } from "@/lib/observability/user-context"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
-import { gateway, type GatewayContext } from "@/lib/supabase/gateway"
+import { gateway, resolveOrgMembership, type GatewayContext } from "@/lib/supabase/gateway"
 import { hasCapability } from "@/lib/auth/can"
 import {
   canPerformAgentAction,
   SubscriptionLockdownError,
+  SubscriptionStateUnavailableError,
   type AgentWriteAction,
   type SubscriptionState,
   type SubscriptionStatus,
 } from "@/lib/subscriptions/state"
-import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * Cached per-request server auth helpers.
@@ -40,10 +40,33 @@ export const getServerUser = cache(async () => {
 })
 
 /**
- * Org membership — cached per render tree.
- * Reads from the pleks_org cookie set by middleware (zero DB call on cache hit).
- * Falls back to a DB query on miss (e.g. first request after login).
- * Returns tier as already-resolved effective tier string (set by proxy.ts).
+ * Org membership — cached per render tree. **The cookie CHOOSES; the database AUTHORISES.**
+ *
+ * `pleks_org` is plain JSON, unsigned, and the authenticated user can send whatever they like in it.
+ * Its `org_id` is therefore a HINT — it selects WHICH of the caller's memberships to resolve — and
+ * `user_orgs` decides whether that membership exists. `role` comes back from the DB row, never from
+ * the cookie. That is why the hint pattern is right and "always query" is not: `user_orgs` has no
+ * unique constraint on `user_id`, so an unhinted `.single()` errors for anyone in more than one org.
+ *
+ * ONE IMPLEMENTATION, DELIBERATELY. This delegates to gateway's `resolveOrgMembership` instead of
+ * doing its own read. Until 2026-08-23 there were two readers of this cookie: gateway's validated it
+ * against `user_orgs`, and this one checked only `parsed.user_id === user.id`. That check stops you
+ * replaying SOMEONE ELSE'S cookie; it does nothing about forging your own — put your real user_id in
+ * beside any `org_id` and `role: "owner"` and it was accepted verbatim, then handed to
+ * `createServiceClient()` queries whose only tenancy boundary is the `.eq("org_id", …)` filter the
+ * caller had just supplied. The correct check was already twenty lines below, in this function's own
+ * DB fallback, which the cookie branch skipped. Two readers with different apertures is the
+ * 2026-08-22 scar (CLAUDE.md §6); two with identical apertures is that scar waiting for one of them
+ * to be edited. Share the implementation — do not re-derive it here.
+ *
+ * NO `tier` FIELD, DELIBERATELY. It used to be returned straight from the cookie while `org_id` and
+ * `role` were validated, and partial validation is worse than none: the sound fields lend their
+ * credibility to the unsound one, and nobody reading `membership.tier` has a reason to suspect it is
+ * weaker than `membership.role`. For a tier, call `getOrgTierCanonical(orgId)` from `@/lib/tier/getOrgTier`.
+ *
+ * THROWS on a transient DB failure (`GatewayUnavailableError`, from the delegate) rather than
+ * returning null. That is a behaviour change: callers `redirect("/login")` on null, so a slow DB
+ * used to bounce an authenticated user to the login page. An error boundary is the honest response.
  *
  * NOTE: Never call cookieStore.set() here — Server Components cannot write cookies.
  * The middleware (proxy.ts) writes pleks_org after the user_orgs DB check.
@@ -52,36 +75,11 @@ export const getServerOrgMembership = cache(async () => {
   const user = await getServerUser()
   if (!user) return null
 
-  // 1. Try cookie (no DB call) — written by proxy.ts middleware
-  const cookieStore = await cookies()
-  const cached = cookieStore.get("pleks_org")
-  if (cached?.value) {
-    try {
-      const parsed = JSON.parse(cached.value) as { org_id: string; role: string; tier?: string; user_id: string }
-      if (parsed.org_id && parsed.role && parsed.user_id === user.id) {
-        setSentryUser({ id: user.id, org_id: parsed.org_id, role: parsed.role })
-        return { org_id: parsed.org_id, role: parsed.role, tier: parsed.tier ?? null }
-      }
-    } catch {
-      // corrupted cookie — fall through to DB
-    }
-  }
+  const membership = await resolveOrgMembership(user.id)
+  if (!membership) return null
 
-  // 2. DB query (cookie miss — proxy.ts will refresh on next request).
-  // Service client: getServerUser() already authenticated the user via the cookie client
-  // (auth.getUser). user_orgs is scoped by the authenticated user.id, so the explicit filter —
-  // not RLS on the cookie client — is the boundary. This is the last cookie-.from() in the gate.
-  const service = await createServiceClient()
-  const { data, error: queryError } = await service
-    .from("user_orgs")
-    .select("org_id, role")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-  logQueryError("getServerOrgMembership user_orgs", queryError)
-
-  if (data) setSentryUser({ id: user.id, org_id: data.org_id, role: data.role })
-  return data ? { ...data, tier: null } : null
+  setSentryUser({ id: user.id, org_id: membership.org_id, role: membership.role })
+  return { org_id: membership.org_id, role: membership.role }
 })
 
 export interface IdentityForkState {
@@ -123,37 +121,36 @@ export const getIdentityForkState = cache(async (): Promise<IdentityForkState | 
 })
 
 /**
- * Org capabilities — cached per render tree (ADDENDUM_61A).
- * Resolves org type + name from DB, derives the full capability object.
+ * Org capabilities — cached per render tree (ADDENDUM_61A). ONE PATH: the database.
+ * Resolves org type + name + subscription status from DB, derives the full capability object.
  * Use in server components for redirect guards and capability-aware rendering.
  *
- * When §6.4 (cookie payload extension) ships, this can read type+name from
- * the pleks_org cookie to eliminate the DB round-trip. Until then it queries
- * once per render tree (React.cache deduplicates).
+ * THE COOKIE FAST PATH WAS REMOVED 2026-08-23 (CD ruling), not repaired. It read `type`, `name` and
+ * `sub_status` out of the unsigned `pleks_org` cookie and validated none of them, while
+ * `getServerOrgMembership` — read on the same pages, one line above — had just been converged onto a
+ * DB-validated resolver. Three unvalidated fields sitting beside two validated ones, on the same
+ * object graph, with nothing at either call site saying which is which, is the partial-validation
+ * trap that removed `tier` from that function's return, one object over.
+ *
+ * DROPPED RATHER THAN VALIDATED, deliberately. Validating three fields invites "which fields are
+ * safe?" to be re-answered later by someone with less context, and `name` looking harmless today is
+ * the same argument as `role` being UI-only — an argument about the current call sites, not about
+ * the mechanism. `caps.hasHOA` and `caps.hasLandlordsList` gate route redirects
+ * (`app/(dashboard)/hoa/page.tsx`, `app/(dashboard)/landlords/page.tsx`), so `type: "hoa"` in your
+ * own cookie passed the first of them.
+ *
+ * The write gate was never on this path and still is not: `requireAgentWriteAccess` reads
+ * `subscriptions` directly via `getSubscriptionState(gw.orgId)`, and `isLockedDown` has no readers.
+ * That bounded the severity to route visibility; it was not the reason to keep the fast path.
+ *
+ * Costs one round-trip per render tree (React.cache deduplicates); the two queries run in parallel.
  */
 export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities | null> => {
   const membership = await getServerOrgMembership()
   if (!membership) return null
 
-  // Fast path: pleks_org cookie carries type, name, sub_status (set by proxy.ts).
-  const cookieStore = await cookies()
-  const raw = cookieStore.get("pleks_org")?.value
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as { type?: string; name?: string; sub_status?: string | null }
-      if (parsed.type && parsed.name) {
-        return getOrgCapabilities(
-          parsed.type as OrgType,
-          parsed.name,
-          (parsed.sub_status ?? "active") as SubscriptionStatus,
-        )
-      }
-    } catch { /* fall through to DB */ }
-  }
-
-  // Slow path: DB query (cookie not yet populated — one round-trip, cached per render tree).
   const service = await createServiceClient()
-  const [{ data: org, error }, { data: sub }] = await Promise.all([
+  const [{ data: org, error }, { data: sub, error: subError }] = await Promise.all([
     service.from("organisations").select("type, name").eq("id", membership.org_id).single(),
     service.from("subscriptions").select("status").eq("org_id", membership.org_id).not("status", "eq", "purged").maybeSingle(),
   ])
@@ -164,6 +161,16 @@ export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities
   }
   if (!org) return null
 
+  // An unread subscription row is NOT "active" — it is unknown, and `?? "active"` would render a
+  // paused org's banner as healthy. This error went unchecked while the cookie was the usual path
+  // and the DB was the rare fallback; removing the fast path makes it the only path, so it is
+  // checked now. Returning null degrades to "capabilities unknown", which every caller already
+  // handles (the redirect guards send the user somewhere safe rather than granting access).
+  if (subError) {
+    console.error("[getCurrentOrgCapabilities] subscription read failed:", subError.message)
+    return null
+  }
+
   return getOrgCapabilities(
     (org.type as OrgType) ?? "agency",
     org.name as string,
@@ -172,34 +179,35 @@ export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities
 })
 
 /**
- * Current subscription state — cached per render tree (ADDENDUM_57G).
- * Reads sub_status from the pleks_org cookie (zero DB on cache hit).
- * Falls back to a DB query on miss. Used by server components that need
- * the full SubscriptionState (e.g. email footer variant, dunning cron).
+ * Current subscription state — cached per render tree (ADDENDUM_57G). ONE PATH: the database.
+ * Used by server components that need the full SubscriptionState (e.g. email footer variant,
+ * dunning cron).
+ *
+ * ITS COOKIE FAST PATH WENT WITH getCurrentOrgCapabilities', in the same change and for the same
+ * reason. It read the same unvalidated `sub_status` and it sits twenty lines away — fixing one and
+ * leaving the other is how a repo ends up with two readers of one forgeable field at different
+ * apertures, which is the 2026-08-22 scar this whole batch has been unwinding.
+ *
+ * The fast path also returned a SubscriptionState with every lifecycle date null-filled from the
+ * fallback, so `past_due_since`/`paused_at`/`cancelled_at` were absent whenever the cookie answered.
+ * A caller reading those dates got nulls that meant "not in the cookie", not "not set".
+ *
+ * KEPT rather than deleted despite having no callers today, because the tag below records that it
+ * was built ahead of the consumers ADDENDUM_57G names. Deleting it is also defensible; what is not
+ * is leaving it reading a forgeable value while it waits. (Naming the tag token in this prose is
+ * what broke the knip-floor parity when this docstring was first written — the floor greps the
+ * token, so a mention counts as a tag.)
  * @knipignore Built ahead of the consumers ADDENDUM_57G names.
  */
 export const getCurrentSubscriptionState = cache(async (): Promise<SubscriptionState> => {
-  const fallback: SubscriptionState = {
-    status: "active", past_due_since: null, paused_at: null,
-    cancelled_at: null, purge_eligible_at: null,
-  }
-
   const membership = await getServerOrgMembership()
-  if (!membership) return fallback
-
-  // Fast path: cookie carries sub_status written by proxy.ts
-  const cookieStore = await cookies()
-  const raw = cookieStore.get("pleks_org")?.value
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as { sub_status?: string | null }
-      if (parsed.sub_status) {
-        return { ...fallback, status: parsed.sub_status as SubscriptionStatus }
-      }
-    } catch { /* fall through */ }
+  if (!membership) {
+    return {
+      status: "active", past_due_since: null, paused_at: null,
+      cancelled_at: null, purge_eligible_at: null,
+    }
   }
 
-  // Slow path: full lifecycle columns from DB
   return getSubscriptionState(membership.org_id)
 })
 
@@ -211,10 +219,29 @@ async function getSubscriptionState(orgId: string): Promise<SubscriptionState> {
     .from("subscriptions")
     .select("status, past_due_since, paused_at, cancelled_at, purge_eligible_at")
     .eq("org_id", orgId)
-    .single()
+    // A purged row is history, not a subscription. Excluded here for the same reason
+    // getCurrentOrgCapabilities excludes it — and NOT excluding it is half of the defect below.
+    .not("status", "eq", "purged")
+    .maybeSingle()
 
-  if (error || !data) {
-    // No subscription row = owner-free tier; treat as active for write purposes.
+  // A FAILED READ IS NOT AN ACTIVE SUBSCRIPTION. This was one branch — `if (error || !data)` —
+  // which conflated the legitimate case (no row at all = owner-free tier, permitted to write) with
+  // the one that must never grant anything (the query did not answer). The gate that decides
+  // whether a paused org may write was reading its own data source fail-open.
+  //
+  // NOT HYPOTHETICAL, and this is why it is worth the error class. `subscriptions.org_id` carries
+  // an INDEX, not a unique constraint (001_foundation.sql:265), so ">1 row" lands on the error
+  // branch too — and in production, as at 2026-08-23, the ONLY org holding a subscription held two
+  // rows (one `purged`, one `active`). `.single()` therefore errored on every call and the gate
+  // returned "active" unconditionally. It read as correct only because that org happens to BE
+  // active; had it been paused, every agent write would still have been allowed.
+  //
+  // Same shape as the `user_orgs` `.single()` corrected earlier the same day: a query written as if
+  // a uniqueness constraint existed, failing into the permissive answer when it does not.
+  if (error) throw new SubscriptionStateUnavailableError(error.message)
+
+  // Genuinely no row = owner-free tier. This is the ONLY thing the fallback was ever meant to cover.
+  if (!data) {
     return { status: "active", past_due_since: null, paused_at: null, cancelled_at: null, purge_eligible_at: null }
   }
 
@@ -232,6 +259,10 @@ async function getSubscriptionState(orgId: string): Promise<SubscriptionState> {
  * Call this instead of gateway() in any server action or route handler that writes.
  *
  * Throws SubscriptionLockdownError (HTTP 403) when the org is paused or cancelled.
+ * Throws SubscriptionStateUnavailableError when the subscription could not be READ — a distinct
+ * error because it is not a 403: the caller must not tell the user anything about their plan, and
+ * the routes that catch SubscriptionLockdownError deliberately do not catch this one. Until
+ * 2026-08-23 this case returned "active" and the write proceeded.
  * Throws a plain Error when the user is not authenticated.
  *
  * Usage:

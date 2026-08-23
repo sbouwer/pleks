@@ -28,7 +28,7 @@
  *         transition. Until then, §5 stands.
  */
 import type { OrgRule } from "../types"
-import { hasBeenActionedFor } from "../engine"
+import { hasBeenActionedFor } from "../actioned"
 
 const RULE_ID = "deposit-deadline-breach"
 

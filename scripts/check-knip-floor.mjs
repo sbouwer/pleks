@@ -57,7 +57,7 @@ export function evaluate({ configured, untagged, tagsOnDisk }) {
       `parity broken: ${tagsOnDisk} @knipignore tag(s) on disk vs ${untagged} finding(s) with the tags key removed. ` +
       (more
         ? "MORE findings than tags — most likely a new untagged export (see above); could also be a tag knip does not associate with any declaration."
-        : "FEWER findings than tags — a tag is on something knip never reports: wrong symbol name, a type covered by ignoreExportsUsedInFile, or a site already inside an ignored path."),
+        : "FEWER findings than tags — a tag is on something knip never reports: THE TOKEN WRITTEN IN PROSE rather than as a tag (this grep cannot tell them apart, and it is the cause that has actually happened), a wrong symbol name, a type covered by ignoreExportsUsedInFile, or a site already inside an ignored path."),
     )
   }
   return fails

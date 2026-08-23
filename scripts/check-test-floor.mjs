@@ -184,7 +184,13 @@ if (arg === "--selftest") {
     console.error("[test-floor] cannot ratchet — no usable vitest report. Run `npx vitest run` first.")
     process.exit(1)
   }
-  const next = { minTests: report.numTotalTests, minFiles: report.testResults.length }
+  // PRESERVE EVERY OTHER KEY, `_comment` above all. The ruling that permits a lowering at all
+  // (CD, 2026-08-23) requires the entry to NAME the deleted control — so the record lives in this
+  // file, and a ratchet that rewrote the object from scratch would erase it on the next raise.
+  // The number would stay honest and the reason for the last drop would be gone, which is the half
+  // that matters. Spread first so the two counts still win.
+  const prev = readJson(FLOOR_PATH) ?? {}
+  const next = { ...prev, minTests: report.numTotalTests, minFiles: report.testResults.length }
   writeFileSync(FLOOR_PATH, `${JSON.stringify(next, null, 2)}\n`)
   console.log(`[test-floor] floor raised to ${next.minTests} tests across ${next.minFiles} files`)
 } else {

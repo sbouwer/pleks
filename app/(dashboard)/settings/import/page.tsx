@@ -19,56 +19,9 @@ import { GLLeaseMatch } from "./_components/GLLeaseMatch"
 import { GLReview, type GLImportResultData } from "./_components/GLReview"
 import { GLSuccess } from "./_components/GLSuccess"
 import { WizardStepBar } from "./_components/WizardStepBar"
-import { StepIdentityHolds, type IdentityHold, type IdentityAnswer } from "./_components/StepIdentityHolds"
-import type { ColumnSuggestion } from "@/lib/import/columnMapper"
-import type { WizardDecisions } from "@/lib/import/decisions"
+import { StepIdentityHolds, type IdentityAnswer } from "./_components/StepIdentityHolds"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
-
-export interface AnalysisResult {
-  detectedEntities: { hasTenant: boolean; hasUnit: boolean; hasLease: boolean }
-  rowCounts: { tenant: number; unit: number; lease: number }
-  isTpnFormat: boolean
-  columnSuggestions: ColumnSuggestion[]
-  unmappedColumns: string[]
-  filename: string
-}
-
-/**
- * The wizard's decision state — and, deliberately, the SAME type that goes on the wire and is translated for
- * the runner (`lib/import/decisions.ts`). It used to be an independent interface declared right here, which is
- * how the wizard and the runner drifted into two `ImportDecisions` shapes sharing only `columnMapping`: the
- * runner read `expiredLeases`/`skipRows`/`conflicts`, none of which the wizard has ever sent, so "skip expired
- * leases" — the default, printed on the confirm screen — silently did nothing. Deriving it from the one wire
- * contract means the next field cannot go missing in transit.
- */
-export type ImportDecisions = Required<WizardDecisions>
-
-export interface ImportResultData {
-  /** Rows the importer would not guess about. They did NOT import; the agent answers, and we re-run. */
-  identityHolds?: IdentityHold[]
-  created: {
-    tenants: number
-    units: number
-    leases: number
-    contractors?: number
-    landlords?: number
-    agentInvites?: number
-    bankAccounts?: number
-  }
-  skipped: number
-  /** Mirrors lib/import/importRunner's ImportError. It used to be typed loosely as `{ row?, error?, ... }`,
-   *  which is why StepSuccess rendered `err.row` — a field the runner never emits — and numbered every message
-   *  by its array position instead of its row, while showing a hard refusal and an FYI identically. */
-  errors: Array<{
-    /** 0-based index into the file's data rows; -1 for file-level (mapping) messages. */
-    rowIndex: number
-    field: string
-    message: string
-    severity: "error" | "warning"
-  }>
-  pendingLandlordLinks?: Array<{ pendingLandlordId: string; name: string; email: string }>
-  agentInvites?: Array<{ email: string; role: string }>
-}
+import type { AnalysisResult, ImportDecisions, ImportResultData } from "./wizard-types"
 
 type WizardStep = "upload" | "detected" | "mapping" | "expired" | "confirm" | "identity" | "success"
   | "gl_detected" | "gl_lease_match" | "gl_review" | "gl_success"

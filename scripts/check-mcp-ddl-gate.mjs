@@ -24,7 +24,8 @@ if (!existsSync(HOOK)) {
 
 /** Run the hook exactly as Claude Code would: JSON on stdin, JSON on stdout. */
 function decide(payload) {
-  const r = spawnSync("node", [HOOK], { input: payload, encoding: "utf8" })
+  // `process.execPath`, not "node" — same reason as the sibling gate probes.
+  const r = spawnSync(process.execPath, [HOOK], { input: payload, encoding: "utf8" })
   if (r.status !== 0) return { decision: `hook exited ${r.status}`, reason: r.stderr.slice(0, 200) }
   try {
     const o = JSON.parse(r.stdout).hookSpecificOutput

@@ -53,7 +53,8 @@ function freshCwd(agents = null) {
 }
 
 function run(payload) {
-  const r = spawnSync("node", [LINE], { input: payload, encoding: "utf8" })
+  // `process.execPath`, not "node" — same reason as the sibling gate probes.
+  const r = spawnSync(process.execPath, [LINE], { input: payload, encoding: "utf8" })
   return { out: r.stdout ?? "", err: r.stderr ?? "", status: r.status }
 }
 

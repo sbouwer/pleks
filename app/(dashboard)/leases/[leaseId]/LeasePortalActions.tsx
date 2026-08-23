@@ -18,7 +18,7 @@ import { Link2, ShieldOff, Loader2, Send, ChevronDown } from "lucide-react"
 import { sendTenantPortalLink, revokeTenantPortalAccess } from "@/lib/portal/inviteTenant"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { emailLeaseToTenant } from "./actions"
-import type { TenantContactInfo } from "./ContactsTab"
+import type { TenantContactInfo } from "./contact-info"
 import { fmtDateZA } from "@/lib/dates"
 
 interface Props {

@@ -15,6 +15,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js"
+import { fmtDateZA } from "@/lib/dates"
 import * as dotenv from "dotenv"
 import * as path from "node:path"
 
@@ -190,6 +191,7 @@ async function showStatus(): Promise<void> {
 
   const { data: templates, error } = await db
     .from("document_templates")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by `scope = "system"`, which is what org-agnostic MEANS for this table: a system template belongs to the platform, not to an org, so there is no org_id to filter on
     .select("name, meta_template_id, meta_template_status, whatsapp_meta_submitted_at, whatsapp_meta_approved_at, whatsapp_meta_rejection_reason")
     .eq("template_type", "whatsapp")
     .eq("scope", "system")
@@ -208,12 +210,10 @@ async function showStatus(): Promise<void> {
   console.log("\n WhatsApp Template Status\n" + "─".repeat(80))
   for (const t of templates) {
     const status = t.meta_template_status ?? "not submitted"
-    const submitted = t.whatsapp_meta_submitted_at
-      ? new Date(t.whatsapp_meta_submitted_at).toLocaleDateString()
-      : "—"
-    const approved = t.whatsapp_meta_approved_at
-      ? new Date(t.whatsapp_meta_approved_at).toLocaleDateString()
-      : "—"
+    // `toLocaleDateString()` with no locale renders in the RUNNER's locale, so the same row printed
+    // differently on a dev machine than in CI. `fmtDateZA` is the SSOT and is Africa/Johannesburg.
+    const submitted = t.whatsapp_meta_submitted_at ? fmtDateZA(t.whatsapp_meta_submitted_at) : "—"
+    const approved = t.whatsapp_meta_approved_at ? fmtDateZA(t.whatsapp_meta_approved_at) : "—"
     const rejection = t.whatsapp_meta_rejection_reason ?? ""
 
     console.log(`  ${t.name}`)
@@ -307,6 +307,7 @@ async function run(): Promise<void> {
 
   const { data: templates, error: loadErr } = await db
     .from("document_templates")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- same as showStatus(): bounded by `scope = "system"`, a platform-owned template with no org_id
     .select("id, name, whatsapp_body, body_variants, merge_fields, meta_template_id, meta_template_status, whatsapp_meta_variable_map, whatsapp_meta_submitted_at")
     .eq("template_type", "whatsapp")
     .eq("scope", "system")

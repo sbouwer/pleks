@@ -33,9 +33,15 @@ yarn-error.log*
 # vercel
 .vercel
 
-# docuseal data
-docuseal_data/
-docuseal/
+# docuseal data — the self-hosted container's local volumes, at the REPO ROOT.
+# ⚠ ANCHORED WITH A LEADING SLASH ON PURPOSE. Unanchored, `docuseal/` matches a directory of that
+# name at ANY depth, and it did: it silently covered `app/api/webhooks/docuseal/`, the live DocuSeal
+# webhook route. `route.ts` survived only because tracked files stay tracked once added — a NEW file
+# in that directory did not appear in `git status` at all, which is the failure mode that gets
+# noticed after the deploy rather than before it. Verified by planting a file there and watching git
+# fail to see it. Anchor any future data-directory pattern the same way.
+/docuseal_data/
+/docuseal/
 
 # ssh keys / secrets — never commit, from any path in the tree
 id_ed25519*

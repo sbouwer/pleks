@@ -9,6 +9,7 @@
  * Data:   applications, listings, application-docs storage; Anthropic API via lib/ai/client.ts
  * Notes:  Sonnet income extraction gated behind ai_full (Portfolio+). Falls back to self-reported income.
  */
+/* eslint-disable pleks/require-org-scope-on-service-write -- verifyApplicantToken(supabase, body.token, applicationId) runs BEFORE any mutation and binds the token to THIS application id — that check is the boundary, and the route has no caller org (public apply flow) */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
@@ -19,7 +20,7 @@ import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
 import { resolveAffordabilityThreshold } from "@/lib/screening/screeningPolicy"
 import { hasFeature } from "@/lib/tier/gates"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
 
@@ -80,7 +81,7 @@ export async function POST(
   let extractedIncome: number | null = null
 
   // Extract bank statement with Sonnet — only for Portfolio+ (ai_full)
-  const tier = await getOrgTier(application.org_id)
+  const tier = await getOrgTierCanonical(application.org_id)
   if (bankStatementPath && optionalEnv("ANTHROPIC_API_KEY") && hasFeature(tier, "ai_full")) {
     try {
       const { data: fileData, error: fileDataError } = await supabase.storage

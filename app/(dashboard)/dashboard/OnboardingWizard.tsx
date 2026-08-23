@@ -22,7 +22,7 @@ import { PropertyWizardModal } from "@/app/(dashboard)/properties/new/PropertyWi
 import { addLandlordParty, addTenantParty, addContractorParty } from "@/lib/actions/parties"
 import { getSelfLandlordPrefill, bindSelfLandlord } from "@/lib/actions/selfLandlord"
 import type { PartyRole } from "@/lib/parties/partyConfig"
-import type { GettingStartedProgress } from "./GettingStarted"
+import type { GettingStartedProgress } from "./onboarding-progress"
 
 type StepKey = keyof GettingStartedProgress
 

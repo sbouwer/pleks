@@ -42,9 +42,17 @@ export async function POST(
     .from("subscriptions")
     .select("tier")
     .eq("org_id", membership.org_id)
-    .single()
+    // Purged rows are history; org_id has an INDEX, not a unique constraint
+    // (001_foundation.sql:265). Without this, a purged-then-resubscribed org has two rows,
+    // `.single()` errors, and a paying Firm org is told the contractor portal is not on its plan.
+    .not("status", "eq", "purged")
+    .maybeSingle()
     logQueryError("POST subscriptions", subError)
 
+  // "Could not read the tier" is not "the tier is too low" — say the true thing.
+  if (subError) {
+    return NextResponse.json({ error: "Could not read subscription" }, { status: 503 })
+  }
   if (!sub || !PORTAL_TIERS.has(sub.tier)) {
     return NextResponse.json(
       { error: "Contractor portal is available on Portfolio and Firm plans" },

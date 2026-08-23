@@ -3,13 +3,13 @@
  *
  * Route:  /reports
  * Auth:   gatewaySSR() (redirects to /login if unauthenticated)
- * Data:   properties (org-scoped db) + user_orgs agent list and landlord_view via service client; getOrgTier(orgId)
+ * Data:   properties (org-scoped db) + user_orgs agent list and landlord_view via service client; getOrgTierCanonical(orgId)
  * Notes:  Desktop-only (mobile shows DesktopOnlyCard). Landlord names resolved from landlord_view to avoid a 3-level PostgREST join.
  */
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { ReportsClient } from "./ReportsClient"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -22,7 +22,7 @@ export default async function ReportsPage() {
   const service = await createServiceClient()
 
   const [tier, propertiesRes, landlordIdsRes, agentOrgsRes] = await Promise.all([
-    getOrgTier(orgId),
+    getOrgTierCanonical(orgId),
     db
       .from("properties")
       .select("id, name")

@@ -14,13 +14,7 @@ import { hasCapability } from "@/lib/auth/can"
 import { requireStepUp } from "@/lib/auth/step-up"
 import { createServiceClient } from "@/lib/supabase/server"
 import { generateAuditExport } from "@/lib/trust/audit-export"
-
-export interface OutstandingItem {
-  description: string
-  amount_cents: number
-  expected_clear_date: string  // ISO date
-  item_type: "deposit_in_transit" | "pending_clearing" | "uncleared_eft" | "other"
-}
+import type { OutstandingItem } from "@/lib/trust/outstanding-item"
 
 interface CloseTrustPeriodParams {
   bankAccountId: string

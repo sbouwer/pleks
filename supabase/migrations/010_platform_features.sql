@@ -1414,7 +1414,23 @@ ALTER TABLE subscriptions
   ADD COLUMN IF NOT EXISTS cancelled_at          timestamptz,
   ADD COLUMN IF NOT EXISTS purge_eligible_at     timestamptz,
   ADD COLUMN IF NOT EXISTS purge_warning_sent_at timestamptz,
-  ADD COLUMN IF NOT EXISTS purged_at             timestamptz;
+  ADD COLUMN IF NOT EXISTS purged_at             timestamptz,
+  -- M-074. purge_warning_sent_at above records that the CRON RAN, not that mail was delivered:
+  -- it is written before the send is attempted, and is written even when the org has no contact
+  -- to send to. These two columns carry what it does not. A non-null purge_deferred_at means the
+  -- org reached its purge date WITHOUT an established 30-day warning and was held back, which is
+  -- an operational item a human must clear -- not a resting state. Indefinite deferral is itself a
+  -- POPIA s14 failure, so this must never become somewhere rows quietly accumulate.
+  ADD COLUMN IF NOT EXISTS purge_deferred_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS purge_deferred_reason text;
+
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_purge_deferred_reason_check;
+ALTER TABLE subscriptions
+  ADD CONSTRAINT subscriptions_purge_deferred_reason_check
+  CHECK (
+    purge_deferred_reason IS NULL
+    OR purge_deferred_reason IN ('no_contact','no_warning_logged','send_failed','not_delivered')
+  );
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status_purge
   ON subscriptions(status, purge_eligible_at)

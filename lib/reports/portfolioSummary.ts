@@ -8,6 +8,7 @@ import { computePreviousPeriod, toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { PeriodComparison, PortfolioFlag, PortfolioSummaryData, PropertySummary, ReportFilters } from "./types"
 import { SA_TIMEZONE } from "@/lib/dates"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function buildPortfolioSummary(filters: ReportFilters): Promise<PortfolioSummaryData> {
   const supabase = await createServiceClient()
@@ -20,7 +21,8 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
     .eq("org_id", orgId)
     .is("deleted_at", null)
   if (propertyIds?.length) propFilter = propFilter.in("id", propertyIds)
-  const { data: properties } = await propFilter
+  const { data: properties, error: propertiesError } = await propFilter
+  logQueryError("buildPortfolioSummary properties", propertiesError)
 
   const propIds = properties?.map((p) => p.id) ?? []
   const propMap = new Map(properties?.map((p) => [p.id, p.name]) ?? [])

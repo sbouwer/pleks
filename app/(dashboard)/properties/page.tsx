@@ -8,7 +8,7 @@
 import type { ReactNode } from "react"
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { TIER_ORDER } from "@/lib/constants"
 import { contactDisplayName } from "@/lib/contacts/displayName"
 import { SinglePropertyView, NoPropertyYet } from "@/components/properties/SinglePropertyView"
@@ -204,7 +204,7 @@ export default async function PropertiesPage({
   if (!gw) redirect("/login")
 
   const { db, orgId, userId } = gw
-  const tier = await getOrgTier(orgId)
+  const tier = await getOrgTierCanonical(orgId)
 
   // ── Owner tier: single property dashboard ──────────────────────────────────
   // Owner tier is normally one property. After a downgrade an org can hold more than its tier allows, and

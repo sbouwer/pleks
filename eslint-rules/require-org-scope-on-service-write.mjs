@@ -46,7 +46,15 @@ const BASELINE = new Set(
 //     token is the credential (application/consent id is bound to the token, not the caller's org);
 //   api/profile — the caller's OWN auth-user profile; portals ((tenant)/(landlord)/(supplier) + lib/portal)
 //     — portal session; (admin)/api/admin — admin HMAC (cross-org by design).
-const SKIP_PATH = /[/\\](cron|webhooks?)[/\\]|[/\\]api[/\\]auth[/\\]|[/\\]lib[/\\]auth[/\\]|[/\\]lib[/\\](portal|consent)[/\\]|[/\\]api[/\\](consent|wo|applications|profile)[/\\]|[/\\]\(auth\)[/\\]|[/\\]\(applicant\)[/\\]|[/\\]\(public\)[/\\]|[/\\]\(tenant\)[/\\]|[/\\]\(landlord\)[/\\]|[/\\]\(supplier\)[/\\]|[/\\]\(admin\)[/\\]|[/\\]api[/\\]admin[/\\]|\[token\]|\[pull_id\]/
+// ⚠ `applications` WAS IN THIS ALTERNATION AND IS NOT ANY MORE (2026-08-22, control-aim audit R2).
+// The read rule's skip set never contained it, so `app/api/applications/**` was covered for reads
+// and path-skipped for writes — and on 2026-08-22 a cross-org write landed in exactly that gap
+// (CLAUDE.md §6, the consent verification IDOR). Two rules for one class with different apertures
+// is one rule with a hole, and no probe can show it because each rule behaves exactly as written.
+// Both skip sets are now the INTERSECTION of what they were: identical, so the coverage of the pair
+// is the union. Anything that genuinely belongs out of scope leaves via an inline disable naming
+// its reason, at the site, where the next edit surfaces it.
+const SKIP_PATH = /[/\\](cron|webhooks?)[/\\]|[/\\]api[/\\]auth[/\\]|[/\\]lib[/\\]auth[/\\]|[/\\]lib[/\\](portal|consent)[/\\]|[/\\]api[/\\](consent|wo|profile)[/\\]|[/\\]\(auth\)[/\\]|[/\\]\(applicant\)[/\\]|[/\\]\(public\)[/\\]|[/\\]\(tenant\)[/\\]|[/\\]\(landlord\)[/\\]|[/\\]\(supplier\)[/\\]|[/\\]\(admin\)[/\\]|[/\\]api[/\\]admin[/\\]|\[token\]|\[pull_id\]/
 
 /** Walk DOWN a mutation call's object chain and return the `.from("…")` CallExpression (or null). */
 function fromCallOf(mutCall) {

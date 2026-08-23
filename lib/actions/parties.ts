@@ -44,8 +44,36 @@ function zarToCents(v: string | undefined): number | null {
   return Number.isFinite(n) ? Math.round(n * 100) : null
 }
 
+/**
+ * ⚠ THE PAYOUT-BANKING WHO/WHEN — this is the F1 fraud vector named in CLAUDE.md §6, and until now
+ * these two functions were the half of it with no trail. `replaceBankAccounts` is a DELETE followed
+ * by an INSERT, so swapping where a landlord's money goes left the new row and no record that a
+ * different one had ever been there, or who swapped it.
+ *
+ * Safe to pass the account fields straight in: `recordAudit`'s sanitiser masks `account_number` to
+ * last-4 and drops `account_number_enc`/`_hash` outright, so the audit says WHICH account without
+ * ever holding the number. That is structural — it does not depend on this call site being careful.
+ */
+async function auditBankAccountChange(
+  db: Db, orgId: string, userId: string, contactId: string,
+  action: "INSERT" | "DELETE", rows: Record<string, unknown>[],
+) {
+  if (rows.length === 0) return
+  await recordAudit(db, {
+    orgId, actorId: userId, action, table: "contact_bank_accounts", recordId: contactId,
+    after: {
+      action: action === "INSERT" ? "bank_accounts_added" : "bank_accounts_removed",
+      count: rows.length,
+      accounts: rows.map((r) => ({
+        bank_name: r.bank_name, account_number: r.account_number,
+        account_type: r.account_type, label: r.label, is_primary: r.is_primary,
+      })),
+    },
+  })
+}
+
 /** Bank accounts captured at create → contact_bank_accounts (first = primary). Skips blank rows. */
-async function insertPartyBankAccounts(db: Db, orgId: string, contactId: string, accounts: PartyBankAccountInput[] | undefined) {
+async function insertPartyBankAccounts(db: Db, orgId: string, userId: string, contactId: string, accounts: PartyBankAccountInput[] | undefined) {
   const rows = (accounts ?? [])
     .filter((a) => a.bankName?.trim() || a.accountNumber?.trim())
     .map((a, i) => ({
@@ -61,7 +89,8 @@ async function insertPartyBankAccounts(db: Db, orgId: string, contactId: string,
     }))
   if (rows.length === 0) return
   const { error } = await db.from("contact_bank_accounts").insert(rows)
-  if (error) console.error("[insertPartyBankAccounts] failed:", error.message)
+  if (error) { console.error("[insertPartyBankAccounts] failed:", error.message); return }
+  await auditBankAccountChange(db, orgId, userId, contactId, "INSERT", rows)
 }
 
 function partyDisplayName(role: PartyRole, entity: PartyEntity, f: PartyFormState): string {
@@ -291,10 +320,22 @@ async function replaceTypedAddresses(db: Db, orgId: string, contactId: string, a
   await insertCompanyAddresses(db, orgId, contactId, addresses)
 }
 
-/** Replace all bank accounts (no FK deps on contact_bank_accounts). */
-async function replaceBankAccounts(db: Db, orgId: string, contactId: string, accounts: PartyBankAccountInput[] | undefined) {
-  await db.from("contact_bank_accounts").delete().eq("contact_id", contactId).eq("org_id", orgId)
-  await insertPartyBankAccounts(db, orgId, contactId, accounts)
+/** Replace all bank accounts (no FK deps on contact_bank_accounts).
+ *
+ * Reads the outgoing rows BEFORE deleting them. Without that read the audit could only say "banking
+ * was replaced", which is the useless half of the record — the question a payout-fraud review asks is
+ * which account the money used to go to, and after the delete nothing can answer it. */
+async function replaceBankAccounts(db: Db, orgId: string, userId: string, contactId: string, accounts: PartyBankAccountInput[] | undefined) {
+  const { data: outgoing, error: readErr } = await db.from("contact_bank_accounts")
+    .select("bank_name, account_number, account_type, label, is_primary")
+    .eq("contact_id", contactId).eq("org_id", orgId)
+  if (readErr) console.error("[replaceBankAccounts] read-before-delete failed:", readErr.message)
+
+  const { error: delErr } = await db.from("contact_bank_accounts").delete().eq("contact_id", contactId).eq("org_id", orgId)
+  if (delErr) { console.error("[replaceBankAccounts] delete failed:", delErr.message); return }
+  await auditBankAccountChange(db, orgId, userId, contactId, "DELETE", (outgoing ?? []) as Record<string, unknown>[])
+
+  await insertPartyBankAccounts(db, orgId, userId, contactId, accounts)
 }
 
 /** Existing company people → PartyPerson[] (carries the DB id for the edit diff). */
@@ -418,7 +459,7 @@ export async function addContractorParty(input: AddPartyInput, supplierType: str
 
     if (input.entity === "company") await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
     await insertCompanyAddresses(db, orgId, contact.id, f.addresses)
-    await insertPartyBankAccounts(db, orgId, contact.id, f.bankAccounts)
+    await insertPartyBankAccounts(db, orgId, userId, contact.id, f.bankAccounts)
 
     await auditPartyCreate(db, orgId, userId, "contractors", contact.id, "supplier", input.entity, name)
     return { ok: true, name, id: contact.id as string }
@@ -509,7 +550,7 @@ export async function updateContractorParty(input: AddPartyInput, contractorId: 
 
     if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
     await replaceTypedAddresses(db, orgId, contactId, f.addresses)
-    await replaceBankAccounts(db, orgId, contactId, f.bankAccounts)
+    await replaceBankAccounts(db, orgId, userId, contactId, f.bankAccounts)
 
     const name = partyDisplayName("supplier", input.entity, f)
     await auditPartyUpdate(db, orgId, userId, "contractors", contractorId, "supplier", input.entity, name)
@@ -567,7 +608,7 @@ export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyRe
     }
 
     // Banking → contact_bank_accounts (global multi-account; supersedes the dropped landlords.bank_*).
-    await insertPartyBankAccounts(db, orgId, contact.id, f.bankAccounts)
+    await insertPartyBankAccounts(db, orgId, userId, contact.id, f.bankAccounts)
 
     await auditPartyCreate(db, orgId, userId, "landlords", landlord.id, "landlord", input.entity, name)
     return { ok: true, name, id: landlord.id as string }
@@ -652,7 +693,7 @@ export async function updateLandlordParty(input: AddPartyInput, landlordId: stri
 
     if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
     await replaceTypedAddresses(db, orgId, contactId, f.addresses)
-    await replaceBankAccounts(db, orgId, contactId, f.bankAccounts)
+    await replaceBankAccounts(db, orgId, userId, contactId, f.bankAccounts)
 
     const name = partyDisplayName("landlord", input.entity, f)
     await auditPartyUpdate(db, orgId, userId, "landlords", landlordId, "landlord", input.entity, name)

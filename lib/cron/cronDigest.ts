@@ -14,11 +14,27 @@ export interface CronJobDetail {
   status: string            // "ok" | "failed" | "error" | "partial" | "skipped (…)"
   sent?: number             // from the C-1 belt's Response.json
   failed?: number
+  /**
+   * Work the job deliberately held back because it could not establish a precondition — today,
+   * M-074's purge gate refusing to delete an org whose 30-day warning was never delivered.
+   *
+   * Its own field rather than a bump to `failed`: the job ran correctly and nothing errored, so
+   * every other signal reads green, yet a human must act or the row defers forever — and
+   * indefinite retention is a POPIA failure in its own right. Folded into `failed` it would read
+   * as "N emails bounced" and be chased down the wrong path.
+   */
+  deferred?: number
   error?: string
 }
 
-function isIssue(d: CronJobDetail): boolean {
-  return d.status === "failed" || d.status === "error" || d.status === "partial" || (d.failed ?? 0) > 0
+/**
+ * Exported for probing. This predicate is the ONLY thing standing between "the cron held work back"
+ * and silence — a digest that does not classify a deferral as an issue sends nothing, and the
+ * deferral is then invisible everywhere (M-074 part 3). Worth a test of its own.
+ */
+export function isIssue(d: CronJobDetail): boolean {
+  return d.status === "failed" || d.status === "error" || d.status === "partial"
+    || (d.failed ?? 0) > 0 || (d.deferred ?? 0) > 0
 }
 
 export async function sendCronDigest(
@@ -37,6 +53,9 @@ export async function sendCronDigest(
 
   const issueLines = issues
     .map(([name, d]) => {
+      if ((d.deferred ?? 0) > 0) {
+        return `  ⏸ ${name}: ${d.deferred} item(s) HELD BACK pending a human — see subscriptions.purge_deferred_reason`
+      }
       if ((d.failed ?? 0) > 0 && d.status !== "error" && d.status !== "failed") {
         return `  ⚠ ${name}: ${d.failed} email(s) failed to send (${d.sent ?? 0} sent)`
       }

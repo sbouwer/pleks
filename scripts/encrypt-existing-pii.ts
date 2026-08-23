@@ -62,6 +62,7 @@ async function encryptTable(task: EncryptTask): Promise<TaskStat> {
   const stat: TaskStat = { table, column, total: 0, encrypted: 0, skipped: 0, hashBackfilled: 0 }
 
   const selectCols = hashColumn ? `id, ${column}, ${hashColumn}` : `id, ${column}`
+  // eslint-disable-next-line pleks/require-org-scope-on-service-read -- THE RULE WOULD BE BACKWARDS HERE. This file IS the at-rest encryption retrofit: it must reach every plaintext row on the platform, in every org, or it leaves plaintext PII behind. An org filter would not bound a leak, it would create one.
   const { data: rows, error } = await supabase.from(table).select(selectCols).not(column, "is", null)
   if (error) {
     console.error(`  ✗ ${table}.${column}: read failed — ${error.message}`)
@@ -100,6 +101,7 @@ async function encryptTable(task: EncryptTask): Promise<TaskStat> {
     }
 
     if (WRITE) {
+      // eslint-disable-next-line pleks/require-org-scope-on-service-write -- writes back the ciphertext for the row just read; same platform-wide retrofit as the read above
       const { error: upErr } = await supabase.from(table).update(update).eq("id", row.id)
       if (upErr) { console.error(`  ✗ ${table}.${column} id=${row.id}: write failed — ${upErr.message}`); continue }
     }
@@ -141,12 +143,21 @@ async function main() {
 
   // Post-run verification: decrypt a sample from contacts (round-trip proof on real stored data).
   if (WRITE) {
-    const { data: sample } = await supabase.from("contacts").select("id, id_number").not("id_number", "is", null).limit(1)
+    // ⚠ Three outcomes, and until 2026-08-23 two of them printed nothing: on a read error `stored`
+    //   was undefined and NEITHER branch fired, so the round-trip proof silently vanished after the
+    //   highest-risk irreversible operation in the PII programme — and a silent spot check reads
+    //   exactly like a passing one. Every path now says what it saw.
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- round-trip proof on ANY stored row; the retrofit is platform-wide, so the verification sample must be too
+    const { data: sample, error: sampleErr } = await supabase.from("contacts").select("id, id_number").not("id_number", "is", null).limit(1)
     const stored = sample?.[0]?.id_number
-    if (stored && isEncrypted(stored)) {
+    if (sampleErr) {
+      console.error(`\n⚠ Spot check COULD NOT RUN — contacts read failed: ${sampleErr.message}. The write above already happened; verify by hand.`)
+    } else if (stored && isEncrypted(stored)) {
       console.log(`\nSpot check (contacts): stored=${stored.slice(0, 20)}… decrypts=${decryptIdNumber(stored)?.slice(0, 4)}•••• ✅`)
     } else if (stored) {
       console.log(`\n⚠ Spot check: a contacts.id_number is NOT encrypted after the run: ${stored.slice(0, 8)}…`)
+    } else {
+      console.log(`\nSpot check: no contacts row carries an id_number — nothing to round-trip.`)
     }
   }
 }

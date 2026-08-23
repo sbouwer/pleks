@@ -5,6 +5,7 @@
  * Data:   platform_cost_snapshots — most recent period, top-5 orgs by total_cost_cents
  * Notes:  Flags negative-margin orgs (cost > revenue) in red. Requires ADDENDUM_00H data.
  */
+/* eslint-disable pleks/require-org-scope-on-service-read -- cost outliers ACROSS orgs — org_id is the grouping key of the result, not a filter on it */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { formatZAR } from "@/lib/constants"

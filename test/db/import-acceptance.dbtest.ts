@@ -411,9 +411,10 @@ describe("ACCEPTANCE — a realistic af-ZA agency book through the real front do
     expect((consent?.metadata as { declaration?: string })?.declaration ?? "",
       "and it says what it IS — an agency declaration, never the tenant's own consent").toContain("attested")
 
-    const { count: auditRows } = await db
+    const { count: auditRows, error: auditRowsErr } = await db
       .from("audit_log").select("id", { count: "exact", head: true })
       .eq("org_id", orgId).eq("table_name", "tenant_bank_accounts")
+    expect(auditRowsErr, "audit_log count must actually have run").toBeFalsy()
     expect(auditRows ?? 0, "the bank-account write is audited per row").toBeGreaterThan(0)
   })
 

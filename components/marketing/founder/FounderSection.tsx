@@ -3,7 +3,8 @@
  *
  * Notes:  Presentational. Owns the static MOMENTS dataset and hands it to FounderTimeline.
  */
-import { FounderTimeline, type MomentData } from "./FounderTimeline"
+import { FounderTimeline } from "./FounderTimeline"
+import type { MomentData } from "./moment-data"
 import { PegboardSVG } from "@/app/(public)/svgs/PegboardSVG"
 import styles from "./founder.module.css"
 

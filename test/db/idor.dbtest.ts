@@ -95,10 +95,15 @@ describe("Cross-tenant IDOR — two-org behavioural guarantee", () => {
     expect(error, "cross-org disbursement should be rejected by the RPC's org guard").toBeTruthy()
 
     // No deposit/trust postings may have been created against B's lease, and the recon stays as-was.
-    const { count: depositTxns } = await db
+    // These two assert ABSENCE, so a failed query and a clean result are the same number. Without
+    // the error checks, `count: null ?? 0` satisfies `.toBe(0)` and the cross-org IDOR test passes
+    // on a query that never ran — a security test that cannot fail for the wrong reason. (M-090)
+    const { count: depositTxns, error: depositTxnsErr } = await db
       .from("deposit_transactions").select("id", { count: "exact", head: true }).eq("lease_id", Bdep.leaseId)
-    const { count: trustTxns } = await db
+    expect(depositTxnsErr, "deposit_transactions count must actually have run").toBeFalsy()
+    const { count: trustTxns, error: trustTxnsErr } = await db
       .from("trust_transactions").select("id", { count: "exact", head: true }).eq("lease_id", Bdep.leaseId)
+    expect(trustTxnsErr, "trust_transactions count must actually have run").toBeFalsy()
     const { data: reconAfter, error: reconAfterErr } = await db.from("deposit_reconciliations").select("status").eq("id", Bdep.reconId).single()
     expect(reconAfterErr, "recon read should not error").toBeFalsy()
 

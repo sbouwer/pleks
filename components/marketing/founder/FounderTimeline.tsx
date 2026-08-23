@@ -6,20 +6,7 @@
 import { FounderMoment } from "./FounderMoment"
 import { RoadPath } from "./RoadPath"
 import styles from "./founder.module.css"
-
-export type MomentData = {
-  id: number
-  side: "left" | "right"
-  year: string
-  tag: string
-  tagColour: "slate" | "amber"
-  title: string
-  body: string
-  /** Optional substring of `body` to wrap in `.amber-wash-underline`. Must match exactly. */
-  bodyHighlight?: string
-  foot: string
-  phase: "slate" | "amber" | "now"
-}
+import type { MomentData } from "./moment-data"
 
 // ── Fixed geometry (server-computed, coordinate space = SVG viewBox) ─────────
 const STAGE_W = 1160  // matches pub-wrap inner width at desktop (1240 – 2×32px pad ≈ 1176; use 1160 for safety)

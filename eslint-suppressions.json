@@ -1,0 +1,141 @@
+{
+  "scripts/agent-distribution.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/architecture-audit.mjs": {
+    "sonarjs/super-linear-regex": {
+      "count": 2
+    }
+  },
+  "scripts/backfill-insurance-checklists.ts": {
+    "pleks/no-raw-process-env": {
+      "count": 2
+    }
+  },
+  "scripts/check-context-budget.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    },
+    "sonarjs/super-linear-regex": {
+      "count": 2
+    }
+  },
+  "scripts/check-drift-if-sql-changed.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/check-extension-stem-pairs.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/check-git-hooks.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/check-handoff-contract.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/check-hook-registration.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    },
+    "sonarjs/super-linear-regex": {
+      "count": 8
+    }
+  },
+  "scripts/check-import-cycles.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    },
+    "sonarjs/super-linear-regex": {
+      "count": 1
+    }
+  },
+  "scripts/check-import-fields.mjs": {
+    "sonarjs/super-linear-regex": {
+      "count": 1
+    }
+  },
+  "scripts/check-knip-floor.mjs": {
+    "sonarjs/super-linear-regex": {
+      "count": 1
+    }
+  },
+  "scripts/check-marketing-consistency.mjs": {
+    "sonarjs/super-linear-regex": {
+      "count": 1
+    }
+  },
+  "scripts/check-migration-integrity.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/check-prepush-composition.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/check-retention-claims.mts": {
+    "sonarjs/super-linear-regex": {
+      "count": 1
+    }
+  },
+  "scripts/check-schema-drift.mjs": {
+    "sonarjs/super-linear-regex": {
+      "count": 2
+    }
+  },
+  "scripts/check-statusline.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/encrypt-existing-pii.ts": {
+    "pleks/no-raw-process-env": {
+      "count": 6
+    }
+  },
+  "scripts/eslint-cache-guard.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/extraction-harness/run.ts": {
+    "pleks/no-raw-process-env": {
+      "count": 1
+    }
+  },
+  "scripts/migrate-totp-host-claims.ts": {
+    "pleks/no-raw-process-env": {
+      "count": 2
+    }
+  },
+  "scripts/security/route-census.mjs": {
+    "sonarjs/super-linear-regex": {
+      "count": 1
+    }
+  },
+  "scripts/security/server-action-census.mjs": {
+    "sonarjs/super-linear-regex": {
+      "count": 2
+    }
+  },
+  "scripts/test-report.mjs": {
+    "sonarjs/no-unenclosed-multiline-block": {
+      "count": 1
+    }
+  },
+  "scripts/wa-submit-templates.ts": {
+    "pleks/no-raw-process-env": {
+      "count": 8
+    }
+  }
+}

@@ -34,11 +34,13 @@ async function invoiceBalance(id: string): Promise<number> {
   return (data?.balance_cents as number) ?? -1
 }
 async function paymentCount(leaseId: string): Promise<number> {
-  const { count } = await db.from("payments").select("id", { count: "exact", head: true }).eq("lease_id", leaseId)
+  const { count, error } = await db.from("payments").select("id", { count: "exact", head: true }).eq("lease_id", leaseId)
+  if (error) throw new Error(`paymentCount: ${error.message}`)
   return count ?? 0
 }
 async function depTxnCount(leaseId: string): Promise<number> {
-  const { count } = await db.from("deposit_transactions").select("id", { count: "exact", head: true }).eq("lease_id", leaseId)
+  const { count, error } = await db.from("deposit_transactions").select("id", { count: "exact", head: true }).eq("lease_id", leaseId)
+  if (error) throw new Error(`depositTxnCount: ${error.message}`)
   return count ?? 0
 }
 async function chargeLinks(chargeId: string): Promise<{ pay: string | null; dep: string | null }> {

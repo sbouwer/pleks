@@ -6,6 +6,7 @@
  * Notes:  Health rule from ADDENDUM_00G D-UP-08: amber >25h, red >48h or last=failed.
  *         7-day sparkline squares show per-day pass/fail/miss status.
  */
+/* eslint-disable pleks/require-org-scope-on-service-read -- cron_runs is platform infrastructure telemetry and has no org dimension */
 import { createServiceClient } from "@/lib/supabase/server"
 import { addCalendarDays, fmtZA, saDateISO } from "@/lib/dates"
 
