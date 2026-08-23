@@ -15,6 +15,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js"
+import { fmtDateZA } from "@/lib/dates"
 import * as dotenv from "dotenv"
 import * as path from "node:path"
 
@@ -209,12 +210,10 @@ async function showStatus(): Promise<void> {
   console.log("\n WhatsApp Template Status\n" + "─".repeat(80))
   for (const t of templates) {
     const status = t.meta_template_status ?? "not submitted"
-    const submitted = t.whatsapp_meta_submitted_at
-      ? new Date(t.whatsapp_meta_submitted_at).toLocaleDateString()
-      : "—"
-    const approved = t.whatsapp_meta_approved_at
-      ? new Date(t.whatsapp_meta_approved_at).toLocaleDateString()
-      : "—"
+    // `toLocaleDateString()` with no locale renders in the RUNNER's locale, so the same row printed
+    // differently on a dev machine than in CI. `fmtDateZA` is the SSOT and is Africa/Johannesburg.
+    const submitted = t.whatsapp_meta_submitted_at ? fmtDateZA(t.whatsapp_meta_submitted_at) : "—"
+    const approved = t.whatsapp_meta_approved_at ? fmtDateZA(t.whatsapp_meta_approved_at) : "—"
     const rejection = t.whatsapp_meta_rejection_reason ?? ""
 
     console.log(`  ${t.name}`)

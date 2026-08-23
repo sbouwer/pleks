@@ -208,8 +208,11 @@ export function runsSince(byType, since, { depth } = {}) {
       // `depth` filters to one generation of the spawn tree. The trigger passes 1: "20 invocations"
       // means twenty asks, and a single ask that fans out to six is one ask, not seven.
       if (depth !== undefined && (r.depth ?? 1) !== depth) continue
-      if (since === null || since === undefined) n++
-      else if (r.mtime && r.mtime >= since) n++
+      // No boundary known → every run counts (the caller is obliged to report the generation as
+      // unknown). Boundary known → only runs that can be dated ON or after it. Both arms increment,
+      // so they are one condition; keeping them as two branches was what `no-duplicated-branches`
+      // saw, and splitting them again would say the counts differ when they do not.
+      if (since === null || since === undefined || (r.mtime && r.mtime >= since)) n++
     }
   }
   return n

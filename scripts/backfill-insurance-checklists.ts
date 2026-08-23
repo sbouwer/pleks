@@ -51,9 +51,7 @@ function isApplicable(item: CatalogueItem, ctx: ApplicabilityContext): boolean {
     if (!ctx.scenarioType || !scenarios.includes(ctx.scenarioType)) return false
   }
 
-  if (item.applies_when.furnishing_status && !ctx.hasFurnishedUnits) return false
-
-  return true
+  return !item.applies_when.furnishing_status || ctx.hasFurnishedUnits
 }
 
 async function main() {
@@ -122,17 +120,33 @@ async function main() {
       continue
     }
 
-    if ((count ?? 0) > 0) {
+    // `count` is null-on-unknown even when the query itself succeeded, and a false zero here does
+    // not skip a property — it BACKFILLS one that already has rows. Treat unknown as "leave alone".
+    if (count === null) {
+      console.error(`  [${property.id}] count came back null with no error — refusing to backfill blind`)
+      errors++
+      continue
+    }
+
+    if (count > 0) {
       skipped++
       continue
     }
 
     // Fetch units for furnishing check
-    const { data: units } = await db
+    const { data: units, error: unitsErr } = await db
       .from("units")
       // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by property_id, and the property came from the platform-wide sweep; `units` has no org_id column
       .select("furnishing_status")
       .eq("property_id", property.id)
+
+    // An unread units list is indistinguishable from "no furnished units", and that difference
+    // decides whether the furnishing-conditional catalogue items get written at all.
+    if (unitsErr) {
+      console.error(`  [${property.id}] units read failed:`, unitsErr.message)
+      errors++
+      continue
+    }
 
     const hasFurnishedUnits = (units ?? []).some(
       (u) => u.furnishing_status === "semi_furnished" || u.furnishing_status === "furnished"
@@ -185,7 +199,7 @@ async function main() {
     }
 
     // Auto-derive POLICY_HEADER
-    const { data: prop } = await db
+    const { data: prop, error: propErr } = await db
       .from("properties")
       // eslint-disable-next-line pleks/require-org-scope-on-service-read -- single property by id, from the platform-wide sweep above
       .select(
@@ -195,7 +209,12 @@ async function main() {
       .eq("id", property.id)
       .single()
 
-    if (prop) {
+    // Unread and "no policy fields set" both leave POLICY_HEADER unconfirmed, but only one of them
+    // is a finding. Say which happened rather than letting the row quietly stay `unknown`.
+    if (propErr) {
+      console.error(`  [${property.id}] policy-header read failed:`, propErr.message)
+      errors++
+    } else if (prop) {
       const allPresent =
         !!(prop.insurance_provider as string | null)?.trim() &&
         !!(prop.insurance_policy_number as string | null)?.trim() &&
@@ -205,7 +224,7 @@ async function main() {
         prop.insurance_excess_cents !== null
 
       if (allPresent) {
-        const { data: headerRow } = await db
+        const { data: headerRow, error: headerErr } = await db
           .from("property_insurance_checklists")
           // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by property_id + item_code; the property came from the platform-wide sweep
           .select("id, state")
@@ -213,7 +232,10 @@ async function main() {
           .eq("item_code", "POLICY_HEADER")
           .maybeSingle()
 
-        if (headerRow && headerRow.state === "unknown") {
+        if (headerErr) {
+          console.error(`  [${property.id}] POLICY_HEADER read failed:`, headerErr.message)
+          errors++
+        } else if (headerRow && headerRow.state === "unknown") {
           const now = new Date().toISOString()
           await db
             .from("property_insurance_checklists")

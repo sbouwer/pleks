@@ -301,6 +301,11 @@ export function scanSourceFiles(sourceFiles, tables, rpcs, Node, SyntaxKind, mig
         if (table && tables[table] && chainTakesOneOfMany(call)) {
           add(at, "cardinality", table, ".single() after .order()/.limit() — errors (PGRST116) on 0 rows; prefer .maybeSingle() where empty is normal", "warn")
         }
+        // KEPT, deliberately. Every arm of this `method === …` dispatch ends in `continue`, and the
+        // last one is redundant only because it happens to be last. Deleting it to satisfy the rule
+        // makes the chain asymmetric, so the next arm appended below silently falls through from
+        // this one. The rule is right about the byte and wrong about the shape.
+        // eslint-disable-next-line sonarjs/no-redundant-jump -- symmetric dispatch terminator; see above
         continue
       }
     }

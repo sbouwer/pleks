@@ -842,10 +842,12 @@ function inlineCheckColumn(cname, tname) {
         md.push("")
 
         for (const item of items) {
+          // `trigger-disabled` had its own arm returning the same ⚠️ as the fallthrough, so the
+          // legend above promises a distinction the render never made. Collapsed rather than given
+          // a new icon: inventing one here would make the legend wrong in the other direction.
           const icon =
             item.kind.includes("missing") ? "❌" :
             item.kind.includes("stale")   ? "🔄" :
-            item.kind === "trigger-disabled" ? "⚠️" :
             "⚠️"
           md.push(`${icon} ${item.msg}`)
           if (item.detail) md.push(`  > ${item.detail}`)

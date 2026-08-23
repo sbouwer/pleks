@@ -375,6 +375,12 @@ const eslintConfig = defineConfig([
 // real defects are TRACKED: a baseline has no owner, no priority and no blast tag. The defects and
 // the designed fixes are in `docs/MECHANISABLE.md`; the entries here only stop them multiplying.
 //
+// THREE RULES REMAIN, and that is the point of the 2026-08-23 burn-down rather than the number it
+// landed on. Every rule with a MIXED population — some sites real defects, some deliberate — was
+// driven to zero here, because a mixed group is the one nobody can act on without re-reading it: an
+// entry says "classified", but a group holding both kinds says only "classified as something".
+// The three below are each a single class with a single verdict, so no entry needs re-deciding.
+//
 //   super-linear-regex             parsers over the repo's OWN tracked files and its own tool
 //                                  output. The sites reading AGENT-WRITTEN artefacts were FIXED
 //                                  instead (check-handoff-contract.mjs) — that input is the one an
@@ -384,14 +390,15 @@ const eslintConfig = defineConfig([
 //                                  failed++; console.log(…) }` probe helper, copied per suite, where
 //                                  the unconditional second statement IS the intent. Whether to
 //                                  extract it is a named open decision → M-087.
-//   prefer-single-boolean-return   style, reachable zero.
-//   no-redundant-jump              style, reachable zero.
-//
 //   pleks/no-raw-process-env       ⚠ A TRAP, not ordinary debt — the rule pushes toward the change
 //                                  that breaks these scripts. Sketch and probe → M-085.
-//   require-supabase-error-check   REAL defects, one of them on the PII retrofit's verification
-//   no-adhoc-dates                 path. Enumerated with blast tags → M-086.
-//   no-all-duplicated-branches     REAL. → M-086.
-//   no-duplicated-branches         REAL. → M-086.
+//
+// FIXED and pruned out on 2026-08-23 (M-086 closed): require-supabase-error-check (4 — including the
+// PII retrofit's own round-trip proof, which printed NOTHING on a read error), no-adhoc-dates (2),
+// no-all-duplicated-branches (2), no-duplicated-branches (1), prefer-single-boolean-return (1),
+// no-redundant-jump (1). The last of those was not a code fix: it is a symmetric dispatch terminator
+// and now carries an inline directive with its reason AT THE SITE, which is where an exemption
+// belongs. That is the shape of a burn-down — a defect fixed or an exemption made visible, never an
+// entry quietly re-aged.
 
 export default eslintConfig;

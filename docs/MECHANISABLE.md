@@ -1390,7 +1390,41 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 - **Probe both directions:** a script migrated to the bootstrap must print a NON-EMPTY `SUPABASE_URL`, and a script that imports `lib/env` WITHOUT the bootstrap must be shown to print `""` — the second half is the whole finding, and without it the fix is unfalsifiable.
 - **Covering spec:** NEW
 
-### M-086 — nine real defects in `scripts/` are recorded in a ratchet, which has no owner, priority or blast tag
+### M-086 — nine real defects in `scripts/` are recorded in a ratchet, which has no owner, priority or blast tag — ✅ FIXED 2026-08-23
+
+**All nine fixed, plus the two style entries filed alongside them; `--prune-suppressions` took
+`eslint-suppressions.json` from 65 entries in 28 files to 54 in 26.** What remains is the three
+classified-keep groups (`super-linear-regex`, `no-raw-process-env` → M-085, `no-unenclosed-multiline-block`
+→ M-087), and that is the outcome worth recording rather than the count: **every rule with a MIXED
+population is now at zero.** A group holding both real defects and deliberate exemptions is the one
+nobody can act on without re-reading it — the entry says "classified", but the group says only
+"classified as something". Each surviving group is one class with one verdict.
+
+**Two of the nine did not land as the entry predicted, and both are worth reading before trusting the
+next ranked list here.**
+
+- **#3, `render-density-pass.ts` — the entry said it "needs a human who knows which". It got a
+  judgement instead, stated at the site.** `divergencePoints: opts.ldp ? null : null` was collapsed to
+  `null` and the `ldp` option deleted from `dims()` and its two call sites, because `opts.ldp` had no
+  other consumer — the option never changed a rendered byte. The reason for deleting rather than
+  inventing a figure: no producer sets `divergencePoints` at all (`assembleReportData.ts:236` hardcodes
+  `null`), so a non-null LDP value would be a fixture asserting something the pipeline cannot emit.
+  Which fixtures are LDP cases is carried by `ldpSummary` and by their ids. **Overrule this if the
+  intended figure is known.**
+- **#5 and #6 were filed at `agent-distribution.mjs:186` and `wa-submit-templates.ts:212,215`; they
+  were found at `:212` and `:213,216`.** Nothing moved them deliberately — the file drifted under an
+  unanchored line number, which is §8's anchor rule failing in the register's own ranked list. The
+  defects were still identifiable by rule + file, so a line number here is a convenience, never the
+  identifier.
+
+A tenth site was fixed in the same pass and was **not** on this list, because no rule was reporting
+it: `backfill-insurance-checklists.ts` guarded its head-count with `if ((count ?? 0) > 0)`. The error
+IS checked there, so `require-supabase-error-check` was satisfied — but Supabase returns
+`count: number | null` and a null count with no error still reads as zero, and a false zero here does
+not skip a property, it **backfills one that already has rows**. That is M-088's class surfacing one
+file over from where the lint rule was pointing, found only by reading the lines around a flagged one.
+
+**As originally filed:**
 
 - **Rule:** the defects each already have a rule; none has a queue entry. `eslint-suppressions.json` stops them multiplying and says nothing about what they are.
 - **Rung:** eslint (all nine are already caught) · **Blast:** mixed, tagged per site below.
