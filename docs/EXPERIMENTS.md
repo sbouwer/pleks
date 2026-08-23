@@ -1191,8 +1191,9 @@ disbelieved by someone who was not there.
 
 ### Design
 
-**Baseline commit: `fbbc59f4`** (`main`, immediately after PR #264 merged). Nine runs: three tasks ×
-three arms, **each in a fresh worktree cut explicitly from that SHA and discarded after.**
+**Baseline commit: `fbbc59f4`** (`main`, immediately after PR #264 merged). **27 runs: three tasks ×
+three arms × three replicates** (settled 2026-08-23 — see the decisions section), **each in a fresh
+worktree cut explicitly from that SHA and discarded after.**
 
 ⚠ **The worktree must be pinned to `fbbc59f4` explicitly. E10 established that `isolation: "worktree"`
 bases the tree on `origin/main` rather than the session's HEAD** — that is harmless here only because
@@ -1200,8 +1201,8 @@ the baseline IS `main`, and it is the reason this experiment was sequenced after
 than before it. Pin it anyway; do not rely on the default agreeing.
 
 Same three tasks in every arm, so arm-vs-arm is a like-for-like comparison and nothing is confounded
-by task difficulty. The cost of that choice is stated: nine task-runs for three tasks' worth of
-output, and six of the nine trees are thrown away.
+by task difficulty. The cost of that choice is stated: 27 task-runs for three tasks' worth of
+output, and 24 of the 27 trees are thrown away.
 
 ### The three arms, defined before they run
 
@@ -1335,7 +1336,7 @@ Per task, decided now:
 3. **Classification honesty** — for task 2, the correct answer is zero violations. Did the arm classify per site, or sweep?
 4. **Baseline/allowlist discipline** — entries carry reasons; nothing widened to make the gate green.
 5. **Register hygiene** — is the entry closed honestly, including what the build does NOT cover?
-6. **Adversarial survival** — `walker` run identically against all nine outputs; count surviving findings.
+6. **Adversarial survival** — `walker` run identically against all 27 outputs; count surviving findings.
 
 Criteria 1, 2, 3 and 6 are countable by someone who was not present. Criteria 4 and 5 are judgement,
 and are marked as such in the results table rather than blended into a single score.
@@ -1360,7 +1361,7 @@ spot-check is part of the design and not a courtesy.
 
 **Conflict of interest, stated.** The main session scores arms it produced. Mitigations: the rubric
 above is fixed before any run; criteria 1/2/3/6 are mechanically checkable; `walker` is adversarial
-by construction and runs identically on all nine; scoring is blinded as above; and Stéan spot-checks
+by construction and runs identically on all 27; scoring is blinded as above; and Stéan spot-checks
 at least one arm per task against the raw transcripts. This does not eliminate the bias — it makes it
 visible. **If the result is that arm C wins, that result is worth less than a null one**, because it
 is the outcome the person running the experiment is invested in; it should be reported with that
@@ -1377,7 +1378,7 @@ slice cannot inherit another's spend, plus `--project-dir`, `--label`, `--expect
 
 **The project directory is derived from cwd, never hardcoded, and the script refuses to guess.**
 Each arm runs in its own worktree, which is its own path, which is its own
-`~/.claude/projects/<slug>` — a hardcoded slug would have pointed all nine runs at the main
+`~/.claude/projects/<slug>` — a hardcoded slug would have pointed all 27 runs at the main
 checkout's transcripts and reported the same tree three times as a comparison. When the derivation
 finds nothing, the script names the candidate directories and exits rather than falling back to one.
 
@@ -1453,28 +1454,36 @@ Model updates, cache state and the operator's own familiarity with a task all dr
 and running the arms in a fixed order confounds every one of those with the arm itself. Randomising
 does not remove the drift; it stops it loading onto one arm.
 
-### Two things still open, both requiring Stéan's call
+### Two decisions, settled before any arm ran (Stéan, 2026-08-23)
 
-1. **Replicates.** As designed this is n=1 per cell: nine runs, three tasks × three arms, one
-   observation each. **A single observation per cell cannot separate an arm effect from run-to-run
-   variance**, and these runs are not deterministic. Three options, with their real cost:
-   - **27 runs** (3 replicates per cell) — a genuine comparison with a measurable spread. Roughly
-     three times the token cost and three times the wall-clock.
-   - **9 runs, one task** (3 arms × 3 replicates) — measures variance, loses task generality; a
-     result that may not survive contact with a different task shape.
-   - **9 runs as designed, REFRAMED** — reported as "three observations", never as "arm C is N%
-     cheaper". Honest, and much weaker than it will be tempting to write it up as.
+Both were put as explicit choices with their costs, and both were taken at the stronger option.
+Recorded here with their date because *when* they were decided is what makes the rest of this
+pre-registration mean anything — a design settled after seeing numbers is a rationalisation.
 
-   No arm runs until this is chosen, because the choice determines what may be claimed, and choosing
-   it after seeing the numbers is the same failure as writing the rubric afterwards.
+**1 · Replicates: 27 runs, three per cell.** Three tasks × three arms × **three replicates**. n=1 per
+cell cannot separate an arm effect from run-to-run variance, and these runs are not deterministic;
+the alternative designs (nine runs reframed as observations, or nine runs on a single task) each
+bought the saving by giving up either the comparison or the task generality. **Median and full range
+are reported per cell — never a mean, and never a single number without its spread.** If the ranges
+of two arms overlap, that overlap is the finding and no ordering may be claimed between them.
 
-2. **Compaction (term D).** If a task is short enough that the solo arm never compacts, term D is not
-   exercised at all — and compaction is precisely where the solo arm's cost profile is supposed to
-   diverge, since a delegating arm pushes work into contexts that are discarded rather than
-   compacted. Either **task 1 (M-093) is scoped long enough to force at least one compaction in arm
-   A**, or **term D is declared out of scope for E16** and the result is stated as covering only
-   sub-compaction-length tasks. Both are defensible; silently getting whichever happens is not.
+The cost is stated plainly: roughly three times the tokens and three times the wall-clock of the
+original design, for the same three tasks' worth of usable output, with 24 of the 27 trees discarded.
 
-Next action: settle those two, then the runs. Each arm's slice bounded by `--since`/`--until`,
-`--probe` re-run first, `--expect-subagents=false` on arm A so its empty result is quiet and the
-delegating arms stay loud.
+**2 · Compaction: task 1 is scoped to force one.** M-093 is sized so that **arm A compacts at least
+once**, so term D is exercised rather than accidentally avoided. This makes arm A look worse — and
+that is the point: it looks worse for a real reason, and the alternative was a result silently
+covering only sub-compaction-length tasks. Compaction is exactly where the solo arm's cost profile is
+supposed to diverge, because a delegating arm discards subagent contexts rather than compacting them.
+
+⚠ **Verify the compaction actually happened; do not assume the scoping worked.** If arm A completes
+task 1 without compacting, term D was not measured on that replicate and the replicate says nothing
+about it — record that, rather than letting the intent stand in for the event. Term D remains
+unmeasured for tasks 2 and 3 by construction, and the finding must say so.
+
+### Next action
+
+The 27 runs. Per run: fresh worktree pinned to `fbbc59f4`, `--probe` re-run first, the arm's slice
+bounded by `--since`/`--until`, `--expect-subagents=false` on arm A so its empty result is quiet and
+the delegating arms stay loud, `--json` captured verbatim as the record, and `/usage` sampled for the
+window per M-21. Arm order randomised within each task; the order recorded per row.
