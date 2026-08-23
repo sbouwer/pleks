@@ -10,7 +10,7 @@
 import { notFound, redirect } from "next/navigation"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTier } from "@/lib/tier/getOrgTierFromCookie"
 import { updateProperty } from "@/lib/actions/properties"
 import { PropertyEditForm } from "../../PropertyEditForm"
 import { BackLink } from "@/components/ui/BackLink"

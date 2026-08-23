@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTier } from "@/lib/tier/getOrgTierFromCookie"
 import { generateSampleLeaseDocument } from "@/lib/leases/generateSampleDocument"
 
 export async function GET(req: NextRequest) {

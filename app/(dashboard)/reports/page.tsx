@@ -9,7 +9,7 @@
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTier } from "@/lib/tier/getOrgTierFromCookie"
 import { ReportsClient } from "./ReportsClient"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
 import { logQueryError } from "@/lib/supabase/logQueryError"

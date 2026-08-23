@@ -26,18 +26,25 @@
     "The lesson is not 'the classifier was careless'. It is that 'type-only' is a claim about every",
     "import specifier on the edge, and reading the first one is not reading them.",
     "",
-    "FAMILY D — auth/tier, and the ONE that is not type-only (1 of 17). STILL OPEN.",
-    "  `lib/tier/getOrgTier` imports the VALUE `getServerOrgMembership` from `lib/auth/server`,",
-    "  which reaches back through `can` -> `orgRoles` -> `getOrgTier`. A real runtime loop on the",
-    "  authorisation path: it works today only because of the order Node happens to initialise these",
-    "  modules in. Highest priority of the four, and the reason this check is worth its sixty lines.",
-    "  Deliberately NOT bundled into the 2026-08-23 burn-down: the other sixteen were declaration",
-    "  moves with no behavioural surface, and this one is a restructure of the authorisation path.",
-    "  It wants its own change, its own walk, and a decision about WHERE the tier lookup belongs —",
-    "  not a fix appended to a mechanical sweep.",
-    "  Entry 1 below."
+    "FAMILY D — auth/tier, and the ONE that was not type-only (1 of 17). CLOSED 2026-08-23.",
+    "  `lib/tier/getOrgTier` imported the VALUE `getServerOrgMembership` from `lib/auth/server`,",
+    "  which reached back through `can` -> `orgRoles` -> `getOrgTier`. A real runtime loop on the",
+    "  authorisation path, working only on the order Node happened to initialise those modules in.",
+    "  Held back from the mechanical sweep on purpose — the other sixteen were declaration moves, and",
+    "  this one needed a decision about WHERE the tier lookup belongs, not a fix appended to a sweep.",
+    "",
+    "  The decision (CD, 2026-08-23) was to move the DEPENDENT function out rather than pull auth",
+    "  into lib/tier/: the forgeable cookie reader now lives in lib/tier/getOrgTierFromCookie.ts and",
+    "  takes its getServerOrgMembership import with it. Breaking the cycle was the THIRD reason for",
+    "  it, not the first. The first is that the forgeable reader and the two authoritative ones",
+    "  shared an import line — `import { getOrgTier, getOrgTierCanonical }` makes picking the wrong",
+    "  one a typo-grade error on a path where the wrong one is a security defect. Splitting the",
+    "  module converts 'read the comment' into 'read the import', and makes 'the display tier must",
+    "  never gate a capability' expressible as a MODULE-PATH rule a linter can hold, rather than one",
+    "  that has to distinguish two readers by imported NAME — the token-anchoring failure this repo",
+    "  has now hit four times.",
+    "",
+    "THE FILE IS NOW EMPTY, AND THAT IS THE POINT: any cycle this check reports from here is NEW."
   ],
-  "cycles": [
-    "lib/auth/can.ts → lib/auth/orgRoles.ts → lib/tier/getOrgTier.ts → lib/auth/server.ts"
-  ]
+  "cycles": []
 }

@@ -8,7 +8,7 @@
 import type { ReactNode } from "react"
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTier } from "@/lib/tier/getOrgTierFromCookie"
 import { TIER_ORDER } from "@/lib/constants"
 import { contactDisplayName } from "@/lib/contacts/displayName"
 import { SinglePropertyView, NoPropertyYet } from "@/components/properties/SinglePropertyView"

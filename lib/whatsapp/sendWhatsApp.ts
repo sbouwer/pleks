@@ -12,7 +12,7 @@
  *         Tier gate: whatsapp_notifications feature requires Steward+.
  */
 import { hasFeature } from "@/lib/tier/gates"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTier } from "@/lib/tier/getOrgTierFromCookie"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendWhatsAppMessage } from "@/lib/messaging/whatsapp/provider"
 import { logQueryError } from "@/lib/supabase/logQueryError"

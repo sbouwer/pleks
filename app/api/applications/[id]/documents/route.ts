@@ -20,7 +20,7 @@ import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
 import { resolveAffordabilityThreshold } from "@/lib/screening/screeningPolicy"
 import { hasFeature } from "@/lib/tier/gates"
-import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getOrgTier } from "@/lib/tier/getOrgTierFromCookie"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
 
