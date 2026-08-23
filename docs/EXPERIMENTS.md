@@ -1203,6 +1203,43 @@ Same three tasks in every arm, so arm-vs-arm is a like-for-like comparison and n
 by task difficulty. The cost of that choice is stated: nine task-runs for three tasks' worth of
 output, and six of the nine trees are thrown away.
 
+### The three arms, defined before they run
+
+**Arm B is defined from Anthropic's published documentation, NOT from a reconstruction.** An
+in-house sketch of "the normal way" that this repo's own protocol then beats is a strawman, and the
+first fair reply to such a result is that the comparison was rigged at definition time. The source
+is `https://code.claude.com/docs/en/sub-agents` (fetched 2026-08-23) — quoted below rather than
+paraphrased, because a paraphrase is where a strawman gets in.
+
+| Arm | What it is | Definition source |
+|---|---|---|
+| **A · solo** | Main session only. No `Agent` call for the whole run. Expect zero subagent transcripts — the one arm where finding none is correct. | n/a |
+| **B · stock subagents** | Delegation exactly as documented: subagents defined by `name` + `description` frontmatter, Claude deciding when to delegate from the description, results returning as a summary. No handoff-contract artefacts, no `.claude/handoff/` directory, no pipeline stages. | `code.claude.com/docs/en/sub-agents` |
+| **C · this repo's workflow** | The five tuned agents (`grounder`/`census`/`db-inspector`/`implementer`/`walker`), the handoff contract (`scripts/check-handoff-contract.mjs`), the write-scope hook, and the `/build`→`/walk`→`/wrap` sequence. | `.claude/agents/*.md`, `4-AGENT-PIPELINES.md` §9 |
+
+The documented behaviour arm B is being held to, verbatim from that page:
+
+> "Each subagent runs in its own context window with a custom system prompt, specific tool access,
+> and independent permissions."
+
+> "When Claude encounters a task that matches a subagent's description, it delegates to that
+> subagent, which works independently and returns results."
+
+> "the subagent does that work in its own context and returns only the summary"
+
+Two consequences for the measurement, both following from that first quote rather than from anything
+this experiment assumes. A subagent's context window is **its own**, so arm B and arm C both move
+spend out of the main transcript and into files the main transcript never references — which is the
+confound below. And the main session sees **only the summary**, so any quality difference between B
+and C must come from what the delegation prompt asked for and what the report was required to carry,
+not from the main session having watched the work.
+
+⚠ **Arm B is not "arm C minus the good parts".** It is the documented default with the repo's
+customisations removed — which means arm B still gets `CLAUDE.md` (the docs are explicit that "every
+level of the CLAUDE.md hierarchy the main conversation loads" is in a subagent's initial context, and
+E3 measured the same thing independently). An arm B stripped of CLAUDE.md would be cheaper and worse,
+and the resulting margin would be this experiment's own construction.
+
 **Tasks — real open register work, so the surviving arm's output is usable:**
 
 | # | Task | Shape | Why chosen |
@@ -1223,9 +1260,41 @@ and would be the single easiest place for this experiment to lie to itself.
 | Metric | Source |
 |---|---|
 | wall-clock per task | first→last transcript timestamp for the run |
-| `input_tokens` · `cache_creation_input_tokens` · `cache_read_input_tokens` · `output_tokens` | `message.usage` per assistant line |
+| **active time** | sum of gaps between consecutive records **shorter than 60s**; longer gaps counted as idle |
+| `input_tokens` · `cache_creation_input_tokens` · `cache_read_input_tokens` · `output_tokens` | `message.usage` per assistant line, **all four reported separately per arm** |
 | weighted cost units | same multipliers `.claude/hooks/context-budget.js` already applies |
 | turn count · tool calls by type | transcript line counts |
+| subagent count · **max spawn depth** · spend by agent type | `agent-*.meta.json` sidecars |
+| reconciliation shortfall | depth-1 sidecars vs `Agent` tool calls in the main transcript |
+
+**Why active time as well as wall-clock.** Wall-clock over a session that sat overnight measures when
+the human went to bed. Active time is the closest honest proxy for how long the work took, and it is
+a **floor, not a duration**: any single model turn longer than the threshold is discarded as idle. The
+threshold is printed beside the number rather than buried, so a reader can reject it. Both are
+reported; neither is presented as "the" time. Measured on session `0d9dadd6`, the two differ by more
+than 5× (77h wall against 15h active), which is the whole reason for carrying both.
+
+⚠ **Subagent active time OVERLAPS the main session's rather than extending it** — agents run inside
+the parent's wall clock. It is reported as its own figure and never summed into the run duration;
+summing would inflate a delegating arm's apparent time and, paradoxically, understate its efficiency.
+
+**Cache split is reported per arm, not just the weighted total.** The arms are expected to differ in
+*shape*, not only in size: a delegating arm trades the main session's enormous cache reads for many
+small fresh subagent contexts with high cache-WRITE. Collapsing that into one weighted number would
+hide the mechanism the experiment exists to find.
+
+### This run also answers M-21
+
+M-21 asks whether the subscription quota counts a cache read at 0.1× or 1×. The harness already emits
+raw and weighted sums for a bounded window, and each arm is a bounded window with a known start and
+end. **Compare `/usage` attribution for the run window against both sums.** If the quota tracks the
+weighted figure, the 0.1× multiplier `.claude/hooks/context-budget.js` applies is vindicated; if it
+tracks raw input, every context-cost estimate this repo has made is out by roughly an order of
+magnitude, in the direction of comfort.
+
+This is recorded as a **secondary outcome, pre-registered** — not a finding to go looking for
+afterwards in whichever direction the numbers happen to support. It may also be inconclusive:
+`/usage` may not resolve to a window this tight, and if so that is the result.
 
 ⚠ **THE CONFOUND THAT WOULD HAVE INVALIDATED THE WHOLE THING, and it is already documented in this
 repo.** `.claude/hooks/context-budget.js` records that subagent spend is **not in the main
@@ -1239,6 +1308,23 @@ file, and MUST also report them broken out, because "where the spend went" is ha
 **Probe the harness before trusting it:** run it against a session with a known `Agent` call and
 assert the subagent tokens are non-zero. A harness that silently finds no subagent files reports a
 clean, plausible, wrong number.
+
+### Outcome — recorded first, because a cheap arm that did less is not a cheap arm
+
+**Cost without outcome is uninterpretable.** Three arms with different token counts and unmeasured
+completion invites exactly one reply — *arm C was cheaper because it did less* — and that reply
+cannot be answered after the fact. So the first three columns of every run's record are outcome, not
+cost, and an arm that did not complete has its cost reported as **incomparable**, not as a win.
+
+| Field | Values |
+|---|---|
+| **completed** | `yes` / `partial` / `no` — did the arm produce the artefact the task asked for? |
+| **gate** | `npm run check` exit code, run identically in every tree |
+| **quality** | the six criteria below |
+
+An arm scoring `partial` still has its numbers recorded — a partial run's cost is real data about
+what that mode spends before stalling — but it is excluded from any cost comparison and the exclusion
+is stated in the results table rather than in a footnote.
 
 ### Quality — scored against fixed criteria, not impressions
 
@@ -1259,24 +1345,48 @@ computed here, because a scalar quality score would be invented precision — th
 (a swept 1/2 on task 2 is not "half as good", it is wrong). Report the six criteria alongside the
 cost, and let the trade-off be read rather than asserted.
 
+**Scoring is BLIND, and blinding is a procedure, not an intention.** Before criteria 3, 4 and 5 are
+scored, each run's output is exported as a bare diff to `<task>/<letter>.diff` where the letter is
+assigned by a shuffle recorded in a sealed file, with arm labels, worktree paths, agent mentions and
+`.claude/handoff/` artefacts stripped. The scorer reads the diffs, writes the scores, and only then
+opens the mapping. Criteria 1, 2 and 6 need no blinding — they are counts a script produces.
+
+⚠ **Blinding here is weaker than it sounds and the weakness is stated now.** The main session that
+scores these diffs is the same session that wrote them, so it may recognise its own output regardless
+of the labels — an arm-C diff carrying handoff-shaped structure is identifiable even with the
+artefacts removed. The shuffle removes the *label*, not the *fingerprint*. That is why criteria 1/2/6
+carry the weight, why the mapping is sealed before scoring rather than after, and why Stéan's
+spot-check is part of the design and not a courtesy.
+
 **Conflict of interest, stated.** The main session scores arms it produced. Mitigations: the rubric
 above is fixed before any run; criteria 1/2/3/6 are mechanically checkable; `walker` is adversarial
-by construction and runs identically on all nine; and Stéan spot-checks at least one arm per task
-against the raw transcripts. This does not eliminate the bias — it makes it visible.
+by construction and runs identically on all nine; scoring is blinded as above; and Stéan spot-checks
+at least one arm per task against the raw transcripts. This does not eliminate the bias — it makes it
+visible. **If the result is that arm C wins, that result is worth less than a null one**, because it
+is the outcome the person running the experiment is invested in; it should be reported with that
+asymmetry stated, not with the margin emphasised.
 
 ### Status
 
 **PRE-REGISTERED. Harness BUILT and PROBED 2026-08-23. No arm has run yet.**
 
-`scripts/transcript-metrics.mjs` — `--selftest` (pure, in the gate), `--probe` (reads real
+`scripts/transcript-metrics.mjs` — `--selftest` (pure, 29 cases, in the gate), `--probe` (reads real
 transcripts, run manually before any arm), and a report mode taking `--since`/`--until` so one arm's
-slice cannot inherit another's spend.
+slice cannot inherit another's spend, plus `--project-dir`, `--label`, `--expect-subagents` and
+`--json`.
+
+**The project directory is derived from cwd, never hardcoded, and the script refuses to guess.**
+Each arm runs in its own worktree, which is its own path, which is its own
+`~/.claude/projects/<slug>` — a hardcoded slug would have pointed all nine runs at the main
+checkout's transcripts and reported the same tree three times as a comparison. When the derivation
+finds nothing, the script names the candidate directories and exits rather than falling back to one.
 
 **The confound probe passes, and the number it returned is the argument for the whole design.** On
-this repo's own session `0d9dadd6`: **36 subagent transcripts carrying 43.90M weighted units that
-the main transcript does not contain — 22.5% of total spend.** A main-transcript-only harness would
-have reported that session as costing 151M instead of 195M, and would have understated any
-delegating arm by roughly that fraction.
+this repo's own session `0d9dadd6` as at 2026-08-23: **36 subagent transcripts carrying 43.90M
+weighted units that the main transcript does not contain — 22.3% of total spend.** A
+main-transcript-only harness would have reported that session as costing ~153M instead of ~197M, and
+would have understated any delegating arm by roughly that fraction. (The session was still running
+when measured, so those totals grew as it went; the ratio is the durable part, not the absolutes.)
 
 **Independently corroborated.** `.claude/hooks/context-budget.js` computes agent spend by its own
 route and reported "36 invocations, ~43.9M billable-equivalent" for the same session. Two
@@ -1287,10 +1397,84 @@ worth more than either number alone, and is the closest thing available to a cal
 output. Counting output tokens — the intuitive proxy — would have measured about half a percent of
 the real cost and ranked the arms on noise.
 
-**Known imprecision, recorded now rather than discovered mid-experiment:** the main transcript shows
-`Agent×31` tool calls against 36 subagent transcript files. The gap is unexplained — nested spawns
-and compaction boundaries are both candidates. It does not affect token totals (those are summed
-from the files, not from the call count), but it does mean **agent-invocation counts from tool calls
-are not trustworthy as a per-arm metric**; count transcript files instead.
+**The `Agent×31` vs 36-files gap is RESOLVED, and it was nesting.** Recorded here on 2026-08-23 as
+unexplained, with nested spawns and compaction boundaries both named as candidates. Each
+`agent-<id>.jsonl` has a companion `agent-<id>.meta.json` carrying
+`{agentType, description, toolUseId, spawnDepth}`, and reading them settles it exactly: **31 sidecars
+at `spawnDepth: 1`, all 31 `toolUseId`s matching an `Agent` `tool_use.id` in the main transcript, and
+5 at `spawnDepth: 2`** — the census→census spawns. Not compaction. The count was never wrong; it was
+counting a different thing.
 
-Next action: the nine runs. Each arm's slice bounded by `--since`/`--until`, `--probe` re-run first.
+That turns a stated imprecision into two assertions the harness now makes:
+
+- **Reconciliation.** Depth-1 sidecars are matched against `Agent` calls. *Fewer* transcripts than
+  calls is a FINDING and exits non-zero — that is spend which really happened and was not found, and
+  it is the direction that flatters a delegating arm. *More* is reported, not failed. A windowed read
+  never raises it, because a window legitimately clips the spawning turn out of the main transcript.
+- **Nesting.** Depth comes from `spawnDepth`, not from directory layout — **depth-2 transcripts are
+  written FLAT into the same `subagents/` directory**, so a glob finds them but cannot tell you they
+  were nested. Max depth is reported per arm. This was the review's sharpest point: if arm C's agents
+  fan out further than assumed and those transcripts went uncounted, arm C's cost would be understated
+  and the experiment would flatter its own method. They are counted, and now they are also labelled.
+
+Spend by agent type for that session, which is the shape arm C is expected to produce:
+`census×12 17.32M · implementer×5 13.00M · grounder×14 7.20M · walker×4 6.12M`. Note that `census`
+costs more in total than `grounder` on **fewer** invocations — repo-wide greps are the expensive
+delegation, and that is a prediction arm C can be checked against rather than a post-hoc observation.
+
+**A defect the live run caught, recorded because it is the class this experiment is most exposed to.**
+The first fix for the hardcoded project directory derived the slug from `process.cwd()` — which
+returns `C:\dev\pleks` with a capital drive letter, deriving `C--dev-pleks`, while the directory
+Claude Code actually wrote is `c--dev-pleks`. **Windows' case-insensitive filesystem hid it
+completely**: `existsSync` returned true, the report ran, every selftest passed (they fed the function
+lowercase literals, not `cwd()`), and the only symptom was a wrong-looking path in a header nobody
+would have read. On a case-sensitive filesystem the same code refuses to guess and the arm produces
+no datum. Fixed by resolving the derived slug against the real directory listing case-insensitively
+and returning the on-disk name — the derivation is a hypothesis, the listing is the check. The
+general form: **a green probe on a forgiving platform proves the platform was forgiving.**
+
+### Per-run record
+
+Each of the runs writes one row, and `--json` verbatim is the figure of record — the printed table
+rounds above 1M and is for reading, not for recording.
+
+| Field | Source |
+|---|---|
+| task · arm · replicate · **run order** | assigned before the run |
+| worktree path · derived project dir · session id | `--json` `cwd` / `projectDir` / `sessionId` |
+| four raw token fields · weighted | `--json` |
+| wall-clock · active time · subagent active time | `--json` |
+| subagent count · by-type spend · max spawn depth · reconciliation shortfall | `--json` |
+| completed · gate exit · six quality criteria | recorded by hand per the rubric above |
+| CLI version · model · date | `version` field in the transcript records |
+
+**Run order is recorded and the arms are run in a randomised order per task**, not A→B→C three times.
+Model updates, cache state and the operator's own familiarity with a task all drift over a session,
+and running the arms in a fixed order confounds every one of those with the arm itself. Randomising
+does not remove the drift; it stops it loading onto one arm.
+
+### Two things still open, both requiring Stéan's call
+
+1. **Replicates.** As designed this is n=1 per cell: nine runs, three tasks × three arms, one
+   observation each. **A single observation per cell cannot separate an arm effect from run-to-run
+   variance**, and these runs are not deterministic. Three options, with their real cost:
+   - **27 runs** (3 replicates per cell) — a genuine comparison with a measurable spread. Roughly
+     three times the token cost and three times the wall-clock.
+   - **9 runs, one task** (3 arms × 3 replicates) — measures variance, loses task generality; a
+     result that may not survive contact with a different task shape.
+   - **9 runs as designed, REFRAMED** — reported as "three observations", never as "arm C is N%
+     cheaper". Honest, and much weaker than it will be tempting to write it up as.
+
+   No arm runs until this is chosen, because the choice determines what may be claimed, and choosing
+   it after seeing the numbers is the same failure as writing the rubric afterwards.
+
+2. **Compaction (term D).** If a task is short enough that the solo arm never compacts, term D is not
+   exercised at all — and compaction is precisely where the solo arm's cost profile is supposed to
+   diverge, since a delegating arm pushes work into contexts that are discarded rather than
+   compacted. Either **task 1 (M-093) is scoped long enough to force at least one compaction in arm
+   A**, or **term D is declared out of scope for E16** and the result is stated as covering only
+   sub-compaction-length tasks. Both are defensible; silently getting whichever happens is not.
+
+Next action: settle those two, then the runs. Each arm's slice bounded by `--since`/`--until`,
+`--probe` re-run first, `--expect-subagents=false` on arm A so its empty result is quiet and the
+delegating arms stay loud.
