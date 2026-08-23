@@ -1470,6 +1470,13 @@ AS $$
     AND o.created_at < cutoff_iso
     AND o.deleted_at IS NULL
     AND o.id <> '00000000-0000-0000-0000-000000000001'::uuid  -- Excludes BUILD_65 POPIA-purged tombstone
+    -- ⚠ The Pleks system org (…0002) has ZERO members by design, so MAX(last_sign_in_at) is NULL and
+    -- it passes the HAVING below; it also holds no properties/leases/applications, so the JS-side
+    -- emptiness test passes too. Without this line it is dormancy-warned, then final-warned, then
+    -- purged — destroying the org that owns all platform email logging. `is_platform` rather than a
+    -- fourth magic UUID: it is the spelling the column COMMENT instructs, the one all four
+    -- TypeScript fan-outs already use, and it survives a UUID change. (M-067, 2026-08-23.)
+    AND o.is_platform = false
   GROUP BY o.id
   HAVING MAX(au.last_sign_in_at) IS NULL
       OR MAX(au.last_sign_in_at) < cutoff_iso;
@@ -1505,6 +1512,13 @@ AS $$
     AND o.dormancy_warning_sent_at < cutoff_iso
     AND o.deleted_at IS NULL
     AND o.id <> '00000000-0000-0000-0000-000000000001'::uuid  -- Excludes BUILD_65 POPIA-purged tombstone
+    -- ⚠ The Pleks system org (…0002) has ZERO members by design, so MAX(last_sign_in_at) is NULL and
+    -- it passes the HAVING below; it also holds no properties/leases/applications, so the JS-side
+    -- emptiness test passes too. Without this line it is dormancy-warned, then final-warned, then
+    -- purged — destroying the org that owns all platform email logging. `is_platform` rather than a
+    -- fourth magic UUID: it is the spelling the column COMMENT instructs, the one all four
+    -- TypeScript fan-outs already use, and it survives a UUID change. (M-067, 2026-08-23.)
+    AND o.is_platform = false
   GROUP BY o.id
   HAVING MAX(au.last_sign_in_at) IS NULL
       OR MAX(au.last_sign_in_at) <= o.dormancy_warning_sent_at;
@@ -1584,6 +1598,7 @@ AS $$
 DECLARE
   v_sentinel  uuid    := '00000000-0000-0000-0000-000000000001';
   v_decoy     uuid    := '00000000-0000-0000-0000-000000000003';
+  v_platform  boolean;
   v_tables    text[];
   v_table     text;
   v_errors    int;
@@ -1592,6 +1607,16 @@ BEGIN
   -- Safety: refuse to purge the sentinel or decoy orgs
   IF p_org_id = v_sentinel OR p_org_id = v_decoy THEN
     RAISE EXCEPTION 'purge_org_cascade: refusing to purge sentinel/decoy org %', p_org_id;
+  END IF;
+
+  -- ⚠ …and the Pleks system org, which was NOT refused here until 2026-08-23 (M-067). This is the
+  -- LAST line of defence, deliberately duplicated with the TypeScript guard in lib/subscriptions/
+  -- purge.ts: purgeOrg() is one of three callers, and a fourth reaching this function directly would
+  -- otherwise destroy the org that owns all platform email logging. Read as a flag rather than a
+  -- fourth magic UUID, matching the dormancy RPCs above.
+  SELECT is_platform INTO v_platform FROM organisations WHERE id = p_org_id;
+  IF COALESCE(v_platform, false) THEN
+    RAISE EXCEPTION 'purge_org_cascade: refusing to purge the platform system org %', p_org_id;
   END IF;
 
   -- Step 1: Repoint retention-protected rows to sentinel

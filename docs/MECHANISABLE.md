@@ -1021,9 +1021,42 @@ the note said the seam prevented.
 
 - **Rule:** `lib/comms/platform-org.ts` — its own JSDoc: every "for each org" query MUST exclude the platform org
 - **Where it lives:** the helper's header comment. No CLAUDE.md bullet, no rule file, no check.
-- **Rung:** eslint · **Blast:** data-boundary
-- **Satisfied when:** eslint:pleks/require-platform-org-exclusion
+- **Rung:** ~~eslint~~ → **check** (corrected 2026-08-23, see below) · **Blast:** data-boundary
+- **Satisfied when:** a control that reaches BOTH languages — the recorded ESLint rung cannot, and that is a finding, not a detail
 - **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23; it makes the gap loud. This entry closes only AFTER the per-site census it requires, and then a rule over org-iterating query shapes.
+
+**⚠ THE RECORDED RUNG WAS WRONG, AND IT WAS WRONG IN THE DIRECTION THAT HIDES THE DEFECT.** This
+entry proposed `eslint:pleks/require-platform-org-exclusion`. When the census was run (2026-08-23),
+the reachable defect **was not in TypeScript at all** — it was in two `SECURITY DEFINER` functions in
+`supabase/migrations/010_platform_features.sql`, where `find_dormant_org_candidates` and
+`find_dormancy_final_candidates` iterated every org and excluded only the sentinel. An ESLint rule
+cannot read a `.sql` file, so the proposed mechanism would have shipped, gone green, and left the
+live hole exactly where it was — a control aimed at the language the author was thinking in rather
+than the language the rule has to hold in. Same shape as the 2026-08-22 scar (CLAUDE.md §6): a rule
+whose aperture misses the surface that matters still passes every probe.
+
+**What the census found, and it was live, not theoretical.** As at `08df4a30` the Pleks platform org
+(`…0002`) had **0 members and was 44 days old**, against a 60-day dormancy threshold —
+`find_dormant_org_candidates(now())` returned it when run against prod. It would have been
+dormancy-warned in ~16 days, final-warned 30 days later, then handed to `purgeOrg`, which did not
+refuse it either: the org owning all platform email logging was on a scheduled path to deletion, and
+nothing in the tree would have said so first.
+
+**Fixed 2026-08-23 in four places, two layers per track**, and the SQL predicate is `is_platform =
+false` rather than a hardcoded uuid, so a second platform org inherits the protection:
+both dormancy RPCs exclude it, `purge_org_cascade` raises rather than purging it, and
+`purgeOrg` refuses it alongside the sentinel and decoy. Applied to prod and verified both
+directions — the platform org left the candidate set, a real org stayed in it (`total_candidates =
+1`), and the deployed function text was re-read to confirm the guard is actually there rather than
+inferred from a `RAISE NOTICE` that `execute_sql` does not return.
+
+**Why the entry stays OPEN after a fix that works.** The fix closes the one path the census proved
+reachable; it does not create the general rule. And `excludePlatformOrg` **still has zero code
+readers** — the fix bypassed it, because the defect was in SQL and the helper is TypeScript. That is
+worth saying plainly rather than quietly re-baselining: the helper's continued existence with no
+caller is still the exact condition this entry was filed for, and the live fix landing elsewhere
+makes the helper *more* misleading, not less — a reader now finds a stated MUST, no callers, and a
+protected system, and would reasonably conclude the helper is what protects it.
 - **Sketch:** found 2026-08-20 by the knip tranche-2 sweep, which flagged the export as unreferenced. It is not dead code — it is an **unenforced invariant**, which is the more dangerous reading of the same evidence: the guard exists, the rule is written down, and **no query in the tree applies it**. Either every org-iterating query is already safe for a reason the comment does not give, or the platform org is silently included in fan-outs that were meant to exclude it. Nobody has established which, and the helper's existence has been standing in for the answer. Two pieces of work, in order: (1) census every "for each org" query and classify per site whether platform-org inclusion is a defect there — the answer decides whether this is a burn-down or a no-op; (2) only then, an ESLint rule over org-iterating query shapes. Do NOT build (2) first; a rule with no measured population is how a check's first number becomes a finding.
 
 **Visibility ratchet SHIPPED 2026-08-23 — `scripts/check-invariant-has-callers.mjs`. This entry, M-077 and M-082 all stay OPEN, and the distinction matters.** The check asserts that an export carrying an `@invariant M-0NN` tag has at least one CODE reader — comments are blanked before counting, because M-082's finding was that prose asserting a list is live made the gap invisible, so a sentence must never satisfy it. The known instances are recorded in `scripts/invariant-callers.baseline.json` with their reason and register pointer; the check goes red on the next NEW instance, not on those. **M-077 has since left that baseline** — `HELP_CONTENT_DRAFT` gained a real reader on 2026-08-23, the check failed with "the baseline must shrink", and the entry was removed. That was the ratchet's first firing on real work rather than a probe.

@@ -21,7 +21,7 @@
     "excludePlatformOrg": {
       "file": "lib/comms/platform-org.ts",
       "register": "M-067",
-      "reason": "A stated MUST ('every for-each-org query MUST exclude the platform org') with zero call sites. Either every org-iterating query is already safe for a reason the comment does not give, or the platform org is silently included in fan-outs meant to exclude it. M-067 requires the per-site census BEFORE any rule, because a rule with no measured population is how a check's first number becomes a finding."
+      "reason": "A stated MUST ('every for-each-org query MUST exclude the platform org') with zero call sites. The census ran 2026-08-23 and the answer was NOT 'already safe': the platform org (0 members, 44 days old against a 60-day threshold) was returned live by find_dormant_org_candidates(now()) and was on a scheduled path to being purged. Fixed — but in SQL (is_platform = false in both dormancy RPCs, a RAISE in purge_org_cascade) plus a TS guard in purgeOrg, because the defect was in a SECURITY DEFINER function that this TypeScript helper cannot reach. So the hole is closed and THIS EXPORT IS STILL UNREAD, which makes it more misleading than before, not less: a reader now finds a stated MUST, no callers, and a protected system, and would reasonably conclude the helper is what protects it. M-067 stays open for the general rule and for that."
     },
     "RETENTION_PROTECTED_TABLES": {
       "file": "lib/subscriptions/retention.ts",
