@@ -42,4 +42,23 @@ $CMD
 # and a machine holding no Supabase token reports "DUE AND NOT RUN" and exits 0 rather than blocking
 # a docs push on a credential it was never expected to have. A real finding still blocks — that is
 # the point — but only on a machine that could actually check.
-node scripts/check-drift-if-sql-changed.mjs
+#
+# ⚠ THIS TAIL HAS ITS OWN SEAM, and it needs one for the same reason $CMD does. It is OUTSIDE the
+# $CMD seam, so a probe that stubbed only $CMD still fell through into a live drift check — one that
+# reaches the network and reads credentials. In CI that is decisive: actions/checkout leaves a
+# DETACHED HEAD, `@{u}` fails, changedFiles() reports degraded, and `required` becomes true without
+# consulting credentials the runner does not have. The hook then exits non-zero on a green chain,
+# and the two success-direction probes in check-git-hooks.mjs failed for a property neither is
+# about. The hook was right; the probe was measuring the tail by accident.
+# Same two-variable contract as above — PLEKS_DRIFT_CMD alone is ignored — so this adds no bypass
+# that PLEKS_PREPUSH_CMD did not already offer to anyone willing to set PLEKS_HOOK_PROBE=1.
+if [ -n "$PLEKS_DRIFT_CMD" ] && [ "$PLEKS_HOOK_PROBE" = "1" ]; then
+  DRIFT="$PLEKS_DRIFT_CMD"
+else
+  DRIFT="node scripts/check-drift-if-sql-changed.mjs"
+fi
+# NOT an arrow line. check-git-hooks.mjs reads the LAST "→" line as the command the hook resolved
+# for its main chain; adding a second arrow here would silently redirect that assertion onto the
+# tail. Its own marker keeps the two properties separately observable.
+echo "[drift-seam] $DRIFT"
+$DRIFT
