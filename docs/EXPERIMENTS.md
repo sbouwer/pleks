@@ -1175,3 +1175,97 @@ application rather than left as a principle.
 
 **RE-RUN TRIGGER:** on any CLI major upgrade, and on any change to the key's value. Re-running is one
 pass over `compactMetadata.preTokens` and needs no session in a particular state.
+
+---
+
+## E16 · What do the three delegation modes actually cost, and is the work worth it? — **PRE-REGISTERED 2026-08-23, NOT YET RUN**
+
+**Question.** For the same task, how do (A) the main session working alone, (B) the original
+agent-handover protocol, and (C) the current agent workflow compare on **wall-clock, tokens, and
+quality of output** — and does any cost difference buy anything?
+
+**Pre-registered before any arm runs.** Everything below — tasks, metrics, rubric, scoring — is
+fixed now, because the person scoring quality is also the thing being scored. A rubric written after
+seeing the results is a rationalisation, and this experiment's whole value is that its numbers can be
+disbelieved by someone who was not there.
+
+### Design
+
+**Baseline commit: `fbbc59f4`** (`main`, immediately after PR #264 merged). Nine runs: three tasks ×
+three arms, **each in a fresh worktree cut explicitly from that SHA and discarded after.**
+
+⚠ **The worktree must be pinned to `fbbc59f4` explicitly. E10 established that `isolation: "worktree"`
+bases the tree on `origin/main` rather than the session's HEAD** — that is harmless here only because
+the baseline IS `main`, and it is the reason this experiment was sequenced after the merge rather
+than before it. Pin it anyway; do not rely on the default agreeing.
+
+Same three tasks in every arm, so arm-vs-arm is a like-for-like comparison and nothing is confounded
+by task difficulty. The cost of that choice is stated: nine task-runs for three tasks' worth of
+output, and six of the nine trees are thrown away.
+
+**Tasks — real open register work, so the surviving arm's output is usable:**
+
+| # | Task | Shape | Why chosen |
+|---|---|---|---|
+| 1 | **M-093** — retry-replay superset check | build + migration | largest; has a genuine design fork (persist vs declare-exempt) |
+| 2 | **M-022 SQL half** — `ON CONFLICT` on `auth.users` by table, not by clause | build | smallest; **has a known false-positive trap** (`honeytoken_emails`) already measured |
+| 3 | **M-064** — a check must not depend on how the tree was materialised | build | most investigative; least specified up front |
+
+Task 2 is the control for *classification honesty*: the correct answer is **zero violations**, and a
+naive implementation scores 1/2 by flagging the honeytoken seed. An arm that reports "1 violation
+found and fixed" has failed that task regardless of how fast it was.
+
+### Metrics — every one from transcripts, none self-reported
+
+**Nothing in this table is a number an agent tells you.** Self-reported token counts are unfalsifiable
+and would be the single easiest place for this experiment to lie to itself.
+
+| Metric | Source |
+|---|---|
+| wall-clock per task | first→last transcript timestamp for the run |
+| `input_tokens` · `cache_creation_input_tokens` · `cache_read_input_tokens` · `output_tokens` | `message.usage` per assistant line |
+| weighted cost units | same multipliers `.claude/hooks/context-budget.js` already applies |
+| turn count · tool calls by type | transcript line counts |
+
+⚠ **THE CONFOUND THAT WOULD HAVE INVALIDATED THE WHOLE THING, and it is already documented in this
+repo.** `.claude/hooks/context-budget.js` records that subagent spend is **not in the main
+transcript** — zero lines carry `isSidechain` despite 32 `Agent` calls in the session it measured;
+subagent transcripts are separate files at `<transcript-dir>/<sessionId>/subagents/agent-*.jsonl`.
+Arms B and C spend most of their tokens there. **A harness reading only the main transcript would
+report the two delegating arms as dramatically cheaper than the solo arm — an error pointing exactly
+in the direction that flatters the thing being tested.** The harness MUST sum main + every subagent
+file, and MUST also report them broken out, because "where the spend went" is half the finding.
+
+**Probe the harness before trusting it:** run it against a session with a known `Agent` call and
+assert the subagent tokens are non-zero. A harness that silently finds no subagent files reports a
+clean, plausible, wrong number.
+
+### Quality — scored against fixed criteria, not impressions
+
+Per task, decided now:
+
+1. **Gate green** — `npm run check` exits 0. Binary.
+2. **Probed both directions** — a planted violation FAILS and a known-good case PASSES. Count each arm's probes; an arm with only failure-direction probes scores zero here, per the 2026-08-19 scar.
+3. **Classification honesty** — for task 2, the correct answer is zero violations. Did the arm classify per site, or sweep?
+4. **Baseline/allowlist discipline** — entries carry reasons; nothing widened to make the gate green.
+5. **Register hygiene** — is the entry closed honestly, including what the build does NOT cover?
+6. **Adversarial survival** — `walker` run identically against all nine outputs; count surviving findings.
+
+Criteria 1, 2, 3 and 6 are countable by someone who was not present. Criteria 4 and 5 are judgement,
+and are marked as such in the results table rather than blended into a single score.
+
+**No single "quality number".** Tokens-per-quality-point is the tempting summary and it is not
+computed here, because a scalar quality score would be invented precision — the arms differ in kind
+(a swept 1/2 on task 2 is not "half as good", it is wrong). Report the six criteria alongside the
+cost, and let the trade-off be read rather than asserted.
+
+**Conflict of interest, stated.** The main session scores arms it produced. Mitigations: the rubric
+above is fixed before any run; criteria 1/2/3/6 are mechanically checkable; `walker` is adversarial
+by construction and runs identically on all nine; and Stéan spot-checks at least one arm per task
+against the raw transcripts. This does not eliminate the bias — it makes it visible.
+
+### Status
+
+**PRE-REGISTERED. No arm has run.** Next action: build the transcript-aggregating harness and probe
+it for the subagent-file confound above, before any of the nine runs — a run measured by an unproven
+harness is a run that has to be repeated.
