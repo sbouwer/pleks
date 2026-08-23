@@ -237,7 +237,11 @@ export function report(byType, budgets) {
       spawnedBy: [...new Set(runs.map((r) => r.parent || "main"))].sort(),
       budgetTurns: b.turns ?? null,
       budgetOutK: b.outputK ?? null,
-      outputForm: b.outputForm ?? "undeclared",
+      // Absent from `budgets` entirely means there is no spine file for this type — a built-in the
+      // harness supplies (claude-code-guide, Explore, Plan), not a spine someone forgot to budget.
+      // Demanding a budget of it would be a finding nobody in this repo can action, and a report
+      // that raises unactionable findings is one people stop reading.
+      outputForm: type in budgets ? (b.outputForm ?? "undeclared") : "no-spine",
       artefactK: b.artefactK ?? null,
       // NULL, not 0, when there is nothing to compare against. `0` is a measurement — "I checked and
       // found none" — and the whole defect this fix closes was a null budget rendering as that.
@@ -343,6 +347,15 @@ if (process.argv.includes("--selftest")) {
     ok(wn.outOverruns === null, "an uncomparable return budget yields NULL overruns, never 0", JSON.stringify(wn))
     ok(wn.turnOverruns === 1, "the comparable half is still compared when the other is not", JSON.stringify(wn))
     ok(cn.turnOverruns === null && cn.outOverruns === null, "a type with no budget entry at all is null on BOTH halves", JSON.stringify(cn))
+
+    // R6 clause 3, applied here: "no spine exists" and "a spine exists and forgot its budget" are
+    // different states with different owners. Collapsing them raises a defect nobody can action
+    // against a built-in the harness supplies.
+    ok(cn.outputForm === "no-spine", "a type ABSENT from budgets is no-spine (a built-in), not a defective spine", JSON.stringify(cn))
+    const declared = report(collect(dir), { census: { turns: 10, outputK: null, outputForm: "undeclared" } })
+    ok(declared.find((r) => r.type === "census").outputForm === "undeclared",
+      "KNOWN-GOOD: a type WITH a spine entry that declares no return budget stays UNDECLARED — the actionable one",
+      JSON.stringify(declared.find((r) => r.type === "census")))
     ok(c.outOverruns === 0, "KNOWN-GOOD: 0 still means CHECKED-AND-CLEAN where a budget exists", JSON.stringify(c))
     ok(rows[0].type === "walker", "sorts by turnMax so the worst offender is first", JSON.stringify(rows.map((r) => r.type)))
   }
@@ -494,7 +507,9 @@ for (const r of rows) {
   const outPart = r.outputForm === "numeric" ? `${r.budgetOutK}k`
     : r.outputForm === "structural" ? "struct"
       : "?"
-  const budget = r.budgetTurns ? `${r.budgetTurns}/${outPart}` : "— none —"
+  const budget = r.budgetTurns ? `${r.budgetTurns}/${outPart}`
+    : r.outputForm === "no-spine" ? "built-in"
+      : "— none —"
   const over = (r.turnOverruns ?? 0) + (r.outOverruns ?? 0)
   overruns += over
   // An uncheckable half is called out on its own row rather than folded into the overrun count,
@@ -559,6 +574,13 @@ if (overruns) {
 // Printed whether or not anything overran: an uncomparable budget is a standing property of the
 // spine, not an incident, and it is invisible in every other line of this report.
 for (const r of unchecked) {
+  if (r.outputForm === "no-spine") {
+    // Cost is still reported — it is real spend. What is NOT reported is a budget finding, because
+    // there is no spine here to carry one. Out-of-fleet, not unbudgeted.
+    console.log(`\n   · ${r.type}: a BUILT-IN agent with no spine in .claude/agents — out of fleet.`)
+    console.log(`     Cost still counts: ${r.repMed}/${r.repMax} tokens over ${r.runs} run(s). No budget is expected or missing.`)
+    continue
+  }
   const why = []
   if (r.turnOverruns === null) why.push(`no turn budget`)
   if (r.outOverruns === null) {
@@ -572,7 +594,7 @@ for (const r of unchecked) {
     console.log(`     Its ${r.artefactK}k Artefact budget governs the FILE on disk, not this report. Not a ceiling.`)
   }
   if (r.outputForm === "undeclared") {
-    console.log(`     A spine declaring no return budget is a DEFECT — fix the spine, or this parser.`)
+    console.log(`     A spine EXISTS for this type and declares no return budget — a DEFECT. Fix the spine, or this parser.`)
   }
 }
 
