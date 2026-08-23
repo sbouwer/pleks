@@ -1575,3 +1575,32 @@ with a check.
 - **Provenance:** found 2026-08-23 while verifying M-091's forgeability claim rather than citing the module comment for it. M-091's own fix (five capability gates repointed to the canonical tier read) does **not** address this: `getOrgTierCanonical(orgId)` is only as sound as the `orgId` handed to it.
 - **Covering spec:** NEW
 
+#### ADDENDUM, as at `88f530fe` — the repo already contains the fix, applied to the same cookie by the other reader
+
+Three things were left open above. Two are now closed and the third changes what CD is actually being
+asked to rule on, so it is recorded here rather than left to the next session to re-derive.
+
+1. **`pleks_org` has TWO readers, and only one of them validates.** `lib/supabase/gateway.ts`'s
+   `resolveFromCookieHint` — read, not taken from its comment — parses the same cookie, then queries
+   `user_orgs` with `.eq("user_id", userId).eq("org_id", parsed.org_id).is("deleted_at", null)` and
+   **returns `role` and `is_admin` from the DB row, never from the cookie**. Only `tier` passes through
+   verbatim, which is exactly the M-091 hole and is now closed by the lint rule. So `gateway()` and
+   `gatewaySSR()` are sound on `org_id` and `role`. `getServerOrgMembership` (`lib/auth/server.ts:51-68`)
+   reads the same cookie and does none of it.
+   **This is the 2026-08-22 scar's shape, one layer up: two mechanisms for one class, different
+   apertures, and the pair's coverage is their intersection rather than their union.** It also makes the
+   ruling much cheaper than "design a signing scheme" — the question is whether `getServerOrgMembership`
+   should simply do what `resolveFromCookieHint` already does, and if not, why the two differ.
+2. **The "roughly two dozen" shape match is now an enumeration: 20 call sites** (`grep -rl`, `app` +
+   `lib`) — 19 of them `app/(dashboard)` server components, plus `lib/auth/server.ts` itself and
+   `lib/tier/getOrgTierFromCookie.ts`. Still **not classified per site**; what changed is that the
+   population is counted rather than estimated.
+3. **`role` — the stated unknown is now partly answered, and the answer is "not yet, in two places".**
+   Every `membership.role` read in the tree was enumerated. The two fed by the unvalidated cookie are
+   `app/(dashboard)/leases/page.tsx:21` (`isOwner`, passed to a client component as a prop) and
+   `app/(dashboard)/properties/[id]/page.tsx:633` (`isAdminUi`) — both UI-shaping, neither a server-side
+   authorisation decision **today**. The one route that genuinely gates on role,
+   `app/api/suppliers/[id]/people/route.ts:102`, gets its membership from `getMembership(service, user.id)`,
+   a DB read, and is unaffected. So the forged `role` currently buys a rendered button, not an operation —
+   but the value is one refactor away from a gate, and the names (`isOwner`, `isAdminUi`) do not warn anyone.
+
