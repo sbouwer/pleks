@@ -39,18 +39,44 @@ export function slugFor(cwd) {
   return cwd.toLowerCase().replace(/[:\\/]/g, "-")
 }
 
-/** Turn/output budgets as the SPINES state them — the single source, not a copy. */
+/**
+ * Turn/output budgets as the SPINES state them — the single source, not a copy.
+ *
+ * A RETURN budget comes in two forms and they are not interchangeable. Five spines cap the returned
+ * report with a number (`**Output budget: 4k tokens**`). `grounder` bounds it STRUCTURALLY instead —
+ * `**Return budget: the contract block and nothing else**` — because its map goes to a file and only
+ * the contract comes back. Both are real budgets; only one is comparable to a token count.
+ *
+ * Parsing one spelling measured a false zero for a year of runs (L-01). `grounder` matched neither
+ * pattern, so its `outputK` was null, and `report()` turned that null into `outOverruns: 0` — a
+ * number indistinguishable from "checked, none found". The agent with the largest observed report in
+ * the fleet was the one carrying a clean column.
+ *
+ * So the form is recorded alongside the number, and three states stay distinguishable:
+ *   numeric     — a token ceiling; overruns are countable
+ *   structural  — deliberately unbounded by number; NOT countable, and must not be faked into one
+ *   undeclared  — a spine that states neither. A defect in the spine or in this parser; loud.
+ *
+ * `Artefact budget` is captured too, and is deliberately NOT used as a return ceiling: it governs a
+ * file on disk read by a machine, not the report re-sent through the caller's window every turn.
+ * Comparing a returned report against it would be a category error wearing a number's clothes.
+ */
 export function budgetsFrom(agentsDir) {
   const out = {}
   if (!existsSync(agentsDir)) return out
   for (const f of readdirSync(agentsDir).filter((f) => f.endsWith(".md"))) {
     const text = readFileSync(join(agentsDir, f), "utf8")
     const turn = /\*\*Turn budget:\s*(\d+)/.exec(text)
-    const output = /\*\*Output budget:\s*(\d+)k/.exec(text)
-    if (turn || output) {
+    // Either noun, so a spine renaming Output→Return keeps its ceiling instead of silently losing it.
+    const numeric = /\*\*(?:Output|Return) budget:\s*(\d+)k/.exec(text)
+    const prose = /\*\*(?:Output|Return) budget:\s*(?!\d+k)\S/.exec(text)
+    const artefact = /\*\*Artefact budget:\s*(\d+)k/.exec(text)
+    if (turn || numeric || prose || artefact) {
       out[f.replace(/\.md$/, "")] = {
         turns: turn ? Number(turn[1]) : null,
-        outputK: output ? Number(output[1]) : null,
+        outputK: numeric ? Number(numeric[1]) : null,
+        outputForm: numeric ? "numeric" : prose ? "structural" : "undeclared",
+        artefactK: artefact ? Number(artefact[1]) : null,
       }
     }
   }
@@ -211,8 +237,12 @@ export function report(byType, budgets) {
       spawnedBy: [...new Set(runs.map((r) => r.parent || "main"))].sort(),
       budgetTurns: b.turns ?? null,
       budgetOutK: b.outputK ?? null,
-      turnOverruns: b.turns ? turns.filter((t) => t > b.turns).length : 0,
-      outOverruns: b.outputK ? reports.filter((r) => r > b.outputK * 1000).length : 0,
+      outputForm: b.outputForm ?? "undeclared",
+      artefactK: b.artefactK ?? null,
+      // NULL, not 0, when there is nothing to compare against. `0` is a measurement — "I checked and
+      // found none" — and the whole defect this fix closes was a null budget rendering as that.
+      turnOverruns: b.turns ? turns.filter((t) => t > b.turns).length : null,
+      outOverruns: b.outputK ? reports.filter((r) => r > b.outputK * 1000).length : null,
       compacted: runs.filter((r) => r.compacted).length,
       peakMax: max(runs.map((r) => r.peak)),
     })
@@ -234,10 +264,36 @@ if (process.argv.includes("--selftest")) {
     writeFileSync(join(d, "walker.md"), "junk\n**Turn budget: 150 — a backstop, not a target.** more\n**Output budget: 6k tokens.**\n")
     writeFileSync(join(d, "census.md"), "**Turn budget: 150 — a backstop.**\n**Output budget: 4k tokens.**\n")
     writeFileSync(join(d, "nobudget.md"), "a spine with no budget clause at all\n")
+    // The two shapes that actually exist in .claude/agents, plus the one that must stay loud.
+    writeFileSync(join(d, "grounder.md"), "**Turn budget: 150 — a backstop.**\n**Return budget: the contract block and nothing else** — no answer above it.\n**Artefact budget: 6k tokens** — read by a machine.\n")
+    writeFileSync(join(d, "turnsonly.md"), "**Turn budget: 99 — a backstop.**\nnothing about what comes back\n")
     const b = budgetsFrom(d)
     ok(b.walker?.turns === 150 && b.walker?.outputK === 6, "reads BOTH budgets out of a spine file", JSON.stringify(b.walker))
+    ok(b.walker?.outputForm === "numeric", "a token ceiling is recorded as numeric", JSON.stringify(b.walker))
     ok(!("nobudget" in b), "a file with no budget clause contributes no entry — absence is not zero", JSON.stringify(Object.keys(b)))
     ok(budgetsFrom(join(tmp, "nope")).walker === undefined, "a missing agents dir yields no budgets rather than throwing")
+
+    // THE REGRESSION PROBE. grounder's spelling was unparsed for the life of this script; its
+    // outputK stayed null and rendered as a clean column. Both facts are asserted, not one.
+    ok(b.grounder?.turns === 150, "grounder's TURN budget was never the broken half", JSON.stringify(b.grounder))
+    ok(b.grounder?.outputForm === "structural", "a PROSE return budget is recognised as structural, not missed", JSON.stringify(b.grounder))
+    ok(b.grounder?.outputK === null, "a structural budget yields NO number — it must not be faked into one", JSON.stringify(b.grounder))
+    ok(b.grounder?.artefactK === 6, "the Artefact budget is captured separately from the return", JSON.stringify(b.grounder))
+    ok(b.turnsonly?.outputForm === "undeclared", "a spine with no return budget at all is UNDECLARED, not silently fine", JSON.stringify(b.turnsonly))
+
+    // NEGATIVE CONTROL: proves the probe above is not vacuous. Under the single-spelling pattern
+    // this script shipped with, grounder parses to null — so a green suite meant nothing.
+    const oldWay = /\*\*Output budget:\s*(\d+)k/.exec(readFileSync(join(d, "grounder.md"), "utf8"))
+    ok(oldWay === null, "NEGATIVE: the ORIGINAL single-spelling regex does miss grounder — the bug was real", String(oldWay))
+
+    // KNOWN-GOOD: the fleet's real spines all parse. Guards against a regex that fixes grounder by
+    // breaking the five that already worked.
+    const live = budgetsFrom(join(process.cwd(), ".claude", "agents"))
+    const liveNames = Object.keys(live)
+    ok(liveNames.length >= 6, "KNOWN-GOOD: every real spine still yields a budget entry", liveNames.join(","))
+    ok(liveNames.every((n) => live[n].outputForm !== "undeclared"),
+      "KNOWN-GOOD: no real spine is UNDECLARED — every one states what bounds its return",
+      liveNames.filter((n) => live[n].outputForm === "undeclared").join(",") || "(none)")
   }
 
   /** A synthetic session tree shaped exactly like Claude Code writes one. */
@@ -278,6 +334,16 @@ if (process.argv.includes("--selftest")) {
     ok(w.turnOverruns === 1, "counts turn overruns against the budget — 200 > 150, 100 is not", JSON.stringify(w))
     ok(c.turnOverruns === 0, "KNOWN-GOOD: a run inside its budget is not an overrun", JSON.stringify(c))
     ok(w.repMax === 10000 && w.outOverruns === 1, "counts output overruns — a 10k-token report against a 6k budget", JSON.stringify(w))
+
+    // The downstream half of the same defect: report() turned a null budget into `0 overruns`, a
+    // number that reads as a measurement. 0 and null must not be the same value here.
+    const noBudget = report(collect(dir), { walker: { turns: 150, outputK: null, outputForm: "structural" } })
+    const wn = noBudget.find((r) => r.type === "walker")
+    const cn = noBudget.find((r) => r.type === "census")
+    ok(wn.outOverruns === null, "an uncomparable return budget yields NULL overruns, never 0", JSON.stringify(wn))
+    ok(wn.turnOverruns === 1, "the comparable half is still compared when the other is not", JSON.stringify(wn))
+    ok(cn.turnOverruns === null && cn.outOverruns === null, "a type with no budget entry at all is null on BOTH halves", JSON.stringify(cn))
+    ok(c.outOverruns === 0, "KNOWN-GOOD: 0 still means CHECKED-AND-CLEAN where a budget exists", JSON.stringify(c))
     ok(rows[0].type === "walker", "sorts by turnMax so the worst offender is first", JSON.stringify(rows.map((r) => r.type)))
   }
 
@@ -422,11 +488,24 @@ console.log(`   ${projectDir}\n`)
 console.log(`   ${pad("type", 18)}${num("runs", 5)}  ${num("turns med/max", 14)}  ${num("report med/max", 15)}  ${pad("budget", 11)}  over`)
 
 let overruns = 0
+const unchecked = []
 for (const r of rows) {
-  const budget = r.budgetTurns ? `${r.budgetTurns}/${r.budgetOutK}k` : "— none —"
-  const over = r.turnOverruns + r.outOverruns
+  // The return half of the budget prints what it IS, never a number it does not have.
+  const outPart = r.outputForm === "numeric" ? `${r.budgetOutK}k`
+    : r.outputForm === "structural" ? "struct"
+      : "?"
+  const budget = r.budgetTurns ? `${r.budgetTurns}/${outPart}` : "— none —"
+  const over = (r.turnOverruns ?? 0) + (r.outOverruns ?? 0)
   overruns += over
-  const flag = over ? ` ⚠ ${r.turnOverruns}t ${r.outOverruns}o` : ""
+  // An uncheckable half is called out on its own row rather than folded into the overrun count,
+  // where it would read as a pass.
+  if (r.turnOverruns === null || r.outOverruns === null) unchecked.push(r)
+  const parts = []
+  if (r.turnOverruns) parts.push(`${r.turnOverruns}t`)
+  if (r.outOverruns) parts.push(`${r.outOverruns}o`)
+  if (r.turnOverruns === null) parts.push("?t")
+  if (r.outOverruns === null) parts.push("?o")
+  const flag = parts.length ? ` ${over ? "⚠" : "·"} ${parts.join(" ")}` : ""
   console.log(
     `   ${pad(r.type, 18)}${num(r.runs, 5)}  ${num(`${r.turnMed}/${r.turnMax}`, 14)}  ` +
     `${num(`${r.repMed}/${r.repMax}`, 15)}  ${pad(budget, 11)}${flag}`,
@@ -470,8 +549,31 @@ if (!compacted) {
 if (overruns) {
   console.log(`\n   ⚠ ${overruns} budget overrun(s). Budgets are BACKSTOPS — an overrun is a finding about`)
   console.log(`   how the task was scoped, not automatically a fault in the agent.`)
-} else {
+} else if (!unchecked.length) {
   console.log(`\n   ✅ no budget overruns.`)
+} else {
+  // Never "✅ no overruns" while a half went uncompared — that sentence is the false zero itself.
+  console.log(`\n   ✅ no overruns among the halves that COULD be compared.`)
+}
+
+// Printed whether or not anything overran: an uncomparable budget is a standing property of the
+// spine, not an incident, and it is invisible in every other line of this report.
+for (const r of unchecked) {
+  const why = []
+  if (r.turnOverruns === null) why.push(`no turn budget`)
+  if (r.outOverruns === null) {
+    why.push(r.outputForm === "structural"
+      ? `return budget is STRUCTURAL ("the contract block and nothing else") — no token ceiling to compare`
+      : `no return budget this parser recognises`)
+  }
+  console.log(`\n   ? ${r.type}: ${why.join("; ")}.`)
+  console.log(`     Observed report med/max: ${r.repMed}/${r.repMax} tokens over ${r.runs} run(s) — JUDGE BY EYE.`)
+  if (r.outputForm === "structural" && r.artefactK) {
+    console.log(`     Its ${r.artefactK}k Artefact budget governs the FILE on disk, not this report. Not a ceiling.`)
+  }
+  if (r.outputForm === "undeclared") {
+    console.log(`     A spine declaring no return budget is a DEFECT — fix the spine, or this parser.`)
+  }
 }
 
 if (generation && currentAll < totalRuns) {
