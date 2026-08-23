@@ -167,6 +167,18 @@ function selftest() {
     const r = countReaders("FOO", "lib/a.ts", srcs)
     return r.length === 1 && r[0] === "lib/real.ts"
   })
+  // R6 mention-fixture — see scripts/check-mention-fixtures.mjs. This check's whole premise is that
+  // a SENTENCE must never satisfy an invariant (M-082's finding was prose asserting a list was live
+  // while nothing read it), so the mention case is not an edge here — it is the subject. Named as a
+  // fixture so the R6 gate can see it, and probed in the shape that actually occurs: a file
+  // DISCUSSING the constant, in every comment syntax, with no code path to it.
+  t(`${"mention"}-fixture: a constant named only in comments is NOT a reader — line, block and JSDoc alike`, () => {
+    const srcs = new Map([
+      ["lib/a.ts", "export const FOO = 1"],
+      ["lib/prose.ts", "// FOO is the statutory list; see M-082.\n/* FOO used to be read here. */\n/** @see FOO */\nexport const UNRELATED = 2"],
+    ])
+    return countReaders("FOO", "lib/a.ts", srcs).length === 0
+  })
 
   let bad = 0
   for (const [label, fn] of cases) {

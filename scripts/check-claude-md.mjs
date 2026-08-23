@@ -169,13 +169,38 @@ function ratchetFindings(n, ceiling, path, d) {
  */
 const splitLines = (t) => t.split(/\r?\n/)
 
+/**
+ * Blank the contents of fenced code blocks, preserving line count so any line-indexed finding
+ * downstream still points at the right line.
+ *
+ * R6 — a tag shown as an EXAMPLE is documentation of the format, not a claim that a control exists.
+ * This file is the one most likely to want to document its own tagging syntax, which makes it the
+ * one most exposed to the class it audits. Found 2026-08-23 by the mention fixture in FIXTURES, not
+ * by review: before this, pasting the tag format into CLAUDE.md inside a fenced block would fail the
+ * gate with "no such control", and the fix a reader would reach for is to mangle the example.
+ *
+ * Only FENCED blocks. Inline backticks are deliberately left alone: `<!-- @enforced … -->` tags are
+ * routinely written next to inline-code spans, and blanking those would silence real tags — the
+ * opposite failure, and the worse one.
+ */
+export function blankFences(text) {
+  let inFence = false
+  return splitLines(text)
+    .map((line) => {
+      if (/^\s*(?:```|~~~)/.test(line)) { inFence = !inFence; return "" }
+      return inFence ? "" : line
+    })
+    .join("\n")
+}
+
 /** Audit one markdown file. Returns findings. */
 function auditFile(path, text, claims, root = ".") {
   const out = []
   const lines = splitLines(text)
 
-  // 1 + 2 — every @enforced resolves, and no control is claimed twice
-  for (const m of text.matchAll(TAG)) {
+  // 1 + 2 — every @enforced resolves, and no control is claimed twice.
+  // Scanned over the fence-blanked text (R6): an example tag is a mention, not a claim.
+  for (const m of blankFences(text).matchAll(TAG)) {
     const [, ns, id, qualifier] = m
     const key = `${ns}:${id}`
     if (!controlExists(ns, id, root)) out.push(`${path}: @enforced ${key} — no such control`)
@@ -312,6 +337,12 @@ const FIXTURES = [
   // …but shared must not become a way to name a control that does not exist.
   ["shared does not excuse a nonexistent control", `${SEC}\n- One. <!-- @enforced check:does-not-exist:shared -->\n`, true],
   ["KNOWN-GOOD: two shared tags on distinct rules", `${SEC}\n- One. <!-- @enforced hook:bash-gate:shared -->\n- Two. <!-- @enforced hook:bash-gate:shared -->\n`, false],
+  // R6 mention-fixture — see scripts/check-mention-fixtures.mjs. A tag shown as an EXAMPLE, inside a
+  // fenced block, is documentation of the format — not a claim that a control exists. This file is
+  // the one most likely to want to document its own syntax, so it is the one most exposed to the
+  // class. It fires today; the fixture is what makes that a decision instead of a surprise.
+  ["mention-fixture: an example tag in a fenced block is not a claim",
+    `${SEC}\n- A real rule. <!-- @enforced hook:bash-gate -->\n\nTo tag a rule, write:\n\n\`\`\`md\n- Your rule. <!-- @enforced check:check-example-only -->\n\`\`\`\n`, false],
   ["unenforceable with no reason", `${SEC}\n- A rule.\n  **UNENFORCEABLE** — \n`, true],
   ["untagged bullet in a rules section", `${SEC}\n- A rule nobody tagged.\n`, true],
   ["near-miss by normalisation", `${SEC}\n- A rule. <!-- @enforced hook:bash_gate -->\n`, true],

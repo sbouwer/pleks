@@ -23,7 +23,11 @@ import { join } from "node:path"
 
 /** Strip `//` comments from JSONC. Deliberately line-based: knip.jsonc has no block comments. */
 export function parseJsonc(text) {
-  return JSON.parse(text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"))
+  // `[\t ]*`, not `\s*`: under /m, `\s` matches newlines too, so the leading-whitespace quantifier
+  // could span lines and backtrack super-linearly. This was not newly introduced and not a cache
+  // artefact — it carried a `sonarjs/super-linear-regex` entry in `eslint-suppressions.json`, and
+  // fixing it for real let that suppression be pruned. Suppressions only shrink; this is one leaving.
+  return JSON.parse(text.replace(/^[\t ]*\/\/.*$/gm, "").replace(/,([\t \r\n]*[}\]])/g, "$1"))
 }
 
 /** Sum the counts in knip's `Unused exports (N)` / `Unused exported types (N)` headings. */
@@ -73,15 +77,39 @@ function runKnip(configPath) {
   }
 }
 
+/**
+ * Count the suppression tags in one file's source — a TAG, not every occurrence of the token.
+ *
+ * ⚠ THIS WAS `/@knipignore\b/g` UNTIL 2026-08-23, and the difference is the whole of R6. That form
+ * matched the token wherever it appeared, INCLUDING in prose explaining the tag, so a comment
+ * describing why a tag was removed counted as a tag and broke parity — the fourth "matched a
+ * mention of the thing instead of the thing" defect in this repo, and the second inside this very
+ * script's blast radius (its own failure message already named the cause).
+ *
+ * The anchor is the discriminator: a real tag begins a doc line (optionally after `/**`, `*` or
+ * `//`), a mention sits mid-sentence. **Measured before adopting, not after:** across every tracked
+ * `.ts`/`.tsx`, loose and anchored both count 38 — so this narrows the pattern without moving the
+ * floor, which is the only evidence that would justify the change.
+ *
+ * Residual, stated rather than hidden: a mention that itself begins a line — `// @knipignore is the
+ * tag we use` — still counts. Anchoring shrinks the hole, it does not close it, and the mention
+ * fixture in `check-mention-fixtures.mjs` is what keeps that honest.
+ */
+export function countTagsInSource(src) {
+  // Line-scanned with a single flat character class rather than `\s*(?:…)?\s*`: two adjacent
+  // quantifiers around an optional group backtrack super-linearly, which `sonarjs/super-linear-regex`
+  // fails. A comment-lead is only ever whitespace, asterisks and slashes, so one class covers it.
+  let n = 0
+  for (const line of src.split(/\r?\n/)) if (/^[\t *\/]*@knipignore\b/.test(line)) n++
+  return n
+}
+
 function countTagsOnDisk() {
   // git-tracked source only: an untracked scratch file must not move the floor.
   const files = execFileSync("git", ["ls-files", "-z", "*.ts", "*.tsx"], { encoding: "utf8" })
     .split("\0").filter(Boolean)
   let n = 0
-  for (const f of files) {
-    const body = readFileSync(f, "utf8")
-    n += (body.match(/@knipignore\b/g) ?? []).length
-  }
+  for (const f of files) n += countTagsInSource(readFileSync(f, "utf8"))
   return n
 }
 
@@ -92,6 +120,9 @@ function selftest() {
     ["A COLLAPSED ANALYSIS FAILS — the case this script exists for", { configured: 0, untagged: 0, tagsOnDisk: 40 }, 2],
     ["a tag on something knip never reports FAILS", { configured: 0, untagged: 39, tagsOnDisk: 40 }, 1],
     ["KNOWN-GOOD: the counts moving together still passes", { configured: 0, untagged: 12, tagsOnDisk: 12 }, 0],
+    // R6 mention-fixture — see scripts/check-mention-fixtures.mjs. Asserted below, outside the
+    // evaluate() table, because the defect was never in evaluate(): the COUNT reaching it was wrong.
+    // A probe suite aimed one layer past the bug is the shape that let this ship (CLAUDE.md §6).
   ]
   let bad = 0
   for (const [label, input, expected] of cases) {
@@ -107,6 +138,16 @@ function selftest() {
   const empty = countFindings("Configuration hints (2)\ntypes/**/*.ts  no matches\n")
   if (empty !== 0) { console.log(`  ✗ configuration hints counted as findings (${empty})`); bad++ }
   else console.log("  ✓ KNOWN-GOOD: configuration hints are not findings")
+
+  // R6 mention-fixture. The token is concatenated so this probe does not become a tag itself —
+  // a fixture written plainly would be counted by the very function it is testing.
+  const AT = "@"
+  const realTag = `/**\n * ${AT}knipignore Kept because it is a statutory retention list.\n */\nexport const X = 1\n`
+  const asMention = `// The ${AT}knipignore tag that sat here was removed on 2026-08-23, and not because\n// the finding went away.\nexport const Y = 2\n`
+  if (countTagsInSource(realTag) !== 1) { console.log("  ✗ a real tag is no longer counted — the anchor is too tight"); bad++ }
+  else console.log("  ✓ KNOWN-GOOD: a tag opening a doc line is counted")
+  if (countTagsInSource(asMention) !== 0) { console.log("  ✗ mention-fixture FAILED: prose naming the token is still counted as a tag"); bad++ }
+  else console.log("  ✓ mention-fixture: prose EXPLAINING the tag is not counted as one — the 2026-08-23 defect, which broke parity mid-session")
 
   console.log(bad ? `\n✗ ${bad} selftest case(s) failed` : "\n✅ check-knip-floor selftest green")
   process.exit(bad ? 1 : 0)
