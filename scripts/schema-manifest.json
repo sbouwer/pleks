@@ -992,6 +992,25 @@
       "created_at",
       "updated_at"
     ],
+    "contact_change_requests": [
+      "id",
+      "org_id",
+      "contact_id",
+      "channel",
+      "mutation",
+      "old_value",
+      "new_value",
+      "token",
+      "expires_at",
+      "confirmed_at",
+      "consumed_at",
+      "revoked",
+      "communication_log_id",
+      "requested_by",
+      "requested_by_tenant",
+      "owner_approved_by",
+      "created_at"
+    ],
     "contact_emails": [
       "id",
       "org_id",
@@ -3230,7 +3249,9 @@
       "purge_warning_sent_at",
       "purged_at",
       "pending_cancellation_since",
-      "cancellation_terms_version"
+      "cancellation_terms_version",
+      "purge_deferred_at",
+      "purge_deferred_reason"
     ],
     "supplier_invoices": [
       "id",
@@ -4468,6 +4489,18 @@
       "table": "contact_bank_accounts",
       "def": "CHECK ((account_type = ANY (ARRAY['cheque'::text, 'savings'::text, 'transmission'::text])))"
     },
+    "contact_change_requests_channel_check": {
+      "table": "contact_change_requests",
+      "def": "CHECK ((channel = ANY (ARRAY['email'::text, 'phone'::text])))"
+    },
+    "contact_change_requests_mutation_check": {
+      "table": "contact_change_requests",
+      "def": "CHECK ((mutation = ANY (ARRAY['add'::text, 'change'::text, 'remove'::text, 'reverify'::text])))"
+    },
+    "contact_change_requests_shape": {
+      "table": "contact_change_requests",
+      "def": "CHECK ((((mutation = 'add'::text) AND (old_value IS NULL) AND (new_value IS NOT NULL)) OR ((mutation = 'remove'::text) AND (old_value IS NOT NULL) AND (new_value IS NULL)) OR ((mutation = 'change'::text) AND (old_value IS NOT NULL) AND (new_value IS NOT NULL)) OR ((mutation = 'reverify'::text) AND (old_value IS NOT NULL) AND (new_value IS NULL))))"
+    },
     "contact_emails_email_type_check": {
       "table": "contact_emails",
       "def": "CHECK ((email_type = ANY (ARRAY['personal'::text, 'work'::text, 'billing'::text, 'other'::text])))"
@@ -5283,6 +5316,10 @@
     "subscriptions_billing_cycle_check": {
       "table": "subscriptions",
       "def": "CHECK ((billing_cycle = ANY (ARRAY['monthly'::text, 'annual'::text])))"
+    },
+    "subscriptions_purge_deferred_reason_check": {
+      "table": "subscriptions",
+      "def": "CHECK (((purge_deferred_reason IS NULL) OR (purge_deferred_reason = ANY (ARRAY['no_contact'::text, 'no_warning_logged'::text, 'send_failed'::text, 'not_delivered'::text]))))"
     },
     "subscriptions_status_check": {
       "table": "subscriptions",
