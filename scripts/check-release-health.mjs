@@ -20,9 +20,74 @@
  *         it does not exempt a branch by name, by author, or by a magic commit-message token.
  */
 import { execFileSync } from "node:child_process"
+import { readFileSync } from "node:fs"
 
 /** Paths whose presence in a diff means "this PR may be the fix" — see the deadlock note above. */
 export const RELEASE_PATHS = [".releaserc", ".github/workflows/release.yml", "scripts/check-release-health.mjs"]
+
+/**
+ * Note keywords that may appear in `.releaserc.json`'s `parserOpts`.
+ *
+ * ⚠ THIS LIST EXISTS BECAUSE A BARE "BREAKING" CUT v4.0.0 OFF A `fix:`. On 2026-08-23 `fbbc59f4`
+ * ("fix(security): close fail-open gates…") released a MAJOR instead of a patch. There was no `!` in
+ * the title and no `BREAKING CHANGE:` footer anywhere in the body. The config listed `"BREAKING"` as
+ * a note keyword, conventional-commits-parser matches note keywords case-insensitively at line
+ * start, and the body contained this ordinary prose sentence:
+ *
+ *     Breaking the cycle third, and least. lib/auth/can -> orgRoles -> getOrgTier ->
+ *
+ * which parsed as a breaking-change note titled "Breaking", and `{breaking: true, release: "major"}`
+ * did the rest. Verified both directions against the real parser and the real commit body before
+ * this was written: the wide config flags it, the narrow config does not, and the narrow config
+ * still flags a genuine `BREAKING CHANGE:` footer.
+ *
+ * THE RULE, which is what generalises past this one word: **a note keyword must be a PHRASE that
+ * nobody writes at the start of an English sentence.** "BREAKING CHANGE" is safe because prose does
+ * not begin that way; "BREAKING" is not, and neither would "NOTE", "IMPORTANT" or "WARNING" be. The
+ * allowlist is explicit rather than a heuristic, because the heuristic ("must contain a space") would
+ * admit "BREAKING NEWS" and reject the spec's own hyphenated form.
+ *
+ * Conventional Commits v1.0.0 defines `BREAKING CHANGE:` and makes `BREAKING-CHANGE:` synonymous.
+ * `BREAKING CHANGES` is a tolerated plural this repo already carried; it is still a phrase, so it
+ * cannot fire by accident.
+ */
+export const ALLOWED_NOTE_KEYWORDS = ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING-CHANGE", "BREAKING-CHANGES"]
+
+/**
+ * Assert a semantic-release config cannot promote prose to a major bump. Pure, so both directions
+ * are testable without touching the real file.
+ *
+ * Two assertions, because fixing only the first one would let the guard be satisfied by a config
+ * that no longer detects real breaks at all — trading a false major for a missed one.
+ */
+export function evaluateReleaseConfig(config) {
+  const problems = []
+  const analyzer = (config.plugins || []).find(
+    (p) => Array.isArray(p) && p[0] === "@semantic-release/commit-analyzer",
+  )
+  if (!analyzer) {
+    return { ok: false, problems: ["no @semantic-release/commit-analyzer entry with options — this check has nothing to read, which is a broken query rather than a clean bill of health"] }
+  }
+  const opts = analyzer[1] || {}
+
+  const keywords = opts.parserOpts?.noteKeywords
+  if (!Array.isArray(keywords)) {
+    problems.push("parserOpts.noteKeywords is absent, so the parser's DEFAULT keyword set applies and this config asserts nothing about it — state the list explicitly")
+  } else {
+    for (const kw of keywords) {
+      if (!ALLOWED_NOTE_KEYWORDS.includes(kw)) {
+        problems.push(`note keyword ${JSON.stringify(kw)} is not a phrase — a commit body line beginning with that word becomes a BREAKING CHANGE note and cuts a MAJOR release. Allowed: ${ALLOWED_NOTE_KEYWORDS.join(", ")}`)
+      }
+    }
+  }
+
+  const rules = opts.releaseRules
+  if (Array.isArray(rules) && !rules.some((r) => r.breaking === true)) {
+    problems.push("releaseRules has no { breaking: true } entry — narrowing the keywords must not also stop real breaking changes from being detected")
+  }
+
+  return { ok: problems.length === 0, problems }
+}
 
 /**
  * The assertion, pure so both directions are testable without a network.
@@ -87,11 +152,56 @@ function selftest() {
     console.log("  ✗ a GREEN release is being reported as carved out"); bad++
   } else console.log("  ✓ KNOWN-GOOD: a green release is not labelled carved even on a release-config PR")
 
+  // ── release-config shape (the v4.0.0 defect) ────────────────────────────────────────────────
+  const cfg = (noteKeywords, releaseRules = [{ type: "fix", release: "patch" }, { breaking: true, release: "major" }]) => ({
+    plugins: [["@semantic-release/commit-analyzer", { releaseRules, parserOpts: noteKeywords ? { noteKeywords } : {} }]],
+  })
+  const cfgCases = [
+    ["A BARE 'BREAKING' KEYWORD FAILS — the exact config that cut v4.0.0 off a fix:", cfg(["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING"]), false],
+    ["any other bare word fails too — the rule is 'phrase', not a blocklist of one word", cfg(["BREAKING CHANGE", "NOTE"]), false],
+    ["absent noteKeywords fails — an unstated list asserts nothing about the default", cfg(null), false],
+    ["KNOWN-GOOD: the narrowed list passes", cfg(["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING-CHANGE"]), true],
+    ["KNOWN-GOOD: the spec's hyphenated synonym passes", cfg(["BREAKING-CHANGE"]), true],
+    ["narrowing must not also delete breaking detection — no {breaking:true} rule fails", cfg(["BREAKING CHANGE"], [{ type: "fix", release: "patch" }]), false],
+    ["a config with no commit-analyzer options fails rather than passing vacuously", { plugins: ["@semantic-release/commit-analyzer"] }, false],
+  ]
+  for (const [label, input, wantOk] of cfgCases) {
+    const got = evaluateReleaseConfig(input).ok
+    const ok = got === wantOk
+    if (!ok) bad++
+    console.log(`  ${ok ? "✓" : "✗"} ${label}${ok ? "" : ` — expected ok=${wantOk}, got ok=${got}`}`)
+  }
+
   console.log(bad ? `\n✗ ${bad} selftest case(s) failed` : "\n✅ check-release-health selftest green")
   process.exit(bad ? 1 : 0)
 }
 
+/**
+ * Assert the REAL `.releaserc.json`. Separate from --selftest because the selftest proves the logic
+ * and this proves the repo — a green selftest beside a bad config is exactly the split this repo
+ * keeps re-finding, and it needs no network, so unlike the live path it can sit in `npm run check`.
+ */
+function checkConfig() {
+  let config
+  try {
+    config = JSON.parse(readFileSync(".releaserc.json", "utf8"))
+  } catch (e) {
+    console.error("✗ release config: could not read/parse .releaserc.json — the check did not run, so it is not green.")
+    console.error(`   ${e instanceof Error ? e.message.split("\n")[0] : String(e)}`)
+    process.exit(1)
+  }
+  const { ok, problems } = evaluateReleaseConfig(config)
+  if (!ok) {
+    console.error("✗ release config: semantic-release can promote ordinary prose to a MAJOR bump.")
+    for (const p of problems) console.error(`   • ${p}`)
+    process.exit(1)
+  }
+  console.log("✅ release config: note keywords are phrases; breaking detection is still wired")
+  process.exit(0)
+}
+
 if (process.argv.includes("--selftest")) selftest()
+if (process.argv.includes("--config")) checkConfig()
 
 /** Files changed against the PR base, or [] outside a PR. */
 function changedFiles() {
