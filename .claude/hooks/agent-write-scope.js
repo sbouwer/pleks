@@ -69,8 +69,22 @@ const path = require("node:path");
  *
  * The four read-only spines get the handoff directory and nothing else — that is their entire
  * legitimate write surface under the pipeline protocol. crawler-doctrine additionally owns its
- * findings file; implementer's whole remit IS editing source, and its containment is the worktree
- * it is spawned into, not a path list.
+ * findings file; implementer's whole remit IS editing source, so a path list cannot contain it.
+ *
+ * ⚠ WHAT CONTAINS THE IMPLEMENTER, stated plainly — because the sentence that used to sit here
+ * named the worktree, and the E10 ruling had already removed it (see this file's header, three
+ * paragraphs up: "Dropping isolation (E10 ruling) removed the concealment"). One file both recorded
+ * that isolation was dropped and cited isolation as the containment for its only unrestricted write
+ * grant. Corrected 2026-08-23; the grant itself is UNCHANGED, because a stale justification is a
+ * reason to re-take the decision, not to flip the posture on the spot. The two controls that
+ * actually apply now:
+ *   1. the commit/push denial below — an implementer can dirty the tree but cannot land anything;
+ *   2. the caller's review of that dirty tree before committing it.
+ * RESIDUAL EXPOSURE, unhedged: an implementer may write ANYWHERE in the main checkout, and the only
+ * thing between an unwanted edit and a landed change is a human reading `git status`. If that is
+ * judged too thin, the mechanism is not a path list but a write manifest — the caller declares the
+ * in-scope files at spawn time and this hook denies outside them, buildable today since `agent_type`
+ * and `cwd` are both in the payload. That decision is M-079 in docs/MECHANISABLE.md and is still open.
  *
  * An agent type absent from this table is NOT denied — it is asked. Ad-hoc `general-purpose`
  * delegation is a legitimate thing to do and this hook is not the place to forbid it; but a write

@@ -1102,6 +1102,16 @@ the note said the seam prevented.
 - **Provenance:** CD review, 2026-08-21, against `.claude/hooks/agent-write-scope.js` read in full at `ca4689dc`. **E10 fallout nobody swept.**
 - **Covering spec:** NEW
 
+**Sketch half (a) DONE 2026-08-23; the entry stays OPEN on half (b).** The stale sentence in
+`.claude/hooks/agent-write-scope.js` (read at `db0d6748`, line 72) has been replaced with the two
+controls that really apply — the commit/push denial in the same hook, and the caller's review of a
+dirty tree — plus the residual exposure stated unhedged. **The grant is unchanged**: `implementer:
+null` still stands, for the reason this entry gives, and the comment now says so explicitly rather
+than resting on a control that no longer exists. What remains is the decision the entry was filed
+for — whether a write manifest should replace the unrestricted grant — and that is CD's to take,
+not a build to schedule. Removing a false justification does not answer the question it was
+concealing.
+
 **Retained 2026-08-21:** a standing security grant whose only written justification names a control the E10 ruling removed. CD-authored, and the entry is explicit that the grant may still be right — what it needs is re-taking against current facts. That is a DECISION pending, not a build not done, and closing it would retire the question rather than answer it.
 
 
