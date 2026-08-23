@@ -122,7 +122,14 @@ export const gatewaySSR = cache(async (): Promise<GatewayContext | null> => {
 
 type Membership = { org_id: string; role: string; tier: string | null; is_admin: boolean }
 
-async function resolveOrgMembership(userId: string): Promise<Membership | null> {
+/**
+ * THE org-membership resolver. Exported because `lib/auth/server.ts`'s `getServerOrgMembership`
+ * delegates to it rather than keeping a second reader of the same cookie (CD ruling 2026-08-23).
+ * Two functions reading one forgeable input with different apertures is the 2026-08-22 scar; two
+ * reading it with IDENTICAL apertures is that scar waiting for one of them to be edited. There is
+ * one implementation, so there is one aperture.
+ */
+export async function resolveOrgMembership(userId: string): Promise<Membership | null> {
   const service = await createServiceClient()
 
   // 1. Cookie org_id hint — validated against the DB (the cookie is a cache hint, never a

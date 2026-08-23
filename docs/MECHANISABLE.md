@@ -1535,7 +1535,46 @@ file over from where the lint rule was pointing, found only by reading the lines
 - **Provenance:** found while moving the function verbatim to break a circular import, not by any check. Moved unchanged on purpose: a cycle sweep is the wrong commit to change dedup semantics in, and a behavioural fix buried in a 38-file refactor is a fix nobody reviews.
 - **Covering spec:** NEW
 
-### M-091 — ✅ BUILT 2026-08-23 — nothing stops a capability gate reading the forgeable cookie tier, and until today nothing could
+### M-091 — ✅ BUILT 2026-08-23, then SUPERSEDED the same day — nothing stops a capability gate reading the forgeable cookie tier
+
+**THE RULE WAS BUILT, FOUND FIVE LIVE BYPASSES, AND WAS THEN DELETED — because the CD ruling on
+M-092 removed the forgeable value itself, and a rule watching a deleted module cannot fire. This is
+the entry to read before building the next path-matched control, because the rule's aperture was
+wrong in a way five green runs could not show.**
+
+`eslint:pleks/no-forgeable-tier-in-gate` banned importing `lib/tier/getOrgTierFromCookie` from
+anything that decides entitlement. Dropping `tier` from `getServerOrgMembership`'s return reduced
+that module's entire body to `return getOrgTierCanonical(orgId)`, so it was deleted, and with it the
+rule and its suite.
+
+**And the removal surfaced SEVEN more bypasses the rule was structurally blind to.** Every one read
+`membership.tier` **directly** off `getServerOrgMembership` and never imported the module the rule
+watched, so the rule was green over all of them:
+
+  `app/(dashboard)/calendar/page.tsx`         a whole-page Portfolio/Firm paywall
+  `app/(dashboard)/properties/[id]/page.tsx`  `hasFeature(tier, "property_intelligence")`, plus the
+                                              broker column and the scheme-tick surface
+  `app/(dashboard)/leases/new/page.tsx`       an owner-tier convenience branch (not an entitlement)
+  `app/(dashboard)/properties/page.tsx`       the `mine`→`all` scope widening left open below
+  `app/(dashboard)/properties/[id]/edit/page.tsx`, `app/(dashboard)/reports/page.tsx`   display
+
+**The lesson is aperture, not implementation.** The rule guarded one ROUTE to a forgeable value
+while the value itself was handed out at the source, to anyone who asked. A control on "who may
+import the dangerous reader" is only as good as the claim that the dangerous reader is the only way
+to get the value — and that claim was never checked. **Removing the field was a strictly better
+control at a lower rung: `tier` no longer exists on the type, so `tsc` refuses every one of those
+seven reads, and it caught all seven in one pass with no baseline and no allowlist.**
+
+Replaced by `lib/auth/__tests__/membership-carries-no-forgeable-field.test.ts`, aimed at the source
+rather than at a route to it: a `@ts-expect-error` on `Membership["tier"]` (which fails the build in
+BOTH directions — the directive goes unused the moment the field returns) plus a source assertion
+that the function still delegates to `resolveOrgMembership` rather than re-deriving a local cookie
+reader. Both probed against planted regressions before being believed.
+
+**The judgement site this entry left open is closed by the same change**: `properties/page.tsx`'s
+`mine`→`all` scope widening now reads the canonical tier, so it never needed the ruling.
+
+**As built, before it was superseded:**
 
 - **BUILT in `71e746c9` as `eslint:pleks/no-forgeable-tier-in-gate`, and it was not a ratchet on a clean tree.** Its first run found **five of the eight importers gating a paid capability on the forgeable value**: a `403 upgrade_required` paywall on `/api/leases/preview-document`, and four `hasFeature(...)` checks standing in front of spend the platform pays for (Anthropic on application documents, SMS, WhatsApp, AI maintenance triage). All five repointed to `getOrgTierCanonical` in the same commit.
 - **The forgeability was PROBED, not read off the module's own comment** — the memory-of-record says mechanism claims read off code are reliably wrong in the same direction. `pleks_org` is plain JSON, `httpOnly` + `sameSite:lax` + `secure`, and **unsigned**; `getServerOrgMembership` (`lib/auth/server.ts:58-64`, as at `71e746c9`) validates exactly one field, `parsed.user_id === user.id`, and returns `tier` as supplied. `httpOnly` stops browser JavaScript, not the authenticated user replaying their own request with a crafted `Cookie` header — and here the user is the party who benefits.
@@ -1548,7 +1587,7 @@ file over from where the lint rule was pointing, found only by reading the lines
 - **Rule:** the forgeable tier is display-only. `getOrgTier` reads the `pleks_org` cookie, which a user can set to `tier:"bespoke"`; every entitlement, capability and lease gate must read `getOrgTierCanonical` instead. Stated in both modules' headers and in the function's own doc comment — rung 3, prose, three times over.
 - **Where it lives:** `lib/tier/getOrgTierFromCookie.ts` (the forgeable reader) vs `lib/tier/getOrgTier.ts` (the two authoritative ones).
 - **Rung:** eslint · **Blast:** money — the tier is what gates lease creation, property count and screening spend. A gate that trusts the cookie lets a caller assert their own entitlement.
-- **Satisfied when:** eslint:pleks/no-forgeable-tier-in-gate
+- **Satisfied when:** test:lib/auth/__tests__/membership-carries-no-forgeable-field.test.ts (was eslint:pleks/no-forgeable-tier-in-gate, deleted with its subject)
 - **Why it was not mechanisable until 2026-08-23.** All three readers were exported from ONE module, so a rule could only tell them apart by IMPORTED NAME — `getOrgTier` forbidden, `getOrgTierCanonical` and `getOrgTierAny` fine, one substring apart and one a prefix of the others. That is the token-anchoring shape this repo has now got wrong four times (`bash-gate`'s regex rebuild, the consent-route skip lists, the `{ data }`-vs-`{ count }` aperture of M-090, and the read/write rule pair of the 2026-08-22 scar). Splitting the module makes the same rule a **path** match, which has no near-misses.
 - **The split also removed the ambient hazard**, which is the part worth keeping even if this entry is never built: `import { getOrgTier, getOrgTierCanonical } from "@/lib/tier/getOrgTier"` put the forgeable reader and the gate reader on the same line, so choosing wrong was a typo rather than a decision. As at `48f12fc6` there were **8 files importing the forgeable reader and 9 importing an authoritative one, and not one file imported both** — so no call site was actually relying on the ambiguity, and the separation cost nothing. The count is stated because it is what made the move a pure repoint rather than a refactor.
 - **Sketch:** a rule forbidding any import of `lib/tier/getOrgTierFromCookie` from a module that also imports a gate helper (`requireAgentWriteAccess`, `requireCapability`, `canActivateLease`, `canDowngradeTo`) or that declares `"use server"`. Probe both directions: a page importing it for a plan badge must PASS; a server action importing it beside `requireCapability` must FAIL. And the degenerate third — a file importing neither must not report clean by accident.
@@ -1556,14 +1595,58 @@ file over from where the lint rule was pointing, found only by reading the lines
 - **Provenance:** the module split (CD ruling 2026-08-23) was made for three reasons and this was the third; the first was blast-radius isolation and the second was direction of dependency. The import cycle it also broke was the least of them.
 - **Covering spec:** NEW
 
-### M-092 — ⛔ NOT A MECHANISATION GAP: the session cookie's `org_id` is caller-supplied, and a service client trusts it
+### M-092 — ✅ RULED AND FIXED 2026-08-23: the session cookie's `org_id` was caller-supplied, and a service client trusted it
+
+**CD RULING (2026-08-23), cited — `lib/auth/server.ts` head 85 read in-session. Converge on
+`resolveFromCookieHint`; delegate, do not reimplement.** The cookie branch was never a different
+design — it was a cache in front of a correct check that skipped the check, and the correct
+implementation was already twenty lines down in this same function's own DB fallback.
+
+**The hint pattern is right, and "always query" is not.** `user_orgs` has no unique constraint on
+`user_id`, so the existing `.single()` fallback already errored — and returned null — for anyone
+belonging to more than one org. **The cookie CHOOSES which membership; the database AUTHORISES it.**
+
+**Shipped:** `getServerOrgMembership` now delegates to gateway's `resolveOrgMembership` (exported for
+this). One implementation, so one aperture — two functions reading one forgeable input with
+*identical* apertures is still the 2026-08-22 scar, waiting for one of them to be edited.
+
+**`tier` was dropped from the return in the same change, and that was the ruling's second half:
+partial validation is worse than none.** With `org_id` and `role` validated and `tier` still verbatim
+from the cookie, the sound fields lend their credibility to the unsound one — nobody reading
+`membership.tier` has cause to suspect it is weaker than `membership.role`. M-091 had repointed the
+*importers*; leaving the field re-armed it for anyone reading it directly, which **seven** call sites
+did. See M-091 for what that exposed and why removing the field beat the lint rule that guarded it.
+
+**Severity, stated precisely, because "buys a rendered button" covered only half of it.** Forged
+`role` reaching `isOwner`/`isAdminUi` is UI. Forged **`org_id`** reaching `createServiceClient()` in
+`leases/page.tsx` is an **RLS-bypassing read whose only boundary is an `.eq("org_id", …)` filter fed
+by the caller** — the consent-IDOR shape with a wider aperture, and the **third** instance of
+caller-supplied identifier with no ownership proof, this time on the tenancy boundary itself.
+
+#### STILL OPEN — a THIRD reader of the same cookie, found while shipping this and NOT fixed
+
+`getCurrentOrgCapabilities` (`lib/auth/server.ts`, as at `88f530fe`) reads `pleks_org` directly for
+`type`, `name` and `sub_status` and passes them to `getOrgCapabilities(...)` **without validating any
+of them** — its own DB fallback, again, is reached only on a cookie miss. The results gate routes:
+`app/(dashboard)/hoa/page.tsx:23` (`if (!caps?.hasHOA) redirect("/dashboard")`) and
+`app/(dashboard)/landlords/page.tsx:20` (`if (!caps?.hasLandlordsList) redirect("/properties")`).
+Setting `type:"hoa"` in your own cookie passes the first.
+
+**Deliberately not fixed in the same change, and this is a scope call worth arguing with.** It is a
+different function with a different field set, and the two candidate fixes — drop the fast path (a
+`organisations` read per render on five pages) or validate the three fields — are a decision, not a
+mechanical follow-through from the ruling above. It is also narrower than the `org_id` hole: `orgId`
+is validated now, so a forged `type` reaches the caller's OWN org's HOA page rather than anyone
+else's data. **Needs the same ruling this entry just received, applied to those three fields.**
+
+**As originally filed — ⛔ NOT A MECHANISATION GAP: the session cookie's `org_id` is caller-supplied, and a service client trusts it**
 
 **This entry is filed here because M-091 found it and it must not be lost, NOT because a lint rule is
 the answer. It needs a ruling before it needs a mechanism, and the ruling is CD's.** Do not close it
 with a check.
 
 - **Rung:** n/a — architecture · **Blast:** data-boundary. Cross-org read of another organisation's records.
-- **Satisfied when:** decision-needed — CD rules on how `pleks_org` is to be trusted
+- **Satisfied when:** none — ruled and fixed 2026-08-23; the residual third-reader gap is stated in this entry and needs its own ruling
 - **What was observed, as at `71e746c9`** (three files, read in this order):
   1. `lib/auth/cookie-config.ts:8-13` — `AUTH_COOKIE_OPTS` is `httpOnly`, `sameSite:"lax"`, `secure` in prod. **There is no signature and no HMAC anywhere in the repo for this cookie** (grepped).
   2. `lib/auth/server.ts:58-64` — `getServerOrgMembership` does `JSON.parse(cookie)` and accepts it if `parsed.org_id && parsed.role && parsed.user_id === user.id`. `org_id` and `role` are **never checked against `user_orgs`** on this path.

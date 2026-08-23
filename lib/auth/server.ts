@@ -2,7 +2,8 @@
  * lib/auth/server.ts — Cached per-request server auth helpers
  *
  * getServerUser()             — GoTrue-verified user (not cookie-spoofable; one round-trip per render tree)
- * getServerOrgMembership()    — org_id + role from pleks_org cookie (zero DB) or user_orgs DB fallback
+ * getServerOrgMembership()    — org_id + role, resolved by gateway's resolveOrgMembership (cookie
+ *                               CHOOSES the org, user_orgs AUTHORISES it). No tier — see below.
  * getCurrentOrgCapabilities() — OrgCapabilities for the current org (ADDENDUM_61A — org-type-aware rendering)
  * requireAgentWriteAccess()   — Single chokepoint for all agent-side mutations (ADDENDUM_57G)
  */
@@ -12,7 +13,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { setSentryUser } from "@/lib/observability/user-context"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
-import { gateway, type GatewayContext } from "@/lib/supabase/gateway"
+import { gateway, resolveOrgMembership, type GatewayContext } from "@/lib/supabase/gateway"
 import { hasCapability } from "@/lib/auth/can"
 import {
   canPerformAgentAction,
@@ -21,7 +22,6 @@ import {
   type SubscriptionState,
   type SubscriptionStatus,
 } from "@/lib/subscriptions/state"
-import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * Cached per-request server auth helpers.
@@ -40,10 +40,33 @@ export const getServerUser = cache(async () => {
 })
 
 /**
- * Org membership — cached per render tree.
- * Reads from the pleks_org cookie set by middleware (zero DB call on cache hit).
- * Falls back to a DB query on miss (e.g. first request after login).
- * Returns tier as already-resolved effective tier string (set by proxy.ts).
+ * Org membership — cached per render tree. **The cookie CHOOSES; the database AUTHORISES.**
+ *
+ * `pleks_org` is plain JSON, unsigned, and the authenticated user can send whatever they like in it.
+ * Its `org_id` is therefore a HINT — it selects WHICH of the caller's memberships to resolve — and
+ * `user_orgs` decides whether that membership exists. `role` comes back from the DB row, never from
+ * the cookie. That is why the hint pattern is right and "always query" is not: `user_orgs` has no
+ * unique constraint on `user_id`, so an unhinted `.single()` errors for anyone in more than one org.
+ *
+ * ONE IMPLEMENTATION, DELIBERATELY. This delegates to gateway's `resolveOrgMembership` instead of
+ * doing its own read. Until 2026-08-23 there were two readers of this cookie: gateway's validated it
+ * against `user_orgs`, and this one checked only `parsed.user_id === user.id`. That check stops you
+ * replaying SOMEONE ELSE'S cookie; it does nothing about forging your own — put your real user_id in
+ * beside any `org_id` and `role: "owner"` and it was accepted verbatim, then handed to
+ * `createServiceClient()` queries whose only tenancy boundary is the `.eq("org_id", …)` filter the
+ * caller had just supplied. The correct check was already twenty lines below, in this function's own
+ * DB fallback, which the cookie branch skipped. Two readers with different apertures is the
+ * 2026-08-22 scar (CLAUDE.md §6); two with identical apertures is that scar waiting for one of them
+ * to be edited. Share the implementation — do not re-derive it here.
+ *
+ * NO `tier` FIELD, DELIBERATELY. It used to be returned straight from the cookie while `org_id` and
+ * `role` were validated, and partial validation is worse than none: the sound fields lend their
+ * credibility to the unsound one, and nobody reading `membership.tier` has a reason to suspect it is
+ * weaker than `membership.role`. For a tier, call `getOrgTierCanonical(orgId)` from `@/lib/tier/getOrgTier`.
+ *
+ * THROWS on a transient DB failure (`GatewayUnavailableError`, from the delegate) rather than
+ * returning null. That is a behaviour change: callers `redirect("/login")` on null, so a slow DB
+ * used to bounce an authenticated user to the login page. An error boundary is the honest response.
  *
  * NOTE: Never call cookieStore.set() here — Server Components cannot write cookies.
  * The middleware (proxy.ts) writes pleks_org after the user_orgs DB check.
@@ -52,36 +75,11 @@ export const getServerOrgMembership = cache(async () => {
   const user = await getServerUser()
   if (!user) return null
 
-  // 1. Try cookie (no DB call) — written by proxy.ts middleware
-  const cookieStore = await cookies()
-  const cached = cookieStore.get("pleks_org")
-  if (cached?.value) {
-    try {
-      const parsed = JSON.parse(cached.value) as { org_id: string; role: string; tier?: string; user_id: string }
-      if (parsed.org_id && parsed.role && parsed.user_id === user.id) {
-        setSentryUser({ id: user.id, org_id: parsed.org_id, role: parsed.role })
-        return { org_id: parsed.org_id, role: parsed.role, tier: parsed.tier ?? null }
-      }
-    } catch {
-      // corrupted cookie — fall through to DB
-    }
-  }
+  const membership = await resolveOrgMembership(user.id)
+  if (!membership) return null
 
-  // 2. DB query (cookie miss — proxy.ts will refresh on next request).
-  // Service client: getServerUser() already authenticated the user via the cookie client
-  // (auth.getUser). user_orgs is scoped by the authenticated user.id, so the explicit filter —
-  // not RLS on the cookie client — is the boundary. This is the last cookie-.from() in the gate.
-  const service = await createServiceClient()
-  const { data, error: queryError } = await service
-    .from("user_orgs")
-    .select("org_id, role")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-  logQueryError("getServerOrgMembership user_orgs", queryError)
-
-  if (data) setSentryUser({ id: user.id, org_id: data.org_id, role: data.role })
-  return data ? { ...data, tier: null } : null
+  setSentryUser({ id: user.id, org_id: membership.org_id, role: membership.role })
+  return { org_id: membership.org_id, role: membership.role }
 })
 
 export interface IdentityForkState {

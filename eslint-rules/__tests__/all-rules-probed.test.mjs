@@ -241,7 +241,7 @@ const CASES = {
 }
 
 /** Rules with a dedicated suite — probed there, deliberately absent from CASES. */
-const OWN_SUITE = new Set(["require-org-scope-on-service-read", "no-forgeable-tier-in-gate"])
+const OWN_SUITE = new Set(["require-org-scope-on-service-read"])
 
 const ruleFiles = readdirSync(RULES_DIR)
   .filter((f) => f.endsWith(".mjs") && !f.includes(".baseline."))

@@ -1,4 +1,24 @@
 {
-  "minTests": 1369,
+  "_comment": [
+    "THE FLOOR ONLY RISES — see scripts/check-test-floor.mjs. It was LOWERED once, on 2026-08-23,",
+    "from 1369 to 1366, and this note is the reason it is allowed to have happened at all.",
+    "",
+    "The five cases of eslint-rules/__tests__/no-forgeable-tier-in-gate.test.mjs were DELETED with the",
+    "rule they probed. pleks/no-forgeable-tier-in-gate banned importing lib/tier/getOrgTierFromCookie;",
+    "the CD ruling on M-092 removed `tier` from getServerOrgMembership's return, which reduced that",
+    "module to a one-line alias, so it was deleted and the rule had no subject left. Its replacement,",
+    "lib/auth/__tests__/membership-carries-no-forgeable-field.test.ts, adds two cases (the third",
+    "assertion is a @ts-expect-error checked by tsc, which vitest cannot count). Net -3.",
+    "",
+    "THE DISTINCTION THAT MAKES THIS LEGITIMATE, and the only one that does: the check's own error",
+    "says 'find what stopped collecting'. That was done — the tests did not stop collecting, they",
+    "stopped existing, deliberately, in a commit that says so. Padding the replacement suite with",
+    "three filler cases to hold the number would have been the dishonest fix: it satisfies the",
+    "counter while making the suite worse, which is the shape this whole ratchet exists to prevent.",
+    "",
+    "A DROP WITH NO ENTRY HERE IS STILL A FINDING. If the floor falls again, the burden is to name the",
+    "deleted suite and the commit that deleted it, in this file, before touching the number."
+  ],
+  "minTests": 1366,
   "minFiles": 125
 }

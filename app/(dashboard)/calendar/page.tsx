@@ -7,6 +7,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { redirect } from "next/navigation"
 import { CalendarDays } from "lucide-react"
 import { fetchCalendarEvents, fetchOverdueAlerts, fetchCalendarSearchEntities } from "@/lib/calendar/events"
@@ -14,16 +15,15 @@ import { CalendarClientLoader } from "./CalendarClientLoader"
 import { InlineLink } from "@/components/ui/actions"
 import { addCalendarDays, saTodayISO } from "@/lib/dates"
 
-function getTier(membership: { tier?: string | null } | null): string {
-  return membership?.tier ?? "owner"
-}
-
 export default async function CalendarPage() {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
 
-  const tier = getTier(membership)
   const orgId = membership.org_id
+  // The gate below is a whole-page paywall, so the tier behind it must be the authoritative one.
+  // This read `membership.tier` until 2026-08-23 — a value that came verbatim from the unsigned
+  // pleks_org cookie, so `tier: "firm"` in your own cookie rendered the Portfolio/Firm calendar.
+  const tier = await getOrgTierCanonical(orgId)
 
   if (tier !== "portfolio" && tier !== "firm") {
     return (

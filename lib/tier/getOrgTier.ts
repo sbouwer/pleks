@@ -8,10 +8,13 @@
  *         (an HOA org's subscriptions.tier genuinely holds an hoa_* literal). Both go through one
  *         _readEffectiveTier() so the two views can never drift (ADDENDUM_18C).
  *
- *         The FORGEABLE cookie fast-path used to be the third export in this file. It now lives in
- *         ./getOrgTierFromCookie — see that module for why. Keep this file authoritative-only: a
- *         forgeable reader sharing an import line with a gate reader is a typo away from a security
- *         defect, and the separation is what lets the invariant be checked by module path.
+ *         THERE IS NO LONGER A FORGEABLE READER ANYWHERE. A cookie fast-path used to be the third
+ *         export here, was split out to ./getOrgTierFromCookie on 2026-08-23 so a lint rule could
+ *         name it by module path, and was deleted the same day when the CD ruling removed `tier`
+ *         from getServerOrgMembership's return — with nothing forgeable left to fast-path, that
+ *         module's whole body reduced to `return getOrgTierCanonical(orgId)`. The invariant it
+ *         guarded now holds by construction: no code path produces a tier that did not come from
+ *         `subscriptions`. Do not reintroduce one; put the memoisation in _readEffectiveTier instead.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { Tier, AnyTier } from "@/lib/constants"
@@ -36,8 +39,9 @@ async function _readEffectiveTier(orgId: string): Promise<string> {
 
 /** Canonical tier for ALL entitlement/lease gates (canActivateLease, canDowngradeTo, etc.). Return type
  *  stays Tier — its residential assumption is intact and these money-adjacent gates are untouched by the
- *  HOA line (an HOA org never reaches them). The cookie fast-path (./getOrgTierFromCookie) is forgeable
- *  and display-only — this is the function it falls back to, and the only one a gate may call. */
+ *  HOA line (an HOA org never reaches them). Display surfaces call this too — since the forgeable cookie
+ *  reader was deleted there is no cheaper answer, and a badge showing a tier the org has not paid for is
+ *  not a cheaper answer either. Costs one `subscriptions` read per call; see the module header. */
 export async function getOrgTierCanonical(orgId: string): Promise<Tier> {
   return (await _readEffectiveTier(orgId)) as Tier
 }

@@ -8,6 +8,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { hasFeature } from "@/lib/tier/gates"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { redirect, notFound } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { BackLink } from "@/components/ui/BackLink"
@@ -628,7 +629,10 @@ export default async function PropertyDetailPage({
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
   const { org_id: orgId } = membership
-  const tier              = (membership.tier ?? "owner") as import("@/lib/constants").Tier
+  // Was `(membership.tier ?? "owner")` — the unsigned pleks_org cookie's own field — and it decides
+  // `hasFeature(tier, "property_intelligence")` below, plus the broker and scheme-tick surfaces. A
+  // caller could set tier:"firm" in their own cookie and unlock all of it. Canonical read now.
+  const tier = await getOrgTierCanonical(orgId)
   // Owners are always admin; other roles (admin, manager) gated server-side on action submit.
   const isAdminUi         = membership.role === "owner"
 

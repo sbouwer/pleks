@@ -11,6 +11,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
+import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { redirect } from "next/navigation"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 import { contactDisplayName } from "@/lib/contacts/displayName"
@@ -157,7 +158,11 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   const renewalOf = sp.renewal_of ?? null
   const coTenantIds = sp.co_tenants ? sp.co_tenants.split(",").filter(Boolean) : []
 
-  const ids = await resolveIds(supabase, orgId, membership.tier, sp)
+  // Canonical, not `membership.tier` — that field came verbatim from the unsigned pleks_org cookie
+  // and no longer exists. This branch only auto-resolves a single property for owner-tier orgs, so
+  // forging it bought a convenience rather than an entitlement; it is repointed anyway, because one
+  // surviving cookie-fed tier read is what makes the next one look normal.
+  const ids = await resolveIds(supabase, orgId, await getOrgTierCanonical(orgId), sp)
   const { propertyId, unitId, tenantId, resolvedTenantName, resolvedCoTenants } = ids
 
   // Fetch display names for the resolved IDs.
