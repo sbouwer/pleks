@@ -1623,21 +1623,45 @@ did. See M-091 for what that exposed and why removing the field beat the lint ru
 by the caller** — the consent-IDOR shape with a wider aperture, and the **third** instance of
 caller-supplied identifier with no ownership proof, this time on the tenancy boundary itself.
 
-#### STILL OPEN — a THIRD reader of the same cookie, found while shipping this and NOT fixed
+#### ✅ CLOSED 2026-08-23 — the THIRD reader, and a FOURTH the first sweep missed
 
-`getCurrentOrgCapabilities` (`lib/auth/server.ts`, as at `88f530fe`) reads `pleks_org` directly for
-`type`, `name` and `sub_status` and passes them to `getOrgCapabilities(...)` **without validating any
-of them** — its own DB fallback, again, is reached only on a cookie miss. The results gate routes:
-`app/(dashboard)/hoa/page.tsx:23` (`if (!caps?.hasHOA) redirect("/dashboard")`) and
-`app/(dashboard)/landlords/page.tsx:20` (`if (!caps?.hasLandlordsList) redirect("/properties")`).
-Setting `type:"hoa"` in your own cookie passes the first.
+Filed here as still-open at `88f530fe`; ruled and fixed the same day in `3ded96b7`. Kept rather than
+deleted because the miss below is the reusable part.
 
-**Deliberately not fixed in the same change, and this is a scope call worth arguing with.** It is a
-different function with a different field set, and the two candidate fixes — drop the fast path (a
-`organisations` read per render on five pages) or validate the three fields — are a decision, not a
-mechanical follow-through from the ruling above. It is also narrower than the `org_id` hole: `orgId`
-is validated now, so a forged `type` reaches the caller's OWN org's HOA page rather than anyone
-else's data. **Needs the same ruling this entry just received, applied to those three fields.**
+`getCurrentOrgCapabilities` read `pleks_org` directly for `type`, `name` and `sub_status` and passed
+them to `getOrgCapabilities(...)` **without validating any of them** — its own DB fallback reached
+only on a cookie miss. The results gate routes: `app/(dashboard)/hoa/page.tsx:23`
+(`if (!caps?.hasHOA) redirect("/dashboard")`) and `app/(dashboard)/landlords/page.tsx:20`
+(`if (!caps?.hasLandlordsList) redirect("/properties")`). Setting `type:"hoa"` in your own cookie
+passed the first.
+
+**CD ruling: drop the fast path entirely — do not validate three fields.** A split invites "which
+fields are safe?" to be re-answered later by someone with less context, and `name` looking harmless
+is the same argument as `role` being UI-only: a statement about today's call sites, not about the
+mechanism. Narrow-today is not a reason.
+
+**The finding worth keeping is that this section named ONE remaining reader and there were TWO.**
+`getCurrentSubscriptionState` sat twenty lines further down reading the same `sub_status` from the
+same cookie, and a fix scoped to this section's words would have left it. Its fast path also
+null-filled every lifecycle date from a fallback, so `past_due_since`/`paused_at`/`cancelled_at` read
+as "not set" whenever the cookie answered rather than "not in the cookie". All three fast paths are
+gone; the replacement probe asserts **whole-file** rather than per-function absence, for exactly this
+reason.
+
+**Severity was confirmed before implementing rather than assumed** (CD asked): nothing gates a write
+or a spend on caps-derived subscription state. `requireAgentWriteAccess` reads `subscriptions`
+directly via `getSubscriptionState(gw.orgId)`; `isLockedDown` has **zero** readers in the tree;
+`subscriptionStateVariant`'s only consumer is `components/layout/SubscriptionStateBell.tsx`; and the
+client-side `useOrgCapabilities` is sound by a different route — it reads through the RLS-bound anon
+client, where RLS is the boundary rather than a filter. The blast was route visibility only. That
+bounded it; it was not a reason to keep the fast path.
+
+**Found and NOT fixed while closing this** — `getSubscriptionState` (`lib/auth/server.ts`) does
+`if (error || !data) return { status: "active", … }`, so a transient DB error reads as a healthy
+subscription on the lockdown gate's own data source. Fail-open on the money path, one function below
+the three that were just fixed. Not folded in here because it is a different class (error handling,
+not cookie provenance) and the honest alternatives — throw, or return an `"unknown"` status every
+caller must handle — are a decision. **Needs its own ruling.**
 
 **As originally filed — ⛔ NOT A MECHANISATION GAP: the session cookie's `org_id` is caller-supplied, and a service client trusts it**
 
@@ -1646,7 +1670,7 @@ the answer. It needs a ruling before it needs a mechanism, and the ruling is CD'
 with a check.
 
 - **Rung:** n/a — architecture · **Blast:** data-boundary. Cross-org read of another organisation's records.
-- **Satisfied when:** none — ruled and fixed 2026-08-23; the residual third-reader gap is stated in this entry and needs its own ruling
+- **Satisfied when:** none — ruled and fixed 2026-08-23, all four cookie readers included. One residual, a DIFFERENT class: `getSubscriptionState` fails open to `"active"` on a DB error (see the closed section above), which needs its own ruling
 - **What was observed, as at `71e746c9`** (three files, read in this order):
   1. `lib/auth/cookie-config.ts:8-13` — `AUTH_COOKIE_OPTS` is `httpOnly`, `sameSite:"lax"`, `secure` in prod. **There is no signature and no HMAC anywhere in the repo for this cookie** (grepped).
   2. `lib/auth/server.ts:58-64` — `getServerOrgMembership` does `JSON.parse(cookie)` and accepts it if `parsed.org_id && parsed.role && parsed.user_id === user.id`. `org_id` and `role` are **never checked against `user_orgs`** on this path.
@@ -1662,6 +1686,11 @@ with a check.
 
 Three things were left open above. Two are now closed and the third changes what CD is actually being
 asked to rule on, so it is recorded here rather than left to the next session to re-derive.
+
+⚠ **SUPERSEDED BY THE RULING — read the closed sections above first.** Everything below is the
+grounding pass that produced the ruling, anchored at `88f530fe`, and its present-tense statements
+about `lib/auth/server.ts` describe the tree BEFORE `a5eb7d0d`/`3ded96b7`. It is kept as the evidence
+trail, not as a description of current code.
 
 1. **`pleks_org` has TWO readers, and only one of them validates.** `lib/supabase/gateway.ts`'s
    `resolveFromCookieHint` — read, not taken from its comment — parses the same cookie, then queries
