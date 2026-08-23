@@ -1316,7 +1316,38 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 - **Rule:** R6, clause 3 of the probe convention, now written in `dev-standards/standards/CLAUDE-MD-STANDARD.md`: an instrument that reports a count must report **unknown** distinctly from **zero**, and must be probed for the uncheckable state.
 - **Where it lives:** everywhere a count is computed behind a guard. The live instance was `agent-distribution.mjs` — `b.outputK ? reports.filter(...).length : 0` — where an unparsed budget rendered as `0` overruns and the summary printed "✅ no budget overruns" over an agent that had never been compared. Fixed 2026-08-23 (`null` for uncomparable, `0` for compared-and-clean, both probed). The **class** is not fixed.
 - **Rung:** check · **Blast:** other.
-- **Why this is not simply built, measured rather than assumed.** The tempting check is an AST scan for `cond ? count(...) : 0` and `?? 0`. Both shapes are overwhelmingly legitimate — `?? 0` is the correct reading of an absent optional number in most of this tree, and a conditional count is correct wherever the guard is about *applicability* rather than *observability*. A check with that false-positive rate earns a large allowlist on its first run, and per §4.3 an allowlist that big means nothing thereafter. **The distinguishing signal is intent — whether the guarded value is "not applicable" or "not observable" — and that is not present in the syntax.**
-- **What would make it buildable:** a naming or type convention that puts the distinction *into* the syntax, so the check has something to read. E.g. an `Unknown` sentinel, or a rule scoped to functions whose name matches `/overrun|violation|finding|count/` returning from a `?:` whose test is a budget/config lookup. Narrow enough to have a true-positive rate worth arguing about; not yet written.
+- **Why this is not simply built — MEASURED 2026-08-23, and the first answer was wrong.** This bullet
+  previously asserted that an AST scan for `cond ? … : 0` and `?? 0` was "overwhelmingly" false-positive
+  and "earns a large allowlist on its first run". That was read off the code, not measured. Measuring it
+  overturned the number and produced a better reason.
+  The scan (`espree`, `ConditionalExpression` with a literal-`0` alternate; `??` with a literal-`0` right)
+  over the 73 instrument files in `scripts/**/*.mjs` + `eslint-rules/*.mjs` returned **36 hits**, of which
+  **26 fall out on SHAPE ALONE, with no judgment**: 21 are `process.exit(failed ? 1 : 0)` exit codes (not
+  counts at all), 4 are histogram accumulators (`m[k] = (m[k] ?? 0) + 1`, where `0` is the additive
+  identity for a key about to become 1), and 1 is a decrement guard. **Ten sites remain — that is a
+  decision log, not a large allowlist, so the stated reason for refusing did not survive contact.**
+  **The reason that DID survive is stronger, and it is shape-identity.** Two of the ten residual hits are
+  `agent-distribution.mjs:513` — `(r.turnOverruns ?? 0) + (r.outOverruns ?? 0)` — which is the
+  **correctly remediated** code from this very entry's live instance. It is safe only because the
+  null-ness is preserved on a *separate channel* three lines below (`unchecked`, and the `?t`/`?o`
+  flags). The defect and its own fix are **syntactically identical**; what separates them is a
+  whole-function dataflow property. A check on this shape therefore cannot rank, only enumerate — and
+  every correct fix of this class would add a fresh baseline entry, ratcheting noise upward as the tree
+  gets *better*.
+- **The measurement was not free of findings — it found a live one.** `scripts/security/audit.mjs:512`
+  read `Array.isArray(orgs.json) ? orgs.json.length : 0`. PostgREST answers an error with an OBJECT, so
+  a 401/500/stall on `GET organisations` coerced to a count of **0**, printed `✅ 0 orgs found` as a
+  PASS, then took the `orgCount < 2` early return and skipped the entire six-table cross-org sweep —
+  **Category 2, the category guarding the 2026-07-06 cross-org IDOR scar, reporting clean having executed
+  none of its subject.** It also advised "create a second org", blaming the data for an authentication
+  failure. Fixed and probed both directions (401 → `🔴 … cross-org tests NOT run` + a HIGH finding;
+  2-org array → `✅ 2 orgs found` and all six tables run). Pre-fix behaviour was demonstrated against
+  `HEAD`, not inferred.
+- **What would make it buildable:** the narrower rule the measurement points at is not "every zero
+  default" but **a zero default flowing into a REPORTING call in the same expression** — `ok()`,
+  `finding()`, a printed rate. That is one hop of dataflow, not whole-function, and it is what separates
+  all four genuine residual sites (`audit.mjs:512`, `test-report.mjs:151`/`166`, `fitscore-replay.mjs:92`)
+  from `agent-distribution.mjs:513`, whose zero flows into arithmetic with the unknown preserved beside
+  it. Not yet written; this is the shape a build should take.
 - **Interim control:** none. This is rung-4 prose in the standard, and it is stated as such rather than tagged. The three gates corrected in `1578dac5`, the drift gate's `DUE AND NOT RUN`, and this fix are the same rule applied by hand, three times — which is the evidence a mechanism is wanted, not evidence one exists.
 - **Covering spec:** NEW

@@ -509,7 +509,26 @@ async function cat2_crossOrgLeakage() {
 
   test("Count distinct organisations")
   const orgs = await supaRest("organisations?select=id", { key: SERVICE_KEY })
-  const orgCount = Array.isArray(orgs.json) ? orgs.json.length : 0
+
+  // ── "COULD NOT ASK" IS NOT "ASKED, AND THE ANSWER WAS ZERO" ──────────────────────────────────
+  //
+  // PostgREST answers an error with an OBJECT (`{message, code, …}`), not an array. Coercing that to
+  // a count of 0 — as this line did — made a 401, a 500 or a network stall render as `✅ 0 orgs
+  // found`, and then the `< 2` branch below returned early, skipping all six cross-org tables. The
+  // category that guards the cross-org IDOR scar reported a PASS having executed none of its
+  // subject. Credentials being absent is caught at startup, so by here a non-array is a real
+  // anomaly, never an expected local condition.
+  if (!Array.isArray(orgs.json)) {
+    fail(`org query returned no array (status ${orgs.status}) — cross-org tests NOT run`)
+    finding("Category 2", "HIGH", "Cross-org leakage tests could not run",
+      `GET organisations?select=id returned status ${orgs.status} with a non-array body, so the ` +
+      `org count is UNKNOWN and the six-table cross-org sweep was skipped. This is an unchecked ` +
+      `category, not a clean one.`,
+      "Confirm SUPABASE_SERVICE_ROLE_KEY is valid for this project and the organisations table is reachable.")
+    return
+  }
+
+  const orgCount = orgs.json.length
   ok(`${orgCount} orgs found`)
 
   if (orgCount < 2) {
