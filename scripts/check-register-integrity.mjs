@@ -87,6 +87,27 @@ export function isBuilt(tail) {
 }
 
 /**
+ * Is this entry RESOLVED BY SOME OTHER ROUTE than being built?
+ *
+ * WHY THIS EXISTS. The count line said "76 entries (22 BUILT)", and every reader — including the
+ * sessions writing this file — subtracted to get 54 open. That subtraction was wrong: an entry can
+ * be finished without a mechanism ever being built. It can be RULED and fixed in code, REFUTED (the
+ * thing it described turned out not to be true), SUPERSEDED by a different entry, REJECTED because a
+ * better control shipped by another route, or reduced to a POINTER at the entry that owns its build.
+ * Twelve entries were in one of those states while being reported as outstanding work.
+ *
+ * That is M-068's defect one axis over — a count line implying something it does not measure — so it
+ * gets the same treatment: report the three populations rather than one, and let no reader subtract.
+ *
+ * Same trap as isBuilt, and guarded the same way: the negating qualifiers are checked FIRST, because
+ * "NOT FIXED" and "⚠ NEVER RULED" contain the very words that would otherwise resolve them.
+ */
+export function isResolvedOtherwise(tail) {
+  if (/\b(?:HALF|PARTIAL|PARTIALLY|NOT|NEVER|AWAITING|PENDING)\s+(?:RULED|FIXED|REFUTED|SUPERSEDED|REJECTED)\b/i.test(tail)) return false
+  return /(?:^|[^A-Za-z])(?:RULED|FIXED|REFUTED|SUPERSEDED|REJECTED|POINTER)\b/.test(tail)
+}
+
+/**
  * Resolve a `**Satisfied when:**` marker to whether its mechanism EXISTS on disk.
  *
  * Three states, not two. "I could not evaluate this marker form" is returned as `unknown`, never
@@ -147,7 +168,7 @@ export function parseEntries(text) {
   const out = []
   lines.forEach((line, i) => {
     const m = HEADING.exec(line)
-    if (m) out.push({ id: m[1], built: isBuilt(m[2]), line: i + 1 })
+    if (m) out.push({ id: m[1], built: isBuilt(m[2]), tail: m[2], line: i + 1 })
   })
   // The body of entry N runs to the heading of entry N+1 — the slot must be read from the entry
   // that owns it, or a missing slot silently borrows its successor's.
@@ -220,7 +241,14 @@ export function evaluate(entries) {
   // allocation (70H) that came from minting a number without checking, and the remedy there is the
   // same as here — say what the next one is, so nobody has to derive it under time pressure.
   const nums = entries.map((e) => Number(e.id.slice(2).replace(/[a-z]$/, "")))
-  notes.push(`next free id: M-${String(Math.max(...nums) + 1).padStart(3, "0")} · ${entries.length} entries (${entries.filter((e) => e.built).length} BUILT)`)
+  // THREE POPULATIONS, NEVER ONE PLUS A SUBTRACTION — see isResolvedOtherwise for why.
+  const built = entries.filter((e) => e.built).length
+  const otherwise = entries.filter((e) => !e.built && isResolvedOtherwise(e.tail ?? "")).length
+  notes.push(
+    `next free id: M-${String(Math.max(...nums) + 1).padStart(3, "0")} · ${entries.length} entries · ` +
+    `${built} built · ${otherwise} resolved without a build (ruled/refuted/superseded/rejected/pointer) · ` +
+    `${entries.length - built - otherwise} OPEN`,
+  )
 
   return { fails, notes }
 }
@@ -296,6 +324,26 @@ function selftest() {
     const got = isBuilt(tail)
     if (got !== want) { console.log(`  ✗ isBuilt("${tail.trim()}") → ${got}, expected ${want} — ${why}`); bad++ }
     else console.log(`  ✓ ${want ? "BUILT" : "not built"}: ${why}`)
+  }
+
+  // isResolvedOtherwise — the count line's second population. Same both-directions discipline as
+  // isBuilt above, because it is the same regex trap: the negating qualifier contains the token.
+  const resolvedCases = [
+    [" — ✅ RULED AND FIXED 2026-08-23", true, "a ruling that landed is finished work"],
+    [" — ➡ POINTER TO M-018 (do not build separately)", true, "a declared twin is not a second build"],
+    [" — ❌ REJECTED 2026-08-23: a better control shipped", true, "rejected is decided, not outstanding"],
+    [" — REFUTED; the field it was built on has cardinality 1", true, "a refuted entry has no work left"],
+    [" — SUPERSEDED by M-092", true, "superseded work belongs to the superseder"],
+    [" — ⚠ NOT FIXED: blocked on a ruling", false, "THE TRAP: the denial contains the token"],
+    [" — PARTIALLY FIXED, one half remains", false, "a qualifier is not a claim"],
+    [" — AWAITING RULED confirmation", false, "awaiting is open"],
+    [" — a title about a PREFIXED helper", false, "the token must stand alone, not be a suffix"],
+    [" — a plain open entry", false, "silence is not a claim"],
+  ]
+  for (const [tail, want, why] of resolvedCases) {
+    const got = isResolvedOtherwise(tail)
+    if (got !== want) { console.log(`  ✗ isResolvedOtherwise("${tail.trim()}") → ${got}, expected ${want} — ${why}`); bad++ }
+    else console.log(`  ✓ ${want ? "resolved" : "still open"}: ${why}`)
   }
 
   // The resolver's three states, probed against the REAL tree — a resolver that answered one value

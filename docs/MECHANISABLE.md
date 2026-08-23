@@ -252,7 +252,7 @@ mostly noise, and a noisy rule earns an allowlist and then stops being read.
 - **Sketch:** No gate blocks the actual deployment on this script's exit code; Vercel deploys on push independently of `npm run security`. Running it is a manual pre-deploy step, not a CI/deploy gate. Sketch: a required CI job running `npm run security:quick` gated on the Vercel deployment (e.g. a GitHub deployment-status check Vercel is configured to wait on), failing the deploy on exit code 1.
 - **Covering spec:** NEW
 
-### M-019 — CI job gates a Vercel deploy on `npm run security:quick` (DO NOT DO twin)
+### M-019 — ➡ POINTER TO M-018 (do not build separately)
 - **Rule:** "Do not deploy without running `npm run security:quick` first" (`CLAUDE.md`, DO NOT DO)
 - **Where it lives:** `CLAUDE.md:674-675` (twin of M-018)
 - **Rung:** ci · **Blast:** data-boundary
@@ -347,11 +347,16 @@ available would have been forbidden.
 - **Rule:** "`auth.users` has no unique constraint on email — `ON CONFLICT (email)` will fail" (`.claude/rules/schema-gotchas.md`)
 - **Where it lives:** `.claude/rules/schema-gotchas.md:17`
 - **Rung:** check · **Blast:** schema
-- **Satisfied when:** extends:check:schema-contract-scan
-- **Sketch:** these are orientation ("known gotchas to check before writing migrations or queries") rather than a single checkable property; the closest mechanisable slice is the second bullet — sketch: flag an `.upsert`/`ON CONFLICT` call targeting `auth.users` by `email` — but none exists today.
+- **Satisfied when:** extends:check:schema-contract-scan — **for the SQL half only; the TS half is already covered (2026-08-23)**
+- **Sketch:** these are orientation ("known gotchas to check before writing migrations or queries") rather than a single checkable property; the closest mechanisable slice is the second bullet — flag an `.upsert`/`ON CONFLICT` call targeting `auth.users` by `email`.
+
+- **Measured 2026-08-23 at `73a734e6`, and the rule splits in two — the halves have different coverage, so they get different lines rather than one hedged tag:**
+  - **TS half — COVERED, and more strongly than the entry asked.** A planted `db.from("auth.users").upsert({ email }, { onConflict: "email" })` fails `schema-contract-scan.mjs` (exit 1, `[relation] auth.users.table/view does not exist`); the clean tree exits 0. The scan does not reason about `ON CONFLICT` at all — it does not need to, because PostgREST cannot reach the `auth` schema, so **every** TS expression of this gotcha is caught by the relation check, not just the `email` one. Repo-wide there are zero `.from("auth.users")` sites under `app/`/`lib/`.
+  - **SQL half — NOT covered, and the live population is zero defects.** The scan reads TS call chains, not migration SQL. Two candidate sites exist and **both are correct**: `scripts/seed-test-data-2.sql:19` INSERTs into `auth.users` using exactly the SELECT-first pattern this gotcha prescribes, and `supabase/migrations/006_seed.sql:543`'s `ON CONFLICT (email)` is on **`honeytoken_emails`**, not `auth.users`.
+- **The measurement is itself the warning about how to build the SQL half.** A naive grep for `ON CONFLICT (email)` scores 1/2 — it flags the honeytoken seed, which is legitimate and whose table does carry a unique email. The check must resolve which **table** the conflict target belongs to, which means parsing back to the `INSERT INTO`, not matching the conflict clause alone. First number is a hypothesis: here the hypothesis was two hits and the finding is none.
 - **Covering spec:** NEW
 
-### M-023 — SUBSUMED BY M-005 (do not build separately)
+### M-023 — ➡ POINTER TO M-005 (SUBSUMED — do not build separately)
 
 ⚠ **Not an independent build.** Ruled 2026-08-18: both rule sites — `CLAUDE.md` SECURITY RULE 1 and
 `.claude/rules/identity-scoped-tables.md:14` — now point at **M-005**, because they are two
@@ -383,7 +388,30 @@ Different audiences, same missing control.
 - **Sketch:** `check-migration-forward-refs.mjs` reads every migration file's content but has no rule against 007/008 specifically gaining a new `§N` section. Sketch: diff each file's section (`§N`) count against a recorded baseline and fail if 007/008 grows.
 - **Covering spec:** NEW
 
-### M-025 — flag `applications.applicant_id`/`applicant_user_id` references
+### M-025 — flag `applications.applicant_id`/`applicant_user_id` references — ✅ BUILT 2026-08-23
+
+**Found already shipped.** The sketch below ended "not independently verified in this pass whether it
+already does" — that doubt was the whole entry, and resolving it took one planted violation rather
+than a build. At `73a734e6` a probe file referencing both columns produced:
+
+```
+lib/__probe_m025.ts:3  [select] applications.applicant_id
+lib/__probe_m025.ts:3  [select] applications.applicant_user_id
+lib/__probe_m025.ts:4  [filter] applications.applicant_id
+exit=1
+```
+
+and the same scan on the clean tree exits 0 — **both directions probed**, so this is coverage and
+not a scan that fails on everything. `schema-contract-scan.mjs` is manifest-driven and already in
+`npm run check`, so all three shapes (select, filter, and the write path by the same resolver) fail
+the gate today. The probe file was deleted; it is reproduced here because the evidence is the point.
+
+The one thing the scan does NOT do is the reactive half the sketch describes — it is static, so it
+catches the reference at check time rather than waiting for a 42703 at query time. That is strictly
+better than the entry asked for.
+
+<details><summary>Original M-025 sketch (retained for provenance)</summary>
+
 - **Rule:** "Anti-patterns to never use" — non-existent applicant columns (`.claude/rules/schema-gotchas.md`)
 - **Where it lives:** `.claude/rules/schema-gotchas.md:38`
 - **Rung:** check · **Blast:** schema
@@ -391,7 +419,9 @@ Different audiences, same missing control.
 - **Sketch:** PARTIAL, mechanically. The first two bullets name COLUMNS that don't exist, so a query referencing them fails at the database (PostgREST 42703) and — if the call site's `{ data, error }` is checked per `pleks/require-supabase-error-check` — surfaces as a real, visible error rather than a silent `null`. That is real but REACTIVE (fails at query time, not write time). The third and fourth bullets describe an absence, which nothing can positively check for. Sketch: verify (or extend) `schema-contract-scan.mjs` (manifest-driven, already in `npm run check`) to statically flag a `.select`/`.eq` referencing `applications.applicant_id` or `applications.applicant_user_id` — not independently verified in this pass whether it already does.
 - **Covering spec:** NEW
 
-### M-026 — code-side `IDENTITY_SCOPED_TABLES` constant mirroring the markdown allowlist
+</details>
+
+### M-026 — ❌ REJECTED 2026-08-23: the control shipped by a better route
 - **Rule:** "Current members (exhaustive — extend only via a CD ruling)" (`.claude/rules/identity-scoped-tables.md`)
 - **Where it lives:** `.claude/rules/identity-scoped-tables.md:50`
 - **Rung:** check · **Blast:** schema
@@ -415,7 +445,7 @@ Different audiences, same missing control.
 - **Sketch:** `check-schema-drift.mjs` would catch the RESULTING mismatch if run, but nothing forces "re-run and verify" to have actually happened before a commit. Sketch: a local pre-commit/pre-push hook running `node scripts/check-schema-drift.mjs` when a migration file changed, blocking on drift.
 - **Covering spec:** NEW
 
-### M-029 — pre-commit/pre-push hook drives drift to zero before commit
+### M-029 — ➡ POINTER TO M-028 (do not build separately)
 - **Rule:** "Always drive drift back to zero before committing." (`.claude/rules/migrations.md`)
 - **Where it lives:** `.claude/rules/migrations.md:150` (twin cluster with M-028 and `CLAUDE.md:307-308`)
 - **Rung:** hook · **Blast:** schema
@@ -653,7 +683,7 @@ rather than quietly weakening the hook.
 - **Sketch:** sketch: scan for a raw `25000`/`47000`/`0.30`-shaped literal outside `lib/constants.ts`, the way a `no-rerolled-*` rule guards its own SSOT. Same mechanism family as M-007 — could ship as one combined script.
 - **Covering spec:** NEW
 
-### M-009 — extend the constants/tier literal scan to the screening fee cents value
+### M-009 — ➡ POINTER TO M-008 (one scan, two literal sets — do not build separately)
 - **Rule:** "Never hardcode a fee literal" (`CLAUDE.md`, KEY CONSTANTS — screening fee SSOT)
 - **Where it lives:** `CLAUDE.md:563-564`
 - **Rung:** check · **Blast:** money
@@ -669,7 +699,7 @@ rather than quietly weakening the hook.
 - **Sketch:** PARTIAL, related to `.claude/rules/finance-trust.md:19`'s D-TRUST-01 coverage assessment (M-012). `no-restricted-imports` forbids importing generic payment-initiation SDKs repo-wide, but a hand-rolled debit-order flow using ordinary Supabase writes (no SDK import) would not be caught at all. Sketch: add named DebiCheck/debit-order SDK packages to the existing `no-restricted-imports` patterns block as they become known; the hand-rolled-flow gap needs a separate `no-restricted-syntax` pattern on mandate-creation-shaped writes and is harder to close fully.
 - **Covering spec:** `brief/legal/TRUST_ACCOUNT_POSITIONING.md`
 
-### M-011 — Cat-15 write-gate/read-gate distinction (CLAUDE.md twin)
+### M-011 — ➡ POINTER TO M-003 (do not build separately)
 - **Rule:** "`requireAgentWriteAccess(action)` for ALL agent-side mutations — never bare `gateway()` on a write path" (`CLAUDE.md`, DB ACCESS)
 - **Where it lives:** `CLAUDE.md:167-168` (twin of M-003)
 - **Rung:** check · **Blast:** money
@@ -851,7 +881,18 @@ control case that must still pass.
   - **A false-zero was avoided in the build, of the class M-088 closed the same week:** the `communication_log` query's `error` is treated as `"skipped"`, never as "no warning found". Collapsing an unreadable log into an absent warning would have made a transient database error look like grounds to defer — or, with the condition inverted, grounds to purge.
   - **Satisfied when** resolved on the first run after the test file landed, and the ⚑ note it produced is what prompted this closure — M-083 assertion 2 working as designed, on its second catch.
 
-### M-071 — attachments are supported, unimplemented, and silently dropped on retry
+### M-071 — attachments are supported, unimplemented, and silently dropped on retry — ⚖ RULED 2026-08-20 (retained as the build-if-reversed)
+
+**The ruling was already in this entry's body and never reached its heading**, so the register kept
+counting a withdrawn requirement as pending work — the same defect as M-023 and M-026, one axis over.
+CD ruled 2026-08-20 that **the spec moves: a link satisfies ADDENDUM_57G §11.3.** The build below is
+not queued; it is the record of what reversing that ruling costs. Do not treat this as open work.
+
+**⚠ Closing it did NOT close the third sketch-half, and that half was the live finding.** Sketch item
+(3) — "a check asserting the drain's field set is a superset of what the sender accepts" — is
+independent of whether an attachment is ever sent, and measuring it on 2026-08-23 showed a defect
+wider than the attachment framing. It is now **M-093**, filed separately rather than buried in a
+ruled entry, because a closure that swallows a finding is worse than an entry left open.
 
 - **Rule:** ADDENDUM_57G §11.3 — the T-30 purge warning goes *"with full export bundle attached"*. Not implemented, and not implementable as a one-line parameter.
 - **Where it lives:** §11.3 only. No code, no check.
@@ -1716,3 +1757,43 @@ trail, not as a description of current code.
    a DB read, and is unaffected. So the forged `role` currently buys a rendered button, not an operation —
    but the value is one refactor away from a gate, and the names (`isOwner`, `isAdminUi`) do not warn anyone.
 
+
+---
+
+### M-093 — the platform-email retry replays 5 of ~20 sender fields, and drops the audit trail with them
+
+- **Rule:** a retried send is the SAME send. Whatever the first attempt carried — recipient identity, audit provenance, portal linkage — the replay carries too, or the retry path silently produces a different email and a different log row.
+- **Where it lives:** nowhere. No CLAUDE.md bullet, no rule file, no check. The invariant is asserted once, for one field, as a runtime `throw`.
+- **Rung:** check (+ migration) · **Blast:** data-boundary
+- **Satisfied when:** check:check-retry-replay-superset
+
+**Measured 2026-08-23 at `73a734e6`.** `SendEmailParams` (`lib/comms/send-email.ts`) declares ~20 fields. `drainPlatformEmailRetries` (`lib/subscriptions/sendWithRetry.ts:95-100`) reconstructs the call from `platform_email_retries` (010 §1248 — columns `subject` + `body_html`) and passes **exactly five**:
+
+```ts
+orgId · templateKey · to{email,name} · subject · rawHtml
+```
+
+**Dropped on every retry**, grouped by what the loss actually costs:
+
+| Dropped | Consequence on the retry |
+|---|---|
+| `tenantId` | `communication_log.tenant_id` is null — the send **disappears from tenant-portal queries**, which is the column's stated purpose |
+| `toneVariant`, `triggerEventType`, `triggerEventId` | the BUILD_63 audit fields — the log row no longer records **what caused the email** |
+| `entityType`, `entityId`, `triggeredBy` | provenance; a system retry is indistinguishable from an unattributed send |
+| `attemptNumber`, `firstAttemptLogId` | the retry chain does not know it is a retry — `attempt_count` is tracked on the retry ROW but never passed to the send, so every replay logs as attempt 1 |
+| `replyTo` | falls back to the org default — a reply may go somewhere the first attempt did not |
+| `attachments`, `mergeValues`, `previewText`, `bodyPreview`, `to.contactId` | content and addressing detail |
+
+**The tell that this is a class defect and not a gap.** `sendPlatformEmail` already refuses ONE field for exactly this reason (`:33`):
+
+> `throw new Error("sendPlatformEmail: contentHtml is not supported — pass emailElement or rawHtml so the retry can replay the exact HTML")`
+
+The author identified the hazard, and defended the single field in front of them. **A one-field guard against a whole-class problem reads as coverage** — the throw is proof the class was known, which is precisely why nobody looked at the other fifteen.
+
+**Why the failure is invisible.** Every dropped field is optional, so nothing type-errors, nothing throws, and the email still arrives. The evidence of loss is a null column and an absent audit row — the same one-directional silence as the 2026-08-19 cross-org READ hole (CLAUDE.md §6) and, per M-082, the same reason a retention list with no importer went unnoticed. It only fires on the retry path, i.e. **only for recipients whose delivery already failed once**.
+
+- **Sketch — the general form, not a longer column list.** A check that reads `SendEmailParams`'s field set and the drain's constructed object, and fails when the sender accepts a field the replay cannot produce. Each field is then resolved deliberately: persisted to `platform_email_retries`, or explicitly declared replay-exempt at the site with its reason. That converts "fifteen fields nobody has considered" into "a decision per field", and makes the NEXT field added to `SendEmailParams` fail the gate rather than join the silent set.
+- **Probe both directions:** a field added to `SendEmailParams` but not to the replay must FAIL; a field explicitly marked replay-exempt must PASS.
+- **Do not build the migration first.** Widening `platform_email_retries` before the check exists fixes today's fifteen and leaves the sixteenth to the same silence.
+- **Provenance:** surfaced 2026-08-23 while closing **M-071**, whose sketch item (3) named this check in the general form but framed it as an attachment concern; the attachment half was ruled away 2026-08-20 and would have taken this with it. Filed separately for that reason.
+- **Covering spec:** NEW
