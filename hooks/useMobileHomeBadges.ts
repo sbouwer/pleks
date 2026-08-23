@@ -37,6 +37,25 @@ const DEFAULT: MobileHomeBadges = {
 const STALE = 60_000
 const REFETCH = 120_000
 
+/**
+ * Unwrap a `head: true, count: "exact"` result, throwing if it could not be read.
+ *
+ * THE THROW IS THE POINT, and the reason is react-query rather than the badge. Every one of these
+ * queryFns used to end `return count ?? 0`, which hands react-query a SUCCESSFUL result of zero: it
+ * caches that for STALE, does not retry, and the mobile home screen shows a confident 0 properties
+ * to an agency with forty. Throwing marks the query failed, so it retries on its own schedule and
+ * the badge falls back to DEFAULT only while it is genuinely unknown. Same displayed number in the
+ * bad case, completely different behaviour afterwards. (M-090)
+ */
+function countOrThrow(
+  label: string,
+  { count, error }: { count: number | null; error: { message: string } | null },
+): number {
+  if (error) throw new Error(`mobile badge "${label}" count failed: ${error.message}`)
+  if (count === null) throw new Error(`mobile badge "${label}" returned no count`)
+  return count
+}
+
 export function useMobileHomeBadges(): MobileHomeBadges {
   const supabase = createClient()
 
@@ -49,10 +68,9 @@ export function useMobileHomeBadges(): MobileHomeBadges {
       {
         queryKey: ["mobile-badge", "properties"],
         queryFn: async () => {
-          const { count } = await supabase
+          return countOrThrow("properties", await supabase
             .from("properties")
-            .select("id", { count: "exact", head: true })
-          return count ?? 0
+            .select("id", { count: "exact", head: true }))
         },
         staleTime: STALE,
         refetchInterval: REFETCH,
@@ -60,11 +78,10 @@ export function useMobileHomeBadges(): MobileHomeBadges {
       {
         queryKey: ["mobile-badge", "tenants"],
         queryFn: async () => {
-          const { count } = await supabase
+          return countOrThrow("tenants", await supabase
             .from("contacts")
             .select("id", { count: "exact", head: true })
-            .eq("primary_role", "tenant")
-          return count ?? 0
+            .eq("primary_role", "tenant"))
         },
         staleTime: STALE,
         refetchInterval: REFETCH,
@@ -72,11 +89,10 @@ export function useMobileHomeBadges(): MobileHomeBadges {
       {
         queryKey: ["mobile-badge", "landlords"],
         queryFn: async () => {
-          const { count } = await supabase
+          return countOrThrow("landlords", await supabase
             .from("contacts")
             .select("id", { count: "exact", head: true })
-            .eq("primary_role", "landlord")
-          return count ?? 0
+            .eq("primary_role", "landlord"))
         },
         staleTime: STALE,
         refetchInterval: REFETCH,
@@ -84,11 +100,10 @@ export function useMobileHomeBadges(): MobileHomeBadges {
       {
         queryKey: ["mobile-badge", "inspections"],
         queryFn: async () => {
-          const { count } = await supabase
+          return countOrThrow("inspections", await supabase
             .from("inspections")
             .select("id", { count: "exact", head: true })
-            .in("status", ["scheduled", "in_progress"])
-          return count ?? 0
+            .in("status", ["scheduled", "in_progress"]))
         },
         staleTime: STALE,
         refetchInterval: REFETCH,
@@ -96,11 +111,10 @@ export function useMobileHomeBadges(): MobileHomeBadges {
       {
         queryKey: ["mobile-badge", "maintenance"],
         queryFn: async () => {
-          const { count } = await supabase
+          return countOrThrow("maintenance", await supabase
             .from("maintenance_requests")
             .select("id", { count: "exact", head: true })
-            .not("status", "in", '("completed","closed","cancelled")')
-          return count ?? 0
+            .not("status", "in", '("completed","closed","cancelled")'))
         },
         staleTime: STALE,
         refetchInterval: REFETCH,
@@ -108,11 +122,10 @@ export function useMobileHomeBadges(): MobileHomeBadges {
       {
         queryKey: ["mobile-badge", "arrears_count"],
         queryFn: async () => {
-          const { count } = await supabase
+          return countOrThrow("arrears_count", await supabase
             .from("arrears_cases")
             .select("id", { count: "exact", head: true })
-            .eq("status", "open")
-          return count ?? 0
+            .eq("status", "open"))
         },
         staleTime: STALE,
         refetchInterval: REFETCH,

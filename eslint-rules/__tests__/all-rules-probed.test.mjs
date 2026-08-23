@@ -208,6 +208,26 @@ const CASES = {
     bad: `export async function f(db) {\n  const { data } = await db.from("leases").select("id")\n  return data ?? []\n}\n`,
     good: `export async function f(db) {\n  const { data, error } = await db.from("leases").select("id")\n  if (error) { console.error("[probe] read failed", error); return [] }\n  return data ?? []\n}\n`,
     messageId: "missingError",
+    // M-090: the aperture is the CALL, not the variable name. `{ count }` is the same defect in the
+    // spelling the rule could not see until 2026-08-23 — the `head: true, count: "exact"` existence
+    // check, whose false zero reads as "no rows" and, for a dedup guard, as "not done yet".
+    // `{ status }` is here so the HTTP pair is covered by a probe rather than by the constant alone.
+    alsoBad: [
+      `export async function f(db) {\n  const { count } = await db.from("rule_runs").select("id", { head: true, count: "exact" })\n  return (count ?? 0) > 0\n}\n`,
+      `export async function f(db) {\n  const { status } = await db.from("leases").select("id")\n  return status === 200\n}\n`,
+      // The SECOND aperture hole: a conditionally-built query is awaited as an Identifier, so the
+      // rule used to return before reading the fields. This is lib/rules/actioned.ts's exact shape.
+      `export async function f(db, since) {\n  let query = db.from("rule_runs").select("id", { head: true, count: "exact" })\n  if (since) query = query.gte("evaluated_at", since)\n  const { count } = await query\n  return (count ?? 0) > 0\n}\n`,
+    ],
+    alsoGood: [
+      `export async function f(db) {\n  const { count, error } = await db.from("rule_runs").select("id", { head: true, count: "exact" })\n  if (error) { console.error("[probe] count failed", error); return null }\n  return (count ?? 0) > 0\n}\n`,
+      // The degenerate third: a destructure of an awaited Supabase call binding NO result field is
+      // not a result read, and must not be flagged just for being awaited off a `.from()` chain.
+      `export async function f(db) {\n  const { body } = await db.from("leases").select("id")\n  return body\n}\n`,
+      // An awaited identifier that never held a Supabase chain must stay quiet — otherwise the
+      // identifier arm turns every `const { data } = await somePromise` in the repo into a finding.
+      `export async function f(fetchJson) {\n  const promise = fetchJson("/api/x")\n  const { data } = await promise\n  return data\n}\n`,
+    ],
   },
 
   "settings-use-detail-tabs": {
@@ -255,9 +275,14 @@ for (const [name, c] of Object.entries(CASES)) {
     it("fires on a planted violation, and stays quiet on the known-good", async () => {
       const rule = (await import(`../${name}.mjs`)).default
       const cfg = c.jsx ? jsx : {}
+      // `alsoBad`/`alsoGood` extend a case with extra spellings of the SAME defect. They exist
+      // because a rule's aperture is only ever proven by the spellings actually run through it —
+      // M-090 was a rule that covered its class in prose and one spelling in fact.
+      const bad = [c.bad, ...(c.alsoBad ?? [])]
+      const good = [c.good, ...(c.alsoGood ?? [])]
       tester.run(name, rule, {
-        invalid: [{ filename: c.file, code: c.bad, errors: [{ messageId: c.messageId }], ...cfg }],
-        valid: [{ filename: c.file, code: c.good, ...cfg }],
+        invalid: bad.map((code) => ({ filename: c.file, code, errors: [{ messageId: c.messageId }], ...cfg })),
+        valid: good.map((code) => ({ filename: c.file, code, ...cfg })),
       })
     })
   })

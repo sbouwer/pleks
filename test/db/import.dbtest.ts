@@ -154,8 +154,9 @@ describe("bulk import — against the real schema", () => {
     // Unit 3's lease was REFUSED (unclassifiable type) — no lease, so it must stay vacant.
     expect(byNumber["3"], "unit 3's lease was refused — it is not occupied").toBe("vacant")
 
-    const { count } = await db
+    const { count, error: historyCountErr } = await db
       .from("unit_status_history").select("id", { count: "exact", head: true }).eq("org_id", orgId)
+    expect(historyCountErr, "unit_status_history count must actually have run").toBeFalsy()
     expect(count, "the transition is recorded, once per occupied unit").toBe(2)
   })
 

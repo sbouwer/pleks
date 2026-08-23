@@ -17,7 +17,8 @@ export async function buildOccupancyReport(filters: ReportFilters): Promise<Occu
     .eq("org_id", orgId)
     .is("deleted_at", null)
   if (propertyIds?.length) propQuery = propQuery.in("id", propertyIds)
-  const { data: properties } = await propQuery
+  const { data: properties, error: propertiesError } = await propQuery
+  logQueryError("buildOccupancyReport properties", propertiesError)
 
   const propIds = properties?.map((p) => p.id) ?? []
   const propMap = new Map(properties?.map((p) => [p.id, p.name]) ?? [])

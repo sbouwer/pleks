@@ -74,20 +74,27 @@ export async function PropertySetupCards({ orgId, totalProperties, isAdmin }: Re
 
   if (!recentImport) return null
 
-  const { count: unclassifiedCount } = await service
+  // Both counts drive a nudge card. A failed read used to hide the card exactly as a clean
+  // portfolio does, so an agency with unclassified imported properties would simply never be
+  // prompted — the silent-empty shape, one surface over. Hiding the card is still the right
+  // behaviour on error (a broken card is worse than no card); logging it is what was missing.
+  const { count: unclassifiedCount, error: unclassifiedError } = await service
     .from("properties")
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId)
     .is("scenario_type", null)
     .is("deleted_at", null)
+  logQueryError("PropertySetupCards unclassified count", unclassifiedError)
+  if (unclassifiedError) return null
 
   if (!unclassifiedCount || unclassifiedCount === 0) return null
 
-  const { count: totalImported } = await service
+  const { count: totalImported, error: totalImportedError } = await service
     .from("properties")
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId)
     .is("deleted_at", null)
+  logQueryError("PropertySetupCards total imported count", totalImportedError)
 
   return (
     <ImportedPropertiesReviewCard

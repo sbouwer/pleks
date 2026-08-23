@@ -29,15 +29,18 @@ async function seedRequest(c: Case): Promise<string> {
   return data!.id as string
 }
 async function allocCount(requestId: string): Promise<number> {
-  const { count } = await db.from("maintenance_cost_allocations").select("id", { count: "exact", head: true }).eq("request_id", requestId)
+  const { count, error } = await db.from("maintenance_cost_allocations").select("id", { count: "exact", head: true }).eq("request_id", requestId)
+  if (error) throw new Error(`allocCount: ${error.message}`)
   return count ?? 0
 }
 async function trustExpenseCount(leaseId: string): Promise<number> {
-  const { count } = await db.from("trust_transactions").select("id", { count: "exact", head: true }).eq("lease_id", leaseId).eq("transaction_type", "maintenance_expense")
+  const { count, error } = await db.from("trust_transactions").select("id", { count: "exact", head: true }).eq("lease_id", leaseId).eq("transaction_type", "maintenance_expense")
+  if (error) throw new Error(`trustExpenseCount: ${error.message}`)
   return count ?? 0
 }
 async function leaseChargeCount(leaseId: string): Promise<number> {
-  const { count } = await db.from("lease_charges").select("id", { count: "exact", head: true }).eq("lease_id", leaseId).eq("charge_type", "maintenance_recovery")
+  const { count, error } = await db.from("lease_charges").select("id", { count: "exact", head: true }).eq("lease_id", leaseId).eq("charge_type", "maintenance_recovery")
+  if (error) throw new Error(`leaseChargeCount: ${error.message}`)
   return count ?? 0
 }
 async function reqStatus(requestId: string): Promise<string | null> {

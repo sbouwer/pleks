@@ -26,11 +26,12 @@ async function watermark(leaseId: string): Promise<string | null> {
 }
 
 async function interestPostCount(leaseId: string): Promise<number> {
-  const { count } = await db
+  const { count, error } = await db
     .from("deposit_transactions")
     .select("id", { count: "exact", head: true })
     .eq("lease_id", leaseId)
     .eq("transaction_type", "interest_accrued")
+  if (error) throw new Error(`interestPostCount: ${error.message}`)
   return count ?? 0
 }
 

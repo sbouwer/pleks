@@ -29,7 +29,8 @@ export async function buildOwnerPortfolio(filters: ReportFilters): Promise<Owner
     .lte("period_to", toStr)
 
   if (propertyIds?.length) stmtQuery = stmtQuery.in("property_id", propertyIds)
-  const { data: statements } = await stmtQuery
+  const { data: statements, error: statementsError } = await stmtQuery
+  logQueryError("buildOwnerPortfolio statements", statementsError)
 
   const stmts = statements ?? []
 

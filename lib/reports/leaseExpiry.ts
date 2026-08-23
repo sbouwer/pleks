@@ -5,6 +5,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { LeaseExpiryData, LeaseExpiryRow, ReportFilters } from "./types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function buildLeaseExpiryReport(filters: ReportFilters): Promise<LeaseExpiryData> {
   const supabase = await createServiceClient()
@@ -25,7 +26,8 @@ export async function buildLeaseExpiryReport(filters: ReportFilters): Promise<Le
 
   if (propertyIds?.length) query = query.in("property_id", propertyIds)
 
-  const { data: leases } = await query
+  const { data: leases, error: leasesError } = await query
+  logQueryError("buildLeaseExpiryReport leases", leasesError)
   const allLeases = leases ?? []
 
   const now = new Date()

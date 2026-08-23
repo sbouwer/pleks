@@ -21,7 +21,8 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
     .is("deleted_at", null)
 
   if (propertyIds?.length) unitQuery = unitQuery.in("property_id", propertyIds)
-  const { data: units } = await unitQuery
+  const { data: units, error: unitsError } = await unitQuery
+  logQueryError("buildRentRoll units", unitsError)
 
   const allUnits = units ?? []
   const unitIds = allUnits.map((u) => u.id)

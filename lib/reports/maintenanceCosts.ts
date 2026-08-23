@@ -28,7 +28,8 @@ export async function buildMaintenanceCostReport(filters: ReportFilters): Promis
 
   if (propertyIds?.length) query = query.in("property_id", propertyIds)
 
-  const { data: allJobs } = await query
+  const { data: allJobs, error: allJobsError } = await query
+  logQueryError("buildMaintenanceCostReport jobs", allJobsError)
   const jobs = allJobs ?? []
 
   // Completed jobs in period (for cost analysis)
