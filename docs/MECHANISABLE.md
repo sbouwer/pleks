@@ -74,6 +74,7 @@ not silently substituted.
 - **Rule:** "A `gateway()`-on-a-write must be provably intentional... the ADDENDUM_57G subscription-lockdown gate on a money path is convention-enforced" (`.claude/rules/data-access.md`)
 - **Where it lives:** `.claude/rules/data-access.md:32` (twin: `CLAUDE.md:168`, see M-011)
 - **Rung:** check · **Blast:** money
+- **Satisfied when:** extends:audit:cat15_serverActionAuth
 - **Sketch:** This overstates Cat-15 as implemented. Read `buildActionCensus()` (`scripts/security/server-action-census.mjs`): `expectedGateFamily()` only special-cases `app/(admin)/`; every other file just needs ANY recognized gate present (`gateway`, `gatewaySSR`, `requireAgentWriteAccess`, `getTenantSession`, … are all equally acceptable). It does not parse for mutation verbs (`.update(`/`.insert(`/`.upsert(`) and does not require an allowlist entry for a write gated with bare `gateway()`. The two files that DO carry "intentional gateway()-on-write" allowlist reasons (`lib/deposits/disburse.ts`, `lib/deposits/calculateReturn.ts`) would pass the census identically without those entries — the reasons are documentation, not something the script reads to make a pass/fail decision. Sketch: scan each gated file's body for a mutation call and, if `gateway()`/`gatewaySSR()` is the only gate present, require an allowlist entry.
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_57G_SUBSCRIPTION_PAUSE_POLICY.md` (defines the lockdown-gate requirement this mechanism would enforce; does not itself implement the census check)
 
@@ -188,6 +189,7 @@ mostly noise, and a noisy rule earns an allowlist and then stops being read.
 - **Rule:** "audit_log on every state change" (`CLAUDE.md`, SECURITY RULES #3)
 - **Where it lives:** `CLAUDE.md:599-600`
 - **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** extends:eslint:pleks/require-audit-on-sensitive-mutation
 - **Sketch:** enforced for TWO tables only (`contact_bank_accounts`, `tenant_bank_accounts` — `pleks/require-audit-on-sensitive-mutation`). Leases, applications, properties, tenants and `user_orgs` role changes have NO mechanism requiring an audit row to exist. The rule as written claims far more coverage than exists. Sketch: extend `require-audit-on-sensitive-mutation`'s tracked-table set to leases, applications, properties, tenants, and `user_orgs` role-change writes.
 - **Covering spec:** NEW
 
@@ -197,20 +199,32 @@ mostly noise, and a noisy rule earns an allowlist and then stops being read.
 - **Rule:** "Never disable or skip categories to pass the audit." (`CLAUDE.md`, SECURITY AUDIT)
 - **Where it lives:** `CLAUDE.md:423-424`
 - **Rung:** check · **Blast:** data-boundary
+- **Satisfied when:** check:check-audit-categories
 - **Sketch:** sketch: a self-check asserting all 15 `catN_*` functions are invoked unconditionally in `main()`/`runCiMode()`, the same self-referential pattern this file's own `--selftest` uses.
 - **Covering spec:** NEW
 
-### M-014 — org-scope on service-client `.select()` reads (data-access.md twin)
+### M-014 — org-scope on service-client `.select()` reads (data-access.md twin) — ✅ BUILT 2026-08-19, CLOSED 2026-08-23
 - **Rule:** "Every query through `db` MUST include `.eq(\"org_id\", orgId)` explicitly" — reads half (`.claude/rules/data-access.md`)
 - **Where it lives:** `.claude/rules/data-access.md:13` (twin of M-002, `CLAUDE.md:176`)
 - **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** eslint:pleks/require-org-scope-on-service-read
 - **Sketch:** PARTIAL, same as the CLAUDE.md DB ACCESS rule: `pleks/require-org-scope-on-service-write`/`require-scope-on-delete` cover writes/deletes (baseline-limited); plain `.select()` reads carry no scoping check at all. Sketch: a `require-org-scope-on-service-read` rule, same AST shape as the existing write/delete rules, flagging a service-client `.from(...).select(...)` chain with no `.eq("org_id", ...)`.
+- **BUILT — and this entry is the first thing M-083 assertion 2 ever caught.** The rule the sketch
+  asks for, `eslint-rules/require-org-scope-on-service-read.mjs`, shipped **2026-08-19** (it is
+  `@enforced` in CLAUDE.md's DB-ACCESS list and carries the 2026-08-19 scar about its own
+  discriminator skipping 63 files). The entry then sat open for four days while its CLAUDE.md twin
+  **M-002 was already closed** — a twin pair closed on one side only, which is exactly the relational
+  defect a per-entry reading pass cannot see. Nobody planted it; it was found on assertion 2's FIRST
+  run, the moment the backfill gave the detector something to read. That is the argument for the
+  convention, arriving as evidence for itself — and a direct correction to this register's own
+  measured claim that the detector "would not have caught any of the five cases that motivated it".
 - **Covering spec:** NEW
 
 ### M-015 — `require-consent-log-on-popia-write` (new rule)
 - **Rule:** "consent_log for any new POPIA-sensitive operation" (`CLAUDE.md`, SECURITY RULES #4)
 - **Where it lives:** `CLAUDE.md:601-602`
 - **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** eslint:pleks/require-consent-log-on-popia-write
 - **Sketch:** no rule or script references `consent_log` as a write requirement. Sketch: a new `require-consent-log-on-popia-write` rule, same shape as `require-audit-on-sensitive-mutation`, scoped to a named consent-required table set.
 - **Covering spec:** NEW
 
@@ -218,6 +232,7 @@ mostly noise, and a noisy rule earns an allowlist and then stops being read.
 - **Rule:** "Mask before display — never show raw decrypted ID/account in UI" (`CLAUDE.md`, SECURITY RULES #6)
 - **Where it lives:** `CLAUDE.md:615-616`
 - **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** eslint:pleks/no-raw-pii-in-jsx
 - **Sketch:** no check inspects JSX for a raw decrypted identifier reaching render. Sketch: a new rule shaped like `no-id-number-hash-in-app` flagging a `decryptIdNumber`/`decryptBankAccount`-derived value reaching JSX text/props outside the lease-document renderer (allowlisted).
 - **Covering spec:** NEW
 
@@ -225,6 +240,7 @@ mostly noise, and a noisy rule earns an allowlist and then stops being read.
 - **Rule:** "No PII in console.log, no PII in audit_log values" (`CLAUDE.md`, SECURITY RULES #7)
 - **Where it lives:** `CLAUDE.md:618-619`
 - **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** eslint:pleks/no-pii-in-console
 - **Sketch:** the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check. Sketch: an ESLint rule (or extension of `scripts/security/check-pii-classification.mts`, which already classifies PII-bearing fields) flagging `console.log`/`console.error`/`console.warn` calls whose arguments reference known PII-bearing variable/property names (`idNumber`, `passportNumber`, bank account fields, etc.).
 - **Covering spec:** NEW
 
@@ -232,6 +248,7 @@ mostly noise, and a noisy rule earns an allowlist and then stops being read.
 - **Rule:** "Zero critical findings before any deployment. No exceptions." (`CLAUDE.md`, SECURITY AUDIT)
 - **Where it lives:** `CLAUDE.md:419-420` (twin: `CLAUDE.md:674-675`, see M-019)
 - **Rung:** ci · **Blast:** data-boundary
+- **Satisfied when:** ci:security-gate
 - **Sketch:** No gate blocks the actual deployment on this script's exit code; Vercel deploys on push independently of `npm run security`. Running it is a manual pre-deploy step, not a CI/deploy gate. Sketch: a required CI job running `npm run security:quick` gated on the Vercel deployment (e.g. a GitHub deployment-status check Vercel is configured to wait on), failing the deploy on exit code 1.
 - **Covering spec:** NEW
 
@@ -239,6 +256,7 @@ mostly noise, and a noisy rule earns an allowlist and then stops being read.
 - **Rule:** "Do not deploy without running `npm run security:quick` first" (`CLAUDE.md`, DO NOT DO)
 - **Where it lives:** `CLAUDE.md:674-675` (twin of M-018)
 - **Rung:** ci · **Blast:** data-boundary
+- **Satisfied when:** ci:security-gate
 - **Sketch:** twin of "Zero critical findings before any deployment" above, same mechanism: no gate blocks a Vercel deploy on this script having run or passed.
 - **Covering spec:** NEW
 
@@ -321,6 +339,7 @@ available would have been forbidden.
 - **Rule:** "Idempotency is mandatory" (`.claude/rules/migrations.md`)
 - **Where it lives:** `.claude/rules/migrations.md:81`
 - **Rung:** check · **Blast:** schema
+- **Satisfied when:** extends:check:check-migration-integrity
 - **Sketch:** sketch: scan a migration's new `§N` section for `CREATE TABLE` without `IF NOT EXISTS`, `ADD COLUMN` without `IF NOT EXISTS`, or `CREATE INDEX` without `IF NOT EXISTS`, each a concrete syntactic pattern.
 - **Covering spec:** NEW
 
@@ -328,6 +347,7 @@ available would have been forbidden.
 - **Rule:** "`auth.users` has no unique constraint on email — `ON CONFLICT (email)` will fail" (`.claude/rules/schema-gotchas.md`)
 - **Where it lives:** `.claude/rules/schema-gotchas.md:17`
 - **Rung:** check · **Blast:** schema
+- **Satisfied when:** extends:check:schema-contract-scan
 - **Sketch:** these are orientation ("known gotchas to check before writing migrations or queries") rather than a single checkable property; the closest mechanisable slice is the second bullet — sketch: flag an `.upsert`/`ON CONFLICT` call targeting `auth.users` by `email` — but none exists today.
 - **Covering spec:** NEW
 
@@ -349,6 +369,7 @@ Different audiences, same missing control.
 - **Rule:** "A table is in this class only if it passes the membership test below" (`.claude/rules/identity-scoped-tables.md`)
 - **Where it lives:** `.claude/rules/identity-scoped-tables.md:14` (twin of M-005, `CLAUDE.md:590`)
 - **Rung:** check · **Blast:** schema
+- **Satisfied when:** none — subsumed by M-005; building it separately would duplicate that check's scan
 - **Sketch:** Nothing inspects migration SQL for a new table at all, so nothing can distinguish "correctly exempted by the membership test" from "the org_id rule was simply skipped." This file's whole purpose — a written test to stop the exception becoming a general escape hatch — has no code-side check that the test was actually applied. Sketch: parse each migration's new `§N` section for `CREATE TABLE`, and assert an `org_id` column is present unless the table name is in this file's "Current members" allowlist.
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_62F_MULTI_DEVICE_PASSKEY.md`
 
@@ -358,6 +379,7 @@ Different audiences, same missing control.
 - **Rule:** "Do NOT amend `007_enhancements.sql` or `008_enhancements2.sql`" (`.claude/rules/migrations.md`)
 - **Where it lives:** `.claude/rules/migrations.md:53`
 - **Rung:** check · **Blast:** schema
+- **Satisfied when:** extends:check:check-migration-forward-refs
 - **Sketch:** `check-migration-forward-refs.mjs` reads every migration file's content but has no rule against 007/008 specifically gaining a new `§N` section. Sketch: diff each file's section (`§N`) count against a recorded baseline and fail if 007/008 grows.
 - **Covering spec:** NEW
 
@@ -365,6 +387,7 @@ Different audiences, same missing control.
 - **Rule:** "Anti-patterns to never use" — non-existent applicant columns (`.claude/rules/schema-gotchas.md`)
 - **Where it lives:** `.claude/rules/schema-gotchas.md:38`
 - **Rung:** check · **Blast:** schema
+- **Satisfied when:** extends:check:schema-contract-scan
 - **Sketch:** PARTIAL, mechanically. The first two bullets name COLUMNS that don't exist, so a query referencing them fails at the database (PostgREST 42703) and — if the call site's `{ data, error }` is checked per `pleks/require-supabase-error-check` — surfaces as a real, visible error rather than a silent `null`. That is real but REACTIVE (fails at query time, not write time). The third and fourth bullets describe an absence, which nothing can positively check for. Sketch: verify (or extend) `schema-contract-scan.mjs` (manifest-driven, already in `npm run check`) to statically flag a `.select`/`.eq` referencing `applications.applicant_id` or `applications.applicant_user_id` — not independently verified in this pass whether it already does.
 - **Covering spec:** NEW
 
@@ -372,6 +395,7 @@ Different audiences, same missing control.
 - **Rule:** "Current members (exhaustive — extend only via a CD ruling)" (`.claude/rules/identity-scoped-tables.md`)
 - **Where it lives:** `.claude/rules/identity-scoped-tables.md:50`
 - **Rung:** check · **Blast:** schema
+- **Satisfied when:** extends:check:check-migration-integrity
 - **Sketch:** no code anywhere enumerates this three-table allowlist to check against (the ESLint rules' own `SELF_SCOPED_TABLES` set is a DIFFERENT, unrelated exemption for `organisations`/`user_profiles`); a fourth table added to this list by prose alone, with no matching code-side allowlist, would not be caught adding `org_id` back OR skipping it incorrectly. Sketch: a code-side constant (e.g. `IDENTITY_SCOPED_TABLES` in `lib/`) mirroring this markdown table, read by the migration-scan sketched above (M-005/M-023), kept in sync by a doc/code parity test.
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_62F_MULTI_DEVICE_PASSKEY.md`
 
@@ -379,6 +403,7 @@ Different audiences, same missing control.
 - **Rule:** "Cascade credentials. Never cascade evidence." (`.claude/rules/identity-scoped-tables.md`)
 - **Where it lives:** `.claude/rules/identity-scoped-tables.md:69`
 - **Rung:** check · **Blast:** schema
+- **Satisfied when:** check:check-auth-users-cascade
 - **Sketch:** sketch: grep migrations for `REFERENCES auth.users` and assert `ON DELETE CASCADE` only on the named credential tables and `ON DELETE SET NULL` everywhere else — but nothing does; classifying a NEW table as "credential" or "evidence" in the first place still requires the semantic judgement this section describes, so the check would need the same allowlist as M-023/M-026 to know which tables are "named credential tables".
 - **Covering spec:** `brief/build/SPEC_ANALYTICS_CAPTURE.md` (§2, the `ON DELETE SET NULL` evidentiary-row doctrine this rule generalises from)
 
@@ -386,6 +411,7 @@ Different audiences, same missing control.
 - **Rule:** "After adding a section, re-run the migration against the live DB and verify with the drift script" (`.claude/rules/migrations.md`)
 - **Where it lives:** `.claude/rules/migrations.md:76` (twin cluster with M-029 and `CLAUDE.md:307-308`)
 - **Rung:** hook · **Blast:** schema
+- **Satisfied when:** extends:check:check-drift-if-sql-changed
 - **Sketch:** `check-schema-drift.mjs` would catch the RESULTING mismatch if run, but nothing forces "re-run and verify" to have actually happened before a commit. Sketch: a local pre-commit/pre-push hook running `node scripts/check-schema-drift.mjs` when a migration file changed, blocking on drift.
 - **Covering spec:** NEW
 
@@ -393,6 +419,7 @@ Different audiences, same missing control.
 - **Rule:** "Always drive drift back to zero before committing." (`.claude/rules/migrations.md`)
 - **Where it lives:** `.claude/rules/migrations.md:150` (twin cluster with M-028 and `CLAUDE.md:307-308`)
 - **Rung:** hook · **Blast:** schema
+- **Satisfied when:** extends:check:check-drift-if-sql-changed
 - **Sketch:** `check-schema-drift.mjs` genuinely detects drift when run, and its conditional wrapper (`check-drift-if-sql-changed.mjs`) is part of `check:full` — but `check:full` is not CI-wired (CI's `db-tests` job runs `test:db`/`security:db` post-push, but not this drift check), so nothing forces "drive drift to zero" to have happened before a commit lands. Sketch: same pre-commit/pre-push hook as M-028, running `check-schema-drift.mjs` when a migration file changed.
 - **Covering spec:** NEW
 
@@ -404,6 +431,7 @@ Different audiences, same missing control.
 - **Rule:** "`/auth/resolver` produces exactly ONE routing decision per call... MUST NOT appear in any `?redirect=` value it forwards" (`.claude/rules/routing-auth.md`)
 - **Where it lives:** `.claude/rules/routing-auth.md:39`
 - **Rung:** check · **Blast:** auth
+- **Satisfied when:** check:check-auth-resolver-loop
 - **Sketch:** sketch: grep the resolver route and the three named transient-auth-state routes for a literal `/auth/resolver` substring inside a `redirect=`/`searchParams.set("redirect", ...)` value and fail on a match — the exact self-reference class this rule forbids; it is a runtime routing property, not something `architecture-audit.mjs`'s current checks (cross-origin links, manifest completeness, safe-redirect denylist) happen to cover.
 - **Covering spec:** NEW
 
@@ -411,6 +439,7 @@ Different audiences, same missing control.
 - **Rule:** "Tenant/landlord/supplier portal actions: use `getTenantSession()`" (`CLAUDE.md`, DB ACCESS)
 - **Where it lives:** `CLAUDE.md:173-174`
 - **Rung:** check · **Blast:** auth
+- **Satisfied when:** extends:audit:cat15_serverActionAuth
 - **Sketch:** `server-action-census.mjs`'s `expectedGateFamily()` only special-cases `app/(admin)/`; every other location (including portal routes) accepts ANY recognized gate, so a portal action gated with `gateway()` instead of `getTenantSession()` passes Cat-15 undetected. Sketch: extend `expectedGateFamily` to require the portal gate under `app/(tenant)/`, `app/(landlord)/`, `app/(supplier)/`.
 - **Covering spec:** NEW
 
@@ -418,6 +447,7 @@ Different audiences, same missing control.
 - **Rule:** "Factor scoping: any code path that ROUTES based on 'does the user have an MFA factor?' MUST use the host-scoped check" (`.claude/rules/routing-auth.md`)
 - **Where it lives:** `.claude/rules/routing-auth.md:46`
 - **Rung:** check · **Blast:** auth
+- **Satisfied when:** check:check-mfa-factor-filtering
 - **Sketch:** sketch: flag a routing decision (`NextResponse.redirect` inside an `if`) guarded by `factors.some(...)`/raw factor-array truthiness instead of a `filterFactorsByHost(...)` call — the exact anti-pattern shown below — but nothing greps for it today.
 - **Covering spec:** NEW
 
@@ -443,6 +473,7 @@ Different audiences, same missing control.
 - **Rule:** "Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY (not ANON_KEY)" (`CLAUDE.md`, KEY CONSTANTS)
 - **Where it lives:** `CLAUDE.md:582-583` (twin: `CLAUDE.md:689-690`, see M-036)
 - **Rung:** eslint · **Blast:** other
+- **Satisfied when:** extends:eslint:pleks/no-raw-process-env
 - **Sketch:** `pleks/no-raw-process-env` blocks a raw read of ANY env var name outside `lib/env.ts`, so it happens to touch this one without knowing the string "ANON_KEY" — it would equally flag the correct name, and would miss a wrong alias declared inside `lib/env.ts` itself. Sketch: a small, specific check (or an extension of `no-raw-process-env`) that flags the literal substring `ANON_KEY` anywhere outside `lib/env.ts`, distinct from the general raw-env-var block.
 - **Covering spec:** NEW
 
@@ -451,6 +482,7 @@ Different audiences, same missing control.
 - **Rule:** "Cron and webhook handlers: do NOT use `requireAgentWriteAccess`" (`CLAUDE.md`, DB ACCESS)
 - **Where it lives:** `CLAUDE.md:171-172`
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** extends:check:route-census
 - **Sketch:** `route-census.mjs` classifies a route as `cron`/`webhook` by path prefix or secret header, but nothing greps those same files for a `requireAgentWriteAccess(` call and fails if found. Sketch: extend `route-census.mjs` to grep cron/webhook-bucket route files for a `requireAgentWriteAccess(` call and fail if present.
 - **Covering spec:** NEW
 
@@ -508,6 +540,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rule:** "When adding new public routes: add them to the Category 9 rate limit test list." (`CLAUDE.md`, SECURITY AUDIT)
 - **Where it lives:** `CLAUDE.md:429-430`
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** extends:audit:cat9_rateLimiting
 - **Sketch:** `PUBLIC_API_ROUTES` is hand-maintained (unlike Category 8's disk-derived census) and `cat9_rateLimiting` only floods `.slice(0, 2)` of it regardless of length, so nothing fails if a new public route is never added. Sketch: derive the flood target list from `route-census.mjs`'s `byBucket.public`, the same pattern Category 8 already uses.
 - **Covering spec:** NEW
 
@@ -516,6 +549,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rule:** "Health-check tracking: `lib/observability/health.ts` `checkCrons` tracks only top-level scheduled `job_name`s that ACTUALLY write a `cron_runs` row" (`.claude/rules/crons.md`)
 - **Where it lives:** `.claude/rules/crons.md:68`
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** check:check-tracked-crons
 - **Sketch:** sketch: assert every name in `TRACKED_CRONS` is written by at least one route calling `withCronRun` with that exact `job_name` — the precise mismatch that caused the chronic "crons: degraded" false positive this paragraph describes.
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_67E_CRON_RELIABILITY.md`
 
@@ -526,6 +560,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rule:** "Any hardcoded `https://app.pleks.co.za/...` in template or email code is a bug." (`.claude/rules/comms-urls.md`)
 - **Where it lives:** `.claude/rules/comms-urls.md:21`
 - **Rung:** eslint · **Blast:** other
+- **Satisfied when:** extends:eslint:pleks/no-inline-app-url
 - **Sketch:** PARTIAL: `pleks/no-inline-app-url` catches the templated-literal form of this bug (baseline-limited) — verified: it only visits `TemplateLiteral` nodes interpolating `APP_URL`/`MARKETING_URL`; a hand-typed literal string with no `${}` interpolation (e.g. `"https://app.pleks.co.za/wo/123"`) is a different AST shape the rule does not visit at all. Sketch: extend the rule to also visit plain `Literal` string nodes matching the production/apex origins, outside `lib/routing/`.
 - **Covering spec:** NEW
 
@@ -536,6 +571,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rule:** "Touch a file with a stub header (contains `FILL:`) → fill it in before committing" (`CLAUDE.md`, FILE HEADERS)
 - **Where it lives:** `CLAUDE.md:70-71`
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** extends:check:check-file-headers
 - **Sketch:** `check-file-headers.mjs` only fails on a `FILL:` stub NOT already in `file-headers.baseline.json`; touching a baselined file's body without filling its header leaves the file still baselined and still passing. Sketch: diff staged files against the baseline and fail if a staged, baselined file still contains `FILL:`.
 - **Covering spec:** NEW
 
@@ -544,6 +580,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rule:** "`npm run check:full`... must be green" (`CLAUDE.md`, pre-push checklist step 1)
 - **Where it lives:** `CLAUDE.md:307-308` (related cluster: M-028, M-029)
 - **Rung:** hook · **Blast:** other
+- **Satisfied when:** extends:check:check-prepush-composition
 - **Sketch:** `check:full` exists and is genuinely strict when run (it chains `check`, `test:db`, `security:db`, `check-drift-if-sql-changed`), but nothing forces it to run before a push: it is not in `ci.yml` (CI's `db-tests` job runs `test:db`/`security:db` separately on the PR — a real, newer mitigation, but still post-push/pre-merge, and it skips `check-drift-if-sql-changed`) and `hook:bash-gate` gates the push action on approval, not on this command's exit code. Sketch: a local `pre-push` git hook running `npm run check:full`, blocking the push on non-zero exit.
 - **Covering spec:** NEW
 
@@ -551,6 +588,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rule:** "Breaking changes: add `!` after type... AND a `BREAKING CHANGE:` footer" (`CLAUDE.md`, CONVENTIONAL COMMIT MESSAGES)
 - **Where it lives:** `CLAUDE.md:212-213`
 - **Rung:** ci · **Blast:** other
+- **Satisfied when:** ci:breaking-change-footer
 - **Sketch:** the `pr-title` job validates only the title's `type(scope): subject` grammar (`amannn/action-semantic-pull-request`, no `subjectPattern` configured); it does not check the PR/commit body for a `BREAKING CHANGE:` footer. `semantic-release` parses the footer at RELEASE time (post-merge) to size the version bump. Sketch: a CI step reads the PR title; if it contains `!`, assert the PR body contains a `BREAKING CHANGE:` line and fail otherwise.
 - **Covering spec:** NEW
 
@@ -559,6 +597,7 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Rule:** "Baselines only SHRINK." (`.claude/rules/lint-rules.md`)
 - **Where it lives:** `.claude/rules/lint-rules.md:21`
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** check:check-baselines-shrink
 - **Sketch:** PARTIAL. "Baselines only shrink" is what `check-claude-md.mjs` itself enforces for the UNENFORCEABLE-marker count and what `check-file-headers.mjs`/`check-pii-classification.mts` enforce for their own baselines — but that shrink-only property is per-script, not a general property every `*.baseline.json` is verified to hold; a NEW baseline file could widen on every run and nothing would notice. Sketch: one generic script enumerates every `*.baseline.json` in the repo and, in CI, compares each file's entry count against the base-branch version, failing if any grows.
 - **Covering spec:** NEW
 
@@ -610,6 +649,7 @@ rather than quietly weakening the hook.
 - **Rule:** "`APPLICATION_FEE_CENTS` · `JOINT_APPLICATION_FEE_CENTS` · `INCOME_AFFORDABILITY_THRESHOLD` → `lib/constants.ts`" (`CLAUDE.md`, KEY CONSTANTS)
 - **Where it lives:** `CLAUDE.md:558-559`
 - **Rung:** check · **Blast:** money
+- **Satisfied when:** check:check-money-literals
 - **Sketch:** sketch: scan for a raw `25000`/`47000`/`0.30`-shaped literal outside `lib/constants.ts`, the way a `no-rerolled-*` rule guards its own SSOT. Same mechanism family as M-007 — could ship as one combined script.
 - **Covering spec:** NEW
 
@@ -617,6 +657,7 @@ rather than quietly weakening the hook.
 - **Rule:** "Never hardcode a fee literal" (`CLAUDE.md`, KEY CONSTANTS — screening fee SSOT)
 - **Where it lives:** `CLAUDE.md:563-564`
 - **Rung:** check · **Blast:** money
+- **Satisfied when:** extends:check:check-money-literals
 - **Sketch:** PARTIAL. The test (`bundle-economics.test.ts`) asserts price > cost WITHIN the SSOT module itself — a real, running invariant — but it does not scan call sites, so "never hardcode a fee literal" elsewhere in the codebase is unchecked; a call site that writes `25000` instead of importing `APPLICATION_FEE_CENTS` would not fail this test. Sketch: same call-site literal scan as M-007/M-008, applied to the screening fee cents value.
 - **Covering spec:** NEW
 
@@ -624,6 +665,7 @@ rather than quietly weakening the hook.
 - **Rule:** "Do not build debit order or DebiCheck mandate features" — hand-rolled-flow half (`CLAUDE.md`, DO NOT DO)
 - **Where it lives:** `CLAUDE.md:695-696`
 - **Rung:** eslint · **Blast:** money
+- **Satisfied when:** extends:eslint:no-restricted-imports
 - **Sketch:** PARTIAL, related to `.claude/rules/finance-trust.md:19`'s D-TRUST-01 coverage assessment (M-012). `no-restricted-imports` forbids importing generic payment-initiation SDKs repo-wide, but a hand-rolled debit-order flow using ordinary Supabase writes (no SDK import) would not be caught at all. Sketch: add named DebiCheck/debit-order SDK packages to the existing `no-restricted-imports` patterns block as they become known; the hand-rolled-flow gap needs a separate `no-restricted-syntax` pattern on mandate-creation-shaped writes and is harder to close fully.
 - **Covering spec:** `brief/legal/TRUST_ACCOUNT_POSITIONING.md`
 
@@ -631,6 +673,7 @@ rather than quietly weakening the hook.
 - **Rule:** "`requireAgentWriteAccess(action)` for ALL agent-side mutations — never bare `gateway()` on a write path" (`CLAUDE.md`, DB ACCESS)
 - **Where it lives:** `CLAUDE.md:167-168` (twin of M-003)
 - **Rung:** check · **Blast:** money
+- **Satisfied when:** extends:audit:cat15_serverActionAuth
 - **Sketch:** twin of `.claude/rules/data-access.md:28`, same mechanism (M-003). The server-action census (Cat-15) only requires SOME recognized gate to be present; it does not distinguish `gateway()` from `requireAgentWriteAccess`, nor a read path from a write path. A write silently gated with bare `gateway()` and no allowlist entry does NOT fail Cat-15. Sketch: flag a `"use server"` module containing an `.update(`/`.insert(`/`.upsert(`/`.delete(` call whose file only resolves via `gateway()`/`gatewaySSR()`, absent an allowlist reason.
 - **Covering spec:** `brief/build/_ADDENDUM/ADDENDUM_57G_SUBSCRIPTION_PAUSE_POLICY.md`
 
@@ -638,6 +681,7 @@ rather than quietly weakening the hook.
 - **Rule:** "D-TRUST-01: Pleks is not the trustee) enforced at schema, code, and ESLint levels" (`.claude/rules/finance-trust.md`)
 - **Where it lives:** `.claude/rules/finance-trust.md:18`
 - **Rung:** eslint · **Blast:** money
+- **Satisfied when:** extends:eslint:no-restricted-imports
 - **Sketch:** PARTIAL. The ESLint layer is real: `no-restricted-imports` forbids named payment-SDK packages repo-wide, citing D-TRUST-01 by name. The "schema" and "code" enforcement layers this sentence also claims were not independently verified in this pass — flagged rather than tagged, per "do not invent controls." Sketch: independently verify (or build) the schema- and code-layer controls the sentence claims, then tag each verified layer separately rather than the compound claim as one.
 - **Covering spec:** `brief/legal/TRUST_ACCOUNT_POSITIONING.md`
 
@@ -645,6 +689,7 @@ rather than quietly weakening the hook.
 - **Rule:** "Every service-client `.select()` MUST include `.eq(\"org_id\", orgId)`" (`CLAUDE.md`, §4 Enforced) — the ESCAPE HATCH, not the rule
 - **Where it lives:** `eslint-rules/require-org-scope-on-service-read.mjs`, the `ORG_AWARE` test
 - **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** extends:eslint:pleks/require-org-scope-on-service-read
 - **Sketch:** the rule exempts an unscoped read when the ENCLOSING FUNCTION is "org-aware" anywhere in its text — an `.eq("org_id", …)`, an `org_id !==` compare, an `orgId ===` compare. That is deliberately loose, to allow validate-then-act (prove ownership, then read by id). But "anywhere in the function" includes AFTER the read, so a function that reads unscoped and org-checks something else later is exempt, and a 200-line page component is exempted by one org-scoped fetch at the bottom.
 - **MEASURED 2026-08-19, before proposing a fix** (a check's first number is a hypothesis):
   - require the org signal to appear BEFORE the read in source order → **57 findings across 35 files**
@@ -716,6 +761,7 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Rule:** dev-standards `standards/CLAUDE-MD-STANDARD.md` §4.5 — a probe's result must be a function of what a file SAYS, never of how the checkout produced it (line endings, BOM, permissions)
 - **Where it lives:** no CLAUDE.md bullet yet; the scar is `d18e344e` (`check-claude-md.mjs` split on `"\n"`, so every line carried a trailing `\r` on a CRLF checkout and the marker audit reported findings that did not exist)
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** check:check-naive-newline-split
 - **Sketch:** the fix that shipped is `text.split(/\r?\n/)`. **The finding is that it is now written independently in five places and nothing makes the sixth author do it.** A `no-naive-line-split` check over `scripts/**` and `.claude/hooks/**` — fail on `.split("\n")` / `.split('\n')` where the receiver is file text — is the right shape here, NOT a shared `splitLines` helper: the idiom is one regex, and a shared import across otherwise-standalone node scripts buys coupling rather than safety (and puts two sides of every future comparison behind one reader, per dev-standards [[L-37]]). BOM is the same class and belongs in the same check: a `﻿` before the first character defeats any `^`-anchored first-line test.
 - **Measured, not assumed:** as at `d18e344e`, per `.claude/handoff/crlf-materialisation-sweep/01-grounder.md` — 36 content-reading sites across `npm run check` plus the four hooks, **34 tolerant or out of scope, 0 confirmed vulnerable**. Tolerance is per-site and reasoned (`\s` in the pattern absorbs `\r`; `includes()` is a substring test; whole-file regex with no line anchors; `JSON.parse`). So this ships green and needs no baseline — it is a ratchet against the next author, not a burn-down. **This classification is the agent's, re-derived independently for one site only (the BOM finding below); the other 35 are cited, not verified.**
 - **Coverage boundary, stated rather than discovered:** `scripts/architecture-audit.mjs` (9 sites) and everything under `vitest run` were NOT traced. The check above would cover them by path, but the CLAIM that they are clean is unmade. Do not let a green first run be read as "the gate is materialisation-independent".
@@ -727,6 +773,7 @@ approached the window; E6 stays INCONCLUSIVE rather than answered.
 - **Rule:** "every `.claude/rules/*.md` is git-tracked and carries `paths:` frontmatter" <!-- @enforced check:check-rules-tracked -->
 - **Where it lives:** `scripts/check-rules-tracked.mjs:87` — `/^---[\s\S]*?\bpaths:/m` against the first 400 bytes
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** extends:check:check-rules-tracked
 - **Sketch:** verified at the site, not taken on report: a `﻿` BOM makes the first line `﻿---`, so `^---` cannot match at position 0. It then matches the frontmatter's CLOSING delimiter instead, and `paths:` is never found after it — the file is reported as missing `paths:` when it has it. **This fails LOUD, not silent** (a false positive, not a false negative), which is why it is a register entry and not a stop-work. Fix is `.replace(/^﻿/, "")` on read.
 - **The reason it is not a one-line fix:** the script has **no `--selftest`, no exported pure function, and no fixture** — ~~it is the only check in the chain with no probe seam at all~~ — **superlative struck 2026-08-20 as unmeasured: 21 of 31 chained checks have no `--selftest`.** The narrower claim stands and is what carries the entry: this script has no seam of any kind AND is about to have its parsing changed. Changing its parsing with nothing to probe against is how a check starts lying. The work is: extract the frontmatter test to an exported function, add `--selftest` with both directions (a BOM'd file WITH `paths:` must pass; a file genuinely without `paths:` must still fail), then apply the strip. Same shape as M-064 and could ship in the same commit.
 - **Covering spec:** NEW
@@ -772,11 +819,12 @@ control case that must still pass.
   `sort | uniq -d`, and `check-claude-md.mjs` already contains a marker resolver that can tell whether
   a cited `check:`/`hook:`/`eslint:` control resolves. → **M-083**
 
-### M-074 — the purge clock advances whether or not the 30-day warning is ever delivered
+### M-074 — the purge clock advances whether or not the 30-day warning is ever delivered — ✅ BUILT 2026-08-23
 
 - **Rule:** counsel ruling 2026-08-20 — the Day-0 cancellation notice may state a *minimum retention period* instead of a deletion date, **"provided the surrounding lifecycle actually delivers the eventual date"**. The 30-day warning is that delivery. It is therefore a condition of the Day-0 disclosure being sufficient, not a courtesy send.
 - **Where it lives:** the counsel ruling recorded in `brief/legal/CANCELLATION_EMAIL_TEMPLATES_v1.1.md` and the header of `lib/comms/templates/agent/subscriptions/cancellation.tsx`. No code depends on it.
 - **Rung:** check (+ schema) · **Blast:** data-boundary
+- **Satisfied when:** test:lib/subscriptions/__tests__/purgeWarningGate.test.ts
 - **Measured at `e4d75e3e`, 2026-08-20 — `processPurgeWarnSub` (`app/api/cron/subscription-purge-warnings/route.ts:78-110`) advances the lifecycle before, and independently of, any delivery:**
   - `purge_eligible_at` and `purge_warning_sent_at` are written **first**; the send happens after.
   - The send is wrapped in `.catch()` that only `console.error`s. A failed send does not fail the step, does not roll back the date, and does not retry the *step*.
@@ -796,11 +844,19 @@ control case that must still pass.
 - **Provenance:** found while verifying the conditions counsel attached to their approval. The approval created the dependency — before it, a missed warning was an ops nuisance; after it, it is the leg the Day-0 disclosure stands on.
 - **Covering spec:** ADDENDUM_57G §11.3 · counsel ruling 2026-08-20
 
+- **BUILT 2026-08-23, all three parts. The sketch above was wrong in one place and would have shipped the defect it was written to close — recorded here rather than quietly corrected in the diff.**
+  - **Part 1's sketch said "a `communication_log` row for `subscription.purge_warning_30d` is already written by the send path, so the signal exists. Gate on it."** Gating on the ROW is a delivery gate satisfied by a failed send: `logToDb` writes a row on **both** outcomes, `sent` and `failed`. The row proves the send path executed — the same attempt-vs-outcome confusion the entry itself diagnoses two bullets above, reproduced in its own remedy. The gate reads `status`, never existence. `lib/subscriptions/purgeWarningGate.ts` splits the lifecycle explicitly: inserted as `sent`|`failed`, later revised by the Resend webhook to `delivered`|`opened`|`bounced`|`unsubscribed`; `sent`/`delivered`/`opened`/`unsubscribed` establish delivery, `failed`/`bounced` are a send failure, and anything else defers as `not_delivered` rather than being assumed good.
+  - **Part 2.** `subscriptions.purge_deferred_at` + `purge_deferred_reason` (`010_platform_features.sql` §X.2, CHECK-constrained to the four reasons). Applied to production 2026-08-23 via the tracked ledger; `check-schema-drift.mjs` reports zero drift against the migration file afterwards. `purge_warning_sent_at` was **not** renamed — per the bullet above, the missing thing was the dependency, not the label.
+  - **Part 3.** Every deferral surfaces twice: `lib/cron/cronDigest.ts`'s `isIssue` now counts a non-zero `deferred` as an issue (so the digest cannot report a clean run over a held purge), and `app/(admin)/admin/subscriptions/page.tsx` carries a card listing each deferred org with a per-reason "what to do". The four reasons are distinguishable exactly as the entry required — `no_contact` (find a contact) reads differently from `send_failed` (investigate delivery).
+  - **A false-zero was avoided in the build, of the class M-088 closed the same week:** the `communication_log` query's `error` is treated as `"skipped"`, never as "no warning found". Collapsing an unreadable log into an absent warning would have made a transient database error look like grounds to defer — or, with the condition inverted, grounds to purge.
+  - **Satisfied when** resolved on the first run after the test file landed, and the ⚑ note it produced is what prompted this closure — M-083 assertion 2 working as designed, on its second catch.
+
 ### M-071 — attachments are supported, unimplemented, and silently dropped on retry
 
 - **Rule:** ADDENDUM_57G §11.3 — the T-30 purge warning goes *"with full export bundle attached"*. Not implemented, and not implementable as a one-line parameter.
 - **Where it lives:** §11.3 only. No code, no check.
 - **Rung:** check (+ migration) · **Blast:** data-boundary
+- **Satisfied when:** extends:check:schema-contract-scan
 - **Measured at `f7c51d89`, 2026-08-20 — three states, and the first two readings each got it wrong in opposite directions:**
   - **SUPPORTED.** `SendEmailParams.attachments?: Array<{ filename; content: string | Buffer; contentType? }>` (`lib/comms/send-email.ts:86`), forwarded to Resend (`:341`). `sendPlatformEmail(params: SendEmailParams)` spreads the whole object into `sendEmail` (`lib/subscriptions/sendWithRetry.ts:28,37`). A first send would carry an attachment today.
   - **UNIMPLEMENTED.** Nothing passes one on this template. The warning templates render `<EmailButton href={appUrl}/reports>`.
@@ -896,6 +952,7 @@ the note said the seam prevented.
 - **Rule:** `lib/comms/templates/seed/generated/document_templates.seed.generated.sql` is generated from `lib/comms/templates/seed/*.ts` by `scripts/gen-template-seed.mts`. The committed artefact is expected to match its source.
 - **Where it lives:** nowhere. Not a CLAUDE.md bullet, not a rule file, not a check.
 - **Rung:** check · **Blast:** data-boundary
+- **Satisfied when:** check:check-seed-artefact-fresh
 - **Measured at `e5e7abf9`, 2026-08-20:** `scripts/gen-template-seed.mts` is **referenced by nothing** — not `package.json`, not CI, not any `check-*.mjs`. A repo-wide grep for `gen-template-seed` returns only the file itself. `check-drift-if-sql-changed.mjs` and `check-schema-drift.mjs` cover Supabase *schema* drift, not this generator. Source and artefact were in sync at the time of measurement (mtimes 4 ms apart, same regeneration run) — **which is a property of whoever last ran it by hand, not a maintained invariant.**
 - **Sketch:** regenerate to a temp file, diff against the committed artefact, fail on mismatch. Standard generated-artefact guard; the generator already exists, so this is wiring plus a probe, not new machinery. Probe both directions: an edited source with a stale artefact must FAIL, and a freshly regenerated tree must PASS.
 - **Why it matters more than a normal codegen drift:** the rows carry `legal_review_ref` values (`ADDENDUM_70C §8.8`, `§10.1`, `§10.3`) and some are `locked: true` counsel-signed copy. A silent divergence between source and artefact means the text counsel signed and the text that reaches the database are two different strings, with nothing reporting it. The failure is invisible by construction — a stale artefact is a valid SQL file that applies cleanly.
@@ -908,6 +965,7 @@ the note said the seam prevented.
 - **Rule:** `lib/comms/templates/ApplicantLegalFooter.tsx:25` — its own JSDoc: `INFORMATION_REGULATOR_URL` is the "single source for every IR reference in comms", deliberately the WEBSITE only, because the postal/email/phone details "have changed repeatedly, and a stale address on an immutable evidence record is a defect", and it "normalises the older justice.gov.za/inforeg references onto the current site".
 - **Where it lives:** that JSDoc. No CLAUDE.md bullet, no rule file, no check.
 - **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** eslint:pleks/no-rerolled-regulator-contact
 - **Measured at `b2587295`, 2026-08-20** (`rg 'inforegulator|justice.gov.za|023 5207'` over `app/` + `lib/`): **34 lines across 14 files**, and **zero importers of `INFORMATION_REGULATOR_URL`**. Every one of the three things its header forbids is present in the tree:
   - **A second, competing SSOT that is the one actually used** — `lib/external-links.ts:13` `informationRegulator: "https://inforegulator.org.za"`, consumed via `ExtLink` in `app/(public)/privacy`, `paia-manual`, `popia-register`. Two constants for one fact, and the documented one lost.
   - **The volatile details pinned anyway** — `complaints.IR@justice.gov.za` and `+27 10 023 5207` inline in ~10 sites, including two `locked: true` counsel-reviewed seed templates (`lib/comms/templates/seed/info-requests.ts:404,445`, `legalReviewRef: ADDENDUM_70C §10.1/§10.3`) and a postal address in `privacy/page.tsx:555` / `paia-manual/page.tsx:119`.
@@ -923,6 +981,7 @@ the note said the seam prevented.
 - **Rule:** `lib/comms/platform-org.ts` — its own JSDoc: every "for each org" query MUST exclude the platform org
 - **Where it lives:** the helper's header comment. No CLAUDE.md bullet, no rule file, no check.
 - **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** check:check-invariant-has-callers
 - **Sketch:** found 2026-08-20 by the knip tranche-2 sweep, which flagged the export as unreferenced. It is not dead code — it is an **unenforced invariant**, which is the more dangerous reading of the same evidence: the guard exists, the rule is written down, and **no query in the tree applies it**. Either every org-iterating query is already safe for a reason the comment does not give, or the platform org is silently included in fan-outs that were meant to exclude it. Nobody has established which, and the helper's existence has been standing in for the answer. Two pieces of work, in order: (1) census every "for each org" query and classify per site whether platform-org inclusion is a defect there — the answer decides whether this is a burn-down or a no-op; (2) only then, an ESLint rule over org-iterating query shapes. Do NOT build (2) first; a rule with no measured population is how a check's first number becomes a finding.
 - **Covering spec:** NEW
 
@@ -931,6 +990,7 @@ the note said the seam prevented.
 - **Rule:** a probe's result must be a function of what the tree SAYS, never of what else is running — the same family as **M-064** ("a check must not depend on how the tree was materialised"), one axis over: time rather than checkout
 - **Where it lives:** `scripts/check-git-hooks.mjs` — the probes that spawn real `.githooks/*` invocations with a shimmed `npm`
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** extends:check:check-git-hooks
 - **Measured, 2026-08-21, not inferred:** two `npm run check` chains run concurrently against one checkout produced **3 failing probes in one chain and 1 in the other** — different failures, same tree, same commit (`078926eb`), both spurious. Named: `pre-commit passes when "npm run check" succeeds`, `pre-merge-commit passes when …`, `prepare-commit-msg: a marker for THIS tree skips the gate`, and in the other chain `prepare-commit-msg passes when …`. The probes shell out to the real hooks, which resolve and invoke `npm run check` themselves, so two chains contend over hook state and over the marker file that records "this exact tree already passed".
 - **Why it is filed rather than fixed on sight:** it is **harmless today and the reason is worth stating** — nothing runs two chains on one checkout, and CI gets a fresh one per job. Filing it is not a plan to fix it; it is so the next person who sees these four probes fail does not go looking for a defect in the hooks. **A probe that can report a defect that is not there costs more than one that misses**, because it is chased.
 - **The sharper consequence, and the reason this is not merely trivia:** it makes the two-chain concurrency test unusable for diagnosing anything downstream of it. That is exactly how it was found — the test was aimed at the vitest zero-collection intermittent, and **both chains died here, before vitest ran**, so the trial measured nothing about its target. A concurrency-unsafe check early in a chain is a blindfold over every step after it.
@@ -946,6 +1006,7 @@ the note said the seam prevented.
 - **Rule:** `dev-standards/playbooks/4-AGENT-PIPELINES.md` §3.1b — `WALK_FAIL ⇒ IMPLEMENT`, **max 2 re-entries, then `decision-needed`**
 - **Where it lives:** §3.1b, and the `⇒` edges in §4's P1/P2 diagrams that cite it
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** extends:check:check-handoff-contract
 - **The finding, and it is about the evidence rather than the rule:** the cap is prose Main follows, which was known. What was NOT known until the disposition was audited is that **the artefacts cannot evidence it either.** A task directory holds one `NN-walker.md`; three walks appended to that one file. **The loop was overwritten as it ran**, so no check counting same-agent artefacts per task could ever have fired — not because the check does not exist, but because the evidence it would count was destroyed at the moment it was produced. This is the accreting-artefact problem in a place already ruled on: **one artefact per agent step, immutable once written. Three walks are three steps.**
 - **Sketch — two parts, both cheap:**
   1. **Walks number sequentially** like every other step: `03-walker.md`, `05-walker.md`, `07-walker.md`. No new convention — the existing immutability ruling already requires it; the practice had drifted to append-in-place because a walk "continues" the previous one conceptually. It does not: it observes a **different tree**.
@@ -962,6 +1023,7 @@ the note said the seam prevented.
 - **Rule:** `lib/help/help-data.ts:8` — its own header: "⚠ DRAFT — `HELP_CONTENT_DRAFT` is true until Stéan's §7 content-compliance pass signs off every answer"
 - **Where it lives:** that header comment and the constant's own declaration. No CLAUDE.md bullet, no rule file, no check.
 - **Rung:** eslint · **Blast:** other
+- **Satisfied when:** check:check-invariant-has-callers
 - **Measured at `b2eda39d`, 2026-08-21** (repo-wide `HELP_CONTENT_DRAFT`, excluding `docs/DEAD-CODE-QUEUE.md`): **two hits, and both are the declaration** — the header sentence at :8 and `export const HELP_CONTENT_DRAFT = true` at :40. **Zero readers.** The `/help` page and the help widget import `HelpRole` and the content itself and never consult the flag, so the un-signed-off state is asserted in a comment and rendered to users regardless.
 - **Third instance of M-067's class, and the class is now confirmed rather than suspected.** M-067 (`excludePlatformOrg`, a stated MUST) and M-069 (`INFORMATION_REGULATOR_URL`, a stated SSOT) are the same shape: **a constant whose existence stands in for the enforcement it names.** Three in two sweeps from independent domains — comms fan-out, legal copy, help content — makes it a repo-wide pattern with a single generalisable check, not three unrelated dead exports.
 - **Sketch — and note this one is cheaper than its two siblings, which is why it is worth doing first:** unlike M-067 (needs a per-site census before any rule) and M-069 (blocked on a counsel decision about which constant wins), this flag has **no prior decision to make**. Either it gates something or it should not exist. Two candidate shapes: (a) the narrow one — `/help` refuses to render, or renders a visible draft banner, while the flag is true, which converts the comment into behaviour; (b) the general one — a check that any `export const *_DRAFT`/`*_REQUIRED`-shaped boolean with zero readers fails, which is the class-level rule the three instances argue for. **(a) is a one-file change and provable; (b) needs its population measured before a number is recorded.** Do not ship (b) on a population of three.
@@ -974,6 +1036,7 @@ the note said the seam prevented.
 - **Rule:** `lib/leases/disclaimer.ts:12,47` — its own comments name both source documents (`brief/legal/FINAL_PLATFORM_DISCLAIMER.md`, `brief/build/ADDENDUM_44A_CREDIT_TERMS.md §3`) and mark both constants "attorney reviewed". A constant that cites a legal source document IS a claim to be the SSOT for it.
 - **Where it lives:** those two comments. No check; `no-rerolled-money-format` and `no-adhoc-dates` guard their SSOTs, nothing guards this one.
 - **Rung:** check · **Blast:** data-boundary (liability text on a document a tenant signs)
+- **Satisfied when:** test:lib/documents/__tests__/disclaimer-ssot.test.ts
 - **Measured at `b2eda39d`, 2026-08-21** — read at all three sites, not inferred from the census:
   - `DISCLAIMER_GATE_TEXT` (`disclaimer.ts:14`) — **zero importers.** The live modal, `components/leases/LeaseDisclaimerGate.tsx`, hand-types the same text into a `SECTIONS` array: all six clause bodies verbatim, the intro paragraph verbatim, the "By clicking 'I accept'" closer verbatim.
   - `DOCUMENT_DISCLAIMER_TEXT` (`disclaimer.ts:49`) — **zero importers.** `lib/leases/generateDocument.ts:692-711` builds `platformDisclaimer` from an inline array whose four strings are byte-for-byte the constant's four paragraphs, under the same `IMPORTANT NOTICE` heading — **including a duplicated copy of the source-document comment.**
@@ -989,6 +1052,7 @@ the note said the seam prevented.
 - **Rule:** `.claude/hooks/agent-write-scope.js` — `implementer: null` in `SCOPES`, justified in the same file as "implementer's whole remit IS editing source, and its containment is **the worktree it is spawned into**, not a path list"
 - **Where it lives:** that comment, and nowhere else. The grant itself is one line of a lookup table.
 - **Rung:** hook · **Blast:** other
+- **Satisfied when:** none — a doctrine correction to CLAUDE.md prose; the residual exposure is stated, not gated
 - **The finding, and it is about the JUSTIFICATION rather than the grant.** There is no worktree any more. The E10 ruling moved implementer to the main checkout, and **the same file's header says so three paragraphs above** — "Dropping isolation (E10 ruling) removed the concealment". So one file simultaneously records that isolation was dropped and cites isolation as the containment for its only unrestricted write grant.
 - **The grant may well still be right** — path-scoping an agent whose entire job is editing arbitrary source is close to impossible, and the alternative (ask on every edit) makes the implementer useless. What changed is what actually contains it: **the caller's review of a dirty tree, plus the commit denial in the same hook.** Those are different guarantees from a throwaway checkout, and neither is named at the site.
 - **Sketch:** replace the stale sentence with the two controls that really apply, and state the residual exposure plainly — an implementer can write anywhere in the main checkout, and the only thing between that and a landed change is a human reading `git status`. If that is too thin, the mechanism is not a path list but a **write manifest**: the caller declares the files in scope at spawn time and the hook denies outside them. That is buildable today — `agent_type` and `cwd` are both in the payload — and it is the shape the spine's "declared scope" language already assumes exists.
@@ -1005,6 +1069,7 @@ the note said the seam prevented.
 - **Rule:** implicit — when two PreToolUse hooks both match a tool and return different decisions, one wins. Nothing states which.
 - **Where it lives:** nowhere. `bash-gate.js` matches `Bash`; `agent-write-scope.js` matches `Write|Edit|MultiEdit|NotebookEdit|Bash`. Every Bash call in every subagent runs both.
 - **Rung:** check · **Blast:** other
+- **Satisfied when:** extends:check:check-hook-registration
 - **Why it matters, specifically:** the **force-push denial lives in one hook** and the **subagent commit denial lives in the other**. Presumably most-restrictive wins — but that is an assumption, neither file asserts it, and **no probe exercises the disagreement case at all**. Both suites test their own hook in isolation, which is precisely the configuration in which a precedence bug is invisible.
 - **Sketch:** construct one payload the two hooks decide DIFFERENTLY — a subagent running an ordinary commit, which `bash-gate` allows and `agent-write-scope` denies — and assert the composite decision the harness actually applies. **This is a measurement before it is a check:** the answer is a harness behaviour nobody here has observed, so it belongs in `docs/EXPERIMENTS.md` first and becomes a probe once known.
 - **⚠ Do not write the check against the assumed answer.** "Most restrictive wins" is the intuitive design and would produce a check that passes by agreeing with itself. Measure, then encode.
@@ -1020,6 +1085,7 @@ the note said the seam prevented.
 - **Rule:** the tables on this list are protected from retention purges — a PPRA/POPIA obligation, not a preference. The array names `audit_log`, `trust_transactions`, `consent_log`, `auth_events`, `tos_acceptances`.
 - **Where it lives:** `lib/subscriptions/retention.ts` — the array, and nothing else.
 - **Rung:** check · **Blast:** data-boundary
+- **Satisfied when:** check:check-invariant-has-callers
 - **Measured 2026-08-21 at `2265c58c`:** a whole-repo grep for the identifier finds the declaration and **no importer**. The array is exported, exhaustive, and read by nobody.
 - **What makes it a register entry rather than a deletion.** TWO artefacts assert it is live, in the present tense, and both are wrong:
   1. its own module header — *"BUILD_65 imports this array rather than defining its own"*;
@@ -1085,11 +1151,12 @@ the note said the seam prevented.
 - **Provenance:** CD review, 2026-08-21, across three passes; the third instance was found INSIDE the sweep the second demanded, which is the evidence that the editorial remedy does not hold. Built the same day, after a fourth instance — a quadratic regex — was introduced by the fix for the second.
 - **Covering spec:** NEW
 
-### M-083 — this register does not notice a duplicate ID, or an entry its own mechanism has satisfied — ⚠ HALF BUILT 2026-08-22
+### M-083 — this register does not notice a duplicate ID, or an entry its own mechanism has satisfied — ✅ BUILT 2026-08-23
 
 - **Rule:** an M-number identifies exactly one entry, and an entry whose named mechanism now exists is BUILT, not open.
 - **Where it lives:** nowhere. `docs/MECHANISABLE.md` is prose; nothing reads it.
 - **Rung:** check · **Blast:** other — the register is a work queue, not a control, so a defect here misroutes effort rather than exposing anything.
+- **Satisfied when:** check:check-register-integrity
 - **Measured 2026-08-22 at `8ba85b5c`, both failures live in the file at once:**
   - **Duplicate ID:** two headings read `### M-068`, one BUILT and one open, filed a day apart. It survived a full triage pass on 2026-08-21 that read every entry — because the pass read entries, and the defect is only visible across them. It also silently broke the open/built counts: the derived figure came out 50 or 51 depending on which grep was used, and **both numbers were reported to CD as if exact.**
   - **Satisfied but open:** the same entry's sketch — extend the write-scope hook's matcher to `Bash`, deny the commit-creating family on `agent_type` — was BUILT on 2026-08-20 and the entry never moved. Four more entries in the 2026-08-21 pass turned out the same way (M-033, M-034, M-049, M-050), which is 5 of ~66. **A register that is wrong about a twelfth of itself is one that gets re-derived instead of read.**
@@ -1145,6 +1212,40 @@ the note said the seam prevented.
   Making it importable is a guard-clause refactor of a load-bearing gate, which is cheap but is not
   free, and there is currently no consumer to justify it.
 - **Why it is worth building rather than "just be careful":** the counter-argument is that a human re-reading the register catches both. That is exactly what the 2026-08-21 pass was, and it caught neither — it found four stale-BUILT entries by reading them one at a time and missed the fifth plus the duplicate. The failures are *relational*, and per-entry attention is structurally blind to them.
+
+**✅ BUILT 2026-08-23 — assertion 2 shipped, and the measurement above was answered rather than overruled.**
+The refusal recorded 2026-08-22 was correct about the mechanism that existed then: with one resolvable
+marker across 50 open entries, a detector reading `@enforced` citations would have examined 2% of the
+register. The entry itself named what would change that — a machine-readable slot — and flagged the
+risk that it becomes "a slot nobody populates". Stéan ruled on 2026-08-23 to adopt it **and backfill**,
+which is the half that makes the difference: the convention and its population landed together, so
+there was never a window in which the slot existed and meant nothing.
+
+- **The slot.** Every OPEN entry now carries `**Satisfied when:** <marker>`. Three forms, and the third
+  is what keeps the second honest: a resolvable marker (`check:`/`eslint:`/`hook:`/`audit:`/`ci:`/`test:`);
+  `extends:<marker>` for a fix that MODIFIES an existing mechanism, where existence signals nothing;
+  and `none — <reason>`. A **bare `none` FAILS** — without that, every author facing a hard entry writes
+  `none` and the convention is dead while still looking alive.
+- **`extends:` is not bookkeeping.** `pleks/no-inline-app-url` exists and M-045 is open precisely
+  because it does not yet visit plain literals. A resolver that decided by existence would have told
+  the reader to close 27 entries whose holes are still open — worse than silence, because it argues
+  for closing them. Its own state, never conflated with absent.
+- **The resolver reports THREE states, and the third is M-088's rule applied to this check.** A marker
+  it cannot parse returns `unknown` and is reported as unreadable — never as "the mechanism is absent",
+  which would re-open a built entry on a typo and look like a finding.
+- **Assertion 2 caught a real stale-open entry on its first run: M-014.** Its own sketch asks for
+  `require-org-scope-on-service-read`; that rule shipped 2026-08-19, and its CLAUDE.md twin M-002 was
+  already closed. A twin pair closed on one side only — invisible to per-entry reading, which is this
+  entry's whole thesis. **So the "would not have caught any of the five motivating cases" measurement is
+  now superseded on its own terms:** it was measuring a detector with nothing to read.
+- **Reports, never fails** — as the sketch insisted. A hard failure on "your mechanism exists now" would
+  push the next author to delete the citation rather than settle the entry: allowlist-widening in a new
+  costume. The slot's ABSENCE fails; its resolution only ever reports.
+- **One trap worth recording, because it bit during the backfill.** This entry's own prose contains the
+  literal string `**Satisfied when:** check:check-foo` as an example, so a substring test for the slot
+  matched M-083 itself and skipped inserting its real one. The check's line-anchored regex correctly
+  disagreed and reported the entry as slotless. A register that documents its own grammar will always
+  contain specimens of it — match the slot anchored to the start of a line, never as a substring.
 - **Covering spec:** NEW
 
 ### M-084 — a failing Release job is invisible; three releases were lost before anyone noticed — ✅ BUILT 2026-08-22
@@ -1280,6 +1381,7 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 - **Rule:** `pleks/no-raw-process-env` — read env through `@/lib/env`, never `process.env` directly. Real rule with a real incident behind it (the June 4–10 outage: `RESEND_API_KEY` read raw in a path that only ran on a live send).
 - **Where it lives:** the five production-touching scripts un-ignored by the control-aim audit R1 — `encrypt-existing-pii.ts`, `backfill-insurance-checklists.ts`, `migrate-totp-host-claims.ts`, `wa-submit-templates.ts`, `extraction-harness/run.ts`. Recorded in `eslint-suppressions.json`.
 - **Rung:** check · **Blast:** other — no data path; what breaks is a one-off operational script, silently and at the worst moment.
+- **Satisfied when:** extends:eslint:pleks/no-raw-process-env
 - **⚠ THIS IS A TRAP, WHICH IS WHY IT IS HERE AND NOT ONLY IN THE BASELINE.** The obvious fix makes it worse. Probed 2026-08-22 (temporary `scripts/__env_order_probe__.ts`, deleted in the same turn): `lib/env`'s public half is a set of **top-level consts** evaluated at module load, and ESM evaluates imports before any module-body statement — so in a script that calls `dotenv.config({ path: ".env.local" })` in its body, `import { SUPABASE_URL } from "../lib/env"` yields `""` while `process.env.NEXT_PUBLIC_SUPABASE_URL` holds the real value. Observed side by side: `SUPABASE_URL (named export) = ""` · `process.env after dotenv.config() = "https://noexjtlrffkzzclibvbq.s…"`. A naive migration therefore points a service-role client at an empty URL. The SERVER half is fine — `requireEnv(name)` reads `process.env[name]` at CALL time and returned the live key in the same probe.
 - **Sketch (the designed fix, both halves):**
   1. A shared `scripts/_env.ts` that calls `dotenv.config()` as an import **side effect**, imported before `lib/env` in every script. Import order then puts the values in `process.env` before `lib/env` is evaluated, and the named exports work.
@@ -1292,6 +1394,7 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 
 - **Rule:** the defects each already have a rule; none has a queue entry. `eslint-suppressions.json` stops them multiplying and says nothing about what they are.
 - **Rung:** eslint (all nine are already caught) · **Blast:** mixed, tagged per site below.
+- **Satisfied when:** none — a ratchet with no owner; what is missing is prioritisation, not a control
 - **Why not fixed on discovery:** commit hygiene — editing `encrypt-existing-pii.ts` belongs in a commit that is about `encrypt-existing-pii.ts`, not in one about lint configuration. That is a fair reason to defer, and not a reason to file them where nobody sees them ranked.
 - **Ranked:**
   1. **`encrypt-existing-pii.ts` — post-run round-trip verification, `require-supabase-error-check`.** Blast: **data-boundary**. `const { data: sample } = await supabase.from("contacts").select("id, id_number")…` drops `error`. On a read failure `sample` is undefined, `stored` is undefined, and **neither** the ✅ branch nor the ⚠ branch prints — the spot check silently vanishes after the highest-risk irreversible operation in the PII programme, and its absence looks like a quiet success. Fix: destructure `error`, and print a THIRD outcome ("verification could not run") rather than folding it into either existing branch.
@@ -1307,6 +1410,7 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 - **Rule:** none yet. This is a NAMED DECISION rather than a build item, recorded so the duplication is one somebody chose.
 - **Where it lives:** `const ok = (c, l) => { if (!c) failed++; console.log(\`  ${c ? "✓" : "✗"} ${l}\`) }`, copied into twelve `--selftest` harnesses (`check-git-hooks`, `check-context-budget`, `check-statusline`, `check-migration-integrity`, `check-handoff-contract`, `check-hook-registration`, `check-import-cycles`, `check-extension-stem-pairs`, `check-drift-if-sql-changed`, `check-prepush-composition`, `eslint-cache-guard`, `agent-distribution`).
 - **Rung:** n/a · **Blast:** other.
+- **Satisfied when:** none — rung n/a; extracting the shared ok() helper is a refactor decision, not a control
 - **The two sides, and neither is obviously right.** Extracting it collapses the whole `sonarjs/no-unenclosed-multiline-block` suppression set to zero and gives one place to improve probe output. But it also puts **every probe suite in this repo behind one shared reader** — the L-33 shape, and this repo has already been bitten by a shared-import collision. A defect in the extracted helper would degrade every gate's selftest at once, and the selftests are what the gates' credibility rests on. The current duplication is the reason a broken `ok()` can only break one suite.
 - **What would settle it:** if the helper is extracted, its own probe must assert that a FAILING case increments and returns non-zero — a shared reader that silently counts nothing would make twelve suites green at once, which is the failure mode the duplication currently prevents.
 - **Covering spec:** NEW
@@ -1316,6 +1420,7 @@ WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifyi
 - **Rule:** R6, clause 3 of the probe convention, now written in `dev-standards/standards/CLAUDE-MD-STANDARD.md`: an instrument that reports a count must report **unknown** distinctly from **zero**, and must be probed for the uncheckable state.
 - **Where it lives:** everywhere a count is computed behind a guard. The live instance was `agent-distribution.mjs` — `b.outputK ? reports.filter(...).length : 0` — where an unparsed budget rendered as `0` overruns and the summary printed "✅ no budget overruns" over an agent that had never been compared. Fixed 2026-08-23 (`null` for uncomparable, `0` for compared-and-clean, both probed). The **class** is not fixed.
 - **Rung:** check · **Blast:** other.
+- **Satisfied when:** check:check-zero-default-in-report
 - **Why this is not simply built — MEASURED 2026-08-23, and the first answer was wrong.** This bullet
   previously asserted that an AST scan for `cond ? … : 0` and `?? 0` was "overwhelmingly" false-positive
   and "earns a large allowlist on its first run". That was read off the code, not measured. Measuring it
