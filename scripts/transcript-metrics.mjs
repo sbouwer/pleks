@@ -234,8 +234,26 @@ export function subagentFiles(projectDir, sessionId) {
  * spawning turn, so it is reported rather than failed. Fewer transcripts than `Agent` calls is the
  * dangerous direction — spend that happened and was not found — and that is the FINDING.
  */
+/**
+ * ⚠ THE DELEGATION TOOL IS SPELLED `Task` IN SOME SESSIONS AND `Agent` IN OTHERS, and reading only
+ * one of them silently kills this whole function.
+ *
+ * Measured 2026-08-24 on E16 arm B (session `eaefff58`): the `system/init` event of a `claude -p`
+ * session lists its delegation tool as **`Task`**. The orchestrating session that wrote this file
+ * calls the same tool `Agent`, which is the only reason the original spelling ever looked right.
+ *
+ * The failure is silent AND aimed at the dangerous direction. With `agentCalls` stuck at 0, the
+ * shortfall `agentCalls - depth1` can never be positive, so the finding this function exists to
+ * raise — spend that happened and whose transcripts were not found — becomes unraisable. It would
+ * have reported "0 delegation calls" beside a pile of subagent transcripts and exited 0.
+ *
+ * Both spellings are summed rather than one being chosen: they are the same tool, a session may in
+ * principle expose either, and a session exposing both would be under-counted by picking one.
+ */
+const DELEGATION_TOOL_NAMES = ["Agent", "Task"]
+
 export function reconcile(subs, mainToolCalls, { windowed = false } = {}) {
-  const agentCalls = mainToolCalls.Agent || 0
+  const agentCalls = DELEGATION_TOOL_NAMES.reduce((n, k) => n + (mainToolCalls[k] || 0), 0)
   const depths = {}
   let noMeta = 0
   for (const s of subs) {
@@ -421,6 +439,18 @@ function selftest() {
   })
   t("FINDING when transcripts are MISSING — fewer depth-1 files than Agent calls understates cost", () => {
     return reconcile([sub(1), sub(1)], { Agent: 5 }).finding === 3
+  })
+  // ── the tool-name defect, both directions (found on E16 arm B, 2026-08-24) ────────────────────
+  t("`Task` COUNTS AS DELEGATION — the spelling a `claude -p` session actually uses", () => {
+    // Reading only `Agent` pinned agentCalls at 0, which makes the shortfall unraisable: the
+    // dangerous direction becomes undetectable while the script still exits 0.
+    return reconcile([sub(1), sub(1)], { Task: 5 }).finding === 3
+  })
+  t("BOTH spellings sum — a session exposing each would be under-counted by picking one", () => {
+    return reconcile([sub(1)], { Agent: 2, Task: 2 }).finding === 3
+  })
+  t("KNOWN-GOOD: an unrelated tool is NOT counted as delegation", () => {
+    return reconcile([sub(1)], { Bash: 99, Read: 40 }).finding === 0
   })
   t("no finding when depth-1 files EXCEED Agent calls — the safe direction, reported not failed", () => {
     return reconcile([sub(1), sub(1), sub(1)], { Agent: 1 }).finding === 0
