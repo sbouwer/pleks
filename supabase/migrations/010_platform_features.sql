@@ -1441,6 +1441,23 @@ ALTER TABLE organisations
   ADD COLUMN IF NOT EXISTS dormancy_warning_sent_at timestamptz,
   ADD COLUMN IF NOT EXISTS dormancy_final_sent_at   timestamptz;
 
+-- organisations.is_platform — DECLARED HERE, USED IMMEDIATELY BELOW.
+--
+-- ⚠ THIS COLUMN IS HOISTED, AND THE HOIST IS THE POINT. The full narrative for the Pleks system org
+-- lives with its seed further down this file; only the column declaration moved up. The M-067 fix
+-- (2026-08-23) added `o.is_platform = false` to the two dormancy RPCs below and an is_platform read
+-- to purge_org_cascade, while the column was still declared ~2400 lines LATER — so the migrations
+-- could still patch an existing database and could no longer BUILD one. A fresh 001→012 replay died
+-- at statement 250 with `column o.is_platform does not exist` (SQLSTATE 42703), caught by CI's
+-- db-tests job, not locally: `npm run check` never replays migrations.
+--
+-- check-migration-forward-refs.mjs did not see it. That check reads `REFERENCES <table>` and knows
+-- nothing about COLUMNS — the same failure class it was built for, one aperture short.
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS is_platform boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN organisations.is_platform IS
+  'True for the single Pleks system org that owns platform-level email (no members, no subscription, zero privilege). Every all-org iterator must filter it out: .eq("is_platform", false).';
+
 -- Â§X.4  BUILD_57G dormancy: RPC helpers that join into auth.users
 --        The JS client cannot reach auth schema directly; SECURITY DEFINER
 --        runs with the definer's privileges. Locked to service_role only.
@@ -1470,6 +1487,13 @@ AS $$
     AND o.created_at < cutoff_iso
     AND o.deleted_at IS NULL
     AND o.id <> '00000000-0000-0000-0000-000000000001'::uuid  -- Excludes BUILD_65 POPIA-purged tombstone
+    -- ⚠ The Pleks system org (…0002) has ZERO members by design, so MAX(last_sign_in_at) is NULL and
+    -- it passes the HAVING below; it also holds no properties/leases/applications, so the JS-side
+    -- emptiness test passes too. Without this line it is dormancy-warned, then final-warned, then
+    -- purged — destroying the org that owns all platform email logging. `is_platform` rather than a
+    -- fourth magic UUID: it is the spelling the column COMMENT instructs, the one all four
+    -- TypeScript fan-outs already use, and it survives a UUID change. (M-067, 2026-08-23.)
+    AND o.is_platform = false
   GROUP BY o.id
   HAVING MAX(au.last_sign_in_at) IS NULL
       OR MAX(au.last_sign_in_at) < cutoff_iso;
@@ -1505,6 +1529,13 @@ AS $$
     AND o.dormancy_warning_sent_at < cutoff_iso
     AND o.deleted_at IS NULL
     AND o.id <> '00000000-0000-0000-0000-000000000001'::uuid  -- Excludes BUILD_65 POPIA-purged tombstone
+    -- ⚠ The Pleks system org (…0002) has ZERO members by design, so MAX(last_sign_in_at) is NULL and
+    -- it passes the HAVING below; it also holds no properties/leases/applications, so the JS-side
+    -- emptiness test passes too. Without this line it is dormancy-warned, then final-warned, then
+    -- purged — destroying the org that owns all platform email logging. `is_platform` rather than a
+    -- fourth magic UUID: it is the spelling the column COMMENT instructs, the one all four
+    -- TypeScript fan-outs already use, and it survives a UUID change. (M-067, 2026-08-23.)
+    AND o.is_platform = false
   GROUP BY o.id
   HAVING MAX(au.last_sign_in_at) IS NULL
       OR MAX(au.last_sign_in_at) <= o.dormancy_warning_sent_at;
@@ -1584,6 +1615,7 @@ AS $$
 DECLARE
   v_sentinel  uuid    := '00000000-0000-0000-0000-000000000001';
   v_decoy     uuid    := '00000000-0000-0000-0000-000000000003';
+  v_platform  boolean;
   v_tables    text[];
   v_table     text;
   v_errors    int;
@@ -1592,6 +1624,16 @@ BEGIN
   -- Safety: refuse to purge the sentinel or decoy orgs
   IF p_org_id = v_sentinel OR p_org_id = v_decoy THEN
     RAISE EXCEPTION 'purge_org_cascade: refusing to purge sentinel/decoy org %', p_org_id;
+  END IF;
+
+  -- ⚠ …and the Pleks system org, which was NOT refused here until 2026-08-23 (M-067). This is the
+  -- LAST line of defence, deliberately duplicated with the TypeScript guard in lib/subscriptions/
+  -- purge.ts: purgeOrg() is one of three callers, and a fourth reaching this function directly would
+  -- otherwise destroy the org that owns all platform email logging. Read as a flag rather than a
+  -- fourth magic UUID, matching the dormancy RPCs above.
+  SELECT is_platform INTO v_platform FROM organisations WHERE id = p_org_id;
+  IF COALESCE(v_platform, false) THEN
+    RAISE EXCEPTION 'purge_org_cascade: refusing to purge the platform system org %', p_org_id;
   END IF;
 
   -- Step 1: Repoint retention-protected rows to sentinel
@@ -1703,7 +1745,13 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_pending_cancellation
 --  Records which ToS version each org accepted and when. Append-only (immutable
 --  trigger). org_id uses ON DELETE RESTRICT â€” purgeOrg() must repoint to sentinel
 --  before deleting the org row (enforced by purge_org_cascade step 1 above).
---  Retention: 10 years (POPIA s17 accountability). Added to RETENTION_PROTECTED_TABLES.
+--  Retention: 10 years (POPIA s17 accountability). Listed in RETENTION_PROTECTED_TABLES
+--  (lib/subscriptions/retention.ts) AND in both of this function's copies of that list — the
+--  step 1 repoint block and the step 2 exclusion list. All three are asserted equal by
+--  scripts/check-retention-skiplist.mts on `npm run check`, so adding a table to one copy and
+--  not the others goes red. Until 2026-08-23 this line read "Added to RETENTION_PROTECTED_TABLES"
+--  and was true-but-inert: the array governed nothing, so membership in it protected no row.
+--  M-082 filed that; the check is what made the sentence mean something.
 
 CREATE TABLE IF NOT EXISTS tos_acceptances (
   id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -3881,10 +3929,12 @@ COMMENT ON COLUMN applications.dti_ratio_at_decision IS
 -- subscription-less org and treat it as a dormant agency. Prefer the is_platform flag over comparing the
 -- UUID: a flag is greppable and enforceable, a scattered magic UUID rots.
 
-ALTER TABLE organisations ADD COLUMN IF NOT EXISTS is_platform boolean NOT NULL DEFAULT false;
-
-COMMENT ON COLUMN organisations.is_platform IS
-  'True for the single Pleks system org that owns platform-level email (no members, no subscription, zero privilege). Every all-org iterator must filter it out: .eq("is_platform", false).';
+-- The `is_platform` column and its COMMENT are DECLARED EARLIER in this file, beside the §X.4
+-- dormancy RPCs — the first statements that read it. They sat here until 2026-08-24, ~2400 lines
+-- below their own first use, which made a fresh replay abort at statement 250. Do not move them
+-- back: a column must be declared above every statement that reads it, and in this file the
+-- dormancy RPCs come first. Everything below still belongs here, because it concerns the system
+-- ORG rather than the column.
 
 -- Widen the org type CHECK for the system org. This REDEFINES the constraint §49 created — the bottom
 -- definition wins on replay and is what is live (the amend-forward pattern).

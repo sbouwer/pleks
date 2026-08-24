@@ -21,7 +21,8 @@
           { "breaking": true,   "release": "major" }
         ],
         "parserOpts": {
-          "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING"]
+          "_comment": "Bare BREAKING was here and cut v4.0.0 off a fix: — see check-release-health.mjs --config. A note keyword must be a PHRASE, never a word prose can begin a line with.",
+          "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING-CHANGE"]
         }
       }
     ],

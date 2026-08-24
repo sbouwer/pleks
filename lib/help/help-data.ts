@@ -38,12 +38,19 @@ export interface HelpEntry {
 
 /**
  * Flip to false only after Stéan's §7 content-compliance pass (D-HELP-20).
- * @knipignore A stated compliance gate ("flip to false only after the §7 content-compliance pass", D-HELP-20)
- * with zero readers — M-067's class. Either the gate is not needed yet, or draft content is live
- * with no code checking the flag.
- * @invariant M-077 — declared to check-invariant-has-callers, currently baselined as unread. Note
- * what that means while it stays baselined: this flag is `true`, so the content is UNSIGNED, and
- * /help renders it to users anyway because nothing consults the flag.
+ * A compliance gate (D-HELP-20). It had ZERO readers until 2026-08-23 — M-067's class, where a
+ * constant's existence stands in for the enforcement it names. The knip suppression that sat here
+ * is GONE, and its removal is the proof the gap closed: it existed only because knip reported an
+ * unused export, and knip stopped reporting one the moment a real reader appeared. A suppression
+ * that is no longer needed is deleted, never left as decoration.
+ * @invariant M-077 — now read by lib/help/draft-notice.ts, which turns this flag into a visible
+ * warning banner on /help. Left OUT of the invariant baseline deliberately: it earned its way out
+ * by gaining a real reader, and re-adding it would be the baseline growing.
+ *
+ * ⚠ TRUE MEANS THE CONTENT IS UNSIGNED. The banner is a disclosure, not a sign-off — it makes the
+ * interim state honest, it does not verify a single answer. Flip to false ONLY after Stéan's §7
+ * content-compliance pass. Doing so without the pass fails lib/help/__tests__/draft-notice.test.ts,
+ * which asserts this constant is still true precisely so the flag cannot be quietly cleared.
  */
 export const HELP_CONTENT_DRAFT = true
 

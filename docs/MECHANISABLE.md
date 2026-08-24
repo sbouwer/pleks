@@ -1021,12 +1021,46 @@ the note said the seam prevented.
 
 - **Rule:** `lib/comms/platform-org.ts` — its own JSDoc: every "for each org" query MUST exclude the platform org
 - **Where it lives:** the helper's header comment. No CLAUDE.md bullet, no rule file, no check.
-- **Rung:** eslint · **Blast:** data-boundary
-- **Satisfied when:** eslint:pleks/require-platform-org-exclusion
+- **Rung:** ~~eslint~~ → **check** (corrected 2026-08-23, see below) · **Blast:** data-boundary
+- **Satisfied when:** check:check-platform-org-exclusion
+- **Note the slot changed rung.** A CHECK, not the ESLint rule this entry recorded for months: the mechanism has to read `supabase/migrations/**` as well as `app/`+`lib/`, and no lint rule can. The rung correction is the finding, not a detail.
 - **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23; it makes the gap loud. This entry closes only AFTER the per-site census it requires, and then a rule over org-iterating query shapes.
+
+**⚠ THE RECORDED RUNG WAS WRONG, AND IT WAS WRONG IN THE DIRECTION THAT HIDES THE DEFECT.** This
+entry proposed `eslint:pleks/require-platform-org-exclusion`. When the census was run (2026-08-23),
+the reachable defect **was not in TypeScript at all** — it was in two `SECURITY DEFINER` functions in
+`supabase/migrations/010_platform_features.sql`, where `find_dormant_org_candidates` and
+`find_dormancy_final_candidates` iterated every org and excluded only the sentinel. An ESLint rule
+cannot read a `.sql` file, so the proposed mechanism would have shipped, gone green, and left the
+live hole exactly where it was — a control aimed at the language the author was thinking in rather
+than the language the rule has to hold in. Same shape as the 2026-08-22 scar (CLAUDE.md §6): a rule
+whose aperture misses the surface that matters still passes every probe.
+
+**What the census found, and it was live, not theoretical.** As at `08df4a30` the Pleks platform org
+(`…0002`) had **0 members and was 44 days old**, against a 60-day dormancy threshold —
+`find_dormant_org_candidates(now())` returned it when run against prod. It would have been
+dormancy-warned in ~16 days, final-warned 30 days later, then handed to `purgeOrg`, which did not
+refuse it either: the org owning all platform email logging was on a scheduled path to deletion, and
+nothing in the tree would have said so first.
+
+**Fixed 2026-08-23 in four places, two layers per track**, and the SQL predicate is `is_platform =
+false` rather than a hardcoded uuid, so a second platform org inherits the protection:
+both dormancy RPCs exclude it, `purge_org_cascade` raises rather than purging it, and
+`purgeOrg` refuses it alongside the sentinel and decoy. Applied to prod and verified both
+directions — the platform org left the candidate set, a real org stayed in it (`total_candidates =
+1`), and the deployed function text was re-read to confirm the guard is actually there rather than
+inferred from a `RAISE NOTICE` that `execute_sql` does not return.
+
+**Why the entry stays OPEN after a fix that works.** The fix closes the one path the census proved
+reachable; it does not create the general rule. And `excludePlatformOrg` **still has zero code
+readers** — the fix bypassed it, because the defect was in SQL and the helper is TypeScript. That is
+worth saying plainly rather than quietly re-baselining: the helper's continued existence with no
+caller is still the exact condition this entry was filed for, and the live fix landing elsewhere
+makes the helper *more* misleading, not less — a reader now finds a stated MUST, no callers, and a
+protected system, and would reasonably conclude the helper is what protects it.
 - **Sketch:** found 2026-08-20 by the knip tranche-2 sweep, which flagged the export as unreferenced. It is not dead code — it is an **unenforced invariant**, which is the more dangerous reading of the same evidence: the guard exists, the rule is written down, and **no query in the tree applies it**. Either every org-iterating query is already safe for a reason the comment does not give, or the platform org is silently included in fan-outs that were meant to exclude it. Nobody has established which, and the helper's existence has been standing in for the answer. Two pieces of work, in order: (1) census every "for each org" query and classify per site whether platform-org inclusion is a defect there — the answer decides whether this is a burn-down or a no-op; (2) only then, an ESLint rule over org-iterating query shapes. Do NOT build (2) first; a rule with no measured population is how a check's first number becomes a finding.
 
-**Visibility ratchet SHIPPED 2026-08-23 — `scripts/check-invariant-has-callers.mjs`. This entry, M-077 and M-082 all stay OPEN, and the distinction matters.** The check asserts that an export carrying an `@invariant M-0NN` tag has at least one CODE reader — comments are blanked before counting, because M-082's finding was that prose asserting a list is live made the gap invisible, so a sentence must never satisfy it. All three known instances are recorded in `scripts/invariant-callers.baseline.json` with their reason and register pointer; the check goes red on the **fourth** instance, not on these three.
+**Visibility ratchet SHIPPED 2026-08-23 — `scripts/check-invariant-has-callers.mjs`. This entry, M-077 and M-082 all stay OPEN, and the distinction matters.** The check asserts that an export carrying an `@invariant M-0NN` tag has at least one CODE reader — comments are blanked before counting, because M-082's finding was that prose asserting a list is live made the gap invisible, so a sentence must never satisfy it. The known instances are recorded in `scripts/invariant-callers.baseline.json` with their reason and register pointer; the check goes red on the next NEW instance, not on those. **M-077 has since left that baseline** — `HELP_CONTENT_DRAFT` gained a real reader on 2026-08-23, the check failed with "the baseline must shrink", and the entry was removed. That was the ratchet's first firing on real work rather than a probe.
 
 What it does NOT do, stated plainly: it does not exclude the platform org from any query, sign off the help content, or protect a table from a purge. It converts a silent lie into a loud one — M-082 sketch half (a) — and that is still the right first move, because all three went unnoticed for months precisely because nothing asked the question out loud. Each entry's `Satisfied when` now names the mechanism that actually closes it.
 
@@ -1068,13 +1102,22 @@ What it does NOT do, stated plainly: it does not exclude the platform org from a
 - **Related:** [[l-44]] (the tree-derived guard that finding produced) · M-064, M-075 (probes whose result is a function of something other than the artefact under test)
 - **Covering spec:** `dev-standards/playbooks/4-AGENT-PIPELINES.md` §3.1b · §11 step 4b item 5
 
-### M-077 — `HELP_CONTENT_DRAFT` is a sign-off gate that nothing reads
+### M-077 — `HELP_CONTENT_DRAFT` is a sign-off gate that nothing reads — ✅ BUILT 2026-08-23
 
 - **Rule:** `lib/help/help-data.ts:8` — its own header: "⚠ DRAFT — `HELP_CONTENT_DRAFT` is true until Stéan's §7 content-compliance pass signs off every answer"
 - **Where it lives:** that header comment and the constant's own declaration. No CLAUDE.md bullet, no rule file, no check.
 - **Rung:** eslint · **Blast:** other
-- **Satisfied when:** test:app/(public)/help/__tests__/draft-banner.test.ts
-- **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23; it makes the gap loud. This entry closes when /help actually consults the flag (a banner or a refusal to render), or when Stéan's §7 sign-off flips it to false.
+- **Satisfied when:** test:lib/help/__tests__/draft-notice.test.ts
+
+**BUILT 2026-08-23 — the flag now gates visible behaviour.** `lib/help/draft-notice.ts` is the reader it never had: while `HELP_CONTENT_DRAFT` is true, `HelpCentre` renders a warning banner telling the reader the answers have not completed compliance review and to confirm anything they plan to act on. The banner disappears on its own when the flag flips.
+
+**The path this slot named until today did not exist** (`app/(public)/help/…` — /help lives at `app/(help)/help/`). Corrected rather than left plausible; a satisfied-when pointing at a non-existent destination is the same class as an unverified citation.
+
+**Why a pure function rather than a rendered-component assertion.** This repo's vitest runs `environment: 'node'` with zero `.tsx` tests, so proving a banner by rendering it meant adding jsdom + testing-library for one boolean — against the rule on not adding packages an existing one covers. The decision and its copy live in `lib/help/draft-notice.ts`, unit-testable in the suite that already exists.
+
+**Probed both directions**, which matters here more than usual: the true-branch test alone would pass against a function that returns a notice unconditionally — the very defect this entry records, one layer up. The suite also asserts the REAL constant is still `true`, so flipping it without doing the §7 pass fails rather than silently closing this entry.
+
+⚠ **WHAT IS STILL OUTSTANDING, and it is not a build.** The content remains UNSIGNED. A banner is a disclosure, not a sign-off — it makes the interim state honest instead of silent, and that is all. Stéan's §7 content-compliance pass (D-HELP-20) is still owed, and the flag flips to false only when it is done.
 - **Measured at `b2eda39d`, 2026-08-21** (repo-wide `HELP_CONTENT_DRAFT`, excluding `docs/DEAD-CODE-QUEUE.md`): **two hits, and both are the declaration** — the header sentence at :8 and `export const HELP_CONTENT_DRAFT = true` at :40. **Zero readers.** The `/help` page and the help widget import `HelpRole` and the content itself and never consult the flag, so the un-signed-off state is asserted in a comment and rendered to users regardless.
 - **Third instance of M-067's class, and the class is now confirmed rather than suspected.** M-067 (`excludePlatformOrg`, a stated MUST) and M-069 (`INFORMATION_REGULATOR_URL`, a stated SSOT) are the same shape: **a constant whose existence stands in for the enforcement it names.** Three in two sweeps from independent domains — comms fan-out, legal copy, help content — makes it a repo-wide pattern with a single generalisable check, not three unrelated dead exports.
 - **Sketch — and note this one is cheaper than its two siblings, which is why it is worth doing first:** unlike M-067 (needs a per-site census before any rule) and M-069 (blocked on a counsel decision about which constant wins), this flag has **no prior decision to make**. Either it gates something or it should not exist. Two candidate shapes: (a) the narrow one — `/help` refuses to render, or renders a visible draft banner, while the flag is true, which converts the comment into behaviour; (b) the general one — a check that any `export const *_DRAFT`/`*_REQUIRED`-shaped boolean with zero readers fails, which is the class-level rule the three instances argue for. **(a) is a one-file change and provable; (b) needs its population measured before a number is recorded.** Do not ship (b) on a population of three.
@@ -1141,13 +1184,53 @@ concealing.
 **Retained 2026-08-21:** it is a MEASUREMENT before it is a check. The force-push denial lives in one hook and the subagent-commit denial in the other, nothing has ever exercised their disagreement, and the entry already warns against writing the check against the assumed answer. Closing it closes an unasked question about two rung-1 controls.
 
 
-### M-082 — `RETENTION_PROTECTED_TABLES` governs nothing, and two artefacts say it does
+### M-082 — `RETENTION_PROTECTED_TABLES` governs nothing, and two artefacts say it does — **BUILT 2026-08-23 (`scripts/check-retention-skiplist.mts`)**
 
-- **Rule:** the tables on this list are protected from retention purges — a PPRA/POPIA obligation, not a preference. The array names `audit_log`, `trust_transactions`, `consent_log`, `auth_events`, `tos_acceptances`.
+- **Rule:** the tables on this list are protected from retention purges — a PPRA/POPIA obligation, not a preference. The array names `audit_log`, `trust_transactions`, `trust_reconciliation_periods`, `consent_log`, `auth_events`, `tos_acceptances` — **six**, and this line said five until 2026-08-23, omitting `trust_reconciliation_periods`. That is the entry's own copy of the list having silently drifted from the array while the entry was open about the danger of copies of the list drifting. Left visible rather than quietly corrected, because it is the cheapest available demonstration of the failure mode: a fourth copy, in prose, in the register that exists to track it.
 - **Where it lives:** `lib/subscriptions/retention.ts` — the array, and nothing else.
 - **Rung:** check · **Blast:** data-boundary
-- **Satisfied when:** check:check-retention-purge-derives-skiplist
-- **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23 and is sketch half (a) only. Half (b) is the real mechanism: every pg_cron retention purge and erasure path deriving its skip-list from this array by import.
+- **Satisfied when:** check:check-retention-skiplist
+- **Not satisfied by the visibility ratchet.** `check:check-invariant-has-callers` shipped 2026-08-23 and is sketch half (a) only. Half (b) shipped later the same day, but **not in the shape this entry specified** — see below.
+
+**⚠ HALF (b) AS WRITTEN IS NOT BUILDABLE, AND SAYING SO IS THE FINDING.** The sketch below asks for
+"every purge and erasure path deriving its skip-list from this array **by import**". The path that
+matters is `purge_org_cascade`, a SQL `SECURITY DEFINER` function — **it cannot import a TypeScript
+array**, in this or any other design. The sketch was written from the shape of the language its
+author was reading (the same error M-067 made in the opposite direction, proposing an ESLint rule
+for a defect that turned out to live in SQL). An entry can be open for months on a plan that was
+never executable; nothing in the register format catches that, because a sketch is prose and prose
+is not run.
+
+**What shipped instead, ruled 2026-08-23: the array stays the SSOT and becomes real by being
+CHECKED against the SQL rather than imported by it.** `scripts/check-retention-skiplist.mts` reads
+`purge_org_cascade` out of `010_platform_features.sql`, extracts BOTH copies of the list it
+carries — the Step 1 `UPDATE <t> SET org_id = v_sentinel` statements and the Step 2 `NOT IN (…)`
+exclusion list — and asserts each matches the array exactly, in both directions.
+
+**The list existed THREE times and nothing compared any pair.** That is more than the entry
+originally found: half (b) was framed as "the array governs nothing", but the two SQL copies could
+also silently disagree **with each other**, and neither direction raises an error. A table in the
+UPDATE block but missing from the NOT IN list is repointed to the sentinel and then DELETED —
+statutory records destroyed by a purge that reports success. A table in the NOT IN list but missing
+from the UPDATE block survives un-anonymised under a dead org's id. Both are the one-directional
+silence this entry already named; there were simply two of them, not one.
+
+**Probed both directions, and the vacuous-pass case explicitly.** A table missing from either SQL
+copy fails; SQL protecting a table the array does not declare fails; a parse matching nothing fails
+rather than passing empty; a renamed function returns null and fails rather than reporting clean.
+The parser probes run against fixture text shaped like the real function, not against the real file
+— a selftest that read the real file would pass by tautology, which is the same collapse as a probe
+suite that only exercises cases the discriminator already recognises (CLAUDE.md §6, 2026-08-19).
+The two "handled separately" tables (`organisations`, `subscriptions`, dealt with by Steps 4 and 5)
+are excluded by reading the SQL's own marker comment as the boundary rather than by subtracting a
+hardcoded set — a subtraction would have been a *fourth* copy of a list, inside the check written
+to stop lists being copied.
+
+**Still open after the build, and deliberately so:** the array now has a mechanical reader but still
+no *runtime* importer, so it stays in `scripts/invariant-callers.baseline.json`. A check is not a
+caller. Whether that baseline entry should be satisfiable by a check is itself unsettled — closing
+it by loosening the ratchet's definition of "read" would weaken the ratchet to close one of the
+entries that motivated it.
 - **Measured 2026-08-21 at `2265c58c`:** a whole-repo grep for the identifier finds the declaration and **no importer**. The array is exported, exhaustive, and read by nobody.
 - **What makes it a register entry rather than a deletion.** TWO artefacts assert it is live, in the present tense, and both are wrong:
   1. its own module header — *"BUILD_65 imports this array rather than defining its own"*;
@@ -1817,4 +1900,36 @@ The author identified the hazard, and defended the single field in front of them
 - **Probe both directions:** a field added to `SendEmailParams` but not to the replay must FAIL; a field explicitly marked replay-exempt must PASS.
 - **Do not build the migration first.** Widening `platform_email_retries` before the check exists fixes today's fifteen and leaves the sixteenth to the same silence.
 - **Provenance:** surfaced 2026-08-23 while closing **M-071**, whose sketch item (3) named this check in the general form but framed it as an attachment concern; the attachment half was ruled away 2026-08-20 and would have taken this with it. Filed separately for that reason.
+- **Covering spec:** NEW
+
+### M-094 — the repo can see the SHAPE of production and never its CONTENTS, so a required row can be absent indefinitely
+
+- **Rule:** a migration that seeds required data — a sentinel org, the platform org, reference rows, template seeds — is only correct if that data is actually **present in production**. Being correct in the file is not the property that matters.
+- **Where it lives:** nowhere. `.claude/rules/migrations.md` documents the drift workflow and the two safe apply workflows, but every assertion in this repo about production is structural.
+- **Rung:** check · **Blast:** data-boundary
+- **Satisfied when:** check:check-required-rows
+- **The class, stated once so both instances stop reading as unrelated bugs:** `check-schema-drift.mjs` compares tables, columns, policies, indexes and constraints. **Nothing in the repo can assert what rows must exist.** So any seeding migration can be right in the file and absent in prod forever, with every gate green — the drift check included, because the thing it compares is intact.
+- **⚠ THIS IS THE SECOND INSTANCE, NOT THE FIRST.** **M-070** is the same class seen from the other side: `gen-template-seed.mts` is referenced by nothing, so generated-vs-source agreement is a property of whoever last ran it by hand, on rows carrying `legal_review_ref` and `locked: true`. **M-070 is about the CORRECTNESS of seeded rows; this entry is about their PRESENCE.** Both are "the repo cannot see data." Filing the second one without naming the class is how two symptoms of one blind spot get burned down separately and the blind spot survives both.
+- **Measured 2026-08-23, at `08df4a30`, against prod — not inferred:** `sentinel_exists` was **false**. The `__purged__` sentinel org (`…0001`) had never existed in the live database. Its seed was sitting in `006_seed.sql §X.5`, idempotent (`ON CONFLICT (id) DO NOTHING`), correct, and never run. Applied and verified the same day.
+- **The severity is the point, and it is not cosmetic.** Four of the six `RETENTION_PROTECTED_TABLES` carry `org_id … REFERENCES organisations(id) ON DELETE RESTRICT`, and `purge_org_cascade` Step 1 repoints them **to the sentinel** before deleting the org row. With no sentinel row, that repoint violates the FK and **the first real purge aborts at Step 1** — a POPIA/PPRA compliance mechanism failing at the exact moment it first matters, having reported nothing wrong for as long as it was never exercised. Every check in this repo was green over that for the entire life of the seed.
+- **Why no existing gate could have caught it, spelled out so the sketch is not aimed short** (M-067 and M-082 both had mechanisms recorded that could not reach their defect): `check-schema-drift.mjs` compares structure and passes, correctly — `organisations` and every FK are exactly as the migrations describe. `check-migration-integrity.mjs` reads migration TEXT and the seed is present in it. The DB test tier runs against a **fresh** database, which replays 001→012 and therefore *always has the sentinel* — a from-scratch replay is structurally incapable of detecting "prod never had this row", and is the check most likely to be mistaken for covering it.
+- **Sketch — the missing half of drift-checking: a required-rows manifest.** A tracked list of `(table, predicate)` pairs that must each return **at least one row**, evaluated **against live**, because that is the only place the answer exists. `check-schema-drift.mjs` is the precedent for a check whose truth lives in production, and this belongs beside it — same credential, same staleness/throttle treatment, and the same DUE AND NOT RUN degenerate path on a clone holding no token, so a docs push is not blocked on a credential it never had. First entries: the sentinel org, the platform org (`is_platform = true`), and the prime-rate history. Probe both directions: a manifest row whose predicate returns nothing must FAIL, and a satisfied manifest must PASS.
+- **What NOT to build, and why the cheaper thing is the wrong thing.** Do not settle for a check that greps migration files for `INSERT … ON CONFLICT DO NOTHING` and asserts the statement exists. That is another structural check over text, it would have passed on the day the sentinel was missing, and it would leave the class exactly where it is while looking like it closed it.
+- **Related:** M-070 (same class, correctness rather than presence) · M-082 (the purge path this defect would have aborted) · M-067 (the other guard on that path, found the same day)
+- **Provenance:** found 2026-08-23 while censusing M-067's org-iterating queries. The sentinel came up only because `purge_org_cascade` was being read line by line for a different reason; nothing pointed at it, and no gate would have.
+- **Covering spec:** NEW
+
+### M-095 — the forward-reference check knows TABLES and not COLUMNS, so half its own failure class is invisible to it
+
+- **Rule:** a migration statement may not read a **column** that a later statement in replay order declares. Same rule `check-migration-forward-refs.mjs` already enforces for tables; same abort; different token.
+- **Where it lives:** `scripts/check-migration-forward-refs.mjs` — which states its own scope plainly ("a `REFERENCES <table>` in file N must not name a table first created in file M > N"). Columns are not mentioned because they were never in scope, so this is an aperture, not a bug.
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** extends:check:check-migration-forward-refs
+- **Measured 2026-08-24, from a real CI failure, not inferred:** the M-067 fix (`8c9a3554`) added `o.is_platform = false` to two dormancy RPCs and an `is_platform` read to `purge_org_cascade`, at lines 1479/1521/1617 of `010_platform_features.sql`, while `ALTER TABLE organisations ADD COLUMN … is_platform` sat at line **3915** of the same file. A fresh 001→012 replay died at **statement 250** with `column o.is_platform does not exist` (SQLSTATE 42703). Fixed 2026-08-24 by hoisting the declaration to line 1456, above its first use; a fresh `supabase db reset` then replayed 001→012 clean and the DB tier passed 181 tests against it.
+- **⚠ THE INTRA-FILE HALF IS THE ONE THAT BIT, AND IT IS THE HALF THAT READS AS COVERED.** The check's third rule — "within one file, the reference must not appear ABOVE the CREATE TABLE — same failure, same file" — already anticipates the intra-file direction. It just anticipates it for tables. A reader checking whether this class is covered finds a rule that names the exact shape of the defect and still would not have fired.
+- **Why the existing gates were all green.** `npm run check` never replays migrations, so the local commit gate structurally cannot see this. `check-migration-integrity.mjs` reads migration text for policy-idempotency patterns, not symbol order. `check-schema-drift.mjs` compares against a production database that **already has the column**, so it agrees. The control that caught it was CI's `db-tests` job — which is post-push by design, and is exactly the "the local gate was supposed to catch what the remote was catching" cycle CLAUDE.md §5 names as the anti-pattern.
+- **Sketch, with its difficulty stated rather than hidden.** Track column declarations in replay order — `ALTER TABLE t ADD COLUMN [IF NOT EXISTS] c` plus the column lists of `CREATE TABLE t` — then flag a read of `c` that appears earlier. The table version is sound because `REFERENCES <table>` is an unambiguous token; the column version is **not** equally sound, because a bare column name is ambiguous (`o.is_platform` resolves through an alias, and the same identifier may be a variable, a parameter or another table's column). Two narrowings that keep it honest: match only **alias-qualified** reads (`<alias>.<column>`) where the alias is bound to that table in the same statement, and require the column name to be one this repo actually declares — a closed set read from the migrations themselves, so an unknown identifier is skipped rather than guessed at.
+- **Probe both directions, and the second one is the one that matters:** a planted read above its own declaration must FAIL, and — because the ambiguity above is where a naive version generates noise — a column name that also appears as a plpgsql variable, a function parameter, and a same-named column on a different table must all still PASS. **Classify per site before recording any number** (CLAUDE.md §4): the first run's count is a hypothesis, and this check's own ancestor family produced 328/29/21 across three rebuilds before anyone believed it.
+- **Related:** M-067 (the fix whose landing produced the defect) · M-094 (the other blind spot found on the same path, structure-vs-contents rather than order)
+- **Provenance:** found 2026-08-24 by CI's `db-tests` job on PR #265, on the second push of the M-067 fix. Nothing local reported it; the entry exists because the failure was read rather than retried.
 - **Covering spec:** NEW

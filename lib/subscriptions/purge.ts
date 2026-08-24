@@ -11,6 +11,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { SENTINEL_ORG_ID } from "@/lib/subscriptions/retention"
+import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendPurgedConfirm } from "@/lib/subscriptions/emails"
 import { fmtDateLongZA } from "@/lib/dates"
@@ -30,8 +31,13 @@ const ORG_SCOPED_BUCKETS = [
 export type PurgeReason = "cancelled_tail" | "dormancy" | "popia_erasure"
 
 export async function purgeOrg(orgId: string, reason: PurgeReason): Promise<void> {
-  if (orgId === SENTINEL_ORG_ID || orgId === DECOY_ORG_ID) {
-    throw new Error(`purgeOrg: refusing to purge sentinel/decoy org ${orgId}`)
+  if (orgId === SENTINEL_ORG_ID || orgId === DECOY_ORG_ID || orgId === PLATFORM_ORG_ID) {
+    // PLATFORM_ORG_ID was missing from this list until 2026-08-23 (M-067), and the omission was
+    // reachable: the dormancy RPCs did not exclude the system org either, so it would have been
+    // warned at day 60 (it was 44 days old when this was found), final-warned at day 90, and handed
+    // to this function — which would have purged the org that owns all platform email logging.
+    // purge_org_cascade() refuses it too; this is the earlier of two deliberate layers.
+    throw new Error(`purgeOrg: refusing to purge sentinel/decoy/platform org ${orgId}`)
   }
 
   const supabase = await createServiceClient()

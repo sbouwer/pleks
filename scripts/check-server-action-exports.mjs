@@ -31,12 +31,48 @@ function* walk(dir) {
   }
 }
 
+/**
+ * Is this module a server-action module?
+ *
+ * The directive must be the FIRST statement — that is what makes the module one, per Next.js, and it
+ * is also what keeps this mention-safe: prose, a comment, or a nested function's own directive is
+ * not a module directive. Anchored and quote-bearing since it was written; the fixture below records
+ * that property rather than establishing it, which is the honest reason this one needed no fix.
+ */
+export function isServerActionModule(src) {
+  return /^\s*(?:\/\*[\s\S]*?\*\/\s*)?["']use server["']/.test(src)
+}
+
+function selftest() {
+  const cases = [
+    ["KNOWN-GOOD: the directive as the first statement is a server-action module", '"use server"\nexport async function f() {}', true],
+    ["…and after a leading block comment, which is where this repo's headers live", '/**\n * a header\n */\n"use server"\nexport async function f() {}', true],
+    ["single quotes count too", "'use server'\nexport async function f() {}", true],
+    // R6 mention-fixture — see scripts/check-mention-fixtures.mjs.
+    ["mention-fixture: prose naming the directive does not make a module one",
+      '/**\n * Moved the pure function OUT of the "use server" module.\n */\nexport function helper() {}', false],
+    ["mention-fixture: a nested directive is not a module directive",
+      'export function f() {\n  "use server"\n  return 1\n}', false],
+    ["mention-fixture: the phrase unquoted in a comment is not a directive",
+      "// every use server file's exports become RPC endpoints\nexport function g() {}", false],
+  ]
+  let bad = 0
+  for (const [label, src, want] of cases) {
+    const got = isServerActionModule(src)
+    if (got !== want) { bad++; console.log(`  ✗ ${label} — expected ${want}, got ${got}`) }
+    else console.log(`  ✓ ${label}`)
+  }
+  console.log(bad ? `\n✗ ${bad} selftest case(s) failed` : "\n✅ check-server-action-exports selftest green")
+  process.exit(bad ? 1 : 0)
+}
+
+if (process.argv.includes("--selftest")) selftest()
+
 const offenders = []
 
 for (const file of walk(ROOT)) {
   const src = readFileSync(file, "utf8")
-  // The directive must be the first statement for the module to BE a server-action module.
-  if (!/^\s*(?:\/\*[\s\S]*?\*\/\s*)?["']use server["']/.test(src)) continue
+  if (!isServerActionModule(src)) continue
 
   for (const m of src.matchAll(/^export\s+(?!type\b|interface\b|default\s+async\b)(\w+)\s+(\w+)/gm)) {
     const [, keyword, name] = m

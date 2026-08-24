@@ -80,15 +80,28 @@ export function findTags(file, src) {
   return out
 }
 
+/** A test is not an enforcement. See countReaders. */
+export function isTestFile(file) {
+  return /(?:^|\/)__tests__\//.test(file) || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file)
+}
+
 /**
- * Count files that reference `ident` as code, excluding its declaring file.
+ * Count files that reference `ident` as code, excluding its declaring file and any TEST file.
  * `sources` is a Map of file → raw source.
+ *
+ * ⚠ TESTS ARE EXCLUDED ON PURPOSE, and this was found by using the check rather than by designing
+ * it. Wiring the first real reader for HELP_CONTENT_DRAFT (M-077) made this report the new unit
+ * test as a reader alongside the production module — which would have meant a constant read ONLY
+ * by its own test satisfied the gate while enforcing nothing in the product. That is this check's
+ * own failure mode reproduced one layer up: a test asserting an invariant is exactly the kind of
+ * artefact whose existence stands in for the enforcement it names.
  */
 export function countReaders(ident, declaringFile, sources) {
   const word = new RegExp(`\\b${ident}\\b`)
   const readers = []
   for (const [file, raw] of sources) {
     if (file === declaringFile) continue
+    if (isTestFile(file)) continue
     if (!raw.includes(ident)) continue // cheap pre-filter before the expensive blanking
     if (word.test(blankComments(raw))) readers.push(file)
   }
@@ -136,6 +149,35 @@ function selftest() {
   t("KNOWN-GOOD: a longer identifier containing the name is not a reader (word-boundary)", () => {
     const srcs = new Map([["a.ts", "export const FOO = 1"], ["b.ts", "const FOO_BAR = 2"]])
     return countReaders("FOO", "a.ts", srcs).length === 0
+  })
+  t("A TEST IS NOT A READER — a constant read only by its own test enforces nothing in the product", () => {
+    const srcs = new Map([
+      ["lib/a.ts", "export const FOO = 1"],
+      ["lib/__tests__/a.test.ts", "import { FOO } from '../a'\nexpect(FOO).toBe(1)"],
+      ["lib/b.spec.ts", "import { FOO } from './a'"],
+    ])
+    return countReaders("FOO", "lib/a.ts", srcs).length === 0
+  })
+  t("KNOWN-GOOD: a production reader still counts when a test reads it too", () => {
+    const srcs = new Map([
+      ["lib/a.ts", "export const FOO = 1"],
+      ["lib/real.ts", "import { FOO } from './a'\nconst x = FOO"],
+      ["lib/__tests__/a.test.ts", "import { FOO } from '../a'"],
+    ])
+    const r = countReaders("FOO", "lib/a.ts", srcs)
+    return r.length === 1 && r[0] === "lib/real.ts"
+  })
+  // R6 mention-fixture — see scripts/check-mention-fixtures.mjs. This check's whole premise is that
+  // a SENTENCE must never satisfy an invariant (M-082's finding was prose asserting a list was live
+  // while nothing read it), so the mention case is not an edge here — it is the subject. Named as a
+  // fixture so the R6 gate can see it, and probed in the shape that actually occurs: a file
+  // DISCUSSING the constant, in every comment syntax, with no code path to it.
+  t(`${"mention"}-fixture: a constant named only in comments is NOT a reader — line, block and JSDoc alike`, () => {
+    const srcs = new Map([
+      ["lib/a.ts", "export const FOO = 1"],
+      ["lib/prose.ts", "// FOO is the statutory list; see M-082.\n/* FOO used to be read here. */\n/** @see FOO */\nexport const UNRELATED = 2"],
+    ])
+    return countReaders("FOO", "lib/a.ts", srcs).length === 0
   })
 
   let bad = 0

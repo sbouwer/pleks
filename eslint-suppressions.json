@@ -63,11 +63,6 @@
       "count": 1
     }
   },
-  "scripts/check-knip-floor.mjs": {
-    "sonarjs/super-linear-regex": {
-      "count": 1
-    }
-  },
   "scripts/check-marketing-consistency.mjs": {
     "sonarjs/super-linear-regex": {
       "count": 1

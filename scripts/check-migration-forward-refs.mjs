@@ -23,6 +23,15 @@
  *
  * Schema-qualified references (`auth.users`, `storage.objects`) are skipped: those belong to the
  * Supabase platform and exist before migration 001 runs.
+ *
+ * ⚠ COLUMNS ARE OUT OF SCOPE, AND THE THIRD RULE ABOVE IS WHY THAT NEEDS SAYING. It names the
+ * intra-file direction exactly — "the reference must not appear ABOVE the CREATE TABLE" — so this
+ * check reads as covering "a migration may not reference a thing created later", when what it
+ * covers is that sentence with TABLE substituted for thing. On 2026-08-24 a fresh replay died at
+ * statement 250 on `column o.is_platform does not exist`: the read sat ~2400 lines above its own
+ * `ADD COLUMN`, in one file, and this check passed. The column version is not a widening of the
+ * table version — a bare column name is ambiguous where `REFERENCES <table>` is not — so it is
+ * filed as its own build with its narrowings and its noise probes. MECHANISABLE → M-095.
  */
 import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"

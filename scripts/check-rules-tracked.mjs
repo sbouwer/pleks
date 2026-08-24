@@ -68,6 +68,56 @@ const trackedIn = (pathspec) =>
     .filter(Boolean)
     .map((p) => p.replaceAll("\\", "/"))
 
+/**
+ * Does this rule file open with YAML frontmatter declaring `paths:`?
+ *
+ * ⚠ THE OLD FORM WAS `/^---[\s\S]*?\bpaths:/m` OVER THE FIRST 400 BYTES, and it was permissive in
+ * the direction that matters. `^---` under the `m` flag matches a horizontal RULE anywhere in the
+ * prose, and `[\s\S]*?` then reaches forward to any later mention of the token — so a rule file with
+ * NO frontmatter, containing a `---` divider and a sentence about `paths:` frontmatter, passed while
+ * never auto-loading. That is R6 in its worse direction: a mention satisfying a check rather than
+ * tripping one, which produces silence instead of a message.
+ *
+ * Frontmatter is positional by definition: it opens the file, or it is not frontmatter. Anchoring to
+ * byte 0 and reading only as far as the closing fence is what makes the token's location mean
+ * something.
+ */
+export function hasPathsFrontmatter(src) {
+  // Walked line by line rather than matched with a lazy `[\s\S]*?` between two fences: that form
+  // backtracks super-linearly (sonarjs), and walking states the positional rule more plainly anyway.
+  const lines = src.split(/\r?\n/)
+  if (lines[0]?.trim() !== "---") return false
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---") return false // fence closed before any paths: — not declared
+    if (/^[\t ]*paths:/.test(lines[i])) return true
+  }
+  return false // unterminated frontmatter is not frontmatter
+}
+
+function selftest() {
+  const cases = [
+    ["KNOWN-GOOD: real frontmatter declaring paths", '---\npaths:\n  - "lib/**"\n---\n\nRule text.', true],
+    ["frontmatter without paths FIRES", "---\ndescription: a rule\n---\n\nRule text.", false],
+    ["no frontmatter at all FIRES", "# A rule\n\nSome guidance.", false],
+    // R6 mention-fixture — see scripts/check-mention-fixtures.mjs. This is the permissive direction:
+    // the old pattern PASSED this file, so the gap it left was silent rather than noisy.
+    ["mention-fixture: a divider plus prose naming the token does NOT count as frontmatter",
+      "# A rule\n\nSome guidance.\n\n---\n\nEvery rule file carries `paths:` frontmatter and loads on read.", false],
+    ["mention-fixture: prose naming the token before any divider does not count either",
+      "Every rule carries paths: frontmatter.\n\n---\n\nmore text", false],
+  ]
+  let bad = 0
+  for (const [label, src, want] of cases) {
+    const got = hasPathsFrontmatter(src)
+    if (got !== want) { bad++; console.log(`  ✗ ${label} — expected ${want}, got ${got}`) }
+    else console.log(`  ✓ ${label}`)
+  }
+  console.log(bad ? `\n✗ ${bad} selftest case(s) failed` : "\n✅ check-rules-tracked selftest green")
+  process.exit(bad ? 1 : 0)
+}
+
+if (process.argv.includes("--selftest")) selftest()
+
 const untracked = []
 const ghosts = []
 const noPaths = []
@@ -83,8 +133,7 @@ for (const { dir, ext, needsPaths } of DIRS) {
   for (const f of tracked) if (!onDisk.includes(f)) ghosts.push(f)
   if (needsPaths) {
     for (const f of onDisk) {
-      const head = readFileSync(f, "utf8").slice(0, 400)
-      if (!/^---[\s\S]*?\bpaths:/m.test(head)) noPaths.push(f)
+      if (!hasPathsFrontmatter(readFileSync(f, "utf8"))) noPaths.push(f)
     }
   }
 }

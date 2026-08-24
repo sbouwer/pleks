@@ -14,10 +14,11 @@
 
 import { useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
-import { ChevronLeft, Search, ChevronDown, LifeBuoy } from "lucide-react"
+import { ChevronLeft, Search, ChevronDown, LifeBuoy, AlertTriangle } from "lucide-react"
 import {
   entriesForRole, categoriesForRole, HELP_SUPPORT_EMAIL, type HelpRole, type HelpEntry,
 } from "@/lib/help/help-data"
+import { helpDraftNotice } from "@/lib/help/draft-notice"
 
 interface HelpCentreProps {
   role:     HelpRole
@@ -73,8 +74,27 @@ export function HelpCentre({ role, backHref }: Readonly<HelpCentreProps>) {
     ))
   }
 
+  // M-077: until the §7 content-compliance pass signs the corpus off (D-HELP-20), say so. This is
+  // the reader HELP_CONTENT_DRAFT never had — the flag has been true the whole time and every
+  // answer rendered as though verified. Placed above the back link so it is the first thing read,
+  // and it disappears on its own the moment the flag flips.
+  const draft = helpDraftNotice()
+
   return (
      <div className="mx-auto max-w-3xl px-4 pb-16 pt-3">
+      {draft && (
+        <div
+          role="status"
+          className="mt-3 flex gap-3 rounded-lg border border-warning/30 bg-warning-bg p-3.5 text-left"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-semibold">{draft.title}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{draft.body}</p>
+          </div>
+        </div>
+      )}
+
       {/* Role-aware back to the user's home (D-HELP-09). The branded header + theme are now in the
           (help) layout (ADDENDUM_68A B11) — HelpCentre no longer self-rolls its shell. */}
       <Link

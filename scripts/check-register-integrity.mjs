@@ -304,6 +304,22 @@ function selftest() {
   if (p.length !== 2 || p[0].built || !p[1].built) { console.log("  ✗ BUILT is not being read from the heading tail"); bad++ }
   else console.log("  ✓ BUILT is read from the heading tail, per entry")
 
+  // R6 mention-fixture — see scripts/check-mention-fixtures.mjs. Two of the four instances of the
+  // "matched a mention, not the thing" class were THIS parser: `/BUILT/` reading "HALF BUILT" as a
+  // claim, and a heading that merely NAMED an M-number being read as declaring one. The isBuilt
+  // table below covers the first; this covers the second, plus the body-prose case nothing probed.
+  const mentions = parseEntries([
+    "### M-094 — the real entry",
+    "- **Related:** M-070 (same class) · M-082 (the purge path)",
+    "This is the SECOND instance of M-067's class, not the first.",
+    "### The M-067 class, seen from a different symptom",
+  ].join("\n"))
+  if (mentions.length !== 1 || mentions[0].id !== "M-094") {
+    console.log(`  ✗ mention-fixture FAILED: parsed ${mentions.length} entries (${mentions.map((m) => m.id).join(", ")}), expected only M-094`); bad++
+  } else {
+    console.log("  ✓ mention-fixture: an M-number NAMED in body prose or in a heading's title does not declare an entry — only a heading that opens with one does")
+  }
+
   const next = evaluate(parseEntries([H("M-001"), H("M-083")].join("\n"))).notes.join(" ")
   if (!/next free id: M-084/.test(next)) { console.log(`  ✗ next-free-id is wrong: ${next}`); bad++ }
   else console.log("  ✓ the next free id is reported, and a lettered suffix does not inflate it")

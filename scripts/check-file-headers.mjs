@@ -33,6 +33,55 @@ const SKIP_FILES = new Set([
 ])
 const EXTS = new Set([".ts", ".tsx", ".yml", ".yaml"])
 
+/**
+ * Does this source carry an UNFILLED header stub?
+ *
+ * ⚠ THIS WAS `src.includes("FILL:")` UNTIL 2026-08-23 — the token anywhere in the file, in any
+ * context. R6: that reads a MENTION as the thing. A `.ts` file whose comment says "never commit a
+ * FILL: stub" — or any doc quoting CLAUDE.md's own rule — was indistinguishable from a real stub,
+ * and the fix a reader reaches for is to mangle the sentence rather than the check.
+ *
+ * The two forms `inject-file-headers.mjs` actually emits are the discriminator, and there are only
+ * two: the token opens a comment line (`* FILL: fill in relevant fields`), or it follows the header's
+ * em-dash separator (`* path/to/file.ts — FILL: one-line purpose`). Prose naming the token mid-
+ * sentence matches neither. Verified against the generator rather than inferred from a sample.
+ *
+ * Deliberately NOT narrowed further: this errs toward FIRING, because a missed stub ships an
+ * unfilled header while a false positive costs one rejected commit and a visible message.
+ */
+export function hasStub(src) {
+  // Line-scanned with one flat character class — see the same note in check-knip-floor's
+  // countTagsInSource: `\s*(?:…)\s*` backtracks super-linearly and fails sonarjs.
+  for (const line of src.split(/\r?\n/)) {
+    if (/^[\t *#\/]*FILL:/.test(line)) return true
+    if (/—[\t ]*FILL:/.test(line)) return true
+  }
+  return false
+}
+
+function selftest() {
+  const cases = [
+    ["a stub opening a comment line FIRES", " * FILL: fill in relevant fields and delete unused ones:", true],
+    ["a stub after the header em-dash FIRES", " * app/x/page.tsx — FILL: one-line purpose", true],
+    ["a YAML stub FIRES — the # form the generator emits", "# .github/workflows/ci.yml — FILL: one-line purpose", true],
+    ["KNOWN-GOOD: a filled header passes", " * app/x/page.tsx — renders the applicant portal\n * Auth:   gateway()", false],
+    // R6 mention-fixture — see scripts/check-mention-fixtures.mjs.
+    ["mention-fixture: prose QUOTING the rule is not a stub", ' * CLAUDE.md mandates "never commit a FILL: stub", but nothing enforced it.', false],
+    ["mention-fixture: the same in a line comment", "// A FILL: stub would fail this gate.", false],
+    ["mention-fixture: the token inside a string literal is not a header", 'const msg = "replace the FILL: placeholder"', false],
+  ]
+  let bad = 0
+  for (const [label, src, want] of cases) {
+    const got = hasStub(src)
+    if (got !== want) { bad++; console.log(`  ✗ ${label} — expected ${want}, got ${got}`) }
+    else console.log(`  ✓ ${label}`)
+  }
+  console.log(bad ? `\n✗ ${bad} selftest case(s) failed` : "\n✅ check-file-headers selftest green")
+  process.exit(bad ? 1 : 0)
+}
+
+if (process.argv.includes("--selftest")) selftest()
+
 const stubs = []
 function walk(dir) {
   let entries
@@ -45,7 +94,7 @@ function walk(dir) {
       continue
     }
     if (!EXTS.has(extname(abs))) continue
-    if (readFileSync(abs, "utf8").includes("FILL:")) {
+    if (hasStub(readFileSync(abs, "utf8"))) {
       stubs.push(relative(ROOT, abs).replaceAll("\\", "/"))
     }
   }

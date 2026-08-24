@@ -4,13 +4,19 @@
     "never EXEMPT — each names the M-register entry holding the open decision, and each is a live",
     "finding that has simply been made visible instead of left silent. This list only shrinks.",
     "",
-    "WHY THESE THREE ARE BASELINED RATHER THAN FIXED. Every one needs a decision that is not the",
-    "check author's to take: whether the platform org is genuinely excluded everywhere it must be",
-    "(a per-site census first), whether the help content has passed its §7 compliance sign-off, and",
-    "which purge sites should derive their skip-list from the retention array. Shipping the check red",
-    "would have forced three rushed answers; shipping it with this file forces none, and makes the",
-    "FOURTH instance fail on arrival — which is the whole value, since all three of these went",
-    "unnoticed for months precisely because nothing ever asked the question out loud.",
+    "WHY THESE ARE BASELINED RATHER THAN FIXED. Each needs a decision that was not the check",
+    "author's to take. Shipping the check red would have forced rushed answers; shipping it with",
+    "this file forces none, and makes the NEXT instance fail on arrival — which is the whole value,",
+    "since every one of these went unnoticed for months precisely because nothing ever asked the",
+    "question out loud. (This paragraph said 'THESE THREE' until 2026-08-23; HELP_CONTENT_DRAFT",
+    "gained a real reader and left, and the count in the prose did not follow it out. A hardcoded",
+    "number describing the contents of the file it sits in is the same defect class as M-082.)",
+    "",
+    "⚠ A CHECK IS NOT A CALLER. Both remaining entries have since acquired a MECHANISM that reads",
+    "them (see each reason), and neither is thereby healed: the ratchet asks whether the declared",
+    "invariant governs the system's BEHAVIOUR, and a gate asserting two artefacts agree does not",
+    "make either one load-bearing at runtime. Do not close an entry by widening 'read' to include",
+    "the checks — that weakens the ratchet to retire the findings that motivated it.",
     "",
     "TO REMOVE AN ENTRY: wire a real reader. The check then FAILS until the line is deleted from here,",
     "which is the ratchet — a baseline that silently tolerated a healed entry would drift back to",
@@ -21,17 +27,12 @@
     "excludePlatformOrg": {
       "file": "lib/comms/platform-org.ts",
       "register": "M-067",
-      "reason": "A stated MUST ('every for-each-org query MUST exclude the platform org') with zero call sites. Either every org-iterating query is already safe for a reason the comment does not give, or the platform org is silently included in fan-outs meant to exclude it. M-067 requires the per-site census BEFORE any rule, because a rule with no measured population is how a check's first number becomes a finding."
-    },
-    "HELP_CONTENT_DRAFT": {
-      "file": "lib/help/help-data.ts",
-      "register": "M-077",
-      "reason": "A sign-off gate nothing reads. The flag is true, meaning the help content has NOT passed the §7 content-compliance pass (D-HELP-20), and /help renders it to users regardless because no code consults it. Cheapest of the three to resolve — M-077 notes it has no prior decision blocking it, only Stean's sign-off or a visible draft banner."
+      "reason": "A stated MUST ('every for-each-org query MUST exclude the platform org') with zero call sites. The census ran 2026-08-23 and the answer was NOT 'already safe': the platform org (0 members, 44 days old against a 60-day threshold) was returned live by find_dormant_org_candidates(now()) and was on a scheduled path to being purged. Fixed — but in SQL (is_platform = false in both dormancy RPCs, a RAISE in purge_org_cascade) plus a TS guard in purgeOrg, because the defect was in a SECURITY DEFINER function that this TypeScript helper cannot reach. So the hole is closed and THIS EXPORT IS STILL UNREAD, which makes it more misleading than before, not less: a reader now finds a stated MUST, no callers, and a protected system, and would reasonably conclude the helper is what protects it. M-067 stays open for the general rule and for that."
     },
     "RETENTION_PROTECTED_TABLES": {
       "file": "lib/subscriptions/retention.ts",
       "register": "M-082",
-      "reason": "A PPRA/POPIA statutory retention list with no importer, which two artefacts asserted was live in the present tense (the module header, now corrected, and 010_platform_features.sql:1690, not). The real mechanism is at the purge sites — every pg_cron retention purge and erasure path deriving its skip-list from this array by import — which is M-082 sketch half (b) and a larger build than this check."
+      "reason": "A PPRA/POPIA statutory retention list with no importer, which THREE artefacts asserted was live in the present tense — the array's own comment, the module's file header, and 010_platform_features.sql — all three now corrected. M-082's stated fix ('purge sites derive the skip-list from this array by import') is NOT BUILDABLE: purge_org_cascade is a SQL SECURITY DEFINER function and cannot import a TypeScript array. What shipped 2026-08-23 instead is scripts/check-retention-skiplist.mts, which asserts this array equals BOTH copies of the same list inside that function. The entry stays because a check is not a caller — the purge does not derive its behaviour from these six strings, it is merely forbidden to disagree with them."
     }
   }
 }
