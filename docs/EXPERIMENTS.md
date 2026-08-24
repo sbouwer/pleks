@@ -1191,14 +1191,39 @@ disbelieved by someone who was not there.
 
 ### Design
 
-**Baseline commit: `fbbc59f4`** (`main`, immediately after PR #264 merged). **27 runs: three tasks ×
+**Baseline commit: `1c9b6bbd`** (`main`, immediately after PR #265 merged). **27 runs: three tasks ×
 three arms × three replicates** (settled 2026-08-23 — see the decisions section), **each in a fresh
 worktree cut explicitly from that SHA and discarded after.**
 
-⚠ **The worktree must be pinned to `fbbc59f4` explicitly. E10 established that `isolation: "worktree"`
+⚠ **The worktree must be pinned to `1c9b6bbd` explicitly. E10 established that `isolation: "worktree"`
 bases the tree on `origin/main` rather than the session's HEAD** — that is harmless here only because
 the baseline IS `main`, and it is the reason this experiment was sequenced after the merge rather
 than before it. Pin it anyway; do not rely on the default agreeing.
+
+**⚠ RE-BASELINED 2026-08-24, BEFORE ANY ARM RAN, from `fbbc59f4` to `1c9b6bbd` — recorded here rather
+than silently swapped, because a pre-registration whose parameters move without a note is not one.**
+The original pin was `fbbc59f4` (`main` immediately after PR #264), and its stated rationale was that
+the baseline **is** `main`, so E10's `origin/main` default would agree rather than diverge. PR #265
+merged on 2026-08-24 and that stopped being true: `main` moved to `1c9b6bbd`, the explicit pin became
+load-bearing instead of belt-and-braces, and a single worktree created without it would silently have
+got a different tree from the other 26.
+
+Two reasons for moving rather than holding, and the second is the one that decides it:
+- The doc's own rationale for `fbbc59f4` — baseline equals `main` — now points at `1c9b6bbd`. Holding
+  the old SHA would keep the letter of the pre-registration while discarding the reason for it.
+- **Task 1 (M-093) is a build PLUS a migration on platform email retry, and PR #265 moved
+  `010_platform_features.sql`** (the `is_platform` declaration was hoisted ~2400 lines to sit above
+  its first reader). Work built at `fbbc59f4` would have to be rebased across that change to be
+  usable, and this design's stated reason for choosing real register tasks is that the surviving
+  arm's output is usable.
+
+**Why this does not compromise the pre-registration.** The property pre-registration protects is that
+parameters were fixed *before the results were seen*. **No arm has run.** Nothing here is being
+adjusted in light of an outcome, because there is no outcome. The tasks, arms, metrics, rubric,
+blinding procedure and replicate count are all untouched — and all three tasks (M-093, M-022,
+M-064) are still open at `1c9b6bbd`, verified against `docs/MECHANISABLE.md` at that SHA rather than
+assumed. **What would compromise it is re-baselining once a run exists**; if a tree has been cut,
+this pin is frozen and a rerun starts a new experiment with a new id.
 
 Same three tasks in every arm, so arm-vs-arm is a like-for-like comparison and nothing is confounded
 by task difficulty. The cost of that choice is stated: 27 task-runs for three tasks' worth of
@@ -1337,6 +1362,14 @@ Per task, decided now:
 4. **Baseline/allowlist discipline** — entries carry reasons; nothing widened to make the gate green.
 5. **Register hygiene** — is the entry closed honestly, including what the build does NOT cover?
 6. **Adversarial survival** — `walker` run identically against all 27 outputs; count surviving findings.
+   ⚠ **Each walker report is written to its own numbered path — `<task>/<replicate>/walker.md` — and
+   never appended to a shared artefact.** This is **M-076** landing on the one criterion that spans
+   all 27 runs: the register entry's finding is that the practice had drifted to appending walker
+   output in place, which across 27 runs would leave 26 of them overwritten and the 27th reading as
+   the whole result. The run outputs are already path-separated by the blinding procedure below; the
+   *reports* need the same treatment and do not get it for free. Stated as protocol because M-076's
+   sequential-numbering half is unbuilt — nothing will fail if this is skipped, which is precisely
+   why it is written down.
 
 Criteria 1, 2, 3 and 6 are countable by someone who was not present. Criteria 4 and 5 are judgement,
 and are marked as such in the results table rather than blended into a single score.
@@ -1483,7 +1516,30 @@ unmeasured for tasks 2 and 3 by construction, and the finding must say so.
 
 ### Next action
 
-The 27 runs. Per run: fresh worktree pinned to `fbbc59f4`, `--probe` re-run first, the arm's slice
+The 27 runs. Per run: fresh worktree pinned to `1c9b6bbd`, `--probe` re-run first, the arm's slice
 bounded by `--since`/`--until`, `--expect-subagents=false` on arm A so its empty result is quiet and
-the delegating arms stay loud, `--json` captured verbatim as the record, and `/usage` sampled for the
-window per M-21. Arm order randomised within each task; the order recorded per row.
+the delegating arms stay loud, `--json` captured verbatim as the record, `walker` written to
+`<task>/<replicate>/walker.md` per criterion 6, and `/usage` sampled for the window per M-21. Arm
+order randomised within each task; the order recorded per row.
+
+⚠ **A fresh worktree has no `node_modules`, and the install is NOT part of the arm.** Verified
+2026-08-24 by cutting one at `1c9b6bbd`: `git worktree add` copies the tracked tree only, so
+`npm run check` — criterion 1, run identically in every tree — cannot execute until dependencies are
+installed. Two consequences, both protocol rather than build:
+- **`npm ci` runs BEFORE the arm's clock starts**, and its duration is excluded from both wall-clock
+  and active time. An install counted into the run would add several minutes of identical cost to all
+  27 rows, compressing every between-arm difference toward zero — noise that flatters nothing in
+  particular but blunts the whole comparison.
+- **The transcript directory does not exist until a session has run in that worktree.** The same
+  verification showed `--probe` correctly refusing to guess and naming the four candidate dirs rather
+  than falling back to one. So the per-run `--probe` in this list means *probe the harness in the
+  main checkout against a session with known `Agent` calls*, before the batch — not inside a
+  worktree that has no transcripts yet. Metrics for an arm are read AFTER it completes, from the
+  worktree's own cwd-derived slug.
+
+⚠ **The pin is `1c9b6bbd`, not `fbbc59f4`** — see the re-baselining note in Design. This line said
+`fbbc59f4` until 2026-08-24 and is called out rather than quietly corrected, because a baseline that
+disagrees with itself between a doc's header and its run instructions is the failure this repo has
+already paid for once: a status corrected in one place and left standing in four others reads as
+reviewed. Both places now say `1c9b6bbd`, and `grep fbbc59f4` over this file should return only the
+re-baselining note's own history.
