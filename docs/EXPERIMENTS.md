@@ -1178,7 +1178,13 @@ pass over `compactMetadata.preTokens` and needs no session in a particular state
 
 ---
 
-## E16 · What do the three delegation modes actually cost, and is the work worth it? — **PRE-REGISTERED 2026-08-23, NOT YET RUN**
+## E16 · What do the three delegation modes actually cost, and is the work worth it? — **HALF-ANSWERED, TASK 2 ONLY: the workflow did 2.2× the work for 2.0× the spend, at a LOWER price per unit of work. Whether that work was worth doing is UNMEASURED**
+
+⚠ **E16 is task 2's nine runs and nothing else.** It was pre-registered as 27 runs (3 tasks × 3 arms
+× 3 replicates); tasks 1 and 3 were **substituted after six runs and conditioned on task 2's result**,
+so they carry their own id and their own pre-registration — **E17**, at the end of this file. The
+split exists to make a pooled headline unwriteable: under one id somebody eventually writes "E16
+found X across 27 runs", and that sentence spans a design change without saying so.
 
 **Question.** For the same task, how do (A) the main session working alone, (B) the original
 agent-handover protocol, and (C) the current agent workflow compare on **wall-clock, tokens, and
@@ -1191,9 +1197,16 @@ disbelieved by someone who was not there.
 
 ### Design
 
-**Baseline commit: `1c9b6bbd`** (`main`, immediately after PR #265 merged). **27 runs: three tasks ×
-three arms × three replicates** (settled 2026-08-23 — see the decisions section), **each in a fresh
-worktree cut explicitly from that SHA and discarded after.**
+**Baseline commit: `1c9b6bbd`** (`main`, immediately after PR #265 merged). Pre-registered as **27
+runs: three tasks × three arms × three replicates** (settled 2026-08-23 — see the decisions section),
+**each in a fresh worktree cut explicitly from that SHA and discarded after.**
+
+⚠ **E16 as REPORTED is the nine runs of task 2 (M-022).** Task 2 ran first as a pilot; on its
+sixth run, tasks 1 and 3 were **substituted** — M-093 → **M-061**, M-064 → **M-087** — chosen because
+delegation should pay on them, which is a choice conditioned on what task 2 had already shown. Those
+eighteen runs are **E17**, at the end of this file, with their own pre-registration saying so. The
+paragraphs below are the design as pre-registered on 2026-08-23 and are left standing as the record
+of what was fixed in advance; where a later section contradicts one, the later section is the state.
 
 ⚠ **The worktree must be pinned to `1c9b6bbd` explicitly. E10 established that `isolation: "worktree"`
 bases the tree on `origin/main` rather than the session's HEAD** — that is harmless here only because
@@ -1222,7 +1235,9 @@ parameters were fixed *before the results were seen*. **No arm has run.** Nothin
 adjusted in light of an outcome, because there is no outcome. The tasks, arms, metrics, rubric,
 blinding procedure and replicate count are all untouched — and all three tasks (M-093, M-022,
 M-064) are still open at `1c9b6bbd`, verified against `docs/MECHANISABLE.md` at that SHA rather than
-assumed. **What would compromise it is re-baselining once a run exists**; if a tree has been cut,
+assumed. *(As at 2026-08-24 this paragraph describes the 2026-08-23 pre-registration only: M-093 and
+M-064 were later replaced, after runs existed — which is exactly the compromise its last sentence
+names, and precisely why the replacements are E17 and not E16.)* **What would compromise it is re-baselining once a run exists**; if a tree has been cut,
 this pin is frozen and a rerun starts a new experiment with a new id.
 
 Same three tasks in every arm, so arm-vs-arm is a like-for-like comparison and nothing is confounded
@@ -1239,9 +1254,19 @@ paraphrased, because a paraphrase is where a strawman gets in.
 
 | Arm | What it is | Definition source |
 |---|---|---|
-| **A · solo** | Main session only. No `Agent` call for the whole run. Expect zero subagent transcripts — the one arm where finding none is correct. | n/a |
-| **B · stock subagents** | Delegation exactly as documented: subagents defined by `name` + `description` frontmatter, Claude deciding when to delegate from the description, results returning as a summary. No handoff-contract artefacts, no `.claude/handoff/` directory, no pipeline stages. | `code.claude.com/docs/en/sub-agents` |
+| **A · solo** | Main session only, **enforced** — launched with `--disallowed-tools Agent Task`, both spellings. Expect zero subagent transcripts: the one arm where finding none is correct. | n/a |
+| **B · delegation reachable, no workflow** | A plain brief. Delegation is available and entirely Claude's call, decided from the agents' own `description` frontmatter, results returning as a summary. **No pipeline instruction** — B is never told to `/build`, and nothing directs it to the handoff contract. | `code.claude.com/docs/en/sub-agents` |
 | **C · this repo's workflow** | The five tuned agents (`grounder`/`census`/`db-inspector`/`implementer`/`walker`), the handoff contract (`scripts/check-handoff-contract.mjs`), the write-scope hook, and the `/build`→`/walk`→`/wrap` sequence. | `.claude/agents/*.md`, `4-AGENT-PIPELINES.md` §9 |
+
+⚠ **B was NOT stripped down to stock agents, and the row above said it had been until 2026-08-24.**
+The original wording promised "no handoff-contract artefacts, no `.claude/handoff/` directory, no
+pipeline stages" — a *suppression* that was never implemented. What actually ran is stronger for the
+comparison and weaker as a claim about stock Claude Code: **B and C are bit-identical in tree and tool
+configuration and differ ONLY in the prompt.** This repo's twelve agents are advertised to B exactly
+as they are to C. So B is not "Claude Code out of the box" — it is *this repo, without the workflow*,
+which is the contrast actually of interest, but it means B choosing `grounder` would be a legitimate
+free choice rather than a suppression failure. Corrected here rather than quietly rewritten, because
+a reader who took the old row at face value would read a B result as evidence about stock behaviour.
 
 The documented behaviour arm B is being held to, verbatim from that page:
 
@@ -1319,7 +1344,7 @@ and would be the single easiest place for this experiment to lie to itself.
 | weighted cost units | same multipliers `.claude/hooks/context-budget.js` already applies |
 | turn count · tool calls by type | transcript line counts |
 | subagent count · **max spawn depth** · spend by agent type | `agent-*.meta.json` sidecars |
-| reconciliation shortfall | depth-1 sidecars vs `Agent` tool calls in the main transcript |
+| reconciliation shortfall | depth-1 sidecars vs `Agent`/`Task` tool calls in the main transcript |
 
 **Why active time as well as wall-clock.** Wall-clock over a session that sat overnight measures when
 the human went to bed. Active time is the closest honest proxy for how long the work took, and it is
@@ -1502,7 +1527,7 @@ counting a different thing.
 
 That turns a stated imprecision into two assertions the harness now makes:
 
-- **Reconciliation.** Depth-1 sidecars are matched against `Agent` calls. *Fewer* transcripts than
+- **Reconciliation.** Depth-1 sidecars are matched against `Agent`/`Task` calls. *Fewer* transcripts than
   calls is a FINDING and exits non-zero — that is spend which really happened and was not found, and
   it is the direction that flatters a delegating arm. *More* is reported, not failed. A windowed read
   never raises it, because a window legitimately clips the spawning turn out of the main transcript.
@@ -1511,6 +1536,14 @@ That turns a stated imprecision into two assertions the harness now makes:
   were nested. Max depth is reported per arm. This was the review's sharpest point: if arm C's agents
   fan out further than assumed and those transcripts went uncounted, arm C's cost would be understated
   and the experiment would flatter its own method. They are counted, and now they are also labelled.
+
+⚠ **The delegation tool has TWO spellings and the harness must count both.** A `claude -p` session
+names it `Task`; an orchestrating session names the same tool `Agent`. Counting only `Agent` reported
+**zero delegations for a session that had delegated** — silent, and in the direction that makes a
+delegating arm look solo. Fixed before the E16 batch (`transcript-metrics.mjs`, and `live.sh` in the
+run harness); the two labels above said `Agent` alone until 2026-08-24 and are corrected rather than
+left, because a label that names one half of what a control checks is how the next reader concludes
+the other half is unchecked.
 
 Spend by agent type for that session, which is the shape arm C is expected to produce:
 `census×12 17.32M · implementer×5 13.00M · grounder×14 7.20M · walker×4 6.12M`. Note that `census`
@@ -1604,3 +1637,257 @@ disagrees with itself between a doc's header and its run instructions is the fai
 already paid for once: a status corrected in one place and left standing in four others reads as
 reviewed. Both places now say `1c9b6bbd`, and `grep fbbc59f4` over this file should return only the
 re-baselining note's own history.
+
+### RESULT — task 2 (M-022), nine runs, 2026-08-24
+
+Every figure below is read by `transcript-metrics.mjs` from the transcripts, or is the CLI's own
+`result.total_cost_usd`. **Nothing here is a number an arm reported about itself.** Reconciliation is
+clean in all nine rows: depth-1 sidecars equal `Agent`/`Task` calls, max depth 1.
+
+| run | arm | wall | main active | sub active | main turns | cacheWrite | cacheRead | output | **weighted** | **cost** | deleg |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| r1 | A | 29.5m | 19.4m | — | 103 | 205k | 14.52M | 77k | 1.79M | $11.24 | 0 |
+| r1 | B | 23.1m | 11.9m | — | 46 | 175k | 6.96M | 57k | 0.97M | $6.64 | **0** |
+| r1 | C | 51.7m | 17.1m | 12.6m | 71 | 181k | 10.58M | 80k | 2.08M | $13.66 | 2 |
+| r2 | A | 24.7m | 13.5m | — | 68 | 167k | 9.41M | 63k | 1.21M | $7.96 | 0 |
+| r2 | B | 19.2m | 9.6m | — | 47 | 156k | 6.32M | 57k | 0.88M | $6.14 | **0** |
+| r2 | C | 46.5m | 19.1m | 10.9m | 85 | 233k | 15.05M | 116k | 2.45M | $16.32 | 2 |
+| r3 | A | 22.1m | 11.5m | — | 51 | 159k | 7.00M | 64k | 0.96M | $6.70 | 0 |
+| r3 | B | 17.4m | 9.4m | — | 49 | 144k | 6.13M | 53k | 0.85M | $5.84 | **0** |
+| r3 | C | 42.2m | 17.7m | 11.6m | 84 | 215k | 13.32M | 97k | 2.49M | $15.75 | 2 |
+
+⚠ **`result.usage` is NOT a session total and must not be used** — on r1/C it reports 5.50M cache-read
+against the harness's 10.58M for the main session alone. `total_cost_usd` from the same event **is**
+trustworthy and **does include subagent spend**: verified rather than assumed, twice. On r2 the cost
+ratio C÷A is 2.05× against a main+subagent weighted ratio of 2.02× (main-only would give 1.58×); and
+on r1, C's main-only weighted total (1.36M) is *lower* than A's (1.79M) while C costs more — which is
+impossible if the figure were main-only.
+
+### The negative control, and why it comes before the numbers
+
+**Arms A and B behaved identically** — solo, zero delegations, three replicates each. So *any* measure
+on which A and B separate is a measure that cannot be trusted to separate C, because it is separating
+two arms that did the same thing. **A-vs-B is this experiment's negative control**, and it is free: it
+was already in the design, nobody had to build it, and it went unread for the first eight runs.
+
+With three runs per arm, complete separation of two arms is exactly one of the C(6,3)=20 label
+assignments — **one-sided exact permutation p = 0.05**. That is the *same* strength as C-vs-A. So
+"every C run cost more than every A run" cannot be evidence for the workflow's premium while "every A
+run cost more than every B run" is dismissed as noise. It is one property of the design, and the
+control prices it.
+
+**Raw dollar cost FAILS the control.** A separates from B on cost (A [6.70, 11.24] vs B [5.84, 6.64]),
+so the C-vs-A cost separation carries no more weight than a separation between two arms known to be
+doing the same work. **Cost is therefore not the metric to lead with, and an earlier draft of this
+section led with it** — stated here rather than quietly swapped, because leading with the one measure
+that fails its own control is the error, not the phrasing.
+
+### Medians with full ranges — never a mean
+
+Per the pre-registration: *median and full range per cell, never a mean, never a single number without
+its spread.* This matters here rather than being ceremony — arm A is skewed by r1/A, and a mean pulls A
+up, which **shrinks C's apparent premium by 12%** (C÷A reads 1.77× on means against 1.98× on medians).
+The banned statistic understated the effect being tested; it would have been the ninth defect running
+in the direction that flatters the hypothesis, and the first in the write-up rather than the harness.
+
+| measure | A | B | C | C÷A | C÷B | C vs A | C vs B | **A vs B — CONTROL** |
+|---|---|---|---|---|---|---|---|---|
+| **$ per min of work** | 0.58 [0.58, 0.59] | 0.62 [0.56, 0.64] | **0.54** [0.46, 0.54] | **0.92×** | **0.87×** | separates | separates | **overlaps ✓** |
+| **model-min of work** | 13.5 [11.5, 19.4] | 9.6 [9.4, 11.9] | 29.7 [29.3, 30.0] | 2.20× | 3.09× | separates | separates | **overlaps ✓** |
+| weighted tokens (M) | 1.21 [0.96, 1.79] | 0.88 [0.85, 0.97] | 2.45 [2.08, 2.49] | 2.02× | 2.78× | separates | separates | overlaps, **by 0.01M** |
+| wall-clock (min) | 24.7 [22.1, 29.5] | 19.2 [17.4, 23.1] | 46.5 [42.2, 51.7] | 1.88× | 2.42× | separates | separates | overlaps ✓ |
+| main active (min) | 13.5 [11.5, 19.4] | 9.6 [9.4, 11.9] | 17.7 [17.1, 19.1] | 1.31× | 1.84× | **overlaps** | separates | overlaps ✓ |
+| cost ($) | 7.96 [6.70, 11.24] | 6.14 [5.84, 6.64] | 15.75 [13.66, 16.32] | 1.98× | 2.57× | separates | separates | **SEPARATES ✗** |
+
+"Separates" = the two arms' full ranges do not overlap, p = 0.05 exact. **Model-minutes of work is
+`main active + subagent active`, and it is a WORK quantity, not a duration** — the rule that subagent
+time never sums into a run's *duration* is intact above, where wall-clock and main-active are reported
+separately and subagent time is its own column in the per-run table. Summing them as work is a
+different quantity, and it is labelled as one.
+
+**Two rows survive the control comfortably and both point the same way.** `$/min-of-work` is the
+cleanest of the set — A's range sits entirely *inside* B's, so the control is not merely passed but
+passed with room, and C separates from both **below** them:
+
+> **C does more work and pays LESS per unit of it.** C's premium is that it does 2.2× the work, not
+> that its work is dearer — per model-minute it is 8% cheaper than A and 13% cheaper than B.
+
+That inverts the naive reading of the cost column, and it is the finding this section exists to carry.
+Whether 2.2× the work was *worth doing* on this task is the quality question below, and the answer
+there is no — but "the workflow burns tokens inefficiently" is not what these numbers say.
+
+⚠ **Weighted tokens passes the control by 0.01M** (A's [0.96, 1.79] against B's [0.85, 0.97]). That is
+a hair, not a margin. It is reported as passing because it passes, and flagged because one more
+replicate could move it either way.
+
+⚠ **Main active does NOT separate C from A** (C [17.1, 19.1] against A [11.5, 19.4]). Any claim about
+C being faster or slower *in main-session work* remains unsupported — as it was when withdrawn earlier.
+
+### The two-measure agreement is calibration, not corroboration
+
+Weighted units and `total_cost_usd` are **two functions of one set of counts** — both derive from
+`message.usage`. They are not independent references, and a defect both inherit would agree with
+itself. This register has already retracted exactly that claim once; it is not being made again.
+
+What the agreement *does* establish is worth keeping, and it is a different claim: **the 1.25× / 0.1×
+multipliers and the summation path reconcile with the vendor's own cost computation.** Dollars per
+weighted-M come out at **A $6.58 [6.28, 6.98] · B $6.87 [6.85, 6.98] · C $6.57 [6.33, 6.66]** — the
+three medians spanning **~4.6%**, and every individual run **~11%**, across arms whose token *shapes*
+differ by design. That is a calibration check on this repo's cost model, and it passes. It says nothing
+about whether C÷A is 1.98×.
+
+### Four findings, in order of how much they constrain the conclusion
+
+**1 · Arm B never delegated — 0 for 3, with all twelve agents advertised.** B and C are bit-identical
+in tree and tool configuration; B simply was not told to run the pipeline. Given a free choice on this
+task, the model declined every time. **So A-vs-B is not delegation-vs-no-delegation** — it is two solo
+arms that differ only in whether the tool was reachable, and the experiment as designed cannot answer
+"does delegation help" from this pair.
+
+**2 · A÷B is therefore a floor on this harness's noise, and it is wider than a single figure suggests.**
+The honest floor is the **per-replicate** spread, not a ratio of medians and not a range across
+measures: on cost **1.15× · 1.30× · 1.69×**, on weighted tokens **1.13× · 1.38× · 1.85×**. An earlier
+draft quoted "1.39–1.47×", which is the gap between *two measures' mean ratios* — a between-measure
+range wearing the label of a noise range, and it reads about a third tighter than the truth. At its top
+end that floor (1.69×) **exceeds r1's entire C÷A cost margin of 1.22×**.
+
+One caveat against calling it pure noise: A exceeded B in **all three** replicates, and A carries nearly
+all the within-arm variance (weighted max÷min: **A 1.87×**, B 1.14×, C 1.20×). Whether
+`--disallowed-tools` itself perturbs behaviour, or A is simply the high-variance arm, is not decidable
+from three points and is **not** claimed either way here.
+
+**3 · Quality is UNSCORED — not tied.** Three of the six criteria were checked, all three came out
+level, and **all three were effectively pre-solved by the brief.** Criteria 4 and 5 need blind scoring
+and have not had it. Criterion 6, adversarial survival, is the one most likely to discriminate and it
+**has not been run as a comparison at all.**
+
+What was checked, and why each is weaker than it looks:
+- **Gate green** (criterion 1) — nine of nine. The brief's own exit condition is "end at `npm run check`
+  green", so this measures whether each arm did as it was told.
+- **Both-direction `--selftest`** (criterion 2) — nine of nine. The brief says "follow this repo's
+  conventions as stated in `CLAUDE.md`", and CLAUDE.md already mandates probing both directions. It
+  measured **compliance**, which was total.
+- **Decoy declined** (criterion 3) — nine of nine. But `docs/MECHANISABLE.md`'s own M-022 entry, which
+  the brief points every arm at, already **names the honeytoken and states the live population is
+  zero**: *"a naive grep for `ON CONFLICT (email)` scores 1/2 — it flags the honeytoken seed."* The
+  arms were handed the trap along with the task.
+
+⚠ **And criterion 2's green is itself refuted where anyone looked.** Arm C's own `walker` on r1 found
+that one of that build's cited probe arms is **vacuous** — `ok(Object.keys(ALLOW).length === 0 || …)`
+short-circuits on an empty `ALLOW`, so it asserts nothing and *"there is no negative direction at
+all"* — alongside **four silent-miss classes** in a detector whose gate was green: unterminated
+literals blanking a file to EOF, `DO LANGUAGE plpgsql $$` bodies read as literals (44 live sites), a
+spaced or commented dot in `auth . users`, and dynamic `EXECUTE format(...)` SQL (5 live sites).
+
+**Running an arm's `--selftest` and seeing it pass cannot detect any of that** — which is this repo's
+own scar restated: *a probe suite confirms the cases you thought of; it cannot report the class you did
+not.* The measurement that found it was an adversarial pass, and **only arm C got one**, because only
+`/walk` spawns `walker`. A and B's outputs have never been walked. So the arms are not level on
+quality; **they are unequally examined**, and the arm examined hardest is the only one with a public
+list of its own defects.
+
+**Scoring criterion 6 fairly needs an independent adversarial pass over all nine outputs, blind to
+arm.** That is unrun work, and until it is run "quality is a tie" is not a finding this experiment
+supports.
+
+**4 · C's overhead is delegation, not more main-session work.** Main-active does not even separate C
+from A (C [17.1, 19.1] against A [11.5, 19.4]) while total work separates cleanly at 2.20× — the
+entire gap lives in the subagents (median 11.6m, **overlapping** the parent's wall clock and never
+summed into its duration) and in the cache-read those fresh contexts drive.
+
+### What this does and does not license
+
+**It licenses:** on a narrow read-and-classify surface, the workflow did **2.2× the work** of a solo
+session (3.1× an unprompted one) for **2.0× the spend** — at a *lower* price per unit of work than
+either solo arm. Both of those clear the negative control. This repo's own doctrine says do not
+delegate such a surface, and arm B — free to choose — agreed with the doctrine three times out of
+three. Arm C delegated twice per run anyway, because **`/build` opens with an unconditional `grounder`
+spawn** (`.claude/commands/build.md`) — its first delegation is never a judgment call. Task 2 is thus
+the one cell in the whole design where mandate and judgment could visibly diverge, and they did.
+
+**It does not license "the workflow is overhead."** Three separate reasons, and the third is the one
+that decides it:
+- Task 2 was chosen as a surface where delegation *should* lose, and it lost. Generalising one
+  deliberately unfavourable cell to the method is the error E17 exists to avoid.
+- The premium is **volume of work, not inefficiency** — C is cheaper per model-minute than either solo
+  arm. "It costs more" and "it wastes" are different claims and only the first is supported.
+- **The benefit side of the ledger was never measured.** Quality is unscored, not tied (finding 3), and
+  the only adversarial pass anyone ran found four silent-miss classes and a vacuous probe arm — in the
+  arm that *had* the pass. A verdict on whether 2.2× the work bought anything requires walking all nine
+  outputs blind, and that has not been done.
+
+**It does not license "the workflow pays for itself" either.** Same missing measurement, other
+direction.
+
+---
+
+## E17 · Does the workflow's cost gap close on tasks where delegation actually pays? — **PRE-REGISTERED 2026-08-24, NOT YET RUN**
+
+⚠ **Task selection was CONDITIONED ON E16's RESULT, and this section is written before any E17 run.**
+That is the whole reason for a separate id. E16's task 2 was a narrow read-and-classify surface where
+this repo's own doctrine says *do not delegate* — so its cost gap measures the price of delegating
+where delegation was not warranted, and generalising it to "the workflow is overhead" would be
+reading one deliberately unfavourable cell as the whole table. E17 asks the complementary question on
+tasks chosen because delegation *should* pay. Choosing the tasks after seeing E16 is a real degree of
+freedom; it is declared here rather than defended later.
+
+**Tasks.** M-061 (census-shaped: a repo-wide classification sweep, `data-boundary`) and M-087 (an
+`ok()` helper — implementer-shaped, and recorded in the brief as *a decision, not a cleanup*). Chosen
+to be different from each other, not only from task 2: they should attract **different agent types**
+for **different reasons**, so a delegation result cannot be an artefact of one agent's shape.
+
+**Same as E16, unchanged:** harness (`transcript-metrics.mjs`, frozen from r2 of task 2 onward, with
+the two exceptions recorded in the run protocol), rubric, baseline `1c9b6bbd`, arm definitions,
+launcher, and the strictly-sequential rule. Arms A/B/C are as E16 defines them — and note that **B
+and C are bit-identical in tree and tool configuration and differ ONLY in the prompt.** B is a plain
+brief with delegation reachable; C is `/build` → `/walk` → `/wrap`.
+
+**One brief-level change, applied to tasks 1 and 3 only and NOT retro-fitted to task 2:** both briefs
+end with *"In the report, state whether you used subagents and why or why not."* That asks the arm to
+**report** a choice, never to make one — a brief that nudged toward delegating would destroy the
+measurement it exists to take.
+
+### Falsifiable prediction, registered BEFORE the runs
+
+Both delegating arms are expected to delegate here — **B by judgment, C by pipeline mandate** (`/build`
+opens with an *unconditional* `grounder` spawn, so C's first delegation is never a judgment call; this
+was verified in `.claude/commands/build.md`, and it makes task 2 the only cell in the design where
+mandate and judgment could visibly diverge). Therefore:
+
+- **COST CONVERGES.** E16's gap is the cost of delegating where it was not warranted; it should shrink
+  where it is.
+- **QUALITY DIVERGES.** Criterion 6 (adversarial findings surviving) is where a structured pipeline
+  should separate from a free-form one, if it separates anywhere.
+
+⚠ **Criterion 2 is retired as a discriminator, on E16's evidence, before E17 runs.** Both briefs say
+"follow this repo's conventions as stated in `CLAUDE.md`" — the same clause task 2 carried — and
+CLAUDE.md already mandates probing both directions. On task 2 it scored 9/9 and measured compliance,
+not quality; it will do the same here. Worse, E16 showed the measurement is not even sound: arm C's
+own `walker` found a **vacuous** probe arm inside a build whose `--selftest` ran green, which running
+a selftest cannot detect. **That drops the mechanically-countable criteria from four to three and puts
+the weight on criterion 6** — which means E17 is only worth running if criterion 6 is actually scored.
+
+**Therefore, registered as a REQUIREMENT of E17, not an optional extra:** an independent adversarial
+pass over every arm's output, **blind to arm**, scored on findings that survive. Without it E17 measures
+cost against an unmeasured benefit, which is the exact hole E16 ended in. Note this cannot be arm C's
+own `walker` output — that is part of C's process, and only C produces it.
+
+Falsification, stated in advance — and stated against **both** solo arms, because C÷B alone is the
+largest of the three ratios and quoting it is how this result would flatter itself:
+
+- **Gap holds AND quality equal** → the workflow is overhead, and E16's task-2 result generalises.
+- **Gap converges AND quality equal** → the workflow is neutral.
+- **B declines to delegate anyway** → that task reverts to *solo-vs-workflow* and is REPORTED AS SUCH,
+  not as delegation-vs-delegation. B delegating on tasks 1 and 3 is a **hypothesis, not a fact**: on
+  task 2, B declined with all twelve agents advertised, in every replicate.
+
+⚠ **The noise floor is A÷B, and it is not small.** A and B behaved identically on task 2 — neither
+delegated, in any replicate — so the spread between them is this harness's floor for a two-arm cost
+comparison, and on r1 it exceeded the C-vs-A margin of the same replicate. Any E17 "convergence" claim
+must clear that floor before it is a finding rather than a reading.
+
+### No pooled headline — pre-registered, not left to the id alone
+
+Three tasks **built to disagree**. How they combine is a free parameter sitting directly on the axis
+of interest, so it is fixed now: **three per-task results reported side by side, no pooled number, and
+any cross-task claim stated qualitatively.**
