@@ -87,6 +87,10 @@ export const REGISTRY = {
     searches: false,
     reason: "Register pointer in its header. It probes the hook with synthetic tool calls; it reads no repo text.",
   },
+  "check-migration-forward-refs.mjs": {
+    searches: false,
+    reason: "Register pointer in its header (M-095). It DOES read file bodies — every migration's SQL — but only for `REFERENCES <table>` and `CREATE TABLE`, a vocabulary with no overlap with the marker tokens. Reading bodies is not the risk; searching for one of THESE tokens is, and it never does.",
+  },
   "prepush-scope.mjs": {
     searches: false,
     reason: "Register pointer in its header. It classifies CHANGED PATHS from a git diff, never file contents.",
