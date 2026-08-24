@@ -1260,6 +1260,34 @@ confound below. And the main session sees **only the summary**, so any quality d
 and C must come from what the delegation prompt asked for and what the report was required to carry,
 not from the main session having watched the work.
 
+**⚠ AMBIGUITY IN ARM B, RESOLVED 2026-08-24 BEFORE ARM B RAN (Stéan's call).** The definition above
+reads two ways, and they measure different things: the repo's five tuned agents **are** `name` +
+`description` frontmatter agents, so "delegation exactly as documented" does not by itself say
+whether they are present.
+
+**Resolved: arm B keeps the same agents and loses the WORKFLOW.** Arm B is a plain prompt with
+delegation allowed and Claude deciding whether to delegate from the descriptions; arm C is the same
+tree invoked through `/build` → `/walk` → `/wrap`. The isolated variable is therefore **the
+workflow**, not the agent definitions.
+
+Why not the other reading: removing `.claude/agents/` from an arm-B tree makes
+`check-rules-tracked.mjs` fail on "a file git tracks that is gone from disk", so all nine arm-B runs
+would have failed **criterion 1** for a reason having nothing to do with the task, and the experiment
+would have reported "stock delegation cannot get the gate green" — manufactured entirely by the
+harness. Exempting that check per-arm would have added a second tree difference to an experiment
+designed to have one variable.
+
+**The probe that forced this, and why it is recorded rather than quietly worked around:** the plan was
+to suppress the tuned agents at invocation with the CLI's agent-definition flag. Probed both
+directions in the arm-B worktree at `1c9b6bbd` — the control listed `census, crawler-doctrine,
+db-inspector, grounder, implementer, walker` alongside the stock set, and the flag **changed nothing**:
+it merges, it does not replace. An arm B configured that way would have been arm C under a different
+label, producing a "workflow makes no difference" result that no reader could have detected from the
+output. **Consequence for scoring:** arm B may legitimately choose not to delegate at all, and zero
+subagents is then a real finding about the default rather than a harness failure — the reconciliation
+finding only fires when `Agent` calls happened and their transcripts are missing, so it stays quiet
+here correctly.
+
 ⚠ **Arm B is not "arm C minus the good parts".** It is the documented default with the repo's
 customisations removed — which means arm B still gets `CLAUDE.md` (the docs are explicit that "every
 level of the CLAUDE.md hierarchy the main conversation loads" is in a subagent's initial context, and
