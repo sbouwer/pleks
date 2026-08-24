@@ -127,6 +127,27 @@ export function aggregate(records, { since = null, until = null, activeGapMs = A
   let firstTs = null
   let lastTs = null
   const stamps = []
+  // ⚠ ONE API RESPONSE CAN OCCUPY SEVERAL TRANSCRIPT LINES, EACH REPEATING THE SAME `usage` OBJECT.
+  // A response containing text + thinking + three tool_use blocks is written as multiple records
+  // sharing one `message.id`, and every one of them carries the FULL usage for that response. Summing
+  // per line therefore bills a response once per content block.
+  //
+  // Measured 2026-08-24 on E16 arm A (session f2781cac, task 2 r1): 170 assistant lines with usage,
+  // 103 distinct ids. Per-line 22,374,437 cache-read; per-id 14,520,451 — and the per-id figure
+  // matches the CLI's own `result` event EXACTLY, which is the independent reference this file did
+  // not previously have.
+  //
+  // WHY IT COULD NOT BE ABSORBED AS "uniform inflation": the factor is lines÷ids, a BEHAVIOURAL
+  // property. An arm emitting more tool calls per response inflates more than one that does not, so
+  // it biases arm-vs-arm comparison along exactly the axis E16 measures.
+  //
+  // ⚠ AND IT INVALIDATES THIS FILE'S OWN CORROBORATION CLAIM. `docs/EXPERIMENTS.md` cited this script
+  // agreeing with `.claude/hooks/context-budget.js` to three significant figures as "the closest
+  // thing available to a calibration". If both summed per line they agreed BECAUSE THEY SHARED THIS
+  // DEFECT — the same trap `check-migration-forward-refs.mjs`'s header names: a defect two artefacts
+  // inherited together agrees with itself. Independent verification needs an independent reference
+  // point, and the CLI's `result` event is one; `context-budget.js` was never one.
+  const billed = new Set()
 
   for (const r of records) {
     const ts = r.timestamp
@@ -139,7 +160,12 @@ export function aggregate(records, { since = null, until = null, activeGapMs = A
     }
 
     const u = r.message?.usage
-    if (u) {
+    // A record with usage but NO id cannot be deduplicated and is counted — erring toward
+    // over-counting rather than silently dropping spend, because a missing id is an unknown shape
+    // and dropping it would understate cost in whichever arm happens to produce it.
+    const id = r.message?.id
+    if (u && (!id || !billed.has(id))) {
+      if (id) billed.add(id)
       turns++
       tokens.input += u.input_tokens || 0
       tokens.cacheWrite += u.cache_creation_input_tokens || 0
@@ -264,6 +290,33 @@ function selftest() {
   t("counts a turn only for a record carrying usage, not every line", () => {
     const a = aggregate([rec("2026-01-01T00:00:00Z", U(1, 0, 0, 1)), { timestamp: "2026-01-01T00:00:01Z", type: "user" }])
     return a.turns === 1
+  })
+  // ── the per-message-id defect, both directions (found on E16 arm A, 2026-08-24) ──────────────
+  t("ONE RESPONSE SPLIT ACROSS LINES IS BILLED ONCE — the defect that inflated arm A by 54%", () => {
+    // A response with text + thinking + a tool_use is three records sharing one id, each repeating
+    // the SAME usage. Per-line summing charged it three times.
+    const u = U(0, 0, 100, 10)
+    const a = aggregate([
+      { timestamp: "2026-01-01T00:00:00Z", message: { id: "msg_1", usage: u } },
+      { timestamp: "2026-01-01T00:00:01Z", message: { id: "msg_1", usage: u } },
+      { timestamp: "2026-01-01T00:00:02Z", message: { id: "msg_1", usage: u } },
+    ])
+    return a.tokens.cacheRead === 100 && a.tokens.output === 10 && a.turns === 1
+  })
+  t("KNOWN-GOOD: DISTINCT ids still sum — the dedup must not swallow real separate responses", () => {
+    const a = aggregate([
+      { timestamp: "2026-01-01T00:00:00Z", message: { id: "msg_1", usage: U(0, 0, 100, 10) } },
+      { timestamp: "2026-01-01T00:00:01Z", message: { id: "msg_2", usage: U(0, 0, 100, 10) } },
+    ])
+    return a.tokens.cacheRead === 200 && a.turns === 2
+  })
+  t("a usage record with NO id is counted — err toward over-counting, never silent loss", () => {
+    // An unknown shape must not vanish: dropping it would understate whichever arm produces it.
+    const a = aggregate([
+      { timestamp: "2026-01-01T00:00:00Z", message: { usage: U(0, 0, 50, 5) } },
+      { timestamp: "2026-01-01T00:00:01Z", message: { usage: U(0, 0, 50, 5) } },
+    ])
+    return a.tokens.cacheRead === 100 && a.turns === 2
   })
   t("weighting matches context-budget.js: cache read 0.1, cache write 1.25", () => {
     return weightedUnits({ input: 100, cacheWrite: 100, cacheRead: 100, output: 100 }) === 100 + 125 + 10 + 100

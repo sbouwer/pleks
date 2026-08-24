@@ -1422,10 +1422,43 @@ main-transcript-only harness would have reported that session as costing ~153M i
 would have understated any delegating arm by roughly that fraction. (The session was still running
 when measured, so those totals grew as it went; the ratio is the durable part, not the absolutes.)
 
-**Independently corroborated.** `.claude/hooks/context-budget.js` computes agent spend by its own
-route and reported "36 invocations, ~43.9M billable-equivalent" for the same session. Two
+**⚠ RETRACTED 2026-08-24 — THE "CORROBORATION" WAS TWO COPIES OF ONE DEFECT AGREEING.** This
+paragraph read: *"Independently corroborated. `.claude/hooks/context-budget.js` computes agent spend
+by its own route and reported '36 invocations, ~43.9M billable-equivalent' for the same session. Two
 implementations, written for different purposes, agreeing to three significant figures — which is
-worth more than either number alone, and is the closest thing available to a calibration.
+worth more than either number alone, and is the closest thing available to a calibration."*
+
+It is not a calibration. **Both scripts summed `message.usage` per transcript LINE**, and one API
+response occupies several lines — text, thinking, and one per `tool_use` block — each repeating the
+same `usage` object. Both therefore billed a response once per content block, and they agreed
+because they shared the defect. This is precisely the trap `check-migration-forward-refs.mjs`'s own
+header names: *"a defect both artefacts inherited together agrees with itself. Independent
+verification needs an independent reference point."* Agreement between two instruments is evidence
+only when they are independent, and these two were not — they were written by the same hand from the
+same wrong model of the transcript format.
+
+**Found by an actual independent reference, which existed the whole time and was not used:** the
+CLI's own `result` event. On E16 arm A (task 2, r1, session `f2781cac`, 2026-08-24) the transcript
+held **170 assistant lines with usage but only 103 distinct `message.id`s**. Per-line: 22,374,437
+cache-read. Per-id: 14,520,451 — matching the `result` event exactly, to the token.
+
+**Why this could not be waved through as uniform inflation.** The factor is `lines ÷ ids`, which is
+behavioural: an arm emitting more tool calls per response inflates more than one that does not. It
+biases arm-vs-arm comparison along the exact axis this experiment measures.
+
+`scripts/transcript-metrics.mjs` was corrected the same day to bill once per `message.id`, with
+probes in all three directions (split response billed once; distinct ids still summed; a usage
+record with no id counted rather than dropped, erring toward over-counting rather than silent loss).
+**`.claude/hooks/context-budget.js` is NOT fixed** — its incremental-offset reader needs the seen-set
+persisted across reads, which is a build rather than a line. Filed as **M-096**. Until it lands,
+every figure that hook has printed — including the per-turn context cost in this repo's own session
+banners — is inflated by that factor.
+
+**What survives of the numbers above.** The 43.90M and ~197M absolutes are wrong and are left
+standing above only so this retraction has something to point at. The **22.3% ratio is probably
+approximately right** — main and subagent transcripts inflate by similar factors, so the quotient
+largely cancels — but it is now an unverified estimate rather than a measurement, and the argument
+for summing subagent files does not depend on its precision.
 
 **What the same run says about weighting.** main + subagents: 1,410M cache-read against 7.16M
 output. Counting output tokens — the intuitive proxy — would have measured about half a percent of
