@@ -278,6 +278,35 @@ export function reconcile(subs, mainToolCalls, { windowed = false } = {}) {
   }
 }
 
+export const VALUE_FLAGS = new Set(["--since", "--until", "--project-dir", "--label", "--expect-subagents", "--active-gap"])
+export const BOOL_FLAGS = new Set(["--selftest", "--probe", "--json"])
+
+/**
+ * Read a flag's value, accepting BOTH `--name value` and `--name=value`.
+ *
+ * ⚠ THIS READ ONLY THE SPACE-SEPARATED FORM, AND THE FAILURE WAS SILENT. `--expect-subagents=false`
+ * matched nothing, fell through to the `?? "true"` default, and the run proceeded with the OPPOSITE
+ * setting to the one asked for. The harmless direction is a solo arm printing a spurious warning.
+ * The dangerous one is `--expect-subagents=true` on a delegating arm: the operator believes the
+ * missing-sidecar assertion is armed and it is not — a control that reads as present while doing
+ * nothing, the same class as the `Task`/`Agent` spelling defect noted above.
+ */
+export function parseFlag(args, name) {
+  const eq = args.find((a) => a.startsWith(`${name}=`))
+  if (eq !== undefined) return eq.slice(name.length + 1)
+  const i = args.indexOf(name)
+  return i === -1 ? null : args[i + 1] ?? null
+}
+
+/** Every `--token` not in the known sets. Silently ignoring these is what hid the bug above. */
+export function unknownFlags(args) {
+  return args.filter((a) => {
+    if (!a.startsWith("--")) return false
+    const bare = a.includes("=") ? a.slice(0, a.indexOf("=")) : a
+    return !VALUE_FLAGS.has(bare) && !BOOL_FLAGS.has(bare)
+  })
+}
+
 function durationMs(a, b) {
   if (!a || !b) return null
   return new Date(b).getTime() - new Date(a).getTime()
@@ -449,6 +478,30 @@ function selftest() {
   t("BOTH spellings sum — a session exposing each would be under-counted by picking one", () => {
     return reconcile([sub(1)], { Agent: 2, Task: 2 }).finding === 3
   })
+  t("THE SILENT DEFECT: `--expect-subagents=false` must parse, not fall through to the default", () => {
+    return parseFlag(["--expect-subagents=false"], "--expect-subagents") === "false"
+  })
+  t("KNOWN-GOOD: the space-separated spelling still parses", () => {
+    return parseFlag(["--expect-subagents", "false"], "--expect-subagents") === "false"
+  })
+  t("an absent flag reads null, so the caller's ?? default applies", () => {
+    return parseFlag(["--json"], "--expect-subagents") === null
+  })
+  t("`--name=` with an empty value yields \"\", NOT null — an explicit empty is not an absent flag", () => {
+    return parseFlag(["--label="], "--label") === ""
+  })
+  t("a value containing `=` survives — only the FIRST separator splits", () => {
+    return parseFlag(["--project-dir=C:/x=y/z"], "--project-dir") === "C:/x=y/z"
+  })
+  t("A TYPO IS FATAL, NOT IGNORED — the thing that made the defect above invisible", () => {
+    return unknownFlags(["--expect-subagent=false"]).length === 1
+  })
+  t("KNOWN-GOOD: every real flag, in both spellings, is accepted", () => {
+    return unknownFlags(["--json", "--expect-subagents=false", "--since", "x", "--project-dir=/p"]).length === 0
+  })
+  t("KNOWN-GOOD: a positional argument is not mistaken for an unknown flag", () => {
+    return unknownFlags(["abc123-session-id", "--json"]).length === 0
+  })
   t("KNOWN-GOOD: an unrelated tool is NOT counted as delegation", () => {
     return reconcile([sub(1)], { Bash: 99, Read: 40 }).finding === 0
   })
@@ -561,8 +614,16 @@ function probe(projectDir) {
 
 // ── argv ──────────────────────────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2)
-const VALUE_FLAGS = new Set(["--since", "--until", "--project-dir", "--label", "--expect-subagents", "--active-gap"])
-const flag = (name) => { const i = args.indexOf(name); return i === -1 ? null : args[i + 1] ?? null }
+const flag = (name) => parseFlag(args, name)
+
+// An unrecognised flag is FATAL, not ignored. Silently dropping one is exactly what hid the
+// `--expect-subagents=` defect documented on parseFlag: the run looked configured and was not.
+const unknown = unknownFlags(args)
+if (unknown.length) {
+  console.error(`✗ unknown flag: ${unknown.join(" ")}`)
+  console.error(`   known: ${[...VALUE_FLAGS, ...BOOL_FLAGS].sort().join(" ")}`)
+  process.exit(1)
+}
 // Positional = any bare token whose PRECEDING token is not a value-taking flag. The previous
 // version located that predecessor with args.indexOf(a), which returns the FIRST index of the
 // value — so a positional equal to an earlier string was misjudged. find()'s index parameter is
