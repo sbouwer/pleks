@@ -1441,6 +1441,23 @@ ALTER TABLE organisations
   ADD COLUMN IF NOT EXISTS dormancy_warning_sent_at timestamptz,
   ADD COLUMN IF NOT EXISTS dormancy_final_sent_at   timestamptz;
 
+-- organisations.is_platform — DECLARED HERE, USED IMMEDIATELY BELOW.
+--
+-- ⚠ THIS COLUMN IS HOISTED, AND THE HOIST IS THE POINT. The full narrative for the Pleks system org
+-- lives with its seed further down this file; only the column declaration moved up. The M-067 fix
+-- (2026-08-23) added `o.is_platform = false` to the two dormancy RPCs below and an is_platform read
+-- to purge_org_cascade, while the column was still declared ~2400 lines LATER — so the migrations
+-- could still patch an existing database and could no longer BUILD one. A fresh 001→012 replay died
+-- at statement 250 with `column o.is_platform does not exist` (SQLSTATE 42703), caught by CI's
+-- db-tests job, not locally: `npm run check` never replays migrations.
+--
+-- check-migration-forward-refs.mjs did not see it. That check reads `REFERENCES <table>` and knows
+-- nothing about COLUMNS — the same failure class it was built for, one aperture short.
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS is_platform boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN organisations.is_platform IS
+  'True for the single Pleks system org that owns platform-level email (no members, no subscription, zero privilege). Every all-org iterator must filter it out: .eq("is_platform", false).';
+
 -- Â§X.4  BUILD_57G dormancy: RPC helpers that join into auth.users
 --        The JS client cannot reach auth schema directly; SECURITY DEFINER
 --        runs with the definer's privileges. Locked to service_role only.
@@ -3912,10 +3929,12 @@ COMMENT ON COLUMN applications.dti_ratio_at_decision IS
 -- subscription-less org and treat it as a dormant agency. Prefer the is_platform flag over comparing the
 -- UUID: a flag is greppable and enforceable, a scattered magic UUID rots.
 
-ALTER TABLE organisations ADD COLUMN IF NOT EXISTS is_platform boolean NOT NULL DEFAULT false;
-
-COMMENT ON COLUMN organisations.is_platform IS
-  'True for the single Pleks system org that owns platform-level email (no members, no subscription, zero privilege). Every all-org iterator must filter it out: .eq("is_platform", false).';
+-- The `is_platform` column and its COMMENT are DECLARED EARLIER in this file, beside the §X.4
+-- dormancy RPCs — the first statements that read it. They sat here until 2026-08-24, ~2400 lines
+-- below their own first use, which made a fresh replay abort at statement 250. Do not move them
+-- back: a column must be declared above every statement that reads it, and in this file the
+-- dormancy RPCs come first. Everything below still belongs here, because it concerns the system
+-- ORG rather than the column.
 
 -- Widen the org type CHECK for the system org. This REDEFINES the constraint §49 created — the bottom
 -- definition wins on replay and is what is live (the amend-forward pattern).
