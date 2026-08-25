@@ -2012,3 +2012,122 @@ BEFORE bundling, since re-shuffling afterwards invalidates the blind labels); an
 prompt must be captured per run**, which is owed anyway now that an unread system prompt has voided an
 arm once. Until criterion 6 runs, this register may state what the workflow *costs* and must not state
 what it *buys*.
+
+### The blind was built, then MEASURED — 2026-08-25. Three harness leaks, and what remains
+
+The corpus exists: 12 bundles per task (A · B · C-post · C-pre × 3 replicates), deterministic shuffle,
+key written outside the corpus, `.handoff/**` excluded, each bundle carrying `CHANGES.diff` against
+`1c9b6bbd` so the reviewer scores the CHANGE and not the baseline.
+
+**Balanced tell counts were not a measured blind, and the direct probe is what found that.** The
+build reported residual tells at A 9 · B 8 · C-post 8 · C-pre 7 and read the evenness as evidence the
+blind held. It is not: that measures the blind's INPUTS. The probe — hand a session one bundle, ask it
+to name which of four conditions produced it — measures the blind. It found three leaks in a row, and
+every one of them was the harness handing over the answer:
+
+1. **mtimes.** `fs.copyFileSync` PRESERVES modification time and `diff -ruN` writes each file's mtime
+   into its own `---`/`+++` header lines, so every bundle shipped a second-resolution record of when
+   its session wrote each file. A probe named the arm from it in as many words: *"mtimes run strictly
+   sequential 19:13→19:29 across all 17 files — one continuous worker"*. Fixed by freezing every
+   copied and shadow file to one instant BEFORE the diff runs, and stripping the header timestamps as
+   an independent second guard.
+2. **Corpus nested under the key.** Bundles sat at `review/<task>/<label>`, two directories below
+   `<task>-KEY.tsv` and three below `wt/`, `out/`, `PROTOCOL.md` and `run-arm.sh`. One probe quoted its
+   own key row back verbatim, all six fields. Fixed by moving the corpus outside the experiment tree.
+3. **The answer key on standard input.** `blind-probe.sh` looped `done < "$KEY"`, which makes the key
+   the loop's fd 0 — and `claude -p` reads stdin as ADDITIONAL PROMPT TEXT. Several probes cited a
+   *"Manifest row in the prompt"*. Bash re-seeks between iterations on a regular-file redirect, so the
+   loop still completed all twelve and nothing looked wrong. Fixed by reading the key into an array
+   and closing stdin on the call.
+
+**The first two full-power runs scored 10/10 and 24/24 against a 25% chance line. Neither measured the
+arms.** The decisive argument needed no diagnosis: **arms A and B are the negative control — zero
+delegations each, six cells each — so no property of their output can separate them, yet the probe
+separated them perfectly.** A result that beats what the data can possibly contain is a harness result.
+Recorded as `LESSONS` L-55: an implausibly STRONG result impeaches the instrument exactly as an
+implausibly weak one does, and the tell is the extremity itself, before any diagnosis.
+
+**Confinement is now audited rather than assumed** (`escape-audit.mjs`). Path auditing alone would not
+have caught leak 3, which opened no file — so the load-bearing check is channel-independent: any trial
+whose own words contain key vocabulary is flagged and discarded.
+
+#### The clean run — 24 trials, both harness channels closed
+
+| contrast | score | expected | p | reading |
+|---|---|---|---|---|
+| C-family vs solo | **24/24** | 12 | 6.0e-8 | **decisive leak — the ONLY row carrying its own evidence** |
+| C-post vs C-pre | 9/12 | 6 | 0.073 | **unproven — NOT a pass** |
+| A vs B (within solo) | 10/12 | 6 | 0.019 | **noise — settled below on evidence, not on p** |
+| 4-way exact | 19/24 | 6 | 4.0e-8 | **NOT independent — arithmetically forced by the rows above** |
+
+⚠ **ONE decisive leak, two unmeasured contrasts, and a fourth row that is not evidence at all.** Four
+contrasts were tested on one dataset with no correction; at Bonferroni the threshold is 0.0125, which
+neither marginal row clears. And 9/12 must not be read as a pass: at n=12 a two-way contrast fails at
+10/12, so 9/12 is ONE TRIAL BELOW the failure line, and p=0.073 means a perfect blind produces this or
+worse 7% of the time. Calling that "holds" is the four-trial error committed at a larger n — the same
+mistake this harness already made once and wrote a header about.
+
+⚠ **THE 4-WAY ROW IS ARITHMETICALLY FORCED AND MUST NOT BE QUOTED AS A HEADLINE.** When the family
+call is right 24 times out of 24, a four-way answer is correct exactly when the within-family answer
+is — so 10 + 9 = 19 could not have come out otherwise. It corroborates nothing. **The 4.0e-8 belongs
+to the 24/24 row and nowhere else**, and "the blind leaks four ways" overstates a result that is one
+decisive binary carrying two unmeasured ones. Reporting the composite as though it were independent
+evidence is how a single measurement gets counted twice.
+
+**A-vs-B is settled as NOISE — on positive evidence, not on an underpowered p-value.** All twelve solo
+evidence lines reason from ABSENCE: *"no subagent trace"*, *"no reviewer"*, *"no `.claude/handoff/`
+artefacts"*, *"one continuous narrative"*. Every one of those argues for SOLO, which is what both 1
+and 2 are. **An evidence line that argues for a category cannot discriminate within it** — so the probe
+committed to a digit and then wrote a justification for the class, and 10/12 is a coin flip wearing a
+rationale.
+
+**General form, and it makes the evidence lines conditionally readable rather than worthless: an
+evidence line is diagnostic ONLY where its contrast is above chance.** At 24/24 the lines name real
+channels and can be mined for what leaks. At 10/12 they are post-hoc, and **nothing in the line itself
+distinguishes the two cases — only the contrast does.** Read them in that order, never the reverse.
+
+**The residual leak is intrinsic, not harness.** C's deliverables narrate their own production —
+`docs/MECHANISABLE.md` entries reading *"found 2026-08-25 by the walker on the M-061 diff"* and
+*"raised by the `walker` agent"*. No bundling change reaches that without editing the artefact under
+review. The non-docs hits in the tells file are NOT this: they are baseline vocabulary every arm
+inherited (`// org-scope guard (caller-ID census)`, an AST `walker`), which is why raw per-path tell
+counts overstate the spread.
+
+#### Consequence for criterion 6, and the two runs that decide the scope
+
+**C vs A/B cannot be run blind by this method.** That is the comparison criterion 6 was designed
+around, so the scope decision is not cosmetic. Two measurements were launched before choosing, because
+both are cheap and each replaces an assumption with a number:
+
+**1 · Stability repeat, FIRST — the twelve C bundles, two further independent passes.** The contrast
+criterion 6 depends on is C-post vs C-pre, and it is the one still unmeasured. If the SAME bundles
+miss on every pass, a real channel exists and the evidence lines name it; if the misses move, the
+contrast is noise at n=12 and simply has not been measured. No new cells, and it decides the scope
+question by measurement rather than by a p-value four contrasts have already spent. **The solo bundles
+are deliberately NOT re-probed** — A-vs-B is settled above on the evidence lines, and spending trials
+there would buy nothing.
+
+**2 · Code-only variant, only if step 1 leaves anything to decide** (`bundle.mjs --code-only`,
+`docs/**` and root `*.md` excluded). Its premise was checked directly against the corpus rather than
+assumed, and it is **weaker than the raw tell counts suggested in both directions**:
+
+| string | bundles carrying it | verdict |
+|---|---|---|
+| `the walker` | A, B, C-post, C-pre alike | **baseline vocabulary** (an AST walker) — not a tell at all |
+| `the walk caught` · `M-061 diff` | C-post and C-pre only | real C-FAMILY tell, and shared by both C variants |
+| `closed-list version shipped` | exactly one bundle, C-post | real C-POST tell — **and it lives in a test file, not in `docs/`** |
+
+So excluding `docs/**` **narrows the C-vs-solo channel without closing it**, while leaving the
+C-post-only narration that sits in code — which is backwards relative to which contrast is needed.
+⚠ **And if adopted it bites C-pre/C-post specifically:** part of what a walk contributes IS writing
+down what it found, so excluding docs narrows *"did the walk improve the deliverable"* to *"did the
+walk change the code"*. Narrower, arguably sharper, and it must be stated in the write-up rather than
+discovered in review.
+
+**The decision rule, fixed before the result arrives:** if C-post-vs-C-pre proves stable AND leaking,
+then criterion 6 **cannot be run blind by this method at all** — not on the wide comparison and not on
+the narrow one — and the honest report is that the quality question stays unanswered rather than
+answered unblinded. If it proves noise, the C-pre/C-post comparison stands as criterion 6's scope and
+the code-only variant becomes a bonus that might restore the wider one.
+
+Until that reports, criterion 6's scope is undecided and no quality claim is licensed.
