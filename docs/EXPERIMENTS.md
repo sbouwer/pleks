@@ -436,8 +436,10 @@ the failure is quiet: everything builds, everything typechecks, nothing looks wr
 
 ### ⚠ CONSEQUENCE, AND IT IS NOT SMALL
 
-`CLAUDE.md` §7 tells you to spawn the implementer with `isolation: "worktree"`, and that is the
-documented default for the mechanical-transform lever. **On any feature branch, that agent is
+As at the time of this experiment, `CLAUDE.md` §7 **told** you to spawn the implementer with
+`isolation: "worktree"`, and that was the documented default for the mechanical-transform lever.
+(Corrected to the opposite instruction in `fd818c0c`; `.claude/commands/build.md` was NOT swept at
+the same time and went on instructing the refuted form until `2026-08-25` — see the sweep note below.) **On any feature branch, that agent is
 working on a different tree from the one you are.** Three ways it goes wrong, all of them silent:
 
 1. **Its `npm run check` green is worthless to you.** It was measured on a tree that does not exist
